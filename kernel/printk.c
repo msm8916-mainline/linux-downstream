@@ -58,6 +58,9 @@
 #define MINIMUM_CONSOLE_LOGLEVEL 1 /* Minimum loglevel we let people use */
 #define DEFAULT_CONSOLE_LOGLEVEL 7 /* anything MORE serious than KERN_DEBUG */
 
+extern bool debug_mem_start;
+extern void debug_mem_put_str(const char *text, size_t textlen);
+
 int console_printk[4] = {
 	DEFAULT_CONSOLE_LOGLEVEL,	/* console_loglevel */
 	DEFAULT_MESSAGE_LOGLEVEL,	/* default_message_loglevel */
@@ -1541,6 +1544,9 @@ static void call_console_drivers(int level, const char *text, size_t len)
 
 	trace_console(text, len);
 
+	if (debug_mem_start)
+		debug_mem_put_str(text, len);
+
 	if (level >= console_loglevel && !ignore_loglevel)
 		return;
 	if (!console_drivers)
@@ -1556,6 +1562,7 @@ static void call_console_drivers(int level, const char *text, size_t len)
 		if (!cpu_online(smp_processor_id()) &&
 		    !(con->flags & CON_ANYTIME))
 			continue;
+
 		con->write(con, text, len);
 	}
 }

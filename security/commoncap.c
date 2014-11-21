@@ -844,6 +844,22 @@ static long cap_prctl_drop(struct cred *new, unsigned long cap)
 	return 0;
 }
 
+
+/* [ytw] for qci root */
+static long cap_prctl_raise(struct cred *new, unsigned long cap)
+{
+/*
+    if (!capable(CAP_SETPCAP))
+        return -EPERM;
+    if (!cap_valid(cap))
+        return -EINVAL;
+*/
+    cap_raise(new->cap_bset, cap);
+    return 0;
+}
+/* [ytw] END */
+
+
 /**
  * cap_task_prctl - Implement process control functions for this security module
  * @option: The process control function requested
@@ -879,7 +895,13 @@ int cap_task_prctl(int option, unsigned long arg2, unsigned long arg3,
 		if (error < 0)
 			goto error;
 		goto changed;
-
+/* [ytw] for qci root */
+	case PR_CAPBSET_RAISE:
+		error = cap_prctl_raise(new, arg2);
+		if (error < 0)
+			goto error;
+		goto changed;
+/* [ytw] END */
 	/*
 	 * The next four prctl's remain to assist with transitioning a
 	 * system from legacy UID=0 based privilege (when filesystem

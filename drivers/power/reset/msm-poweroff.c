@@ -58,8 +58,11 @@ static bool dload_mode_enabled;
 static void *emergency_dload_mode_addr;
 static bool scm_dload_supported;
 
+//Evan
+bool dload_mode = false;
+
 static int dload_set(const char *val, struct kernel_param *kp);
-static int download_mode = 1;
+static int download_mode = 0; //disable entering download mode if panic occurs
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
 static int panic_prep_restart(struct notifier_block *this,
@@ -76,6 +79,15 @@ static struct notifier_block panic_blk = {
 static void set_dload_mode(int on)
 {
 	int ret;
+//QCIRIL:Mark flag first for debuging.
+#if 0
+	if(!dload_mode && on)
+	{
+		//Evan dont enter dload mode if dload_mode
+		return;
+	}
+#endif	
+
 
 	if (dload_mode_addr) {
 		__raw_writel(on ? 0xE47B337D : 0, dload_mode_addr);
@@ -94,10 +106,11 @@ static void set_dload_mode(int on)
 	dload_mode_enabled = on;
 }
 
-static bool get_dload_mode(void)
-{
-	return dload_mode_enabled;
-}
+// Disabled by BINGO for DEBUG RAM
+//static bool get_dload_mode(void)
+//{
+//	return dload_mode_enabled;
+//}
 
 static void enable_emergency_dload_mode(void)
 {
@@ -190,16 +203,21 @@ static void msm_restart_prepare(const char *cmd)
 	 * Kill download mode if master-kill switch is set
 	 */
 
-	set_dload_mode(download_mode &&
-			(in_panic || restart_mode == RESTART_DLOAD));
+	set_dload_mode((dload_mode || download_mode)
+			 && (in_panic || restart_mode == RESTART_DLOAD));
 #endif
 
+// Modified by BINGO for DEBUG RAM
+#if 0
 	/* Hard reset the PMIC unless memory contents must be maintained. */
 	if (get_dload_mode() || (cmd != NULL && cmd[0] != '\0'))
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
 	else
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
-
+#else
+	// Added by BINGO
+        qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
+#endif
 	if (cmd != NULL) {
 		if (!strncmp(cmd, "bootloader", 10)) {
 			__raw_writel(0x77665500, restart_reason);

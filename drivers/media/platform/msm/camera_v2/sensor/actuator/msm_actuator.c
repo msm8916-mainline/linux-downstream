@@ -710,6 +710,7 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 	struct msm_actuator_cfg_data *cdata =
 		(struct msm_actuator_cfg_data *)argp;
 	int32_t rc = 0;
+			uint16_t read_bytes=0;
 	mutex_lock(a_ctrl->actuator_mutex);
 	CDBG("Enter\n");
 	CDBG("%s type %d\n", __func__, cdata->cfgtype);
@@ -755,7 +756,33 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 		if (rc < 0)
 			pr_err("actuator_set_position failed %d\n", rc);
 		break;
-
+	case CFG_ACTUATOR_MOVE_TO_ZERO:	
+	pr_err("+++ CFG_ACTUATOR_MOVE_TO_ZERO\n");
+	
+		if (!a_ctrl)
+			pr_err("Failed CFG_ACTUATOR_MOVE_TO_ZERO \n");
+		else
+		{
+			rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_read(&a_ctrl->i2c_client,0x0,&read_bytes,MSM_ACTUATOR_WORD_DATA);
+			if(rc<0)
+			{
+				pr_err("+++CFG_ACTUATOR_MOVE_TO_ZERO i2c_read fail\n");
+			}
+			else
+			{
+				pr_err("DAC=%d\n",((read_bytes&0x3FF0)>>4));
+				rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write(&a_ctrl->i2c_client,0x06,(0x40|(read_bytes & 0xF)),MSM_CAMERA_I2C_BYTE_DATA);
+				
+				if(rc<0)
+					pr_err("+++CFG_ACTUATOR_MOVE_TO_ZERO i2c_write fail\n");
+					
+				rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_read(&a_ctrl->i2c_client,0x0,&read_bytes,MSM_ACTUATOR_WORD_DATA);	
+				pr_err("final DAC=%d\n",((read_bytes&0x3FF0)>>4));
+			}
+			rc=0;
+		}
+		
+		break;
 	case CFG_ACTUATOR_POWERUP:
 		rc = msm_actuator_power_up(a_ctrl);
 		if (rc < 0)

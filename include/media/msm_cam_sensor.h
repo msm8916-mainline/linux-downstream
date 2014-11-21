@@ -501,6 +501,7 @@ enum msm_sensor_cfg_type_t {
 	CFG_SET_AUTOFOCUS,
 	CFG_CANCEL_AUTOFOCUS,
 	CFG_SET_STREAM_TYPE,
+	CFG_SET_BRIGHTNESS,
 };
 
 enum msm_actuator_cfg_type_t {
@@ -511,6 +512,7 @@ enum msm_actuator_cfg_type_t {
 	CFG_SET_POSITION,
 	CFG_ACTUATOR_POWERDOWN,
 	CFG_ACTUATOR_POWERUP,
+	CFG_ACTUATOR_MOVE_TO_ZERO,
 	CFG_ACTUATOR_INIT,
 };
 

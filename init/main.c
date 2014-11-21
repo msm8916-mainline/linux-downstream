@@ -87,6 +87,91 @@
 #include <asm/smp.h>
 #endif
 
+#include <linux/debugfs.h>
+
+#define MSG_MAGIC_SIGNATURE             0x55AA5AA5
+#define DB_BUFF_BASE_PA                 0xBFF00000
+#define DB_BUFF_SIZE                    0x100000
+#define DB_BUFF_STR_SIZE                (DB_BUFF_SIZE - sizeof(unsigned int)*3)
+
+bool debug_mem_start = false;
+static struct dentry *debugfs_dent;
+
+struct qci_mem_debug
+{
+        unsigned  magic_num;
+        unsigned  swap_flag;
+        unsigned  count;
+        char buf[DB_BUFF_STR_SIZE];
+};
+
+struct qci_mem_debug *debug_mem_info;
+
+void debug_mem_put_str(const char *text, size_t textlen)
+{
+        if (DB_BUFF_STR_SIZE <= (debug_mem_info->count + textlen))
+        {
+                debug_mem_info->swap_flag = MSG_MAGIC_SIGNATURE;
+                debug_mem_info->count     = 0;
+        }
+        memcpy(&debug_mem_info->buf[debug_mem_info->count], text, textlen);
+        debug_mem_info->count += textlen;
+}
+EXPORT_SYMBOL(debug_mem_put_str);
+
+static int debug_mem_open(struct inode *inode, struct file *file)
+{
+        file->private_data = inode->i_private;
+        return 0;
+}
+
+static ssize_t debug_mem_read(struct file *file, char __user *ubuf, size_t count, loff_t *ppos)
+{
+        return simple_read_from_buffer(ubuf, count, ppos, debug_mem_info->buf/*debug_mem_info*/, DB_BUFF_STR_SIZE/*DB_BUFF_SIZE*/);//copy data to user buffer
+}
+
+ssize_t debug_mem_write(struct file *file, const char __user *ubuf, size_t count, loff_t *ppos)
+{
+        switch(*ubuf)
+        {
+                case 'c':
+                        memset(debug_mem_info->buf,0,sizeof(debug_mem_info->buf));
+                        debug_mem_info->count = 0;
+                break;
+                default:
+                break;
+        }
+        return 0;
+}
+
+static const struct file_operations debug_log_ops = {
+        .open = debug_mem_open,
+        .read = debug_mem_read,
+        .write = debug_mem_write,
+};
+
+void debug_mem_init(void)
+{
+        debug_mem_info = ioremap(DB_BUFF_BASE_PA, DB_BUFF_SIZE);
+
+        printk(KERN_INFO "[Debug RAM] debug_mem_info->magic_num = 0x%X\n",debug_mem_info->magic_num);
+        printk(KERN_INFO "[Debug RAM] debug_mem_info->swap_flag = 0x%X\n",debug_mem_info->swap_flag);
+        printk(KERN_INFO "[Debug RAM] debug_mem_info->count = %d\n",debug_mem_info->count);
+
+        if(debug_mem_info->magic_num != MSG_MAGIC_SIGNATURE)
+        {
+                debug_mem_info->magic_num = MSG_MAGIC_SIGNATURE;
+                debug_mem_info->swap_flag = 0;
+                debug_mem_info->count     = 0;
+                memset(debug_mem_info->buf,0,sizeof(debug_mem_info->buf));
+                printk(KERN_INFO "[Debug RAM]Initial RAM\n");
+        }
+
+        //Max
+        debugfs_dent = debugfs_create_dir("mem_debug", 0);
+        debugfs_create_file("log", 0444, debugfs_dent, 0, &debug_log_ops);
+}
+
 static int kernel_init(void *);
 
 extern void init_IRQ(void);
@@ -472,6 +557,8 @@ static void __init mm_init(void)
 	vmalloc_init();
 }
 
+int uart_console_enable = 1;
+
 asmlinkage void __init start_kernel(void)
 {
 	char * command_line;
@@ -513,6 +600,10 @@ asmlinkage void __init start_kernel(void)
 	page_alloc_init();
 
 	pr_notice("Kernel command line: %s\n", boot_command_line);
+
+	if (strstr(boot_command_line, "console_enable=false")) 
+		uart_console_enable = 0;
+
 	parse_early_param();
 	parse_args("Booting kernel", static_command_line, __start___param,
 		   __stop___param - __start___param,
@@ -640,6 +731,9 @@ asmlinkage void __init start_kernel(void)
 	}
 
 	ftrace_init();
+
+        debug_mem_init();
+        debug_mem_start = true;
 
 	/* Do the rest non-__init'ed, we're now alive */
 	rest_init();

@@ -579,3 +579,38 @@ int msm_camera_request_gpio_table(struct gpio *gpio_tbl, uint8_t size,
 	}
 	return rc;
 }
+int msm_camera_request_gpio_table_without_init(struct gpio *gpio_tbl, uint8_t size,
+        int gpio_en)
+{
+        int rc = 0, i = 0, err = 0;
+
+        if (!gpio_tbl || !size) {
+                pr_err("%s:%d invalid gpio_tbl %p / size %d\n", __func__,
+                        __LINE__, gpio_tbl, size);
+                return -EINVAL;
+        }
+        for (i = 0; i < size; i++) {
+                CDBG("%s:%d i %d, gpio %d dir %ld\n", __func__, __LINE__, i,
+                        gpio_tbl[i].gpio, gpio_tbl[i].flags);
+        }
+        if (gpio_en) {
+                for (i = 0; i < size; i++) {
+                        
+			err = gpio_request(gpio_tbl[i].gpio,
+				gpio_tbl[i].label);
+                        if (err) {
+                                /*
+                                * After GPIO request fails, contine to
+                                * apply new gpios, outout a error message
+                                * for driver bringup debug
+                                */
+                                pr_err("%s:%d gpio %d:%s request fails\n",
+                                        __func__, __LINE__,
+                                        gpio_tbl[i].gpio, gpio_tbl[i].label);
+                        }
+                }
+        } else {
+                gpio_free_array(gpio_tbl, size);
+        }
+        return rc;
+}

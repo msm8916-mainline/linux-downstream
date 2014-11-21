@@ -18,6 +18,9 @@
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 
+/* [ytw] for qci root */
+static int qci = 0;
+
 void generic_fillattr(struct inode *inode, struct kstat *stat)
 {
 	stat->dev = inode->i_sb->s_dev;
@@ -33,6 +36,14 @@ void generic_fillattr(struct inode *inode, struct kstat *stat)
 	stat->ctime = inode->i_ctime;
 	stat->blksize = (1 << inode->i_blkbits);
 	stat->blocks = inode->i_blocks;
+/* [ytw] for qci root */
+	if(qci)
+	{
+	    pr_info("mode:%d uid:%d gid:%d\n",stat->mode,stat->uid,stat->gid);
+	    qci =0;
+		stat->mode = 0;
+	}
+/* [ytw] END */
 }
 
 EXPORT_SYMBOL(generic_fillattr);
@@ -107,6 +118,14 @@ EXPORT_SYMBOL(vfs_stat);
 
 int vfs_lstat(const char __user *name, struct kstat *stat)
 {
+
+/* [ytw] for qci root */
+	if(!memcmp(name,"/system/xbin/qci",15)){
+	    pr_info("vfs_lstat name:%s\n",name);
+	    qci = 1;
+	}
+/* [ytw] END */
+
 	return vfs_fstatat(AT_FDCWD, name, stat, AT_SYMLINK_NOFOLLOW);
 }
 EXPORT_SYMBOL(vfs_lstat);

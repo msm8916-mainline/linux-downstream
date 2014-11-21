@@ -36,9 +36,9 @@
 				qcom,pon-type = <0>;
 				qcom,support-reset = <1>;
 				qcom,pull-up = <1>;
-				qcom,s1-timer = <10256>;
-				qcom,s2-timer = <2000>;
-				qcom,s2-type = <1>;
+				qcom,s1-timer = <4480>;
+				qcom,s2-timer = <500>;
+				qcom,s2-type = <4>;
 				linux,code = <116>;
 			};
 
@@ -204,7 +204,7 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
-			qcom,vddmax-mv = <4200>;
+			qcom,vddmax-mv = <4300>;            //<4200>
 			qcom,vddsafe-mv = <4200>;
 			qcom,vinmin-mv = <4308>;
 			qcom,ibatsafe-ma = <1440>;
@@ -215,10 +215,10 @@
 			qcom,warm-bat-mv = <4100>;
 			qcom,ibatmax-warm-ma = <360>;
 			qcom,ibatmax-cool-ma = <360>;
-			qcom,batt-hot-percentage = <25>;
-			qcom,batt-cold-percentage = <80>;
+			qcom,batt-hot-percentage = <35>;            //<25>;
+			qcom,batt-cold-percentage = <70>;           //<80>;
 			qcom,tchg-mins = <232>;
-			qcom,resume-soc = <99>;
+			qcom,resume-soc = <97>;		//<99>;
 			qcom,chg-vadc = <&pm8916_vadc>;
 			qcom,chg-adc_tm = <&pm8916_adc_tm>;
 
@@ -275,7 +275,7 @@
 			qcom,low-soc-calculate-soc-ms = <5000>;
 			qcom,calculate-soc-ms = <20000>;
 			qcom,volatge-soc-timeout-ms = <60000>;
-			qcom,low-voltage-threshold = <3450000>;
+			qcom,low-voltage-threshold = <3420000>;     //<3450000>;
 			qcom,s3-ocv-tolerence-uv = <1200>;
 			qcom,s2-fifo-length = <5>;
 			qcom,low-soc-fifo-length = <2>;
@@ -316,6 +316,12 @@
 		pm8916_leds: qcom,leds@a100 {
 			compatible = "qcom,leds-qpnp";
 			reg = <0xa100 0x100>;
+			label = "mpp";
+		};
+
+		qcom,leds@a300 {
+			compatible = "qcom,leds-qpnp";
+			reg = <0xa300 0x100>;
 			label = "mpp";
 		};
 	};

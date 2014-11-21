@@ -20,8 +20,21 @@
 #include <linux/spmi.h>
 #include <linux/qpnp/pwm.h>
 #include <linux/err.h>
+/* QCI Begin: ALT Vibrator Daniel Wang 20140709 */
+#include <linux/delay.h>
+/* QCI End: ALT Vibrator Daniel Wang 20140709 */
 #include "../../staging/android/timed_output.h"
 
+/* QCI Begin: ALT Vibrator Daniel Wang 20140709 */
+/**
+ * Qpnp vib messages
+ */
+#define QPNP_VIB_MSG_ACTION(M, ...) printk("[qvib][%s][%05d][act]: " M "\n", __func__, __LINE__, ##__VA_ARGS__);
+#define QPNP_VIB_MSG_ERROR(M, ...) printk("[qvib][%s][%05d][err]: " M "\n", __func__, __LINE__, ##__VA_ARGS__);
+#define QPNP_VIB_MSG_INFO(M, ...) printk("[qvib][%s][%05d][inf]: " M "\n", __func__, __LINE__, ##__VA_ARGS__);
+#define QPNP_VIB_MSG_FUNCIN printk("[qvib][%s][%05d][act]: ++++++++++.\n", __func__, __LINE__);
+#define QPNP_VIB_MSG_FUNCOUT printk("[qvib][%s][%05d][act]: ----------.\n", __func__, __LINE__);
+/* QCI End: ALT Vibrator Daniel Wang 20140709 */
 #define QPNP_VIB_VTG_CTL(base)		(base + 0x41)
 #define QPNP_VIB_EN_CTL(base)		(base + 0x46)
 
@@ -66,6 +79,35 @@ struct qpnp_vib {
 	int timeout;
 	struct mutex lock;
 };
+
+/* QCI Begin: ALT Vibrator Daniel Wang 20140709 */
+/**
+ * Vib lifetest type
+ */
+typedef struct qpnp_vib_lifetest_struct
+{
+	bool enable;
+	int count;
+	int cycle;
+	int offtime;
+	int ontime;
+	struct qpnp_vib* vib;
+	struct work_struct work;
+}qpnp_vib_lifetest_type;
+
+/**
+ * Vib lifetest
+ */
+static qpnp_vib_lifetest_type qpnp_vib_lifetest =
+{
+	false,
+	0,
+	120000,
+	1000,
+	2000,
+	NULL
+};
+/* QCI End: ALT Vibrator Daniel Wang 20140709 */
 
 static int qpnp_vib_read_u8(struct qpnp_vib *vib, u8 *data, u16 reg)
 {
@@ -227,6 +269,595 @@ static enum hrtimer_restart qpnp_vib_timer_func(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
+/* QCI Begin: ALT Vibrator Daniel Wang 20140709 */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_lifetest_count_show
+  *
+  * Description
+  * Show vib lifetest counts.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * device: Device is sys/class/timed_output/vibrator.
+  * device_attribute: Device attribute.
+  * buffer: Echo buffer.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static ssize_t qpnp_vib_lifetest_count_show(struct device* device, struct device_attribute* device_attribute, char* buffer)
+{
+	/**
+	 * Init varaible
+	 */
+	ssize_t result = 0;
+
+	/**
+	 * Check parameter
+	 */
+	if(buffer == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point buffer!");
+		result = -1;
+		return result;
+	}
+
+	/**
+	 * Echo count
+	 */
+	result = sprintf(buffer, "%d\n", qpnp_vib_lifetest.count);
+	return result;
+}
+
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_lifetest_count_store
+  *
+  * Description
+  * Store vib lifetest count.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * device: Device is sys/class/timed_output/vibrator.
+  * device_attribute: Device attribute.
+  * buffer: Input buffer.
+  * count: Correct return.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static ssize_t qpnp_vib_lifetest_count_store(struct device* device, struct device_attribute* device_attribute, const char* buffer, size_t ret_count)
+{
+	/**
+	 * Init varaibles
+	 */
+	int count = 0;
+	ssize_t result = 0;
+
+	/**
+	 * Check parameter
+	 */
+	if(buffer == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point buffer!");
+		result = -EINVAL;
+		return result;
+	}
+
+	/**
+	 * Sscanf count
+	 */
+	result = sscanf(buffer, "%d", &count);
+	if(result != 1 || count != 0)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for invalid count!");
+		result = -EINVAL;
+		return result;
+	}
+
+	/**
+	 * Save count
+	 */
+	qpnp_vib_lifetest.count = count;
+
+	result = ret_count;
+	return result;
+}
+
+static DEVICE_ATTR(lifetest_count, S_IRUGO|S_IWUSR, qpnp_vib_lifetest_count_show, qpnp_vib_lifetest_count_store);
+
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_lifetest_cycle_show
+  *
+  * Description
+  * Show vib lifetest cycle.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * device: Device is sys/class/timed_output/vibrator.
+  * device_attribute: Device attribute.
+  * buffer: Echo buffer.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static ssize_t qpnp_vib_lifetest_cycle_show(struct device* device, struct device_attribute* device_attribute, char* buffer)
+{
+	/**
+	 * Init varaible
+	 */
+	ssize_t result = 0;
+
+	/**
+	 * Check parameter
+	 */
+	if(buffer == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point buffer!");
+		result = -1;
+		return result;
+	}
+
+	/**
+	 * Echo cycle
+	 */
+	result = sprintf(buffer, "%d\n", qpnp_vib_lifetest.cycle);
+
+	return result;
+}
+
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_lifetest_cycle_store
+  *
+  * Description
+  * Store vib lifetest cycle.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * device: Device is sys/class/timed_output/vibrator.
+  * device_attribute: Device attribute.
+  * buffer: Input buffer.
+  * count: Correct return.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static ssize_t qpnp_vib_lifetest_cycle_store(struct device* device, struct device_attribute* device_attribute, const char* buffer, size_t count)
+{
+	/**
+	 * Init varaibles
+	 */
+	int cycle = 0;
+	ssize_t result = 0;
+
+	/**
+	 * Check parameter
+	 */
+	if(buffer == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point buffer!");
+		result = -EINVAL;
+		return result;
+	}
+
+	/**
+	 * Sscanf cycle
+	 */
+	result = sscanf(buffer, "%d", &cycle);
+	if(result != 1 || cycle < 1)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for invalid cycle!");
+		result = -EINVAL;
+		return result;
+	}
+
+	/**
+	 * Save cycle
+	 */
+	qpnp_vib_lifetest.cycle = cycle;
+
+	result = count;
+	return result;
+}
+
+static DEVICE_ATTR(lifetest_cycle, S_IRUGO|S_IWUSR, qpnp_vib_lifetest_cycle_show, qpnp_vib_lifetest_cycle_store);
+
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_lifetest_enable_show
+  *
+  * Description
+  * Show vib lifetest enable.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * dev: Device is sys/class/timed_output/vibrator.
+  * attr: Device attribute.
+  * buf: Echo buffer.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static ssize_t qpnp_vib_lifetest_enable_show(struct device* device, struct device_attribute* device_attribute, char *buffer)
+{
+	/**
+	 * Init varaible
+	 */
+	ssize_t result = 0;
+
+	/**
+	 * Check parameter
+	 */
+	if(buffer == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point buffer!");
+		result = -1;
+		return result;
+	}
+
+	/**
+	 * Echo enable
+	 */
+	result = sprintf(buffer, "%d\n", qpnp_vib_lifetest.enable);
+
+	return result;
+}
+
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_lifetest_enable_store
+  *
+  * Description
+  * Store vib lifetest enable.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * device: Device is sys/class/timed_output/vibrator.
+  * device_attribute: Device attribute.
+  * buffer: Input buffer.
+  * count: Correct return.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static ssize_t qpnp_vib_lifetest_enable_store(struct device* device, struct device_attribute* device_attribute, const char* buffer, size_t count)
+{
+	/**
+	 * Init varaibles
+	 */
+	int enable = 0;
+	ssize_t result = 0;
+
+	/**
+	 * Check parameter
+	 */
+	if(buffer == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point buffer!");
+		result = -EINVAL;
+		return result;
+	}
+
+	/**
+	 * Sscanf enable
+	 */
+	result = sscanf(buffer, "%d", &enable);
+	if(result != 1 || enable > 1 || enable < 0)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for invalid enable!");
+		result = -EINVAL;
+		return result;
+	}
+
+	/**
+	 * Check enable
+	 */
+	if(qpnp_vib_lifetest.enable == enable)
+	{
+		goto out;
+	}
+
+	/**
+	 * Save enable
+	 */
+	qpnp_vib_lifetest.enable = enable;
+
+	/**
+	 * Start/stop vib
+	 */
+	if(qpnp_vib_lifetest.enable == true)
+	{
+		QPNP_VIB_MSG_ACTION("Start vib lifetest.");
+		QPNP_VIB_MSG_ACTION("Schedule vib lifetest work.");
+		schedule_work(&qpnp_vib_lifetest.work);
+	}
+	else
+	{
+		QPNP_VIB_MSG_ACTION("Stop vib lifetest.");
+		QPNP_VIB_MSG_ACTION("Stop vib.");
+		qpnp_vib_set(qpnp_vib_lifetest.vib, 0);
+
+		QPNP_VIB_MSG_ACTION("cancel vib lifetest work.");
+		cancel_work_sync(&qpnp_vib_lifetest.work);
+	}
+
+out:
+	result = count;
+	return count;
+}
+
+static DEVICE_ATTR(lifetest_enable, S_IRUGO|S_IWUSR, qpnp_vib_lifetest_enable_show, qpnp_vib_lifetest_enable_store);
+
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_lifetest_offtime_show
+  *
+  * Description
+  * Show vib lifetest offtime.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * device: Device is sys/class/timed_output/vibrator.
+  * device_attribute: Device attribute.
+  * buffer: Echo buffer.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static ssize_t qpnp_vib_lifetest_offtime_show(struct device* device, struct device_attribute* device_attribute, char* buffer)
+{
+	/**
+	 * Init varaible
+	 */
+	ssize_t result = 0;
+
+	/**
+	 * Check parameter
+	 */
+	if(buffer == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point buffer!");
+		result = -1;
+		return result;
+	}
+
+	/**
+	 * Echo offtime
+	 */
+	result = sprintf(buffer, "%d\n", qpnp_vib_lifetest.offtime);
+
+	return result;
+}
+
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_lifetest_offtime_store
+  *
+  * Description
+  * Store vib lifetest offtime.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * device: Device is sys/class/timed_output/vibrator.
+  * device_attribute: Device attribute.
+  * buffer: Input buffer.
+  * count: Correct return.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static ssize_t qpnp_vib_lifetest_offtime_store(struct device* device, struct device_attribute* device_attribute, const char* buffer, size_t count)
+{
+	/**
+	 * Init varaibles
+	 */
+	int offtime = 0;
+	ssize_t result = 0;
+
+	/**
+	 * Check parameter
+	 */
+	if(buffer == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point buffer!");
+		result = -EINVAL;
+		return result;
+	}
+
+	/**
+	 * Sscanf offtime
+	 */
+	result = sscanf(buffer, "%d", &offtime);
+	if(result != 1 || offtime < 1)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for invalid offtime!");
+		result = -EINVAL;
+		return result;
+	}
+
+	/**
+	 * Save offtime
+	 */
+	qpnp_vib_lifetest.offtime = offtime;
+
+	result = count;
+	return result;
+}
+
+static DEVICE_ATTR(lifetest_offtime, S_IRUGO|S_IWUSR, qpnp_vib_lifetest_offtime_show, qpnp_vib_lifetest_offtime_store);
+
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_lifetest_ontime_show
+  *
+  * Description
+  * Show vib lifetest ontime.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * device: Device is sys/class/timed_output/vibrator.
+  * device_attribute: Device attribute.
+  * buffer: Echo buffer.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static ssize_t qpnp_vib_lifetest_ontime_show(struct device* device, struct device_attribute* device_attribute, char* buffer)
+{
+	/**
+	 * Init varaible
+	 */
+	ssize_t result = 0;
+
+	/**
+	 * Check parameter
+	 */
+	if(buffer == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point buffer!");
+		result = -1;
+		return result;
+	}
+
+	/**
+	 * Echo ontime
+	 */
+	result = sprintf(buffer, "%d\n", qpnp_vib_lifetest.ontime);
+
+	return result;
+}
+
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_lifetest_ontime_store
+  *
+  * Description
+  * Store vib lifetest ontime.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * device: Device is sys/class/timed_output/vibrator.
+  * device_attribute: Device attribute.
+  * buffer: Input buffer.
+  * count: Correct return.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static ssize_t qpnp_vib_lifetest_ontime_store(struct device* device, struct device_attribute* device_attribute, const char* buffer, size_t count)
+{
+	/**
+	 * Init varaibles
+	 */
+	int ontime = 0;
+	ssize_t result = 0;
+
+	/**
+	 * Check parameter
+	 */
+	if(buffer == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point buffer!");
+		result = -EINVAL;
+		return result;
+	}
+
+	/**
+	 * Sscanf ontime
+	 */
+	result = sscanf(buffer, "%d", &ontime);
+	if(result != 1 || ontime < 1)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for invalid ontime!");
+		result = -EINVAL;
+		return result;
+	}
+
+	/**
+	 * Save ontime
+	 */
+	qpnp_vib_lifetest.ontime = ontime;
+
+	result = count;
+	return result;
+}
+
+static DEVICE_ATTR(lifetest_ontime, S_IRUGO|S_IWUSR, qpnp_vib_lifetest_ontime_show, qpnp_vib_lifetest_ontime_store);
+/* QCI End: ALT Vibrator Daniel Wang 20140709 */
+
 #ifdef CONFIG_PM
 static int qpnp_vibrator_suspend(struct device *dev)
 {
@@ -325,6 +956,71 @@ static int qpnp_vib_parse_dt(struct qpnp_vib *vib)
 	return 0;
 }
 
+/* QCI Begin: ALT Vibrator Daniel Wang 20140709 */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+/**
+  * Function
+  * qpnp_vib_work_func
+  *
+  * Description
+  * This is the lifetest work function.
+  *
+  * Dependencies
+  * None
+  *
+  * Arguments
+  * work: Lifetest work.
+  *
+  * Return value
+  * None
+  *
+  * Side effects
+  * None
+  */
+/*@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/
+static void qpnp_vib_work_func(struct work_struct *work)
+{
+	/**
+	 * Init variable
+	 */
+	int i = 0;
+
+	/**
+	 * Check variable
+	 */
+	if(qpnp_vib_lifetest.vib == NULL)
+	{
+		QPNP_VIB_MSG_ERROR("Failed for null-point vib!");
+		return;
+	}
+
+	/**
+	 * Star vib lifetest
+	 */
+	for(i = qpnp_vib_lifetest.count + 1; i <= qpnp_vib_lifetest.cycle; i++)
+	{
+		QPNP_VIB_MSG_ACTION("Do %6d lifetest.", i);
+
+		/** Enable vib */
+		qpnp_vib_set(qpnp_vib_lifetest.vib, 1);
+		msleep(qpnp_vib_lifetest.ontime);
+
+		/** Disable vib */
+		qpnp_vib_set(qpnp_vib_lifetest.vib, 0);
+		msleep(qpnp_vib_lifetest.offtime);
+
+		/** Save count */
+		qpnp_vib_lifetest.count = i;
+
+		/** Check vib lifetest enable */
+		if(qpnp_vib_lifetest.enable == false)
+			break;
+	}
+
+	qpnp_vib_lifetest.enable = false;
+}
+/* QCI End: ALT Vibrator Daniel Wang 20140709 */
+
 static int qpnp_vibrator_probe(struct spmi_device *spmi)
 {
 	struct qpnp_vib *vib;
@@ -371,6 +1067,51 @@ static int qpnp_vibrator_probe(struct spmi_device *spmi)
 	rc = timed_output_dev_register(&vib->timed_dev);
 	if (rc < 0)
 		return rc;
+
+	/* QCI Begin: ALT Vibrator Daniel Wang 20140709 */
+	/**
+	 * Save vib for lifetest
+	 */
+	qpnp_vib_lifetest.vib = vib;
+	
+	/**
+	 * Create attributes into sys/class/timed_output/vibrator
+	 */
+	rc = device_create_file(vib->timed_dev.dev, &dev_attr_lifetest_count);
+	if(rc)
+	{
+		QPNP_VIB_MSG_ERROR("Failed to create count attribute!");
+	}
+
+	rc = device_create_file(vib->timed_dev.dev, &dev_attr_lifetest_cycle);
+	if(rc)
+	{
+		QPNP_VIB_MSG_ERROR("Failed to create cycle attribute!");
+	}
+
+	rc = device_create_file(vib->timed_dev.dev, &dev_attr_lifetest_enable);
+	if(rc)
+	{
+		QPNP_VIB_MSG_ERROR("Failed to create start attribute!");
+	}
+
+	rc = device_create_file(vib->timed_dev.dev, &dev_attr_lifetest_offtime);
+	if(rc)
+	{
+		QPNP_VIB_MSG_ERROR("Failed to create offtime attribute!");
+	}
+
+	rc = device_create_file(vib->timed_dev.dev, &dev_attr_lifetest_ontime);
+	if(rc)
+	{
+		QPNP_VIB_MSG_ERROR("Failed to create ontime attribute!");
+	}
+
+	/**
+	 * Init vib lifetest work
+	 */
+	INIT_WORK(&qpnp_vib_lifetest.work, qpnp_vib_work_func);
+	/* QCI End: ALT Vibrator Daniel Wang 20140709 */
 
 	return rc;
 }

@@ -1,6 +1,11 @@
 #
 # USB peripheral controller drivers
 #
+
+ifneq ($(TARGET_BUILD_VARIANT),user)
+EXTRA_CFLAGS += -DNO_USB_SERIAL
+endif
+
 ccflags-$(CONFIG_USB_GADGET_DEBUG) := -DDEBUG
 
 obj-$(CONFIG_USB_GADGET)	+= udc-core.o

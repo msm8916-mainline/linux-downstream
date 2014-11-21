@@ -109,6 +109,10 @@
 
 #define QPNP_PON_BUFFER_SIZE			9
 
+#define QPNP_KEYCODE_VOLUME_DOWN               114//Andress,define volume down key code
+
+extern int screenRotation;
+
 enum pon_type {
 	PON_KPDPWR,
 	PON_RESIN,
@@ -886,7 +890,8 @@ qpnp_pon_request_irqs(struct qpnp_pon *pon, struct qpnp_pon_config *cfg)
 
 	/* mark the interrupts wakeable if they support linux-key */
 	if (cfg->key_code) {
-		enable_irq_wake(cfg->state_irq);
+		if( QPNP_KEYCODE_VOLUME_DOWN != cfg->key_code )
+			enable_irq_wake(cfg->state_irq);
 		/* special handling for RESIN due to a hardware bug */
 		if (cfg->pon_type == PON_RESIN && cfg->support_reset)
 			enable_irq_wake(cfg->bark_irq);

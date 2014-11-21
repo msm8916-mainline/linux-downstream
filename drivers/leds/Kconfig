@@ -498,6 +498,14 @@ config LEDS_BLINKM
 	  This option enables support for the BlinkM RGB LED connected
 	  through I2C. Say Y to enable support for the BlinkM LED.
 
+config LEDS_KTD2026
+	tristate "LED support for the kinetic KTD2026"
+	depends on LEDS_CLASS
+	depends on I2C
+	default y
+	help
+	  jhis option enables support for the LED controler KTD2026
+
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"
 

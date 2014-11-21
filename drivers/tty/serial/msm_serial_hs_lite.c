@@ -1959,35 +1959,48 @@ static struct platform_driver msm_hsl_platform_driver = {
 	},
 };
 
+extern int uart_console_enable;
+
 static int __init msm_serial_hsl_init(void)
 {
 	int ret;
 
-	ret = uart_register_driver(&msm_hsl_uart_driver);
-	if (unlikely(ret))
-		return ret;
+	if (uart_console_enable)
+	{
+		ret = uart_register_driver(&msm_hsl_uart_driver);
+		if (unlikely(ret))
+			return ret;
 
-	debug_base = debugfs_create_dir("msm_serial_hsl", NULL);
-	if (IS_ERR_OR_NULL(debug_base))
-		pr_err("Cannot create debugfs dir\n");
+		debug_base = debugfs_create_dir("msm_serial_hsl", NULL);
+		if (IS_ERR_OR_NULL(debug_base))
+			pr_err("Cannot create debugfs dir\n");
 
-	ret = platform_driver_register(&msm_hsl_platform_driver);
-	if (unlikely(ret))
-		uart_unregister_driver(&msm_hsl_uart_driver);
+		ret = platform_driver_register(&msm_hsl_platform_driver);
+		if (unlikely(ret))
+			uart_unregister_driver(&msm_hsl_uart_driver);
 
-	pr_info("driver initialized\n");
+		pr_info("driver initialized\n");
+	}
+	else
+	{
+		pr_info("disable driver\n");
+		return -1;
+	}
 
 	return ret;
 }
 
 static void __exit msm_serial_hsl_exit(void)
 {
-	debugfs_remove_recursive(debug_base);
-#ifdef CONFIG_SERIAL_MSM_HSL_CONSOLE
-	unregister_console(&msm_hsl_console);
-#endif
-	platform_driver_unregister(&msm_hsl_platform_driver);
-	uart_unregister_driver(&msm_hsl_uart_driver);
+	if (uart_console_enable)
+	{
+		debugfs_remove_recursive(debug_base);
+	#ifdef CONFIG_SERIAL_MSM_HSL_CONSOLE
+		unregister_console(&msm_hsl_console);
+	#endif
+		platform_driver_unregister(&msm_hsl_platform_driver);
+		uart_unregister_driver(&msm_hsl_uart_driver);
+	}
 }
 
 module_init(msm_serial_hsl_init);

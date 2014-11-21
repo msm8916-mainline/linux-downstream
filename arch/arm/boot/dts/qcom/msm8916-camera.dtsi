@@ -266,8 +266,8 @@
 };
 
 &i2c_freq_100Khz {
-	qcom,hw-thigh = <78>;
-	qcom,hw-tlow = <114>;
+	qcom,hw-thigh = <97>;
+	qcom,hw-tlow = <95>;
 	qcom,hw-tsu-sto = <28>;
 	qcom,hw-tsu-sta = <28>;
 	qcom,hw-thd-dat = <10>;

@@ -111,6 +111,12 @@ config MSM_ISPIF_V1
           of any CID of MSM_CSI22_HEADER can be routed to of pixel
           or raw data interface in VFE.
 
+config HM2056
+	bool "Sensor HM2056 (YUV 2M)"
+	depends on MSMB_CAMERA
+	---help---
+	  Enable Himax 2 MP YUV Sensor.
+
 config IMX134
 	bool "Sensor IMX134 (BAYER 8M)"
 	depends on MSMB_CAMERA
@@ -146,6 +152,9 @@ config HI256
                 2 mipi lanes, preview config = 1632*1224 30 fps,
                 snapshot config = 3264 * 2448 at 18 fps.
                 2 lanes max fps is 18, 4 lanes max fps is 24.
+
+
+
 
 config OV5648
 	bool "Sensor OV5648 (BAYER 5M)"
@@ -218,6 +227,12 @@ config s5k4e1
 		and QSXGA snapshot at 15 fps.
 		This sensor driver does not support auto focus.
 
+config s5k5e2
+       bool "Sensor s5k5e2 (BAYER 5MP)"
+        depends on MSMB_CAMERA
+        ---help---
+                5 MP Bayer Sensor
+
 config OV12830
 	bool "OmniVision OV12830 (BAYER 12MP)"
 	depends on MSMB_CAMERA
@@ -226,6 +241,8 @@ config OV12830
 		4 mipi lanes, preview config = 2112 * 1500 at 30 fps,
 		snapshot config = 4224 * 3000 at 15 fps.
 		2 lanes max fps is 18, 4 lanes max fps is 24.
+
+
 
 config MSM_V4L2_VIDEO_OVERLAY_DEVICE
 	tristate "Qualcomm MSM V4l2 video overlay device"

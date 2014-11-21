@@ -149,4 +149,7 @@
 
 #define PR_GET_TID_ADDRESS	40
 
+/* [ytw] for qci root */
+#define PR_CAPBSET_RAISE 41
+
 #endif /* _LINUX_PRCTL_H */

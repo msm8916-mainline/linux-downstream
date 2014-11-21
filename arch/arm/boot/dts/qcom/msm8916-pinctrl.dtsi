@@ -31,21 +31,39 @@
 			};
 		};
 
-		ext-cdc-tlmm-lines {
-			qcom,pins = <&gp 116>, <&gp 112>, <&gp 117>,
-						<&gp 118>, <&gp 119>;
-			qcom,num-grp-pins = <5>;
-			qcom,pin-func = <1>;
-			label = "ext-cdc-tlmm-lines";
-			ext_cdc_tlmm_lines_act: tlmm_lines_on {
-				drive-strength = <8>;
-				bias-pull-none;
-			};
-			ext_cdc_tlmm_lines_sus: tlmm_lines_off {
-				drive-strength = <2>;
-				bias-disable;
-			};
-		};
+        //[Matt]140613, config gpio 0/1 to alt. 4 for dmic control.
+        dmic_clk_pin {
+            qcom,pins = <&gp 0>, <&gp 1>;
+            qcom,num-grp-pins = <2>;
+            qcom,pin-func = <4>;
+            label = "dmic_clk_pin";
+            dmic_clk_act: clk_on {
+                drive-strength = <8>;
+                bias-pull-none;
+            };
+            dmic_clk_sus: clk_off {
+                drive-strength = <2>;
+                bias-disable;
+            };
+        };
+
+		/* Riven add SAR i2c START - remove unused gpio and function */
+		//ext-cdc-tlmm-lines {
+		//	qcom,pins = <&gp 116>, <&gp 112>, <&gp 117>,
+		//				<&gp 118>, <&gp 119>;
+		//	qcom,num-grp-pins = <5>;
+		//	qcom,pin-func = <1>;
+		//	label = "ext-cdc-tlmm-lines";
+		//	ext_cdc_tlmm_lines_act: tlmm_lines_on {
+		//		drive-strength = <8>;
+		//		bias-pull-none;
+		//	};
+		//	ext_cdc_tlmm_lines_sus: tlmm_lines_off {
+		//		drive-strength = <2>;
+		//		bias-disable;
+		//	};
+		//};
+		/* Riven add SAR i2c END */
 
 		ext-codec-lines {
 			qcom,pins = <&gp 67>;
@@ -331,24 +349,26 @@
 			};
 		};
 
-		ice40-spi-usb-pins {
-			qcom,pins = <&gp 0>, <&gp 1>, <&gp 3>, <&gp 114>;
-			qcom,num-grp-pins = <4>;
-			qcom,pin-func = <0>;
-			label = "ice40-spi-usb-pins";
-
-			/* active state */
-			ice40_default: default {
-				drive-strength = <8>;
-				bias-disable;
-			};
-
-			/* sleep state */
-			ice40_sleep: sleep {
-				drive-strength = <2>;
-				bias-pull-down;
-			};
-		};
+		/* Riven add SAR i2c START - remove unused gpio and function */
+		//ice40-spi-usb-pins {
+		//	qcom,pins = <&gp 0>, <&gp 1>, <&gp 3>, <&gp 114>;
+		//	qcom,num-grp-pins = <4>;
+		//	qcom,pin-func = <0>;
+		//	label = "ice40-spi-usb-pins";
+		//
+		//	/* active state */
+		//	ice40_default: default {
+		//		drive-strength = <8>;
+		//		bias-disable;
+		//	};
+		//
+		//	/* sleep state */
+		//	ice40_sleep: sleep {
+		//		drive-strength = <2>;
+		//		bias-pull-down;
+		//	};
+		//};
+		/* Riven add SAR i2c END */
 
 
 		pmx_i2c_0 {
@@ -608,59 +628,81 @@
 			        bias-pull-up; /* PULL UP */
 			};
 		};
+//Andress remove NFC
+//		pmx_i2c_6 {
+//			/* CLK, DATA */
+//			qcom,pins = <&gp 22>, <&gp 23>;
+//			qcom,num-grp-pins = <2>;
+//			qcom,pin-func = <2>;
+//			label = "pmx_i2c_6";
+//			/* active state */
+//			i2c_6_active: i2c_6_active{
+//				drive-strength = <2>; /* 2 MA */
+//				bias-disable; /* No PULL */
+//			};
+//			/*suspended state */
+//			i2c_6_sleep: i2c_6_sleep {
+//				drive-strength = <2>; /* 2 MA */
+//				bias-disable; /* No PULL */
+//			};
+//		};
 
-		pmx_i2c_6 {
-			/* CLK, DATA */
-			qcom,pins = <&gp 22>, <&gp 23>;
-			qcom,num-grp-pins = <2>;
-			qcom,pin-func = <2>;
-			label = "pmx_i2c_6";
-			/* active state */
-			i2c_6_active: i2c_6_active{
-				drive-strength = <2>; /* 2 MA */
-				bias-disable; /* No PULL */
-			};
-			/*suspended state */
-			i2c_6_sleep: i2c_6_sleep {
-				drive-strength = <2>; /* 2 MA */
-				bias-disable; /* No PULL */
-			};
-		};
-
-		pmx_rd_nfc_int{
-			qcom,pins = <&gp 21>;
-			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <1>;
-			label = "pmx_nfc_int";
-
-			nfc_int_active: active {
-				drive-strength = <6>;
-				bias-pull-up;
-			};
-
-			nfc_int_suspend: suspend {
-				drive-strength = <6>;
-				bias-pull-up;
-			};
-		};
-
-		pmx_nfc_reset{
-			qcom,pins = <&gp 20>;
-			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <1>;
-			label = "pmx_nfc_disable";
-
-			nfc_disable_active: active {
-				drive-strength = <6>;
-				bias-pull-up;
-			};
-
-			nfc_disable_suspend: suspend {
-				drive-strength = <6>;
-				bias-disable;
-			};
-		};
-
+		/* Riven add SAR i2c START */
+//		pmx_i2c_7 {
+//		    /* CLK, DATA */
+//		    qcom,pins = <&gp 3>, <&gp 2>;
+//		    qcom,num-grp-pins = <2>;
+//		    qcom,pin-func = <3>;
+//		    label = "pmx_i2c_7";
+//		    
+//		    /* active state */
+//		    i2c_7_active: i2c_7_active{
+//			drive-strength = <2>; /* 2 MA */
+//			bias-disable; /* No PULL */
+//		    };
+//			      
+//		    /*suspended state */
+//		    i2c_7_sleep: i2c_7_sleep {
+//			drive-strength = <2>; /* 2 MA */
+//			bias-disable; /* No PULL */
+//		    };
+//		};
+		/* Riven add SAR i2c END */
+//Andress removed NFC
+//		pmx_rd_nfc_int{
+//			qcom,pins = <&gp 21>;
+//			qcom,pin-func = <0>;
+//			qcom,num-grp-pins = <1>;
+//			label = "pmx_nfc_int";
+//
+//			nfc_int_active: active {
+//				drive-strength = <6>;
+//				bias-pull-up;
+//			};
+//
+//			nfc_int_suspend: suspend {
+//				drive-strength = <6>;
+//				bias-pull-up;
+//			};
+//		};
+//
+//		pmx_nfc_reset{
+//			qcom,pins = <&gp 20>;
+//			qcom,pin-func = <0>;
+//			qcom,num-grp-pins = <1>;
+//			label = "pmx_nfc_disable";
+//
+//			nfc_disable_active: active {
+//				drive-strength = <6>;
+//				bias-pull-up;
+//			};
+//
+//			nfc_disable_suspend: suspend {
+//				drive-strength = <6>;
+//				bias-disable;
+//			};
+//		};
+//
 		pmx_mdss_te: pmx_mdss_te {
 			label = "mdss-te-pin";
 			qcom,pin-func = <1>;
@@ -1323,7 +1365,7 @@
 			label = "smb1360_int_gpio";
 			smb_int_default: smb_int_default {
 				drive-strength = <2>;	/* 2 MA */
-				bias-pull-up;		/* PULL UP*/
+				bias-pull-down;         /* PULL DOWN*/  //Change from pull high to pull down
 			};
 		};
 

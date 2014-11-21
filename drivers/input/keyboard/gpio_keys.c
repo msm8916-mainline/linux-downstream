@@ -31,6 +31,8 @@
 #include <linux/spinlock.h>
 #include <linux/pinctrl/consumer.h>
 
+int screenRotation = 0;
+
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
 	struct input_dev *input;

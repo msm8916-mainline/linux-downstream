@@ -231,6 +231,7 @@
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
 			qcom,init-voltage = <1800000>;
+			//regulator-always-on;
 			status = "okay";
 		};
 	};
@@ -346,9 +347,10 @@
 	rpm-regulator-ldoa16 {
 		status = "okay";
 		pm8916_l16: regulator-l16 {
-			regulator-min-microvolt = <1800000>;
-			regulator-max-microvolt = <3300000>;
-			qcom,init-voltage = <1800000>;
+			regulator-min-microvolt = <2900000>;
+			regulator-max-microvolt = <2900000>;
+			qcom,init-voltage = <2900000>;
+			regulator-always-on;
 			status = "okay";
 		};
 	};

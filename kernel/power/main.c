@@ -20,6 +20,8 @@
 
 DEFINE_MUTEX(pm_mutex);
 
+extern int dload_mode;	// Evan
+
 #ifdef CONFIG_PM_SLEEP
 
 /* Routines for PM-transition notifications */
@@ -433,6 +435,48 @@ static ssize_t wakeup_count_store(struct kobject *kobj,
 
 power_attr(wakeup_count);
 
+// Evan
+static ssize_t dload_mode_show(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				char *buf)
+{
+	printk(KERN_NOTICE "++++ %s, dload_mode = %d\n", __FUNCTION__, dload_mode);
+
+	return sprintf(buf, "%s\n", dload_mode ? "1" : "0");
+}
+
+static ssize_t dload_mode_store(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				const char *buf, size_t n)
+{
+	unsigned int val;
+
+	printk(KERN_NOTICE "++++ %s\n", __FUNCTION__);
+	if(buf != NULL && n > 0)
+		printk(KERN_NOTICE "++++ %s, buf = %s\n", __FUNCTION__, buf);
+
+	if (sscanf(buf, "%u", &val) == 1) 
+	{
+		dload_mode = val;
+		printk(KERN_NOTICE "++++ %s, val = %d\n", __FUNCTION__, val);
+		return n;
+	}
+#if 0
+	if(n > 0)
+	{
+		if(!strstr(buf, "true") || !strstr(buf, "1"))
+			dload_mode = true;
+		else if(!strstr(buf, "false") || !strstr(buf, "0"))
+			dload_mode = false;
+	
+		return n;
+	}
+#endif
+	return -EINVAL;
+}
+power_attr(dload_mode);
+// Evan ...
+
 #ifdef CONFIG_PM_AUTOSLEEP
 static ssize_t autosleep_show(struct kobject *kobj,
 			      struct kobj_attribute *attr,
@@ -586,6 +630,7 @@ static struct attribute * g[] = {
 #ifdef CONFIG_PM_SLEEP
 	&pm_async_attr.attr,
 	&wakeup_count_attr.attr,
+	&dload_mode_attr.attr,	// Evan
 #ifdef CONFIG_PM_AUTOSLEEP
 	&autosleep_attr.attr,
 #endif

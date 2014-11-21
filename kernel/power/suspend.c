@@ -30,6 +30,9 @@
 
 #include "power.h"
 
+//Andress, for wakeup log
+int wait_for_wakeup = 0;
+
 const char *const pm_states[PM_SUSPEND_MAX] = {
 	[PM_SUSPEND_FREEZE]	= "freeze",
 	[PM_SUSPEND_STANDBY]	= "standby",
@@ -277,6 +280,9 @@ int suspend_devices_and_enter(suspend_state_t state)
 	if (suspend_test(TEST_DEVICES))
 		goto Recover_platform;
 
+        //Andress, for wakeup log
+        wait_for_wakeup = 1;
+
 	do {
 		error = suspend_enter(state, &wakeup);
 	} while (!error && !wakeup && need_suspend_ops(state)
@@ -288,6 +294,8 @@ int suspend_devices_and_enter(suspend_state_t state)
 	suspend_test_finish("resume devices");
 	ftrace_start();
 	resume_console();
+        //Andress, for wakeup log
+        wait_for_wakeup = 0;
  Close:
 	if (need_suspend_ops(state) && suspend_ops->end)
 		suspend_ops->end();

@@ -18,6 +18,8 @@
 
 #include "power.h"
 
+extern int wait_for_wakeup;//Andress, for wakeup log
+
 /*
  * If set, the suspend/hibernate code will abort transitions to a sleep state
  * if wakeup events are registered during or immediately before the transition.
@@ -427,6 +429,11 @@ void __pm_stay_awake(struct wakeup_source *ws)
 
 	if (!ws)
 		return;
+	//Andress, for wakeup log
+        if (wait_for_wakeup) {
+                        printk("wakeup wake lock: %s\n", ws->name);
+                wait_for_wakeup = 0;
+        }
 
 	spin_lock_irqsave(&ws->lock, flags);
 
@@ -614,6 +621,11 @@ void __pm_wakeup_event(struct wakeup_source *ws, unsigned int msec)
 
 	if (!ws)
 		return;
+	//Andress, for wakeup log
+        if (wait_for_wakeup) {
+                        printk("wakeup wake lock: %s\n", ws->name);
+                wait_for_wakeup = 0;
+        }
 
 	spin_lock_irqsave(&ws->lock, flags);
 

@@ -37,6 +37,15 @@
 #include <linux/of_gpio.h>
 #include <linux/sensors.h>
 
+//#define DRIVER_DEBUG
+#ifdef DRIVER_DEBUG
+	#define LOGD(fmt, args...) printk(KERN_ERR "[Shengwei] %s: " fmt, __FUNCTION__, ## args)
+#else
+	#define LOGD(fmt, args...)
+#endif
+
+
+
 #define APDS993X_HAL_USE_SYS_ENABLE
 
 #define APDS993X_DRV_NAME	"apds993x"
@@ -50,11 +59,13 @@
 
 #define APDS993X_ALS_THRESHOLD_HSYTERESIS	20	/* % */
 
+
 #define APDS993X_GA	48	/* 0.48 without glass window */
 #define APDS993X_COE_B	223	/* 2.23 without glass window */
 #define APDS993X_COE_C	70	/* 0.70 without glass window */
 #define APDS993X_COE_D	142	/* 1.42 without glass window */
 #define APDS993X_DF	52
+
 #define ALS_MAX_RANGE	60000
 
 /* Change History
@@ -259,6 +270,8 @@ struct apds993x_data {
 	unsigned int cross_talk;		/* cross_talk value */
 	unsigned int avg_cross_talk;		/* average cross_talk  */
 	unsigned int ps_cal_result;		/* result of calibration*/
+	unsigned int luxValue_meter;    /* Shengwei 20140828, lux from lux meter*/
+	unsigned int luxValue_self;     /* Shengwei 20140828, lux form sensor*/
 
 	/* ALS parameters */
 	unsigned int als_threshold_l;	/* low threshold */
@@ -464,6 +477,7 @@ static int apds993x_set_pilt(struct i2c_client *client, int threshold)
 	mutex_unlock(&data->update_lock);
 
 	data->pilt = threshold;
+LOGD("data->pilt = %d\n", data->pilt);
 
 	return ret;
 }
@@ -533,6 +547,7 @@ static int apds993x_set_control(struct i2c_client *client, int control)
 	struct apds993x_data *data = i2c_get_clientdata(client);
 	int ret;
 
+LOGD("control = %d\n", control);
 	mutex_lock(&data->update_lock);
 	ret = i2c_smbus_write_byte_data(client,
 			CMD_BYTE|APDS993X_CONTROL_REG, control);
@@ -655,11 +670,13 @@ static void apds993x_set_ps_threshold_adding_cross_talk(
 		data->ps_threshold = apds993x_ps_detection_threshold;
 		data->ps_hysteresis_threshold =
 			data->ps_threshold - SUB_FROM_PS_THRESHOLD;
+		LOGD("cal = 0, data->ps_hysteresis_threshold = %u \n", data->ps_hysteresis_threshold);
 	} else {
 		data->cross_talk = cal_data;
 		data->ps_threshold = ADD_TO_CROSS_TALK + data->cross_talk;
 		data->ps_hysteresis_threshold =
 			data->ps_threshold - SUB_FROM_PS_THRESHOLD;
+		LOGD("cal = 1, data->ps_hysteresis_threshold = %u \n", data->ps_hysteresis_threshold);
 	}
 	pr_info("%s: configurations are set\n", __func__);
 }
@@ -715,12 +732,13 @@ static void apds993x_change_ps_threshold(struct i2c_client *client)
 
 	data->ps_data =	i2c_smbus_read_word_data(
 			client, CMD_WORD|APDS993X_PDATAL_REG);
-
+LOGD("data->ps_data = %u, data->pilt = %u, data->piht = %u\n", data->ps_data, data->pilt, data->piht);
 	if ((data->ps_data > data->pilt) && (data->ps_data >= data->piht)) {
 		/* far-to-near detected */
 		data->ps_detection = 1;
 
 		/* FAR-to-NEAR detection */
+	LOGD("ps_data = %d, report ABS_DISTANCE. 0", data->ps_data);
 		input_report_abs(data->input_dev_ps, ABS_DISTANCE, 0);
 		input_sync(data->input_dev_ps);
 
@@ -736,6 +754,7 @@ static void apds993x_change_ps_threshold(struct i2c_client *client)
 		pr_info("%s: far-to-near\n", __func__);
 	} else if ((data->ps_data <= data->pilt) &&
 			(data->ps_data < data->piht)) {
+	LOGD("ps_data = %d,  report ABS_DISTANCE. 1", data->ps_data);
 		/* near-to-far detected */
 		data->ps_detection = 0;
 
@@ -748,7 +767,7 @@ static void apds993x_change_ps_threshold(struct i2c_client *client)
 		i2c_smbus_write_word_data(client,
 				CMD_WORD|APDS993X_PIHTL_REG,
 				data->ps_threshold);
-
+LOGD("data->pilt = 0;, data->piht = %d\n", data->ps_threshold);
 		data->pilt = 0;
 		data->piht = data->ps_threshold;
 
@@ -772,6 +791,9 @@ static void apds993x_change_als_threshold(struct i2c_client *client)
 			CMD_WORD|APDS993X_CH1DATAL_REG);
 
 	luxValue = LuxCalculation(client, ch0data, ch1data);
+
+	/* Shengwei 20140828, calibrate lux value */
+	luxValue = luxValue*data->luxValue_meter/data->luxValue_self;
 
 	if (luxValue >= 0) {
 		luxValue = (luxValue < ALS_MAX_RANGE)
@@ -806,6 +828,7 @@ static void apds993x_change_als_threshold(struct i2c_client *client)
 		 * from the PS
 		 */
 		/* NEAR-to-FAR detection */
+	LOGD("\n");
 		input_report_abs(data->input_dev_ps, ABS_DISTANCE, 1);
 		input_sync(data->input_dev_ps);
 
@@ -816,6 +839,7 @@ static void apds993x_change_als_threshold(struct i2c_client *client)
 				data->ps_threshold);
 
 		data->pilt = 0;
+LOGD("data->pilt = 0;\n");
 		data->piht = data->ps_threshold;
 
 		/* near-to-far detected */
@@ -823,6 +847,8 @@ static void apds993x_change_als_threshold(struct i2c_client *client)
 
 		pr_info("%s: FAR\n", __func__);
 	}
+
+	LOGD("luxValue = %d\n", luxValue);
 
 	if (lux_is_valid) {
 		/* report the lux level */
@@ -922,6 +948,10 @@ static void apds993x_als_polling_work_handler(struct work_struct *work)
 
 	luxValue = LuxCalculation(client, ch0data, ch1data);
 
+	/* Shengwei 20140828, calibrate lux value */
+	luxValue = luxValue*data->luxValue_meter/data->luxValue_self;
+	
+LOGD("luxValue = %d\n", luxValue);
 	if (luxValue >= 0) {
 		luxValue = (luxValue < ALS_MAX_RANGE)
 					? luxValue : ALS_MAX_RANGE;
@@ -956,6 +986,7 @@ static void apds993x_als_polling_work_handler(struct work_struct *work)
 		 */
 		/* NEAR-to-FAR detection */
 		input_report_abs(data->input_dev_ps, ABS_DISTANCE, 1);
+	LOGD("\n");
 		input_sync(data->input_dev_ps);
 
 		i2c_smbus_write_word_data(client,
@@ -964,6 +995,7 @@ static void apds993x_als_polling_work_handler(struct work_struct *work)
 				CMD_WORD|APDS993X_PIHTL_REG, data->ps_threshold);
 
 		data->pilt = 0;
+LOGD("data->pilt = 0;\n");
 		data->piht = data->ps_threshold;
 
 		data->ps_detection = 0;	/* near-to-far detected */
@@ -971,8 +1003,10 @@ static void apds993x_als_polling_work_handler(struct work_struct *work)
 		pr_info("%s: FAR\n", __func__);
 	}
 
+		LOGD("luxValue = %d\n", luxValue);
 	if (lux_is_valid) {
 		/* report the lux level */
+		LOGD("report luxValue = %d\n", luxValue);
 		input_report_abs(data->input_dev_als, ABS_MISC, luxValue);
 		input_sync(data->input_dev_als);
 	}
@@ -1047,10 +1081,13 @@ static void apds993x_work_handler(struct work_struct *work)
 		ch0data = i2c_smbus_read_word_data(client,
 				CMD_WORD|APDS993X_CH0DATAL_REG);
 		if (ch0data < (75 * (1024 * (256 - data->atime))) / 100) {
+		LOGD("%d\n", __LINE__);
 			apds993x_change_ps_threshold(client);
 		} else {
-			if (data->ps_detection == 1)
+			if (data->ps_detection == 1){
+		LOGD("%d\n", __LINE__);
 				apds993x_change_ps_threshold(client);
+			}
 			else
 				pr_info("%s: background ambient noise\n",
 						__func__);
@@ -1067,9 +1104,12 @@ static void apds993x_work_handler(struct work_struct *work)
 		if (ch0data <
 		    (75 * (apds993x_als_res_tb[data->als_atime_index])) / 100) {
 			apds993x_change_ps_threshold(client);
+		LOGD("%d\n", __LINE__);
 		} else {
-			if (data->ps_detection == 1)
+			if (data->ps_detection == 1){
+		LOGD("%d\n", __LINE__);
 				apds993x_change_ps_threshold(client);
+			}
 			else
 				pr_info("%s: background ambient noise\n",
 						__func__);
@@ -1139,6 +1179,7 @@ static int apds993x_enable_als_sensor(struct i2c_client *client, int val)
 			apds993x_set_enable(client,0);
 
 #ifdef ALS_POLLING_ENABLED
+LOGD("ALS_POLLING_ENABLED\n");
 			if (data->enable_ps_sensor) {
 				/* Enable PS with interrupt */
 				apds993x_set_enable(client, 0x27);
@@ -1279,6 +1320,7 @@ static int apds993x_enable_ps_sensor(struct i2c_client *client, int val)
 		if ((data->enable_als_sensor == 0) &&
 			(data->enable_ps_sensor == 0)) {
 			/* Power on and initalize the device */
+			LOGD("power_on\n");
 			if (pdata->power_on)
 				pdata->power_on(true);
 
@@ -1292,14 +1334,17 @@ static int apds993x_enable_ps_sensor(struct i2c_client *client, int val)
 		if (data->enable_ps_sensor==0) {
 			data->enable_ps_sensor= 1;
 
+			LOGD("apds993x_set_enable\n");
 			/* Power Off */
 			apds993x_set_enable(client,0);
 
 			/* init threshold for proximity */
+		LOGD("apds993x_ps_detection_threshold = %d\n", apds993x_ps_detection_threshold);
 			apds993x_set_pilt(client,
 					apds993x_ps_detection_threshold);
 			apds993x_set_piht(client,
 					apds993x_ps_detection_threshold);
+		LOGD("apds993x_set_ps_threshold_adding_cross_talk\n");
 			/*calirbation*/
 			apds993x_set_ps_threshold_adding_cross_talk(client, data->cross_talk);
 
@@ -1431,7 +1476,7 @@ static long apds993x_ps_ioctl(struct file *file,
 					__func__);
 			return -EFAULT;
 		}
-
+LOGD("APDS993X_IOCTL_PS_ENABLE\n");
 		ret = apds993x_enable_ps_sensor(client, enable);
 		if (ret < 0)
 			return ret;
@@ -1615,6 +1660,172 @@ static ssize_t apds993x_show_ch1data(struct device *dev,
 
 static DEVICE_ATTR(ch1data, S_IRUGO, apds993x_show_ch1data, NULL);
 
+/* Shengwei 20140828, bus attr for the calibration of light sensor */
+static ssize_t apds993x_show_lux_self_data(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+
+	return sprintf(buf, "%d\n", data->luxValue_self);
+}
+
+static ssize_t apds993x_store_lux_self_data(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+	unsigned long val = simple_strtoul(buf, NULL, 10);
+
+	pr_debug("%s: val=%ld\n", __func__, val);
+
+	if (val <= 0) {
+		pr_err("%s: invalid value(%ld)\n", __func__, val);
+		return -EINVAL;
+	}
+	data->luxValue_self = val;
+
+	return count;
+}
+
+static DEVICE_ATTR(lux_self, S_IRUGO | S_IWUSR|S_IWGRP, apds993x_show_lux_self_data, apds993x_store_lux_self_data);
+
+static ssize_t apds993x_show_lux_meter_data(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+	return sprintf(buf, "%d\n", data->luxValue_meter);
+}
+
+static ssize_t apds993x_store_lux_meter_data(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+	unsigned long val = simple_strtoul(buf, NULL, 10);
+
+	pr_debug("%s: val=%ld\n", __func__, val);
+
+	if (val <= 0) {
+		pr_err("%s: invalid value(%ld)\n", __func__, val);
+		return -EINVAL;
+	}
+	data->luxValue_meter = val;
+
+	return count;
+}
+
+static DEVICE_ATTR(lux_meter, S_IRUGO | S_IWUSR|S_IWGRP,
+		apds993x_show_lux_meter_data,
+		apds993x_store_lux_meter_data);
+
+static ssize_t apds993x_show_cross_talk_data(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+	return sprintf(buf, "%d\n", data->cross_talk);
+}
+
+static ssize_t apds993x_store_cross_talk_data(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+	unsigned long val = simple_strtoul(buf, NULL, 10);
+
+	pr_debug("%s: val=%ld\n", __func__, val);
+
+	if (val <= 0) {
+		pr_err("%s: invalid value(%ld)\n", __func__, val);
+		return -EINVAL;
+	}
+	data->cross_talk = val;
+
+	return count;
+}
+
+static DEVICE_ATTR(cross_talk, S_IRUGO | S_IWUSR|S_IWGRP,
+		apds993x_show_cross_talk_data,
+		apds993x_store_cross_talk_data);
+
+
+static ssize_t apds993x_show_ps_hysteresis_threshold_data(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+	return sprintf(buf, "%d\n", data->ps_hysteresis_threshold);
+}
+
+static ssize_t apds993x_store_ps_hysteresis_threshold_data(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+	unsigned long val = simple_strtoul(buf, NULL, 10);
+
+	pr_debug("%s: val=%ld\n", __func__, val);
+
+	if (val <= 0) {
+		pr_err("%s: invalid value(%ld)\n", __func__, val);
+		return -EINVAL;
+	}
+	data->ps_hysteresis_threshold = val;
+
+	return count;
+}
+
+static DEVICE_ATTR(ps_hysteresis_threshold, S_IRUGO | S_IWUSR|S_IWGRP,
+		apds993x_show_ps_hysteresis_threshold_data,
+		apds993x_store_ps_hysteresis_threshold_data);
+
+
+
+
+static ssize_t apds993x_show_ps_threshold_data(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+	return sprintf(buf, "%d\n", data->ps_threshold);
+}
+
+static ssize_t apds993x_store_ps_threshold_data(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+	unsigned long val = simple_strtoul(buf, NULL, 10);
+
+	pr_debug("%s: val=%ld\n", __func__, val);
+
+	if (val <= 0) {
+		pr_err("%s: invalid value(%ld)\n", __func__, val);
+		return -EINVAL;
+	}
+	data->ps_threshold = val;
+
+	return count;
+}
+
+static DEVICE_ATTR(ps_threshold, S_IRUGO | S_IWUSR|S_IWGRP,
+		apds993x_show_ps_threshold_data,
+		apds993x_store_ps_threshold_data);
+
+
+
+static ssize_t apds993x_show_ldata(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct apds993x_data *data = i2c_get_clientdata(client);
+	return sprintf(buf, "%d\n", data->als_prev_lux);
+}
+
+
+static DEVICE_ATTR(ldata, S_IRUGO, apds993x_show_ldata, NULL);
+
+
 static ssize_t apds993x_show_pdata(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
@@ -1688,7 +1899,7 @@ static ssize_t apds993x_store_ps_run_calibration(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(ps_run_calibration,  S_IWUSR | S_IWGRP | S_IRUGO,
+static DEVICE_ATTR(ps_run_calibration, S_IWUSR|S_IWGRP | S_IRUGO,
 		apds993x_show_ps_run_calibration,
 		apds993x_store_ps_run_calibration);
 
@@ -1755,13 +1966,13 @@ static ssize_t apds993x_store_enable_ps_sensor(struct device *dev,
 		pr_err("%s: invalid value(%ld)\n", __func__, val);
 		return -EINVAL;
 	}
-
+LOGD("\n");
 	apds993x_enable_ps_sensor(client, val);
 
 	return count;
 }
 
-static DEVICE_ATTR(enable_ps_sensor, S_IWUSR | S_IWGRP | S_IRUGO,
+static DEVICE_ATTR(enable_ps_sensor, S_IWUSR|S_IWGRP | S_IRUGO,
 		apds993x_show_enable_ps_sensor,
 		apds993x_store_enable_ps_sensor);
 
@@ -1797,7 +2008,15 @@ static int apds993x_als_set_enable(struct sensors_classdev *sensors_cdev,
 {
 	struct apds993x_data *data = container_of(sensors_cdev,
 			struct apds993x_data, als_cdev);
+#if 0
+	static int initial = 1;
+LOGD("enable = %u\n", enable);
 
+	if(initial){
+		initial = 0;
+//		return 0;
+	}
+#endif
 	if ((enable != 0) && (enable != 1)) {
 		pr_err("%s: invalid value(%d)\n", __func__, enable);
 		return -EINVAL;
@@ -1811,7 +2030,14 @@ static int apds993x_ps_set_enable(struct sensors_classdev *sensors_cdev,
 {
 	struct apds993x_data *data = container_of(sensors_cdev,
 			struct apds993x_data, ps_cdev);
-
+#if 0
+	static int initial = 1;
+LOGD("enable = %u\n", enable);
+	if(initial){
+		initial = 0;
+//		return 0;
+	}
+#endif
 	if ((enable != 0) && (enable != 1)) {
 		pr_err("%s: invalid value(%d)\n", __func__, enable);
 		return -EINVAL;
@@ -1820,7 +2046,7 @@ static int apds993x_ps_set_enable(struct sensors_classdev *sensors_cdev,
 	return apds993x_enable_ps_sensor(data->client, enable);
 }
 
-static DEVICE_ATTR(enable_als_sensor, S_IWUSR | S_IWGRP | S_IRUGO,
+static DEVICE_ATTR(enable_als_sensor, S_IWUSR|S_IWGRP | S_IRUGO,
 		apds993x_show_enable_als_sensor,
 		apds993x_store_enable_als_sensor);
 
@@ -1873,6 +2099,12 @@ static struct attribute *apds993x_attributes[] = {
 	&dev_attr_ch0data.attr,
 	&dev_attr_ch1data.attr,
 	&dev_attr_pdata.attr,
+	&dev_attr_ldata.attr,	/* Shengwei 20140828, show lux meter */
+	&dev_attr_lux_meter.attr, /* Shengwei 20140828, lux value from lux meter */
+	&dev_attr_lux_self.attr,	/* Shengwei 20140828, lux value from sensor */
+	&dev_attr_cross_talk.attr,
+	&dev_attr_ps_threshold.attr,
+	&dev_attr_ps_hysteresis_threshold.attr,
 #ifdef APDS993X_HAL_USE_SYS_ENABLE
 	&dev_attr_enable_ps_sensor.attr,
 	&dev_attr_enable_als_sensor.attr,
@@ -1921,6 +2153,7 @@ static int apds993x_check_chip_id(struct i2c_client *client)
 	int id;
 
 	id = i2c_smbus_read_byte_data(client, CMD_BYTE|APDS993X_ID_REG);
+	LOGD("id = %x\n", id);
 	switch (id) {
 	case APDS9931_ID:
 		dev_dbg(&client->dev, "APDS9931\n");
@@ -2389,7 +2622,8 @@ static int apds993x_probe(struct i2c_client *client,
 	struct apds993x_data *data;
 	struct apds993x_platform_data *pdata;
 	int err = 0;
-
+	
+	LOGD("\n");
 	pr_debug("%s\n", __func__);
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE)) {
@@ -2429,6 +2663,9 @@ static int apds993x_probe(struct i2c_client *client,
 	apds993x_coe_b = pdata->als_B;
 	apds993x_coe_c = pdata->als_C;
 	apds993x_coe_d = pdata->als_D;
+	
+	LOGD("als_B = %u, als_c = %u, als_D = %u\n", pdata->als_B, pdata->als_C, pdata->als_D);
+
 	apds993x_ga = pdata->ga_value;
 
 	data = kzalloc(sizeof(struct apds993x_data), GFP_KERNEL);
@@ -2476,6 +2713,8 @@ static int apds993x_probe(struct i2c_client *client,
 	data->als_again_index = APDS993X_ALS_GAIN_8X;	// 8x AGAIN
 	data->als_reduce = 0;	// no ALS 6x reduction
 	data->als_prev_lux = 0;
+	data->luxValue_meter= 1;
+	data->luxValue_self= 1;
 
 	/* calibration */
 	if (apds993x_cross_talk_val > 0 && apds993x_cross_talk_val < 1000) {
@@ -2699,6 +2938,7 @@ static struct i2c_driver apds993x_driver = {
 static int __init apds993x_init(void)
 {
 	apds993x_workqueue = create_workqueue("proximity_als");
+	LOGD("\n");
 	if (!apds993x_workqueue) {
 		pr_err("%s: out of memory\n", __func__);
 		return -ENOMEM;

@@ -1798,11 +1798,26 @@ static int msm8x16_wcd_codec_enable_dmic(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		(*dmic_clk_cnt)++;
+        //[Matt]140525, set registers of TX1/2 & DMIC_B1 to clock DIV4.
+		//if (*dmic_clk_cnt == 1) {
+		//	snd_soc_update_bits(codec, dmic_clk_reg,
+		//			0x0E, 0x02);
+		//	snd_soc_update_bits(codec,
+		//	MSM8X16_WCD_A_CDC_TX1_DMIC_CTL,	0x07, 0x01);
+		//	snd_soc_update_bits(codec, dmic_clk_reg,
+		//			dmic_clk_en, dmic_clk_en);
+		//}
+		snd_soc_update_bits(codec, dmic_clk_reg,
+				0x0E, 0x04);
 		if (*dmic_clk_cnt == 1) {
-			snd_soc_update_bits(codec, dmic_clk_reg,
-					0x0E, 0x02);
 			snd_soc_update_bits(codec,
-			MSM8X16_WCD_A_CDC_TX1_DMIC_CTL,	0x07, 0x01);
+			MSM8X16_WCD_A_CDC_TX1_DMIC_CTL,	0x07, 0x02);
+			snd_soc_update_bits(codec, dmic_clk_reg,
+					dmic_clk_en, dmic_clk_en);
+		}
+        else if (*dmic_clk_cnt == 2) {
+			snd_soc_update_bits(codec,
+			MSM8X16_WCD_A_CDC_TX2_DMIC_CTL,	0x07, 0x02);
 			snd_soc_update_bits(codec, dmic_clk_reg,
 					dmic_clk_en, dmic_clk_en);
 		}

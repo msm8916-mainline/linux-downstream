@@ -36,7 +36,7 @@ static int mmc_gpio_get_status(struct mmc_host *host)
 	ret = !gpio_get_value_cansleep(ctx->cd_gpio) ^
 		!!(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH);
 out:
-	return ret;
+	return !ret;
 }
 
 
@@ -190,6 +190,7 @@ int mmc_gpio_request_cd(struct mmc_host *host, unsigned int gpio)
 	struct mmc_gpio *ctx;
 	int irq = gpio_to_irq(gpio);
 	int ret;
+    int retirq;
 
 	ret = mmc_gpio_alloc(host);
 	if (ret < 0)
@@ -231,6 +232,9 @@ int mmc_gpio_request_cd(struct mmc_host *host, unsigned int gpio)
 			ctx->cd_label, host);
 		if (ret < 0)
 			irq = ret;
+		else{
+			retirq = enable_irq_wake(irq);
+		}
 	}
 
 	if (irq < 0)

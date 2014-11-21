@@ -12,6 +12,8 @@ menuconfig INPUT_MISC
 
 if INPUT_MISC
 
+source "drivers/input/misc/smtc/Kconfig"      #Riven add SAR Driver
+
 config INPUT_88PM860X_ONKEY
 	tristate "88PM860x ONKEY support"
 	depends on MFD_88PM860X
@@ -812,12 +814,45 @@ config DOUBLE_TAP
 	help
 	 If you say yes here, you get support Bosch double tap sensor function
 
+# QCI Begin: ALT Sensor Daniel Wang 20140709
+config SENSORS_BMM050
+	tristate "BMM050 Magnetic Sensor Driver"
+	depends on I2C
+	help
+	 If you say yes here, you get support for Bosch Sensortec's
+	 sensor BMM050 Magnetic Sensor
+# QCI End: ALT Sensor Daniel Wang 20140709
+
+#TK(20140612) Add gyro sensor driver - BMG160 start
+config SENSORS_BMG
+        tristate "Bosch Gyroscope Sensor Driver"
+        depends on I2C
+        help
+         If you say yes here, you get support for Bosch Sensortec's
+         gyroscope sensor drivers of BMG160/BMI055/BMI058 e.t.c.
+
+config SENSORS_BMG_FIFO
+        tristate "Bosch Gyroscope FIFO Support"
+        depends on SENSORS_BMG
+        help
+         If you say yes here, you get support for Gyroscope sensor FIFO operations.
+#TK(20140612) Add gyro sensor driver - BMG160 end
+
+
 config SENSORS_BMI058
 	tristate "BMI058 Sensor Support"
 	depends on (SENSORS_BMG || SENSORS_BMA2X2)
 	help
 	 If you say yes here, you get support for Bosch Sensortec's
 	 sensor driver of BMI058.
+
+# QCI Begin: ALT Sensor Daniel Wang 20140709
+config SENSORS_ISL29147
+	tristate "Intersil P-sensor and L-sensor Drivers"
+	depends on I2C
+	help
+	 None
+# QCI End: ALT Sensor Daniel Wang 20140709
 
 endif
 

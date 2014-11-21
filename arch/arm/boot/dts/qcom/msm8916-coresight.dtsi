@@ -9,7 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
+/*
 &soc {
 	tmc_etr: tmc@826000 {
 		compatible = "arm,coresight-tmc";
@@ -586,3 +586,4 @@
 		qcom,vdd-io-current-level = <200 50000>;
 	};
 };
+*/

@@ -41,6 +41,14 @@
 			label = "peripheral_mem";
 		};
 
+                DEGUG_RAM_mem: DEBUG_RAM_region@0 {
+                        linux,reserve-contiguous-region;
+                        linux,reserve-region;
+                        linux,remove-completely;
+                        reg = <0x0 0xbff00000 0x0 0x0100000>;
+                        label = "debug_mem";
+                };
+
 		secure_mem: secure_region@0 {
 			linux,reserve-contiguous-region;
 			reg = <0 0 0 0x6D00000>;

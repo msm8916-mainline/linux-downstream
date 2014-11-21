@@ -236,7 +236,11 @@ static char serial_string[256];
 static struct usb_string strings_dev[] = {
 	[STRING_MANUFACTURER_IDX].s = manufacturer_string,
 	[STRING_PRODUCT_IDX].s = product_string,
+	#if defined (NO_USB_SERIAL)
+	[STRING_SERIAL_IDX].s = NULL , // serial_string, //Tommy 20131105
+	#else
 	[STRING_SERIAL_IDX].s = serial_string,
+    #endif
 	{  }			/* end of list */
 };
 
@@ -3234,11 +3238,14 @@ static int android_bind(struct usb_composite_dev *cdev)
 	strlcpy(product_string, "Android", sizeof(product_string) - 1);
 	strlcpy(serial_string, "0123456789ABCDEF", sizeof(serial_string) - 1);
 
-	id = usb_string_id(cdev);
-	if (id < 0)
-		return id;
-	strings_dev[STRING_SERIAL_IDX].id = id;
-	device_desc.iSerialNumber = id;
+	if (strings_dev[STRING_SERIAL_IDX].s != NULL) //Tommy 20131105  
+	{
+		id = usb_string_id(cdev);
+		if (id < 0)
+			return id;
+		strings_dev[STRING_SERIAL_IDX].id = id;
+		device_desc.iSerialNumber = id;
+	} //Tommy
 
 	if (gadget_is_otg(cdev->gadget))
 		list_for_each_entry(conf, &dev->configs, list_item)

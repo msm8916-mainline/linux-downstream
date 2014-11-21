@@ -22,24 +22,62 @@
 };
 
 &soc {
-	i2c@78b8000 {
-		smb1360_otg_supply: smb1360-chg-fg@14 {
-			compatible = "qcom,smb1360-chg-fg";
-			reg = <0x14>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <62 8>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&smb_int_default>;
-			regulator-name = "smb1360_otg_vreg";
+    i2c@78b8000 {
+	smb1360_otg_supply: smb1360-chg-fg@14 {
+	    compatible = "qcom,smb1360-chg-fg";
+	    reg = <0x14>;
+	    interrupt-parent = <&msm_gpio>;
+	    interrupts = <62 8>;
+	    pinctrl-names = "default";
+	    pinctrl-0 = <&smb_int_default>;
+	    
+	    regulator-name = "smb1360_otg_vreg";
+	    
+	    /* Charger */
+	    qcom,chg-inhibit-disabled;
+	    qcom,float-voltage-mv = <4350>;
+	    qcom,iterm-ma = <150>;
+	    //qcom,charging-disabled;
+	    qcom,recharge-thresh-mv = <200>;
+	    qcom,thermal-mitigation = <1300 1100 1000 950 0>;
+	    qcom,charging-timeout = <0>;
 
-			qcom,chg-inhibit-disabled;
-			qcom,float-voltage-mv = <4200>;
-			qcom,iterm-ma = <100>;
-			qcom,charging-disabled;
-			qcom,recharge-thresh-mv = <100>;
-			qcom,thermal-mitigation = <1500 700 600 0>;
-		};
+	    /* OTG setting */
+	    qcom,otg-batt-curr-limit = <1500>;
+	    
+	    /* Fource to select B profile */
+	    qcom,batt-profile-select;
+	    qcom,smb1360-vadc = <&pm8916_vadc>;
+	    qcom,batt-id-vref-uv = <1800000>;
+	    qcom,batt-id-rpullup-kohm = <10>;
+	    qcom,profile-a-rid-kohm = <100>;
+	    qcom,profile-b-rid-kohm = <4>;
+	    
+	    qcom,stat-pulsed-irq;
+	    qcom,shdn-after-pwroff;
+	    
+	    /* FG customize */
+	    qcom,fg-batt-capacity-mah = <3700>;
+	    qcom,fg-cc-soc-coeff = <0x806E>;
+	    qcom,fg-cutoff-voltage-mv = <3500>;     //below this V will report 0% to system
+	    qcom,fg-iterm-ma = <150>;		    //Iterm
+	    qcom,fg-auto-recharge-soc = <99>;
+	    //qcom,fg-ibatt-standby-ma = <200>;
+	    qcom,fg-cc-to-cv-mv = <4330>;	    //CC to CV voltage
+	    qcom,fg-delta-soc = <1>;	    //Get IRQ each %
+	    qcom,fg-soc-max = <85>;
+	    qcom,fg-soc-min = <15>;
+
+	    /* JEITA settings */
+	    qcom,jeita-soft-cold-temp = <283>;
+	    qcom,jeita-soft-hot-temp  = <323>;
+	    //qcom,disable-jeita-hard-limited;
+	    qcom,enable-jeita-soft-cold-v-mitigation;
+	    qcom,enable-jeita-soft-cold-i-mitigation;
+	    qcom,enable-jeita-soft-hot-v-mitigation;
+	    qcom,enable-jeita-soft-hot-i-mitigation;
 	};
+    };
 };
 
 &usb_otg {

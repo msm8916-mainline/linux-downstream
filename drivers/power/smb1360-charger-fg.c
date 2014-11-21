@@ -9,6 +9,50 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+
+/*  Fix item
+ *  Riven add OV
+ *	Add USB in over voltage IRQ and handler to deall with when USB OV stop charging but charging LED still on
+ *
+ *  Riven Add factory_charging_enabled entry 
+ *	Adding an entry let run-in tool could control charging or not by system arivilege
+ *
+ *  Riven Add over hot_hard timer
+ *	Adding an timer let driver could update battery status to Android when Temp. over JEITA Hard Hot limit.
+ *	So Android could auto shutdown at 65C
+ *
+ *  Riven add JEITA soft temp setting and enable/disable JEITA soft/hard cold/hot mitigation
+ *	Adding DTS item could enable/disable JEITA soft hard limitation and adjuest soft temp. value.
+ *
+ *  Rvien enable AICL to 1300mA and charging current to 1.5A at all time
+ *	Enable AICL all timer ensure that double USB cable will take as much as passable current event when plug into PC-USB
+ *	But with out damange USB port.
+ *
+ *  Riven Add setting	//Customized setting
+ *	Setting battery dection method - Thermal pin only
+ *	Enable AICL = 1300 mA
+ *	    Enable AICL = 1300mA
+ *	    Enable USB AC mode
+ *	Set charging current = 1500 mA
+ *	Set SOFT mitigation
+ *	    Enable V mitigation to 0V
+ *	    Enable I mitigation to 750mA
+ *	Set pre to fast 3.1V
+ *	Fource disable safety timer 
+ *  Riven add Enable LED blinkg when lower then 3.27V
+ *
+ *  Riven report fake SoC when charging might display 99%
+ *	Fix DTS set to fg_auto_recharge to 99% but user will saw 99% while charging.
+ *	Fake 100% report to user and if charging current < system usage then drop to 98%, then report real SoC
+ *
+ *  Riven Add Fix to Charging or Full when USB plug in
+ *	If show discharging, at 100% and chg_term( status == Discharging) Green LED will Off
+ *
+ *  Riven Fix sometimes screen will not wakeup	NOT FIX YET
+ *	Devices goes into suspen will wake up screen very lagger
+ */
+
+
 #define pr_fmt(fmt) "SMB:%s: " fmt, __func__
 
 #include <linux/i2c.h>
@@ -28,6 +72,7 @@
 #include <linux/of_gpio.h>
 #include <linux/bitops.h>
 #include <linux/qpnp/qpnp-adc.h>
+#include <linux/wakelock.h>		//Riven Fix sometimes screen will not wakeup 
 
 #define _SMB1360_MASK(BITS, POS) \
 	((unsigned char)(((1 << (BITS)) - 1) << (POS)))
@@ -56,6 +101,7 @@
 #define AICL_ENABLED_BIT		BIT(0)
 #define INPUT_UV_GLITCH_FLT_20MS_BIT	BIT(7)
 
+
 #define CFG_CHG_MISC_REG		0x7
 #define CHG_EN_BY_PIN_BIT		BIT(7)
 #define CHG_EN_ACTIVE_LOW_BIT		BIT(6)
@@ -66,6 +112,8 @@
 
 #define CFG_CHG_FUNC_CTRL_REG		0x08
 #define CHG_RECHG_THRESH_FG_SRC_BIT	BIT(1)
+/* Enable SYSON_LDO */
+#define SYSON_LDO_BIT				BIT(4)
 
 #define CFG_STAT_CTRL_REG		0x09
 #define CHG_STAT_IRQ_ONLY_BIT		BIT(4)
@@ -78,6 +126,10 @@
 #define SAFETY_TIME_MINUTES_SHIFT	2
 #define SAFETY_TIME_MINUTES_MASK	SMB1360_MASK(3, 2)
 
+#define CFG_VBL_REG			0x0B
+#define LOW_VOLTAGE_REF_MASK		0x07
+#define LOW_VOLTAGE_3_27_V		0x04
+
 #define CFG_BATT_MISSING_REG		0x0D
 #define BATT_MISSING_SRC_THERM_BIT	BIT(1)
 
@@ -88,10 +140,12 @@
 #define BATT_PROFILE_SELECT_MASK	SMB1360_MASK(3, 0)
 #define BATT_PROFILEA_MASK		0x0
 #define BATT_PROFILEB_MASK		0xF
+#define JEITA_HARD_LIMIT_DISABLED	BIT(6)
 
 #define IRQ_CFG_REG			0x0F
 #define IRQ_BAT_HOT_COLD_HARD_BIT	BIT(7)
 #define IRQ_BAT_HOT_COLD_SOFT_BIT	BIT(6)
+#define IRQ_DCIN_OV_BIT			BIT(3)
 #define IRQ_DCIN_UV_BIT			BIT(2)
 #define IRQ_INTERNAL_TEMPERATURE_BIT	BIT(0)
 
@@ -110,12 +164,27 @@
 #define IRQ3_SOC_EMPTY_BIT		BIT(1)
 #define IRQ3_SOC_FULL_BIT		BIT(0)
 
+#define CHG_VOLTAGE_REG			0x12
+#define PRE_2_FAST_V_MASK		SMB1360_MASK(7, 5)
+#define PRE_2_FAST_V_SHIFT		5
+#define PRE_2_FAST_V_3_1_V		6
+
 #define CHG_CURRENT_REG			0x13
 #define FASTCHG_CURR_MASK		SMB1360_MASK(4, 2)
 #define FASTCHG_CURR_SHIFT		2
 
+#define CHG_JEITA_ENABLE_REG            0x14
+#define JEITA_SOFT_COLD_I_MITIGATION    BIT(4)
+#define JEITA_SOFT_HOT_I_MITIGATION     BIT(5)
+#define JEITA_SOFT_COLD_V_MITIGATION    BIT(6)
+#define JEITA_SOFT_HOT_V_MITIGATION     BIT(7)
+#define JEITA_SOFT_I_MITIGATION_MASK    0x0F
+
 #define BATT_CHG_FLT_VTG_REG		0x15
 #define VFLOAT_MASK			SMB1360_MASK(6, 0)
+
+#define JEITA_SOFT_V_MITIGATION_REG     0x16
+#define JEITA_SOFT_V_MITIGATION_MASK    0x7F
 
 #define SHDN_CTRL_REG			0x1A
 #define SHDN_CMD_USE_BIT		BIT(1)
@@ -189,6 +258,8 @@
 #define SOC_MIN_REG			0x25
 #define VTG_EMPTY_REG			0x26
 #define SOC_DELTA_REG			0x28
+#define JEITA_SOFT_COLD_TEMP            0x29
+#define JEITA_SOFT_HOT_TEMP             0x2A
 #define VTG_MIN_REG			0x2B
 
 /* FG SHADOW registers */
@@ -278,6 +349,11 @@ struct smb1360_chip {
 	unsigned int			therm_lvl_sel;
 	unsigned int			*thermal_mitigation;
 	int				otg_batt_curr_limit;
+	bool                            jeita_soft_cold_v_mitigation;
+	bool                            jeita_soft_cold_i_mitigation;
+	bool                            jeita_soft_hot_v_mitigation;
+	bool                            jeita_soft_hot_i_mitigation;
+	bool                            jeita_hard_limited;
 
 	/* configuration data - fg */
 	int				soc_max;
@@ -293,6 +369,8 @@ struct smb1360_chip {
 	int				fg_thermistor_c1_coeff;
 	int				fg_cc_to_cv_mv;
 	int				fg_auto_recharge_soc;
+	int                             fg_jeita_soft_cold_temp;
+	int                             fg_jeita_soft_hot_temp;
 
 	/* status tracking */
 	bool				usb_present;
@@ -327,6 +405,10 @@ struct smb1360_chip {
 	struct mutex			charging_disable_lock;
 	struct mutex			current_change_lock;
 	struct mutex			read_write_lock;
+
+	struct timer_list		thermal_over_hot_hard_timer;
+	int				soc_reached_full;
+	struct wake_lock		resume_wake_lock;   //Riven Fix sometimes screen will not wakeup
 };
 
 static int chg_time[] = {
@@ -770,6 +852,10 @@ static int smb1360_get_prop_batt_status(struct smb1360_chip *chip)
 	int rc;
 	u8 reg = 0, chg_type;
 
+	/* Riven add OV - workaround that USB not present but still show charging LED */
+	if(!chip->usb_present)
+	    return POWER_SUPPLY_STATUS_DISCHARGING;
+
 	if (chip->batt_full)
 		return POWER_SUPPLY_STATUS_FULL;
 
@@ -782,7 +868,7 @@ static int smb1360_get_prop_batt_status(struct smb1360_chip *chip)
 	pr_debug("STATUS_3_REG = %x\n", reg);
 
 	if (reg & CHG_HOLD_OFF_BIT)
-		return POWER_SUPPLY_STATUS_NOT_CHARGING;
+	    return POWER_SUPPLY_STATUS_NOT_CHARGING;
 
 	chg_type = (reg & CHG_TYPE_MASK) >> CHG_TYPE_SHIFT;
 
@@ -875,7 +961,6 @@ static int smb1360_get_prop_batt_capacity(struct smb1360_chip *chip)
 
 	pr_debug("msys_soc_reg=0x%02x, fg_soc=%d batt_full = %d\n", reg,
 						soc, chip->batt_full);
-
 	return chip->batt_full ? 100 : bound(soc, 0, 100);
 }
 
@@ -1007,6 +1092,8 @@ static int smb1360_set_appropriate_usb_current(struct smb1360_chip *chip)
 	int rc = 0, i, therm_ma, current_ma;
 	int path_current = chip->usb_psy_ma;
 
+	path_current = 1300;    //Rvien enable AICL to 1300mA and charging current to 1.5A at all time - Set AICL to 1300mA
+
 	/*
 	 * If battery is absent do not modify the current at all, these
 	 * would be some appropriate values set by the bootloader or default
@@ -1017,6 +1104,13 @@ static int smb1360_set_appropriate_usb_current(struct smb1360_chip *chip)
 		pr_debug("ignoring current request since battery is absent\n");
 		return 0;
 	}
+
+	/* Fix by above "path_current = 1500;"
+	if(path_current <= 2){
+	    path_current = 1500;
+	    pr_err("Riven charger could not charging workaround\n");
+	}
+	*/
 
 	if (chip->therm_lvl_sel > 0
 			&& chip->therm_lvl_sel < (chip->thermal_levels - 1))
@@ -1082,6 +1176,7 @@ static int smb1360_set_appropriate_usb_current(struct smb1360_chip *chip)
 			pr_err("Couldn't configure for USB500 rc=%d\n", rc);
 		pr_debug("Setting USB 500\n");
 	} else {
+		current_ma = 1500;  //min(therm_ma, 1500);   //Rvien enable AICL to 1300mA and charging current to 1.5A at all time - Set charging current to 1500mA
 		/* USB AC */
 		for (i = ARRAY_SIZE(fastchg_current) - 1; i >= 0; i--) {
 			if (fastchg_current[i] <= current_ma)
@@ -1222,6 +1317,14 @@ static int smb1360_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = smb1360_get_prop_batt_status(chip);
+
+		/* Riven Add Fix to Charging or Full when USB plug in START */
+		if( chip->usb_present				    &&	//USB connected
+		    val->intval == POWER_SUPPLY_STATUS_DISCHARGING	//If not at charging status
+		){
+		    val->intval = POWER_SUPPLY_STATUS_CHARGING;
+		}
+		/* Riven Add Fix to Charging or Full when USB plug in END */
 		break;
 	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
 		val->intval = smb1360_get_prop_charging_status(chip);
@@ -1231,6 +1334,30 @@ static int smb1360_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		val->intval = smb1360_get_prop_batt_capacity(chip);
+
+		/* Riven report fake SoC when charging might display 99% START */
+		//dev_err(chip->dev, "[Riven smb1360] Real %% = %d%%\n", val->intval);
+		//dev_err(chip->dev, "[Riven smb1360] usb_present = %d\n", chip->usb_present);
+		//dev_err(chip->dev, "[Riven smb1360] fake_battery_soc = %d\n", chip->fake_battery_soc);
+		//dev_err(chip->dev, "[Riven smb1360] chip->soc_reached_full = %d", chip->soc_reached_full);
+
+		if( val->intval >= 99		&&  //Higher then 98%
+		    chip->usb_present		&&  //Charging
+		    chip->fake_battery_soc < 0	&&  //Not testing SoC
+		    chip->soc_reached_full	    //SoC was once reched 100
+		){
+		    dev_err(chip->dev, "[Riven SMB1360] LOCK down: Return SoC 100%%\n");
+		    val->intval = 100;
+		}
+		else{
+		    dev_err(chip->dev, "[Riven SMB1360] LOCK down: Not LOCK down return real SoC\n");
+		}
+		//if(!chip->soc_reached_full && ( (!chip->usb_present) || (val->intval < 99) ) ){
+		if(!chip->usb_present || val->intval < 99){
+		    //dev_err(chip->dev, "[Riven SMB1360] LOCK down: Some reason unLOCK\n");
+		    chip->soc_reached_full = 0;		
+		}
+		/* Riven report fake SoC when charging might display 99% END */
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 		val->intval = smb1360_get_prop_chg_full_design(chip);
@@ -1255,6 +1382,49 @@ static int smb1360_battery_get_property(struct power_supply *psy,
 	}
 	return 0;
 }
+/* Riven Add factory_charging_enabled entry START */
+static ssize_t smb1360_factory_charging_enabled_show(struct device *dev,
+							struct device_attribute *attr, char *buf)
+{
+    struct smb1360_chip *chip = dev_get_drvdata(dev);
+    int charging_status = smb1360_get_prop_charging_status(chip);
+    int rc = sprintf(buf, "%d\n", charging_status);
+
+    return rc;
+}
+static ssize_t smb1360_factory_charging_enabled_store(struct device *dev,
+							struct device_attribute *attr,
+							const char *buf, size_t count)
+{
+    struct smb1360_chip *chip = dev_get_drvdata(dev);
+    unsigned long charging_enable;
+
+    if(strncmp(buf, "Riven factory charging enable", strlen("Riven factory charging enable") ) == 0)
+	charging_enable = 1;
+    else if(strncmp(buf, "Riven factory charging disable", strlen("Riven factory charging disable") ) == 0)
+	charging_enable = 0;
+    else{
+	dev_err(chip->dev, "[Riven smb1360] Fail to set factory charging enabled input = \"%s\"", buf);
+	return -EINVAL;
+    }
+    
+    dev_err(chip->dev, "[Riven smb1360] Seting charging_enable = %d\n", !!!!charging_enable);
+
+    smb1360_charging_disable(chip, USER, !!!charging_enable);
+    power_supply_changed(&chip->batt_psy);
+    return count;
+}
+
+
+static DEVICE_ATTR(factory_charging_enabled, 0664, smb1360_factory_charging_enabled_show,  smb1360_factory_charging_enabled_store);
+static struct attribute *smb1360_factory_charging_enabled_attrs[] = {
+    &dev_attr_factory_charging_enabled.attr,
+    NULL
+};
+static const struct attribute_group smb1360_factory_charging_enabled_attr_group = {
+    .attrs = smb1360_factory_charging_enabled_attrs,
+};
+/* Riven Add factory_charging_enabled entry END */
 
 static void smb1360_external_power_changed(struct power_supply *psy)
 {
@@ -1305,12 +1475,27 @@ static int hot_hard_handler(struct smb1360_chip *chip, u8 rt_stat)
 {
 	pr_debug("rt_stat = 0x%02x\n", rt_stat);
 	chip->batt_hot = !!rt_stat;
+	/* Riven Add over hot_hard timer START - If over hot hard, hold wake lock and start timer */
+	if(!!rt_stat){
+	    dev_err(chip->dev, "[Riven smb1360] Reach Hard HOT, Starting timer and hold wake lock\n");
+	    pm_stay_awake(chip->dev);
+	    chip->thermal_over_hot_hard_timer.expires = jiffies + 60 * HZ;
+	    add_timer(&chip->thermal_over_hot_hard_timer);
+	}
+	else{
+	    dev_err(chip->dev, "[Riven smb1360] Exit Hard HOT, kill timer and released wake lock\n");
+	    del_timer_sync(&chip->thermal_over_hot_hard_timer);
+	    pm_relax(chip->dev);
+	}
+	/* Riven Add over hot_hard timer END */
+	
 	return 0;
 }
 
 static int cold_hard_handler(struct smb1360_chip *chip, u8 rt_stat)
 {
 	pr_debug("rt_stat = 0x%02x\n", rt_stat);
+	dev_err(chip->dev, "%s Hard COLD\n", !!rt_stat ? "Reach" : "Exit");
 	chip->batt_cold = !!rt_stat;
 	return 0;
 }
@@ -1318,6 +1503,7 @@ static int cold_hard_handler(struct smb1360_chip *chip, u8 rt_stat)
 static int hot_soft_handler(struct smb1360_chip *chip, u8 rt_stat)
 {
 	pr_debug("rt_stat = 0x%02x\n", rt_stat);
+	dev_err(chip->dev, "%s Soft HOT\n", !!rt_stat ? "Reach" : "Exit");
 	chip->batt_warm = !!rt_stat;
 	return 0;
 }
@@ -1325,6 +1511,7 @@ static int hot_soft_handler(struct smb1360_chip *chip, u8 rt_stat)
 static int cold_soft_handler(struct smb1360_chip *chip, u8 rt_stat)
 {
 	pr_debug("rt_stat = 0x%02x\n", rt_stat);
+	dev_err(chip->dev, "%s Soft COLD\n", !!rt_stat ? "Reach" : "Exit");
 	chip->batt_cool = !!rt_stat;
 	return 0;
 }
@@ -1356,25 +1543,65 @@ static int chg_term_handler(struct smb1360_chip *chip, u8 rt_stat)
 	return 0;
 }
 
+static int recharge_handler(struct smb1360_chip *chip, u8 rt_stat)
+{
+	dev_err(chip->dev, "[Riven smb1360] recharge_handler ret_stat = %d\n", rt_stat);	
+	return 0;
+}
+
 static int usbin_uv_handler(struct smb1360_chip *chip, u8 rt_stat)
 {
 	bool usb_present = !rt_stat;
 
-	pr_debug("chip->usb_present = %d usb_present = %d\n",
-				chip->usb_present, usb_present);
+	dev_err(chip->dev, "[Riven smb1360] ------------- usbin_UV_handler START -------------\n");
+	dev_err(chip->dev, "[Riven smb1360] rt_stat = %d\n", rt_stat);
+	dev_err(chip->dev, "[Riven smb1360] chip->usb_present = %d usb_present = %d\n", chip->usb_present, usb_present);
+#if 0
 	if (chip->usb_present && !usb_present) {
 		/* USB removed */
 		chip->usb_present = usb_present;
 		power_supply_set_present(chip->usb_psy, usb_present);
+		dev_err(chip->dev, "[Riven smb1360] /* USB removed */\n");
 	}
 
 	if (!chip->usb_present && usb_present) {
 		/* USB inserted */
 		chip->usb_present = usb_present;
 		power_supply_set_present(chip->usb_psy, usb_present);
+		dev_err(chip->dev, "[Riven smb1360] /* USB inserted */\n");
 	}
+#endif
 
+	dev_err(chip->dev, "[Riven smb1360] ------------- usbin_UV_handler END -------------\n");
 	return 0;
+}
+
+static int usbin_ov_handler(struct smb1360_chip *chip, u8 rt_stat)
+{
+    bool usb_present = !rt_stat;
+
+    dev_err(chip->dev, "[Riven smb1360] ------------- usbin_ov_handler START -------------\n");
+    dev_err(chip->dev, "[Riven smb1360] rt_stat = %d\n", rt_stat);
+    dev_err(chip->dev, "[Riven smb1360] chip->usb_present = %d usb_present = %d\n", chip->usb_present, usb_present);
+
+#if 0
+    if (chip->usb_present && !usb_present) {
+	/* USB removed */
+	dev_err(chip->dev, "[Riven smb1360] /* USB removed */\n");
+	chip->usb_present = usb_present;
+	power_supply_set_present(chip->usb_psy, usb_present);
+    }
+    
+    if (!chip->usb_present && usb_present) {
+	/* USB inserted */
+	dev_err(chip->dev, "[Riven smb1360] /* USB inserted */\n");
+	chip->usb_present = usb_present;
+	power_supply_set_present(chip->usb_psy, usb_present);
+    }
+#endif
+
+    dev_err(chip->dev, "[Riven smb1360] ------------- usbin_ov_handler END -------------\n");
+    return 0;
 }
 
 static int chg_inhibit_handler(struct smb1360_chip *chip, u8 rt_stat)
@@ -1391,7 +1618,18 @@ static int chg_inhibit_handler(struct smb1360_chip *chip, u8 rt_stat)
 
 static int delta_soc_handler(struct smb1360_chip *chip, u8 rt_stat)
 {
+	int rc;
 	pr_debug("SOC changed! - rt_stat = 0x%02x\n", rt_stat);
+	/* Riven report fake SoC when charging might display 99% START */
+	if(!chip->soc_reached_full){
+	    rc = smb1360_get_prop_batt_capacity(chip);
+	    dev_err(chip->dev, "[Riven SMB1360] LOCK down: soc handler = %d\n", rc);
+	    if(rc == 100){
+		dev_err(chip->dev, "[Riven SMB1360] LOCK down: set to 1\n");
+		chip->soc_reached_full = 1;
+	    }
+	}
+	/* Riven report fake SoC when charging might display 99% END */
 
 	return 0;
 }
@@ -1507,6 +1745,7 @@ static struct irq_handler_info handlers[] = {
 			},
 			{
 				.name		= "recharge",
+				.smb_irq        = recharge_handler,
 			},
 			{
 				.name		= "fast_chg",
@@ -1537,6 +1776,7 @@ static struct irq_handler_info handlers[] = {
 			},
 			{
 				.name		= "usbin_ov",
+				.smb_irq        = usbin_ov_handler,
 			},
 			{
 				.name		= "unused",
@@ -1631,6 +1871,11 @@ static irqreturn_t smb1360_stat_handler(int irq, void *dev_id)
 	int rc;
 	int handler_count = 0;
 
+	int OV_RT_STAT = -1, UV_RT_STAT = -1, usb_present;
+	int OV_CALLED  =  0, UV_CALLED  = 0;
+
+	dev_err(chip->dev, "[Riven smb1360] -------------------- smb1360_stat_handler START --------------------\n");
+
 	mutex_lock(&chip->irq_complete);
 	chip->irq_waiting = true;
 	if (!chip->resume_completed) {
@@ -1672,6 +1917,17 @@ static irqreturn_t smb1360_stat_handler(int irq, void *dev_id)
 
 			if ((triggered || changed)
 				&& handlers[i].irq_info[j].smb_irq != NULL) {
+				dev_err(chip->dev, "[Riven smb1360] Get IRQ %s rt_stat = %d\n", handlers[i].irq_info[j].name, rt_stat);
+				/* Riven add OV START */
+				if(handlers[i].irq_info[j].smb_irq == usbin_uv_handler){
+				    UV_RT_STAT = rt_stat;
+				    UV_CALLED  = 1;
+				}
+				if(handlers[i].irq_info[j].smb_irq == usbin_ov_handler){
+				    OV_RT_STAT = rt_stat;
+				    OV_CALLED  = 1;
+				}
+				/* Riven add OV END */
 				handler_count++;
 				rc = handlers[i].irq_info[j].smb_irq(chip,
 								rt_stat);
@@ -1684,11 +1940,45 @@ static irqreturn_t smb1360_stat_handler(int irq, void *dev_id)
 		handlers[i].prev_val = handlers[i].val;
 	}
 
+	/* Riven add OV START */
+	//dev_err(chip->dev, "[Riven smb1360] UV_CALLED = %d\n", UV_CALLED);
+	//dev_err(chip->dev, "[Riven smb1360] OV_CALLED = %d\n", OV_CALLED);
+	//dev_err(chip->dev, "[Riven smb1360] UV_RT_STAT = %d\n", UV_RT_STAT);
+	//dev_err(chip->dev, "[Riven smb1360] OV_RT_STAT = %d\n", OV_RT_STAT);
+	
+	if(UV_CALLED && OV_CALLED)
+	    usb_present = 0;
+	else if(UV_CALLED)
+	    usb_present = !UV_RT_STAT;
+	else if(OV_CALLED)
+	    usb_present = !OV_RT_STAT;
+	else
+	    usb_present = chip->usb_present;
+
+	dev_err(chip->dev, "[Riven smb1360] chip->usb_present = %d usb_present = %d\n", chip->usb_present, usb_present);
+
+	if (chip->usb_present && !usb_present) {
+	    /* USB removed */
+	    chip->usb_present = usb_present;
+	    power_supply_set_present(chip->usb_psy, usb_present);
+	    dev_err(chip->dev, "[Riven smb1360] /* USB removed */\n");
+	}
+	
+	if (!chip->usb_present && usb_present) {
+	    /* USB inserted */
+	    chip->usb_present = usb_present;
+	    power_supply_set_present(chip->usb_psy, usb_present);
+	    dev_err(chip->dev, "[Riven smb1360] /* USB inserted */\n");
+	}
+	/* Riven add OV END */
+
 	pr_debug("handler count = %d\n", handler_count);
 	if (handler_count)
 		power_supply_changed(&chip->batt_psy);
 
 	mutex_unlock(&chip->irq_complete);
+
+	dev_err(chip->dev, "[Riven smb1360] -------------------- smb1360_stat_handler END --------------------\n");
 
 	return IRQ_HANDLED;
 }
@@ -2275,7 +2565,7 @@ static int smb1360_regulator_init(struct smb1360_chip *chip)
 
 static int smb1360_check_batt_profile(struct smb1360_chip *chip)
 {
-	int rc, i, timeout = 50;
+	int rc, i, timeout = 50, error_range;
 	u8 reg = 0, loaded_profile, new_profile = 0, bid_mask;
 
 	if (!chip->connected_rid) {
@@ -2293,14 +2583,20 @@ static int smb1360_check_batt_profile(struct smb1360_chip *chip)
 	loaded_profile = !!(reg & BATTERY_PROFILE_BIT) ?
 			BATTERY_PROFILE_B : BATTERY_PROFILE_A;
 
-	pr_debug("fg_batt_status=%x loaded_profile=%d\n", reg, loaded_profile);
+	pr_info("fg_batt_status=%x loaded_profile=%d\n", reg, loaded_profile);
+
+	error_range = div_u64(chip->connected_rid, 10);
+	if(error_range < 10)
+	    error_range = 10;
+	pr_debug("BID R ohm assept range = %d\n", error_range);
 
 	for (i = 0; i < BATTERY_PROFILE_MAX; i++) {
 		pr_debug("profile=%d profile_rid=%d connected_rid=%d\n", i,
 						chip->profile_rid[i],
 						chip->connected_rid);
 		if (abs(chip->profile_rid[i] - chip->connected_rid) <
-				(div_u64(chip->connected_rid, 10)))
+				//(div_u64(chip->connected_rid, 10)))
+				(error_range))
 			break;
 	}
 
@@ -2466,7 +2762,7 @@ static int determine_initial_status(struct smb1360_chip *chip)
 static int smb1360_fg_config(struct smb1360_chip *chip)
 {
 	int rc = 0, temp, fcc_mah;
-	u8 reg = 0, reg2[2];
+	u8 reg = 0, reg2[2], data, mask;
 
 	/*
 	 * The below IRQ thresholds are not accessible in REV_1
@@ -2474,8 +2770,14 @@ static int smb1360_fg_config(struct smb1360_chip *chip)
 	 */
 	if (!(chip->workaround_flags & WRKRND_FG_CONFIG_FAIL)) {
 		if (chip->delta_soc != -EINVAL) {
-			reg = DIV_ROUND_UP(chip->delta_soc * MAX_8_BITS, 100);
-			pr_debug("delta_soc=%d reg=%x\n", chip->delta_soc, reg);
+			if(chip->delta_soc != 1){
+			    reg = DIV_ROUND_UP(chip->delta_soc * MAX_8_BITS, 100);
+			    pr_debug("delta_soc=%d reg=%x\n", chip->delta_soc, reg);
+			}
+			else{
+			    dev_err(chip->dev, "[Riven smb1360] Fix delta SoC is need 1%% accurcy, write 1 (0.39%%) into reg\n");
+			    reg = 1;
+			}
 			rc = smb1360_write(chip, SOC_DELTA_REG, reg);
 			if (rc) {
 				dev_err(chip->dev, "Couldn't write to SOC_DELTA_REG rc=%d\n",
@@ -2540,6 +2842,43 @@ static int smb1360_fg_config(struct smb1360_chip *chip)
 			}
 		}
 	}
+	/* Riven add JEITA soft temp setting and enable/disable JEITA soft/hard cold/hot mitigation START */
+	    /* Set soft cold temp. T = reg[] + 243k*/
+
+	dev_err(chip->dev, "[Riven smb1360] ---------- Set JEITA soft cold/hot temperature START ----------\n");
+	reg = JEITA_SOFT_COLD_TEMP;
+	mask = 0x7f;
+	data = chip->fg_jeita_soft_cold_temp;
+	if(chip->fg_jeita_soft_cold_temp != -EINVAL){
+	    rc = smb1360_masked_write(chip, reg, mask, data);
+	    if(rc < 0){
+		dev_err(chip->dev, "[Riven smb1360] Could not set JEITA soft COLD temp to %d + 243k = %dC, rc = %d\n", data, data + 243 - 273, rc);
+	    }
+	    else{
+		dev_err(chip->dev, "[Riven smb1360] Set JEITA soft COLD temp to %d + 243k = %dC\n", data, data + 243 - 273);
+	    }
+	}
+	else{
+	    dev_err(chip->dev, "[Riven smb1360] No assign JEITA soft COLD temperature\n");
+	}
+	    /* Set soft hot temp. T = reg[] + 243k */
+	reg = JEITA_SOFT_HOT_TEMP;
+	mask = 0x7f;
+	data = chip->fg_jeita_soft_hot_temp;
+	if(chip->fg_jeita_soft_hot_temp != -EINVAL){
+	    rc = smb1360_masked_write(chip, reg, mask, data);
+	    if(rc < 0){
+		dev_err(chip->dev, "[Riven smb1360] Could not set JEITA soft HOT temp to %d + 243k = %dC, rc = %d\n", data, data + 243 - 273, rc);
+	    }
+	    else{
+		dev_err(chip->dev, "[Riven smb1360] Set JEITA soft HOT temp to %d + 243k = %dC\n", data, data + 243 - 273);
+	    }
+	}
+	else{
+	    dev_err(chip->dev, "[Riven smb1360] No assign JEITA soft HOT temperature\n");
+	}
+	dev_err(chip->dev, "[Riven smb1360] ---------- Set JEITA soft cold/hot temperature END ----------\n");
+	/* Riven add JEITA soft temp setting and enable/disable JEITA soft/hard cold/hot mitigation END */
 
 	/* scratch-pad register config */
 	if (chip->batt_capacity_mah != -EINVAL
@@ -2710,6 +3049,16 @@ disable_fg:
 	return rc;
 }
 
+static void smb1360_cleanup_irq(struct i2c_client *client){
+
+    //struct i2c_client *client = to_i2c_client(dev);
+    struct smb1360_chip *chip = i2c_get_clientdata(client);
+
+    smb1360_stat_handler(client->irq, chip);
+
+    return;
+}
+
 static void smb1360_check_feature_support(struct smb1360_chip *chip)
 {
 
@@ -2779,7 +3128,7 @@ static int smb1360_hw_init(struct smb1360_chip *chip)
 {
 	int rc;
 	int i;
-	u8 reg, mask;
+	u8 reg, mask, data;
 
 	smb1360_check_feature_support(chip);
 
@@ -2972,7 +3321,10 @@ static int smb1360_hw_init(struct smb1360_chip *chip)
 		if (!chip->pulsed_irq)
 			reg = CHG_STAT_IRQ_ONLY_BIT;
 		else
-			reg = CHG_TEMP_CHG_ERR_BLINK_BIT;
+		{
+			//reg = CHG_TEMP_CHG_ERR_BLINK_BIT;     //Blink when Temp/Chgering error
+			reg = CHG_STAT_DISABLE_BIT;             //Disable Status output
+		}
 		rc = smb1360_masked_write(chip, CFG_STAT_CTRL_REG, mask, reg);
 		if (rc < 0) {
 			dev_err(chip->dev, "Couldn't set irq config rc = %d\n",
@@ -2985,7 +3337,8 @@ static int smb1360_hw_init(struct smb1360_chip *chip)
 				IRQ_BAT_HOT_COLD_HARD_BIT
 				| IRQ_BAT_HOT_COLD_SOFT_BIT
 				| IRQ_INTERNAL_TEMPERATURE_BIT
-				| IRQ_DCIN_UV_BIT);
+				| IRQ_DCIN_UV_BIT
+				| IRQ_DCIN_OV_BIT);
 		if (rc) {
 			dev_err(chip->dev, "Couldn't set irq1 config rc = %d\n",
 					rc);
@@ -3060,6 +3413,47 @@ static int smb1360_hw_init(struct smb1360_chip *chip)
 		dev_err(chip->dev, "Couldn't '%s' charging rc = %d\n",
 			chip->charging_disabled ? "disable" : "enable", rc);
 
+	/* Riven add JEITA soft temp setting and enable/disable JEITA soft/hard cold/hot mitigation START */
+	dev_err(chip->dev, "[Riven smb1360] ---------- Set JEITA soft/hard cold/hot mitigation START ----------\n");
+	reg = CHG_JEITA_ENABLE_REG;
+	mask = JEITA_SOFT_COLD_V_MITIGATION | JEITA_SOFT_COLD_I_MITIGATION | JEITA_SOFT_HOT_V_MITIGATION | JEITA_SOFT_HOT_I_MITIGATION;
+	data = 0;
+	if(chip->jeita_soft_cold_v_mitigation)
+	            data |= JEITA_SOFT_COLD_V_MITIGATION;
+	if(chip->jeita_soft_cold_i_mitigation)
+	            data |= JEITA_SOFT_COLD_I_MITIGATION;
+	if(chip->jeita_soft_hot_v_mitigation)
+	            data |= JEITA_SOFT_HOT_V_MITIGATION;
+	if(chip->jeita_soft_hot_i_mitigation)
+	            data |= JEITA_SOFT_HOT_I_MITIGATION;
+	rc = smb1360_masked_write(chip, reg, mask, data);
+	if(rc < 0){
+	    dev_err(chip->dev, "[Riven smb1360] Could not set JEITA soft/hard cold/hot mitigation\n");
+	    return rc;
+	}
+
+	reg = CFG_FG_BATT_CTRL_REG;
+	mask = JEITA_HARD_LIMIT_DISABLED;
+	data = 0;
+	if(!chip->jeita_hard_limited)
+	            data |= JEITA_HARD_LIMIT_DISABLED;
+	rc = smb1360_masked_write(chip, reg, mask, data);
+	if(rc < 0){
+	    dev_err(chip->dev, "[Riven smb1360] Fail to set JEITA hard limit enable or disable\n");
+	    return rc;
+	}
+	else{
+	    dev_err(chip->dev, "[Riven smb1360] reg = 0x%02x, data = 0x%02x, mask = 0x%02x\n", reg, data, mask);
+	}
+
+	dev_err(chip->dev, "[Riven smb1360] JEITA %s %s %s Mitigation %s\n", "Soft", "Cold",  "V" , chip->jeita_soft_cold_v_mitigation ? "Enabled" : "Disabled" );
+	dev_err(chip->dev, "[Riven smb1360] JEITA %s %s %s Mitigation %s\n", "Soft", "Cold",  "I" , chip->jeita_soft_cold_i_mitigation ? "Enabled" : "Disabled" );
+	dev_err(chip->dev, "[Riven smb1360] JEITA %s %s %s Mitigation %s\n", "Soft",  "Hot",  "V" , chip->jeita_soft_hot_v_mitigation ? "Enabled" : "Disabled" );
+	dev_err(chip->dev, "[Riven smb1360] JEITA %s %s %s Mitigation %s\n", "Soft",  "Hot",  "I" , chip->jeita_soft_hot_i_mitigation ? "Enabled" : "Disabled" );
+	dev_err(chip->dev, "[Riven smb1360] JEITA %s Limited %s\n", "Hard", chip->jeita_hard_limited ? "Enabled" : "Disabled" );
+	dev_err(chip->dev, "[Riven smb1360] ---------- Set JEITA soft/hard cold/hot mitigation END ----------\n");
+	/* Riven add JEITA soft temp setting and enable/disable JEITA soft/hard cold/hot mitigation END */
+
 	return rc;
 }
 
@@ -3133,6 +3527,19 @@ static int smb_parse_batt_id(struct smb1360_chip *chip)
 			batt_id_uv, chip->connected_rid);
 
 	return 0;
+}
+
+static void smb1360_uevent_send(unsigned long data){
+    struct smb1360_chip *chip = (struct smb1360_chip *)data;
+    
+    dev_err(chip->dev, "[Riven smb1360] smb1360_uevent_send()\n");
+    
+    power_supply_changed(&chip->batt_psy);
+
+    if(chip->batt_hot){
+	chip->thermal_over_hot_hard_timer.expires = jiffies + 60 * HZ;
+	add_timer(&chip->thermal_over_hot_hard_timer);
+    }
 }
 
 static int smb_parse_dt(struct smb1360_chip *chip)
@@ -3288,6 +3695,70 @@ static int smb_parse_dt(struct smb1360_chip *chip)
 	if (rc < 0)
 		chip->fg_auto_recharge_soc = -EINVAL;
 
+	/* Riven add JEITA soft temp setting and enable/disable JEITA soft/hard cold/hot mitigation START */
+	    /* Set jeita soft cold temp */
+	dev_err(chip->dev, "[Riven smb1360] ---------- Reading JETIA setting from DT START ----------\n"); 
+	rc = of_property_read_u32(node, "qcom,jeita-soft-cold-temp",
+					&chip->fg_jeita_soft_cold_temp);
+	if (rc < 0){
+	    chip->fg_jeita_soft_cold_temp = -EINVAL;
+	    dev_err(chip->dev, "[Riven smb1360] Reading qcom,jeita-soft-cold-temp fail, rc = %d\n", rc);
+	}
+	else{
+	    dev_err(chip->dev, "[Riven smb1360] Reading JEITA soft COLD RAW temp = %d\n", chip->fg_jeita_soft_cold_temp);
+	    chip->fg_jeita_soft_cold_temp -= 243;
+	    dev_err(chip->dev, "[Riven smb1360] Reading JEITA soft COLD temp. = %d\n", chip->fg_jeita_soft_cold_temp);
+	    if(chip->fg_jeita_soft_cold_temp < 0 || chip->fg_jeita_soft_cold_temp > 0x7F){
+		chip->fg_jeita_soft_cold_temp = -EINVAL;
+		dev_err(chip->dev, "[Riven smb1360] JEITA soft cold temp. outside accepted range 0~0x7F(128)\n");
+	    }
+	}
+	
+	    /* Set jeita soft hot temp */
+	rc = of_property_read_u32(node, "qcom,jeita-soft-hot-temp",
+					&chip->fg_jeita_soft_hot_temp);
+	if (rc < 0){
+	    chip->fg_jeita_soft_hot_temp = -EINVAL;
+	    dev_err(chip->dev, "[Riven smb1360] Reading qcom,qcom,jeita-soft-hot-temp fail, rc = %d\n", rc);
+	}
+	else{
+	    dev_err(chip->dev, "[Riven smb1360] Reading JEITA soft HOT RAW temp = %d\n", chip->fg_jeita_soft_hot_temp);
+	    chip->fg_jeita_soft_hot_temp -= 243;
+	    dev_err(chip->dev, "[Riven smb1360] Reading JEITA soft HOT temp. = %d\n", chip->fg_jeita_soft_hot_temp);
+	    if(chip->fg_jeita_soft_hot_temp < 0 || chip->fg_jeita_soft_hot_temp > 0x7F){
+		chip->fg_jeita_soft_hot_temp = -EINVAL;
+		dev_err(chip->dev, "JEITA soft hot temp. outside accepted range 0~0x7F(128)\n");
+	    }
+	}
+
+	    /* Set jeita hard limition */
+	chip->jeita_hard_limited =
+	            !of_property_read_bool(node, "qcom,disable-jeita-hard-limited");
+
+	    /* Set jeita soft cold V mitigation */
+	chip->jeita_soft_cold_v_mitigation =
+	            of_property_read_bool(node, "qcom,enable-jeita-soft-cold-v-mitigation");
+
+	    /* Set jeita soft cold I mitigation */
+	chip->jeita_soft_cold_i_mitigation =
+	            of_property_read_bool(node, "qcom,enable-jeita-soft-cold-i-mitigation");
+
+	    /* Set jeita soft hot V mitigation */
+	chip->jeita_soft_hot_v_mitigation =
+	            of_property_read_bool(node, "qcom,enable-jeita-soft-hot-v-mitigation");
+
+	    /* Set jeita soft hot I mitigation */
+	chip->jeita_soft_hot_i_mitigation =
+	            of_property_read_bool(node, "qcom,enable-jeita-soft-hot-i-mitigation");
+
+	dev_err(chip->dev, "[Riven smb1360] Reading JEITA %s %s %s Mitigation %s\n", "Soft", "Cold",  "V" , chip->jeita_soft_cold_v_mitigation ? "Enabled" : "Disabled" );
+	dev_err(chip->dev, "[Riven smb1360] Reading JEITA %s %s %s Mitigation %s\n", "Soft", "Cold",  "I" , chip->jeita_soft_cold_i_mitigation ? "Enabled" : "Disabled" );
+	dev_err(chip->dev, "[Riven smb1360] Reading JEITA %s %s %s Mitigation %s\n", "Soft",  "Hot",  "V" , chip->jeita_soft_hot_v_mitigation ? "Enabled" : "Disabled" );
+	dev_err(chip->dev, "[Riven smb1360] Reading JEITA %s %s %s Mitigation %s\n", "Soft",  "Hot",  "I" , chip->jeita_soft_hot_i_mitigation ? "Enabled" : "Disabled" );
+	dev_err(chip->dev, "[Riven smb1360] Reading JEITA %s Limited %s\n", "Hard", chip->jeita_hard_limited ? "Enabled" : "Disabled" );
+	dev_err(chip->dev, "[Riven smb1360] ---------- Reading JETIA setting from DTS END ----------\n");
+	/* Riven add JEITA soft temp setting and enable/disable JEITA soft/hard cold/hot mitigation END */
+
 	return 0;
 }
 
@@ -3365,6 +3836,26 @@ static int smb1360_probe(struct i2c_client *client,
 		goto fail_hw_init;
 	}
 
+	/* Riven report fake SoC when charging might display 99% START */
+	dev_err(chip->dev, "[Riven SMB1360] ---------- LOCK down SoC to 100%% START ----------\n");
+	chip->soc_reached_full = 0;
+	rc = smb1360_get_prop_batt_capacity(chip);
+	dev_err(chip->dev, "[Riven SMB1360] probe set soc_reached_full = 0\n");
+	dev_err(chip->dev, "[Riven SMB1360] LOCK down: Probe SoC = %d\n", rc);	
+	if(rc == 100 && !chip->soc_reached_full){
+	    dev_err(chip->dev, "[Riven SMB1360] LOCK down: probe set soc_reached_full = 1\n");
+	    chip->soc_reached_full = 1;
+	}
+	dev_err(chip->dev, "[Riven SMB1360] ---------- LOCK down SoC to 100%% END ----------\n");
+	/* Riven report fake SoC when charging might display 99% END */
+
+	/* Riven Fix sometimes screen will not wakeup START */
+	//dev_err(chip->dev, "[Riven SMB1360] ---------- Screen will not wakeup START ----------\n");
+	wake_lock_init(&chip->resume_wake_lock, WAKE_LOCK_SUSPEND, "SMB1360_resume_wake_lock");
+	//dev_err(chip->dev, "[Riven SMB1360] Init smb1360_gResume_wake_lock\n");
+	//dev_err(chip->dev, "[Riven SMB1360] ---------- Screen will not wakeup END ----------\n");
+	/* Riven Fix sometimes screen will not wakeup END */
+
 	chip->batt_psy.name		= "battery";
 	chip->batt_psy.type		= POWER_SUPPLY_TYPE_BATTERY;
 	chip->batt_psy.get_property	= smb1360_battery_get_property;
@@ -3381,10 +3872,28 @@ static int smb1360_probe(struct i2c_client *client,
 		goto fail_hw_init;
 	}
 
+	/* Riven Add factory_charging_enabled entry START */
+	rc = sysfs_create_group(&chip->dev->kobj, &smb1360_factory_charging_enabled_attr_group);
+	if(rc < 0){
+	    dev_err(&client->dev, "[Riven smb1360] Fail to register factory_charging_enabled entry\n");
+	    goto fail_hw_init;
+	}
+	else{
+	    dev_err(&client->dev, "[Riven smb1360] Enable factory_charging_enableed entry\n");
+	}
+	/* Riven Add factory_charging_enabled entry END */
+
+	/* Riven Add over hot_hard timer START - init timer */
+	//setup_timer((&chip->thermal_over_hot_hard_timer), smb1360_uevent_send, chip);
+	init_timer(&chip->thermal_over_hot_hard_timer);
+	chip->thermal_over_hot_hard_timer.data = (unsigned long )chip;
+	chip->thermal_over_hot_hard_timer.function = smb1360_uevent_send;
+	/* Riven Add over hot_hard timer END*/
+
 	/* STAT irq configuration */
 	if (client->irq) {
 		rc = devm_request_threaded_irq(&client->dev, client->irq, NULL,
-				smb1360_stat_handler, IRQF_ONESHOT,
+				smb1360_stat_handler, IRQF_ONESHOT | IRQF_TRIGGER_RISING,
 				"smb1360_stat_irq", chip);
 		if (rc < 0) {
 			dev_err(&client->dev,
@@ -3518,8 +4027,127 @@ static int smb1360_probe(struct i2c_client *client,
 			chip->usb_present,
 			smb1360_get_prop_batt_capacity(chip));
 
-	return 0;
+	/* Riven Add setting START */
+	    smb1360_cleanup_irq(client);
+	    /* Enable write */
+		//Done by smb1360_hw_init() -> smb1360_enable_volatile_writes()
 
+	    /* Set dection battery using only thermal pin */
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Setting battery dection method START ----------\n");
+
+	    rc = smb1360_write(chip, CFG_BATT_MISSING_REG, BATT_MISSING_SRC_THERM_BIT);
+	    if (rc < 0) {
+		dev_err(chip->dev, "[Riven smb1360] Failed to Set Thermal pin only\n");
+		return -ENODEV;
+	    }
+	    else{
+		dev_err(chip->dev, "[Riven smb1360] Set only Thermal only\n");
+	    }
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Setting battery dection method END ----------\n");
+
+	    /* Enable AICL = 1300 mA*/
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Enable AICL = 1300 mA START ----------\n");
+	    rc = smb1360_write(chip, 0x05, 0x2D);
+	    if (rc < 0) {
+		dev_err(chip->dev, "[Riven smb1360] Fail to enable AICL at 1300 mA\n");
+		return -ENODEV;
+	    }
+	    else{
+		dev_err(chip->dev, "[Riven smb1360] Enable AICL = 1300mA\n");
+	    }
+	    
+	    rc = smb1360_masked_write(chip, CMD_IL_REG, USB_CTRL_MASK, USB_AC_BIT );
+	    if (rc < 0) {		        
+		dev_err(chip->dev, "[Riven smb1360] Fail to enable USB AC mode\n");		
+		return -ENODEV;
+	    }
+	    else{
+		dev_err(chip->dev, "[Riven smb1360] Enable USB AC mode\n");
+	    }
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Enable AICL = 1300 mA END ----------\n");
+
+	    /* Set charge current to 1500 mA */
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Set charging current = 1500 mA START ----------\n");
+	    rc = smb1360_masked_write(chip, CHG_CURRENT_REG, FASTCHG_CURR_MASK, 7 << FASTCHG_CURR_SHIFT);
+	    if (rc < 0) {
+		dev_err(chip->dev, "[Riven smb1360] Fail to set charging curret to 1500 mA\n");
+		return -ENODEV;
+	    }
+	    else{
+		dev_err(chip->dev, "[Riven smb1360] Set charging current to 1500 mA\n");
+	    }
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Set charging current = 1500 mA END ----------\n");	    
+
+	    /* Riven add JEITA soft temp setting and enable/disable JEITA soft/hard cold/hot mitigation START */
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Set SOFT mitigation START ----------\n");
+	    rc = smb1360_masked_write(chip, JEITA_SOFT_V_MITIGATION_REG, JEITA_SOFT_V_MITIGATION_MASK, 0x00);   //No soft V mitigation
+	    if (rc) {
+		dev_err(chip->dev, "[Riven smb1360] Fail to set V mitigation\n");
+		return -ENODEV;
+	    }
+	    else{
+		dev_err(chip->dev, "[Riven smb1360] Enable V mitigation to 0V\n");
+	    }
+	    rc = smb1360_masked_write(chip, CHG_JEITA_ENABLE_REG, JEITA_SOFT_I_MITIGATION_MASK, 0x01);
+	    if (rc) {
+		dev_err(chip->dev, "[Riven smb1360] Failed to set I mitigation to 600mA\n");
+		return -ENODEV;
+	    }
+	    else{
+		dev_err(chip->dev, "[Riven smb1360] Enable I mitigation to 750mA\n");
+	    }
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Set SOFT mitigation END ----------\n");
+
+	    /* Riven set pre to fast V 3.1V */
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Set pre to fast 3.1V START ----------\n");
+	    rc = smb1360_masked_write(chip, CHG_VOLTAGE_REG, PRE_2_FAST_V_MASK, PRE_2_FAST_V_3_1_V << PRE_2_FAST_V_SHIFT);
+	    if (rc) {
+		dev_err(chip->dev, "[Riven smb1360] Failed to set pre to fast 3.1V\n");
+		return -ENODEV;
+	    }
+	    else{
+		dev_err(chip->dev, "[Riven smb1360] Enable pre to fast 3.1V\n");
+	    }
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Set pre to fast 3.1V END ----------\n");
+
+	    /* Riven fource disabling ALL ALL ALL ALL safty timer */
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Fource disable safety timer START ----------\n");
+	    rc = smb1360_write(chip, CFG_SFY_TIMER_CTRL_REG, 0x20);
+	    if (rc) {
+		dev_err(chip->dev, "[Riven smb1360] Failed to disable safety timer\n");
+		return -ENODEV;
+	    }
+	    else{
+		dev_err(chip->dev, "[Riven smb1360] Fource disabling safety timer\n");
+	    }
+	    dev_err(chip->dev, "[Riven smb1360] ---------- Fource disable safety timer END ----------\n");
+
+	    /* Riven report fake SoC when charging might display 99% START */
+	    /*
+	    dev_err(chip->dev, "[Riven SMB1360] LOCK down: probe read SoC\n");
+	    rc = smb1360_get_prop_batt_capacity(chip);
+	    dev_err(chip->dev, "[Riven SMB1360] LOCK down: at probe SoC = %d\n", rc);
+	    if(rc == 100 && !chip->soc_reached_full){
+		dev_err(chip->dev, "[Riven SMB1360] LOCK down: probe set soc_reached_full = 1\n");
+		chip->soc_reached_full = 1;
+	    }
+	    */
+	    /* Riven report fake SoC when charging might display 99% END */
+
+	/* Riven Add setting END */
+
+	/* Enable SYSON_LDO */
+	rc = smb1360_read(chip, CFG_CHG_FUNC_CTRL_REG, &reg);
+	reg &= ~SYSON_LDO_BIT;
+	rc = smb1360_write(chip, CFG_CHG_FUNC_CTRL_REG, reg);
+	
+	/* Change OTG current to 1500mA */
+	rc = smb1360_read(chip, CFG_BATT_CHG_REG, &reg);
+	reg |= 0x18;
+	rc = smb1360_write(chip, CFG_BATT_CHG_REG, reg);
+
+	return 0;
+	    
 unregister_batt_psy:
 	power_supply_unregister(&chip->batt_psy);
 fail_hw_init:
@@ -3557,19 +4185,29 @@ static int smb1360_suspend(struct device *dev)
 	}
 
 	/* enable only important IRQs */
-	rc = smb1360_write(chip, IRQ_CFG_REG, IRQ_DCIN_UV_BIT);
+	rc = smb1360_write(chip, IRQ_CFG_REG,	  IRQ_BAT_HOT_COLD_HARD_BIT
+						| IRQ_BAT_HOT_COLD_SOFT_BIT
+						| IRQ_INTERNAL_TEMPERATURE_BIT
+						| IRQ_DCIN_UV_BIT
+						| IRQ_DCIN_OV_BIT);
 	if (rc < 0)
 		pr_err("Couldn't set irq_cfg rc=%d\n", rc);
 
-	rc = smb1360_write(chip, IRQ2_CFG_REG, IRQ2_BATT_MISSING_BIT
-						| IRQ2_VBAT_LOW_BIT
-						| IRQ2_POWER_OK_BIT);
+	rc = smb1360_write(chip, IRQ2_CFG_REG,	  IRQ2_SAFETY_TIMER_BIT
+						| IRQ2_CHG_ERR_BIT
+					//	| IRQ2_CHG_PHASE_CHANGE_BI
+						| IRQ2_POWER_OK_BIT
+						| IRQ2_BATT_MISSING_BIT
+						| IRQ2_VBAT_LOW_BIT);
+
 	if (rc < 0)
 		pr_err("Couldn't set irq2_cfg rc=%d\n", rc);
 
-	rc = smb1360_write(chip, IRQ3_CFG_REG, IRQ3_SOC_FULL_BIT
-					| IRQ3_SOC_MIN_BIT
-					| IRQ3_SOC_EMPTY_BIT);
+	rc = smb1360_write(chip, IRQ3_CFG_REG,	  IRQ3_SOC_CHANGE_BIT
+						| IRQ3_SOC_MIN_BIT
+						| IRQ3_SOC_MAX_BIT
+						| IRQ3_SOC_EMPTY_BIT
+						| IRQ3_SOC_FULL_BIT);
 	if (rc < 0)
 		pr_err("Couldn't set irq3_cfg rc=%d\n", rc);
 
@@ -3606,6 +4244,12 @@ static int smb1360_resume(struct device *dev)
 			pr_err("Couldn't restore irq cfg regs rc=%d\n", rc);
 	}
 
+	/* Riven Fix sometimes screen will not wakeup START */
+	//dev_err(dev, "[Riven SMB1360] Calling wake_lock_timeout\n" );
+	wake_lock_timeout(&chip->resume_wake_lock, 2 * HZ);
+	//dev_err(dev, "[Riven SMB1360] Called wake_lock_timeout\n" );
+	/* Riven Fix sometimes screen will not wakeup END */
+
 	mutex_lock(&chip->irq_complete);
 	chip->resume_completed = true;
 	if (chip->irq_waiting) {
@@ -3627,9 +4271,27 @@ static void smb1360_shutdown(struct i2c_client *client)
 	if (chip->shdn_after_pwroff) {
 		rc = smb1360_poweroff(chip);
 		if (rc)
-			pr_err("Couldn't shutdown smb1360, rc = %d\n", rc);
-		pr_info("smb1360 power off\n");
+		    pr_err("Couldn't shutdown smb1360, rc = %d\n", rc);
+		pr_info("smb1360 setto SHDN mode\n");
 	}
+	/* Riven Add Enable LED blinkg when lower then 3.27V START */
+	dev_err(chip->dev, "[Riven smb1360] ---------- Enable LED blinkg when lower then 3.27V START ----------\n");
+	rc = smb1360_masked_write(chip, CFG_VBL_REG, LOW_VOLTAGE_REF_MASK, LOW_VOLTAGE_3_27_V);
+	if(rc < 0){
+	    dev_err(chip->dev, "[Riven smb1360] Could not Set low V to 3.27V, rc = %d\n", rc);
+	}
+	else{
+	    dev_err(chip->dev, "[Riven smb1360] Set low V to 3.27V\n");
+	}
+	rc = smb1360_masked_write(chip, CFG_STAT_CTRL_REG, CHG_STAT_DISABLE_BIT, 0x00);
+	if(rc < 0){
+	    dev_err(chip->dev, "[Riven smb1360] Could not Enable STAT output, rc = %d\n", rc);
+	}
+	else{
+	    dev_err(chip->dev, "[Riven smb1360] Set STAT output enable\n");
+	}
+	dev_err(chip->dev, "[Riven smb1360] ---------- Enable LED blinkg when lower then 3.27V END ----------\n");
+	/* Riven Add Enable LED blinkg when lower then 3.27V END */
 }
 
 static const struct dev_pm_ops smb1360_pm_ops = {

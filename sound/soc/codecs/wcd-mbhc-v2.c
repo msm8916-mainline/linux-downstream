@@ -67,10 +67,19 @@ MODULE_PARM_DESC(det_extn_cable_en, "enable/disable extn cable detect");
 	mutex_unlock(&mbhc->codec_resource_lock);	\
 }
 
+//[Matt]140807, disable impaired-brain warn. message, it's enough to print normal mes if lock is acquired.
+#if 0
 #define WCD_MBHC_RSC_ASSERT_LOCKED(mbhc)		\
 {							\
 	WARN_ONCE(!mutex_is_locked(&mbhc->codec_resource_lock), \
 		  "%s: BCL should have acquired\n", __func__); \
+}
+#endif
+
+#define WCD_MBHC_RSC_ASSERT_LOCKED(mbhc)		\
+{							\
+	if (!mutex_is_locked(&mbhc->codec_resource_lock)) \
+        pr_debug("%s: BCL should have acquired\n", __func__); \
 }
 
 static void wcd_mbhc_jack_report(struct wcd_mbhc *mbhc,
@@ -658,6 +667,8 @@ static void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
 	pr_debug("%s: leave\n", __func__);
 }
 
+//[Matt]140729, we do not support EU type of headset now, so disable the detect function
+#ifdef CROSS_CONNECTION
 /* To determine if cross connection occured */
 static bool wcd_check_cross_conn(struct wcd_mbhc *mbhc)
 {
@@ -704,6 +715,7 @@ static bool wcd_check_cross_conn(struct wcd_mbhc *mbhc)
 
 	return (plug_type == MBHC_PLUG_TYPE_GND_MIC_SWAP) ? true : false;
 }
+#endif
 
 static bool wcd_is_special_headset(struct wcd_mbhc *mbhc)
 {
@@ -776,9 +788,13 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	unsigned long timeout;
 	u16 result1, result2;
 	bool wrk_complete = false;
-	int pt_gnd_mic_swap_cnt = 0;
 	bool is_pa_on;
 	s16 reg;
+    #ifdef CROSS_CONNECTION
+	int pt_gnd_mic_swap_cnt = 0;
+    #else
+    int check_cnt = 0;
+    #endif
 
 	pr_debug("%s: enter\n", __func__);
 
@@ -820,6 +836,7 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 					0x30;
 
 		if ((!(result2 & 0x01)) && (!is_pa_on)) {
+            #ifdef CROSS_CONNECTION
 			/* Check for cross connection*/
 			if (wcd_check_cross_conn(mbhc)) {
 				plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
@@ -855,6 +872,14 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 				} else
 					pt_gnd_mic_swap_cnt = 0;
 			}
+            #else
+            check_cnt++;
+            plug_type = MBHC_PLUG_TYPE_HEADSET;
+            if (check_cnt < GND_MIC_SWAP_THRESHOLD)
+                continue;
+            else
+                break;
+            #endif
 		}
 		if (result2 == 1) {
 			pr_debug("%s: cable is extension cable\n", __func__);
@@ -889,15 +914,23 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	 * If plug_tye is headset, we might have already reported either in
 	 * detect_plug-type or in above while loop, no need to report again
 	 */
+    //[Matt]140729, we only report the plug_type here, for slow Insertion issue.
 	if (!wrk_complete && plug_type == MBHC_PLUG_TYPE_HEADSET) {
 		pr_debug("%s: It's neither headset nor headphone\n", __func__);
 		/* Write back current source value */
-		snd_soc_write(codec, MSM8X16_WCD_A_ANALOG_MBHC_FSM_CTL, reg);
-		goto exit;
+		//snd_soc_write(codec, MSM8X16_WCD_A_ANALOG_MBHC_FSM_CTL, reg);
+		goto report;
 	}
 
 	if (plug_type == MBHC_PLUG_TYPE_HIGH_HPH &&
 		(!det_extn_cable_en)) {
+        //[Matt]140814, Impedance detection for Special headset 
+		wcd_mbhc_calc_impedance(mbhc,
+				&mbhc->zl, &mbhc->zr);
+        if (mbhc->zl < 20) {
+            plug_type = MBHC_PLUG_TYPE_HEADSET;
+			goto report;
+        }
 		if (wcd_is_special_headset(mbhc)) {
 			pr_debug("%s: Special headset found %d\n",
 					__func__, plug_type);
@@ -929,8 +962,10 @@ static void wcd_mbhc_detect_plug_type(struct wcd_mbhc *mbhc)
 	enum wcd_mbhc_plug_type plug_type;
 	int timeout_result;
 	u16 result1, result2;
+    #ifdef CROSS_CONNECTION
 	bool cross_conn;
 	int try = 0;
+    #endif
 
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
@@ -947,7 +982,7 @@ static void wcd_mbhc_detect_plug_type(struct wcd_mbhc *mbhc)
 	/* Disable current source as micbias is enabled */
 	snd_soc_update_bits(codec,
 			MSM8X16_WCD_A_ANALOG_MBHC_FSM_CTL,
-			0xB0, 0x80);
+			0xB0, 0xB0);
 	/*
 	 * Wait for 50msec for FSM to complete its task.
 	 * wakeup if btn pres intr occurs
@@ -971,6 +1006,8 @@ static void wcd_mbhc_detect_plug_type(struct wcd_mbhc *mbhc)
 		 */
 		pr_debug("%s: result1 %x, result2 %x\n", __func__,
 						result1, result2);
+
+        #ifdef CROSS_CONNECTION
 		if (!(result2 & 0x01)) {
 			/*
 			 * Cross connection result is not reliable
@@ -988,7 +1025,8 @@ static void wcd_mbhc_detect_plug_type(struct wcd_mbhc *mbhc)
 				goto exit;
 			}
 		}
-
+        #endif
+        msleep(50);
 		/* Read back result1 and result2 value again to reconfirm*/
 		result1 = snd_soc_read(codec,
 			  MSM8X16_WCD_A_ANALOG_MBHC_BTN_RESULT);
@@ -1027,7 +1065,8 @@ exit:
 			plug_type != MBHC_PLUG_TYPE_INVALID)
 		wcd_mbhc_find_plug_and_report(mbhc, plug_type);
 	else if (plug_type == MBHC_PLUG_TYPE_HEADSET) {
-		wcd_mbhc_find_plug_and_report(mbhc, plug_type);
+        //[Matt]140729, report plug_type in the correct workqueue 
+		//wcd_mbhc_find_plug_and_report(mbhc, plug_type);
 		wcd_schedule_hs_detect_plug(mbhc, &mbhc->correct_plug_swch);
 	} else
 		wcd_schedule_hs_detect_plug(mbhc, &mbhc->correct_plug_swch);
@@ -1180,7 +1219,9 @@ static int wcd_mbhc_get_button_mask(u16 btn)
 		mask = SND_JACK_BTN_2;
 		break;
 	case 7:
-		mask = SND_JACK_BTN_3;
+		//[ALTS465][ALTS466] temporarily set BTN3 to BTN0 for acer headset
+		//mask = SND_JACK_BTN_3;
+		mask = SND_JACK_BTN_0;
 		break;
 	case 15:
 		mask = SND_JACK_BTN_4;
@@ -1586,7 +1627,10 @@ static int wcd_mbhc_initialise(struct wcd_mbhc *mbhc)
 				(mbhc->hphl_swh << 4 | mbhc->gnd_swh << 3));
 
 	snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_MBHC_DET_CTL_2,
+			// [ALTS939] switch off s7 for headset detection with extension cable
+			// [ALTS950] Rollback to default setting for WW SKU FSIT
 			0x01, 0x01);
+			//0x01, 0x00);
 
 	snd_soc_write(codec, MSM8X16_WCD_A_ANALOG_MBHC_DBNC_TIMER, 0x98);
 

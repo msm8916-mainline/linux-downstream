@@ -505,7 +505,8 @@ void mmc_of_parse(struct mmc_host *host)
 
 		gpio = of_get_named_gpio_flags(np, "cd-gpios", 0, &flags);
 		if (gpio_is_valid(gpio)) {
-			if (!(flags & OF_GPIO_ACTIVE_LOW))
+			//if (!(flags & OF_GPIO_ACTIVE_LOW))
+			if ((flags & OF_GPIO_ACTIVE_LOW))
 				gpio_inv_cd = true;
 
 			ret = mmc_gpio_request_cd(host, gpio);
