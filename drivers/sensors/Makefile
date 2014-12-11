@@ -1,0 +1,9 @@
+#obj-$(CONFIG_SENSORS)		+= sensors_class.o
+obj-$(CONFIG_SENSORS_SSC)	+= sensors_ssc.o
+obj-$(CONFIG_SENSORS_CORE)	+= sensors_core.o
+obj-$(CONFIG_SENSORS_TMD3782S)	+= taos_tmd3782.o
+obj-$(CONFIG_SENSORS_CM36686)	+= cm36686.o
+obj-$(CONFIG_SENSORS_K303C)	+= k303c_acc.o k303c_mag.o
+obj-$(CONFIG_SENSORS_BMA2X2)	+= bma2x2_driver.o bst_sensor_common.o
+obj-$(CONFIG_SENSORS_BMM050)	+= bmm050_driver.o bmm050.o
+obj-$(CONFIG_SENSORS_CM36652)	+= cm36652.o
