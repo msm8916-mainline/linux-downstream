@@ -1,0 +1,1 @@
+/home001/hc.ahn/packaging/kernel/usr/.gitignore

@@ -1,0 +1,245 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	memory {
+		secure_mem: secure_region@0 {
+			status = "disabled";
+		};
+	};
+
+	aliases {
+		serial0 = &blsp1_uart2;
+		i2c1 = &i2c_1; /* i2c_1 BLSP1 QUP1 */
+	};
+};
+
+&blsp1_uart2 {
+	status = "disable";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart_console_sleep>;
+};
+
+&soc {
+	qcom,ion {
+		qcom,ion-heap@8 {
+			status = "disabled";
+		};
+	};
+
+	i2c_1: i2c@78b5000 { /* BLSP1 QUP1 */
+		compatible = "qcom,i2c-msm-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr", "bam_phys_addr";
+		reg = <0x78b5000 0x1000>,
+		<0x7884000 0x23000>;
+		interrupt-names = "qup_irq", "bam_irq";
+		interrupts = <0 95 0>, <0 238 0>;
+		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+		<&clock_gcc clk_gcc_blsp1_qup1_i2c_apps_clk>;
+		clock-names = "iface_clk", "core_clk";
+		qcom,clk-freq-out = <100000>;
+		qcom,clk-freq-in  = <19200000>;
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&i2c_1_active>;
+		pinctrl-1 = <&i2c_1_sleep>;
+		qcom,noise-rjct-scl = <0>;
+		qcom,noise-rjct-sda = <0>;
+		qcom,bam-pipe-idx-cons = <4>;
+		qcom,bam-pipe-idx-prod = <5>;
+		qcom,master-id = <86>;
+	};
+
+	spi_0: spi@78b7000 { /* BLSP1 QUP3 */
+		status = "disabled";
+		lattice,spi-usb@0 {
+			compatible = "lattice,ice40-spi-usb";
+			status = "disabled";
+		};
+	};
+
+	/*  LGE_CHANGE_S, [NFC][wongab.jeon@lge.com], 2013-02-13, NFC Bring up */
+	i2c_6: i2c@78ba000 { //E2 Rev.A
+	/*i2c_4: i2c@78b8000 {*///E2 HDK
+		bcm2079x@76 {
+			status = "disabled";
+		};
+	};
+	/*  LGE_CHANGE_E, [NFC][wongab.jeon@lge.com], 2013-02-13, NFC Bring up */
+};
+
+&sdhc_1 {
+	vdd-supply = <&pm8916_l8>;
+	qcom,vdd-voltage-level = <2900000 2900000>;
+	qcom,vdd-current-level = <200 400000>;
+
+	vdd-io-supply = <&pm8916_l5>;
+	qcom,vdd-io-always-on;
+	qcom,vdd-io-lpm-sup;
+	qcom,vdd-io-voltage-level = <1800000 1800000>;
+	qcom,vdd-io-current-level = <200 60000>;
+
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&sdc1_clk_on &sdc1_cmd_on &sdc1_data_on>;
+	pinctrl-1 = <&sdc1_clk_off &sdc1_cmd_off &sdc1_data_off>;
+
+	qcom,nonremovable;
+
+	status = "ok";
+};
+
+&sdhc_2 {
+	vdd-io-supply = <&pm8916_l12>;
+	qcom,vdd-io-voltage-level = <1800000 2950000>;
+	qcom,vdd-io-current-level = <200 50000>;
+
+	pinctrl-names = "active", "sleep";
+	pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_on>;
+	pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
+
+	#address-cells = <0>;
+	interrupt-parent = <&sdhc_2>;
+	interrupts = <0 1 2>;
+	#interrupt-cells = <1>;
+	interrupt-map-mask = <0xffffffff>;
+	interrupt-map = <0 &intc 0 125 0
+			1 &intc 0 221 0
+			2 &msm_gpio 38 0>;
+	interrupt-names = "hc_irq", "pwr_irq", "status_irq";
+	cd-gpios = <&msm_gpio 38 0x0>;
+
+	status = "ok";
+};
+
+&pm8916_mpps {
+	mpp@a000 { /* MPP 1 */
+		/* VDD_PX */
+		status = "disabled";
+	};
+
+	mpp@a100 { /* MPP 2 */
+		/* USB ID */
+                status = "ok";
+                qcom,mode = <4>;
+                qcom,invert = <0>;
+                qcom,vin-sel = <2>;
+                qcom,src-sel = <0>;
+                qcom,ain-route = <0>;
+                qcom,master-en = <1>;
+	};
+
+	mpp@a200 { /* MPP 3 */
+		/* VREF DAC */
+		status = "disabled";
+	};
+
+	mpp@a300 { /* MPP 4 */
+		/* HW Revision */
+		status = "disabled";
+	};
+};
+
+&pm8916_gpios {
+	gpio@c000 { /* GPIO 1 */
+		/* Battery UICC Alarm */
+		status = "disabled";
+	};
+
+	gpio@c100 { /* GPIO 2 */
+		/* NFC_CLK_REQ */
+		qcom,mode = <0>; /* QPNP_PIN_MODE_DIG_IN */
+		qcom,pull = <5>; /* QPNP_PIN_PULL_NO */
+		qcom,vin-sel = <2>; /* QPNP_PIN_VIN2 */
+		qcom,src-sel = <2>; /* QPNP_PIN_SEL_FUNC_1 */
+		qcom,master-en = <1>;
+	};
+
+	gpio@c200 { /* GPIO 3 */
+		/* External regulator control for WTR */
+		status = "disabled";
+	};
+
+	gpio@c300 { /* GPIO 4 */
+		/* External regulator control for APC */
+		status = "disabled";
+	};
+};
+
+&qcom_tzlog {
+	status = "okay";
+};
+
+&qcom_rng {
+	status = "okay";
+};
+
+&qcom_crypto {
+	status = "okay";
+};
+
+&qcom_cedev {
+	status = "okay";
+};
+
+&qcom_seecom {
+	status = "okay";
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa17 {
+		status = "ok";
+		pm8916_l17_sns: regulator-l17_sns {
+			status = "ok";
+			compatible = "qcom,rpm-smd-regulator";
+			regulator-name = "8916_l17_sns";
+			qcom,set = <3>;
+			regulator-min-microvolt = <2850000>;
+			regulator-max-microvolt = <2850000>;
+			qcom,init-voltage = <2850000>;
+			regulator-always-on;
+			revision = "...rev_a";
+		};
+	};
+	rpm-regulator-ldoa11 {
+		status = "ok";
+		pm8916_l11_sns: regulator-l11_sns {
+			status = "ok";
+			compatible = "qcom,rpm-smd-regulator";
+			regulator-name = "8916_l11_sns";
+			qcom,set = <3>;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <2950000>;
+			qcom,init-voltage = <2800000>;
+			regulator-always-on;
+		};
+	};
+
+};
+
+/* LGE Change FB size */
+&cont_splash_mem {
+	reg = <0x0 0x83200000 0x0 0x400000>;
+};
+
+#include "msm8916-y50c-pinctrl.dtsi"
+#include "msm8916-y50c-panel.dtsi"
+#include "msm8916-y50c-sensor.dtsi"
+#include "msm8916-y50c-usb.dtsi"
+#include "msm8916-y50c-input.dtsi"
+#include "msm8916-y50c-misc.dtsi"
+#include "msm8916-y50c-pm.dtsi"
+#include "msm8916-y50c-camera.dtsi"
+#include "msm8916-y50c-connectivity.dtsi"
+#include "msm8916-y50c-sound.dtsi"
+/* #include "msm8916-y50c-nfc.dtsi" */
+

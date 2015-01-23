@@ -1,0 +1,38 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_5 {
+	qcom,clk-freq-out = <400000>;
+
+	synaptics_td4191_dsx@20 {
+		status = "disable";
+	};
+
+	synaptics_td4191@20 {
+		status = "ok";
+		fw_image = "synaptics/lions/PLG463-V1.00-PR1808825-DS5.8.0.0.1116_50057080.img";
+                recovery_fw_image = "synaptics/lions/PLG463-V1.00-PR1808825-DS5.8.0.0.1116_50057080.bin";
+		panel_spec = "synaptics/lions/lions_limit.txt";
+	};
+};
+
+&soc {
+	gpio_keys {
+		vol_up {
+			gpios = <&msm_gpio 107 0x1>;
+		};
+
+		vol_down {
+			gpios = <&msm_gpio 108 0x1>;
+		};
+	};
+};
