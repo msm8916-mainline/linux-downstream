@@ -48,7 +48,7 @@
 
 #include <asm/uaccess.h>
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #include <linux/io.h>
 #include <linux/proc_fs.h>
 #endif
@@ -57,6 +57,10 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/printk.h>
+
+#ifdef CONFIG_EARLY_PRINTK_DIRECT
+extern void printascii(char *);
+#endif
 
 /* printk's without a loglevel use this.. */
 #define DEFAULT_MESSAGE_LOGLEVEL CONFIG_DEFAULT_MESSAGE_LOGLEVEL
@@ -129,7 +133,9 @@ static int selected_console = -1;
 static int preferred_console = -1;
 int console_set_on_cmdline;
 EXPORT_SYMBOL(console_set_on_cmdline);
-
+#ifdef CONFIG_PANIC_ON_RT_THROTTLING
+int console_null_state;
+#endif
 /* Flag: console code may call schedule() */
 static int console_may_schedule;
 
@@ -215,6 +221,9 @@ struct log {
 	u8 facility;		/* syslog facility */
 	u8 flags:5;		/* internal record flags */
 	u8 level:3;		/* syslog level */
+#if defined(CONFIG_LOG_BUF_MAGIC)
+	u32 magic;		/* handle for ramdump analysis tools */
+#endif
 #ifdef CONFIG_SEC_DEBUG
 #ifdef CONFIG_SEC_DEBUG_PRINTK_NOCACHE
 	char process[16];	/* process Name CONFIG_PRINTK_PROCESS */
@@ -295,7 +304,7 @@ static phys_addr_t sec_log_reserve_base;
 static unsigned sec_log_end;
 unsigned sec_log_reserve_size;
 unsigned int *sec_log_irq_en;
-#ifdef CONFIG_SEC_LOG_LAST_KMSG
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_LOG_LAST_KMSG)
 #define LAST_LOG_BUF_SHIFT 19
 static char *last_kmsg_buffer;
 static unsigned last_kmsg_size;
@@ -331,6 +340,14 @@ static u32 syslog_oops_buf_idx;
 static const char log_oops_end[] = "---end of oops log buffer---";
 #endif
 
+#ifndef CONFIG_SEC_DEBUG
+#if defined(CONFIG_LOG_BUF_MAGIC)
+static u32 __log_align __used = LOG_ALIGN;
+#define LOG_MAGIC(msg) ((msg)->magic = 0x5d7aefca)
+#else
+#define LOG_MAGIC(msg)
+#endif
+#endif
 /* cpu currently holding logbuf_lock */
 static volatile unsigned int logbuf_cpu = UINT_MAX;
 
@@ -345,6 +362,17 @@ static char *log_dict(const struct log *msg)
 {
 	return (char *)msg + sizeof(struct log) + msg->text_len;
 }
+
+#ifdef CONFIG_SEC_DEBUG_SUBSYS
+void sec_debug_subsys_set_kloginfo(unsigned int *idx_paddr,
+	unsigned int *log_paddr, unsigned int *size)
+{
+	*idx_paddr = (unsigned int)&sec_log_end -
+		CONFIG_PAGE_OFFSET + CONFIG_PHYS_OFFSET;
+	*log_paddr = (unsigned int)sec_log_save_base;
+	*size = (unsigned int)sec_log_save_size;
+}
+#endif
 
 /* get record by index; idx must point to valid msg */
 static struct log *log_from_idx(u32 idx, bool logbuf)
@@ -497,6 +525,9 @@ static void log_store(int facility, int level,
 		 * to signify a wrap around.
 		 */
 		memset(log_buf + log_next_idx, 0, sizeof(struct log));
+#if defined(CONFIG_LOG_BUF_MAGIC)
+		LOG_MAGIC((struct log *)(log_buf + log_next_idx));
+#endif
 		log_next_idx = 0;
 	}
 
@@ -509,6 +540,9 @@ static void log_store(int facility, int level,
 	msg->facility = facility;
 	msg->level = level & 7;
 	msg->flags = flags & 0x1f;
+#if defined(CONFIG_LOG_BUF_MAGIC)
+	LOG_MAGIC(msg);
+#endif
 	if (ts_nsec > 0)
 		msg->ts_nsec = ts_nsec;
 	else
@@ -736,7 +770,7 @@ static ssize_t devkmsg_read(struct file *file, char __user *buf,
 		 ((user->prev & LOG_CONT) && !(msg->flags & LOG_PREFIX)))
 		cont = '+';
 
-	len = snprintf(user->buf, __LOG_BUF_LEN, "%u,%llu,%llu,%c;",
+	len = sprintf(user->buf, "%u,%llu,%llu,%c;",
 		      (msg->facility << 3) | msg->level,
 		      user->seq, ts_usec, cont);
 	user->prev = msg->flags;
@@ -1208,7 +1242,8 @@ static int syslog_oops_buf_print(char __user *buf, int size, char *text)
 	int len = 0;
 
 	raw_spin_lock_irq(&logbuf_lock);
-	if (syslog_seq < log_oops_first_seq) {
+	if (log_oops_first_seq != ULLONG_MAX &&
+	    syslog_seq < log_oops_first_seq) {
 		syslog_seq = log_oops_first_seq;
 		syslog_oops_buf_idx = 0;
 	}
@@ -1596,7 +1631,9 @@ int do_syslog(int type, char __user *buf, int len, bool from_file)
 
 			error = 0;
 			while (seq < log_next_seq) {
-				struct log *msg = log_from_idx(idx, true);
+				struct log *msg = log_from_idx(idx,
+								      true);
+
 				error += msg_print_text(msg, prev, true, NULL, 0);
 				idx = log_next(idx, true);
 				seq++;
@@ -1734,9 +1771,9 @@ static int console_trylock_for_printk(unsigned int cpu)
 		}
 	}
 	logbuf_cpu = UINT_MAX;
+	raw_spin_unlock(&logbuf_lock);
 	if (wake)
 		up(&console_sem);
-	raw_spin_unlock(&logbuf_lock);
 	return retval;
 }
 
@@ -1947,6 +1984,10 @@ asmlinkage int vprintk_emit(int facility, int level,
 		}
 	}
 
+#ifdef CONFIG_EARLY_PRINTK_DIRECT
+	printascii(text);
+#endif
+
 	if (level == -1)
 		level = default_message_loglevel;
 
@@ -2062,6 +2103,8 @@ static void sec_log_add_on_bootup(void)
 	}
 }
 
+/* This is temporarily disabled until we get support from Bootloader */
+#if 0 
 #ifdef CONFIG_SEC_DEBUG_SUBSYS
 void sec_debug_subsys_set_kloginfo(unsigned int *first_idx_paddr,
 	unsigned int *next_idx_paddr, unsigned int *log_paddr,
@@ -2073,8 +2116,9 @@ void sec_debug_subsys_set_kloginfo(unsigned int *first_idx_paddr,
 	*size = __LOG_BUF_LEN;
 }
 #endif
+#endif
 
-#ifdef CONFIG_SEC_LOG_LAST_KMSG
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_LOG_LAST_KMSG)
 static int __init sec_log_save_old(void)
 {
 	/* provide previous log as last_kmsg */
@@ -2111,7 +2155,7 @@ static int __init printk_remap_nocache(void)
 
 	/*sec_getlog_supply_kloginfo(log_buf);*/
 
-#ifndef CONFIG_SEC_DEBUG_NOCACHE_LOG_IN_LEVEL_LOW
+#if !defined(CONFIG_SEC_DEBUG_NOCACHE_LOG_IN_LEVEL_LOW) || defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	if (0 == sec_debug_is_enabled()) {
 #ifdef CONFIG_SEC_DEBUG_LOW_LOG
 		nocache_base = ioremap_nocache(sec_log_save_base - 4096,
@@ -2181,7 +2225,7 @@ static int __init printk_remap_nocache(void)
 	the sec log initialization here.*/
 	sec_log_add_on_bootup();
 	raw_spin_unlock_irqrestore(&logbuf_lock, flags);
-#ifdef CONFIG_SEC_LOG_LAST_KMSG
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_LOG_LAST_KMSG)
 	if (bOk) {
 		pr_info("%s: saved old log at %d@%p\n",
 			__func__, last_kmsg_size, last_kmsg_buffer);
@@ -2198,7 +2242,7 @@ static ssize_t seclog_read(struct file *file, char __user *buf,
 {
 	loff_t pos = *offset;
 	ssize_t count = 0;
-#ifdef CONFIG_SEC_LOG_LAST_KMSG
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_LOG_LAST_KMSG)
 	size_t log_size = last_kmsg_size;
 	const char *log = last_kmsg_buffer;
 #else
@@ -2242,7 +2286,7 @@ static int __init seclog_late_init(void)
 		return 0;
 	}
 
-#ifdef CONFIG_SEC_LOG_LAST_KMSG
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_LOG_LAST_KMSG)
 	proc_set_size(entry, last_kmsg_size);
 #else
 	proc_set_size(entry, sec_log_size);
@@ -2412,6 +2456,10 @@ static int __init console_setup(char *str)
 	char *s, *options, *brl_options = NULL;
 	int idx;
 
+#ifdef CONFIG_PANIC_ON_RT_THROTTLING
+	if (!memcmp(str, "null", 4))
+		console_null_state = 1;
+#endif
 #ifdef CONFIG_A11Y_BRAILLE_CONSOLE
 	if (!memcmp(str, "brl,", 4)) {
 		brl_options = "";

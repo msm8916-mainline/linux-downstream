@@ -15,6 +15,9 @@
 
 #include <linux/module.h>
 #include <linux/of_gpio.h>
+#if defined(CONFIG_FLED_SM5701)
+#include <linux/mfd/sm5701_core.h>
+#endif
 #ifdef CONFIG_FLED_RT5033_EXT_GPIO
 #include <linux/leds/rtfled.h>
 #endif
@@ -85,12 +88,17 @@ static int32_t msm_led_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 			return 0;
 		}
 #endif
+#if defined(CONFIG_FLED_SM5701)
+		sm5701_led_ready(LED_DISABLE);
+		sm5701_set_fleden(SM5701_FLEDEN_DISABLED);
+#else
 		gpio_request(fctrl->led_irq_gpio1, NULL);
 		gpio_request(fctrl->led_irq_gpio2, NULL);
 		gpio_direction_output(fctrl->led_irq_gpio1, 0);
 		gpio_direction_output(fctrl->led_irq_gpio2, 0);
 		gpio_free(fctrl->led_irq_gpio1);
 		gpio_free(fctrl->led_irq_gpio2);
+#endif
 #ifdef CONFIG_FLED_RT5033_EXT_GPIO
 		if (lock_state) {
 			if (fled_info) {
@@ -117,9 +125,14 @@ static int32_t msm_led_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 			return 0;
 		}
 #endif
+#if defined(CONFIG_FLED_SM5701)
+		sm5701_led_ready(MOVIE_MODE);
+		sm5701_set_fleden(SM5701_FLEDEN_ON_MOVIE);
+#else
 		gpio_request(fctrl->led_irq_gpio1, NULL);
 		gpio_direction_output(fctrl->led_irq_gpio1, 1);
 		gpio_free(fctrl->led_irq_gpio1);
+#endif
 		break;
 #if 0
 		if (fctrl->torch_trigger) {
@@ -150,9 +163,14 @@ static int32_t msm_led_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 			lock_state = true;
 		}
 #endif
+#if defined(CONFIG_FLED_SM5701)
+		sm5701_led_ready(FLASH_MODE);
+		sm5701_set_fleden(SM5701_FLEDEN_ON_FLASH);
+#else
 		gpio_request(fctrl->led_irq_gpio2, NULL);
 		gpio_direction_output(fctrl->led_irq_gpio2, 1);
 		gpio_free(fctrl->led_irq_gpio2);
+#endif
 		break;
 #if 0
 		if (fctrl->torch_trigger)
@@ -193,6 +211,10 @@ static int32_t msm_led_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 				}
 			}
 		}
+#endif
+#if defined(CONFIG_FLED_SM5701)
+		sm5701_led_ready(LED_DISABLE);
+		sm5701_set_fleden(SM5701_FLEDEN_DISABLED);
 #endif
 		for (i = 0; i < fctrl->num_sources; i++)
 			if (fctrl->flash_trigger[i])

@@ -9,9 +9,6 @@
 #include <linux/device.h>
 #include <linux/mutex.h>
 #include <linux/pm_wakeup.h>
-#ifdef CONFIG_SEC_GPIO_DVS
-#include <linux/secgpio_dvs.h>
-#endif
 
 #include "power.h"
 
@@ -91,25 +88,9 @@ void pm_autosleep_unlock(void)
 
 int pm_autosleep_set_state(suspend_state_t state)
 {
-#ifdef CONFIG_SEC_GPIO_DVS
-	static bool gpio_init_done = false;
-#endif
-
 #ifndef CONFIG_HIBERNATION
 	if (state >= PM_SUSPEND_MAX)
 		return -EINVAL;
-#endif
-
-#ifdef CONFIG_SEC_GPIO_DVS
-		/************************ Caution !!! ****************************/
-		/* This function must be located in appropriate INIT position
-		 * in accordance with the specification of each BB vendor.
-		 */
-		/************************ Caution !!! ****************************/
-	if (unlikely(!gpio_init_done) && state==PM_SUSPEND_ON) {
-		gpio_dvs_check_initgpio();
-		gpio_init_done = true;
-	}
 #endif
 
 	__pm_stay_awake(autosleep_ws);

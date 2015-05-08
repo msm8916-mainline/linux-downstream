@@ -109,21 +109,21 @@ static int sec_debug_level = 1;
 #define CHIP_GPIO_COUNT_8974  146
 static struct reg_desc mdss_reg_desc[]=
 	{
-	 	{0xFD900000,0x22100}, //mdp
+		{0xFD900000,0x22100}, //mdp
 		{0xFD922804,0x0600},  //dsi0
 		{0xFD922E04,0x0600},  //dsi1
 		{0xFD923404,0x0700},  //edp
 		{0xFD511000,(CHIP_GPIO_COUNT_8974*4*4)} //gpio
-		
+
 	};
 #elif defined(CONFIG_ARCH_MSM8226)
 #define CHIP_GPIO_COUNT_8226 117
 static struct reg_desc mdss_reg_desc[]=
 	{
-	 	{0xFD900000,0x22100}, //mdp
+		{0xFD900000,0x22100}, //mdp
 		{0xFD922804,0x0600},  //dsi0
 		{0xFD511000,(CHIP_GPIO_COUNT_8226*4*4)} //gpio
-		
+
 	};
 #elif defined(CONFIG_ARCH_MSM8916)
 #define CHIP_GPIO_COUNT_8916 122
@@ -160,7 +160,7 @@ void inc_put(u32 *buff,u32 l){
 	debug_mdp->log_buff.last %=  (debug_mdp->log_buff.len/sizeof(u32));
 	if(debug_mdp->log_buff.last == debug_mdp->log_buff.first) {
 						int count  = buff[debug_mdp->log_buff.first] &0x1F;
-						debug_mdp->log_buff.first += count;  
+						debug_mdp->log_buff.first += count;
 						debug_mdp->log_buff.first %= (debug_mdp->log_buff.len/sizeof(u32));
 	}
 	pr_debug("[DDEBUGGER] buff:%p, first:%d, last:%d, Val: %x\n",buff,debug_mdp->log_buff.first,debug_mdp->log_buff.last,(u32)l);
@@ -191,8 +191,8 @@ static struct dclock clock_list[] = {
 static struct dclock clock_list[] = {
 	{"mdss_ahb_clk",HWIO_MMSS_MDSS_AHB_CBCR_ADDR,CLK_TEST_MDSS_AHB_CLK,0},
 	{"mdss_axi_clk",HWIO_MMSS_MDSS_AXI_CBCR_ADDR,CLK_TEST_MDSS_AXI_CLK,0},
-	{"mdss_byte0_clk",HWIO_MMSS_MDSS_BYTE0_CBCR_ADDR,CLK_TEST_MDSS_BYTE0_CLK,0},	
-	{"mdss_esc0_clk",HWIO_MMSS_MDSS_ESC0_CBCR_ADDR,CLK_TEST_MDSS_ESC0_CLK,0},	
+	{"mdss_byte0_clk",HWIO_MMSS_MDSS_BYTE0_CBCR_ADDR,CLK_TEST_MDSS_BYTE0_CLK,0},
+	{"mdss_esc0_clk",HWIO_MMSS_MDSS_ESC0_CBCR_ADDR,CLK_TEST_MDSS_ESC0_CLK,0},
 	{"mdss_mdp_clk",HWIO_MMSS_MDSS_MDP_CBCR_ADDR,CLK_TEST_MDSS_MDP_CLK,0},
 	{"mdss_mdp_lut_clk",HWIO_MMSS_MDSS_MDP_LUT_CBCR_ADDR,CLK_TEST_MDSS_MDP_LUT_CLK,0},
 	{"mdss_pclk0_clk",HWIO_MMSS_MDSS_PCLK0_CBCR_ADDR,CLK_TEST_MDSS_PCLK0_CLK,0},
@@ -225,9 +225,9 @@ static long read_clock(u32 clk_test,u32 clk_reg){
 		u32 is_on=0;
 		u32 clk_freq=0;
 		//u32 clk_freq_val=0;
-		
+
 		if(clk_reg != 0){
-			if((readl_relaxed((void*)clk_reg) & 0x80000000) == 0x0) 
+			if((readl_relaxed((void*)clk_reg) & 0x80000000) == 0x0)
 				is_on = 1;
 		}
 		pr_debug("%s:is_on:%d\n",__func__,is_on);
@@ -235,7 +235,7 @@ static long read_clock(u32 clk_test,u32 clk_reg){
 		if(!is_on) return 0;
 		//Program Clock Test
 		{
-	
+
 			u32 testval = clk_test & CLK_TEST_TYPE_MASK;
 			u32 setval = clk_test & CLK_TEST_SEL_MASK;
 			//u32 submuxval = clk_test & CLK_TEST_SUB_MUX_MASK;
@@ -265,9 +265,9 @@ static long read_clock(u32 clk_test,u32 clk_reg){
 			//Config XO DIV4 comparator clock
 
 			writelx(vHWIO_GCC_XO_DIV4_CBCR_ADDR,readl_relaxed(vHWIO_GCC_XO_DIV4_CBCR_ADDR)|0x1);
-			// Start with the counter disabled   
-			measure_ctl=readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR) ; 
-			measure_ctl=measure_ctl&~0x1FFFFF ; 
+			// Start with the counter disabled
+			measure_ctl=readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR) ;
+			measure_ctl=measure_ctl&~0x1FFFFF ;
 			writelx(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR,measure_ctl);
 			// Program the starting counter value, high enough to get good accuracy
 			pr_debug("%s:measure_ctl:0x%x xo_div4_cbcr:0x%x \n",__func__,measure_ctl
@@ -275,62 +275,62 @@ static long read_clock(u32 clk_test,u32 clk_reg){
 
 
 			measure_ctl= measure_ctl| tcxo_count;
-			//Start the counting  
+			//Start the counting
 			measure_ctl=measure_ctl|0x100000;
 			writelx(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR,measure_ctl);
 			pr_debug("HWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR:0x%X",
-				readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR) ); 
-			
+				readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR) );
+
 			//Wait for the counters to finish
 			mdelay(1);
-			while ((temp = readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_STATUS_ADDR)&0x2000000)==0) 
+			while ((temp = readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_STATUS_ADDR)&0x2000000)==0)
 				 pr_debug("HWIO_GCC_CLOCK_FRQ_MEASURE_STATUS_ADDR:0x%X\n",temp);
-			
-			pr_debug("%s:4\n",__func__);		
+
+			pr_debug("%s:4\n",__func__);
 			// Turn off the test clock and read the clock count
 			measure_ctl = readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR);
 			writelx(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR, measure_ctl&~0x100000);
-			pr_debug("%s:5\n",__func__); 	
+			pr_debug("%s:5\n",__func__);
 
 			short_clock_count=readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_STATUS_ADDR)&0x1FFFFFF;
 
 			//Restore the register
 			writelx(vHWIO_GCC_XO_DIV4_CBCR_ADDR,xo_div4_cbcr);
 
-			pr_debug("%s:6:short_clock_count: %d\n",__func__,short_clock_count); 	
+			pr_debug("%s:6:short_clock_count: %d\n",__func__,short_clock_count);
 
 			//Longer count and compare
 			xo_div4_cbcr = readl_relaxed(vHWIO_GCC_XO_DIV4_CBCR_ADDR);
 			multiplier = 4;
 			tcxo_count = 0x8000;
 
-			
+
 			//Config XO DIV4 comparator clock
-			
+
 			writelx(vHWIO_GCC_XO_DIV4_CBCR_ADDR,readl_relaxed(vHWIO_GCC_XO_DIV4_CBCR_ADDR)|0x1);
-				pr_debug("%s:7\n",__func__);		
-			// Start with the counter disabled	 
-			measure_ctl=readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR) ; 
-			measure_ctl=measure_ctl&~0x1FFFFF ; 
+				pr_debug("%s:7\n",__func__);
+			// Start with the counter disabled
+			measure_ctl=readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR) ;
+			measure_ctl=measure_ctl&~0x1FFFFF ;
 			writelx(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR,measure_ctl);
 			// Program the starting counter value, high enough to get good accuracy
-			pr_debug("%s:8\n",__func__); 	
+			pr_debug("%s:8\n",__func__);
 
 			measure_ctl= measure_ctl| tcxo_count;
-			//Start the counting  
+			//Start the counting
 			measure_ctl=measure_ctl|0x100000;
 			writelx(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR,measure_ctl);
-				pr_debug("%s:9\n",__func__);		
+				pr_debug("%s:9\n",__func__);
 			//Wait for the counters to finish
 			mdelay(1);
 			while ((readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_STATUS_ADDR)&0x2000000)==0) ;
-			
-			
-			
+
+
+
 			// Turn off the test clock and read the clock count
 			measure_ctl = readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR);
 			writelx(vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR, measure_ctl&~0x100000);
-			pr_debug("%s:10\n",__func__); 	
+			pr_debug("%s:10\n",__func__);
 
 			clock_count=readl_relaxed(vHWIO_GCC_CLOCK_FRQ_MEASURE_STATUS_ADDR)&0x1FFFFFF;
 
@@ -338,22 +338,22 @@ static long read_clock(u32 clk_test,u32 clk_reg){
 				clk_freq = 0;
 			else
 				clk_freq = (48*(2*multiplier)/10)*(2*clock_count+3)*2/(2*tcxo_count+7); /* need this for furthur implementation*/
-			
+
 			//Restore the register
 			writelx(vHWIO_GCC_XO_DIV4_CBCR_ADDR,xo_div4_cbcr);
-			pr_debug("%s:11\n",__func__);		
-			
+			pr_debug("%s:11\n",__func__);
+
 			//Clear the divide by 4 in DEBUG_CLK_CTL to make the scope view of the clock
 			//the correct frequency
 			 dbg_clk_ctl=readl_relaxed(vHWIO_GCC_DEBUG_CLK_CTL_ADDR);
 			 dbg_clk_ctl=dbg_clk_ctl&~0x00003000;
 			 writelx(vHWIO_GCC_DEBUG_CLK_CTL_ADDR, dbg_clk_ctl);
-			 pr_debug("%s:12\n",__func__);	 
+			 pr_debug("%s:12\n",__func__);
 
 			//store freq
 			clock_val = clock_count;
 		}
-		
+
 	}
 
 	return clock_val;
@@ -364,14 +364,14 @@ static long read_clock(u32 clk_test,u32 clk_reg){
 static int init_clock_va(void){
 	int i = 0;
 	u32 clock_base_phy = 0xfd8c2300;
-	u32 clock_base_virt  = (u32)ioremap(0xfd8c2300,0xFF);
+	u32 clock_base_virt  = (u32)devm_ioremap(&mdss_res->pdev->dev, 0xfd8c2300,0xFF);
 	if(!clock_base_virt)
 			pr_err("Error Mapping Clock adress for %s",clock_list[i].name);
 
 	for(;i < sizeof(clock_list)/sizeof(struct dclock);i++){
 		pr_debug("Mapping: clk: %s addr: %x\n",clock_list[i].name,clock_list[i].reg_addr);
 #ifdef __KERNEL__
-		if((clock_list[i].reg_addr - clock_base_phy) < 0) 
+		if((clock_list[i].reg_addr - clock_base_phy) < 0)
 			pr_err("Check clock base @@@@@@@@@@@@@!!!!!!!!!!!!!!!!\n");
 		else
 			clock_list[i].vreg_addr = clock_base_virt + (clock_list[i].reg_addr - clock_base_phy);
@@ -381,7 +381,7 @@ static int init_clock_va(void){
 #endif
 	}
 	for(i = 1; i < sizeof(mdss_reg_desc)/sizeof(struct reg_desc) ; i++){
-		mdss_reg_desc[i].vaddr = (u32)ioremap(mdss_reg_desc[i].base,mdss_reg_desc[i].len*4);
+		mdss_reg_desc[i].vaddr = (u32)devm_ioremap(&mdss_res->pdev->dev, mdss_reg_desc[i].base,mdss_reg_desc[i].len*4);
 	}
 
 	return 0;
@@ -393,7 +393,7 @@ void dump_clock_state(void)
 
 	if(debug_mdp && debug_mdp->clock_state.len == 0)
 		return;
-	
+
 	 if(debug_mdp && buff == NULL) {
                 buff = (u32 *)((char *)debug_mdp + (sizeof(struct debug_mdp) + debug_mdp->clock_state.offset));
      } else if(!debug_mdp){
@@ -409,16 +409,16 @@ void dump_clock_state(void)
 			clk_ptr = (char *) &buff[debug_mdp->clock_state.last];
 			memcpy(clk_ptr,clock_list[i].name,sizeof(clock_list[i].name));
 			clock_val = read_clock(clock_list[i].test_reg, clock_list[i].vreg_addr);
-			
-			
-			
+
+
+
 			debug_mdp->clock_state.last += sizeof(clock_list[i].name)/sizeof(u32);
 			pr_debug(" %s : %u :last : %d\n",clk_ptr,clock_val,debug_mdp->clock_state.last);
 			buff[debug_mdp->clock_state.last++] = clock_val;
 			pr_debug("buff[debug_mdp->clock_state.last++]: %p",&buff[debug_mdp->clock_state.last-1]);
-	}	
-	
-	
+	}
+
+
 }
 #else
 static int init_clock_va(void){
@@ -430,7 +430,7 @@ static int init_clock_va(void){
         //-----------------------------
 
         for(i = 1; i < sizeof(mdss_reg_desc)/sizeof(struct reg_desc) ; i++){
-                mdss_reg_desc[i].vaddr = (u32)ioremap(mdss_reg_desc[i].base,mdss_reg_desc[i].len*4);
+			mdss_reg_desc[i].vaddr = (u32)devm_ioremap(&mdss_res->pdev->dev, mdss_reg_desc[i].base,mdss_reg_desc[i].len*4);
         }
 
         return 0;
@@ -453,13 +453,13 @@ void dump_clock_state(void)
 #endif
 
 int fill_reg_log(u32 *buff, u32 base, int len)
-{	
+{
 	int i;
 	unsigned char *buf;
 #ifdef __KERNEL__
-	buf = (void*)base; 
+	buf = (void*)base;
 #else
-	buf = base; 
+	buf = base;
 #endif
 //	printk("value of Reg: 0x%X\n",base);
 	for(i = 0; i < len/4; i++){
@@ -468,14 +468,14 @@ int fill_reg_log(u32 *buff, u32 base, int len)
 		buff[debug_mdp->reg_log.last] = MIPI_INP(buf+i*4);
 		debug_mdp->reg_log.last++;
 	}
-	
+
 	return 0;
 }
-	
 
-	
+
+
 /*	void klog(void) is used to dump register values of dsi0, dsi1, edp and
-	mdp registers respectively. Each section is identified by START_MAGIC 
+	mdp registers respectively. Each section is identified by START_MAGIC
 	followed by start address of registers. For mdp case the detailed
 	information of register adresses is found in mdp_reg_addrs_and_len.txt
 */
@@ -490,26 +490,26 @@ void klog(void)
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
 	int mdp_reg_dump_en;
 	unsigned long flags;
-	
+
 	/* NULL Checks */
 	if(mdata == NULL) return;
 	if(mdata->ctl_off == NULL) return;
 	pdata = (mdata->ctl_off+0)->panel_data;
 	if(pdata ==NULL) return;
-	
+
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 	mdp_reg_dump_en = (ctrl_pdata->ctrl_state & CTRL_STATE_PANEL_INIT);
 	if(debug_mdp->reg_log.last*4 >= debug_mdp->reg_log.len  ) return;
 	if(debug_mdp->reg_log.len == 0) return;
 
-	
+
 	pr_debug("KK: -----------> Inside %s",__func__);
-	
+
 #ifdef __KERNEL__
-	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON, false);
+	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 	spin_lock_irqsave(&xlock, flags);
-	
+
 #else
 	if((readl_relaxed(HWIO_MMSS_MDSS_AHB_CBCR_ADDR) & 0x80000000) != 0x0) {
 		pr_info("AHB Clock not ON, Cannot Read MDP Regs\n");
@@ -523,7 +523,7 @@ void klog(void)
 		pr_info("Debug module not Initialized\n");
 		return ;
 	}
-	
+
 	pr_debug("KK:------------------->(%s)::>> first: %x \t last: %x buff:%p-%p\n", __func__, debug_mdp->reg_log.first, debug_mdp->reg_log.last,buff,buff+debug_mdp->reg_log.len);
 
 if(!mdp_reg_dump_en)
@@ -532,7 +532,7 @@ else
 	i = 1;
 	for(; i < sizeof(mdss_reg_desc)/sizeof(struct reg_desc) ; i++){
 		buff[debug_mdp->reg_log.last++] = START_MAGIC;
-        	buff[debug_mdp->reg_log.last++] = mdss_reg_desc[i].base;
+		buff[debug_mdp->reg_log.last++] = mdss_reg_desc[i].base;
 #if defined(__KERNEL__)
 		//printk("kernel dump:for i=%d\n ",i);
 		if(fill_reg_log(buff, mdss_reg_desc[i].vaddr, mdss_reg_desc[i].len))
@@ -540,11 +540,11 @@ else
 #else
 		if(fill_reg_log(buff, base, len*4))
 			pr_info("failed to dump lcd regs at %x ----------> KK\n",base);
-#endif	
+#endif
 	}
 #if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8226) || defined(CONFIG_ARCH_MSM8916)
 if(mdp_reg_dump_en){
-	
+
 	buff[debug_mdp->reg_log.last++] = START_MAGIC;
         buff[debug_mdp->reg_log.last++] = mdss_reg_desc[0].base;
 //	printk("mdp base:%X",(u32)mdss_res->mdp_base);
@@ -573,20 +573,20 @@ if(mdp_reg_dump_en){
 }
 #endif
 #ifdef __KERNEL__
-	
+
 	spin_unlock_irqrestore(&xlock, flags);
-	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF, false);
+	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
 
 #else
-        //Switch off clock 
+        //Switch off clock
 #endif
 	pr_debug("total mdp regs: %d\n",mdp_reg_count);
 }
 
 void dlog(struct _dlogdebug *desc, ...)
-{	
-	
-	
+{
+
+
 	va_list argp;
 
 	static u32 *buff = NULL;
@@ -614,13 +614,13 @@ void dlog(struct _dlogdebug *desc, ...)
 #ifdef __KERNEL__
 		spin_unlock_irqrestore(&xlock, flags);
 #endif
-		pr_info("Debug Module Not Initialized\n");	
+		pr_info("Debug Module Not Initialized\n");
 		return;
 	}
 	//Store the reference of 32bit header
 	temp_main_idx = debug_mdp->log_buff.last;
 	inc_put(buff,(current->pid<<16)|(ev_idx<<5));
-#ifdef __KERNEL__	
+#ifdef __KERNEL__
 	time = ktime_get();
 	inc_put(buff,(u32)ktime_to_us(time));
 #else
@@ -629,12 +629,12 @@ void dlog(struct _dlogdebug *desc, ...)
 
 #endif
 
-	
+
 	va_start(argp,(u32) desc);
 	do{
 		u32 l = va_arg(argp, u32);
 	//	pr_info("[DLOG],%pS: %x\n",__builtin_return_address(0),l);
-		if(l==0xBABEBABE) 
+		if(l==0xBABEBABE)
 			break;
 		inc_put(buff,l);
 		para_count++;
@@ -645,17 +645,17 @@ void dlog(struct _dlogdebug *desc, ...)
 
 	 //Put the length
 	 buff[temp_main_idx] = buff[temp_main_idx] | (para_count & 0x1F); //5 bits for length
-#ifdef __KERNEL__ 
+#ifdef __KERNEL__
 	spin_unlock_irqrestore(&xlock, flags);
 #endif
 }
- 
-#ifdef __KERNEL__ 
+
+#ifdef __KERNEL__
 
 
- 
+
  static unsigned long read_byte;
- /* 
+ /*
   * Called when a process tries to open the device file, like
   * "cat /dev/mycharfile"
   */
@@ -669,7 +669,7 @@ void dlog(struct _dlogdebug *desc, ...)
 static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, }read_state;
 
 
- int dlog_read(struct file *filp, char __user *buf, size_t count, 
+ int dlog_read(struct file *filp, char __user *buf, size_t count,
 
 	loff_t *f_pos)
 
@@ -677,7 +677,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 	ssize_t retval = 0;
 	unsigned long flags;
 	int ret = 0;
-	
+
 	if(*f_pos == 0) {
 
 		pr_info("===DLogger Header=====\n");
@@ -685,7 +685,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 		pr_info("[0] first: %d last: %d  off: %d size: %d\n",
 					debug_mdp->log_buff.first, debug_mdp->log_buff.last,
 					debug_mdp->log_buff.offset, debug_mdp->log_buff.len);
-		
+
 		pr_info("[1] first: %d last: %d  off: %d size: %d\n",
 					debug_mdp->event_desc.first, debug_mdp->event_desc.last,
 					debug_mdp->event_desc.offset, debug_mdp->event_desc.len);
@@ -698,18 +698,18 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 #ifdef __KERNEL__
 
 		spin_lock_irqsave(&xlock, flags);
-		read_ongoing = 1;	
+		read_ongoing = 1;
 		debug_mdp->reserv = CONFIG_NR_CPUS;
 #ifdef CONFIG_SEC_DEBUG_SCHED_LOG
 		debug_mdp->klog_size =secdbg_krait->log.size;
 		debug_mdp->seclog_size = 0;
 		pr_debug("Klog Size: %d SecLog Size: %d\n", debug_mdp->klog_size, debug_mdp->seclog_size);
-		
-#endif		
+
+#endif
 //		sec_debug_display_klog_addr(&klog_addr);
 
 		spin_unlock_irqrestore(&xlock, flags);
-		
+
 #endif
 
 	}
@@ -723,10 +723,10 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 					debug_mdp->clock_state.first = 0;
 					debug_mdp->clock_state.last = 0;
 					read_state = KLOG_BUFFER_READING;
-				
+
 					spin_unlock_irqrestore(&xlock, flags);
 #endif
-		
+
 #ifndef CONFIG_SEC_DEBUG_SCHED_LOG
 					read_state = DLOG_BUFFER_READING;
 					read_byte = 0;
@@ -739,7 +739,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 	{
 		pr_debug("(count + *f_pos - 1):=%llu\n",(count + *f_pos - 1));
 		retval = ((count + *f_pos - 1)< debug_mdp->size)? count-1:(debug_mdp->size - *f_pos);
-		
+
 		ret = copy_to_user(buf, (char *)debug_mdp + *f_pos, retval);
 		if(ret < 0)
 			return 0;
@@ -749,7 +749,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 	}
 
 #ifdef CONFIG_SEC_DEBUG_SCHED_LOG
-	
+
 	if(read_state == KLOG_BUFFER_READING && read_byte >= debug_mdp->size + debug_mdp->klog_size ) {
 
 		read_state = DLOG_BUFFER_READING;
@@ -757,7 +757,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 					pr_info("Reading complete...\n");
 	}
 
-	
+
 
 	if(read_state == KLOG_BUFFER_READING)
 	{
@@ -766,7 +766,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 #endif
 		retval = ((count + *f_pos - 1)< debug_mdp->size +debug_mdp->klog_size)? count-1:(debug_mdp->size +debug_mdp->klog_size- *f_pos);
 #if 0
-		ret = copy_to_user(buf, ((char *)klog_addr) + start, retval);	
+		ret = copy_to_user(buf, ((char *)klog_addr) + start, retval);
 #endif
 		if(ret < 0)
 					return 0;
@@ -784,10 +784,10 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 	  pr_info("Register dump opened\n");
 	  return 0;
   }
-  int reg_read(struct file *filp, char __user *buf, size_t count, 
- 
+  int reg_read(struct file *filp, char __user *buf, size_t count,
+
 	 loff_t *f_pos)
- 
+
  {
 		//dump_clock_state();
 		klog();
@@ -812,12 +812,12 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
  {
 	 __debug_mdp_phys = 0;
 	 if(!sscanf(mode,"%x", &(__debug_mdp_phys)))
-	 	pr_err("Error parsing display logging mem base:%s\n",mode);
+		pr_err("Error parsing display logging mem base:%s\n",mode);
 	 else
-	 	pr_info("Display Logging base: %x\n",__debug_mdp_phys);
+		pr_info("Display Logging base: %x\n",__debug_mdp_phys);
 	 return 1;
  }
- 
+
  /* Get the size of description section needed */
  static int get_desc_size(void){
 			int len = __stop___dlog - __start___dlog;
@@ -867,7 +867,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 
  int  mdss_debug_init(void) {
 #endif
-		
+
 		u32 log_buff_len = DLOG_BUFFER_SIZE_SHIP*1024 - sizeof(struct debug_mdp);
 		u32 event_desc_len = 0;
 		u32 reg_log_len = 0;
@@ -877,32 +877,31 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 #if defined(CONFIG_SEC_DEBUG)
 		sec_debug_level = sec_debug_is_enabled();
 #endif
-		
+
 		if(sec_debug_level){
 			log_buff_len = DLOG_BUFFER_SIZE*1024;
 			event_desc_len = get_desc_size();
 			reg_log_len = REGISTER_LOG_LEN*1024;
 			clock_state_len = CLOCK_DUMP_LEN*1024;
 		}
-		
+
 		dump_size = log_buff_len + event_desc_len+ reg_log_len \
 			 +clock_state_len+ sizeof(struct debug_mdp);
 #ifdef __KERNEL__
-		if(__debug_mdp_phys){
-			debug_mdp = ioremap_nocache(__debug_mdp_phys,CARVEOUT_MEM_SIZE);
+		if(mdss_res && __debug_mdp_phys){
+			debug_mdp = devm_ioremap(&mdss_res->pdev->dev, __debug_mdp_phys, CARVEOUT_MEM_SIZE);
 			pr_info("Using MDSS debug memory from LK:Phys: %x,  VA: %p\n",__debug_mdp_phys,debug_mdp);
-			
 		}
-			
+
 		if(!__debug_mdp_phys || !debug_mdp) {
 			debug_mdp = kzalloc (dump_size, GFP_KERNEL);
 			if(!debug_mdp) {
 				pr_err("Memory allocation failed for MDP DEBUG MODULE\n");
 				return -1;
 			}
-		} 
+		}
 		//debug_mdp->log_buff.offset = 0;
-		
+
 		pr_info(KERN_INFO "MDP debug init:debug_mdp: %p \n",debug_mdp);
 #else
 		debug_mdp = __debug_mdp_phys;
@@ -912,11 +911,11 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 #endif
 		if(!__debug_mdp_phys || (__debug_mdp_phys == (u32)debug_mdp)){
 			/* Initialize buffer header */
-			debug_mdp->log_buff.len = log_buff_len; 
+			debug_mdp->log_buff.len = log_buff_len;
 
 			debug_mdp->event_desc.offset = debug_mdp->log_buff.offset + debug_mdp->log_buff.len;
-			debug_mdp->event_desc.len = event_desc_len;   
-			
+			debug_mdp->event_desc.len = event_desc_len;
+
 			debug_mdp->reg_log.offset = debug_mdp->event_desc.offset + debug_mdp->event_desc.len;
 			debug_mdp->reg_log.len = reg_log_len;
 
@@ -924,10 +923,10 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 			debug_mdp->clock_state.len = clock_state_len;
 			debug_mdp->size = dump_size;
 			pr_info("size:%d",sizeof(debug_mdp->size));
-				
+
 			strncpy(debug_mdp->marker,"*#$$_START_OF_MDP_DEBUG_DUMP##$", sizeof("*#$$_START_OF_MDP_DEBUG_DUMP##$"));
 			if(debug_mdp !=NULL)
-				init_event_desc((char *)debug_mdp + (sizeof(struct debug_mdp) + debug_mdp->event_desc.offset), debug_mdp->event_desc.len);		
+				init_event_desc((char *)debug_mdp + (sizeof(struct debug_mdp) + debug_mdp->event_desc.offset), debug_mdp->event_desc.len);
 
 		}else {
 			pr_info("===DLogger Header=====\n");
@@ -935,7 +934,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 			pr_info("[0] first: %d last: %d  off: %d size: %d\n",
 						debug_mdp->log_buff.first, debug_mdp->log_buff.last,
 						debug_mdp->log_buff.offset, debug_mdp->log_buff.len);
-			
+
 			pr_info("[1] first: %d last: %d  off: %d size: %d\n",
 						debug_mdp->event_desc.first, debug_mdp->event_desc.last,
 						debug_mdp->event_desc.offset, debug_mdp->event_desc.len);
@@ -946,18 +945,19 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 						debug_mdp->clock_state.first, debug_mdp->clock_state.last,
 						debug_mdp->clock_state.offset, debug_mdp->clock_state.len);
 		}
-		
-#ifdef __KERNEL__	
+
+#ifdef __KERNEL__
 		spin_lock_init(&xlock);
 
 {
-	if(sec_debug_level) {
-		init_clock_va();	
-		vHWIO_GCC_DEBUG_CLK_CTL_ADDR = ioremap((0xfc401880),4);
-		vHWIO_MMSS_DEBUG_CLK_CTL_ADDR = ioremap(0xfd8c0900,4);
-		vHWIO_GCC_CLOCK_FRQ_MEASURE_STATUS_ADDR = ioremap(0xfc401888,4);
-		vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR = ioremap(0xfc401884,4);
-		vHWIO_GCC_XO_DIV4_CBCR_ADDR = ioremap(0xfc4010c8,4);
+	if(mdss_res && sec_debug_level) {
+		init_clock_va();
+		vHWIO_GCC_DEBUG_CLK_CTL_ADDR = devm_ioremap(&mdss_res->pdev->dev, 0xfc401880, 4);
+		vHWIO_MMSS_DEBUG_CLK_CTL_ADDR = devm_ioremap(&mdss_res->pdev->dev, 0xfd8c0900, 4);
+		vHWIO_GCC_CLOCK_FRQ_MEASURE_STATUS_ADDR = devm_ioremap(&mdss_res->pdev->dev, 0xfc401888, 4);
+		vHWIO_GCC_CLOCK_FRQ_MEASURE_CTL_ADDR = devm_ioremap(&mdss_res->pdev->dev, 0xfc401884, 4);
+		vHWIO_GCC_XO_DIV4_CBCR_ADDR = devm_ioremap(&mdss_res->pdev->dev, 0xfc4010c8, 4);
+
 		if (debugfs_create_file("reg_dump", 0644, dent, 0, &reg_fops)
 								== NULL) {
 							printk(KERN_ERR "%s(%d): debugfs_create_file: debug fail\n",
@@ -976,7 +976,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 #endif
 return 0;
  }
- 
+
 #ifdef __KERNEL__
 arch_initcall(mdss_debug_init);
 #endif

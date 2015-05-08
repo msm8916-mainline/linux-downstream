@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -31,7 +31,7 @@
 #include "mdss_mdp.h"
 
 #define STATUS_CHECK_INTERVAL_MS 5000
-#define STATUS_CHECK_INTERVAL_MIN_MS 200
+#define STATUS_CHECK_INTERVAL_MIN_MS 50
 #define DSI_STATUS_CHECK_DISABLE 0
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 #define STATUS_CHECK_INTERVAL_MS_FOR_IRQ 500
@@ -40,83 +40,6 @@
 static uint32_t interval = STATUS_CHECK_INTERVAL_MS;
 static uint32_t dsi_status_disable = DSI_STATUS_CHECK_DISABLE;
 struct dsi_status_data *pstatus_data;
-
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-/*
- * esd_irq_enable() - Enable or disable esd irq.
- *
- * @enable	: flag for enable or disabled
- * @nosync	: flag for disable irq with nosync
- * @data	: point ot struct mdss_panel_info
- */
-static void esd_irq_enable(bool enable, bool nosync, void *data)
-{
-	/* The irq will enabled when do the request_threaded_irq() */
-	static bool is_enabled = true;
-	int gpio;
-	unsigned long flags;
-	struct mdss_panel_info *pinfo = (struct mdss_panel_info*)data;
-
-	if (!pinfo) {
-		pr_err("%s: pinfo is null\n", __func__);
-		return;
-	}
-
-	spin_lock_irqsave(&pinfo->esd_recovery.irq_lock, flags);
-	gpio = pinfo->esd_recovery.esd_gpio;
-
-	if (enable == is_enabled) {
-		pr_info("%s: ESD irq already %s\n",
-				__func__, enable ? "enabled" : "disabled");
-		goto error;
-	}
-
-	if (enable) {
-		is_enabled = true;
-		enable_irq(gpio_to_irq(gpio));
-	} else {
-		if (nosync)
-			disable_irq_nosync(gpio_to_irq(gpio));
-		else
-			disable_irq(gpio_to_irq(gpio));
-		is_enabled = false;
-	}
-
-	/* TODO: Disable log if the esd function stable */
-	pr_info("%s: ESD irq %s with %s\n",
-				__func__,
-				enable ? "enabled" : "disabled",
-				nosync ? "nosync" : "sync");
-error:
-	spin_unlock_irqrestore(&pinfo->esd_recovery.irq_lock, flags);
-
-}
-
-static irqreturn_t esd_irq_handler(int irq, void *handle)
-{
-	struct mdss_panel_info *pinfo;
-
-	if (!handle) {
-		pr_info("handle is null\n");
-		return IRQ_HANDLED;
-	}
-
-	pinfo = (struct mdss_panel_info *)handle;
-
-	pr_debug("%s++\n", __func__);
-	if (!pinfo->esd_recovery.is_enabled_esd_recovery) {
-		pr_info("%s: esd recovery is not enabled yet", __func__);
-		return IRQ_HANDLED;
-	}
-
-	esd_irq_enable(false, true, (void *)pinfo);
-
-	schedule_work(&pstatus_data->check_status.work);
-	pr_debug("%s--\n", __func__);
-
-	return IRQ_HANDLED;
-}
-#endif
 
 /*
  * check_dsi_ctrl_status() - Reads MFD structure and
@@ -140,13 +63,43 @@ static void check_dsi_ctrl_status(struct work_struct *work)
 		return;
 	}
 
-	if (pdsi_status->mfd->shutdown_pending ||
-		!pdsi_status->mfd->panel_power_on) {
+	if (mdss_panel_is_power_off(pdsi_status->mfd->panel_power_state) ||
+			pdsi_status->mfd->shutdown_pending) {
 		pr_err("%s: panel off\n", __func__);
 		return;
 	}
 
 	pdsi_status->mfd->mdp.check_dsi_status(work, interval);
+}
+
+/*
+ * hw_vsync_handler() - Interrupt handler for HW VSYNC signal.
+ * @irq		: irq line number
+ * @data	: Pointer to the device structure.
+ *
+ * This function is called whenever a HW vsync signal is received from the
+ * panel. This resets the timer of ESD delayed workqueue back to initial
+ * value.
+ */
+irqreturn_t hw_vsync_handler(int irq, void *data)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata =
+			(struct mdss_dsi_ctrl_pdata *)data;
+	if (!ctrl_pdata) {
+		pr_err("%s: DSI ctrl not available\n", __func__);
+		return IRQ_HANDLED;
+	}
+
+	if (pstatus_data)
+		mod_delayed_work(system_wq, &pstatus_data->check_status,
+			msecs_to_jiffies(interval));
+	else
+		pr_err("Pstatus data is NULL\n");
+
+	if (!atomic_read(&ctrl_pdata->te_irq_ready))
+		atomic_inc(&ctrl_pdata->te_irq_ready);
+
+	return IRQ_HANDLED;
 }
 
 /*
@@ -169,9 +122,11 @@ static int fb_event_callback(struct notifier_block *self,
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_panel_info *pinfo;
 	struct msm_fb_data_type *mfd;
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-	int ret;
-#endif
+
+	if (!evdata) {
+		pr_err("%s: event data not available\n", __func__);
+		return NOTIFY_BAD;
+	}
 
 	mfd = evdata->info->par;
 	ctrl_pdata = container_of(dev_get_platdata(&mfd->pdev->dev),
@@ -194,33 +149,11 @@ static int fb_event_callback(struct notifier_block *self,
 	}
 
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-	if (unlikely(!pinfo->esd_recovery.esd_recovery_init)) {
-		pinfo->esd_recovery.esd_recovery_init = true;
-		pinfo->esd_recovery.esd_irq_enable = esd_irq_enable;
-		if (ctrl_pdata->status_mode == ESD_REG_IRQ) {
-			if (gpio_is_valid(pinfo->esd_recovery.esd_gpio)) {
-				gpio_request(pinfo->esd_recovery.esd_gpio, "esd_recovery");
-				ret = request_threaded_irq(
-						gpio_to_irq(pinfo->esd_recovery.esd_gpio),
-						NULL,
-						esd_irq_handler,
-						pinfo->esd_recovery.irqflags,
-						"esd_recovery",
-						(void *)pinfo);
-				if (ret)
-					pr_err("%s : Failed to request_irq, ret=%d\n",
-							__func__, ret);
-				else
-					esd_irq_enable(false, false, (void *)pinfo);
-				interval = STATUS_CHECK_INTERVAL_MS_FOR_IRQ;
-			}
-		}
-	}
+	ctrl_pdata->panel_data.event_handler(&ctrl_pdata->panel_data, MDSS_SAMSUNG_EVENT_FB_EVENT_CALLBACK, &interval );
 #endif
 
 	pdata->mfd = evdata->info->par;
-
-	if (event == FB_EVENT_BLANK && evdata) {
+	if (event == FB_EVENT_BLANK) {
 		int *blank = evdata->data;
 		struct dsi_status_data *pdata = container_of(self,
 				struct dsi_status_data, fb_notifier);
@@ -229,24 +162,22 @@ static int fb_event_callback(struct notifier_block *self,
 		switch (*blank) {
 		case FB_BLANK_UNBLANK:
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-			if (ctrl_pdata->status_mode == ESD_REG_IRQ)
-				esd_irq_enable(true, false, (void *)pinfo);
-			else
+		if (!ctrl_pdata->status_mode == ESD_REG_IRQ)
 #endif
-				schedule_delayed_work(&pdata->check_status,
-					msecs_to_jiffies(interval));
+
+			schedule_delayed_work(&pdata->check_status,
+				msecs_to_jiffies(interval));
 			break;
 		case FB_BLANK_POWERDOWN:
 		case FB_BLANK_HSYNC_SUSPEND:
 		case FB_BLANK_VSYNC_SUSPEND:
 		case FB_BLANK_NORMAL:
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-			if (ctrl_pdata->status_mode == ESD_REG_IRQ) {
-				esd_irq_enable(false, false, (void *)pinfo);
+			if (ctrl_pdata->status_mode == ESD_REG_IRQ)
 				cancel_work_sync(&pdata->check_status.work);
-			} else
+			else
 #endif
-				cancel_delayed_work(&pdata->check_status);
+			cancel_delayed_work(&pdata->check_status);
 			break;
 		default:
 			pr_err("Unknown case in FB_EVENT_BLANK event\n");

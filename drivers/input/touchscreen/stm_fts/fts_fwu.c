@@ -217,10 +217,6 @@ void fts_fw_init(struct fts_ts_info *info)
 	msleep(50);
 
 	info->fts_command(info, SENSEON);
-
-#ifdef FTS_SUPPORT_TOUCH_KEY
-		info->fts_command(info, FTS_CMD_KEY_SENSE_ON);
-#endif // FTS_SUPPORT_TOUCH_KEY
 }
 
 const int fts_fw_updater(struct fts_ts_info *info, unsigned char *fw_data)
@@ -285,13 +281,6 @@ int fts_fw_update_on_probe(struct fts_ts_info *info)
 	const struct fts64_header *header;
 	unsigned char SYS_STAT[2];
 
-	/* temp code for A7 bring up issue */
-	fts_fw_init(info);
-	if (1) {
-		tsp_debug_info(true, info->dev, "%s: skip firmware update\n", __func__);
-		return -1;
-	}
-
 	snprintf(fw_path, FTS_MAX_FW_PATH, "%s", info->board->firmware_name);
 	tsp_debug_info(true, info->dev, "%s: Load firmware : %s\n", __func__,
 		  fw_path);
@@ -319,8 +308,8 @@ int fts_fw_update_on_probe(struct fts_ts_info *info)
 					info->fw_main_version_of_bin);
 
 
-	if ((info->fw_main_version_of_ic != info->fw_main_version_of_bin)
-		|| ((info->config_version_of_ic != info->config_version_of_bin)))
+	if ((info->fw_main_version_of_ic < info->fw_main_version_of_bin)
+		|| ((info->config_version_of_ic < info->config_version_of_bin)))
 		retval = fts_fw_updater(info, fw_data);
 	else
 		retval = -2;
@@ -490,7 +479,7 @@ int fts_fw_update_on_hidden_menu(struct fts_ts_info *info, int update_type)
 	switch (update_type) {
 	case BUILT_IN:
 #ifdef CONFIG_SEC_FACTORY
-		retval = fts_load_fw_from_kernel(info, "tsp_stm/stm_de.fw");
+		retval = fts_load_fw_from_kernel(info, "tsp_stm/stm.fw");
 #else
 		retval = fts_load_fw_from_kernel(info, info->board->firmware_name);
 #endif

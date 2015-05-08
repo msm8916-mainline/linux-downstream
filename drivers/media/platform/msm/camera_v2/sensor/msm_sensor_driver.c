@@ -18,8 +18,21 @@
 #include "msm_cci.h"
 #include "msm_camera_dt_util.h"
 
+#if defined CONFIG_SEC_CAMERA_TUNING
+#include <linux/vmalloc.h>
+#include <linux/fs.h>
+#include <linux/mm.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
+static char *regs_table = NULL;
+static int table_size;
+#endif
+#if defined(CONFIG_SR200PC20)
+#include "sr200pc20.h"
+#endif
+
 /* Logging macro */
-/*#define MSM_SENSOR_DRIVER_DEBUG*/
+//#define MSM_SENSOR_DRIVER_DEBUG
 #undef CDBG
 #ifdef MSM_SENSOR_DRIVER_DEBUG
 #define CDBG(fmt, args...) pr_err(fmt, ##args)
@@ -31,6 +44,18 @@
 
 /* Static declaration */
 static struct msm_sensor_ctrl_t *g_sctrl[MAX_CAMERAS];
+
+#if defined(CONFIG_SR200PC20)
+static struct msm_sensor_fn_t sr200pc20_sensor_func_tbl = {
+	.sensor_config = sr200pc20_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = msm_sensor_match_id,
+	.sensor_native_control = sr200pc20_sensor_native_control,
+};
+#endif
+
+int32_t msm_sensor_remove_dev_node_for_eeprom(int id,int remove);
 
 static int msm_sensor_platform_remove(struct platform_device *pdev)
 {
@@ -229,8 +254,10 @@ static int32_t msm_sensor_fill_actuator_subdevid_by_name(
 		return -EINVAL;
 
 	actuator_name_len = strlen(s_ctrl->sensordata->actuator_name);
-	if (actuator_name_len >= MAX_SENSOR_NAME)
+	if (actuator_name_len >= MAX_SENSOR_NAME) {
+		pr_err("msm_sensor_fill_actuator_subdevid_by_name: actuator_name_len is greater than max len\n");
 		return -EINVAL;
+	}
 
 	sensor_info = s_ctrl->sensordata->sensor_info;
 	actuator_subdev_id = &sensor_info->subdev_id[SUB_MODULE_ACTUATOR];
@@ -240,15 +267,17 @@ static int32_t msm_sensor_fill_actuator_subdevid_by_name(
 	 */
 	*actuator_subdev_id = -1;
 
-	if (0 == actuator_name_len)
+	if (0 == actuator_name_len) {
+		pr_err("msm_sensor_fill_actuator_subdevid_by_name: actuator_name_len is zero\n");
 		return 0;
+	}
 
 	src_node = of_parse_phandle(of_node, "qcom,actuator-src", 0);
 	if (!src_node) {
-		CDBG("%s:%d src_node NULL\n", __func__, __LINE__);
+		pr_err("%s:%d src_node NULL\n", __func__, __LINE__);
 	} else {
 		rc = of_property_read_u32(src_node, "cell-index", &val);
-		CDBG("%s qcom,actuator cell index %d, rc %d\n", __func__,
+		pr_err("%s qcom,actuator cell index %d, rc %d\n", __func__,
 			val, rc);
 		if (rc < 0) {
 			pr_err("%s failed %d\n", __func__, __LINE__);
@@ -359,6 +388,7 @@ int32_t msm_sensor_driver_probe(void *setting)
 	CDBG("sensor_id 0x%x", slave_info->sensor_id_info.sensor_id);
 	CDBG("size %d", slave_info->power_setting_array.size);
 	CDBG("size down %d", slave_info->power_setting_array.size_down);
+	CDBG("sensor_name %s", slave_info->sensor_name);
 
 	if (slave_info->is_init_params_valid) {
 		CDBG("position %d",
@@ -383,6 +413,11 @@ int32_t msm_sensor_driver_probe(void *setting)
 		rc = -EINVAL;
 		goto FREE_SLAVE_INFO;
 	}
+#if defined(CONFIG_SR200PC20)
+	if(slave_info->camera_id == CAMERA_2){
+		s_ctrl->func_tbl = &sr200pc20_sensor_func_tbl ;
+	}
+#endif
 
 	CDBG("s_ctrl[%d] %p", slave_info->camera_id, s_ctrl);
 
@@ -566,7 +601,8 @@ int32_t msm_sensor_driver_probe(void *setting)
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		goto FREE_CAMERA_INFO;
 	}
-
+	msm_sensor_remove_dev_node_for_eeprom(slave_info->camera_id,
+		s_ctrl->sensordata->sensor_info->subdev_id[SUB_MODULE_EEPROM]);
 	/* Power up and probe sensor */
 	rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
 	if (rc < 0) {
@@ -1048,6 +1084,132 @@ static void __exit msm_sensor_driver_exit(void)
 	i2c_del_driver(&msm_sensor_driver_i2c);
 	return;
 }
+
+#if defined CONFIG_SEC_CAMERA_TUNING
+int register_table_init(char *filename) {
+	struct file *filp;
+	char *dp;
+	long lsize;
+	loff_t pos;
+	int ret;
+	/*Get the current address space */
+	mm_segment_t fs = get_fs();
+	pr_err("%s %d", __func__, __LINE__);
+	/*Set the current segment to kernel data segment */
+	set_fs(get_ds());
+	filp = filp_open(filename, O_RDONLY, 0);
+	if (IS_ERR_OR_NULL(filp)) {
+		pr_err("file open error %ld",(long) filp);
+		return -1;
+	}
+	lsize = filp->f_path.dentry->d_inode->i_size;
+	pr_err("size : %ld", lsize);
+	dp = vmalloc(lsize);
+	if (dp == NULL) {
+		pr_err("Out of Memory");
+		filp_close(filp, current->files);
+		return -1;
+	}
+	pos = 0;
+	memset(dp, 0, lsize);
+	ret = vfs_read(filp, (char __user *)dp, lsize, &pos);
+	if (ret != lsize) {
+		pr_err("Failed to read file ret = %d\n", ret);
+		vfree(dp);
+		filp_close(filp, current->files);
+		return -1;
+	}
+	/*close the file*/
+	filp_close(filp, current->files);
+	/*restore the previous address space*/
+	set_fs(fs);
+	pr_err("coming to if part of string compare sr352_regs_table");
+	regs_table = dp;
+	table_size = lsize;
+	*((regs_table+ table_size) - 1) = '\0';
+	return 0;
+}
+
+void register_table_exit(void)
+{
+	pr_info("%s:%d\n", __func__, __LINE__);
+	if (regs_table) {
+		vfree(regs_table);
+		regs_table = NULL;
+	}
+}
+
+int register_read_from_sdcard (struct msm_camera_i2c_reg_conf *settings,
+								struct msm_sensor_ctrl_t *s_ctrl,
+								enum msm_camera_i2c_data_type data_type,
+								char *name) {
+	char *start, *end, *reg,reg_buf[7], data_buf[7];
+	int rc,addr,value;
+	addr=0;
+	rc=0;
+	value=0;
+
+	if(data_type == MSM_CAMERA_I2C_BYTE_DATA) {
+		*(reg_buf + 4) = '\0';
+		*(data_buf + 4) = '\0';
+	} else {
+		*(reg_buf + 6) = '\0';
+		*(data_buf + 6) = '\0';
+	}
+	if(regs_table == NULL) {
+		pr_err("regs_table is null ");
+		return -1;
+	}
+	pr_err("@@@ %s",name);
+	start = strstr(regs_table, name);
+	if (start == NULL){
+		return -1;
+	}
+	end = strstr(start, "};");
+	while (1) {
+		/* Find Address */
+		reg = strstr(start, "{0x");
+		if ((reg == NULL) || (reg > end))
+			break;
+		/* Write Value to Address */
+		if (reg != NULL) {
+			if(data_type == MSM_CAMERA_I2C_BYTE_DATA) {
+				memcpy(reg_buf, (reg + 1), 4);
+				memcpy(data_buf, (reg + 7), 4);
+			} else {
+				memcpy(reg_buf, (reg + 1), 6);
+				memcpy(data_buf, (reg + 9), 6);
+			}
+			if(kstrtoint(reg_buf, 16, &addr))
+				pr_err("kstrtoint error .Please Align contents of the Header file!!") ;
+			if(kstrtoint(data_buf, 16, &value))
+				pr_err("kstrtoint error .Please Align contents of the Header file!!");
+			if(data_type == MSM_CAMERA_I2C_BYTE_DATA) {
+				start = (reg + 14);
+				if (addr == 0xff){
+					msleep(value);
+				} else	{
+					rc=s_ctrl->sensor_i2c_client->i2c_func_tbl->
+						i2c_write(s_ctrl->sensor_i2c_client, addr,
+						value,MSM_CAMERA_I2C_BYTE_DATA);
+				}
+			} else {
+				start = (reg + 18);
+				if (addr == 0xff){
+					msleep(value);
+				} else {
+					rc=s_ctrl->sensor_i2c_client->i2c_func_tbl->
+						i2c_write(s_ctrl->sensor_i2c_client, addr,
+						value,MSM_CAMERA_I2C_WORD_DATA);
+				}
+			}
+		}
+	}
+	pr_err("register_read_from_sdcard end!");
+	return rc;
+}
+
+#endif
 
 module_init(msm_sensor_driver_init);
 module_exit(msm_sensor_driver_exit);

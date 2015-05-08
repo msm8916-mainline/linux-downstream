@@ -24,6 +24,11 @@
 #define DMA_CCS_CONFIG_MASK 0xfffffc17
 #define HIST_WAIT_TIMEOUT(frame) ((75 * HZ * (frame)) / 1000)
 
+#define VSYNC_SELECT 0x024
+#define VSYNC_TOTAL_LINES_SHIFT 21
+#define VSYNC_COUNT_MASK 0x7ffff
+#define VSYNC_THRESH_CONT_SHIFT 16
+
 static void mdp3_vsync_intr_handler(int type, void *arg)
 {
 	struct mdp3_dma *dma = (struct mdp3_dma *)arg;
@@ -266,32 +271,48 @@ static void mdp3_dma_clk_auto_gating(struct mdp3_dma *dma, int enable)
 	}
 }
 
-static int mdp3_dma_sync_config(struct mdp3_dma *dma,
-			struct mdp3_dma_source *source_config)
+
+int mdp3_dma_sync_config(struct mdp3_dma *dma,
+	struct mdp3_dma_source *source_config, struct mdp3_tear_check *te)
 {
-	u32 sync_config;
+	u32 vsync_clk_speed_hz, vclks_line, cfg;
+	int porch = source_config->vporch;
+	int height = source_config->height;
+	int total_lines = height + porch;
 	int dma_sel = dma->dma_sel;
 
-	pr_debug("mdp3_dma_sync_config\n");
+	vsync_clk_speed_hz = MDP_VSYNC_CLK_RATE;
 
-	if (dma->output_config.out_sel == MDP3_DMA_OUTPUT_SEL_DSI_CMD) {
-		int porch = source_config->vporch;
-		int height = source_config->height;
-		int vtotal = height + porch;
-		sync_config = vtotal << 21;
-		sync_config |= source_config->vsync_count;
-		sync_config |= BIT(19);
-		sync_config |= BIT(20);
+	cfg = total_lines << VSYNC_TOTAL_LINES_SHIFT;
+	total_lines *= te->frame_rate;
 
-		MDP3_REG_WRITE(MDP3_REG_SYNC_CONFIG_0 + dma_sel, sync_config);
-		MDP3_REG_WRITE(MDP3_REG_VSYNC_SEL, 0x024);
-		MDP3_REG_WRITE(MDP3_REG_PRIMARY_VSYNC_INIT_VAL + dma_sel,
-				height);
-		MDP3_REG_WRITE(MDP3_REG_PRIMARY_RD_PTR_IRQ, 0x5);
-		MDP3_REG_WRITE(MDP3_REG_SYNC_THRESH_0 + dma_sel, (4 << 16 | 2));
-		MDP3_REG_WRITE(MDP3_REG_PRIMARY_START_P0S + dma_sel, porch);
-		MDP3_REG_WRITE(MDP3_REG_TEAR_CHECK_EN, 0x1);
+	vclks_line = (total_lines) ? vsync_clk_speed_hz / total_lines : 0;
+
+	cfg |= BIT(19);
+	if (te->hw_vsync_mode)
+		cfg |= BIT(20);
+
+	if (te->refx100) {
+		vclks_line = vclks_line * te->frame_rate *
+			100 / te->refx100;
+	} else {
+		pr_warn("refx100 cannot be zero! Use 6000 as default\n");
+		vclks_line = vclks_line * te->frame_rate *
+			100 / 6000;
 	}
+
+	cfg |= (vclks_line & VSYNC_COUNT_MASK);
+
+	MDP3_REG_WRITE(MDP3_REG_SYNC_CONFIG_0 + dma_sel, cfg);
+	MDP3_REG_WRITE(MDP3_REG_VSYNC_SEL, VSYNC_SELECT);
+	MDP3_REG_WRITE(MDP3_REG_PRIMARY_VSYNC_INIT_VAL + dma_sel,
+				te->vsync_init_val);
+	MDP3_REG_WRITE(MDP3_REG_PRIMARY_RD_PTR_IRQ, te->rd_ptr_irq);
+	MDP3_REG_WRITE(MDP3_REG_SYNC_THRESH_0 + dma_sel,
+		((te->sync_threshold_continue << VSYNC_THRESH_CONT_SHIFT) |
+				 te->sync_threshold_start));
+	MDP3_REG_WRITE(MDP3_REG_PRIMARY_START_P0S + dma_sel, te->start_pos);
+	MDP3_REG_WRITE(MDP3_REG_TEAR_CHECK_EN, te->tear_check_en);
 	return 0;
 }
 
@@ -324,8 +345,10 @@ static int mdp3_dmap_config(struct mdp3_dma *dma,
 
 	dma->source_config = *source_config;
 	dma->output_config = *output_config;
-	mdp3_dma_sync_config(dma, source_config);
-
+	dma->roi.w = dma->source_config.width;
+	dma->roi.h = dma->source_config.height;
+	dma->roi.x = dma->source_config.x;
+	dma->roi.y = dma->source_config.y;
 	mdp3_irq_enable(MDP3_INTR_LCDC_UNDERFLOW);
 	mdp3_dma_callback_setup(dma);
 	return 0;
@@ -342,7 +365,7 @@ static void mdp3_dmap_config_source(struct mdp3_dma *dma)
 	dma_p_cfg_reg &= ~MDP3_DMA_PACK_PATTERN_MASK;
 	dma_p_cfg_reg |= dma->output_config.pack_pattern << 8;
 
-	dma_p_size = source_config->width | (source_config->height << 16);
+	dma_p_size = dma->roi.w | (dma->roi.h << 16);
 
 	MDP3_REG_WRITE(MDP3_REG_DMA_P_CONFIG, dma_p_cfg_reg);
 	MDP3_REG_WRITE(MDP3_REG_DMA_P_SIZE, dma_p_size);
@@ -378,7 +401,6 @@ static int mdp3_dmas_config(struct mdp3_dma *dma,
 
 	dma->source_config = *source_config;
 	dma->output_config = *output_config;
-	mdp3_dma_sync_config(dma, source_config);
 
 	mdp3_dma_callback_setup(dma);
 	return 0;
@@ -585,11 +607,31 @@ static int mdp3_dmap_histo_config(struct mdp3_dma *dma,
 	return 0;
 }
 
+int dma_bpp(int format)
+{
+	int bpp;
+	switch (format) {
+	case MDP3_DMA_IBUF_FORMAT_RGB888:
+		bpp = 3;
+		break;
+	case MDP3_DMA_IBUF_FORMAT_RGB565:
+		bpp = 2;
+		break;
+	case MDP3_DMA_IBUF_FORMAT_XRGB8888:
+		bpp = 4;
+		break;
+	default:
+		bpp = 0;
+	}
+	return bpp;
+}
+
 static int mdp3_dmap_update(struct mdp3_dma *dma, void *buf,
-				struct mdp3_intf *intf)
+				struct mdp3_intf *intf, void *data)
 {
 	unsigned long flag;
 	int cb_type = MDP3_DMA_CALLBACK_TYPE_VSYNC;
+	struct mdss_panel_data *panel;
 	int rc = 0;
 
 	pr_debug("mdp3_dmap_update\n");
@@ -610,10 +652,18 @@ static int mdp3_dmap_update(struct mdp3_dma *dma, void *buf,
 				 MDP3_DMA_OUTPUT_SEL_DSI_VIDEO && intf->active)
 			pr_err("configuring dma source while dma is active\n");
 		dma->dma_config_source(dma);
+		if (data) {
+			panel = (struct mdss_panel_data *)data;
+			if (panel->event_handler)
+				panel->event_handler(panel,
+					MDSS_EVENT_ENABLE_PARTIAL_ROI, NULL);
+		}
 		dma->update_src_cfg = false;
 	}
 	spin_lock_irqsave(&dma->dma_lock, flag);
-	MDP3_REG_WRITE(MDP3_REG_DMA_P_IBUF_ADDR, (u32)buf);
+	MDP3_REG_WRITE(MDP3_REG_DMA_P_IBUF_ADDR, (u32)(buf +
+			dma->roi.y * dma->source_config.stride +
+			dma->roi.x * dma_bpp(dma->source_config.format)));
 	dma->source_config.buf = (int)buf;
 	if (dma->output_config.out_sel == MDP3_DMA_OUTPUT_SEL_DSI_CMD) {
 		mdp3_ccs_update(dma);
@@ -644,7 +694,7 @@ static int mdp3_dmap_update(struct mdp3_dma *dma, void *buf,
 }
 
 static int mdp3_dmas_update(struct mdp3_dma *dma, void *buf,
-				struct mdp3_intf *intf)
+				struct mdp3_intf *intf, void *data)
 {
 	unsigned long flag;
 	int cb_type = MDP3_DMA_CALLBACK_TYPE_VSYNC;
@@ -876,6 +926,9 @@ static int mdp3_dma_start(struct mdp3_dma *dma, struct mdp3_intf *intf)
 	init_completion(&dma->vsync_comp);
 	spin_unlock_irqrestore(&dma->dma_lock, flag);
 
+	if (dma->dma_sel == MDP3_DMA_P && dma->has_panic_ctrl)
+		MDP3_REG_WRITE(MDP3_PANIC_ROBUST_CTRL, BIT(0));
+
 	mdp3_dma_callback_enable(dma, cb_type);
 	pr_debug("mdp3_dma_start wait for vsync_comp in\n");
 	wait_for_completion_killable(&dma->vsync_comp);
@@ -894,6 +947,9 @@ static int mdp3_dma_stop(struct mdp3_dma *dma, struct mdp3_intf *intf)
 		display_status_bit = BIT(7);
 	else
 		return -EINVAL;
+
+	if (dma->dma_sel == MDP3_DMA_P && dma->has_panic_ctrl)
+		MDP3_REG_WRITE(MDP3_PANIC_ROBUST_CTRL, 0);
 
 	if (dma->output_config.out_sel == MDP3_DMA_OUTPUT_SEL_DSI_VIDEO)
 		display_status_bit |= BIT(11);
@@ -925,6 +981,7 @@ int mdp3_dma_init(struct mdp3_dma *dma)
 	switch (dma->dma_sel) {
 	case MDP3_DMA_P:
 		dma->dma_config = mdp3_dmap_config;
+		dma->dma_sync_config = mdp3_dma_sync_config;
 		dma->dma_config_source = mdp3_dmap_config_source;
 		dma->config_cursor = mdp3_dmap_cursor_config;
 		dma->config_ccs = mdp3_dmap_ccs_config;
@@ -941,6 +998,7 @@ int mdp3_dma_init(struct mdp3_dma *dma)
 		break;
 	case MDP3_DMA_S:
 		dma->dma_config = mdp3_dmas_config;
+		dma->dma_sync_config = mdp3_dma_sync_config;
 		dma->dma_config_source = mdp3_dmas_config_source;
 		dma->config_cursor = NULL;
 		dma->config_ccs = NULL;
@@ -1060,7 +1118,9 @@ int dsi_video_config(struct mdp3_intf *intf, struct mdp3_intf_cfg *cfg)
 		temp |= BIT(2);
 	MDP3_REG_WRITE(MDP3_REG_DSI_VIDEO_CTL_POLARITY, temp);
 
-	MDP3_REG_WRITE(MDP3_REG_DSI_VIDEO_UNDERFLOW_CTL, 0x800000ff);
+	v->underflow_color |= 0x80000000;
+	MDP3_REG_WRITE(MDP3_REG_DSI_VIDEO_UNDERFLOW_CTL, v->underflow_color);
+
 	return 0;
 }
 

@@ -806,7 +806,7 @@ static char DSI0_UI_MOVIE_MDNIE_2[] = {
 	0x20,
 };
 
-char DSI0_UI_AUTO_MDNIE_1[] = {
+static char DSI0_UI_AUTO_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -815,7 +815,7 @@ char DSI0_UI_AUTO_MDNIE_1[] = {
 	0x01, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_UI_AUTO_MDNIE_2[] = {
+static char DSI0_UI_AUTO_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -1332,7 +1332,7 @@ static char DSI0_GALLERY_MOVIE_MDNIE_2[] = {
 	0x20,
 };
 
-char DSI0_GALLERY_AUTO_MDNIE_1[] = {
+static char DSI0_GALLERY_AUTO_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -1341,7 +1341,7 @@ char DSI0_GALLERY_AUTO_MDNIE_1[] = {
 	0x01, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_GALLERY_AUTO_MDNIE_2[] = {
+static char DSI0_GALLERY_AUTO_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -1859,7 +1859,7 @@ static char DSI0_VIDEO_MOVIE_MDNIE_2[] = {
 	0x20,
 };
 
-char DSI0_VIDEO_AUTO_MDNIE_1[] = {
+static char DSI0_VIDEO_AUTO_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -1868,7 +1868,7 @@ char DSI0_VIDEO_AUTO_MDNIE_1[] = {
 	0x03, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_VIDEO_AUTO_MDNIE_2[] = {
+static char DSI0_VIDEO_AUTO_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -2386,7 +2386,7 @@ static char DSI0_VT_MOVIE_MDNIE_2[] = {
 	0x20,
 };
 
-char DSI0_VT_AUTO_MDNIE_1[] = {
+static char DSI0_VT_AUTO_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -2395,7 +2395,7 @@ char DSI0_VT_AUTO_MDNIE_1[] = {
 	0x01, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_VT_AUTO_MDNIE_2[] = {
+static char DSI0_VT_AUTO_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -2598,7 +2598,7 @@ static char DSI0_CAMERA_MDNIE_2[] = {
 	//end
 };
 
-char DSI0_CAMERA_AUTO_MDNIE_1[] = {
+static char DSI0_CAMERA_AUTO_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -2607,7 +2607,7 @@ char DSI0_CAMERA_AUTO_MDNIE_1[] = {
 	0x01, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_CAMERA_AUTO_MDNIE_2[] = {
+static char DSI0_CAMERA_AUTO_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -2808,7 +2808,7 @@ static char DSI0_NEGATIVE_MDNIE_2[] = {
 	//end
 };
 
-char DSI0_COLOR_BLIND_MDNIE_1[] = {
+static char DSI0_COLOR_BLIND_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -2817,7 +2817,7 @@ char DSI0_COLOR_BLIND_MDNIE_1[] = {
 	0x00, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_COLOR_BLIND_MDNIE_2[] = {
+static char DSI0_COLOR_BLIND_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -2915,7 +2915,7 @@ char DSI0_COLOR_BLIND_MDNIE_2[] = {
 
 ////////////////// BROWSER /////////////////////
 
-char DSI0_BROWSER_STANDARD_MDNIE_1[] = {
+static char DSI0_BROWSER_STANDARD_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -2924,7 +2924,7 @@ char DSI0_BROWSER_STANDARD_MDNIE_1[] = {
 	0x01, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_BROWSER_STANDARD_MDNIE_2[] = {
+static char DSI0_BROWSER_STANDARD_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -3021,7 +3021,7 @@ char DSI0_BROWSER_STANDARD_MDNIE_2[] = {
 };
 
 #if defined(NATURAL_MODE_ENABLE)
-char DSI0_BROWSER_NATURAL_MDNIE_1[] = {
+static char DSI0_BROWSER_NATURAL_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -3030,7 +3030,7 @@ char DSI0_BROWSER_NATURAL_MDNIE_1[] = {
 	0x03, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_BROWSER_NATURAL_MDNIE_2[] = {
+static char DSI0_BROWSER_NATURAL_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -3127,7 +3127,7 @@ char DSI0_BROWSER_NATURAL_MDNIE_2[] = {
 };
 #endif
 
-char DSI0_BROWSER_DYNAMIC_MDNIE_1[] = {
+static char DSI0_BROWSER_DYNAMIC_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -3136,7 +3136,7 @@ char DSI0_BROWSER_DYNAMIC_MDNIE_1[] = {
 	0x03, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_BROWSER_DYNAMIC_MDNIE_2[] = {
+static char DSI0_BROWSER_DYNAMIC_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -3232,7 +3232,7 @@ char DSI0_BROWSER_DYNAMIC_MDNIE_2[] = {
 	//end
 };
 
-char DSI0_BROWSER_MOVIE_MDNIE_1[] = {
+static char DSI0_BROWSER_MOVIE_MDNIE_1[] = {
 	0xEB,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3240,7 +3240,7 @@ char DSI0_BROWSER_MOVIE_MDNIE_1[] = {
 	0x03, //data_width sharpen cs gamma 00 00 0 0
 };
 
-char DSI0_BROWSER_MOVIE_MDNIE_2[] = {
+static char DSI0_BROWSER_MOVIE_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi1 y end
@@ -3335,7 +3335,7 @@ char DSI0_BROWSER_MOVIE_MDNIE_2[] = {
 	0x20,
 };
 
-char DSI0_BROWSER_AUTO_MDNIE_1[] = {
+static char DSI0_BROWSER_AUTO_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -3344,7 +3344,7 @@ char DSI0_BROWSER_AUTO_MDNIE_1[] = {
 	0x01, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_BROWSER_AUTO_MDNIE_2[] = {
+static char DSI0_BROWSER_AUTO_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -3442,7 +3442,7 @@ char DSI0_BROWSER_AUTO_MDNIE_2[] = {
 
 ////////////////// eBOOK /////////////////////
 
-char DSI0_EBOOK_AUTO_MDNIE_1[] = {
+static char DSI0_EBOOK_AUTO_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -3451,7 +3451,7 @@ char DSI0_EBOOK_AUTO_MDNIE_1[] = {
 	0x00, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_EBOOK_AUTO_MDNIE_2[] = {
+static char DSI0_EBOOK_AUTO_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -3547,7 +3547,7 @@ char DSI0_EBOOK_AUTO_MDNIE_2[] = {
 	//end
 };
 
-char DSI0_EBOOK_STANDARD_MDNIE_1[] = {
+static char DSI0_EBOOK_STANDARD_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -3556,7 +3556,7 @@ char DSI0_EBOOK_STANDARD_MDNIE_1[] = {
 	0x01, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_EBOOK_STANDARD_MDNIE_2[] = {
+static char DSI0_EBOOK_STANDARD_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -3652,7 +3652,7 @@ char DSI0_EBOOK_STANDARD_MDNIE_2[] = {
 	//end
 };
 
-char DSI0_EBOOK_DYNAMIC_MDNIE_1[] = {
+static char DSI0_EBOOK_DYNAMIC_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -3661,7 +3661,7 @@ char DSI0_EBOOK_DYNAMIC_MDNIE_1[] = {
 	0x03, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_EBOOK_DYNAMIC_MDNIE_2[] = {
+static char DSI0_EBOOK_DYNAMIC_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -3758,7 +3758,7 @@ char DSI0_EBOOK_DYNAMIC_MDNIE_2[] = {
 };
 
 #if defined(NATURAL_MODE_ENABLE)
-char DSI0_EBOOK_NATURAL_MDNIE_1[] = {
+static char DSI0_EBOOK_NATURAL_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -3767,7 +3767,7 @@ char DSI0_EBOOK_NATURAL_MDNIE_1[] = {
 	0x03, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_EBOOK_NATURAL_MDNIE_2[] = {
+static char DSI0_EBOOK_NATURAL_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -3864,7 +3864,7 @@ char DSI0_EBOOK_NATURAL_MDNIE_2[] = {
 };
 #endif
 
-char DSI0_EBOOK_MOVIE_MDNIE_1[] = {
+static char DSI0_EBOOK_MOVIE_MDNIE_1[] = {
 	0xEB,
 	0x01, //mdnie_en
 	0x00, //mask 000
@@ -3872,7 +3872,7 @@ char DSI0_EBOOK_MOVIE_MDNIE_1[] = {
 	0x03, //data_width sharpen cs gamma 00 00 0 0
 };
 
-char DSI0_EBOOK_MOVIE_MDNIE_2[] = {
+static char DSI0_EBOOK_MOVIE_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi1 y end
@@ -3967,7 +3967,7 @@ char DSI0_EBOOK_MOVIE_MDNIE_2[] = {
 	0x20,
 };
 
-char DSI0_EMAIL_AUTO_MDNIE_1[] = {
+static char DSI0_EMAIL_AUTO_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -3976,7 +3976,7 @@ char DSI0_EMAIL_AUTO_MDNIE_1[] = {
 	0x00, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_EMAIL_AUTO_MDNIE_2[] = {
+static char DSI0_EMAIL_AUTO_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -4495,7 +4495,7 @@ static char DSI0_TDMB_MOVIE_MDNIE_2[] = {
         //end
 };
 
-char DSI0_TDMB_AUTO_MDNIE_1[] = {
+static char DSI0_TDMB_AUTO_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -4504,7 +4504,7 @@ char DSI0_TDMB_AUTO_MDNIE_1[] = {
 	0x05, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_TDMB_AUTO_MDNIE_2[] = {
+static char DSI0_TDMB_AUTO_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -4600,7 +4600,7 @@ char DSI0_TDMB_AUTO_MDNIE_2[] = {
 	//end
 };
 
-char DSI0_HBM_CE_MDNIE_1[] = {
+static char DSI0_HBM_CE_MDNIE_1[] = {
 	//start
 	0xEB,
 	0x01, //mdnie_en
@@ -4609,7 +4609,7 @@ char DSI0_HBM_CE_MDNIE_1[] = {
 	0x03, //sharpen cc gamma 00 0 0
 };
 
-char DSI0_HBM_CE_MDNIE_2[] = {
+static char DSI0_HBM_CE_MDNIE_2[] = {
 	0xEC,
 	0x00, //roi ctrl
 	0x00, //roi0 x start
@@ -5355,4 +5355,4 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 #define DSI0_RGB_SENSOR_MDNIE_1_SIZE ARRAY_SIZE(DSI0_RGB_SENSOR_MDNIE_1)
 #define DSI0_RGB_SENSOR_MDNIE_2_SIZE ARRAY_SIZE(DSI0_RGB_SENSOR_MDNIE_2)
 
-#endif /*_DSI_TCON_MDNIE_LITE_DATA_FHD_S6E3FA2_H_*/
+#endif /*_DSI_TCON_MDNIE_LITE_DATA_HD_EA8061V_AMS497EE01_A5FU_H_*/

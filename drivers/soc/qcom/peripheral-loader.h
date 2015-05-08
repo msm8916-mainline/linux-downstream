@@ -27,6 +27,7 @@ struct pil_priv;
  * @proxy_timeout: delay in ms until proxy vote is removed
  * @flags: bitfield for image flags
  * @priv: DON'T USE - internal only
+ * @attrs: DMA attributes to be used during dma allocation.
  * @proxy_unvote_irq: IRQ to trigger a proxy unvote. proxy_timeout
  * is ignored if this is set.
  * @map_fw_mem: Custom function used to map physical address space to virtual.
@@ -46,9 +47,21 @@ struct pil_desc {
 	struct dma_attrs attrs;
 	unsigned int proxy_unvote_irq;
 	void * (*map_fw_mem)(phys_addr_t phys, size_t size, void *data);
-	void (*unmap_fw_mem)(void *virt, void *data);
+	void (*unmap_fw_mem)(void *virt, size_t size, void *data);
 	void *map_data;
 };
+
+/**
+ * struct pil_image_info - info in IMEM about image and where it is loaded
+ * @name: name of image (may or may not be NULL terminated)
+ * @start: indicates physical address where image starts (little endian)
+ * @size: size of image (little endian)
+ */
+struct pil_image_info {
+	char name[8];
+	__le64 start;
+	__le32 size;
+} __attribute__((__packed__));
 
 /**
  * struct pil_reset_ops - PIL operations

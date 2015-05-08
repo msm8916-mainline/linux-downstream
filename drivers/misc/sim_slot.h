@@ -18,6 +18,11 @@
 #define SINGLE_SIM_VALUE 0
 #define DUAL_SIM_VALUE 1
 
+#ifdef CONFIG_CHECK_SIMSLOT_COUNT_DT
+#define HIGH_VALUE 1
+#define LOW_VALUE 0
+#endif
+
 enum
 {
         NO_SIM = 0,

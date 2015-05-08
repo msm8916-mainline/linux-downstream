@@ -9,7 +9,7 @@
 #define START_MAGIC 0xDEADBABE
 #define FUNC_END 0x9999
 typedef unsigned int u32;
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 /*
  * An instance of this structure is created in a special
  * ELF section at every display debug callsite.  At runtime,

@@ -237,7 +237,7 @@ static void __iomem *virt_bases[N_BASES];
 #define gpll0_source_val		1
 #define gpll0_aux_source_val		3
 #define gpll1_source_val		1
-#define gpll1_aux_source_val		2
+#define gpll1_aux_source_val    2
 #define gpll2_source_val		2
 #define dsi0_phypll_mm_source_val	1
 
@@ -908,7 +908,7 @@ static struct rcg_clk jpeg0_clk_src = {
 static struct clk_freq_tbl ftbl_gcc_camss_mclk0_1_clk[] = {
 	F(   9600000,	      xo,   2,	  0,	0),
 	F(  23880000,      gpll0,   1,    2,   67),
-	F(  26022000,	   gpll1_aux,	 1,  1, 34),
+	F(  26022000,      gpll1_aux,   1,  1, 34),
 	F(  66670000,	   gpll0,  12,	  0,	0),
 	F_END
 };
@@ -1057,7 +1057,7 @@ static struct rcg_clk byte0_clk_src = {
 	.c = {
 		.dbg_name = "byte0_clk_src",
 		.ops = &clk_ops_byte,
-		VDD_DIG_FMAX_MAP2(LOW, 112500000, NOMINAL, 187500000),
+		VDD_DIG_FMAX_MAP2(LOW, 94400000, NOMINAL, 188500000),
 		CLK_INIT(byte0_clk_src.c),
 	},
 };
@@ -2467,8 +2467,9 @@ static struct mux_clk gcc_debug_mux = {
 	.priv = &debug_mux_priv,
 	.ops = &gcc_debug_mux_ops,
 	.offset = GCC_DEBUG_CLK_CTL,
-	.en_mask = BIT(16),
 	.mask = 0x1FF,
+	.en_offset = GCC_DEBUG_CLK_CTL,
+	.en_mask = BIT(16),
 	.base = &virt_bases[GCC_BASE],
 	MUX_REC_SRC_LIST(
 		&rpm_debug_clk.c,
@@ -2716,19 +2717,12 @@ static struct clk_lookup msm_clocks_lookup[] = {
 	CLK_LIST(gcc_bimc_gfx_clk),
 	CLK_LIST(gcc_bimc_gpu_clk),
 	CLK_LIST(wcnss_m_clk),
-};
 
-static struct clk_lookup msm_clocks_gcc_8916_crypto[] = {
 	/* Crypto clocks */
-	CLK_LOOKUP_OF("core_clk",     gcc_crypto_clk,      "scm"),
-	CLK_LOOKUP_OF("iface_clk",    gcc_crypto_ahb_clk,  "scm"),
-	CLK_LOOKUP_OF("bus_clk",      gcc_crypto_axi_clk,  "scm"),
-	CLK_LOOKUP_OF("core_clk_src", crypto_clk_src,      "scm"),
-
-	CLK_LOOKUP_OF("core_clk", 	gcc_crypto_clk, 	"mcd"),
-	CLK_LOOKUP_OF("iface_clk", 	gcc_crypto_ahb_clk, "mcd"),
-	CLK_LOOKUP_OF("bus_clk", 	gcc_crypto_axi_clk, "mcd"),
-	CLK_LOOKUP_OF("core_clk_src", crypto_clk_src, 	"mcd"),
+	CLK_LIST(gcc_crypto_clk),
+	CLK_LIST(gcc_crypto_ahb_clk),
+	CLK_LIST(gcc_crypto_axi_clk),
+	CLK_LIST(crypto_clk_src),
 };
 
 static int msm_gcc_probe(struct platform_device *pdev)
@@ -2812,12 +2806,6 @@ static int msm_gcc_probe(struct platform_device *pdev)
 	ret = of_msm_clock_register(pdev->dev.of_node,
 				msm_clocks_lookup,
 				ARRAY_SIZE(msm_clocks_lookup));
-	if (ret)
-		return ret;
-
-	ret = of_msm_clock_register(pdev->dev.of_node,
-				 msm_clocks_gcc_8916_crypto,
-				 ARRAY_SIZE(msm_clocks_gcc_8916_crypto));
 	if (ret)
 		return ret;
 

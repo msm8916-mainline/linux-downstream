@@ -387,7 +387,7 @@ static int tps65132_parse_dt(struct tps65132_chip *chip,
 		pr_err("memory allocation failed for vreg\n");
 		return -ENOMEM;
 	}
-	if (of_property_read_bool(client->dev.of_node, "i2c-pwr-supply")) {
+	if (of_find_property(client->dev.of_node, "i2c-pwr-supply", NULL)) {
 		chip->i2c_pwr = devm_regulator_get(&client->dev, "i2c-pwr");
 		if (IS_ERR_OR_NULL(chip->i2c_pwr)) {
 			rc = PTR_RET(chip->i2c_pwr);
@@ -534,6 +534,7 @@ static int tps65132_regulator_probe(struct i2c_client *client,
 					PTR_ERR(chip->vreg[i].rdev));
 			for (j = i - 1; j >= 0; j--)
 				regulator_unregister(chip->vreg[j].rdev);
+
 			return PTR_ERR(chip->vreg[i].rdev);
 		}
 	}

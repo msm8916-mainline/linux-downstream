@@ -46,6 +46,20 @@ static int mdss_panel_on_pre(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	return true;
 }
+static int mdss_panel_off_pre(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return false;
+	}
+
+	pr_info("%s %d\n", __func__, ctrl->ndx);
+
+	vdd->panel_func.samsung_bl_ic_pwm_en(0);
+	return true;
+}
 
 static int mdss_panel_revision(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -60,8 +74,20 @@ static int mdss_panel_revision(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	return true;
 }
+static void mdss_panel_tft_pwm_control(struct mdss_dsi_ctrl_pdata *ctrl, int bl_lvl)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
 
-void mdss_panel_init(struct samsung_display_driver_data *vdd)
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return;
+	}
+	if(ctrl->panel_data.panel_info.blank_state == MDSS_PANEL_BLANK_UNBLANK) {
+		vdd->panel_func.samsung_bl_ic_pwm_en(1);
+		vdd->panel_func.samsung_bl_ic_i2c_ctrl(bl_lvl);
+	}
+}
+static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 {
 	pr_info("%s : %s", __func__, vdd->panel_name);
 
@@ -71,7 +97,7 @@ void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	/* ON/OFF */
 	vdd->panel_func.samsung_panel_on_pre = mdss_panel_on_pre;
 	vdd->panel_func.samsung_panel_on_post = NULL;
-	vdd->panel_func.samsung_panel_off_pre = NULL;
+	vdd->panel_func.samsung_panel_off_pre = mdss_panel_off_pre;
 	vdd->panel_func.samsung_panel_off_post = NULL;
 
 	/* DDI RX */
@@ -83,7 +109,7 @@ void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_smart_dimming_init = NULL;
 
 	/* Brightness */
-	vdd->panel_func.samsung_brightness_tft_pwm = NULL;
+	vdd->panel_func.samsung_brightness_tft_pwm_ldi = NULL;
 	vdd->panel_func.samsung_brightness_hbm_off = NULL;
 	vdd->panel_func.samsung_brightness_aid = NULL;
 	vdd->panel_func.samsung_brightness_acl_on = NULL;
@@ -95,19 +121,22 @@ void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_brightness_vint = NULL;
 	vdd->panel_func.samsung_brightness_gamma = NULL;
 	vdd->brightness[0].brightness_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;
+	vdd->panel_func.samsung_brightness_tft_pwm = mdss_panel_tft_pwm_control;
+
+	mdss_panel_attach_set(vdd->ctrl_dsi[DISPLAY_1], true);
 }
 
 static int __init samsung_panel_init(void)
 {
 	struct samsung_display_driver_data *vdd = samsung_get_vdd();
+	char panel_string[] = "ss_dsi_panel_NT71391_BP080WX7_WXGA";
 
 	vdd->panel_name = mdss_mdp_panel + 8;
 	pr_info("%s : %s\n", __func__, vdd->panel_name);
 
-	if (!strcmp(vdd->panel_name, "ss_dsi_panel_NT71391_BP080WX7_WXGA"))
+	if (!strncmp(vdd->panel_name, panel_string, strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = mdss_panel_init;
-	else
-		vdd->panel_func.samsung_panel_init = NULL;
+
 	return 0;
 }
 early_initcall(samsung_panel_init);

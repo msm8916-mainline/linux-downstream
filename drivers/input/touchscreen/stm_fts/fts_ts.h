@@ -4,11 +4,12 @@
 #include <linux/device.h>
 #include <linux/hrtimer.h>
 #include <linux/i2c/fts.h>
+#include <linux/pinctrl/consumer.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
 #ifdef CONFIG_SEC_DEBUG_TSP_LOG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 
 #ifdef CONFIG_SEC_DEBUG_TSP_LOG
@@ -42,9 +43,9 @@
 		dev_err(dev, fmt, ## __VA_ARGS__); \
 })
 #else
-#define tsp_debug_dbg(mode, dev, fmt, ...)	dev_dbg(dev, fmt, ## __VA_ARGS__)
+#define tsp_debug_dbg(mode, dev, fmt, ...)	dev_info(dev, fmt, ## __VA_ARGS__)
 #define tsp_debug_info(mode, dev, fmt, ...)	dev_info(dev, fmt, ## __VA_ARGS__)
-#define tsp_debug_err(mode, dev, fmt, ...)	dev_err(dev, fmt, ## __VA_ARGS__)
+#define tsp_debug_err(mode, dev, fmt, ...)	dev_info(dev, fmt, ## __VA_ARGS__)
 #endif
 
 #define USE_OPEN_CLOSE
@@ -53,10 +54,6 @@
 #include <linux/cpufreq.h>
 #undef TOUCH_BOOSTER_DVFS
 
-#ifdef CONFIG_SEC_S_PROJECT
-#define DVFS_STAGE_NINTH	9
-#define DVFS_STAGE_PENTA	5
-#endif
 #define DVFS_STAGE_TRIPLE       3
 #define DVFS_STAGE_DUAL         2
 #define DVFS_STAGE_SINGLE       1
@@ -187,6 +184,8 @@ struct fts_finger {
 struct fts_ts_platform_data {
 	u32		gpio_int;
 	u32		gpio_ldo_en;
+	int 		gpio_scl;
+	int 		gpio_sda;	
 };
 
 struct fts_ts_info {
@@ -198,6 +197,7 @@ struct fts_ts_info {
 	struct timer_list timer_charger;
 	struct timer_list timer_firmware;
 	struct work_struct work;
+	struct pinctrl *pinctrl;	
 	int irq;
 	int irq_type;
 	bool irq_enabled;
@@ -279,16 +279,6 @@ struct fts_ts_info {
 	struct mutex device_mutex;
 	bool touch_stopped;
 	bool reinit_done;
-
-#ifdef FTS_SUPPORT_TOUCH_KEY
-	unsigned char tsp_keystatus;
-	bool report_dummy_key;
-	bool ignore_menu_key;
-	bool ignore_back_key;
-	bool ignore_menu_key_by_back;
-	bool ignore_back_key_by_menu;
-	int touchkey_threshold;
-#endif // FTS_SUPPORT_TOUCH_KEY
 
 	unsigned char data[FTS_EVENT_SIZE * FTS_FIFO_MAX];
 

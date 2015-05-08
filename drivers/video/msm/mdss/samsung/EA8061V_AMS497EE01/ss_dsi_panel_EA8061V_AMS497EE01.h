@@ -33,6 +33,6 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #define SAMSUNG_DSI_PANEL_EA8061V_AMS497EE01_H
 
 #include "../ss_dsi_panel_common.h"
-
+#define EA8061V_AMS497EE01_SUPPORT_PANEL_COUNT 1
 struct smartdim_conf *smart_get_conf_EA8061V_AMS497EE01(void);
 #endif

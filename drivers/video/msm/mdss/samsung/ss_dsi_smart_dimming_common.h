@@ -71,6 +71,12 @@ extern int candela_coeff_2p15[GAMMA_INDEX_MAX];
 
 /*
 *		index : 0 ~ 255
+*		((index/255)^2.12)*4194304
+*/
+extern int candela_coeff_2p12[GAMMA_INDEX_MAX];
+
+/*
+*		index : 0 ~ 255
 *		((index/255)^2.1)*4194304
 */
 extern int candela_coeff_2p1[GAMMA_INDEX_MAX];
@@ -155,10 +161,53 @@ extern int curve_1p9_300[GAMMA_INDEX_MAX];
 
 /*
 *		index : 0 ~ 255
+*		300 is max CANDELA
+*		(300*((index/255)^1.95))*4194304
+*/
+extern int curve_1p95_300[GAMMA_INDEX_MAX];
+
+/*
+*		index : 0 ~ 255
+*		300 is max CANDELA
+*		(300*((index/255)^2.0))*4194304
+*/
+extern int curve_2p0_300[GAMMA_INDEX_MAX];
+
+/*
+*		index : 0 ~ 255
+*		300 is max CANDELA
+*		(300*((index/255)^2.05))*4194304
+*/
+extern int curve_2p05_300[GAMMA_INDEX_MAX];
+
+/*
+*		index : 0 ~ 255
+*		300 is max CANDELA
+*		(300*((index/255)^2.1))*4194304
+*/
+extern int curve_2p1_300[GAMMA_INDEX_MAX];
+
+/*
+*		index : 0 ~ 255
+*		300 is max CANDELA
+*		(300*((index/255)^2.12))*4194304
+*/
+extern int curve_2p12_300[GAMMA_INDEX_MAX];
+
+/*
+*		index : 0 ~ 255
 *		350 is max CANDELA
 *		(350*((index/255)^1.9))*4194304
 */
 extern int curve_1p9_350[GAMMA_INDEX_MAX];
+
+/*
+*		index : 0 ~ 255
+*		350 is max CANDELA
+*		(350*((index/255)^2.0))*4194304
+*/
+extern int curve_2p0_350[GAMMA_INDEX_MAX];
+
 
 /*
 *		index : 0 ~ 255

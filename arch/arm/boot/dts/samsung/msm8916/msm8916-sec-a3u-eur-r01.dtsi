@@ -142,7 +142,7 @@
 
 			rt5033_buck1 {
 				compatible = "richtek,rt5033-dcdc1";
-				regulator-name = "CAM_SENSOR_CORE_1.25V"; /* change name by yourself */
+				regulator-name = "CAM_SENSOR_CORE_1.2V"; /* change name by yourself */
 				regulator-min-microvolt = <1200000>;
 				regulator-max-microvolt = <1200000>; /* max == min then apply_uV = 1 */
 				/* regulator-microvolt-offset = < >; optional*/
@@ -164,6 +164,9 @@
 				mid_level = <4400>;
 				rt5033,led1-gpio = <&msm_gpio 34 0x00>;
 				rt5033,led2-gpio = <&msm_gpio 36 0x00>;
+				pinctrl-names = "fled_default","fled_sleep";
+				pinctrl-0 = <&cam_flash_active>;
+				pinctrl-1 = <&cam_flash_sleep>;
 			};
 		};
 	};
@@ -203,7 +206,7 @@
 		qcom,panel-maxy = <2084>;
 		qcom,key-codes = <158 139 172 217>;
 	};
-	
+
 	sec_thermistor {
 		compatible = "sec,thermistor";
 		qcom,therm-vadc = <&pm8916_vadc>;
@@ -522,6 +525,7 @@
 	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
 	qcom,mdss-dsi-bl-pmic-pwm-frequency = <100>;
 	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+	samsung,panel-extra-power-gpio1 = <&msm_gpio 9 0>;
 	qcom,cont-splash-enabled;
 };
 
@@ -539,7 +543,6 @@
 	pinctrl-0 = <&mdss_dsi_active &lcd_esd_det_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &lcd_esd_det_suspend>;
 	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
-	qcom,platform-panel-extra-power-gpio1 = <&msm_gpio 9 0>;
 };
 
 &pm8916_chg {

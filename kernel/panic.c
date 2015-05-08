@@ -26,7 +26,7 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/exception.h>
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 
 #define PANIC_TIMER_STEP 100

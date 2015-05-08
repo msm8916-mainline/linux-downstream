@@ -1434,7 +1434,7 @@ static int qpnp_pin_probe(struct spmi_device *spmi)
 	/* allocate gpio lookup tables */
 	q_chip->pmic_pins = kzalloc(sizeof(struct qpnp_pin_spec *) *
 						highest_gpio - lowest_gpio + 1,
-						GFP_KERNEL);
+					GFP_KERNEL);
 	q_chip->chip_gpios = kzalloc(sizeof(struct qpnp_pin_spec *) *
 						spmi->num_dev_node, GFP_KERNEL);
 	if (!q_chip->pmic_pins || !q_chip->chip_gpios) {

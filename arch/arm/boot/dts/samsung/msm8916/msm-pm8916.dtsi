@@ -31,15 +31,20 @@
 				     <0x0 0x8 0x4>,
 				     <0x0 0x8 0x5>;
 			interrupt-names = "kpdpwr", "resin",
-					"resin-bark", "kpdpwr-resin-bark";
+				"resin-bark", "kpdpwr-resin-bark";
 			qcom,pon-dbc-delay = <15625>;
 			qcom,system-reset;
+			qcom,clear-warm-reset;
 			qcom,s3-debounce = <128>;
 
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
+				qcom,support-reset = <1>;
 				qcom,disable-reset = <1>;
 				qcom,pull-up = <1>;
+				qcom,s1-timer = <6720>;
+				qcom,s2-timer = <1000>;
+				qcom,s2-type = <1>;
 				linux,code = <116>;
 			};
 
@@ -336,13 +341,12 @@
 						  "fsm_state_change";
 			};
 		};
-/* need to check
-		qcom,leds@a100 {
+
+		pm8916_leds: qcom,leds@a100 {
 			compatible = "qcom,leds-qpnp";
 			reg = <0xa100 0x100>;
 			label = "mpp";
 		};
-*/
 	};
 
 	qcom,pm8916@1 {
@@ -563,7 +567,6 @@
 			reg-names = "qpnp-lpg-channel-base";
 			qcom,channel-id = <0>;
 			qcom,supported-sizes = <6>, <9>;
-			status = "disabled";
 		};
 
 		pm8916_vib: qcom,vibrator@c000 {
@@ -574,7 +577,7 @@
 		};
 
 		pm8916_tombak_dig: msm8x16_wcd_codec@f000{
-			compatible = "qcom,wcd-spmi";
+			compatible = "qcom,msm8x16_wcd_codec";
 			reg = <0xf000 0x100>;
 			interrupt-parent = <&spmi_bus>;
 			interrupts = <0x1 0xf0 0x0>,
@@ -625,7 +628,7 @@
 		};
 
 		pm8916_tombak_analog: msm8x16_wcd_codec@f100{
-			compatible = "qcom,wcd-spmi";
+			compatible = "qcom,msm8x16_wcd_codec";
 			reg = <0xf100 0x100>;
 			interrupt-parent = <&spmi_bus>;
 			interrupts = <0x1 0xf1 0x0>,

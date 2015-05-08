@@ -17,7 +17,7 @@
 #include <linux/lzo.h>
 #include "msm_sd.h"
 #include "msm_cci.h"
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
 #include "msm_otp_sr544.h"
 #else
 #include "msm_otp_s5k5e3yx.h"
@@ -64,10 +64,10 @@ static int msm_eeprom_verify_sum(const char *mem, uint32_t size, uint32_t sum)
 	crc = crc32_le(crc, mem, size);
 	if (~crc != sum) {
 		pr_err("%s: expect 0x%x, result 0x%x\n", __func__, sum, ~crc);
-    pr_err("Check eeprom or interface");
+		pr_err("Check eeprom or interface");
 		return -EINVAL;
 	}
-	CDBG("%s: checksum pass 0x%x\n", __func__, sum);
+	pr_err("%s: checksum pass 0x%x\n", __func__, sum);
 	return 0;
 }
 
@@ -86,7 +86,7 @@ static uint32_t msm_eeprom_match_crc(struct msm_eeprom_memory_block_t *data)
 	int j, rc;
 	uint32_t *sum;
 	uint32_t ret = 0;
-	uint8_t *memptr;
+	uint8_t *memptr, *memptr_crc;
 	struct msm_eeprom_memory_map_t *map;
 
 	if (!data) {
@@ -94,25 +94,25 @@ static uint32_t msm_eeprom_match_crc(struct msm_eeprom_memory_block_t *data)
 		return -EINVAL;
 	}
 	map = data->map;
-	memptr = data->mapdata;
 
 	for (j = 0; j + 1 < data->num_map; j += 2) {
+		memptr = data->mapdata + map[j].mem.addr;
+		memptr_crc = data->mapdata + map[j+1].mem.addr;
+
 		/* empty table or no checksum */
 		if (!map[j].mem.valid_size || !map[j+1].mem.valid_size) {
-			memptr += map[j].mem.valid_size
-				+ map[j+1].mem.valid_size;
 			continue;
 		}
 		if (map[j+1].mem.valid_size != sizeof(uint32_t)) {
 			pr_err("%s: malformatted data mapping\n", __func__);
 			return -EINVAL;
 		}
-		sum = (uint32_t *) (memptr + map[j].mem.valid_size);
-		rc = msm_eeprom_verify_sum(memptr, map[j].mem.valid_size,
-					   *sum);
+		sum = (uint32_t *) (memptr_crc);
+		rc = msm_eeprom_verify_sum(memptr, map[j].mem.valid_size, *sum);
 		if (!rc)
+		{
 			ret |= 1 << (j/2);
-		memptr += map[j].mem.valid_size + map[j+1].mem.valid_size;
+		}
 	}
 	return ret;
 }
@@ -163,7 +163,7 @@ static int msm_eeprom_power_down(struct msm_eeprom_ctrl_t *e_ctrl)
 		e_ctrl->eeprom_device_type, &e_ctrl->i2c_client);
 }
 
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
 static int prepare_read_write_data(struct msm_eeprom_ctrl_t *e_ctrl, uint8_t addr_h, uint8_t addr_l, enum msm_camera_i2c_data_type data_type, int isWrite)
 {
 	int rc=0;
@@ -238,11 +238,11 @@ static int eeprom_config_read_data(struct msm_eeprom_ctrl_t *e_ctrl,
 	int rc = 0;
 	uint16_t data;
 	int i;
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
 	uint8_t addr_h, addr_l;
 #endif
 
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
 	return rc;
 #endif
 
@@ -258,7 +258,7 @@ static int eeprom_config_read_data(struct msm_eeprom_ctrl_t *e_ctrl,
 		goto FREE;
 	}
 
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
 	addr_h = ((cdata->cfg.read_data.addr)>>8)&0xFF;
 	addr_l = cdata->cfg.read_data.addr&0xFF;
 
@@ -279,7 +279,7 @@ static int eeprom_config_read_data(struct msm_eeprom_ctrl_t *e_ctrl,
 	for(i=0; i<cdata->cfg.read_data.num_bytes; i++) {
 		rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read(
 				&(e_ctrl->i2c_client),
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
 				r_otp_rdata,
 #else
 				cdata->cfg.read_data.addr+i,
@@ -292,7 +292,7 @@ static int eeprom_config_read_data(struct msm_eeprom_ctrl_t *e_ctrl,
 		buf[i]=data;
 	}
 
-#if !defined(CONFIG_SEC_ROSSA_PROJECT)
+#if !defined(CONFIG_SR544)
 	rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write_table(
 			&(e_ctrl->i2c_client), &finish_read_otp);
 	if (rc < 0) {
@@ -324,13 +324,13 @@ static int eeprom_config_read_fw_version(struct msm_eeprom_ctrl_t *e_ctrl,
 		return -ENOMEM;
 	}
 	memset(buf, 0, cdata->cfg.read_data.num_bytes);
-	if(e_ctrl->cal_data.num_data < (EEPROM_FW_VERSION_OFFSET + cdata->cfg.read_data.num_bytes)) {
-		pr_err("%s : requested data size was mismatched! addr:size[0x%x:%d]\n", __func__, EEPROM_FW_VERSION_OFFSET, cdata->cfg.read_data.num_bytes);
+	if(e_ctrl->cal_data.num_data < (cdata->cfg.read_data.addr + cdata->cfg.read_data.num_bytes)) {
+		pr_err("%s : requested data size was mismatched! addr:size[0x%x:%d]\n", __func__, cdata->cfg.read_data.addr, cdata->cfg.read_data.num_bytes);
 		rc = -ENOMEM;
 		goto FREE;
-	} 
+	}
 
-	memcpy(buf, &map_data[EEPROM_FW_VERSION_OFFSET], cdata->cfg.read_data.num_bytes);
+	memcpy(buf, &map_data[cdata->cfg.read_data.addr], cdata->cfg.read_data.num_bytes);
 
 	rc = copy_to_user(cdata->cfg.read_data.dbuffer, buf,
 			  cdata->cfg.read_data.num_bytes);
@@ -350,7 +350,7 @@ static int eeprom_config_read_compressed_data(struct msm_eeprom_ctrl_t *e_ctrl,
 	uint32_t decomp_size;
 	uint16_t data;
 	int i;
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
 	uint8_t addr_h, addr_l;
 #endif
 
@@ -366,7 +366,7 @@ static int eeprom_config_read_compressed_data(struct msm_eeprom_ctrl_t *e_ctrl,
 		goto FREE;
 	}
 
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
 	addr_h = ((cdata->cfg.read_data.addr)>>8)&0xFF;
 	addr_l = cdata->cfg.read_data.addr&0xFF;
 
@@ -386,8 +386,8 @@ static int eeprom_config_read_compressed_data(struct msm_eeprom_ctrl_t *e_ctrl,
 
 	for(i=0; i<cdata->cfg.read_data.comp_size; i++) {
 		rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read(
-				&(e_ctrl->i2c_client), 
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+				&(e_ctrl->i2c_client),
+#if defined(CONFIG_SR544)
 				r_otp_rdata,
 #else
 				cdata->cfg.read_data.addr+i,
@@ -400,7 +400,7 @@ static int eeprom_config_read_compressed_data(struct msm_eeprom_ctrl_t *e_ctrl,
 		buf_comp[i]=data;
 	}
 
-#if !defined(CONFIG_SEC_ROSSA_PROJECT)
+#if !defined(CONFIG_SR544)
 	rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write_table(
 			&(e_ctrl->i2c_client), &finish_read_otp);
 	if (rc < 0) {
@@ -458,7 +458,7 @@ static int eeprom_config_write_data(struct msm_eeprom_ctrl_t *e_ctrl,
 	uint32_t compressed_size = 0;
 	uint32_t crc = ~0UL;
 	int i;
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
 	uint8_t addr_h, addr_l;
 #endif
 
@@ -508,7 +508,7 @@ static int eeprom_config_write_data(struct msm_eeprom_ctrl_t *e_ctrl,
 		goto FREE;
 	}
 
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
 	if (cdata->cfg.write_data.compress) {
 
 		addr_h = ((cdata->cfg.write_data.addr)>>8)&0xFF;
@@ -675,31 +675,37 @@ static int eeprom_config_erase(struct msm_eeprom_ctrl_t *e_ctrl,
 
 static int32_t msm_eeprom_read_eeprom_data(struct msm_eeprom_ctrl_t *e_ctrl)
 {
-	int32_t rc = 0;
+    int32_t rc = 0;
 
-	CDBG("%s:%d Enter\n", __func__, __LINE__);
-	/* check eeprom id */
-	if (e_ctrl->eeprom_device_type == MSM_CAMERA_SPI_DEVICE) {
-		rc = msm_eeprom_match_id(e_ctrl);
-		if (rc < 0) {
-			CDBG("%s: eeprom not matching %d\n", __func__, rc);
-			return rc;
-		}
-	}
-	/* read eeprom */
-	if (e_ctrl->cal_data.map) {
-		rc = read_eeprom_memory(e_ctrl, &e_ctrl->cal_data);
-		if (rc < 0) {
-			pr_err("%s: read cal data failed\n", __func__);
-			return rc;
-		}
-		e_ctrl->is_supported |= msm_eeprom_match_crc(
-						&e_ctrl->cal_data);
-	}
+    /* power up */
+    rc = msm_camera_power_up(&e_ctrl->eboard_info->power_info,
+                           e_ctrl->eeprom_device_type,
+                           &e_ctrl->i2c_client);
+    if (rc) {
+        pr_err("failed rc %d\n", rc);
+    return rc;
+    }
 
-	e_ctrl->is_supported = (e_ctrl->is_supported << 1) | 1;
-	CDBG("%s:%d Exit\n", __func__, __LINE__);
-	return rc;
+    /* read cal data */
+    rc = read_eeprom_memory(e_ctrl, &e_ctrl->cal_data);
+    if (rc < 0) {
+        pr_err("%s read_eeprom_memory failed\n", __func__);
+        goto POWER_DOWN;
+    }
+
+    /* update support info */
+    e_ctrl->is_supported = (msm_eeprom_match_crc(&e_ctrl->cal_data) << 1) | 1;
+    pr_err("%s:%d is_supported = 0x%X\n", __func__, __LINE__, e_ctrl->is_supported);
+
+POWER_DOWN:
+    /* power down */
+    if (msm_camera_power_down(&e_ctrl->eboard_info->power_info,
+                            e_ctrl->eeprom_device_type,
+                            &e_ctrl->i2c_client) < 0)
+    pr_err("%s:%d pwoer down failed\n", __func__, __LINE__);
+    pr_err("%s:%d Exit\n", __func__, __LINE__);
+
+    return rc;
 }
 
 static int msm_eeprom_config(struct msm_eeprom_ctrl_t *e_ctrl,
@@ -742,9 +748,9 @@ static int msm_eeprom_config(struct msm_eeprom_ctrl_t *e_ctrl,
 		break;
 	case CFG_EEPROM_READ_DATA_FROM_HW:
 		e_ctrl->is_supported = 0x01;
-		pr_err ("kernel is supported before%X\n",e_ctrl->is_supported);
+		pr_err ("kernel is supported before : %X\n",e_ctrl->is_supported);
 		rc = msm_eeprom_read_eeprom_data(e_ctrl);
-		pr_err ("kernel is supported after%X\n",e_ctrl->is_supported);
+		pr_err ("kernel is supported after : %X\n",e_ctrl->is_supported);
 		cdata->is_supported = e_ctrl->is_supported;
 		if (rc < 0) {
 			pr_err("%s:%d failed rc %d\n", __func__, __LINE__,  rc);
@@ -891,7 +897,8 @@ uint8_t* get_eeprom_data_addr()
   * This function iterates through blocks stored in block->map, reads each
   * region and concatenate them into the pre-allocated block->mapdata
   */
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SR544)
+//  compare dtsi file to GTA when L-OS upgrade for rossa/core-prime.
 static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 			      struct msm_eeprom_memory_block_t *block)
 {
@@ -902,7 +909,8 @@ static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 	enum msm_camera_i2c_data_type data_type = MSM_CAMERA_I2C_BYTE_DATA;
 	uint16_t OTP_Bank=0, OTP_Data=0;
 	int i, j;
-	uint8_t start_addr_h, start_addr_l;
+	uint16_t start_addr;
+	uint16_t version;
 
 	if (!e_ctrl) {
 		pr_err("%s e_ctrl is NULL", __func__);
@@ -910,6 +918,60 @@ static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 	}
 
 	eb_info = e_ctrl->eboard_info;
+
+	rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write_table(
+			&(e_ctrl->i2c_client), &sr544_init);
+	if (rc < 0) {
+		pr_err("%s:(%d) write failed\n", __func__, __LINE__);
+		return rc;
+	}
+
+	rc = prepare_read_write_data(e_ctrl, 0x00, 0x20, MSM_CAMERA_I2C_BYTE_DATA, 0);
+	if (rc < 0) {
+		pr_err("%s: failed to prepare read/write on otp\n", __func__);
+		return rc;
+	}
+
+	rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read(
+			&(e_ctrl->i2c_client), r_otp_rdata,
+			&version, data_type);
+	if (rc < 0) {
+		pr_err("%s:(%d) read failed\n", __func__, __LINE__);
+		return rc;
+	}
+	pr_err("%s:(%d) cra_version(0x%02X)",__func__,__LINE__,version);
+
+	rc = prepare_read_write_data(e_ctrl, 0x06, 0x80, MSM_CAMERA_I2C_BYTE_DATA, 0);
+	if (rc < 0) {
+		pr_err("%s: failed to prepare read/write on otp\n", __func__);
+		return rc;
+	}
+
+	rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read(
+			&(e_ctrl->i2c_client), r_otp_rdata,
+			&OTP_Bank, data_type);
+	if (rc < 0) {
+		pr_err("%s:(%d) read failed\n", __func__, __LINE__);
+		return rc;
+	}
+
+	pr_err("%s: read OTP_Bank: %d\n", __func__, OTP_Bank);
+
+	switch(OTP_Bank) {
+	case 0:
+	case 1:
+		start_addr = 0x0690;
+		break;
+	case 3:
+		start_addr = 0x0EE0;
+		break;
+	case 7:
+		start_addr = 0x1730;
+		break;
+	default:
+		pr_err("%s: Bank error : Bank(%d)\n", __func__, OTP_Bank);
+		return -EINVAL;
+	}
 
 	for (j = 0; j < block->num_map; j++) {
 		if (emap[j].saddr.addr) {
@@ -919,97 +981,62 @@ static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 			pr_err("qcom,slave-addr = 0x%X\n",
 				eb_info->i2c_slaveaddr);
 		}
+	}
 
-		rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write_table(
-				&(e_ctrl->i2c_client), &sr544_init);
+	pr_err("%s:(%d) e_ctrl->cal_data.num_data : %x\n", __func__, __LINE__, e_ctrl->cal_data.num_data);
+
+	if (e_ctrl->cal_data.num_data)
+	{
+		rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+				&(e_ctrl->i2c_client), r_otp_addr_h,
+				((start_addr & 0xFF00) >> 8), data_type);
 		if (rc < 0) {
 			pr_err("%s:(%d) write failed\n", __func__, __LINE__);
 			return rc;
 		}
 
-		rc = prepare_read_write_data(e_ctrl, 0x06, 0x80, MSM_CAMERA_I2C_BYTE_DATA, 0);
+		rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+				&(e_ctrl->i2c_client), r_otp_addr_l,
+				(start_addr & 0x00FF), data_type);
 		if (rc < 0) {
-			pr_err("%s: failed to prepare read/write on otp\n", __func__);
+			pr_err("%s:(%d) write failed\n", __func__, __LINE__);
 			return rc;
 		}
 
-		rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read(
-				&(e_ctrl->i2c_client), r_otp_rdata,
-				&OTP_Bank, data_type);
+		rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write(
+				&(e_ctrl->i2c_client), r_otp_cmd,
+				0x01, data_type);
 		if (rc < 0) {
-			pr_err("%s:(%d) read failed\n", __func__, __LINE__);
+			pr_err("%s:(%d) write failed\n", __func__, __LINE__);
 			return rc;
 		}
 
-		pr_err("%s: read OTP_Bank: %d\n", __func__, OTP_Bank);
-
-		switch(OTP_Bank) {
-		case 0:
-		case 1:
-			start_addr_h = 0x06;
-			start_addr_l = 0x90;
-			break;
-		case 3:
-			start_addr_h = 0x0E;
-			start_addr_l = 0xE0;
-			break;
-		case 7:
-			start_addr_h = 0x17;
-			start_addr_l = 0x30;
-			break;
-		default:
-			pr_err("%s: Bank error : Bank(%d)\n", __func__, OTP_Bank);
-			return -EINVAL;
+		for (i=0; i<e_ctrl->cal_data.num_data; i++) {
+			rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read(
+					&(e_ctrl->i2c_client), r_otp_rdata,
+					&OTP_Data, data_type);
+			if (rc < 0) {
+				pr_err("%s:(%d) read failed\n", __func__, __LINE__);
+				return rc;
+			}
+			memptr[i] = OTP_Data;
 		}
-
-		if (emap[j].mem.valid_size) {
-			rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write(
-					&(e_ctrl->i2c_client), r_otp_addr_h,
-					start_addr_h, data_type);
-			if (rc < 0) {
-				pr_err("%s:(%d) write failed\n", __func__, __LINE__);
-				return rc;
-			}
-
-			rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write(
-					&(e_ctrl->i2c_client), r_otp_addr_l,
-					start_addr_l, data_type);
-			if (rc < 0) {
-				pr_err("%s:(%d) write failed\n", __func__, __LINE__);
-				return rc;
-			}
-
-			rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write(
-					&(e_ctrl->i2c_client), r_otp_cmd,
-					0x01, data_type);
-			if (rc < 0) {
-				pr_err("%s:(%d) write failed\n", __func__, __LINE__);
-				return rc;
-			}
-
-			for (i=0; i<e_ctrl->cal_data.num_data; i++) {
-				rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read(
-						&(e_ctrl->i2c_client), r_otp_rdata,
-						&OTP_Data, data_type);
-				if (rc < 0) {
-					pr_err("%s:(%d) read failed\n", __func__, __LINE__);
-					return rc;
-				}
-				memptr[i] = OTP_Data;
-			}
 #ifdef EEPROM_MMAP_DEBUG
-			printk("OTP data : ");
-			for (i=0; i<e_ctrl->cal_data.num_data; i++) {
-				printk("[%d:%x], ", i, memptr[i]);
-				if(i%16 == 15)
-					printk("\n");
-			}
-			printk("\n");
-#endif
-			memptr += emap[j].mem.valid_size;
-			pr_err("%s: %d   memptr after addition = %p\n", __func__, __LINE__ , memptr);
-
+		printk("OTP data : ");
+		for (i=0; i<e_ctrl->cal_data.num_data; i++) {
+			printk("[%d:%x], ", i, memptr[i]);
+			if(i%16 == 15)
+				printk("\n");
 		}
+		printk("\n");
+#endif
+
+		// copy CRA information which is read from OTP 0x20 to cal data [0x50] address.
+		memptr[0x50] = version & 0xFF;
+		pr_err("%s: %d version = 0x%02X, memptr[0x50] = 0x%02X\n", __func__, __LINE__ , version, memptr[0x50]);
+
+		memptr += e_ctrl->cal_data.num_data;
+		pr_err("%s: %d   memptr after addition = %p\n", __func__, __LINE__ , memptr);
 	}
 	return rc;
 }
@@ -1041,9 +1068,6 @@ static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 			pr_err("qcom,slave-addr = 0x%X\n",
 				eb_info->i2c_slaveaddr);
 		}
-
-		init_read_otp.reg_setting[1].reg_data = 2;
-		init_write_otp.reg_setting[7].reg_data = 2;
 
 		rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_write_table(
 				&(e_ctrl->i2c_client), &init_read_otp);
@@ -1139,12 +1163,13 @@ static int msm_eeprom_parse_memory_map(struct device_node *of,
 	char property[PROPERTY_MAXSIZE];
 	uint32_t count = 6;
 	struct msm_eeprom_memory_map_t *map;
+	uint32_t total_size = 0;
 
 	snprintf(property, PROPERTY_MAXSIZE, "qcom,num-blocks");
 	rc = of_property_read_u32(of, property, &data->num_map);
-	pr_err("%s: %s %d\n", __func__, property, data->num_map);
+	pr_err("%s::%d  %s %d\n", __func__, __LINE__, property, data->num_map);
 	if (rc < 0) {
-		pr_err("%s failed rc %d\n", __func__, rc);
+		pr_err("%s::%d failed rc %d\n", __func__,__LINE__,rc);
 		return rc;
 	}
 
@@ -1156,6 +1181,8 @@ static int msm_eeprom_parse_memory_map(struct device_node *of,
 	data->map = map;
 
 	for (i = 0; i < data->num_map; i++) {
+		pr_err("%s, %d: i = %d\n", __func__, __LINE__, i);
+
 		snprintf(property, PROPERTY_MAXSIZE, "qcom,page%d", i);
 		rc = of_property_read_u32_array(of, property,
 				(uint32_t *) &map[i].page, count);
@@ -1163,19 +1190,6 @@ static int msm_eeprom_parse_memory_map(struct device_node *of,
 			pr_err("%s: failed %d\n", __func__, __LINE__);
 			goto ERROR;
 		}
-
-		snprintf(property, PROPERTY_MAXSIZE,
-					"qcom,pageen%d", i);
-		rc = of_property_read_u32_array(of, property,
-			(uint32_t *) &map[i].pageen, count);
-		if (rc < 0)
-			pr_err("%s: pageen not needed\n", __func__);
-
-		snprintf(property, PROPERTY_MAXSIZE, "qcom,saddr%d", i);
-		rc = of_property_read_u32_array(of, property,
-			(uint32_t *) &map[i].saddr.addr, 1);
-		if (rc < 0)
-			pr_err("%s: saddr not needed - block %d\n", __func__, i);
 
 		snprintf(property, PROPERTY_MAXSIZE, "qcom,poll%d", i);
 		rc = of_property_read_u32_array(of, property,
@@ -1194,8 +1208,24 @@ static int msm_eeprom_parse_memory_map(struct device_node *of,
 		}
 		data->num_data += map[i].mem.valid_size;
 	}
+	pr_err("%s::%d valid size = %d\n", __func__,__LINE__, data->num_data);
 
-	pr_err("%s num_bytes %d\n", __func__, data->num_data);
+	total_size = 0;
+
+#if defined(CONFIG_SR544)
+	// if total-size is defined at dtsi file.
+	// set num_data as total-size (refer dtsi file of GTA)
+	snprintf(property, PROPERTY_MAXSIZE, "qcom,total-size");
+	rc = of_property_read_u32(of, property, &total_size);
+	pr_err("%s::%d  %s %d\n", __func__,__LINE__,property, total_size);
+
+	// if "qcom,total-size" propoerty exists.
+	if (rc >= 0) {
+		pr_err("%s::%d set num_data as total-size in order to use same address at cal map(total : %d, valid : %d)\n",
+			__func__,__LINE__, total_size, data->num_data);
+		data->num_data = total_size;
+	}
+#endif
 
 	data->mapdata = kzalloc(data->num_data, GFP_KERNEL);
 	if (!data->mapdata) {
@@ -1253,7 +1283,8 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 	e_ctrl = kzalloc(sizeof(*e_ctrl), GFP_KERNEL);
 	if (!e_ctrl) {
 		pr_err("%s:%d kzalloc failed\n", __func__, __LINE__);
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto probe_failure;
 	}
 	e_ctrl->eeprom_v4l2_subdev_ops = &msm_eeprom_subdev_ops;
 	e_ctrl->eeprom_mutex = &msm_eeprom_mutex;
@@ -1268,10 +1299,10 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 		goto memdata_free;
 	}
 
-        rc = of_property_read_u32(of_node, "qcom,slave-addr", &temp);
-        if (rc < 0) {
-                pr_err("%s failed rc %d\n", __func__, rc);
-                goto board_free;
+	rc = of_property_read_u32(of_node, "qcom,slave-addr", &temp);
+	if (rc < 0) {
+		pr_err("%s failed rc %d\n", __func__, rc);
+		goto board_free;
 	}
 
 	rc = of_property_read_u32(of_node, "cell-index",
@@ -1279,7 +1310,7 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 	pr_err("cell-index/subdev_id %d, rc %d\n", e_ctrl->subdev_id, rc);
 	if (rc < 0) {
 		pr_err("failed read, rc %d\n", rc);
-		return rc;
+		goto board_free;
 	}
 
 	power_info = &e_ctrl->eboard_info->power_info;
@@ -1323,7 +1354,7 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 		&e_ctrl->i2c_client);
 	if (rc) {
 		pr_err("failed rc %d\n", rc);
-		goto memdata_free;
+		goto board_free;
 	}
 	rc = read_eeprom_memory(e_ctrl, &e_ctrl->cal_data);
 	if (rc < 0) {
@@ -1340,7 +1371,7 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 		&e_ctrl->i2c_client);
 	if (rc) {
 		pr_err("failed rc %d\n", rc);
-		goto memdata_free;
+		goto power_down;
 	}
 
 	if (0 > of_property_read_u32(of_node, "qcom,sensor-position", &temp)) {
@@ -1369,9 +1400,11 @@ power_down:
 	msm_camera_power_down(power_info, e_ctrl->eeprom_device_type,
 		&e_ctrl->i2c_client);
 board_free:
-        kfree(e_ctrl->eboard_info);
+	if (e_ctrl->eboard_info)
+		kfree(e_ctrl->eboard_info);
 memdata_free:
-	kfree(e_ctrl);
+	if (e_ctrl)
+		kfree(e_ctrl);
 probe_failure:
 	pr_err("%s failed! rc = %d\n", __func__, rc);
 	return rc;
@@ -1472,7 +1505,6 @@ static int msm_eeprom_get_dt_data(struct msm_eeprom_ctrl_t *e_ctrl)
 		of_node = e_ctrl->pdev->dev.of_node;
         else if (e_ctrl->eeprom_device_type == MSM_CAMERA_I2C_DEVICE)
                 of_node = e_ctrl->i2c_client.client->dev.of_node;
-
 	rc = msm_camera_get_dt_vreg_data(of_node, &power_info->cam_vreg,
 					     &power_info->num_vreg);
 	if (rc < 0) {
@@ -1480,7 +1512,7 @@ static int msm_eeprom_get_dt_data(struct msm_eeprom_ctrl_t *e_ctrl)
 		return rc;
 	}
 
-		pr_err("msm_eeprom_get_dt_data: %d\n", __LINE__);
+	pr_err("msm_camera_get_dt_power_setting_data : %d\n", __LINE__);
 	rc = msm_camera_get_dt_power_setting_data(of_node,
 		power_info->cam_vreg, power_info->num_vreg,
 		power_info);
@@ -1558,8 +1590,10 @@ static int msm_eeprom_cmm_dts(struct msm_eeprom_board_info *eb_info,
 
 	cmm_data->cmm_support =
 		of_property_read_bool(of_node, "qcom,cmm-data-support");
-	if (!cmm_data->cmm_support)
+	if (!cmm_data->cmm_support){
+                pr_err("%s::%d qcom,cmm-data-support failed ",__func__,__LINE__);
 		return -EINVAL;
+        }
 	cmm_data->cmm_compression =
 		of_property_read_bool(of_node, "qcom,cmm-data-compressed");
 	if (!cmm_data->cmm_compression)
@@ -1885,8 +1919,9 @@ static int msm_eeprom_platform_probe(struct platform_device *pdev)
 	}
 
 	rc = msm_eeprom_cmm_dts(e_ctrl->eboard_info, of_node);
-	if (rc < 0)
-		CDBG("%s MM data miss:%d\n", __func__, __LINE__);
+	if (rc < 0){
+		pr_err("%s MM data miss:%d\n", __func__, __LINE__);
+        }
 
 	rc = msm_eeprom_get_dt_data(e_ctrl);
 	if (rc)
@@ -1898,7 +1933,6 @@ static int msm_eeprom_platform_probe(struct platform_device *pdev)
 
 	if (e_ctrl->cal_data.mapdata)
 		map_data = e_ctrl->cal_data.mapdata;
-
 	rc = msm_camera_power_up(power_info, e_ctrl->eeprom_device_type,
 		&e_ctrl->i2c_client);
 	if (rc) {
@@ -2038,17 +2072,17 @@ static struct spi_driver msm_eeprom_spi_driver = {
 
 static int __init msm_eeprom_init_module(void)
 {
-  int rc = 0 /*, spi_rc = 0*/;
+        int rc = 0 /*, spi_rc = 0*/;
 	pr_err("%s E\n", __func__);
 	rc = platform_driver_probe(&msm_eeprom_platform_driver,
 		msm_eeprom_platform_probe);
-	pr_err("%s:%d platform rc %d\n", __func__, __LINE__, rc);
-//	spi_rc = spi_register_driver(&msm_eeprom_spi_driver);
-//	pr_err("%s:%d spi rc %d\n", __func__, __LINE__, spi_rc);
+        if(rc<0){
+	   pr_err("%s:%d platform rc %d\n", __func__, __LINE__, rc);
+           return rc;
+        }
 	rc = i2c_add_driver(&msm_eeprom_i2c_driver);
-  if (rc < 0 /*&& spi_rc < 0*/)
-    pr_err("%s:%d probe failed\n", __func__, __LINE__);
-
+        if (rc < 0)
+        pr_err("%s:%d probe failed\n", __func__, __LINE__);
 	return rc;
 }
 

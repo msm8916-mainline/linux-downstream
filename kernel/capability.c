@@ -445,11 +445,11 @@ bool nsown_capable(int cap)
 }
 
 /**
- * capable_wrt_inode_uidgid - Check nsown_cable and uid and gid mapped
+ * capable_wrt_inode_uidgid - Check nsown_capable and uid and gid mapped
  * @inode: The inode in question
  * @cap: The capability in question
  *
- * Return true if the current task has the given capability targeted at 
+ * Return true if the current task has the given capability targeted at
  * its own user namespace and that the given inode's uid and gid are
  * mapped into the current user namespace.
  */
@@ -460,4 +460,3 @@ bool capable_wrt_inode_uidgid(const struct inode *inode, int cap)
 	return ns_capable(ns, cap) && kuid_has_mapping(ns, inode->i_uid) &&
 		kgid_has_mapping(ns, inode->i_gid);
 }
-EXPORT_SYMBOL(capable_wrt_inode_uidgid);

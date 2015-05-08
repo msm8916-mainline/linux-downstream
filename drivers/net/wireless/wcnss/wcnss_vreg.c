@@ -24,8 +24,6 @@
 #include <linux/list.h>
 #include <linux/slab.h>
 #include <linux/clk.h>
-#include <mach/msm_xo.h>
-#include <mach/msm_iomap.h>
 
 
 static void __iomem *msm_wcnss_base;
@@ -99,7 +97,7 @@ static struct vregs_info iris_vregs_pronto[] = {
 	{"qcom,iris-vddrfa", VREG_NULL_CONFIG, 1300000, 0,
 		1300000, 100000, NULL},
 	{"qcom,iris-vddpa",  VREG_NULL_CONFIG, 2900000, 0,
-		3000000, 515000, NULL},
+		3350000, 515000, NULL},
 	{"qcom,iris-vdddig", VREG_NULL_CONFIG, 1225000, 0,
 		1800000, 10000,  NULL},
 };
@@ -146,7 +144,8 @@ struct host_driver {
 
 enum {
 	IRIS_3660, /* also 3660A and 3680 */
-	IRIS_3620
+	IRIS_3620,
+	IRIS_3610
 };
 
 
@@ -159,6 +158,9 @@ int xo_auto_detect(u32 reg)
 		return WCNSS_XO_48MHZ;
 
 	case IRIS_3620:
+		return WCNSS_XO_19MHZ;
+
+	case IRIS_3610:
 		return WCNSS_XO_19MHZ;
 
 	default:

@@ -143,6 +143,8 @@ static int mmc_decode_csd(struct mmc_card *card)
 			csd->erase_size = UNSTUFF_BITS(resp, 39, 7) + 1;
 			csd->erase_size <<= csd->write_blkbits - 9;
 		}
+		if (csd->erase_size == 0)
+			return EINVAL;
 		break;
 	case 1:
 		/*
@@ -1451,10 +1453,9 @@ remove_card:
 	mmc_claim_host(host);
 err:
 	mmc_detach_bus(host);
-
 	if (err)
 		pr_err("%s: error %d whilst initialising SD card: rescan: %d\n",
-				mmc_hostname(host), err, host->rescan_disable);
+		       mmc_hostname(host), err, host->rescan_disable);
 
 	return err;
 }

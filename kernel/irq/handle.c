@@ -19,7 +19,7 @@
 #include <trace/events/irq.h>
 
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 
 #include "internals.h"

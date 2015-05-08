@@ -81,7 +81,6 @@
 					qcom,ss-power = <8000>;
 					qcom,energy-overhead = <100000>;
 					qcom,time-overhead = <1>;
-					qcom,default-idle;
 				};
 
 				qcom,pm-cpu-level@1 {
@@ -100,7 +99,6 @@
 					qcom,ss-power = <5000>;
 					qcom,energy-overhead = <60350000>;
 					qcom,time-overhead = <7300>;
-					qcom,default-suspend;
 				};
 			};
 		};
@@ -130,7 +128,7 @@
 			<0xff 60>,  /* mss_to_apps_irq(3) */
 			<0xff 73>,  /* pcie20_int_msi */
 			<0xff 126>, /* bam_irq[0] */
-			<0xff 165>, /* msm_dwc3_irq */
+			<49 165>, /* usb2_phy_dpse_hv for msm_dwc3_irq */
 			<0xff 173>, /* o_wcss_apss_smd_hi */
 			<0xff 174>, /* o_wcss_apss_smd_med */
 			<0xff 175>, /* o_wcss_apss_smd_lo */

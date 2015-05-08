@@ -71,6 +71,13 @@ static int msm_csid_cid_lut(
 		return -EINVAL;
 	}
 	for (i = 0; i < csid_lut_params->num_cid && i < 16; i++) {
+		if (csid_lut_params->vc_cfg[i]->cid >=
+			csid_lut_params->num_cid ||
+			csid_lut_params->vc_cfg[i]->cid < 0) {
+			pr_err("%s: cid outside range %d\n",
+				__func__, csid_lut_params->vc_cfg[i]->cid);
+			return -EINVAL;
+		}
 		CDBG("%s lut params num_cid = %d, cid = %d\n",
 			__func__,
 			csid_lut_params->num_cid,
@@ -178,10 +185,15 @@ static int msm_csid_config(struct csid_device *csid_dev,
 static irqreturn_t msm_csid_irq(int irq_num, void *data)
 {
 	uint32_t irq;
-	struct csid_device *csid_dev = data;
+	struct csid_device *csid_dev;
 	void __iomem *csidbase;
 
-	if (!csid_dev) {
+	if (!data) {
+		pr_err("%s:%d data NULL\n", __func__, __LINE__);
+		return IRQ_HANDLED;
+	}//prevent
+	csid_dev = data ;
+	if (!csid_dev->base) {
 		pr_err("%s:%d csid_dev NULL\n", __func__, __LINE__);
 		return IRQ_HANDLED;
 	}
@@ -681,6 +693,7 @@ static int csid_probe(struct platform_device *pdev)
 		if (rc < 0) {
 			pr_err("%s:%d failed to read cell-index\n", __func__,
 				__LINE__);
+			rc = -ENODEV;
 			goto csid_no_resource;
 		}
 		CDBG("%s device id %d\n", __func__, pdev->id);
@@ -690,6 +703,7 @@ static int csid_probe(struct platform_device *pdev)
 		if (rc < 0) {
 			pr_err("%s:%d failed to read qcom,csi-vdd-voltage\n",
 				__func__, __LINE__);
+			rc = -ENODEV;
 			goto csid_no_resource;
 		}
 		CDBG("%s:%d reading mipi_csi_vdd is %d\n", __func__, __LINE__,
@@ -702,7 +716,7 @@ static int csid_probe(struct platform_device *pdev)
 	rc = msm_csid_get_clk_info(new_csid_dev, pdev);
 	if (rc < 0) {
 		pr_err("%s: msm_csid_get_clk_info() failed", __func__);
-		rc = -EFAULT;
+		rc = -ENODEV;
 		goto csid_no_resource;
 	}
 
@@ -784,7 +798,7 @@ static int csid_probe(struct platform_device *pdev)
 	} else {
 		pr_err("%s:%d, invalid hw version : 0x%x", __func__, __LINE__,
 		new_csid_dev->hw_dts_version);
-		rc = -EINVAL;
+		rc = -ENODEV;
 		goto csid_no_resource;
 	}
 

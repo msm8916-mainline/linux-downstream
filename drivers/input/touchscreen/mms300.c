@@ -23,7 +23,7 @@
 /* #define ESD_DEBUG */
 #define DEBUG_PRINT2			1
 
-#define TSP_GESTURE_MODE	
+#undef TSP_GESTURE_MODE	
 
 #define SEC_TSP_FACTORY_TEST
 #define TSP_BUF_SIZE 1024
@@ -50,30 +50,21 @@
 #include <asm/mach-types.h>
 #include <linux/delay.h>
 
-#ifdef CONFIG_CPU_FREQ_LIMIT_USERSPACE
-#include <linux/cpufreq.h>
-#define TOUCH_BOOSTER_DVFS
-#define TSP_GLOVE_MODE
-#define TSP_SVIEW_COVER_MODE
-#define COVER_OPEN 0
-#define COVER_GLOVE 1
-#define COVER_CLOSED 3
-
-#define DVFS_STAGE_TRIPLE       3
-
-#define DVFS_STAGE_DUAL         2
-#define DVFS_STAGE_SINGLE       1
-#define DVFS_STAGE_NONE         0
-#endif
-
-/* #include <mach/dev.h> */
-
 #include <linux/regulator/consumer.h>
 #include <linux/i2c/mms300.h>
 #include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
 
 #include <asm/unaligned.h>
+
+#ifdef CONFIG_INPUT_BOOSTER
+#include <linux/input/input_booster_msm8939.h>
+#endif
+#define TSP_GLOVE_MODE
+#define TSP_SVIEW_COVER_MODE
+#define COVER_OPEN 0
+#define COVER_GLOVE 1
+#define COVER_CLOSED 3
 
 #define MMS300_DOWNLOAD
 #define MMS300_RESET_DELAY	70
@@ -82,8 +73,6 @@
 #define MAX_WIDTH		30
 #define MAX_PRESSURE		255
 #define MAX_HOVER			255
-#define MAX_ANGLE		90
-#define MIN_ANGLE		-90
 #define FINGER_EVENT_SZ			8
 #define EVENT_SZ	8
 
@@ -289,11 +278,6 @@ static const unsigned char crc1_buf[31] =
 
 u8 irq_bit_mask;
 
-#ifdef TOUCH_BOOSTER_DVFS
-#define TOUCH_BOOSTER_OFF_TIME	500
-#define TOUCH_BOOSTER_CHG_TIME	130
-#endif
-
 enum {
 	GET_RX_NUM	= 1,
 	GET_TX_NUM,
@@ -309,9 +293,8 @@ enum {
 	LOG_TYPE_S32,
 };
 /* END - Added to support API's for TSP tuning */
-#ifdef CONFIG_SAMSUNG_LPM_MODE
-extern int poweroff_charging;
-#endif
+
+
 static struct device *sec_touchscreen;
 #ifdef TOUCHKEY
 static struct device *sec_touchkey;
@@ -333,7 +316,7 @@ static int tsp_power_enabled;
 
 #define FLASH_VERBOSE_DEBUG	1
 
-#define FW_IMAGE_NAME	"tsp_melfas/mms345l_a5.fw";
+#define FW_IMAGE_NAME	"tsp_melfas/mms345l_e5.fw";
 
 #define ISC_PAGE_SZ 128
 
@@ -415,6 +398,11 @@ struct mms_ts_info {
 	void (*input_event)(void *data);
 	const char* fw_path;
 
+#ifdef TSP_BOOSTER
+	struct input_booster	*booster;
+#endif
+
+
 #ifdef TSP_GESTURE_MODE
 	bool lowpower_mode;
 	int lowpower_flag;
@@ -429,18 +417,6 @@ struct mms_ts_info {
 #endif
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend early_suspend;
-#endif
-
-#ifdef TOUCH_BOOSTER_DVFS
-	struct delayed_work	work_dvfs_off;
-	struct delayed_work	work_dvfs_chg;
-	struct mutex		dvfs_lock;
-	bool dvfs_lock_status;
-	u8								finger_cnt1;
-	int dvfs_boost_mode;
-	int dvfs_freq;
-	int dvfs_old_stauts;
-	bool stay_awake;
 #endif
 
 #ifdef TOUCHKEY
@@ -516,8 +492,10 @@ struct mms_ts_info {
 static void mms_ts_early_suspend(struct early_suspend *h);
 static void mms_ts_late_resume(struct early_suspend *h);
 #endif
+#if !defined(USE_OPEN_CLOSE)
 static int mms_ts_resume(struct device *dev);
 static int mms_ts_suspend(struct device *dev);
+#endif
 
 int mms_flash_fw_mms300(struct mms_ts_info *info, const u8 *fw_data, size_t fw_size);
 static int fw_download_isp(struct mms_ts_info *info, const u8 *data, size_t len);
@@ -541,6 +519,10 @@ struct tsp_cmd {
 	const char	*cmd_name;
 	void	(*cmd_func)(void *device_data);
 };
+
+#ifdef CONFIG_SAMSUNG_LPM_MODE
+extern int poweroff_charging;
+#endif
 
 extern unsigned int system_rev;
 
@@ -577,7 +559,7 @@ static void direct_indicator_enable(void *device_data);
 static void set_lowpower_mode(void *device_data);
 #endif
 
-#ifdef TOUCH_BOOSTER_DVFS
+#ifdef TSP_BOOSTER
 static void boost_level(void *device_data);
 #endif
 
@@ -621,7 +603,7 @@ struct tsp_cmd tsp_cmds[] = {
 	{TSP_CMD("set_lowpower_mode", set_lowpower_mode),},
 #endif
 	{TSP_CMD("not_support_cmd", not_support_cmd),},
-#ifdef TOUCH_BOOSTER_DVFS
+#ifdef TSP_BOOSTER
         {TSP_CMD("boost_level", boost_level),},
 #endif
 #ifdef TSP_GLOVE_MODE
@@ -640,163 +622,6 @@ struct delayed_work * p_ghost_check;
 #endif
 
 
-#ifdef TOUCH_BOOSTER_DVFS
-static void samsung_change_dvfs_lock(struct work_struct *work)
-{
-	struct mms_ts_info *info =
-		container_of(work,
-			struct mms_ts_info, work_dvfs_chg.work);
-	int retval = 0;
-
-	mutex_lock(&info->dvfs_lock);
-
-	if (info->dvfs_boost_mode == DVFS_STAGE_DUAL) {
-                if (info->stay_awake) {
-                        dev_info(&info->client->dev,
-                                        "%s: do fw update, do not change cpu frequency.\n",
-                                        __func__);
-                } else {
-                        retval = set_freq_limit(DVFS_TOUCH_ID,
-                                        MIN_TOUCH_LIMIT_SECOND);
-                        info->dvfs_freq = MIN_TOUCH_LIMIT_SECOND;
-                }
-        } else if (info->dvfs_boost_mode == DVFS_STAGE_SINGLE ||
-                        info->dvfs_boost_mode == DVFS_STAGE_TRIPLE) {
-                retval = set_freq_limit(DVFS_TOUCH_ID, -1);
-                info->dvfs_freq = -1;
-        }
-
-        if (retval < 0)
-                dev_err(&info->client->dev,
-                                "%s: booster change failed(%d).\n",
-                                __func__, retval);
-
-	mutex_unlock(&info->dvfs_lock);
-}
-
-static void samsung_set_dvfs_off(struct work_struct *work)
-{
-	struct mms_ts_info *info =
-		container_of(work,
-			struct mms_ts_info, work_dvfs_off.work);
-	int retval;
-
-	if (info->stay_awake) {
-                dev_info(&info->client->dev,
-                                "%s: do fw update, do not change cpu frequency.\n",
-                                __func__);
-        } else {
-                mutex_lock(&info->dvfs_lock);
-
-                retval = set_freq_limit(DVFS_TOUCH_ID, -1);
-                info->dvfs_freq = -1;
-
-                if (retval < 0)
-                        dev_err(&info->client->dev,
-                                        "%s: booster stop failed(%d).\n",
-                                        __func__, retval);
-                info->dvfs_lock_status = false;
-
-                mutex_unlock(&info->dvfs_lock);
-        }
-}
-
-static void samsung_set_dvfs_lock(struct mms_ts_info *info,
-					int32_t on)
-{
-	int ret = 0;
-
-	if (info->dvfs_boost_mode == DVFS_STAGE_NONE) {
-                dev_dbg(&info->client->dev,
-                                "%s: DVFS stage is none(%d)\n",
-                                __func__, info->dvfs_boost_mode);
-                return;
-        }
-
-        mutex_lock(&info->dvfs_lock);
-        if (on == 0) {
-                if (info->dvfs_lock_status)
-                        schedule_delayed_work(&info->work_dvfs_off,
-                                        msecs_to_jiffies(TOUCH_BOOSTER_OFF_TIME));
-        } else if (on > 0) {
-                cancel_delayed_work(&info->work_dvfs_off);
-
-                if ((!info->dvfs_lock_status) || (info->dvfs_old_stauts < on)) {
-                        cancel_delayed_work(&info->work_dvfs_chg);
-
-                        if (info->dvfs_freq != MIN_TOUCH_LIMIT) {
-                                if (info->dvfs_boost_mode == DVFS_STAGE_TRIPLE)
-                                        ret = set_freq_limit(DVFS_TOUCH_ID,
-                                                MIN_TOUCH_LIMIT_SECOND);
-                                else
-                                        ret = set_freq_limit(DVFS_TOUCH_ID,
-                                                MIN_TOUCH_LIMIT);
-                                info->dvfs_freq = MIN_TOUCH_LIMIT;
-
-                                if (ret < 0)
-					dev_err(&info->client->dev,
-                                                        "%s: cpu first lock failed(%d)\n",
-                                                        __func__, ret);
-                        }
-			schedule_delayed_work(&info->work_dvfs_chg,
-				msecs_to_jiffies(TOUCH_BOOSTER_CHG_TIME));
-                        info->dvfs_lock_status = true;
-                }
-        } else if (on < 0) {
-                if (info->dvfs_lock_status) {
-                        cancel_delayed_work(&info->work_dvfs_off);
-                        cancel_delayed_work(&info->work_dvfs_chg);
-                        schedule_work(&info->work_dvfs_off.work);
-                }
-        }
-        info->dvfs_old_stauts = on;
-        mutex_unlock(&info->dvfs_lock);
-}
-
-
-static void samsung_init_dvfs(struct mms_ts_info *info)
-{
-	mutex_init(&info->dvfs_lock);
-
-	info->dvfs_boost_mode = DVFS_STAGE_DUAL;
-
-	INIT_DELAYED_WORK(&info->work_dvfs_off, samsung_set_dvfs_off);
-	INIT_DELAYED_WORK(&info->work_dvfs_chg, samsung_change_dvfs_lock);
-
-	info->dvfs_lock_status = false;
-}
-#endif
-
-#if 0
-static inline void mms_pwr_on_reset(struct mms_ts_info *info)
-{
-	struct i2c_adapter *adapter = to_i2c_adapter(info->client->dev.parent);
-
-/*	if (!info->pdata->mux_fw_flash) {
-		dev_info(&info->client->dev,
-			 "missing platform data, can't do power-on-reset\n");
-		return;
-	}
-*/
-	i2c_lock_adapter(adapter);
-//	info->pdata->mux_fw_flash(true);
-
-	//info->pdata->power(0);
-	gpio_direction_output(info->pdata->gpio_sda, 0);
-	gpio_direction_output(info->pdata->gpio_scl, 0);
-	gpio_direction_output(info->pdata->gpio_int, 0);
-	msleep(50);
-	//info->pdata->power(1);
-	msleep(100);
-
-//	info->pdata->mux_fw_flash(false);
-	i2c_unlock_adapter(adapter);
-
-	/* TODO: Seems long enough for the firmware to boot.
-	 * Find the right value */
-	msleep(250);
-}
-#endif
 static void release_all_fingers(struct mms_ts_info *info)
 {
 	struct i2c_client *client = info->client;
@@ -828,9 +653,9 @@ static void release_all_fingers(struct mms_ts_info *info)
 	}
 	input_sync(info->input_dev);
 
-#ifdef TOUCH_BOOSTER_DVFS
-	info->finger_cnt1=0;
-	samsung_set_dvfs_lock(info, -1);
+#ifdef TSP_BOOSTER
+	if (info->booster && info->booster->dvfs_set)
+		info->booster->dvfs_set(info->booster, 0);
 #endif
 }
 
@@ -1241,8 +1066,8 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			goto out;
 		}
 
-		if (x == 0 && y == 0)
-			continue;
+		//if (x == 0 && y == 0)
+		//	continue;
 		if ((tmp[0] & irq_bit_mask) == 0) {
 			input_mt_slot(info->input_dev, id);
 			input_mt_report_slot_state(info->input_dev,
@@ -1280,10 +1105,6 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			ABS_MT_TOUCH_MAJOR, tmp[6]);
 		input_report_abs(info->input_dev,
 			ABS_MT_TOUCH_MINOR, tmp[7]);
-/*
-		input_report_abs(info->input_dev,
-			ABS_MT_ANGLE, angle);
-*/
 		input_report_abs(info->input_dev,
 			ABS_MT_PALM, palm);
 
@@ -1309,8 +1130,16 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 	}
 	input_sync(info->input_dev);
 
-#ifdef TOUCH_BOOSTER_DVFS
-	samsung_set_dvfs_lock(info, touch_is_pressed);
+#ifdef TSP_BOOSTER
+	if (touch_is_pressed > 0) {
+		if (info->booster && info->booster->dvfs_set)
+			info->booster->dvfs_set(info->booster, 1);
+	} 
+
+	else {
+		if (info->booster && info->booster->dvfs_set)
+			info->booster->dvfs_set(info->booster, 0);
+	}
 #endif
 
 out:
@@ -2119,40 +1948,44 @@ static void clear_cover_mode(void *device_data)
 }
 #endif
 
-#ifdef TOUCH_BOOSTER_DVFS
+#ifdef TSP_BOOSTER
 static void boost_level(void *device_data)
 {
 	struct mms_ts_info *info = (struct mms_ts_info *)device_data;
 	struct i2c_client *client = info->client;
 	char buff[16] = {0};
-
+	int stage;
 	int retval = 0;
 
 	dev_info(&client->dev, "%s\n", __func__);
 
 	set_default_result(info);
 
-	info->dvfs_boost_mode = info->cmd_param[0];
 
-	dev_info(&client->dev,
-			"%s: dvfs_boost_mode = %d\n",
-			__func__, info->dvfs_boost_mode);
+	stage = 1 << info->cmd_param[0];
+	if (!(info->booster->dvfs_stage & stage)) {
+		snprintf(buff, sizeof(buff), "NG");
+		info->cmd_state = FAIL;
+		dev_err(&info->client->dev,"%s: %d is not supported(%04x != %04x).\n",__func__,
+			info->cmd_param[0], stage, info->booster->dvfs_stage);
 
+		goto boost_out;
+	}
+
+	info->booster->dvfs_boost_mode = stage;
 	snprintf(buff, sizeof(buff), "OK");
-	info->cmd_state = RUNNING;
+	info->cmd_state = OK;
 
-	if (info->dvfs_boost_mode == DVFS_STAGE_NONE) {
-		retval = set_freq_limit(DVFS_TOUCH_ID, -1);
+	if (info->booster->dvfs_boost_mode == DVFS_STAGE_NONE) {
+		retval = info->booster->dvfs_off(info->booster);
 		if (retval < 0) {
-			dev_err(&info->client->dev,
-					"%s: booster stop failed(%d).\n",
-					__func__, retval);
+			dev_err(&info->client->dev,"%s: booster stop failed(%d).\n",__func__, retval);
 			snprintf(buff, sizeof(buff), "NG");
 			info->cmd_state = FAIL;
-
-			info->dvfs_lock_status = false;
 		}
 	}
+
+	boost_out:
 
 	set_cmd_result(info, buff,
 			strnlen(buff, sizeof(buff)));
@@ -2653,6 +2486,8 @@ static void fw_update(void *device_data)
 		return;
 	}
 
+	disable_irq_nosync(info->irq);
+
 	switch (info->cmd_param[0]) {
 	case BUILT_IN:
 		dev_info(&client->dev, "built in fw update\n");
@@ -2692,6 +2527,8 @@ static void fw_update(void *device_data)
 		info->fw_core_ver);
 	dev_info(&client->dev, "config version : 0x%02x\n",
 		info->fw_ic_ver);
+
+	enable_irq(info->irq);
 
 	if (ret == 0) {
 		snprintf(result, sizeof(result) , "%s", "OK");
@@ -3889,12 +3726,14 @@ static void hw_reboot(struct mms_ts_info *info, bool bootloader)
 }
 
 static void isp_toggle_clk(struct mms_ts_info *info, int start_lvl, int end_lvl,
-			   int hold_us)
+			   int hold_us, int hold_us2)
 {
-	gpio_set_value(info->pdata->gpio_scl, start_lvl);
+	//gpio_set_value(info->pdata->gpio_scl, start_lvl);	
+	gpio_direction_output(info->pdata->gpio_scl, start_lvl);
 	udelay(hold_us);
-	gpio_set_value(info->pdata->gpio_scl, end_lvl);
-	udelay(hold_us);
+	//gpio_set_value(info->pdata->gpio_scl, end_lvl);
+	gpio_direction_output(info->pdata->gpio_scl, end_lvl);
+	udelay(hold_us2);
 }
 
 /* 1 <= cnt <= 32 bits to write */
@@ -3905,10 +3744,11 @@ static void isp_send_bits(struct mms_ts_info *info, u32 data, int cnt)
 	gpio_direction_output(info->pdata->gpio_sda, 0);
 
 	/* clock out the bits, msb first */
+	udelay(2);
 	while (cnt--) {
 		gpio_set_value(info->pdata->gpio_sda, (data >> cnt) & 1);
-		udelay(3);
-		isp_toggle_clk(info, 1, 0, 3);
+		udelay(2);
+		isp_toggle_clk(info, 1, 0, 2, 2);
 	}
 }
 
@@ -3924,7 +3764,8 @@ static u32 isp_recv_bits(struct mms_ts_info *info, int cnt)
 
 	/* clock in the bits, msb first */
 	while (cnt--) {
-		isp_toggle_clk(info, 0, 1, 1);
+		udelay(3);
+		isp_toggle_clk(info, 0, 1, 1, 1);
 		data = (data << 1) | (!!gpio_get_value(info->pdata->gpio_sda));
 	}
 
@@ -3941,12 +3782,13 @@ static void isp_enter_mode(struct mms_ts_info *info, u32 mode)
 	gpio_direction_output(info->pdata->gpio_int, 0);
 	gpio_direction_output(info->pdata->gpio_scl, 0);
 	gpio_direction_output(info->pdata->gpio_sda, 1);
+	udelay(2);
 
 	mode &= 0xffff;
 	for (cnt = 15; cnt >= 0; cnt--) {
 		gpio_set_value(info->pdata->gpio_int, (mode >> cnt) & 1);
-		udelay(3);
-		isp_toggle_clk(info, 1, 0, 3);
+		udelay(2);
+		isp_toggle_clk(info, 1, 0, 2, 2);
 	}
 
 	gpio_set_value(info->pdata->gpio_int, 0);
@@ -3963,7 +3805,7 @@ static void isp_exit_mode(struct mms_ts_info *info)
 	udelay(3);
 
 	for (i = 0; i < 10; i++)
-		isp_toggle_clk(info, 1, 0, 3);
+		isp_toggle_clk(info, 1, 0, 2, 2);
 	local_irq_restore(flags);
 }
 
@@ -3984,14 +3826,14 @@ static void flash_erase(struct mms_ts_info *info)
 
 	/* 4 clock cycles with different timings for the erase to
 	 * get processed, clk is already 0 from above */
-	udelay(7);
-	isp_toggle_clk(info, 1, 0, 3);
-	udelay(7);
-	isp_toggle_clk(info, 1, 0, 3);
+	udelay(5);
+	isp_toggle_clk(info, 1, 0, 2, 2);
+	udelay(5);
+	isp_toggle_clk(info, 1, 0, 2, 2);
 	usleep_range(25000, 35000);
-	isp_toggle_clk(info, 1, 0, 3);
+	isp_toggle_clk(info, 1, 0, 2, 2);
 	usleep_range(150, 200);
-	isp_toggle_clk(info, 1, 0, 3);
+	isp_toggle_clk(info, 1, 0, 2, 2);
 
 	gpio_set_value(info->pdata->gpio_sda, 0);
 
@@ -4014,7 +3856,7 @@ static u32 flash_readl(struct mms_ts_info *info, u16 addr)
 
 	/* data load cycle */
 	for (i = 0; i < 6; i++)
-		isp_toggle_clk(info, 1, 0, 10);
+		isp_toggle_clk(info, 1, 0, 2, 2);
 
 	val = isp_recv_bits(info, 32);
 	isp_exit_mode(info);
@@ -4035,14 +3877,14 @@ static void flash_writel(struct mms_ts_info *info, u16 addr, u32 val)
 	gpio_direction_output(info->pdata->gpio_sda, 1);
 	/* 6 clock cycles with different timings for the data to get written
 	 * into flash */
-	isp_toggle_clk(info, 0, 1, 3);
-	isp_toggle_clk(info, 0, 1, 3);
-	isp_toggle_clk(info, 0, 1, 6);
-	isp_toggle_clk(info, 0, 1, 12);
-	isp_toggle_clk(info, 0, 1, 3);
-	isp_toggle_clk(info, 0, 1, 3);
+	isp_toggle_clk(info, 0, 1, 5, 5);
+	isp_toggle_clk(info, 0, 1, 5, 5);
+	isp_toggle_clk(info, 0, 1, 10, 10);
+	isp_toggle_clk(info, 0, 1, 20, 5);
+	isp_toggle_clk(info, 0, 1, 5, 5);
+	isp_toggle_clk(info, 0, 1, 5, 5);
 
-	isp_toggle_clk(info, 1, 0, 1);
+	isp_toggle_clk(info, 1, 0, 1, 1);
 
 	gpio_direction_output(info->pdata->gpio_sda, 0);
 	isp_exit_mode(info);
@@ -4340,7 +4182,9 @@ static int mms300l_compare_version_info(struct mms_ts_info *info, const u8 *fw_d
 
 	for (ii = 0; ii < SECTION_NUM; ii++) {
 		info->fw_info_ic[ii].start_addr = rd_buf[ii];
-		info->fw_info_ic[ii].start_addr = rd_buf[ii + (sizeof(rd_buf) / 2)];
+//		info->fw_info_ic[ii].start_addr = rd_buf[ii + (sizeof(rd_buf) / 2)];
+		info->fw_info_ic[ii].end_addr = rd_buf[ii + SECTION_NUM +1]; // bug fixed
+
 	}
 
 	for (ii = 0; ii < SECTION_NUM; ii++) {
@@ -4401,7 +4245,8 @@ static int mms300l_compare_version_info(struct mms_ts_info *info, const u8 *fw_d
 		/* SET section update flag, select highest level for update section.
 		 * if boot updae: all update, core update: core, config update, config update: only config update.
 		 */
-		if (info->fw_info_ic[ii].version < info->fw_info_bin[ii].version) {
+//		if (info->fw_info_ic[ii].version < info->fw_info_bin[ii].version) {
+		if ((info->fw_info_ic[ii].version < info->fw_info_bin[ii].version)||(info->fw_info_ic[ii].version >= 0xC0)) {  // bug fixed
 			info->section_update_flag[ii] = true;
 			retval = ii;
 			break;
@@ -4412,8 +4257,9 @@ static int mms300l_compare_version_info(struct mms_ts_info *info, const u8 *fw_d
 	}
 
 ///////////////////////////////
-	info->section_update_flag[2] = true;
-	retval = 2;
+//   always update
+//	info->section_update_flag[2] = true;
+//	retval = 2;
 ///////////////////////////////
 
 	dev_info(&info->client->dev,
@@ -4451,8 +4297,10 @@ static int mms300l_ISC_clear_page(struct mms_ts_info *info, unsigned char page_a
 		return -1;
 	}
 
-	if (rd_buf != ISC_STATUS_CRC_CHECK_SUCCESS)
+	if (rd_buf != ISC_STATUS_CRC_CHECK_SUCCESS){
+		dev_err(&info->client->dev,"%s: i2c rd_buf(0x3) crc error[%d] \n", __func__, rd_buf);
 		return -1 * rd_buf;
+	}
 
 	return rd_buf;
 
@@ -4635,6 +4483,52 @@ static int mms300l_update_section_data(struct mms_ts_info *info, const u8 *firm_
 	return 0;
 }
 
+static int mms_pinctrl_configure(struct mms_ts_info *info, 
+							int active)
+{
+	struct pinctrl_state *set_state_i2c;
+//	struct pinctrl_state *set_state_en;
+	int retval;
+
+	if (info->pdata->gpio_seperated < 1) {
+		dev_err(&info->client->dev, "%s: not support this ftn. under mms345\n", __func__);
+		return 0;
+	}
+
+	dev_err(&info->client->dev, "%s: %d\n", __func__, active);
+
+
+	if(active == 0){ // default
+		set_state_i2c =	pinctrl_lookup_state(info->pinctrl,	"tsp_gpio_default");
+		if (IS_ERR(set_state_i2c)) {
+			dev_err(&info->client->dev, "%s: cannot get pinctrl(i2c) active state\n", __func__);
+			return PTR_ERR(set_state_i2c);
+		}
+
+	}else if(active == 1) {	// firmup enter
+		set_state_i2c =	pinctrl_lookup_state(info->pinctrl,	"tsp_firmup_start");
+			if (IS_ERR(set_state_i2c)) {
+			dev_err(&info->client->dev, "%s: cannot get pinctrl(i2c) firmup on state\n", __func__);
+				return PTR_ERR(set_state_i2c);
+			}
+	}else if(active == 2) { // firmup exit
+		set_state_i2c =	pinctrl_lookup_state(info->pinctrl,	"tsp_firmup_end");
+			if (IS_ERR(set_state_i2c)) {
+			dev_err(&info->client->dev, "%s: cannot get pinctrl(i2c) firmup off state\n", __func__);
+				return PTR_ERR(set_state_i2c);
+			}
+	}else{
+		dev_err(&info->client->dev, "%s: cannot set pinctrl(i2c) %d state\n",__func__, active);
+		return 1;
+	}
+	retval = pinctrl_select_state(info->pinctrl, set_state_i2c);
+	if (retval) {
+		dev_err(&info->client->dev, "%s: cannot set pinctrl(i2c) %d state\n", __func__, active);
+		return retval;
+	}
+
+	return 0;
+}
 
 
 int fw_download_isc(struct mms_ts_info *info, const u8 *fw_data)
@@ -4749,9 +4643,24 @@ int mms_flash_fw_mms300(struct mms_ts_info *info, const u8 *fw_data, size_t fw_s
 	struct mms_bin_hdr *fw_hdr;
 
 	fw_hdr = (struct mms_bin_hdr *)fw_data;
-	if (info->pdata->use_isp)
+	
+	pr_err("%s: %d\n", __func__, __LINE__);
+	if (info->pdata->use_isp){
+		
+		if (info->pinctrl) {
+			ret = mms_pinctrl_configure(info, 1);
+			if (ret)
+				pr_err("%s: cannot set pinctrl state, %d\n", __func__, __LINE__);
+		}
 		ret = fw_download_isp(info, fw_data + fw_hdr->binary_offset, fw_hdr->binary_length);
-	else
+		
+		if (info->pinctrl) {
+			ret = mms_pinctrl_configure(info, 2);
+			if (ret)
+				pr_err("%s: cannot set pinctrl state, %d\n", __func__, __LINE__);
+		}
+		
+	}else
 		ret = fw_download_isc(info, fw_data);
 	/* ISP write all firmware exclude only header */
 	/* ISC can sellect boot, core, config. need read header contents. */
@@ -4760,8 +4669,7 @@ int mms_flash_fw_mms300(struct mms_ts_info *info, const u8 *fw_data, size_t fw_s
 
 #endif
 
-/* temp block for sample making */
-#if 1   // for 345L IC
+
 static int mms_ts_fw_check(struct mms_ts_info *info)
 {
 	struct i2c_client *client = info->client;
@@ -4775,14 +4683,6 @@ static int mms_ts_fw_check(struct mms_ts_info *info)
 	if (ret < 0) {		/* tsp connect check */
 		dev_err(&client->dev, "%s: i2c fail...[%d], addr[%d]\n",
 			   __func__, ret, info->client->addr);
-#if 0
-#ifndef CONFIG_SEC_KLEOS_PROJECT
-		if (ret < 0) {
-			dev_err(&client->dev, "%s: tsp driver unload\n", __func__);
-			return ret;
-		}
-#endif
-#endif
 	}
 
 	ret = get_fw_version(info);
@@ -4791,6 +4691,7 @@ static int mms_ts_fw_check(struct mms_ts_info *info)
 			update = true;
 			goto try_firmup;
 	}
+
         // for 345 IC, 345L IC
 	if((info->fw_boot_ver > 0xA0)||(info->fw_core_ver>0xA0)||(info->fw_ic_ver>0xA0)){
 		update = true;
@@ -4845,71 +4746,6 @@ try_firmup:
 
 	return 0;
 }
-#endif
-static int mms_pinctrl_configure(struct mms_ts_info *info, 
-							bool active)
-{
-	struct pinctrl_state *set_state_i2c;
-//	struct pinctrl_state *set_state_en;
-	int retval;
-
-	if (info->pdata->gpio_seperated < 1) {
-		dev_err(&info->client->dev, "%s: not support this ftn. under mms345\n", __func__);
-		return 0;
-	}
-
-	dev_err(&info->client->dev, "%s: %s\n", __func__, active ? "ACTIVE" : "SUSPEND");
-
-	if (active) {
-		set_state_i2c =
-			pinctrl_lookup_state(info->pinctrl,
-						"tsp_i2c_gpio_active");
-		if (IS_ERR(set_state_i2c)) {
-			dev_err(&info->client->dev, "%s: cannot get pinctrl(i2c) active state\n", __func__);
-			return PTR_ERR(set_state_i2c);
-		}
-	} else {
-		set_state_i2c =
-			pinctrl_lookup_state(info->pinctrl,
-						"tsp_i2c_suspend");
-		if (IS_ERR(set_state_i2c)) {
-			dev_err(&info->client->dev, "%s: cannot get pinctrl(i2c) sleep state\n", __func__);
-			return PTR_ERR(set_state_i2c);
-		}
-/*
-		set_state_en = pinctrl_lookup_state(info->pinctrl,
-						"tsp_en_suspend");
-		if (IS_ERR(set_state_en)) {
-			dev_err(&info->client->dev, "%s: cannot get pinctrl(en) sleep state\n", __func__);
-			return PTR_ERR(set_state_en);
-		}
-
-*/
-	}
-
-	retval = pinctrl_select_state(info->pinctrl, set_state_i2c);
-	if (retval) {
-		dev_err(&info->client->dev, "%s: cannot set pinctrl(i2c) %s state\n",
-				__func__, active ? "active" : "suspend");
-		return retval;
-	}
-
-	if (!active) {
-/*
-		retval = pinctrl_select_state(info->pinctrl, set_state_en);
-		if (retval) {
-			dev_err(&info->client->dev, "%s: cannot set pinctrl(en) %s state\n",
-					__func__, active ? "active" : "suspend");
-			return retval;
-		}
-*/
-		gpio_set_value(info->pdata->gpio_scl, 1);
-		gpio_set_value(info->pdata->gpio_sda, 1);
-		gpio_set_value(info->pdata->gpio_int, 1);
-	}
-
-	return 0;
-}
 
 static void melfas_request_gpio(struct melfas_tsi_platform_data *pdata)
 {
@@ -4926,6 +4762,18 @@ static void melfas_request_gpio(struct melfas_tsi_platform_data *pdata)
 	if (ret) {
 		pr_err("[TSP]%s: unable to request melfas_vdd_en [%d]\n",
 				__func__, pdata->vdd_en);
+		return;
+	}
+	ret = gpio_request(pdata->gpio_sda, "melfas_gpio_sda");
+	if (ret) {
+		pr_err("[TSP]%s: unable to request melfas_gpio_sda [%d]\n",
+				__func__, pdata->gpio_sda);
+		return;
+	}
+	ret = gpio_request(pdata->gpio_scl, "melfas_gpio_scl");
+	if (ret) {
+		pr_err("[TSP]%s: unable to request melfas_gpio_scl [%d]\n",
+				__func__, pdata->gpio_scl);
 		return;
 	}
 }
@@ -5452,7 +5300,13 @@ static int mms_ts_input_open(struct input_dev *dev)
 		return 0;
 	}
 
-	dev_info(&info->client->dev, "%s, v:0x%02x, g:%d\n", __func__, info->fw_ic_ver, info->glove_mode);
+	dev_info(&info->client->dev, "%s, v:0x%02x, g:%d\n", __func__, info->fw_ic_ver,
+#ifdef TSP_GLOVE_MODE
+		info->glove_mode);
+#else
+		0);
+#endif
+	
 
 #ifdef TSP_GESTURE_MODE
 	if(info->lowpower_mode){		
@@ -5464,7 +5318,7 @@ static int mms_ts_input_open(struct input_dev *dev)
 #endif
 	{
 		info->power(info, 1);
-		mms_pinctrl_configure(info, true);
+		//mms_pinctrl_configure(info, true, false);
 		msleep(MMS300_RESET_DELAY);
 		if (info->threewave_mode)
 			mms_set_threewave_mode(info);
@@ -5532,8 +5386,15 @@ static void mms_ts_input_close(struct input_dev *dev)
 		release_all_fingers(info);
 
 		info->power(info, 0);
-		mms_pinctrl_configure(info, false);
+	// mms_pinctrl_configure(info, false, false);
 	}
+
+#ifdef TSP_BOOSTER
+		dev_info(&info->client->dev, "%s force dvfs off\n", __func__);
+		if (info->booster && info->booster->dvfs_set)
+			info->booster->dvfs_set(info->booster, -1);
+#endif
+
 	return;
 //TEST
 //	mms_ts_suspend(&info->client->dev);
@@ -5548,7 +5409,8 @@ void melfas_register_callback(struct tsp_callbacks *cb)
 }
 #endif
 
-extern int get_lcd_attached(char *);
+//extern int get_samsung_lcd_attached(void);  // temp2
+
 static int mms_ts_probe(struct i2c_client *client,
 				  const struct i2c_device_id *id)
 {
@@ -5568,14 +5430,22 @@ static int mms_ts_probe(struct i2c_client *client,
 #endif
 	touch_is_pressed = 0;
 
-	irq_bit_mask = 0x80;
+#if defined(CONFIG_SEC_A5_EUR_PROJECT) || defined(CONFIG_SEC_E7_EUR_PROJECT)
+	if( system_rev == 1 ){
+		irq_bit_mask = 0x40;
+	}
+	else
+#endif
+		irq_bit_mask = 0x80;
 
 	pr_err("%s+\n", __func__);
 
-	if (get_lcd_attached("GET") == 0) {
-                dev_err(&client->dev, "%s : get_lcd_attached()=0 \n", __func__);
+
+	/*if (get_samsung_lcd_attached() == 0) {
+               dev_err(&client->dev, "%s : get_samsung_lcd_attached()=0 \n", __func__);
                 return -EIO;
-        }
+        }*/
+
 	if (!i2c_check_functionality(adapter, I2C_FUNC_I2C))
 		return -EIO;
 	if (client->dev.of_node) {
@@ -5624,7 +5494,7 @@ static int mms_ts_probe(struct i2c_client *client,
 	}
 
 	if (info->pinctrl) {
-		ret = mms_pinctrl_configure(info, true);
+		ret = mms_pinctrl_configure(info, 0);
 		if (ret)
 			pr_err("%s: cannot set pinctrl state\n", __func__);
 	}
@@ -5693,15 +5563,14 @@ static int mms_ts_probe(struct i2c_client *client,
 	info->panel = info->pdata->panel;
 
 	printk("%s: [TSP] system_rev = %d\n", __func__, system_rev);
-/* temp block for sample making */
-#if 1   // for 345L IC
+
 	ret = mms_ts_fw_check(info);
 	if (ret) {
 		dev_err(&client->dev,
 			"failed to initialize (%d)\n", ret);
 		goto err_reg_input_dev;
 	}
-#endif
+
 
 #ifdef USE_TSP_TA_CALLBACKS
 	info->callbacks.inform_charger = melfas_ta_cb;
@@ -5763,10 +5632,6 @@ static int mms_ts_probe(struct i2c_client *client,
 				0, (info->max_y)-1, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_WIDTH_MAJOR,
 				0, MAX_WIDTH, 0, 0);
-/*
-	input_set_abs_params(input_dev, ABS_MT_ANGLE,
-				MIN_ANGLE, MAX_ANGLE, 0, 0);
-*/
 	input_set_abs_params(input_dev, ABS_MT_PALM,
 				0, 1, 0, 0);
 
@@ -5783,10 +5648,13 @@ static int mms_ts_probe(struct i2c_client *client,
 		goto err_reg_input_dev;
 	}
 
-#ifdef TOUCH_BOOSTER_DVFS
-	samsung_init_dvfs(info);
+#ifdef TSP_BOOSTER
+	info->booster = input_booster_allocate(INPUT_BOOSTER_ID_TSP);
+	if (!info->booster) {
+		dev_err(&client->dev, "%s: Error, failed to allocate input booster\n",__func__);
+		goto error_alloc_booster_failed;
+	}
 #endif
-
 	info->enabled = true;
 
 	client->irq = gpio_to_irq(pdata->gpio_int);
@@ -5915,6 +5783,13 @@ static int mms_ts_probe(struct i2c_client *client,
 
 err_req_irq:
 	input_unregister_device(input_dev);
+
+#ifdef TSP_BOOSTER
+	input_booster_free(info->booster);
+	info->booster = NULL;
+error_alloc_booster_failed:
+#endif
+
 err_reg_input_dev:
 	info->power(info,0);
 #ifdef TOUCHKEY
@@ -6012,7 +5887,7 @@ static void mms_ts_shutdown(struct i2c_client *client)
 #endif
 }
 
-#if defined(CONFIG_PM) || defined(CONFIG_HAS_EARLYSUSPEND)
+#if !defined(USE_OPEN_CLOSE)
 static int mms_ts_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -6045,11 +5920,6 @@ static int mms_ts_suspend(struct device *dev)
 	rapid frequently pressing of PWR key. */
 	msleep(50);
 
-#ifdef TOUCH_BOOSTER_DVFS
-	samsung_set_dvfs_lock(info, -1);
-	dev_info(&info->client->dev,
-			"%s: dvfs_lock free.\n", __func__);
-#endif
 out:
 	mutex_unlock(&info->lock);
 	return 0;
@@ -6115,7 +5985,7 @@ static void mms_ts_late_resume(struct early_suspend *h)
 }
 #endif
 
-#if defined(CONFIG_PM) && !defined(CONFIG_HAS_EARLYSUSPEND)
+#if defined(CONFIG_PM) && !defined(CONFIG_HAS_EARLYSUSPEND) && !defined(USE_OPEN_CLOSE)
 static const struct dev_pm_ops mms_ts_pm_ops = {
 	.suspend = mms_ts_suspend,
 	.resume = mms_ts_resume,
@@ -6150,7 +6020,7 @@ static struct i2c_driver mms_ts_driver = {
 		   .name = MELFAS_TS_NAME,
 		   .owner = THIS_MODULE,
 		   .of_match_table = mms_match_table,
-#if defined(CONFIG_PM) && !defined(CONFIG_HAS_EARLYSUSPEND)
+#if defined(CONFIG_PM) && !defined(CONFIG_HAS_EARLYSUSPEND) && !defined(USE_OPEN_CLOSE)
 		   .pm = &mms_ts_pm_ops,
 #endif
 	},
@@ -6160,15 +6030,15 @@ static struct i2c_driver mms_ts_driver = {
 static int mms_ts_init(void)
 {
 	pr_err("%s\n", __func__);
-#ifdef CONFIG_SAMSUNG_LPM_MODE	
+	
+	#ifdef CONFIG_SAMSUNG_LPM_MODE
 	if (poweroff_charging) {
-		printk("%s : LPM Charging Mode!!\n", __func__);
+		pr_notice("%s : LPM Charging Mode!!\n", __func__);
 		return 0;
-	}else
-#endif
-	{
-		return i2c_add_driver(&mms_ts_driver);
 	}
+	#endif
+	return i2c_add_driver(&mms_ts_driver);
+
 }
 
 static void __exit mms_ts_exit(void)

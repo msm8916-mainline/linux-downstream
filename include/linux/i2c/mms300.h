@@ -18,11 +18,11 @@
 #define MELFAS_CHIP_NAME_345		"mms345"
 #define MELFAS_CHIP_NAME_345L		"mms345L"
 
-#undef TOUCHKEY
+#undef TOUCHKEY	
 
 #include <linux/input/tsp_ta_callback.h>
 
-#if defined(CONFIG_SEC_A5_PROJECT)
+#if defined(CONFIG_SEC_A5_PROJECT) || defined(CONFIG_SEC_E5_PROJECT)
 #define TSP_RAWDATA_DUMP
 #endif
 
@@ -31,10 +31,20 @@
 #define CORE_VERSION 0x12
 #define FW_VERSION 0x09
 
-#elif defined(CONFIG_SEC_A5_PROJECT)
+#elif defined(CONFIG_SEC_E5_PROJECT)
 #define BOOT_VERSION 0x06
-#define CORE_VERSION 0x24
-#define FW_VERSION 0x20
+#define CORE_VERSION 0x28
+#define FW_VERSION 0x12
+
+#elif defined(CONFIG_SEC_FORTUNA_PROJECT)
+#define BOOT_VERSION 0x06
+#define CORE_VERSION 0x26
+#define FW_VERSION 0x04
+
+#elif defined(CONFIG_SEC_A5_PROJECT) || defined(CONFIG_SEC_A5_EUR_PROJECT) || defined(CONFIG_SEC_A53G_EUR_PROJECT)
+#define BOOT_VERSION 0x06
+#define CORE_VERSION 0x26
+#define FW_VERSION 0x26
 
 #else
 /* hestia */
@@ -77,7 +87,7 @@ struct melfas_tsi_platform_data {
 	const u8 *touchkey_keycode;
 	void (*input_event) (void *data);
 
-#ifdef USE_TSP_TA_CALLBACKS
+#if defined(USE_TSP_TA_CALLBACKS)
 	void (*register_cb) (struct tsp_callbacks *);
 	struct tsp_callbacks callbacks;
 #endif

@@ -1063,9 +1063,9 @@ extern void jbd2_buffer_abort_trigger(struct journal_head *jh,
 
 /* Buffer IO */
 extern int jbd2_journal_write_metadata_buffer(transaction_t *transaction,
-										      struct journal_head *jh_in,
-					  					      struct buffer_head **bh_out,
-					  					      sector_t blocknr);
+					struct journal_head *jh_in,
+					struct buffer_head **bh_out,
+					sector_t blocknr);
 
 /* Transaction locking */
 extern void		__wait_on_journal (journal_t *);

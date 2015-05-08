@@ -81,7 +81,9 @@ enum sec_battery_adc_channel {
 	SEC_BAT_ADC_CHANNEL_FULL_CHECK,
 	SEC_BAT_ADC_CHANNEL_VOLTAGE_NOW,
 	SEC_BAT_ADC_CHANNEL_NUM,
-	SEC_BAT_ADC_CHANNEL_INBAT_VOLTAGE
+	SEC_BAT_ADC_CHANNEL_INBAT_VOLTAGE,
+	SEC_BAT_ADC_CHANNEL_DISCHARGING_CHECK,
+	SEC_BAT_ADC_CHANNEL_DISCHARGING_NTC,
 };
 
 /* charging mode */
@@ -94,6 +96,13 @@ enum sec_battery_charging_mode {
 	SEC_BATTERY_CHARGING_2ND,
 	/* recharging */
 	SEC_BATTERY_CHARGING_RECHARGING,
+};
+
+/* chg_temp state */
+enum sec_battery_chg_temp_state {
+	SEC_BATTERY_CHG_TEMP_NONE = 0,
+	SEC_BATTERY_CHG_TEMP_HIGH_1ST,
+	SEC_BATTERY_CHG_TEMP_HIGH_2ND,
 };
 
 struct sec_bat_adc_api {
@@ -431,12 +440,27 @@ struct sec_battery_platform_data {
 	bool use_LED;				/* use charging LED */
 
 	bool event_check;
-	bool chg_temp_check;
-	unsigned int chg_high_temp;
-	unsigned int chg_high_temp_recovery;
-	unsigned int chg_charging_limit_current;
+	/* flag for skipping the swelling mode */
+	bool swelling_mode_skip_in_high_temp;
 	/* sustaining event after deactivated (second) */
 	unsigned int event_waiting_time;
+
+	/* battery swelling */
+	int swelling_chg_current;
+	unsigned int swelling_normal_float_voltage;
+	unsigned int swelling_drop_float_voltage;
+	unsigned int swelling_high_rechg_voltage;
+	unsigned int swelling_low_rechg_voltage;
+
+	/* self discharging */
+	bool self_discharging_en;
+	unsigned int discharging_adc_max;
+	unsigned int discharging_adc_min;
+	unsigned int self_discharging_voltage_limit;
+	unsigned int discharging_ntc_limit;
+	int force_discharging_limit;
+	int force_discharging_recov;
+	int factory_discharging;
 
 	/* Monitor setting */
 	sec_battery_monitor_polling_t polling_type;
@@ -480,7 +504,10 @@ struct sec_battery_platform_data {
 
 	sec_battery_temp_check_t temp_check_type;
 	unsigned int temp_check_count;
+	unsigned int chg_temp_check;
+	unsigned int wpc_temp_check;
 	unsigned int inbat_voltage;
+
 	/*
 	 * limit can be ADC value or Temperature
 	 * depending on temp_check_type
@@ -504,6 +531,14 @@ struct sec_battery_platform_data {
 	int temp_high_recovery_lpm;
 	int temp_low_threshold_lpm;
 	int temp_low_recovery_lpm;
+	int chg_high_temp_1st;
+	int chg_high_temp_2nd;
+	int chg_high_temp_recovery;
+	int chg_charging_limit_current;
+	int chg_charging_limit_current_2nd;
+	int wpc_high_temp;
+	int wpc_high_temp_recovery;
+	int wpc_charging_limit_current;
 
 	/* If these is NOT full check type or NONE full check type,
 	 * it is skipped
@@ -573,13 +608,83 @@ struct sec_battery_platform_data {
 	int chg_float_voltage;
 	sec_charger_functions_t chg_functions_setting;
 
+	bool always_enable;
+
 	/* ADC setting */
 	unsigned int adc_check_count;
 	/* ADC type for each channel */
 	unsigned int adc_type[];
 };
+
+struct sec_charger_platform_data {
+	bool (*chg_gpio_init)(void);
+
+	/* charging current for type (0: not use) */
+	sec_charging_current_t *charging_current;
+
+	int vbus_ctrl_gpio;
+	int chg_gpio_en;
+	/* 1 : active high, 0 : active low */
+	int chg_polarity_en;
+	/* float voltage (mV) */
+	int chg_float_voltage;
+
+	int chg_irq;
+	unsigned long chg_irq_attr;
+
+	/* OVP/UVLO check */
+	sec_battery_ovp_uvlo_t ovp_uvlo_check_type;
+	/* 1st full check */
+	sec_battery_full_charged_t full_check_type;
+	/* 2nd full check */
+	sec_battery_full_charged_t full_check_type_2nd;
+
+	sec_charger_functions_t chg_functions_setting;
+};
+
+struct sec_fuelgauge_platform_data {
+	bool (*fg_gpio_init)(void);
+	bool (*check_jig_status)(void);
+	int (*check_cable_callback)(void);
+	bool (*fuelalert_process)(bool);
+
+	/* charging current for type (0: not use) */
+	sec_charging_current_t *charging_current;
+
+	int battery_type;
+	void *battery_data;
+
+	int jig_irq;
+	unsigned long jig_irq_attr;
+
+	sec_battery_thermal_source_t thermal_source;
+
+	int fg_irq;
+	unsigned long fg_irq_attr;
+	/* fuel alert SOC (-1: not use) */
+	int fuel_alert_soc;
+	/* fuel alert can be repeated */
+	bool repeated_fuelalert;
+	sec_fuelgauge_capacity_type_t capacity_calculation_type;
+	/* soc should be soc x 10 (0.1% degree)
+	 * only for scaling
+	 */
+	int capacity_max;
+	int capacity_max_hv;
+	int capacity_max_margin;
+	int capacity_min;
+	int rcomp0;
+	int rcomp_charging;
+};
+
 #define sec_battery_platform_data_t \
 	struct sec_battery_platform_data
+
+#define sec_charger_platform_data_t \
+	struct sec_charger_platform_data
+
+#define sec_fuelgauge_platform_data_t \
+	struct sec_fuelgauge_platform_data
 
 static inline struct power_supply *get_power_supply_by_name(char *name)
 {

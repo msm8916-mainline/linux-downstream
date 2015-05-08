@@ -347,6 +347,12 @@ static int tspdrv_parse_dt(struct platform_device *pdev)
 						__func__, __LINE__);
 		return -EINVAL;
 	}
+	rc = of_property_read_u32(np, "samsung,gp_clk", &vibrator_drvdata.gp_clk);
+	if (rc) {
+		printk("gp_clk not specified so using GP2\n");
+		vibrator_drvdata.gp_clk = 0x01809000;
+		return 0;
+	}
 	return rc;
 }
 
@@ -408,8 +414,7 @@ static int tspdrv_probe(struct platform_device *pdev)
 	if(rc)
 		return rc;
 
-	virt_mmss_gp1_base = ioremap(MSM_GCC_GP2_BASE,0x28);
-
+	virt_mmss_gp1_base = ioremap(vibrator_drvdata.gp_clk,0x28);
 	if (!virt_mmss_gp1_base)
 		panic("tspdrv : Unable to ioremap MSM_MMSS_GP1 memory!");
 

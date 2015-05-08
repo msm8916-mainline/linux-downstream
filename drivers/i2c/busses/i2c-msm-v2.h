@@ -34,6 +34,7 @@ enum msm_i2_debug_level {
 #define BITS_AT(val, idx, n_bits)(((val) & (((1 << n_bits) - 1) << idx)) >> idx)
 #define MASK_IS_SET(val, mask)      ((val & mask) == mask)
 #define MASK_IS_SET_BOOL(val, mask) (MASK_IS_SET(val, mask) ? 1 : 0)
+#define KHz(freq) (1000 * freq)
 
 /* QUP Registers */
 enum {
@@ -126,6 +127,8 @@ enum {
 	QUP_BUS_ERROR           = 1U << 2,
 	QUP_PACKET_NACKED       = 1U << 3,
 	QUP_ARB_LOST            = 1U << 4,
+	QUP_INVALID_WRITE	= 1U << 5,
+	QUP_FAILED		= 3U << 6,
 	QUP_BUS_ACTIVE          = 1U << 8,
 	QUP_BUS_MASTER          = 1U << 9,
 	QUP_INVALID_TAG         = 1U << 23,
@@ -133,7 +136,7 @@ enum {
 	QUP_INVALID_READ_SEQ    = 1U << 25,
 	QUP_I2C_SDA             = 1U << 26,
 	QUP_I2C_SCL             = 1U << 27,
-	QUP_MSTR_STTS_ERR_MASK  = 0x380003C,
+	QUP_MSTR_STTS_ERR_MASK  = 0x38000FC,
 };
 
 /* Register:QUP_I2C_MASTER_CONFIG fields */
@@ -142,7 +145,6 @@ enum {
 };
 
 enum {
-	I2C_MSM_CLK_FAST_FREQ_HS     =  400000,
 	I2C_MSM_CLK_FAST_MAX_FREQ    = 1000000,
 	I2C_MSM_CLK_HIGH_MAX_FREQ    = 3400000,
 };
@@ -152,24 +154,6 @@ enum {
 		(((reg_val) & ~(0x3 << 24)) | (((noise_rej_val) & 0x3) << 24))
 #define I2C_MSM_SDA_NOISE_REJECTION(reg_val, noise_rej_val) \
 		(((reg_val) & ~(0x3 << 26)) | (((noise_rej_val) & 0x3) << 26))
-static inline u32 I2C_MSM_CLK_DIV(u32 reg_val, u32 clk_freq_in,
-				u32 clk_freq_out, bool is_high_speed)
-{
-	int fs_div;
-	int hs_div;
-
-	if (is_high_speed) {
-		fs_div = I2C_MSM_CLK_FAST_FREQ_HS;
-		hs_div = (clk_freq_in / (clk_freq_out * 3));
-	} else {
-		fs_div = (clk_freq_in / (clk_freq_out * 2)) - 3;
-		hs_div = 0;
-	}
-	/* Protect hs_div from overflow (it is represented in HW by 3 bits */
-	hs_div = min_t(int, hs_div, 0x7);
-
-	return (reg_val & (~0x7ff)) | ((hs_div & 0x7) << 8) | (fs_div & 0xff);
-}
 
 /* Register:QUP_ERROR_FLAGS_EN flags */
 enum {
@@ -227,6 +211,8 @@ enum msm_i2c_power_state {
 #define I2C_MSM_BAM_PROD_SZ             (32) /* producer pipe n entries */
 #define I2C_MSM_BAM_DESC_ARR_SIZ  (I2C_MSM_BAM_CONS_SZ + I2C_MSM_BAM_PROD_SZ)
 #define I2C_MSM_REG_2_STR_BUF_SZ        (128)
+/* Optimal value to hold the error strings */
+#define I2C_MSM_MAX_ERR_BUF_SZ		(256)
 #define I2C_MSM_BUF_DUMP_MAX_BC         (20)
 #define I2C_MSM_MAX_POLL_MSEC           (100)
 #define I2C_MSM_TIMEOUT_SAFTY_COEF      (10)
@@ -617,12 +603,17 @@ struct i2c_msm_prof_event {
 };
 
 enum i2c_msm_err_bit_field {
-	I2C_MSM_ERR_NONE     = 0,
-	I2C_MSM_ERR_NACK     = 1U << 0,
-	I2C_MSM_ERR_ARB_LOST = 1U << 1,
-	I2C_MSM_ERR_BUS_ERR  = 1U << 2,
-	I2C_MSM_ERR_TIMEOUT  = 1U << 3,
-	I2C_MSM_ERR_OVR_UNDR_RUN = 1U << 5,
+	I2C_MSM_ERR_NACK = 0,
+	I2C_MSM_ERR_ARB_LOST,
+	I2C_MSM_ERR_BUS_ERR,
+	I2C_MSM_ERR_TIMEOUT,
+	I2C_MSM_ERR_CORE_CLK,
+	I2C_MSM_ERR_OVR_UNDR_RUN,
+	I2C_MSM_ERR_INVALID_WRITE,
+	I2C_MSM_ERR_INVALID_TAG,
+	I2C_MSM_ERR_INVALID_READ_ADDR,
+	I2C_MSM_ERR_INVALID_READ_SEQ,
+	I2C_MSM_ERR_FAILED,
 };
 
 /*
@@ -675,6 +666,7 @@ struct i2c_msm_xfer {
  * @noise_rjct_sda noise rejection value for the sda line (a field of
  *           I2C_MASTER_CLK_CTL).
  * @pdata    the platform data (values from board-file or from device-tree)
+ * @mstr_clk_ctl cached value for programming to mstr_clk_ctl register
  */
 struct i2c_msm_ctrl {
 	struct device             *dev;
@@ -685,6 +677,7 @@ struct i2c_msm_ctrl {
 	struct i2c_msm_resources   rsrcs;
 	int                        noise_rjct_scl;
 	int                        noise_rjct_sda;
+	u32                        mstr_clk_ctl;
 	struct i2c_msm_v2_platform_data *pdata;
 	enum msm_i2c_power_state   pwr_state;
 };

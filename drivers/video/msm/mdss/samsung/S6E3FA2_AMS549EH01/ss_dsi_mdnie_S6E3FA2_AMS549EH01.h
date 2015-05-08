@@ -682,7 +682,7 @@ static char DSI0_HBM_CE_MDNIE_2[] = {
 	0x00, //ascr_Kb
 	//end
 };
-/*
+
 static char DSI0_HBM_CE_TEXT_MDNIE_1[] = {
 	//start
 	0xEB,
@@ -840,7 +840,7 @@ static char DSI0_HBM_CE_TEXT_MDNIE_2[] = {
 	0x00, //ascr_Kb
 	//end
 };
-*/
+
 static char DSI0_SCREEN_CURTAIN_MDNIE_1[] = {
 	//start
 	0xEB,
@@ -7328,6 +7328,13 @@ static struct dsi_cmd_desc DSI0_HBM_CE_MDNIE[] = {
 	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(level_1_key_off)}, level_1_key_off},
 };
 
+static struct dsi_cmd_desc DSI0_HBM_CE_TEXT_MDNIE[] = {
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(level_1_key_on)}, level_1_key_on},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_HBM_CE_TEXT_MDNIE_1)}, DSI0_HBM_CE_TEXT_MDNIE_1},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_HBM_CE_TEXT_MDNIE_2)}, DSI0_HBM_CE_TEXT_MDNIE_2},
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(level_1_key_off)}, level_1_key_off},
+};
+
 static struct dsi_cmd_desc DSI0_RGB_SENSOR_MDNIE[] = {
 	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(level_1_key_on)}, level_1_key_on},
 	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_RGB_SENSOR_MDNIE_1)}, DSI0_RGB_SENSOR_MDNIE_1},
@@ -7624,6 +7631,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			NATURAL_MODE
 			MOVIE_MODE
 			AUTO_MODE
+			READING_MODE
 		*/
 		// UI_APP
 		{
@@ -7632,6 +7640,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_UI_NATURAL_MDNIE,	NULL},
 			{DSI0_UI_MOVIE_MDNIE,	NULL},
 			{DSI0_UI_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// VIDEO_APP
 		{
@@ -7640,6 +7649,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_VIDEO_NATURAL_MDNIE,	DSI0_VIDEO_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_MOVIE_MDNIE,	DSI0_VIDEO_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_AUTO_MDNIE,	DSI0_VIDEO_OUTDOOR_MDNIE},
+			{DSI0_EBOOK_AUTO_MDNIE, DSI0_VIDEO_OUTDOOR_MDNIE},
 		},
 		// VIDEO_WARM_APP
 		{
@@ -7648,6 +7658,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_VIDEO_WARM_MDNIE,	DSI0_VIDEO_WARM_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_WARM_MDNIE,	DSI0_VIDEO_WARM_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_WARM_MDNIE,	DSI0_VIDEO_WARM_OUTDOOR_MDNIE},
+			{DSI0_EBOOK_AUTO_MDNIE,	DSI0_VIDEO_WARM_OUTDOOR_MDNIE},
 		},
 		// VIDEO_COLD_APP
 		{
@@ -7656,6 +7667,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_VIDEO_COLD_MDNIE,	DSI0_VIDEO_COLD_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_COLD_MDNIE,	DSI0_VIDEO_COLD_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_COLD_MDNIE,	DSI0_VIDEO_COLD_OUTDOOR_MDNIE},
+			{DSI0_EBOOK_AUTO_MDNIE,	DSI0_VIDEO_COLD_OUTDOOR_MDNIE},
 		},
 		// CAMERA_APP
 		{
@@ -7664,9 +7676,11 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_CAMERA_MDNIE,	DSI0_CAMERA_OUTDOOR_MDNIE},
 			{DSI0_CAMERA_MDNIE,	DSI0_CAMERA_OUTDOOR_MDNIE},
 			{DSI0_CAMERA_AUTO_MDNIE,	DSI0_CAMERA_OUTDOOR_MDNIE},
+			{DSI0_EBOOK_AUTO_MDNIE,	DSI0_CAMERA_OUTDOOR_MDNIE},
 		},
 		// NAVI_APP
 		{
+			{NULL,	NULL},
 			{NULL,	NULL},
 			{NULL,	NULL},
 			{NULL,	NULL},
@@ -7680,6 +7694,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_GALLERY_NATURAL_MDNIE,	NULL},
 			{DSI0_GALLERY_MOVIE_MDNIE,	NULL},
 			{DSI0_GALLERY_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// VT_APP
 		{
@@ -7688,6 +7703,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_VT_NATURAL_MDNIE,	NULL},
 			{DSI0_VT_MOVIE_MDNIE,	NULL},
 			{DSI0_VT_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// BROWSER_APP
 		{
@@ -7696,6 +7712,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_BROWSER_NATURAL_MDNIE,	NULL},
 			{DSI0_BROWSER_MOVIE_MDNIE,	NULL},
 			{DSI0_BROWSER_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// eBOOK_APP
 		{
@@ -7703,6 +7720,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_EBOOK_STANDARD_MDNIE,NULL},
 			{DSI0_EBOOK_NATURAL_MDNIE,	NULL},
 			{DSI0_EBOOK_MOVIE_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// EMAIL_APP
@@ -7712,6 +7730,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_EMAIL_AUTO_MDNIE,	NULL},
 			{DSI0_EMAIL_AUTO_MDNIE,	NULL},
 			{DSI0_EMAIL_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// TDMB_APP
 		{
@@ -7720,6 +7739,7 @@ static struct dsi_cmd_desc *mdnie_tune_value_dsi0[MAX_APP_MODE][MAX_MODE][MAX_OU
 			{DSI0_UI_NATURAL_MDNIE,	NULL},
 			{DSI0_UI_MOVIE_MDNIE,	NULL},
 			{DSI0_UI_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 };
 

@@ -235,7 +235,7 @@ source "net/netlink/Kconfig"
 source "net/rmnet_data/Kconfig"
 
 config RPS
-	boolean "RPS"
+	boolean
 	depends on SMP && SYSFS
 	default y
 
@@ -247,7 +247,7 @@ config RFS_ACCEL
 
 config XPS
 	boolean
-	depends on SMP && USE_GENERIC_SMP_HELPERS
+	depends on SMP
 	default y
 
 config NETPRIO_CGROUP

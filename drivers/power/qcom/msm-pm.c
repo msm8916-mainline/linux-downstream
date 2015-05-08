@@ -36,6 +36,7 @@
 #include <asm/suspend.h>
 #include <asm/cacheflush.h>
 #include <asm/cputype.h>
+#include <asm/system_misc.h>
 #ifdef CONFIG_VFP
 #include <asm/vfp.h>
 #endif
@@ -45,7 +46,7 @@
 #include "../../../arch/arm/mach-msm/clock.h"
 
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 
 #define SCM_CMD_TERMINATE_PC	(0x2)
@@ -82,6 +83,7 @@ enum msm_pc_count_offsets {
 };
 
 static bool msm_pm_ldo_retention_enabled = true;
+static bool msm_pm_tz_flushes_cache;
 static bool msm_no_ramp_down_pc;
 static struct msm_pm_sleep_status_data *msm_pm_slp_sts;
 DEFINE_PER_CPU(struct clk *, cpu_clks);
@@ -91,12 +93,6 @@ static long *msm_pc_debug_counters;
 
 static cpumask_t retention_cpus;
 static DEFINE_SPINLOCK(retention_lock);
-
-static inline void msm_arch_idle(void)
-{
-	mb();
-	wfi();
-}
 
 static bool msm_pm_is_L1_writeback(void)
 {
@@ -188,18 +184,29 @@ static bool msm_pm_pc_hotplug(void)
 {
 	uint32_t cpu = smp_processor_id();
 	enum msm_pm_l2_scm_flag flag;
+	struct scm_desc desc;
 
 	flag = lpm_cpu_pre_pc_cb(cpu);
 
-	if (flag == MSM_SCM_L2_OFF)
-		flush_cache_all();
-	else if (msm_pm_is_L1_writeback())
-		flush_cache_louis();
+	if (!msm_pm_tz_flushes_cache) {
+		if (flag == MSM_SCM_L2_OFF)
+			flush_cache_all();
+		else if (msm_pm_is_L1_writeback())
+			flush_cache_louis();
+	}
 
 	msm_pc_inc_debug_count(cpu, MSM_PC_ENTRY_COUNTER);
 
-	scm_call_atomic1(SCM_SVC_BOOT, SCM_CMD_TERMINATE_PC,
+	if (is_scm_armv8()) {
+		desc.args[0] = SCM_CMD_CORE_HOTPLUGGED |
+			       (flag & SCM_FLUSH_FLAG_MASK);
+		desc.arginfo = SCM_ARGS(1);
+		scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT,
+				 SCM_CMD_TERMINATE_PC), &desc);
+	} else {
+		scm_call_atomic1(SCM_SVC_BOOT, SCM_CMD_TERMINATE_PC,
 		SCM_CMD_CORE_HOTPLUGGED | (flag & SCM_FLUSH_FLAG_MASK));
+	}
 
 	/* Should not return here */
 	msm_pc_inc_debug_count(cpu, MSM_PC_FALLTHRU_COUNTER);
@@ -210,17 +217,26 @@ int msm_pm_collapse(unsigned long unused)
 {
 	uint32_t cpu = smp_processor_id();
 	enum msm_pm_l2_scm_flag flag;
+	struct scm_desc desc;
 
 	flag = lpm_cpu_pre_pc_cb(cpu);
 
-	if (flag == MSM_SCM_L2_OFF)
-		flush_cache_all();
-	else if (msm_pm_is_L1_writeback())
-		flush_cache_louis();
-
+	if (!msm_pm_tz_flushes_cache) {
+		if (flag == MSM_SCM_L2_OFF)
+			flush_cache_all();
+		else if (msm_pm_is_L1_writeback())
+			flush_cache_louis();
+	}
 	msm_pc_inc_debug_count(cpu, MSM_PC_ENTRY_COUNTER);
 
-	scm_call_atomic1(SCM_SVC_BOOT, SCM_CMD_TERMINATE_PC, flag);
+	if (is_scm_armv8()) {
+		desc.args[0] = flag;
+		desc.arginfo = SCM_ARGS(1);
+		scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT,
+				 SCM_CMD_TERMINATE_PC), &desc);
+	} else {
+		scm_call_atomic1(SCM_SVC_BOOT, SCM_CMD_TERMINATE_PC, flag);
+	}
 
 	msm_pc_inc_debug_count(cpu, MSM_PC_FALLTHRU_COUNTER);
 
@@ -234,11 +250,7 @@ static bool __ref msm_pm_spm_power_collapse(
 	void *entry;
 	bool collapsed = 0;
 	int ret;
-#ifdef CONFIG_ARCH_MSM8939
-	bool save_cpu_regs = ((cpu==4) ? 1:0) || from_idle;
-#else
-	bool save_cpu_regs = !cpu || from_idle;
-#endif
+	bool save_cpu_regs = (cpu_online(cpu) || from_idle);
 
 	if (MSM_PM_DEBUG_POWER_COLLAPSE & msm_pm_debug_mask)
 		pr_info("CPU%u: %s: notify_rpm %d\n",
@@ -662,7 +674,7 @@ static struct platform_driver msm_cpu_pm_snoc_client_driver = {
 };
 
 struct msm_pc_debug_counters_buffer {
-	int *reg;
+	long *reg;
 	u32 len;
 	char buf[MAX_BUF_SIZE];
 };
@@ -696,7 +708,7 @@ static int msm_pc_debug_counters_copy(
 
 		data->len += len;
 
-		for (j = 0; j < MSM_PC_NUM_COUNTERS; j++) {
+		for (j = 0; j < MSM_PC_NUM_COUNTERS - 1; j++) {
 			stat = data->reg[offset + j];
 			len = scnprintf(data->buf + data->len,
 					 sizeof(data->buf) - data->len,
@@ -704,7 +716,11 @@ static int msm_pc_debug_counters_copy(
 
 			data->len += len;
 		}
+		len = scnprintf(data->buf + data->len,
+			 sizeof(data->buf) - data->len,
+			"\n");
 
+		data->len += len;
 	}
 
 	return data->len;
@@ -753,7 +769,7 @@ static int msm_pc_debug_counters_file_open(struct inode *inode,
 	}
 
 	buf = file->private_data;
-	buf->reg = (int *)inode->i_private;
+	buf->reg = (long *)inode->i_private;
 
 	return 0;
 }
@@ -812,6 +828,7 @@ static int msm_cpu_pm_probe(struct platform_device *pdev)
 	struct resource *res = NULL;
 	int ret = 0;
 	void __iomem *msm_pc_debug_counters_imem;
+	char *key;
 	int alloc_size = (MAX_NUM_CLUSTER * MAX_CPUS_PER_CLUSTER
 					* MSM_PC_NUM_COUNTERS
 					* sizeof(*msm_pc_debug_counters));
@@ -845,6 +862,10 @@ static int msm_cpu_pm_probe(struct platform_device *pdev)
 	}
 skip_save_imem:
 	if (pdev->dev.of_node) {
+		key = "qcom,tz-flushes-cache";
+		msm_pm_tz_flushes_cache =
+				of_property_read_bool(pdev->dev.of_node, key);
+
 		ret = msm_pm_clk_init(pdev);
 		if (ret) {
 			pr_info("msm_pm_clk_init returned error\n");
@@ -880,15 +901,25 @@ static int __init msm_pm_drv_init(void)
 
 	rc = platform_driver_register(&msm_cpu_pm_snoc_client_driver);
 
-	if (rc) {
+	if (rc)
 		pr_err("%s(): failed to register driver %s\n", __func__,
 				msm_cpu_pm_snoc_client_driver.driver.name);
-		return rc;
-	}
-
-	return platform_driver_register(&msm_cpu_pm_driver);
+	return rc;
 }
 late_initcall(msm_pm_drv_init);
+
+static int __init msm_pm_debug_counters_init(void)
+{
+	int rc;
+
+	rc = platform_driver_register(&msm_cpu_pm_driver);
+
+	if (rc)
+		pr_err("%s(): failed to register driver %s\n", __func__,
+				msm_cpu_pm_driver.driver.name);
+	return rc;
+}
+fs_initcall(msm_pm_debug_counters_init);
 
 int __init msm_pm_sleep_status_init(void)
 {
@@ -901,3 +932,12 @@ int __init msm_pm_sleep_status_init(void)
 	return platform_driver_register(&msm_cpu_status_driver);
 }
 arch_initcall(msm_pm_sleep_status_init);
+
+#ifdef CONFIG_ARM
+static int idle_initialize(void)
+{
+	arm_pm_idle = arch_idle;
+	return 0;
+}
+early_initcall(idle_initialize);
+#endif

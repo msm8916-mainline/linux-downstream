@@ -161,7 +161,7 @@ static void fc8080_power_off(void)
 	}
 }
 
-static bool fc8080_power_on(void)
+static bool fc8080_power_on(int param)
 {
 	DPRINTK("%s\n", __func__);
 
@@ -169,7 +169,11 @@ static bool fc8080_power_on(void)
 		return true;
 	} else {
 		tdmb_control_gpio(true);
-		if (dmb_drv_init(tdmb_get_if_handle()) == TDMB_FAIL) {
+		if (dmb_drv_init(tdmb_get_if_handle()
+#ifdef CONFIG_TDMB_XTAL_FREQ
+		,param
+#endif
+		) == TDMB_FAIL) {
 			tdmb_control_gpio(false);
 			return false;
 		} else {

@@ -53,6 +53,8 @@
 #include <linux/firmware.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of_gpio.h>
+#include <linux/pinctrl/consumer.h>
+
 
 #ifdef CONFIG_OF
 #ifndef USE_OPEN_CLOSE
@@ -102,31 +104,6 @@ static int fts_resume(struct i2c_client *client);
 
 int fts_wait_for_ready(struct fts_ts_info *info);
 
-#ifdef FTS_SUPPORT_TOUCH_KEY
-struct fts_touchkey fts_touchkeys[] = {
-	{
-		.value = 0x01,
-		.keycode = KEY_DUMMY_MENU,
-		.name = "d_menu",
-	},
-	{
-		.value = 0x02,
-		.keycode = KEY_RECENT,
-		.name = "menu",
-	},
-	{
-		.value = 0x04,
-		.keycode = KEY_BACK,
-		.name = "back",
-	},
-	{
-		.value = 0x08,
-		.keycode = KEY_DUMMY_BACK,
-		.name = "d_back",
-	},
-};
-#endif // FTS_SUPPORT_TOUCH_KEY
-
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void fts_early_suspend(struct early_suspend *h)
 {
@@ -141,11 +118,6 @@ static void fts_late_resume(struct early_suspend *h)
 	info = container_of(h, struct fts_ts_info, early_suspend);
 	fts_resume(info->client);
 }
-#endif
-
-
-#ifdef FTS_SUPPORT_TA_MODE
-extern void fts_register_callback(void *cb);
 #endif
 
 int fts_write_reg(struct fts_ts_info *info,
@@ -562,62 +534,6 @@ static int fts_init_dvfs(struct fts_ts_info *info)
 }
 #endif
 
-#ifdef FTS_SUPPORT_TOUCH_KEY
-void fts_release_all_key(struct fts_ts_info *info)
-{
-	//int i = 0;
-	if (info->tsp_keystatus != TOUCH_KEY_NULL) {
-
-		/* menu key check*/
-		if (info->tsp_keystatus & TOUCH_KEY_RECENT) {
-			if(info->ignore_menu_key) {
-				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] Ignore menu R! by dummy key\n");
-			} else if (info->ignore_menu_key_by_back) {
-				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] Ignore menu R! by back key\n");
-			} else {
-				input_report_key(info->input_dev, KEY_RECENT, KEY_RELEASE);
-				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] Recent R!\n");
-			}
-		}
-
-		/* back key check*/
-		if (info->tsp_keystatus & TOUCH_KEY_BACK) {
-			if (info->ignore_back_key) {
-				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] Ignore back R! by dummy key\n");
-			} else if (info->ignore_back_key_by_menu) {
-				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] Ignore back R! by menu key\n");
-			} else {
-				input_report_key(info->input_dev, KEY_BACK, KEY_RELEASE);
-				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] back R!\n");
-			}
-		}
-
-		if (info->report_dummy_key){
-			printk("\n Inside Report DUMMY KEYS RELEASe ALWAYS \n");
-			input_report_key(info->input_dev, KEY_DUMMY_MENU, KEY_RELEASE);
-			tsp_debug_info(true, &info->client->dev, "[TSP_KEY]DUMMY  menu R!\n");
-			input_report_key(info->input_dev, KEY_DUMMY_BACK, KEY_RELEASE);
-			tsp_debug_info(true, &info->client->dev, "[TSP_KEY]DUMMY  back R!\n");
-		}
-		input_sync(info->input_dev);
-
-		info->tsp_keystatus = TOUCH_KEY_NULL;
-
-		if (info->ignore_menu_key) {
-			info->ignore_menu_key = false;
-			tsp_debug_info(true, &info->client->dev, "[TSP_KEY] ignore_menu_key Disable!\n");
-		}
-		if (info->ignore_back_key) {
-			info->ignore_back_key = false;
-			tsp_debug_info(true, &info->client->dev, "[TSP_KEY] ignore_back_key Disable!\n");
-		}
-
-		info->ignore_back_key_by_menu = false;
-		info->ignore_menu_key_by_back = false;
-	}
-}
-#endif // FTS_SUPPORT_TOUCH_KEY
-
 /* Added for samsung dependent codes such as Factory test,
  * Touch booster, Related debug sysfs.
  */
@@ -677,10 +593,6 @@ static int fts_init(struct fts_ts_info *info)
 
 	fts_command(info, SENSEON);
 
-#ifdef FTS_SUPPORT_TOUCH_KEY
-		info->fts_command(info, FTS_CMD_KEY_SENSE_ON);
-#endif
-
 #ifdef FTS_SUPPORT_NOISE_PARAM
 	fts_get_noise_param_address(info);
 #endif
@@ -689,10 +601,6 @@ static int fts_init(struct fts_ts_info *info)
 	info->hover_ready = false;
 	info->slow_report_rate = false;
 	info->flip_enable = false;
-
-#ifdef FTS_SUPPORT_TOUCH_KEY
-	info->tsp_keystatus = 0x00;
-#endif // FTS_SUPPORT_TOUCH_KEY
 
 #ifdef SEC_TSP_FACTORY_TEST
 	rc = getChannelInfo(info);
@@ -752,11 +660,6 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 	int bw = 0, bh = 0, palm = 0;
  	int sumsize = 0;	
 
-#ifdef FTS_SUPPORT_TOUCH_KEY
-	unsigned char change_keys;
-	unsigned char key_state;
-	unsigned char input_keys;
-#endif // FTS_SUPPORT_TOUCH_KEY
 
 	for (EventNum = 0; EventNum < LeftEvent; EventNum++) {
 
@@ -785,7 +688,7 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 			TouchID = data[1 + EventNum * FTS_EVENT_SIZE] & 0x0F;
 			EventID = data[EventNum * FTS_EVENT_SIZE] & 0xFF;
 		}
-	//	printk("\nTN10: %s called, EventID = %x\n", __func__,EventID);
+
 		switch (EventID) {
 		case EVENTID_NO_EVENT:
 			break;
@@ -867,9 +770,6 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 					 ABS_MT_TOUCH_MINOR, min(bw,
 								 bh));
 			
-			input_report_abs(info->input_dev,
-					 ABS_MT_SUMSIZE, sumsize);
-
 			input_report_abs(info->input_dev, ABS_MT_PALM,
 					 palm);
 
@@ -1071,10 +971,58 @@ static int fts_irq_enable(struct fts_ts_info *info,
 u32 gpio_ldo_en_p;
 struct regulator *i2c_vddo_vreg = NULL;
 
+static int fts_pinctrl_configure(struct fts_ts_info *info, bool active)
+{
+	struct pinctrl_state *set_state_i2c;
+	int retval;
+
+	dev_err(&info->client->dev, "%s: %s\n", __func__, active ? "ACTIVE" : "SUSPEND");
+
+	if (active) {
+		set_state_i2c =
+			pinctrl_lookup_state(info->pinctrl,
+						"tsp_gpio_active");
+		if (IS_ERR(set_state_i2c)) {
+			dev_err(&info->client->dev, "%s: cannot get pinctrl(i2c) active state\n", __func__);
+			return PTR_ERR(set_state_i2c);
+		}
+	} else {
+		set_state_i2c =
+			pinctrl_lookup_state(info->pinctrl,
+						"tsp_gpio_suspend");
+		if (IS_ERR(set_state_i2c)) {
+			dev_err(&info->client->dev, "%s: cannot get pinctrl(i2c) sleep state\n", __func__);
+			return PTR_ERR(set_state_i2c);
+		}
+	}
+
+	retval = pinctrl_select_state(info->pinctrl, set_state_i2c);
+	if (retval) {
+		dev_err(&info->client->dev, "%s: cannot set pinctrl(i2c) %s state\n",
+				__func__, active ? "active" : "suspend");
+		return retval;
+	}
+
+	if (!active) {
+		gpio_set_value(info->pdata->gpio_scl, 1);
+		gpio_set_value(info->pdata->gpio_sda, 1);
+		gpio_set_value(info->pdata->gpio_int, 1);
+	}
+
+	return 0;
+}
 int fts_vdd_on(bool onoff)
 {
 	int rc = 0;
 	pr_err("[TSP]%s: gpio:%d, vdd en:%d\n",	__func__, gpio_ldo_en_p, onoff);
+
+	if(gpio_ldo_en_p > 0) {
+		gpio_direction_output(gpio_ldo_en_p, onoff);
+		pr_err("[TSP] %s: first 3.3V power supply\n", __func__);
+	}
+
+//	usleep_range(1000, 1100);
+	msleep(10);
 
 	if(i2c_vddo_vreg != NULL){
 		if(onoff){
@@ -1085,10 +1033,11 @@ int fts_vdd_on(bool onoff)
 	}else{
 			pr_err("[TSP]%s: i2c_vddo_vreg is null  vdd en:%d\n",	__func__, onoff);
 	}
-	
-	if(gpio_ldo_en_p > 0){	
-	gpio_direction_output(gpio_ldo_en_p, onoff);
-	}	
+/*	
+	if(gpio_ldo_en_p > 0) {
+		gpio_direction_output(gpio_ldo_en_p, onoff);
+	}
+*/
 	msleep(50);
 	return 1;
 }
@@ -1096,7 +1045,6 @@ void fts_init_gpio(struct fts_ts_info *info, struct fts_ts_platform_data *pdata)
 {
 	int ret;
 	pr_err("[TSP] %s, %d \n",__func__, __LINE__ );
-
 
 	ret = gpio_request(pdata->gpio_int, "fts_tsp_irq");
 	if(ret) {
@@ -1121,9 +1069,26 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 	//u32 temp;
 
 	pdata->gpio_int = of_get_named_gpio(np, "fts,irq-gpio", 0);
-	pdata->gpio_ldo_en = of_get_named_gpio(np, "fts,vdd_en-gpio", 0);
+	if(pdata->gpio_int < 0){
+		dev_err(dev, "unable to get gpio_int\n");
+	}
+	
+	pdata->gpio_scl = of_get_named_gpio(np, "fts,scl-gpio",	0 );
+	if(pdata->gpio_scl < 0){
+		dev_err(dev, "unable to get gpio_scl\n");
+	}
+	
+	pdata->gpio_sda = of_get_named_gpio(np, "fts,sda-gpio",0);
+	if(pdata->gpio_sda < 0){
+		dev_err(dev, "unable to get gpio_sda\n");
+	}
 
-	printk(KERN_INFO "[TSP]%s: vdd en :%d, irq:%d \n",	__func__, pdata->gpio_ldo_en, pdata->gpio_int);
+	pdata->gpio_ldo_en = of_get_named_gpio(np, "fts,vdd_en-gpio", 0);
+	if(pdata->gpio_ldo_en < 0){
+		dev_err(dev, "unable to get gpio_ldo_en...ignoring\n");
+	}	
+
+	printk(KERN_INFO "[TSP]%s: vdd en :%d, irq:%d, scl:%d, sda:%d \n",__func__, pdata->gpio_ldo_en, pdata->gpio_int, pdata->gpio_scl, pdata->gpio_sda);
 
 	return 0;
 }
@@ -1176,9 +1141,6 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	int i = 0;
 #ifdef SEC_TSP_FACTORY_TEST
 	int ret;
-#endif
-#ifdef FTS_SUPPORT_TOUCH_KEY
-	struct device *touchkey;
 #endif
 	tsp_debug_info(true, &client->dev, "FTS Driver [12%s] %s %s\n",
 	       FTS_TS_DRV_VERSION, __DATE__, __TIME__);
@@ -1243,17 +1205,12 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	board_p->support_hover = true;
 	board_p->support_mshover = true;
 
-#ifdef FTS_SUPPORT_TOUCH_KEY
-	board_p->num_touchkey = ARRAY_SIZE(fts_touchkeys);
-	board_p->touchkey = fts_touchkeys;
-#endif // FTS_SUPPORT_TOUCH_KEY
-
 #ifdef READ_LCD_ID
 	info->lcd_id = fts_lcd_id;
 	printk(KERN_ERR "%s: tsp : lcd_id : 0x%02X\n", __func__, info->lcd_id);
 #endif
 
-	board_p->firmware_name = "tsp_stm/stm_de.fw";
+	board_p->firmware_name = "tsp_stm/stm.fw";
 	board_p->power = fts_vdd_on;
 	board_p->irq_type = IRQF_TRIGGER_LOW | IRQF_ONESHOT;
 	board_p->gpio = pdata->gpio_int; //GPIO_TSP_INT;
@@ -1261,7 +1218,22 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	info->board = board_p;
 
 #endif
+	/* Get pinctrl if target uses pinctrl */
+	info->pinctrl = devm_pinctrl_get(&client->dev);
+	if (IS_ERR(info->pinctrl)) {
+		if (PTR_ERR(info->pinctrl) == -EPROBE_DEFER)
+			goto err_input_allocate_device;
 
+		tsp_debug_info(true, &info->client->dev,"%s: Target does not use pinctrl\n", __func__);
+		info->pinctrl = NULL;
+	}
+
+	if (info->pinctrl) {
+		ret = fts_pinctrl_configure(info, true);
+		if (ret)
+			tsp_debug_info(true, &info->client->dev,"%s: cannot set pinctrl state\n", __func__);
+	}
+	
 	tsp_debug_info(true, &info->client->dev, "FTS Not support Hover Event \n");
 
 #if defined(CONFIG_OF)
@@ -1332,15 +1304,6 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	set_bit(INPUT_PROP_DIRECT, info->input_dev->propbit);
 #endif
 
-#ifdef FTS_SUPPORT_TOUCH_KEY
-	for (i = 0 ; i < info->board->num_touchkey ; i++)
-		set_bit(info->board->touchkey[i].keycode, info->input_dev->keybit);
-
-	set_bit(EV_LED, info->input_dev->evbit);
-	set_bit(LED_MISC, info->input_dev->ledbit);
-
-#endif // FTS_SUPPORT_TOUCH_KEY
-
 	set_bit(BTN_TOUCH, info->input_dev->keybit);
 	set_bit(BTN_TOOL_FINGER, info->input_dev->keybit);
 
@@ -1366,9 +1329,6 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	input_set_abs_params(info->input_dev, ABS_MT_TOUCH_MAJOR,
 				 0, 255, 0, 0);
 	input_set_abs_params(info->input_dev, ABS_MT_TOUCH_MINOR,
-				 0, 255, 0, 0);
-
-	input_set_abs_params(info->input_dev, ABS_MT_SUMSIZE,
 				 0, 255, 0, 0);
 
 	input_set_abs_params(info->input_dev, ABS_MT_PALM, 0, 1, 0, 0);
@@ -1452,23 +1412,14 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	}
 #endif
 
-#ifdef FTS_SUPPORT_TOUCH_KEY
-	touchkey = device_create(sec_class,
-			NULL, 0, info, "sec_touchkey");
+	ret = sysfs_create_link(&info->fac_dev_ts->kobj,
+			&info->input_dev->dev.kobj, "input");
+	if (ret < 0) {
+		dev_err(&info->client->dev,
+			"%s: Failed to create input symbolic link\n",
+			__func__);
+	}
 	
-		if (IS_ERR(touchkey))
-			dev_err(&client->dev,
-			"Failed to create device for the touchkey sysfs\n");
-		
-	dev_set_drvdata(touchkey, info);
-
-	ret = sysfs_create_group(&touchkey->kobj,
-			&sec_touchkey_attr_group);
-		if (ret)
-			dev_err(&client->dev, "Failed to create sysfs group\n");
-#endif
-
-
 	pr_err("[TSP] %s, end, %d \n",__func__, __LINE__ );
 
 #ifdef TSP_INIT_COMPLETE
@@ -1551,10 +1502,6 @@ static int fts_remove(struct i2c_client *client)
 	info->board->power(false);
 
 	kfree(info);
-
-#if defined(CONFIG_SEC_S_PROJECT)
-	kfree(fts_supplies);
-#endif
 
 	return 0;
 }
@@ -1699,23 +1646,10 @@ static void fts_reinit_fac(struct fts_ts_info *info)
 	fts_command(info, SLEEPOUT);
 	fts_delay(50);
 
-#if defined(CONFIG_SEC_S_PROJECT)
-	fts_command(info, SENSEON);
-	fts_delay(50);
-
-	if (info->slow_report_rate)
-		fts_command(info, FTS_CMD_SLOW_SCAN);
-#else	
 	if (info->slow_report_rate)
 		fts_command(info, SENSEON_SLOW);
 	else
 		fts_command(info, SENSEON);
-#endif
-
-#ifdef FTS_SUPPORT_TOUCH_KEY
-		info->fts_command(info, FTS_CMD_KEY_SENSE_ON);
-#endif // FTS_SUPPORT_TOUCH_KEY
-
 #ifdef FTS_SUPPORT_NOISE_PARAM
 	fts_get_noise_param_address(info);
 #endif
@@ -1787,22 +1721,10 @@ static void fts_reinit(struct fts_ts_info *info)
 	fts_command(info, SLEEPOUT);
 	fts_delay(50);
 
-#if defined(CONFIG_SEC_S_PROJECT)
-	fts_command(info, SENSEON);
-	fts_delay(50);
-
-	if (info->slow_report_rate)
-		fts_command(info, FTS_CMD_SLOW_SCAN);
-#else
 	if (info->slow_report_rate)
 		fts_command(info, SENSEON_SLOW);
 	else
 		fts_command(info, SENSEON);
-#endif
-
-#ifdef FTS_SUPPORT_TOUCH_KEY
-		info->fts_command(info, FTS_CMD_KEY_SENSE_ON);
-#endif // FTS_SUPPORT_TOUCH_KEY
 
 	if (info->flip_enable)
 		fts_set_flipcover_mode(info, true);
@@ -1879,13 +1801,6 @@ static int fts_stop_device(struct fts_ts_info *info)
 
 	fts_release_all_finger(info);
 
-#ifdef FTS_SUPPORT_TOUCH_KEY
-	fts_release_all_key(info);
-
-	if (info->board->led_power_off)
-		info->board->led_power_off();
-#endif // FTS_SUPPORT_TOUCH_KEY
-
 #ifdef FTS_SUPPORT_NOISE_PARAM
 	fts_get_noise_param(info);
 #endif
@@ -1894,6 +1809,7 @@ static int fts_stop_device(struct fts_ts_info *info)
 
 	if (info->board->power)
 		info->board->power(false);
+	fts_pinctrl_configure(info, false);	
 
  out:
 	mutex_unlock(&info->device_mutex);
@@ -1914,6 +1830,7 @@ static int fts_start_device(struct fts_ts_info *info)
 
 	if (info->board->power)
 		info->board->power(true);
+	fts_pinctrl_configure(info, true);
 
 	info->touch_stopped = false;
 	info->reinit_done = false;
@@ -2030,14 +1947,18 @@ static struct i2c_driver fts_i2c_driver = {
 
 static int __init fts_driver_init(void)
 {
+#ifdef CONFIG_SAMSUNG_LPM_MODE
 	extern int poweroff_charging;
+#endif
 	pr_err("[TSP] %s : init !!\n", __func__);
 
+#ifdef CONFIG_SAMSUNG_LPM_MODE
 	if (poweroff_charging) {
 		pr_err("%s : LPM Charging Mode!!\n", __func__);
 		return 0;
 	}
 	else
+#endif		
 		return i2c_add_driver(&fts_i2c_driver);
 }
 

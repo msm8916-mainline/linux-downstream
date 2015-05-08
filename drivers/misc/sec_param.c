@@ -142,6 +142,11 @@ bool sec_get_param(enum sec_param_index index, void *value)
 		memcpy(&(param_data->normal_poweroff), value, sizeof(unsigned int));
 		break;
 #endif
+#ifdef CONFIG_RESTART_REASON_SEC_PARAM
+	case param_index_restart_reason:
+		memcpy(value, &(param_data->param_restart_reason), sizeof(unsigned int));
+		break;
+#endif
 	default:
 		return false;
 	}
@@ -202,6 +207,12 @@ bool sec_set_param(enum sec_param_index index, void *value)
 		memcpy(&(param_data->normal_poweroff), value, sizeof(unsigned int));
 		break;
 #endif
+#ifdef CONFIG_RESTART_REASON_SEC_PARAM
+	case param_index_restart_reason:
+		memcpy(&(param_data->param_restart_reason),
+				value, sizeof(unsigned int));
+		break;
+#endif
 	default:
 		return false;
 	}
@@ -231,7 +242,7 @@ static ssize_t movinand_checksum_done_show
 		pr_err("checksum is not in valuable range.\n");
 		ret = 1;
 	}
-	return snprintf(buf, sizeof(buf), "%u\n", ret);
+	return scnprintf(buf, PAGE_SIZE, "%u\n", ret);
 }
 static DEVICE_ATTR(movinand_checksum_done,
 				0444, movinand_checksum_done_show, NULL);
@@ -246,7 +257,7 @@ static ssize_t movinand_checksum_pass_show
 		pr_err("checksum is not in valuable range.\n");
 		ret = 1;
 	}
-	return snprintf(buf, sizeof(buf), "%u\n", ret);
+	return scnprintf(buf, PAGE_SIZE, "%u\n", ret);
 }
 static DEVICE_ATTR(movinand_checksum_pass,
 				0444, movinand_checksum_pass_show, NULL);

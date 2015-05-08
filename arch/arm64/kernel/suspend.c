@@ -1,9 +1,11 @@
+#include <linux/percpu.h>
 #include <linux/slab.h>
 #include <asm/cacheflush.h>
 #include <asm/cpu_ops.h>
 #include <asm/debug-monitors.h>
 #include <asm/pgtable.h>
 #include <asm/memory.h>
+#include <asm/mmu_context.h>
 #include <asm/smp_plat.h>
 #include <asm/suspend.h>
 #include <asm/tlbflush.h>
@@ -36,6 +38,22 @@ int __cpu_suspend_finisher(unsigned long arg, struct cpu_suspend_ctx *ptr,
 	__flush_dcache_area(save_ptr, sizeof(*save_ptr));
 
 	return cpu_ops[cpu]->cpu_suspend(arg);
+}
+
+/*
+ * This hook is provided so that cpu_suspend code can restore HW
+ * breakpoints as early as possible in the resume path, before reenabling
+ * debug exceptions. Code cannot be run from a CPU PM notifier since by the
+ * time the notifier runs debug exceptions might have been enabled already,
+ * with HW breakpoints registers content still in an unknown state.
+ */
+void (*hw_breakpoint_restore)(void *);
+void __init cpu_suspend_set_dbg_restorer(void (*hw_bp_restore)(void *))
+{
+	/* Prevent multiple restore hook initializations */
+	if (WARN_ON(hw_breakpoint_restore))
+		return;
+	hw_breakpoint_restore = hw_bp_restore;
 }
 
 /**
@@ -71,8 +89,33 @@ int cpu_suspend(unsigned long arg)
 	 */
 	ret = __cpu_suspend(arg);
 	if (ret == 0) {
-		cpu_switch_mm(mm->pgd, mm);
+		/*
+		 * We are resuming from reset with TTBR0_EL1 set to the
+		 * idmap to enable the MMU; restore the active_mm mappings in
+		 * TTBR0_EL1 unless the active_mm == &init_mm, in which case
+		 * the thread entered __cpu_suspend with TTBR0_EL1 set to
+		 * reserved TTBR0 page tables and should be restored as such.
+		 */
+		if (mm == &init_mm)
+			cpu_set_reserved_ttbr0();
+		else
+			cpu_switch_mm(mm->pgd, mm);
+
 		flush_tlb_all();
+
+		/*
+		 * Restore per-cpu offset before any kernel
+		 * subsystem relying on it has a chance to run.
+		 */
+		set_my_cpu_offset(per_cpu_offset(cpu));
+
+		/*
+		 * Restore HW breakpoint registers to sane values
+		 * before debug exceptions are possibly reenabled
+		 * through local_dbg_restore.
+		 */
+		if (hw_breakpoint_restore)
+			hw_breakpoint_restore(NULL);
 	}
 
 	/*

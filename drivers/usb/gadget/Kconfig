@@ -917,6 +917,16 @@ config USB_ANDROID_SAMSUNG_SIDESYNC
 		If you enable this option,
 		SideSync will be added to android composite.
 
+config USB_RNDIS_VZW_REQ
+	boolean "Samsung USB RNDIS 5.x function"
+	depends on USB_G_ANDROID
+	help
+		Provides USB RNDIS version 5.x support
+		for samsung gadget driver.
+		If you enable this option,
+		you can connect via RNDIS 5.x.
+		It's VZW carrier concept.
+
 config USB_NCM_SUPPORT_MTU_CHANGE
 	boolean "Samsung NCM MTU Change function"
 	depends on USB_G_ANDROID
@@ -925,15 +935,6 @@ config USB_NCM_SUPPORT_MTU_CHANGE
 	   for samsung gadget driver.
 	   If you enable this option,
 	   NCM MTU Change will be able to be used.
-
-config USB_LOCK_SUPPORT_FOR_MDM
-	boolean "Samsung USB_LOCK function for MDM"
-	depends on USB_G_ANDROID
-	help
-		Support USB lock for SDS MDM function.
-		If you enable this option,
-		USB is not connected to the work in office.
-		Of employees who have installed MDM(SDS).
 
 if TTY
 

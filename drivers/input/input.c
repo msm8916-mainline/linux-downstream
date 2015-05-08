@@ -266,6 +266,8 @@ static int input_get_disposition(struct input_dev *dev,
 	case EV_SYN:
 		switch (code) {
 		case SYN_CONFIG:
+		case SYN_TIME_SEC:
+		case SYN_TIME_NSEC:
 			disposition = INPUT_PASS_TO_ALL;
 			break;
 
@@ -599,6 +601,7 @@ int input_open_device(struct input_handle *handle)
 		dev->users_private--;
 		if (!dev->disabled)
 			dev->users--;
+
 		if (!--handle->open) {
 			/*
 			 * Make sure we are not delivering any more events

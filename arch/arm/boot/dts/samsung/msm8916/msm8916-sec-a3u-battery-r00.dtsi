@@ -33,7 +33,7 @@
 		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
 		battery,monitor_initial_count = <3>;
 
-		battery,battery_check_type = <0>; /* SEC_BATTERY_CHECK_NONE */
+		battery,battery_check_type = <2>; /* SEC_BATTERY_CHECK_NONE */
 		battery,check_count = <0>;
 		battery,check_adc_max = <1440>;
 		battery,check_adc_min = <0>;

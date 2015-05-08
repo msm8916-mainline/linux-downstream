@@ -5915,6 +5915,13 @@ int cyttsp5_release(struct cyttsp5_core_data *cd)
 {
 	struct device *dev = cd->dev;
 
+	mutex_lock(&cd->system_lock);
+	if (cd->irq_enabled) {
+		disable_irq_nosync(cd->irq);
+		cd->irq_enabled = false;
+	}
+	mutex_unlock(&cd->system_lock);
+
 	cyttsp5_debug_release(dev);
 	cyttsp5_device_access_release(dev);
 	cyttsp5_samsung_factory_release(dev);

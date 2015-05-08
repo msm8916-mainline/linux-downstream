@@ -526,10 +526,9 @@ DEFINE_MUTEX(cpufreq_limit_mutex);
 static ssize_t cpufreq_table_show(struct kobject *kobj,
 			struct kobj_attribute *attr, char *buf)
 {
-#ifndef CONFIG_SCHED_HMP
+#ifndef CONFIG_CPU_FREQ_LIMIT_HMP
 	ssize_t len = 0;
 	int i, count = 0;
-	unsigned int freq;
 
 	struct cpufreq_frequency_table *table;
 
@@ -541,6 +540,7 @@ static ssize_t cpufreq_table_show(struct kobject *kobj,
 		count = i;
 
 	for (i = count; i >= 0; i--) {
+		unsigned int freq;
 		freq = table[i].frequency;
 
 		if (freq < MIN_FREQ_LIMIT || freq > MAX_FREQ_LIMIT)

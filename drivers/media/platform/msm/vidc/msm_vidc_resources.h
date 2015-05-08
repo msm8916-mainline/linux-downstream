@@ -17,6 +17,8 @@
 #include <linux/platform_device.h>
 #include <media/msm_vidc.h>
 #define MAX_BUFFER_TYPES 32
+#define IDLE_TIME_WINDOW_SIZE 30
+
 
 struct load_freq_table {
 	u32 load;
@@ -115,7 +117,12 @@ struct msm_vidc_platform_resources {
 	struct regulator_set regulator_set;
 	struct clock_set clock_set;
 	struct bus_set bus_set;
+	bool dynamic_bw_update;
+	bool minimum_vote;
+	bool use_non_secure_pil;
 	bool sw_power_collapsible;
+	bool sys_idle_indicator;
+	bool early_fw_load;
 };
 
 static inline int is_iommu_present(struct msm_vidc_platform_resources *res)

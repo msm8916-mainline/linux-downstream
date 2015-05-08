@@ -98,7 +98,7 @@
 		qcom,cci-master = <0>;
 		qcom,cam-power-seq-type = "sensor_gpio", "sensor_vreg", "sensor_vreg", "sensor_vreg", "sensor_gpio", "sensor_gpio", "sensor_clk", "sensor_i2c_mux";
 		qcom,cam-power-seq-val = "sensor_gpio_vdig", "cam_vana", "cam_vdig", "cam_vio", "sensor_gpio_reset", "sensor_gpio_reset", "sensor_cam_mclk", "none";
-		qcom,cam-power-seq-cfg-val = <1 1 1 1 0 1 26024000 0>;
+		qcom,cam-power-seq-cfg-val = <1 1 1 1 0 1 26022000 0>;
 		qcom,cam-power-seq-delay =   <1 1 1 1 2 30 1 5>;
 		status = "ok";
 		clocks = <&clock_gcc clk_mclk1_clk_src>,
