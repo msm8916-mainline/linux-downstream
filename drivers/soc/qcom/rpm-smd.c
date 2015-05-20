@@ -1403,8 +1403,10 @@ static int msm_rpm_dev_probe(struct platform_device *pdev)
 
 	key = "rpm-standalone";
 	standalone = of_property_read_bool(pdev->dev.of_node, key);
-	if (standalone)
+	if (standalone) {
+		probe_status = 0;
 		goto skip_smd_init;
+	}
 
 	ret = smd_named_open_on_edge(msm_rpm_data.ch_name,
 				msm_rpm_data.ch_type,
@@ -1437,13 +1439,13 @@ static int msm_rpm_dev_probe(struct platform_device *pdev)
 	}
 	queue_work(msm_rpm_smd_wq, &msm_rpm_data.work);
 
+	probe_status = ret;
 skip_smd_init:
 	of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
 
 	if (standalone)
 		pr_info("%s: RPM running in standalone mode\n", __func__);
 fail:
-	probe_status = ret;
 	return probe_status;
 }
 

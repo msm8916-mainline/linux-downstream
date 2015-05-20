@@ -34,6 +34,11 @@
 static struct v4l2_device *msm_v4l2_dev;
 /* static struct msm_cam_dummy_queue cam_dummy_queue; */
 
+#if defined CONFIG_SEC_CAMERA_TUNING
+int rear_tune;
+int front_tune;
+#endif
+
 static int msm_open_cam_dummy(struct file *fp)
 {
 	int rc;
@@ -44,12 +49,13 @@ static int msm_open_cam_dummy(struct file *fp)
 	return rc;
 }
 
+#if !defined CONFIG_SEC_CAMERA_TUNING
 static long msm_ioctl_cam_dummy(struct file *fp, unsigned int cmd,
 	unsigned long arg)
 {
 	return 0;
 }
-
+#endif
 static int msm_close_cam_dummy(struct file *f)
 {
 	return 0;
@@ -59,7 +65,11 @@ static struct v4l2_file_operations msm_fops_config = {
 	.owner  = THIS_MODULE,
 	.open  = msm_open_cam_dummy,
 	.release = msm_close_cam_dummy,
+#if defined CONFIG_SEC_CAMERA_TUNING
+	.ioctl   = video_ioctl2,
+#else
 	.unlocked_ioctl = msm_ioctl_cam_dummy,
+#endif
 };
 
 static const struct of_device_id cam_dummy_dt_match[] = {
@@ -71,11 +81,48 @@ MODULE_DEVICE_TABLE(of, cam_dummy_dt_match);
 
 static struct platform_driver cam_dummy_platform_driver = {
 	.driver = {
-		.name = "cam_dummy",
+		.name = "qcom,cam_dummy",
 		.owner = THIS_MODULE,
 		.of_match_table = cam_dummy_dt_match,
 	},
 };
+
+#if defined CONFIG_SEC_CAMERA_TUNING
+static int msm_v4l2_s_ctrl(struct file *filep, void *fh,
+	struct v4l2_control *ctrl)
+{
+	int rc = 0;
+	pr_err("%s TUNING CTRL : ctrl->value %d",__func__,ctrl->value);
+	if(ctrl->id >= V4L2_CID_PRIVATE_BASE)
+	{
+		switch (ctrl->value){
+		case NORMAL_MODE :
+			rear_tune = 0;
+			front_tune = 0;
+			pr_err("%s TUNING CTRL : Setting Normal Binary",__func__);
+			break;
+		case REAR_TUNING :
+			rear_tune = 1;
+			pr_err("%s TUNING CTRL : Setting Rear Tuning Binary",__func__);
+			break;
+		case FRONT_TUNING :
+			front_tune = 1;
+			pr_err("%s TUNING CTRL : Setting Front Tuning Binary",__func__);
+			break;
+		case REAR_FRONT_TUNING :
+			rear_tune = 1;
+			front_tune = 1;
+			pr_err("%s TUNING CTRL : Setting Rear and Front Tuning Binary",__func__);
+			break;
+		}
+	}
+	return rc;
+}
+
+static const struct v4l2_ioctl_ops msm_v4l2_ioctl_ops = {
+	.vidioc_s_ctrl = msm_v4l2_s_ctrl,
+};
+#endif
 
 static int32_t cam_dummy_platform_probe(struct platform_device *pdev)
 {
@@ -139,6 +186,9 @@ static int32_t cam_dummy_platform_probe(struct platform_device *pdev)
 	strlcpy(pvdev->vdev->name, "msm-camdummy", sizeof(pvdev->vdev->name));
 	pvdev->vdev->release  = video_device_release;
 	pvdev->vdev->fops     = &msm_fops_config;
+#if defined CONFIG_SEC_CAMERA_TUNING
+	pvdev->vdev->ioctl_ops = &msm_v4l2_ioctl_ops;
+#endif
 	pvdev->vdev->minor     = -1;
 	pvdev->vdev->vfl_type  = VFL_TYPE_GRABBER;
 	rc = video_register_device(pvdev->vdev,

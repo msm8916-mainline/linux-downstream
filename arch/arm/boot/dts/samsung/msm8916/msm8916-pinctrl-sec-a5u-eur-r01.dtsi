@@ -12,17 +12,16 @@
 
 &soc {
 	tlmm_pinmux: pinctrl@1000000 {
-		compatible = "qcom,msm-tlmm-v4";
+		compatible = "qcom,msm-tlmm-8916";
 		reg = <0x1000000 0x300000>;
 		interrupts = <0 208 0>;
 
 		/*General purpose pins*/
 		gp: gp {
-			qcom,pin-type-gp;
 			qcom,num-pins = <122>;
 			#qcom,pin-cells = <1>;
 			msm_gpio: msm_gpio {
-				compatible = "qcom,msm-tlmmv4-gp-intc";
+				compatible = "qcom,msm-tlmm-gp";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
@@ -1214,6 +1213,23 @@
 			};
 			prox_int_suspend: prox_int_suspend {
 				drive-strength = <2>;
+				bias-disable; /* No PULL */
+			};
+		};
+
+		prox_sensor_enable_active {
+			qcom,pins = <&gp 8>;
+			qcom,pin-func = <1>;
+			qcom,num-grp-pins = <1>;
+			label = "prox_sensor_enable_active";
+			prox_enable_active: prox_enable_active {
+				drive-strength = <2>;
+				output-low;
+				bias-disable; /* No PULL */
+			};
+			prox_enable_suspend: prox_enable_suspend {
+				drive-strength = <2>;
+				output-low;
 				bias-disable; /* No PULL */
 			};
 		};

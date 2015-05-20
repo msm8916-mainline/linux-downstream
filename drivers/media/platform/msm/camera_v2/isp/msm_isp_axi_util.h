@@ -55,4 +55,7 @@ void msm_isp_sof_notify(struct vfe_device *vfe_dev,
 void msm_isp_process_axi_irq(struct vfe_device *vfe_dev,
 	uint32_t irq_status0, uint32_t irq_status1,
 	struct msm_isp_timestamp *ts);
+#if defined(CONFIG_SR200PC20) && defined(CONFIG_SR544)
+uint8_t msm_isp_get_curr_stream_cnt(struct vfe_device *vfe_dev);
+#endif
 #endif /* __MSM_ISP_AXI_UTIL_H__ */

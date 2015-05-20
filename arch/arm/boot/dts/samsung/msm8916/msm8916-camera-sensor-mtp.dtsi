@@ -16,25 +16,24 @@
 
 &cci {
 
-	actuator0: qcom,actuator@6e {
-		cell-index = <3>;
-		reg = <0x6c>;
+	actuator0: qcom,actuator@0 {
+		cell-index = <0>;
+		reg = <0x0>;
 		compatible = "qcom,actuator";
 		qcom,cci-master = <0>;
+		cam_vaf-supply = <&pm8916_l10>;
+		qcom,cam-vreg-name = "cam_vaf";
+		qcom,cam-vreg-type = <0>;
+		qcom,cam-vreg-min-voltage = <2800000>;
+		qcom,cam-vreg-max-voltage = <2800000>;
+		qcom,cam-vreg-op-mode = <80000>;
 	};
 
-	actuator1: qcom,actuator@36 {
-		cell-index = <1>;
-		reg = <0x36>;
-		compatible = "qcom,actuator";
-		qcom,cci-master = <0>;
-	};
-
-	led_flash0: qcom,led-flash@66 {
+	led_flash0: qcom,led-flash@0 {
 		cell-index = <0>;
 		reg = <0x66>;
 		qcom,slave-id = <0x66 0x00 0x0011>;
-		compatible = "rohm-flash,bd7710";
+		compatible = "qcom,led-flash1";
 		label = "bd7710";
 		qcom,flash-type = <1>;
 		qcom,gpio-no-mux = <0>;
@@ -56,7 +55,7 @@
 		qcom,cci-master = <0>;
 	};
 
-	 eeprom0: qcom,eeprom@20 {
+	eeprom0: qcom,eeprom@20 {
 		cell-index = <0>;
 		reg = <0x20>;
 		qcom,eeprom-name = "sonyimx135";

@@ -87,7 +87,7 @@ bool coresight_fuse_nidnt_access_disabled(void)
 	uint32_t nidnt_fuse;
 	bool ret;
 
-	if (!drvdata->fuse_nidnt)
+	if (!drvdata || !drvdata->fuse_nidnt)
 		return false;
 
 	nidnt_fuse = fuse_readl(drvdata->fuse_nidnt, 0);
@@ -111,6 +111,9 @@ bool coresight_fuse_access_disabled(void)
 	struct fuse_drvdata *drvdata = fusedrvdata;
 	uint32_t config0, config1;
 	bool ret = false;
+
+	if (!drvdata)
+		return false;
 
 	config0 = fuse_readl(drvdata, OEM_CONFIG0);
 	config1 = fuse_readl(drvdata, OEM_CONFIG1);
@@ -159,6 +162,9 @@ bool coresight_fuse_apps_access_disabled(void)
 	uint32_t config0, config1;
 	bool ret = false;
 
+	if (!drvdata)
+		return false;
+
 	config0 = fuse_readl(drvdata, OEM_CONFIG0);
 	config1 = fuse_readl(drvdata, OEM_CONFIG1);
 
@@ -205,7 +211,7 @@ bool coresight_fuse_qpdi_access_disabled(void)
 	struct fuse_drvdata *drvdata = fusedrvdata;
 	uint32_t config;
 
-	if (!drvdata->qpdi)
+	if (!drvdata || !drvdata->qpdi)
 		return false;
 
 	config = fuse_readl(drvdata->qpdi, FEATURE_CONFIG2);
@@ -289,7 +295,7 @@ static int fuse_probe(struct platform_device *pdev)
 		drvdata->fuse_nidnt = devm_kzalloc(dev,
 						   sizeof(*drvdata->fuse_nidnt),
 						   GFP_KERNEL);
-		if (!drvdata)
+		if (!drvdata->fuse_nidnt)
 			return -ENOMEM;
 
 		drvdata->fuse_nidnt->base = devm_ioremap(dev, res->start,

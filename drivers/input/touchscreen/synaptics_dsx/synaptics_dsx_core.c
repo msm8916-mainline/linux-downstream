@@ -32,6 +32,9 @@
 #ifdef KERNEL_ABOVE_2_6_38
 #include <linux/input/mt.h>
 #endif
+#if defined(CONFIG_SECURE_TOUCH)
+#include <linux/errno.h>
+#endif
 
 #define INPUT_PHYS_NAME "synaptics_dsx/input0"
 #define DEBUGFS_DIR_NAME "ts_debug"
@@ -131,6 +134,19 @@ static ssize_t synaptics_rmi4_0dbutton_show(struct device *dev,
 
 static ssize_t synaptics_rmi4_0dbutton_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count);
+
+static irqreturn_t synaptics_rmi4_irq(int irq, void *data);
+
+#if defined(CONFIG_SECURE_TOUCH)
+static ssize_t synaptics_secure_touch_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf);
+
+static ssize_t synaptics_secure_touch_enable_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count);
+
+static ssize_t synaptics_secure_touch_show(struct device *dev,
+		struct device_attribute *attr, char *buf);
+#endif
 
 struct synaptics_rmi4_f01_device_status {
 	union {
@@ -357,6 +373,14 @@ static struct device_attribute attrs[] = {
 	__ATTR(0dbutton, (S_IRUGO | S_IWUSR | S_IWGRP),
 			synaptics_rmi4_0dbutton_show,
 			synaptics_rmi4_0dbutton_store),
+#if defined(CONFIG_SECURE_TOUCH)
+	__ATTR(secure_touch_enable, (S_IRUGO | S_IWUGO),
+			synaptics_secure_touch_enable_show,
+			synaptics_secure_touch_enable_store),
+	__ATTR(secure_touch, S_IRUGO ,
+			synaptics_secure_touch_show,
+			NULL),
+#endif
 };
 
 #define MAX_BUF_SIZE	256
@@ -419,6 +443,202 @@ static int synaptics_rmi4_debug_suspend_get(void *_data, u64 *val)
 
 DEFINE_SIMPLE_ATTRIBUTE(debug_suspend_fops, synaptics_rmi4_debug_suspend_get,
 			synaptics_rmi4_debug_suspend_set, "%lld\n");
+
+#if defined(CONFIG_SECURE_TOUCH)
+static void synaptics_secure_touch_init(struct synaptics_rmi4_data *data)
+{
+	int ret = 0;
+	data->st_initialized = 0;
+	init_completion(&data->st_powerdown);
+	init_completion(&data->st_irq_processed);
+	/* Get clocks */
+	data->core_clk = clk_get(data->pdev->dev.parent, "core_clk");
+	if (IS_ERR(data->core_clk)) {
+		ret = PTR_ERR(data->core_clk);
+		dev_err(data->pdev->dev.parent,
+			"%s: error on clk_get(core_clk):%d\n", __func__, ret);
+		return;
+	}
+
+	data->iface_clk = clk_get(data->pdev->dev.parent, "iface_clk");
+	if (IS_ERR(data->iface_clk)) {
+		ret = PTR_ERR(data->iface_clk);
+		dev_err(data->pdev->dev.parent,
+			"%s: error on clk_get(iface_clk):%d\n", __func__, ret);
+		goto err_iface_clk;
+	}
+
+	data->st_initialized = 1;
+	return;
+
+err_iface_clk:
+		clk_put(data->core_clk);
+		data->core_clk = NULL;
+}
+static void synaptics_secure_touch_notify(struct synaptics_rmi4_data *rmi4_data)
+{
+	sysfs_notify(&rmi4_data->input_dev->dev.kobj, NULL, "secure_touch");
+}
+static irqreturn_t synaptics_filter_interrupt(
+	struct synaptics_rmi4_data *rmi4_data)
+{
+	if (atomic_read(&rmi4_data->st_enabled)) {
+		if (atomic_cmpxchg(&rmi4_data->st_pending_irqs, 0, 1) == 0) {
+			synaptics_secure_touch_notify(rmi4_data);
+			wait_for_completion_interruptible(
+				&rmi4_data->st_irq_processed);
+		}
+		return IRQ_HANDLED;
+	}
+	return IRQ_NONE;
+}
+static void synaptics_secure_touch_stop(
+	struct synaptics_rmi4_data *rmi4_data,
+	int blocking)
+{
+	if (atomic_read(&rmi4_data->st_enabled)) {
+		atomic_set(&rmi4_data->st_pending_irqs, -1);
+		synaptics_secure_touch_notify(rmi4_data);
+		if (blocking)
+			wait_for_completion_interruptible(
+				&rmi4_data->st_powerdown);
+	}
+}
+#else
+static void synaptics_secure_touch_init(struct synaptics_rmi4_data *rmi4_data)
+{
+}
+static irqreturn_t synaptics_filter_interrupt(
+	struct synaptics_rmi4_data *rmi4_data)
+{
+	return IRQ_NONE;
+}
+static void synaptics_secure_touch_stop(
+	struct synaptics_rmi4_data *rmi4_data,
+	int blocking)
+{
+}
+#endif
+
+#if defined(CONFIG_SECURE_TOUCH)
+static ssize_t synaptics_secure_touch_enable_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	return scnprintf(
+		buf,
+		PAGE_SIZE,
+		"%d",
+		atomic_read(&rmi4_data->st_enabled));
+}
+/*
+ * Accept only "0" and "1" valid values.
+ * "0" will reset the st_enabled flag, then wake up the reading process and
+ * the interrupt handler.
+ * The bus driver is notified via pm_runtime that it is not required to stay
+ * awake anymore.
+ * It will also make sure the queue of events is emptied in the controller,
+ * in case a touch happened in between the secure touch being disabled and
+ * the local ISR being ungated.
+ * "1" will set the st_enabled flag and clear the st_pending_irqs flag.
+ * The bus driver is requested via pm_runtime to stay awake.
+ */
+static ssize_t synaptics_secure_touch_enable_store(struct device *dev,
+				    struct device_attribute *attr,
+				    const char *buf, size_t count)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	unsigned long value;
+	int err = 0;
+
+	if (count > 2)
+		return -EINVAL;
+
+	err = kstrtoul(buf, 10, &value);
+	if (err != 0)
+		return err;
+
+	if (!rmi4_data->st_initialized)
+		return -EIO;
+
+	err = count;
+
+	switch (value) {
+	case 0:
+		if (atomic_read(&rmi4_data->st_enabled) == 0)
+			break;
+
+		synaptics_rmi4_bus_put(rmi4_data);
+		atomic_set(&rmi4_data->st_enabled, 0);
+		synaptics_secure_touch_notify(rmi4_data);
+		complete(&rmi4_data->st_irq_processed);
+		synaptics_rmi4_irq(rmi4_data->irq, rmi4_data);
+		complete(&rmi4_data->st_powerdown);
+
+		break;
+	case 1:
+		if (atomic_read(&rmi4_data->st_enabled)) {
+			err = -EBUSY;
+			break;
+		}
+
+		synchronize_irq(rmi4_data->irq);
+
+		if (synaptics_rmi4_bus_get(rmi4_data) < 0) {
+			dev_err(
+				rmi4_data->pdev->dev.parent,
+				"synaptics_rmi4_bus_get failed\n");
+			err = -EIO;
+			break;
+		}
+
+		INIT_COMPLETION(rmi4_data->st_powerdown);
+		INIT_COMPLETION(rmi4_data->st_irq_processed);
+		atomic_set(&rmi4_data->st_enabled, 1);
+		atomic_set(&rmi4_data->st_pending_irqs,  0);
+		break;
+	default:
+		dev_err(
+			rmi4_data->pdev->dev.parent,
+			"unsupported value: %lu\n", value);
+		err = -EINVAL;
+		break;
+	}
+	return err;
+}
+
+/*
+ * This function returns whether there are pending interrupts, or
+ * other error conditions that need to be signaled to the userspace library,
+ * according tot he following logic:
+ * - st_enabled is 0 if secure touch is not enabled, returning -EBADF
+ * - st_pending_irqs is -1 to signal that secure touch is in being stopped,
+ *   returning -EINVAL
+ * - st_pending_irqs is 1 to signal that there is a pending irq, returning
+ *   the value "1" to the sysfs read operation
+ * - st_pending_irqs is 0 (only remaining case left) if the pending interrupt
+ *   has been processed, so the interrupt handler can be allowed to continue.
+ */
+static ssize_t synaptics_secure_touch_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	int val = 0;
+	if (atomic_read(&rmi4_data->st_enabled) == 0)
+		return -EBADF;
+
+	if (atomic_cmpxchg(&rmi4_data->st_pending_irqs, -1, 0) == -1)
+		return -EINVAL;
+
+	if (atomic_cmpxchg(&rmi4_data->st_pending_irqs, 1, 0) == 1)
+		val = 1;
+	else
+		complete(&rmi4_data->st_irq_processed);
+
+	return scnprintf(buf, PAGE_SIZE, "%u", val);
+
+}
+#endif
 
 static ssize_t synaptics_rmi4_full_pm_cycle_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1136,6 +1356,9 @@ static irqreturn_t synaptics_rmi4_irq(int irq, void *data)
 {
 	struct synaptics_rmi4_data *rmi4_data = data;
 
+	if (IRQ_HANDLED == synaptics_filter_interrupt(data))
+		return IRQ_HANDLED;
+
 	if (!rmi4_data->touch_stopped)
 		synaptics_rmi4_sensor_report(rmi4_data);
 
@@ -1388,16 +1611,23 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 
 	fhandler->fn_number = fd->fn_number;
 	fhandler->num_of_data_sources = fd->intr_src_count;
-	fhandler->extra = kmalloc(sizeof(*extra_data), GFP_KERNEL);
-	extra_data = (struct synaptics_rmi4_f12_extra_data *)fhandler->extra;
 	size_of_2d_data = sizeof(struct synaptics_rmi4_f12_finger_data);
+
+	fhandler->extra = kmalloc(sizeof(*extra_data), GFP_KERNEL);
+	if (!fhandler->extra) {
+		dev_err(rmi4_data->pdev->dev.parent,
+			"%s: Failed to alloc mem for function handler\n",
+			__func__);
+		return -ENOMEM;
+	}
+	extra_data = (struct synaptics_rmi4_f12_extra_data *)fhandler->extra;
 
 	retval = synaptics_rmi4_reg_read(rmi4_data,
 			fhandler->full_addr.query_base + 5,
 			query_5.data,
 			sizeof(query_5.data));
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	ctrl_8_offset = query_5.ctrl0_is_present +
 			query_5.ctrl1_is_present +
@@ -1437,7 +1667,7 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 			ctrl_23.data,
 			sizeof(ctrl_23.data));
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	/* Maximum number of fingers supported */
 	fhandler->num_of_data_points = min(ctrl_23.max_reported_objects,
@@ -1451,14 +1681,14 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 			&size_of_query8,
 			sizeof(size_of_query8));
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	retval = synaptics_rmi4_reg_read(rmi4_data,
 			fhandler->full_addr.query_base + 8,
 			query_8.data,
 			size_of_query8);
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	/* Determine the presence of the Data0 register */
 	extra_data->data1_offset = query_8.data0_is_present;
@@ -1495,14 +1725,14 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 	retval = synaptics_rmi4_f12_set_enables(rmi4_data,
 			fhandler->full_addr.ctrl_base + ctrl_28_offset);
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	retval = synaptics_rmi4_reg_read(rmi4_data,
 			fhandler->full_addr.ctrl_base + ctrl_8_offset,
 			ctrl_8.data,
 			sizeof(ctrl_8.data));
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	/* Maximum x and y */
 	rmi4_data->sensor_max_x =
@@ -1519,7 +1749,8 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 				bdata->panel_maxy > SYNA_F12_MAX) {
 			dev_err(rmi4_data->pdev->dev.parent,
 				"%s: Invalid panel resolution\n", __func__);
-			return -EINVAL;
+			retval = -EINVAL;
+			goto free_function_handler_mem;
 		}
 
 		rmi4_data->sensor_max_x = bdata->panel_maxx;
@@ -1536,7 +1767,7 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 				ctrl_8.data,
 				sizeof(ctrl_8.data));
 		if (retval < 0)
-			return retval;
+			goto free_function_handler_mem;
 	}
 
 	dev_dbg(rmi4_data->pdev->dev.parent,
@@ -1555,7 +1786,18 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 	/* Allocate memory for finger data storage space */
 	fhandler->data_size = num_of_fingers * size_of_2d_data;
 	fhandler->data = kmalloc(fhandler->data_size, GFP_KERNEL);
+	if (!fhandler->data) {
+		dev_err(rmi4_data->pdev->dev.parent,
+			"%s: Failed to alloc mem for function handler data\n",
+			__func__);
+		retval = -ENOMEM;
+		goto free_function_handler_mem;
+	}
 
+	return retval;
+
+free_function_handler_mem:
+	kfree(fhandler->extra);
 	return retval;
 }
 
@@ -2354,24 +2596,72 @@ static int synaptics_rmi4_parse_dt_children(struct device *dev,
 			rmi4_pdata->package_id = 0x00;
 		}
 
-		if (rmi4_pdata->package_id && (rmi4_pdata->package_id !=
-					rmi->package_id)) {
-			dev_err(dev,
+		if (rmi4_pdata->package_id) {
+			if (rmi4_pdata->package_id != rmi->package_id) {
+				dev_err(dev,
 				"%s: Synaptics package id don't match %d %d\n",
 				__func__,
 				rmi4_pdata->package_id, rmi->package_id);
-
-			/* Iterate over next child if package does not match */
-			continue;
+				/*
+				 * Iterate over next child if package
+				 * id does not match
+				 */
+				continue;
+			} else if (of_property_read_bool(child,
+				"synaptics,bypass-sensor-coords-check")) {
+				/*
+				 * Some unprogrammed panels from touch vendor
+				 * and wrongly programmed panels from factory
+				 * may return incorrect sensor coordinate range
+				 * when their query registers are read, but
+				 * they normally work fine in field. In such
+				 * a scenario, driver can bypass the comparison
+				 * of coordinate range read from sensor and read
+				 * from DT and continue normal operation.
+				 */
+				dev_info(dev,
+					"%s Synaptics package id matches %d %d,"
+					"but bypassing the comparison of sensor"
+					"coordinates.\n", __func__,
+					rmi4_pdata->package_id,
+					rmi->package_id);
+				dev_info(dev, "Pmax_x Pmax_y = %d:%d\n",
+					rmi4_pdata->panel_maxx,
+					rmi4_pdata->panel_maxy);
+				dev_info(dev, "Smax_x Smax_y = %d:%d\n",
+					rmi4_data->sensor_max_x,
+					rmi4_data->sensor_max_y);
+			} else {
+				/*
+				 * If package id read from DT matches the
+				 * package id value read from touch controller,
+				 * also check if sensor dimensions read from DT
+				 * match those read from controller, before
+				 * moving further. For this first check if touch
+				 * panel coordinates are defined in DT or not.
+				 */
+				if (of_find_property(child,
+					"synaptics,panel-coords", NULL)) {
+					synaptics_dsx_get_dt_coords(dev,
+						"synaptics,panel-coords",
+						rmi4_pdata, child);
+					dev_info(dev, "Pmax_x Pmax_y = %d:%d\n",
+						rmi4_pdata->panel_maxx,
+						rmi4_pdata->panel_maxy);
+					dev_info(dev, "Smax_x Smax_y = %d:%d\n",
+						rmi4_data->sensor_max_x,
+						rmi4_data->sensor_max_y);
+					if ((rmi4_pdata->panel_maxx !=
+						rmi4_data->sensor_max_x) ||
+						(rmi4_pdata->panel_maxy !=
+						rmi4_data->sensor_max_y))
+						continue;
+				}
+			}
 		}
 
 		rc = synaptics_dsx_get_dt_coords(dev,
 				"synaptics,display-coords", rmi4_pdata, child);
-		if (rc && (rc != -EINVAL))
-			return rc;
-
-		rc = synaptics_dsx_get_dt_coords(dev,
-				 "synaptics,panel-coords", rmi4_pdata, child);
 		if (rc && (rc != -EINVAL))
 			return rc;
 
@@ -2411,8 +2701,11 @@ static int synaptics_rmi4_parse_dt_children(struct device *dev,
 			rc = synaptics_dsx_get_virtual_keys(dev, prop,
 				"synaptics,key-codes", rmi4_pdata, child);
 			if (!rc) {
-				synaptics_dsx_virtual_keys_init(dev,
+				rc = synaptics_dsx_virtual_keys_init(dev,
 					rmi4_pdata);
+				if (!rc)
+					rmi4_data->support_vkeys = true;
+
 			} else {
 				dev_err(dev,
 					"Unable to read virtual key codes\n");
@@ -2494,6 +2787,10 @@ static int synaptics_rmi4_set_input_dev(struct synaptics_rmi4_data *rmi4_data)
 	return 0;
 
 err_register_input:
+	if (rmi4_data->support_vkeys) {
+		sysfs_remove_group(vkey_kobj, &vkey_grp);
+		kobject_put(vkey_kobj);
+	}
 err_query_device:
 	synaptics_rmi4_empty_fn_list(rmi4_data);
 	input_free_device(rmi4_data->input_dev);
@@ -2584,58 +2881,48 @@ static int synaptics_dsx_pinctrl_init(struct synaptics_rmi4_data *rmi4_data)
 	/* Get pinctrl if target uses pinctrl */
 	rmi4_data->ts_pinctrl = devm_pinctrl_get((rmi4_data->pdev->dev.parent));
 	if (IS_ERR_OR_NULL(rmi4_data->ts_pinctrl)) {
-		dev_dbg(rmi4_data->pdev->dev.parent,
-			"Target does not use pinctrl\n");
 		retval = PTR_ERR(rmi4_data->ts_pinctrl);
-		rmi4_data->ts_pinctrl = NULL;
-		return retval;
+		dev_dbg(rmi4_data->pdev->dev.parent,
+			"Target does not use pinctrl %d\n", retval);
+		goto err_pinctrl_get;
 	}
 
-	rmi4_data->gpio_state_active
+	rmi4_data->pinctrl_state_active
 		= pinctrl_lookup_state(rmi4_data->ts_pinctrl, "pmx_ts_active");
-	if (IS_ERR_OR_NULL(rmi4_data->gpio_state_active)) {
-		dev_dbg(rmi4_data->pdev->dev.parent,
-			"Can not get ts default pinstate\n");
-		retval = PTR_ERR(rmi4_data->gpio_state_active);
-		rmi4_data->ts_pinctrl = NULL;
-		return retval;
-	}
-
-	rmi4_data->gpio_state_suspend
-		= pinctrl_lookup_state(rmi4_data->ts_pinctrl, "pmx_ts_suspend");
-	if (IS_ERR_OR_NULL(rmi4_data->gpio_state_suspend)) {
-		dev_dbg(rmi4_data->pdev->dev.parent,
-			"Can not get ts sleep pinstate\n");
-		retval = PTR_ERR(rmi4_data->gpio_state_suspend);
-		rmi4_data->ts_pinctrl = NULL;
-		return retval;
-	}
-
-	return 0;
-}
-
-static int synpatics_dsx_pinctrl_select(struct synaptics_rmi4_data *rmi4_data,
-						bool on)
-{
-	struct pinctrl_state *pins_state;
-	int ret;
-
-	pins_state = on ? rmi4_data->gpio_state_active
-		: rmi4_data->gpio_state_suspend;
-	if (!IS_ERR_OR_NULL(pins_state)) {
-		ret = pinctrl_select_state(rmi4_data->ts_pinctrl, pins_state);
-		if (ret) {
-			dev_err(rmi4_data->pdev->dev.parent,
-				"can not set %s pins\n",
-				on ? "pmx_ts_active" : "pmx_ts_suspend");
-			return ret;
-		}
-	} else
+	if (IS_ERR_OR_NULL(rmi4_data->pinctrl_state_active)) {
+		retval = PTR_ERR(rmi4_data->pinctrl_state_active);
 		dev_err(rmi4_data->pdev->dev.parent,
-			"not a valid '%s' pinstate\n",
-				on ? "pmx_ts_active" : "pmx_ts_suspend");
+			"Can not lookup %s pinstate %d\n",
+			PINCTRL_STATE_ACTIVE, retval);
+		goto err_pinctrl_lookup;
+	}
+
+	rmi4_data->pinctrl_state_suspend
+		= pinctrl_lookup_state(rmi4_data->ts_pinctrl, "pmx_ts_suspend");
+	if (IS_ERR_OR_NULL(rmi4_data->pinctrl_state_suspend)) {
+		retval = PTR_ERR(rmi4_data->pinctrl_state_suspend);
+		dev_dbg(rmi4_data->pdev->dev.parent,
+			"Can not lookup %s pinstate %d\n",
+			PINCTRL_STATE_SUSPEND, retval);
+		goto err_pinctrl_lookup;
+	}
+
+	rmi4_data->pinctrl_state_release
+		= pinctrl_lookup_state(rmi4_data->ts_pinctrl, "pmx_ts_release");
+	if (IS_ERR_OR_NULL(rmi4_data->pinctrl_state_release)) {
+		retval = PTR_ERR(rmi4_data->pinctrl_state_release);
+		dev_dbg(rmi4_data->pdev->dev.parent,
+			"Can not lookup %s pinstate %d\n",
+			PINCTRL_STATE_RELEASE, retval);
+	}
 
 	return 0;
+
+err_pinctrl_lookup:
+	devm_pinctrl_put(rmi4_data->ts_pinctrl);
+err_pinctrl_get:
+	rmi4_data->ts_pinctrl = NULL;
+	return retval;
 }
 
 static int synaptics_dsx_gpio_configure(struct synaptics_rmi4_data *rmi4_data,
@@ -2801,14 +3088,6 @@ static int synaptics_rmi4_reinit_device(struct synaptics_rmi4_data *rmi4_data)
 	mutex_unlock(&exp_data.mutex);
 
 	synaptics_rmi4_set_configured(rmi4_data);
-
-	retval = synaptics_rmi4_query_device(rmi4_data);
-	if (retval < 0) {
-		dev_err(rmi4_data->pdev->dev.parent,
-				"%s: Failed to query device\n",
-				__func__);
-	}
-
 
 	retval = 0;
 
@@ -3125,9 +3404,18 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	} else {
 		retval = synaptics_dsx_pinctrl_init(rmi4_data);
 		if (!retval && rmi4_data->ts_pinctrl) {
-			retval = synpatics_dsx_pinctrl_select(rmi4_data, true);
-			if (retval < 0)
-				goto err_set_gpio;
+			/*
+			* Pinctrl handle is optional. If pinctrl handle is found
+			* let pins to be configured in active state. If not
+			* found continue further without error.
+			*/
+			retval = pinctrl_select_state(rmi4_data->ts_pinctrl,
+					rmi4_data->pinctrl_state_active);
+			if (retval < 0) {
+				dev_err(&pdev->dev,
+					"%s: Failed to select %s pinstate %d\n",
+					__func__, PINCTRL_STATE_ACTIVE, retval);
+			}
 		}
 
 		retval = synaptics_dsx_gpio_configure(rmi4_data, true);
@@ -3225,6 +3513,9 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 		}
 	}
 
+	synaptics_secure_touch_init(rmi4_data);
+	synaptics_secure_touch_stop(rmi4_data, 1);
+
 	return retval;
 
 err_sysfs:
@@ -3272,9 +3563,21 @@ err_set_input_dev:
 		}
 	} else {
 		synaptics_dsx_gpio_configure(rmi4_data, false);
+	}
 err_config_gpio:
-		if (rmi4_data->ts_pinctrl)
-			synpatics_dsx_pinctrl_select(rmi4_data, false);
+	if (rmi4_data->ts_pinctrl) {
+		if (IS_ERR_OR_NULL(rmi4_data->pinctrl_state_release)) {
+			devm_pinctrl_put(rmi4_data->ts_pinctrl);
+			rmi4_data->ts_pinctrl = NULL;
+		} else {
+			retval = pinctrl_select_state(
+				rmi4_data->ts_pinctrl,
+				rmi4_data->pinctrl_state_release);
+			if (retval)
+				dev_err(&pdev->dev,
+					"%s: Failed to create sysfs attributes\n",
+					__func__);
+		}
 	}
 
 err_set_gpio:
@@ -3305,9 +3608,12 @@ static int synaptics_rmi4_remove(struct platform_device *pdev)
 	struct synaptics_rmi4_data *rmi4_data = platform_get_drvdata(pdev);
 	const struct synaptics_dsx_board_data *bdata =
 			rmi4_data->hw_if->board_data;
+	int err;
 
-	sysfs_remove_group(vkey_kobj, &vkey_grp);
-	kobject_put(vkey_kobj);
+	if (rmi4_data->support_vkeys) {
+		sysfs_remove_group(vkey_kobj, &vkey_grp);
+		kobject_put(vkey_kobj);
+	}
 
 	for (attr_count = 0; attr_count < ARRAY_SIZE(attrs); attr_count++) {
 		sysfs_remove_file(&rmi4_data->input_dev->dev.kobj,
@@ -3349,8 +3655,20 @@ static int synaptics_rmi4_remove(struct platform_device *pdev)
 		}
 	} else {
 		synaptics_dsx_gpio_configure(rmi4_data, false);
-		if (rmi4_data->ts_pinctrl)
-			synpatics_dsx_pinctrl_select(rmi4_data, false);
+		if (rmi4_data->ts_pinctrl) {
+			if (IS_ERR_OR_NULL(rmi4_data->pinctrl_state_release)) {
+				devm_pinctrl_put(rmi4_data->ts_pinctrl);
+				rmi4_data->ts_pinctrl = NULL;
+			} else {
+				err = pinctrl_select_state(
+					rmi4_data->ts_pinctrl,
+					rmi4_data->pinctrl_state_release);
+				if (err)
+					dev_err(&pdev->dev,
+						"Failed to select release pinctrl state %d\n",
+						err);
+			}
+		}
 	}
 
 	if (rmi4_data->regulator_vdd) {
@@ -3367,6 +3685,126 @@ static int synaptics_rmi4_remove(struct platform_device *pdev)
 
 	return 0;
 }
+
+#if defined(CONFIG_FB)
+static int fb_notifier_callback(struct notifier_block *self,
+				unsigned long event, void *data)
+{
+	struct fb_event *evdata = data;
+	int *blank;
+	struct synaptics_rmi4_data *rmi4_data =
+		container_of(self, struct synaptics_rmi4_data, fb_notif);
+
+	if (evdata && evdata->data && rmi4_data) {
+		if (event == FB_EARLY_EVENT_BLANK)
+			synaptics_secure_touch_stop(rmi4_data, 0);
+		else if (event == FB_EVENT_BLANK) {
+			blank = evdata->data;
+			if (*blank == FB_BLANK_UNBLANK)
+				synaptics_rmi4_resume(
+					&(rmi4_data->input_dev->dev));
+			else if (*blank == FB_BLANK_POWERDOWN)
+				synaptics_rmi4_suspend(
+					&(rmi4_data->input_dev->dev));
+		}
+	}
+
+	return 0;
+}
+#elif defined(CONFIG_HAS_EARLYSUSPEND)
+ /**
+ * synaptics_rmi4_early_suspend()
+ *
+ * Called by the kernel during the early suspend phase when the system
+ * enters suspend.
+ *
+ * This function calls synaptics_rmi4_sensor_sleep() to stop finger
+ * data acquisition and put the sensor to sleep.
+ */
+static void synaptics_rmi4_early_suspend(struct early_suspend *h)
+{
+	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
+	struct synaptics_rmi4_data *rmi4_data =
+			container_of(h, struct synaptics_rmi4_data,
+			early_suspend);
+
+	if (rmi4_data->stay_awake) {
+		rmi4_data->staying_awake = true;
+		return;
+	} else {
+		rmi4_data->staying_awake = false;
+	}
+
+	synaptics_secure_touch_stop(rmi4_data, 0);
+
+	rmi4_data->touch_stopped = true;
+	synaptics_rmi4_irq_enable(rmi4_data, false);
+	synaptics_rmi4_sensor_sleep(rmi4_data);
+	synaptics_rmi4_free_fingers(rmi4_data);
+
+	mutex_lock(&exp_data.mutex);
+	if (!list_empty(&exp_data.list)) {
+		list_for_each_entry(exp_fhandler, &exp_data.list, link)
+			if (exp_fhandler->exp_fn->early_suspend != NULL)
+				exp_fhandler->exp_fn->early_suspend(rmi4_data);
+	}
+	mutex_unlock(&exp_data.mutex);
+
+	if (rmi4_data->full_pm_cycle)
+		synaptics_rmi4_suspend(&(rmi4_data->input_dev->dev));
+
+	return;
+}
+
+ /**
+ * synaptics_rmi4_late_resume()
+ *
+ * Called by the kernel during the late resume phase when the system
+ * wakes up from suspend.
+ *
+ * This function goes through the sensor wake process if the system wakes
+ * up from early suspend (without going into suspend).
+ */
+static void synaptics_rmi4_late_resume(struct early_suspend *h)
+{
+	int retval;
+	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
+	struct synaptics_rmi4_data *rmi4_data =
+			container_of(h, struct synaptics_rmi4_data,
+			early_suspend);
+
+	if (rmi4_data->staying_awake)
+		return;
+
+	synaptics_secure_touch_stop(rmi4_data, 0);
+
+	if (rmi4_data->full_pm_cycle)
+		synaptics_rmi4_resume(&(rmi4_data->input_dev->dev));
+
+	if (rmi4_data->sensor_sleep == true) {
+		synaptics_rmi4_sensor_wake(rmi4_data);
+		synaptics_rmi4_irq_enable(rmi4_data, true);
+		retval = synaptics_rmi4_reinit_device(rmi4_data);
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to reinit device\n",
+					__func__);
+		}
+	}
+
+	mutex_lock(&exp_data.mutex);
+	if (!list_empty(&exp_data.list)) {
+		list_for_each_entry(exp_fhandler, &exp_data.list, link)
+			if (exp_fhandler->exp_fn->late_resume != NULL)
+				exp_fhandler->exp_fn->late_resume(rmi4_data);
+	}
+	mutex_unlock(&exp_data.mutex);
+
+	rmi4_data->touch_stopped = false;
+
+	return;
+}
+#endif
 
 #ifdef CONFIG_PM
  /**
@@ -3458,117 +3896,6 @@ static void synaptics_rmi4_sensor_wake(struct synaptics_rmi4_data *rmi4_data)
 	return;
 }
 
-#if defined(CONFIG_FB)
-static int fb_notifier_callback(struct notifier_block *self,
-				unsigned long event, void *data)
-{
-	struct fb_event *evdata = data;
-	int *blank;
-	struct synaptics_rmi4_data *rmi4_data =
-		container_of(self, struct synaptics_rmi4_data, fb_notif);
-
-	if (evdata && evdata->data && event == FB_EVENT_BLANK &&
-		rmi4_data) {
-		blank = evdata->data;
-		if (*blank == FB_BLANK_UNBLANK)
-			synaptics_rmi4_resume(&(rmi4_data->input_dev->dev));
-		else if (*blank == FB_BLANK_POWERDOWN)
-			synaptics_rmi4_suspend(&(rmi4_data->input_dev->dev));
-	}
-
-	return 0;
-}
-#elif defined(CONFIG_HAS_EARLYSUSPEND)
- /**
- * synaptics_rmi4_early_suspend()
- *
- * Called by the kernel during the early suspend phase when the system
- * enters suspend.
- *
- * This function calls synaptics_rmi4_sensor_sleep() to stop finger
- * data acquisition and put the sensor to sleep.
- */
-static void synaptics_rmi4_early_suspend(struct early_suspend *h)
-{
-	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
-	struct synaptics_rmi4_data *rmi4_data =
-			container_of(h, struct synaptics_rmi4_data,
-			early_suspend);
-
-	if (rmi4_data->stay_awake) {
-		rmi4_data->staying_awake = true;
-		return;
-	} else {
-		rmi4_data->staying_awake = false;
-	}
-
-	rmi4_data->touch_stopped = true;
-	synaptics_rmi4_irq_enable(rmi4_data, false);
-	synaptics_rmi4_sensor_sleep(rmi4_data);
-	synaptics_rmi4_free_fingers(rmi4_data);
-
-	mutex_lock(&exp_data.mutex);
-	if (!list_empty(&exp_data.list)) {
-		list_for_each_entry(exp_fhandler, &exp_data.list, link)
-			if (exp_fhandler->exp_fn->early_suspend != NULL)
-				exp_fhandler->exp_fn->early_suspend(rmi4_data);
-	}
-	mutex_unlock(&exp_data.mutex);
-
-	if (rmi4_data->full_pm_cycle)
-		synaptics_rmi4_suspend(&(rmi4_data->input_dev->dev));
-
-	return;
-}
-
- /**
- * synaptics_rmi4_late_resume()
- *
- * Called by the kernel during the late resume phase when the system
- * wakes up from suspend.
- *
- * This function goes through the sensor wake process if the system wakes
- * up from early suspend (without going into suspend).
- */
-static void synaptics_rmi4_late_resume(struct early_suspend *h)
-{
-	int retval;
-	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
-	struct synaptics_rmi4_data *rmi4_data =
-			container_of(h, struct synaptics_rmi4_data,
-			early_suspend);
-
-	if (rmi4_data->staying_awake)
-		return;
-
-	if (rmi4_data->full_pm_cycle)
-		synaptics_rmi4_resume(&(rmi4_data->input_dev->dev));
-
-	if (rmi4_data->sensor_sleep == true) {
-		synaptics_rmi4_sensor_wake(rmi4_data);
-		synaptics_rmi4_irq_enable(rmi4_data, true);
-		retval = synaptics_rmi4_reinit_device(rmi4_data);
-		if (retval < 0) {
-			dev_err(rmi4_data->pdev->dev.parent,
-					"%s: Failed to reinit device\n",
-					__func__);
-		}
-	}
-
-	mutex_lock(&exp_data.mutex);
-	if (!list_empty(&exp_data.list)) {
-		list_for_each_entry(exp_fhandler, &exp_data.list, link)
-			if (exp_fhandler->exp_fn->late_resume != NULL)
-				exp_fhandler->exp_fn->late_resume(rmi4_data);
-	}
-	mutex_unlock(&exp_data.mutex);
-
-	rmi4_data->touch_stopped = false;
-
-	return;
-}
-#endif
-
  /**
  * synaptics_rmi4_suspend()
  *
@@ -3599,6 +3926,8 @@ static int synaptics_rmi4_suspend(struct device *dev)
 		return 0;
 	}
 
+	synaptics_secure_touch_stop(rmi4_data, 1);
+
 	if (!rmi4_data->fw_updating) {
 		if (!rmi4_data->sensor_sleep) {
 			rmi4_data->touch_stopped = true;
@@ -3628,8 +3957,8 @@ static int synaptics_rmi4_suspend(struct device *dev)
 
 	if (bdata->disable_gpios) {
 		if (rmi4_data->ts_pinctrl) {
-			retval = synpatics_dsx_pinctrl_select(rmi4_data,
-								false);
+			retval = pinctrl_select_state(rmi4_data->ts_pinctrl,
+					rmi4_data->pinctrl_state_suspend);
 			if (retval < 0) {
 				dev_err(dev, "Cannot get idle pinctrl state\n");
 				goto err_pinctrl_select_suspend;
@@ -3649,7 +3978,8 @@ static int synaptics_rmi4_suspend(struct device *dev)
 
 err_gpio_configure:
 	if (rmi4_data->ts_pinctrl) {
-		retval = synpatics_dsx_pinctrl_select(rmi4_data, true);
+		retval = pinctrl_select_state(rmi4_data->ts_pinctrl,
+					rmi4_data->pinctrl_state_active);
 		if (retval < 0)
 			dev_err(dev, "Cannot get default pinctrl state\n");
 	}
@@ -3689,11 +4019,14 @@ static int synaptics_rmi4_resume(struct device *dev)
 	if (!rmi4_data->suspended)
 		return 0;
 
+	synaptics_secure_touch_stop(rmi4_data, 1);
+
 	synaptics_dsx_regulator_enable(rmi4_data, true);
 
 	if (bdata->disable_gpios) {
 		if (rmi4_data->ts_pinctrl) {
-			retval = synpatics_dsx_pinctrl_select(rmi4_data, true);
+			retval = pinctrl_select_state(rmi4_data->ts_pinctrl,
+					rmi4_data->pinctrl_state_active);
 			if (retval < 0)
 				dev_err(dev, "Cannot get default pinctrl state\n");
 		}
@@ -3729,8 +4062,10 @@ static int synaptics_rmi4_resume(struct device *dev)
 }
 
 static const struct dev_pm_ops synaptics_rmi4_dev_pm_ops = {
+#if (!defined(CONFIG_FB) && !defined(CONFIG_HAS_EARLYSUSPEND))
 	.suspend = synaptics_rmi4_suspend,
 	.resume  = synaptics_rmi4_resume,
+#endif
 };
 #else
 static int synaptics_rmi4_suspend(struct device *dev)

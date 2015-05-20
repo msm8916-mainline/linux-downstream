@@ -504,12 +504,7 @@ int disable_nonboot_cpus(void)
 	int cpu, first_cpu, error = 0;
 
 	cpu_maps_update_begin();
-#ifdef CONFIG_ARCH_MSM8939
-	/* make LITTLE cpu0 first_cpu */
-	first_cpu = 4;
-#else
 	first_cpu = cpumask_first(cpu_online_mask);
-#endif
 	/*
 	 * We take down all of the non-boot CPUs in one shot to avoid races
 	 * with the userspace trying to use the CPU hotplug at the same time

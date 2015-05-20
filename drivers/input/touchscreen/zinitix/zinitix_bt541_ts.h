@@ -25,22 +25,13 @@
 
 #include <linux/input/tsp_ta_callback.h>
 
-
-#ifdef CONFIG_CPU_FREQ_LIMIT_USERSPACE
-#include <linux/cpufreq.h>
-
-#define TOUCH_BOOSTER_DVFS
-
-#define DVFS_STAGE_TRIPLE       3
-#define DVFS_STAGE_DUAL         2
-#define DVFS_STAGE_SINGLE       1
-#define DVFS_STAGE_NONE         0
-#endif
-
+#if defined(CONFIG_SEC_A3_PROJECT) || defined(CONFIG_SEC_A3_EUR_PROJECT) || defined(CONFIG_SEC_A33G_EUR_PROJECT)
 #include "a3c_fw.h"
-#define CONFIG_DATE "1024"
-
+#define CONFIG_DATE "1124"
 #define TSP_TYPE_COUNT	1
+
+/* #define GLOVE_MODE */
+#define SUPPORTED_PALM_TOUCH
 
  /*Test Mode (Monitoring Raw Data) */
 #define SEC_DND_N_COUNT			2
@@ -49,12 +40,26 @@
 #define SEC_PDND_N_COUNT		16
 #define SEC_PDND_U_COUNT		32
 #define SEC_PDND_FREQUENCY		44
-#ifdef TOUCH_BOOSTER_DVFS
-#define TOUCH_BOOSTER_OFF_TIME	300
-#define TOUCH_BOOSTER_CHG_TIME	200
+
+#else /* fortuna */
+#include "fortuna_fw_hwid_01.h"
+#include "fortuna_fw_hwid_02.h"
+#define CONFIG_DATE "0401"
+#define TSP_TYPE_COUNT	2
+#define SUPPORTED_TOUCH_KEY
+#define CHECK_HWID
+#define TOUCH_POINT_FLAG
+#undef USE_I2C_CHECKSUM
+
+ /*Test Mode (Monitoring Raw Data) */
+#define SEC_DND_N_COUNT			10
+#define SEC_DND_U_COUNT			2
+#define SEC_DND_FREQUENCY		99 /* 200khz */
+#define SEC_PDND_N_COUNT		14
+#define SEC_PDND_U_COUNT		6
+#define SEC_PDND_FREQUENCY		79
 #endif
 
-#define SUPPORTED_PALM_TOUCH
 
 #define zinitix_debug_msg(fmt, args...) \
 	do { \

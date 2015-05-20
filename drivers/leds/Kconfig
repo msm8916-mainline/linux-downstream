@@ -17,12 +17,27 @@ menuconfig NEW_LEDS
 if NEW_LEDS
 
 config LEDS_CLASS
-	bool "LED Class Support"
+	tristate "LED Class Support"
 	help
 	  This option enables the led sysfs class in /sys/class/leds.  You'll
 	  need this to do anything useful with LEDs.  If unsure, say N.
 
 comment "LED drivers"
+
+config FLED_SM5701
+	tristate "SiliconMitus SM5701 flash LED driver"
+	depends on MFD_SM5701
+	help
+	  A driver for SiliconMitus SM5701 flash LED
+
+config LEDS_KTD2026
+	tristate "LED driver for KTD2026 LED"
+	depends on I2C
+	  help
+	  This option enables support for RGB LED driver
+	  accessed via the I2C bus.
+	  KTD2026 is a fully programmable, constant current
+	  three channel LED driver with flexible control interface.
 
 config LEDS_88PM860X
 	tristate "LED Support for Marvell 88PM860x PMIC"
@@ -297,6 +312,26 @@ config LEDS_QPNP
 	  To compile this driver as a module, choose M here: the module will
 	  be called leds-qpnp.
 
+config LEDS_QPNP_FLASH
+	tristate "Support for QPNP Flash LEDs"
+	depends on SPMI && OF_SPMI
+	help
+	  This driver supports the leds functionality of Qualcomm Technologies
+	  PNP PMIC.  It includes Flash Led.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called leds-qpnp-flash.
+
+config LEDS_QPNP_WLED
+	tristate "Support for QPNP WLED"
+	depends on SPMI && OF_SPMI
+	help
+	  This driver supports the WLED (White LED) functionality of
+	  Qualcomm Technologies PNP PMIC. WLED is used for display backlight.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called leds-qpnp-wled.
+
 config LEDS_MSM_GPIO_FLASH
 	tristate "Support for GPIO Flash LEDs"
 	help
@@ -529,20 +564,11 @@ config FLED_RT5033_I2C
 
 config FLED_RT5033_EXT_GPIO
 	bool "External(or ISP) GPIO"
-	  help
+	help
 	  Use GPIO pins to enable/disable torch and flash light.
 	  If unsure, say N.
 
-endchoice
-
-config LEDS_KTD2026
-	tristate "LED driver for KTD2026 LED"
-	depends on I2C
-	  help
-	  This option enables support for RGB LED driver
-	  accessed via the I2C bus.
-	  KTD2026 is a fully programmable, constant current
-	  three channel LED driver with flexible control interface.
+endchoice	 
 
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"

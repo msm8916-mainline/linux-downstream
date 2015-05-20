@@ -47,14 +47,14 @@ __stringify(CY_DRIVER_NAME)		    \
 "." __stringify(CY_DRIVER_MINOR)	    \
 "." __stringify(CY_DRIVER_REVCTRL)
 
-#define CY_DRIVER_DATE "20141119"	/* YYYYMMDD */
+#define CY_DRIVER_DATE "20141210"	/* YYYYMMDD */
 
 /* abs settings */
 #define CY_IGNORE_VALUE             0xFFFF
 
 /* FW VERSION */
 #define CY_HW_VERSION 0x01
-#define CY_FW_VERSION 0x0600
+#define CY_FW_VERSION 0x0e00
 
 enum cyttsp5_core_platform_flags {
 	CY_CORE_FLAG_NONE,

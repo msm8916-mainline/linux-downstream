@@ -47,15 +47,25 @@ struct sec_jack_platform_data {
 	bool	send_end_active_high;
 	struct qpnp_vadc_chip		*vadc_dev;
 	struct sec_jack_zone jack_zones[4];
-	struct sec_jack_buttons_zone jack_buttons_zones[3];
+	struct sec_jack_buttons_zone jack_buttons_zones[4];
 	int mpp_ch_scale[3];
 	struct pinctrl *jack_pinctrl;
+	int btn_adc_read_count;
 };
 
 #if defined (SEC_USE_SOC_JACK_API)
 #define SEC_JACK_BUTTON_MASK (SND_JACK_BTN_0 | SND_JACK_BTN_1 | SND_JACK_BTN_2)
 extern int sec_jack_soc_init(struct snd_soc_card *card);
 #endif
+
+#ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
+#define MIC_BIAS_V2P20V		0
+#define MIC_BIAS_V2P80V		1
+/* Dynamic Control Ear Mic Bias of WCD Codec */
+extern void msm8x16_wcd_dynamic_control_micbias(int voltage);
+extern int is_mic_enable(void);
+#endif
+
 #endif
 
 #endif

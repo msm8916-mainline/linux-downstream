@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,9 +23,10 @@
 			avdd-supply = <&pm8916_l17>;
 			vdd-supply = <&pm8916_l6>;
 			/* pins used by touchscreen */
-			pinctrl-names = "pmx_ts_active","pmx_ts_suspend";
+			pinctrl-names = "pmx_ts_active","pmx_ts_suspend","pmx_ts_suspend";
 			pinctrl-0 = <&ts_int_active &ts_reset_active>;
 			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+			pinctrl-2 = <&ts_release>;
 			synaptics,irq-gpio = <&msm_gpio 13 0x2008>;
 			synaptics,reset-gpio = <&msm_gpio 12 0x0>;
 			synaptics,i2c-pull-up;
@@ -33,6 +34,10 @@
 			synaptics,disable-gpios;
 			synaptics,display-coords = <0 0 1079 1919>;
 			synaptics,panel-coords = <0 0 1079 2084>;
+			/* Underlying clocks used by secure touch */
+			clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp1_qup5_i2c_apps_clk>;
+			clock-names = "iface_clk", "core_clk";
 		};
 	};
 
@@ -107,12 +112,13 @@
 			pinctrl-0 = <&mpu6050_default>;
 			pinctrl-1 = <&mpu6050_sleep>;
 			interrupt-parent = <&msm_gpio>;
-			interrupts = <115 0x2>;
+			interrupts = <115 0x1>;
 			vdd-supply = <&pm8916_l17>;
 			vlogic-supply = <&pm8916_l16>;
 			vi2c-supply = <&pm8916_l6>;
-			invn,gpio-int = <&msm_gpio 115 0x2>;
+			invn,gpio-int = <&msm_gpio 115 0x1>;
 			invn,place = "Portrait Down Back Side";
+			invn,use-interrupt;
 		};
 
 		avago@39 { /* Ambient light and proximity sensor */
@@ -130,10 +136,10 @@
 			avago,ps-hysteresis-threshold = <500>;
 			avago,ps-pulse = <8>;
 			avago,ps-pgain = <0>;
-			avago,als-B = <223>;
-			avago,als-C = <70>;
-			avago,als-D = <142>;
-			avago,ga-value = <48>;
+			avago,als-B = <186>;
+			avago,als-C = <75>;
+			avago,als-D = <129>;
+			avago,ga-value = <560>;
 		};
 
 		akm@c {
@@ -284,6 +290,7 @@
 };
 
 #include "dsi-panel-jdi-1080p-video.dtsi"
+#include "dsi-panel-hx8394d-720p-video.dtsi"
 
 &mdss_mdp {
 	qcom,mdss-pref-prim-intf = "dsi";
@@ -297,6 +304,14 @@
 	qcom,cont-splash-enabled;
 	qcom,mdss-dsi-pan-enable-dynamic-fps;
 	qcom,mdss-dsi-pan-fps-update = "dfps_immediate_porch_mode";
+};
+
+&dsi_hx8394d_720_vid {
+        qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+        qcom,mdss-dsi-bl-pmic-pwm-frequency = <100>;
+        qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+        qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
+        qcom,cont-splash-enabled;
 };
 
 &pmx_mdss {

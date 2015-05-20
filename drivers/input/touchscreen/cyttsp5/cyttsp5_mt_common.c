@@ -36,14 +36,22 @@ static void change_dvfs_lock(struct work_struct *work)
 	struct cyttsp5_mt_data *md = container_of(work,struct cyttsp5_mt_data, work_dvfs_chg.work);
 	int ret = 0;
 	mutex_lock(&md->dvfs_lock);
+	switch (md->boost_level) {
 
-	if (md->boost_level == DVFS_STAGE_DUAL) {
-		ret = set_freq_limit(DVFS_TOUCH_ID, MIN_TOUCH_LIMIT_SECOND);
-		md->dvfs_freq = MIN_TOUCH_LIMIT_SECOND;
-	} else if (md->boost_level == DVFS_STAGE_SINGLE) {
+	case DVFS_STAGE_SINGLE:
 		ret = set_freq_limit(DVFS_TOUCH_ID, -1);
 		md->dvfs_freq = -1;
+		break;
+
+	case DVFS_STAGE_DUAL:
+	case DVFS_STAGE_TRIPLE:
+
+		ret = set_freq_limit(DVFS_TOUCH_ID, MIN_TOUCH_LIMIT_SECOND);
+		md->dvfs_freq = MIN_TOUCH_LIMIT_SECOND;
+
+		break;
 	}
+	
 	if (ret < 0)
 		printk(KERN_ERR "[TSP] %s: booster stop failed(%d)\n",\
 					__func__, __LINE__);
@@ -56,10 +64,13 @@ static void set_dvfs_off(struct work_struct *work)
 	struct cyttsp5_mt_data *md = container_of(work,struct cyttsp5_mt_data, work_dvfs_off.work);
 	int ret;
 	mutex_lock(&md->dvfs_lock);
-	ret = set_freq_limit(DVFS_TOUCH_ID, -1);
-	if (ret < 0)
-		printk(KERN_ERR "[TSP] %s: booster stop failed(%d)\n",\
-					__func__, __LINE__);
+
+	if (md->dvfs_freq != -1) {
+		ret = set_freq_limit(DVFS_TOUCH_ID, -1);
+		if (ret < 0)
+			printk(KERN_ERR "[TSP] %s: booster stop failed(%d)\n",\
+						__func__, __LINE__);
+	}
 	md->dvfs_freq = -1;
 	md->dvfs_lock_status = false;
 	mutex_unlock(&md->dvfs_lock);
@@ -69,7 +80,6 @@ static void set_dvfs_lock(struct cyttsp5_mt_data *md, int32_t on, bool mode)
 {
 
 	int ret = 0;
-
 	if (md->boost_level == DVFS_STAGE_NONE) {
 		printk(KERN_INFO "%s: DVFS stage is none(%d)\n", __func__, md->boost_level);
 		return;
@@ -85,21 +95,42 @@ static void set_dvfs_lock(struct cyttsp5_mt_data *md, int32_t on, bool mode)
 		if (!md->dvfs_lock_status || mode) {
 			if (md->dvfs_old_status != on) {
 				cancel_delayed_work(&md->work_dvfs_chg);
+
+				switch (md->boost_level ) {
+
+				case DVFS_STAGE_SINGLE:
+				case DVFS_STAGE_TRIPLE:
+					
+					if (md->dvfs_freq != MIN_TOUCH_LIMIT_SECOND) {
+						ret = set_freq_limit(DVFS_TOUCH_ID,
+								MIN_TOUCH_LIMIT_SECOND);
+						md->dvfs_freq = MIN_TOUCH_LIMIT_SECOND;
+					}	
+					schedule_delayed_work(&md->work_dvfs_chg,
+						msecs_to_jiffies(TOUCH_BOOSTER_CHG_TIME));
+					break;
+					
+				case DVFS_STAGE_DUAL:
+					
 					if (md->dvfs_freq != MIN_TOUCH_LIMIT) {
 						ret = set_freq_limit(DVFS_TOUCH_ID,
 								MIN_TOUCH_LIMIT);
 						md->dvfs_freq = MIN_TOUCH_LIMIT;
-
-						if (ret < 0)
-							printk(KERN_ERR
-								"%s: cpu first lock failed(%d)\n",
-								__func__, ret);
-
-				schedule_delayed_work(&md->work_dvfs_chg,
-					msecs_to_jiffies(TOUCH_BOOSTER_CHG_TIME));
-
-					md->dvfs_lock_status = true;
+					}
+					schedule_delayed_work(&md->work_dvfs_chg,
+						msecs_to_jiffies(TOUCH_BOOSTER_CHG_TIME));
+					break;
+					
 				}
+
+				if (ret < 0) {
+					printk(KERN_ERR
+						"%s: cpu first lock failed(%d)\n",
+						__func__, ret);
+				}
+						
+				md->dvfs_lock_status = true;
+				
 			}
 		}
 	} else if (on == 2) {
@@ -125,7 +156,7 @@ static void cyttsp5_final_sync(struct input_dev *input, int max_slots,
 	for (t = 0; t < max_slots; t++) {
 		if (test_bit(t, ids)) {
 			input_mt_slot(input, t);
-			input_report_abs(input, ABS_MT_SUMSIZE, sumsize);
+			/* input_report_abs(input, ABS_MT_SUMSIZE, sumsize); */
 			input_report_abs(input, ABS_MT_PALM, palm);
 			dev_vdbg(input->dev.parent,
 				"%s:t=%d sumsize=%d palm=%d\n", __func__,
@@ -334,7 +365,7 @@ static inline void print_log(struct device *dev,
 	if (tch->abs[CY_TCH_E] == CY_EV_LIFTOFF)
 		dev_dbg(dev, "%s: t=%d e=%d lift-off\n",
 			__func__, t, tch->abs[CY_TCH_E]);
-	dev_dbg(dev,
+	dev_err(dev,
 		"%s: t=%d x=%d y=%d z=%d M=%d m=%d o=%d e=%d obj=%d tip=%d\n",
 		__func__, t,
 		tch->abs[CY_TCH_X],
@@ -486,6 +517,13 @@ static void inline scale_maj_min(struct cyttsp5_mt_data *md,
 
 	*value *= 17;
 	*value /= 10;
+
+	if (sig == ABS_MT_TOUCH_MAJOR)
+		*value -= ((*value) / 10);
+	else {
+		*value *= 11;
+		*value /= 10;
+	}
 
 	if (*value > 255)
 		*value = 255;
@@ -907,6 +945,8 @@ static void cyttsp5_mt_close(struct input_dev *input)
 
 	/* pm_runtime_put(dev); */
 	cyttsp5_core_suspend(dev);
+
+	cyttsp5_mt_lift_all(md);
 }
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -1026,8 +1066,8 @@ static int cyttsp5_setup_input_device(struct device *dev)
 		min = 0, max = 1, 0, 0);
 	dev_dbg(dev, "%s: register signal=%02X min=%d max=%d\n",
 				__func__, signal, min, max);
-	input_set_abs_params(md->input, signal = ABS_MT_SUMSIZE,
-		min = 0, max = 255, 0, 0);
+	/* input_set_abs_params(md->input, signal = ABS_MT_SUMSIZE,
+		min = 0, max = 255, 0, 0); */
 	dev_dbg(dev, "%s: register signal=%02X min=%d max=%d\n",
 				__func__, signal, min, max);
 #endif

@@ -38,10 +38,8 @@
     printk(KERN_ERR "%s:%s() line-%d: " format, \
             ALIAS_NAME, __FUNCTION__, __LINE__, ## args)
 
-#if defined(CONFIG_SEC_A5_PROJECT) || defined(CONFIG_SEC_A7_PROJECT)
 #define FLED_PINCTRL_STATE_DEFAULT "fled_default"
 #define FLED_PINCTRL_STATE_SLEEP "fled_sleep"
-#endif
 
 
 #define RT5033_FLED_PIN_CTRL (1<<4)
@@ -90,27 +88,13 @@ static int rt5033_set_fled_osc_en(struct i2c_client *iic, int en)
     return (en?rt5033_set_bits:rt5033_clr_bits)(iic, 0x1a, (1 << 5));
 }
 
-#if 1 //LED
 static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
                          const char *buf, size_t count)
 {
-	int i, nValue=0;
-#if defined(CONFIG_FLED_RT5033)
-	rt_fled_info_t *fled_info = NULL;
-#if defined(CONFIG_RT_FLASH_LED)
-	fled_info = rt_fled_get_info_by_name(NULL);
-#endif
-#endif
+	int sel = 0;
+	rt_fled_info_t *fled_info = rt_fled_get_info_by_name(NULL);
 
-	for(i=0; i<count; i++) {
-		if(buf[i]<'0' || buf[i]>'9')
-			break;
-		nValue = nValue*10 + (buf[i]-'0');
-	}
-
-	switch(nValue) {
-	case 0:
-		rear_flash_status = 0;
+	if(!strncmp(buf, "0", 1)){
 		assistive_light = false;
 		pr_err("Torch Low\n");
 		gpio_request(led_irq_gpio1, NULL);
@@ -119,33 +103,23 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 		gpio_direction_output(led_irq_gpio2, 0);
 		gpio_free(led_irq_gpio1);
 		gpio_free(led_irq_gpio2);
-		break;
-	case 1:
+	} else if(!strncmp(buf, "100", 3)){
+		pr_err("Torch Factory\n");
+		gpio_request(led_irq_gpio1, NULL);
+		gpio_direction_output(led_irq_gpio1, 1);
+		gpio_free(led_irq_gpio1);
+		if (fled_info)
+			sel = rt5033_fled_set_torch_current_sel(fled_info, 7);
+	} else if(!strncmp(buf, "1", 1)){
 		assistive_light = true;
-		rear_flash_status = 1;
-		pr_err("Torch HIGH : led_irq_gpio1(%d)_irq_gpio2(%d)\n", led_irq_gpio1, led_irq_gpio2);
-#if defined(CONFIG_FLED_RT5033)
+		pr_err("Torch HIGH\n");
 		if (fled_info)
-			rt5033_fled_set_torch_current_sel(fled_info, 2);
-#endif
+			sel = rt5033_fled_set_torch_current_sel(fled_info, 2);
 		gpio_request(led_irq_gpio1, NULL);
 		gpio_direction_output(led_irq_gpio1, 1);
 		gpio_free(led_irq_gpio1);
-		break;
-	case 100:
-		pr_err("Torch Factory : led_irq_gpio1(%d)_irq_gpio2(%d)\n", led_irq_gpio1, led_irq_gpio2);
-		gpio_request(led_irq_gpio1, NULL);
-		gpio_direction_output(led_irq_gpio1, 1);
-		gpio_free(led_irq_gpio1);
-#if defined(CONFIG_FLED_RT5033)
-		if (fled_info)
-			rt5033_fled_set_torch_current_sel(fled_info, 7);
-#endif
-		break;
-	default:
-		pr_err("%s : Input value is %d.\n It should be among '0','1',and'100'\n", __func__, nValue);
-		pr_err("No Torch : led_irq_gpio1(%d)_irq_gpio2(%d)\n", led_irq_gpio1, led_irq_gpio2);
-		break;
+	} else { //'8' is not setted.
+		pr_err("No Torch\n");
 	}
 
 	return count;
@@ -177,7 +151,6 @@ int create_flash_sysfs(void)
     }
     return 0;
 }
-#endif
 
 #ifdef CONFIG_CHARGER_RT5033
 extern int rt5033_chg_fled_init(struct i2c_client *client);
@@ -958,8 +931,8 @@ static int rt5033_fled_probe(struct platform_device *pdev)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
 	if (pdev->dev.parent->of_node) {
 		pdev->dev.of_node = of_find_compatible_node(
-					    of_node_get(pdev->dev.parent->of_node), NULL,
-					    rt5033_fled_match_table[0].compatible);
+				of_node_get(pdev->dev.parent->of_node), NULL,
+				rt5033_fled_match_table[0].compatible);
 	}
 #endif
 #endif
@@ -1005,55 +978,49 @@ static int rt5033_fled_probe(struct platform_device *pdev)
 
 	}
 
-#if 1 //LED
 	led_irq_gpio1 = of_get_named_gpio(pdev->dev.of_node, "rt5033,led1-gpio", 0);
-		pr_err("led1-gpio:%d\n", led_irq_gpio1);
+	pr_err("led1-gpio:%d\n", led_irq_gpio1);
 	if (led_irq_gpio1 < 0) {
 		pr_err("can't get led1-gpio\n");
 		return -EINVAL;
 	}
 
 	led_irq_gpio2 = of_get_named_gpio(pdev->dev.of_node, "rt5033,led2-gpio", 0);
-		pr_err("led2-gpio:%d\n", led_irq_gpio2);
+	pr_err("led2-gpio:%d\n", led_irq_gpio2);
 	if (led_irq_gpio2 < 0) {
 		pr_err("can't get led2-gpio\n");
 		return -EINVAL;
-    }
-    /* Create Samsung Flash Sysfs */
-    create_flash_sysfs();
-#endif
+	}
+	/* Create Samsung Flash Sysfs */
+	create_flash_sysfs();
 
-#if defined(CONFIG_SEC_A5_PROJECT) || defined(CONFIG_SEC_A7_PROJECT)
-		pdata->fled_pinctrl = devm_pinctrl_get(&pdev->dev);
-		if (IS_ERR_OR_NULL(pdata->fled_pinctrl)) {
-			pr_err("%s:%d Getting pinctrl handle failed\n",
-					__func__, __LINE__);
-			return -EINVAL;
-		}
+	pdata->fled_pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR_OR_NULL(pdata->fled_pinctrl)) {
+		pr_err("%s:%d Getting pinctrl handle failed\n",
+				__func__, __LINE__);
+		return -EINVAL;
+	}
 
-		pdata->gpio_state_active = pinctrl_lookup_state(pdata->fled_pinctrl, FLED_PINCTRL_STATE_DEFAULT);
-		if (IS_ERR_OR_NULL(pdata->gpio_state_active)) {
-			pr_err("%s:%d Failed to get the active state pinctrl handle\n",
-					__func__, __LINE__);
-			return -EINVAL;
-		}
+	pdata->gpio_state_active = pinctrl_lookup_state(pdata->fled_pinctrl, FLED_PINCTRL_STATE_DEFAULT);
+	if (IS_ERR_OR_NULL(pdata->gpio_state_active)) {
+		pr_err("%s:%d Failed to get the active state pinctrl handle\n",
+				__func__, __LINE__);
+		return -EINVAL;
+	}
 
-		pdata->gpio_state_suspend = pinctrl_lookup_state(pdata->fled_pinctrl, FLED_PINCTRL_STATE_SLEEP);
-		if (IS_ERR_OR_NULL(pdata->gpio_state_suspend)) {
-			pr_err("%s:%d Failed to get the active state pinctrl handle\n",
-					__func__, __LINE__);
-			return -EINVAL;
-		}
+	pdata->gpio_state_suspend = pinctrl_lookup_state(pdata->fled_pinctrl, FLED_PINCTRL_STATE_SLEEP);
+	if (IS_ERR_OR_NULL(pdata->gpio_state_suspend)) {
+		pr_err("%s:%d Failed to get the active state pinctrl handle\n",
+				__func__, __LINE__);
+		return -EINVAL;
+	}
 
-		ret = pinctrl_select_state(pdata->fled_pinctrl, pdata->gpio_state_suspend);
-		if (ret) {
-			pr_err("%s:%d cannot set pin to active state", __func__, __LINE__);
-			return ret;
-		}
-#endif
-
-
-    pr_err("%s End : X\n", __func__);
+	ret = pinctrl_select_state(pdata->fled_pinctrl, pdata->gpio_state_suspend);
+	if (ret) {
+		pr_err("%s:%d cannot set pin to active state", __func__, __LINE__);
+		return ret;
+	}
+	pr_err("%s End : X\n", __func__);
 
 	return 0;
 err_register_irq:

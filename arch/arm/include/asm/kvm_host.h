@@ -31,7 +31,7 @@
 #define KVM_COALESCED_MMIO_PAGE_OFFSET 1
 #define KVM_HAVE_ONE_REG
 
-#define KVM_VCPU_MAX_FEATURES 1
+#define KVM_VCPU_MAX_FEATURES 2
 
 /* We don't currently support large pages. */
 #define KVM_HPAGE_GFN_SHIFT(x)	0
@@ -223,5 +223,8 @@ static inline int kvm_arch_dev_ioctl_check_extension(long ext)
 
 int kvm_perf_init(void);
 int kvm_perf_teardown(void);
+
+u64 kvm_arm_timer_get_reg(struct kvm_vcpu *, u64 regid);
+int kvm_arm_timer_set_reg(struct kvm_vcpu *, u64 regid, u64 value);
 
 #endif /* __ARM_KVM_HOST_H__ */

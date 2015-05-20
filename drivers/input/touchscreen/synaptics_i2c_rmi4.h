@@ -35,6 +35,11 @@
 #include <linux/earlysuspend.h>
 #endif
 #include <linux/debugfs.h>
+#if defined(CONFIG_SECURE_TOUCH)
+#include <linux/completion.h>
+#include <linux/atomic.h>
+#include <linux/clk.h>
+#endif
 
 #define PDT_PROPS (0x00EF)
 #define PDT_START (0x00E9)
@@ -273,6 +278,15 @@ struct synaptics_rmi4_data {
 	struct pinctrl_state *pinctrl_state_active;
 	struct pinctrl_state *pinctrl_state_suspend;
 	struct pinctrl_state *pinctrl_state_release;
+#if defined(CONFIG_SECURE_TOUCH)
+	atomic_t st_enabled;
+	atomic_t st_pending_irqs;
+	bool st_initialized;
+	struct completion st_powerdown;
+	struct completion st_irq_processed;
+	struct clk *core_clk;
+	struct clk *iface_clk;
+#endif
 };
 
 enum exp_fn {

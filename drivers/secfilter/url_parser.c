@@ -136,7 +136,11 @@ tcp_TrackInfo*  isURL( struct sk_buff *skb)
         struct skb_shared_info *shinfo = skb_shinfo(skb);                                               // Get info about fragmented data
         if (shinfo != NULL)
         {
-            void *frag_addr = page_address(shinfo->frags[0].page.p) + shinfo->frags[0].page_offset;     // Get just first fragment
+#ifdef _SKB_FRAG_STRUCT_CHANGED
+            void *frag_addr = page_address(shinfo->frags[0].page) + shinfo->frags[0].page_offset;     // Get just first fragment
+#else
+            void *frag_addr = page_address(shinfo->frags[0].page.p) + shinfo->frags[0].page_offset;
+#endif
             if (frag_addr != NULL)
             {
                 request = (char *)frag_addr;                                                            // Get data of the fragment
@@ -187,7 +191,11 @@ char * getPacketData( struct sk_buff *skb, tcp_TrackInfo *node)
                 struct skb_shared_info  *shinfo = skb_shinfo(skb);                                                  // Get fragmented info.
                 for ( i = 0 ; i < shinfo->nr_frags ; i++)                                                           // Get every fragment
                 {
-                    void *frag_addr = page_address(shinfo->frags[i].page.p) + shinfo->frags[i].page_offset;         // Get data from fragment
+#ifdef _SKB_FRAG_STRUCT_CHANGED
+                    void *frag_addr = page_address(shinfo->frags[i].page) + shinfo->frags[i].page_offset;         // Get data from fragment
+#else
+                    void *frag_addr = page_address(shinfo->frags[i].page.p) + shinfo->frags[i].page_offset; 
+#endif
                     if (frag_addr != NULL)
                     {
                         memcpy((void *)&result[index], (void *)frag_addr, shinfo->frags[i].size);                   // Copy each fragment data into buffer

@@ -44,6 +44,7 @@ struct gpio_input_state {
 	struct hrtimer timer;
 	int use_irq;
 	int debounce_count;
+	int is_removing;
 	spinlock_t irq_lock;
 	struct wakeup_source *ws;
 	struct gpio_key_state key_state[0];
@@ -71,6 +72,9 @@ static enum hrtimer_restart gpio_event_input_timer_func(struct hrtimer *timer)
 		pr_info("gpio_read_detect_status %d %d\n", key_entry->gpio,
 			gpio_read_detect_status(key_entry->gpio));
 #endif
+	if (ds->is_removing)
+		return HRTIMER_NORESTART;
+
 	key_entry = ds->info->keymap;
 	key_state = ds->key_state;
 	sync_needed = false;
@@ -148,9 +152,9 @@ static enum hrtimer_restart gpio_event_input_timer_func(struct hrtimer *timer)
 	}
 #endif
 
-	if (ds->debounce_count)
+	if (ds->debounce_count && !ds->is_removing)
 		hrtimer_start(timer, ds->info->debounce_time, HRTIMER_MODE_REL);
-	else if (!ds->use_irq)
+	else if (!ds->use_irq && !ds->is_removing)
 		hrtimer_start(timer, ds->info->poll_time, HRTIMER_MODE_REL);
 	else
 		__pm_relax(ds->ws);
@@ -169,7 +173,7 @@ static irqreturn_t gpio_event_input_irq_handler(int irq, void *dev_id)
 	unsigned long irqflags;
 	int pressed;
 
-	if (!ds->use_irq)
+	if (!ds->use_irq || ds->is_removing)
 		return IRQ_HANDLED;
 
 	key_entry = &ds->info->keymap[keymap_index];
@@ -349,6 +353,7 @@ int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
 
 		spin_lock_irqsave(&ds->irq_lock, irqflags);
 		ds->use_irq = ret == 0;
+		ds->is_removing = 0;
 
 		pr_info("GPIO Input Driver: Start gpio inputs for %s%s in %s "
 			"mode\n", input_devs->dev[0]->name,
@@ -363,8 +368,10 @@ int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
 	}
 
 	ret = 0;
+	ds->is_removing = 1;
 	spin_lock_irqsave(&ds->irq_lock, irqflags);
 	hrtimer_cancel(&ds->timer);
+	spin_unlock_irqrestore(&ds->irq_lock, irqflags);
 	if (ds->use_irq) {
 		for (i = di->keymap_size - 1; i >= 0; i--) {
 			int irq = gpio_to_irq(di->keymap[i].gpio);
@@ -373,7 +380,6 @@ int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
 			free_irq(irq, &ds->key_state[i]);
 		}
 	}
-	spin_unlock_irqrestore(&ds->irq_lock, irqflags);
 
 	for (i = di->keymap_size - 1; i >= 0; i--) {
 err_gpio_configure_failed:

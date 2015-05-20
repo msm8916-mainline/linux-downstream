@@ -101,6 +101,10 @@ ifneq ($(TIMA_DEFCONFIG),)
 export KCONFIG_TIMA := arch/$(SRCARCH)/configs/$(TIMA_DEFCONFIG)
 endif
 
+ifneq ($(DMVERITY_DEFCONFIG),)
+export KCONFIG_DMVERITY := arch/$(SRCARCH)/configs/$(DMVERITY_DEFCONFIG)
+endif
+
 
 listnewconfig olddefconfig: $(obj)/conf
 	$< --$@ $(Kconfig)

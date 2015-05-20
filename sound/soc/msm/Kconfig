@@ -93,6 +93,25 @@ config DOLBY_DAP
 	 device, end point dependent post processing parameters and
 	 the various posrt processing parameters
 
+config DTS_EAGLE
+	bool "Enable DTS Eagle Support"
+	depends on SND_SOC_MSM_QDSP6V2_INTF
+	help
+	 To add DTS Eagle support on QDSP6 targets.
+	 Eagle is a DTS pre/post processing
+	 package that includes HeadphoneX. The configuration
+	 includes sending tuning parameters of various modules.
+
+config DOLBY_DS2
+	bool "Enable Dolby DS2"
+	depends on SND_SOC_MSM_QDSP6V2_INTF
+	help
+	 To add support for dolby DAP post processing.
+	 This support is to configure the post processing parameters
+	 to DSP. The configuration includes sending the end point
+	 device, end point dependent post processing parameters and
+	 the various posrt processing parameters
+
 config DTS_SRS_TM
 	bool "Enable DTS SRS"
 	depends on SND_SOC_MSM_QDSP6V2_INTF
@@ -111,6 +130,16 @@ config QTI_PP
 	 parameters to DSP. The configuration includes sending
 	 tuning parameters of various modules such as equalizer,
 	 customized mixing.
+
+config SND_SOC_CPE
+	tristate "CPE drivers"
+	depends on SND_SOC_WCD_CPE
+	help
+	 To add support for Codec Processing Engine. This support
+	 is to enable CPE block on the codec and this config needs
+	 to be added to codecs that contain the CPE hardware block.
+	 The configuration includes the cpe lsm driver to enable
+	 listen on codec.
 
 config SND_SOC_MSM8974
 	tristate "SoC Machine driver for MSM8974 boards"
@@ -161,6 +190,7 @@ config SND_SOC_MSM8226
 	select DOLBY_DAP
 	select DTS_SRS_TM
 	select QTI_PP
+	select SND_HWDEP
 	help
 	 To add support for SoC audio on MSM8226.
 	 This will enable sound soc drivers which
@@ -199,22 +229,6 @@ config SND_SOC_MSM8660_APQ
         help
          To add support for SoC audio on APQ8060 board
 
-config SND_SOC_MPQ8092
-	tristate "SoC Machine driver for MPQ8092 boards"
-	depends on ARCH_MPQ8092
-	select SND_SOC_QDSP6V2
-	select SND_SOC_MSM_STUB
-	select SND_SOC_MSM_HOSTLESS_PCM
-	select SND_SOC_WCD9310
-	select SND_SOC_MSM_HDMI_CODEC_RX
-	select SND_DYNAMIC_MINORS
-	help
-	 To add support for SoC audio on MPQ8092.
-	 This will enable sound soc drivers which
-	 interfaces with DSP, also it will enable
-	 the machine drivers and the corresponding
-	 DAI-links.
-
 config SND_SOC_APQ8084
 	tristate "SoC Machine driver for APQ8084 boards"
 	depends on ARCH_APQ8084
@@ -228,25 +242,15 @@ config SND_SOC_APQ8084
 	select DOLBY_DAP
 	select DTS_SRS_TM
 	select QTI_PP
+	select SND_SOC_CPE
+	select DOLBY_DS2
+	select SND_HWDEP
 	help
 	 To add support for SoC audio on APQ8084.
 	 This will enable sound soc drivers which
 	 interfaces with DSP, also it will enable
 	 the machine drivers and the corresponding
 	 DAI-links.
-
-config SND_SOC_MSMSAMARIUM
-	tristate "SoC Machine driver for MSMSAMARIUM boards"
-	depends on ARCH_MSMSAMARIUM
-	select SND_SOC_QDSP6V2
-	select SND_SOC_MSM_STUB
-	select SND_SOC_MSM_HOSTLESS_PCM
-	select SND_SOC_WCD9306
-	select SND_DYNAMIC_MINORS
-	select AUDIO_OCMEM
-	select DOLBY_DAP
-	help
-	 To add support for SoC audio on MSMSAMARIUM.
 
 config SND_SOC_MSM8X16
 	tristate "SoC Machine driver for MSM8X16 boards"
@@ -260,9 +264,37 @@ config SND_SOC_MSM8X16
 	select SND_DYNAMIC_MINORS
 	select QTI_PP
 	select DTS_SRS_TM
-	select DOLBY_DAP
+#	select DOLBY_DAP # removed by samsung due to not use.
+	select DOLBY_DS2
+	select MSM_QDSP6_APRV3
+	select MSM_QDSP6V2_CODECS
+	select SND_SOC_CPE
+	select SND_HWDEP
 	help
 	 To add support for SoC audio on MSM8X16.
+	 This will enable sound soc drivers which
+	 interfaces with DSP, also it will enable
+	 the machine drivers and the corresponding
+	 DAI-links.
+
+config SND_SOC_MSM8909
+	tristate "SoC Machine driver for MSM8909 boards"
+	depends on ARCH_MSM8909
+	select SND_SOC_QDSP6V2
+	select SND_SOC_MSM_STUB
+	select SND_SOC_MSM_HOSTLESS_PCM
+	select SND_SOC_MSM8909_WCD
+	select SLIMBUS
+	select MFD_CORE
+	select SND_DYNAMIC_MINORS
+	select QTI_PP
+	select DTS_SRS_TM
+	select DOLBY_DAP
+	select MSM_QDSP6_APRV3
+	select MSM_QDSP6V2_CODECS
+	select SND_HWDEP
+	help
+	 To add support for SoC audio on MSM8909.
 	 This will enable sound soc drivers which
 	 interfaces with DSP, also it will enable
 	 the machine drivers and the corresponding
@@ -279,34 +311,155 @@ config SND_SOC_MDM9630
 	help
 	 To add support for SoC audio on MDM9630 boards.
 
-config SND_SOC_MSMPLUTONIUM
-	tristate "SoC Machine driver for MSMPLUTONIUM boards"
-	depends on ARCH_MSMPLUTONIUM
+config SND_SOC_MSM8994
+	tristate "SoC Machine driver for MSM8994 boards"
+	depends on ARCH_MSM8994
 	select SND_SOC_QDSP6V2
 	select SND_SOC_MSM_STUB
 	select SND_SOC_MSM_HOSTLESS_PCM
 	select SND_DYNAMIC_MINORS
 	select MSM_QDSP6_APRV2
+	select MSM_QDSP6V2_CODECS
+	select SND_SOC_WCD9330
+	select SND_SOC_MSM_HDMI_CODEC_RX
+	select QTI_PP
+	select DTS_SRS_TM
+	select SND_SOC_CPE
+	select MSM_ULTRASOUND
+	select DOLBY_DS2
+	select SND_HWDEP
 	help
-	 To add support for SoC audio on MSMPLUTONIUM.
+	 To add support for SoC audio on MSM8994.
 	 This will enable sound soc drivers which
 	 interfaces with DSP, also it will enable
 	 the machine drivers and the corresponding
 	 DAI-links.
 
+config SND_SOC_MSMZIRC
+	tristate "SoC Machine driver for MSMZIRC boards"
+	depends on ARCH_MSMZIRC
+	select SND_SOC_QDSP6V2
+	select SND_SOC_MSM_STUB
+	select SND_SOC_WCD9330
+	select SND_SOC_MSM_HOSTLESS_PCM
+	select SND_DYNAMIC_MINORS
+	select MSM_QDSP6_APRV3
+	select MSM_QDSP6V2_CODECS
+	select SND_HWDEP
+        help
+	 To add support for SoC audio on MSMZIRC boards.
+	 This will enable sound soc drivers which
+	 interfaces with DSP, also it will enable
+	 the machine drivers and the corresponding
+	 DAI-links.
 config SAMSUNG_AUDIO
 	tristate "samsung audio feature"
 	help
 	 To add support for samsung audio solution
+
+config SND_SOC_MSM8X16_WM5102
+	tristate "SoC I2S Audio support for wm5102 on MSM8x16"
+	depends on ARCH_MSM8916
+	select SND_SOC_QDSP6V2
+	select SND_SOC_MSM_STUB
+	select SND_SOC_MSM_HOSTLESS_PCM
+	select SLIMBUS	
+	select MFD_CORE
+	select SND_DYNAMIC_MINORS
+	select DTS_SRS_TM
+	select MSM_QDSP6_APRV3
+	select MSM_QDSP6V2_CODECS
+	select SND_HWDEP
+	select SND_SOC_WM5102
+	select MFD_WM5102
+	select SND_SOC_MSM8X16_ARIZONA
+	help
+		Say Y if you want to add support for SoC audio on the Pacific.
+
+config SND_SOC_MSM8X16_FLORIDA
+	tristate "SoC I2S Audio support for Florida on MSM8x16"
+	depends on ARCH_MSM8916
+	select SND_SOC_QDSP6V2
+	select SND_SOC_MSM_STUB
+	select SND_SOC_MSM_HOSTLESS_PCM
+	select SLIMBUS	
+	select MFD_CORE
+	select SND_DYNAMIC_MINORS
+	select DTS_SRS_TM	
+	select MSM_QDSP6_APRV3
+	select MSM_QDSP6V2_CODECS
+	select SND_HWDEP
+	select SND_SOC_FLORIDA
+	select MFD_FLORIDA
+	select SND_SOC_MSM8X16_ARIZONA
+	help
+		Say Y if you want to add support for SoC audio on the Pacific.
+
+config SND_SOC_MSM8X16_WM1814
+	tristate "SoC I2S Audio support for WM1814 on MSM8x16"
+	depends on ARCH_MSM8916
+	select SND_SOC_QDSP6V2
+	select SND_SOC_MSM_STUB
+	select SND_SOC_MSM_HOSTLESS_PCM
+	select SLIMBUS	
+	select MFD_CORE
+	select SND_DYNAMIC_MINORS
+	select DTS_SRS_TM	
+	select MSM_QDSP6_APRV3
+	select MSM_QDSP6V2_CODECS
+	select SND_HWDEP
+	select SND_SOC_WM8998
+	select MFD_WM8998
+	select SND_SOC_MSM8X16_ARIZONA
+	help
+		Say Y if you want to add support for SoC audio on the Pacific.
+
+config SND_SOC_MSM8X16_ARIZONA
+	tristate "Audio support for arizona platform on the msm8916"
+	depends on ARCH_MSM8916
+	select SND_SOC_QDSP6V2
+	select SND_SOC_MSM_STUB
+	select SND_SOC_MSM_HOSTLESS_PCM
+	select SLIMBUS	
+	select MFD_CORE
+	select SND_DYNAMIC_MINORS
+	select DTS_SRS_TM	
+	select MSM_QDSP6_APRV3
+	select MSM_QDSP6V2_CODECS
+	select SND_HWDEP
+	select MFD_ARIZONA
+	select MFD_ARIZONA_I2C
+	select REGULATOR_ARIZONA
+	select GPIO_ARIZONA
+	select SWITCH
+	select SWITCH_ARIZONA
+	help
+		Say Y if you want to add support for Arizona Platform on the Exynos54XX.
 
 config AUDIO_SPEAKER_OUT_NXP_AMP_ENABLE
 	tristate "samsung audio speaker NXP amp feature"
 	help
 	 To add support for speaker NXP amp
 
+config AUDIO_SPEAKER_OUT_MAXIM_AMP_ENABLE
+	tristate "samsung audio speaker maxim amp feature"
+	help
+	 To add support for speaker maxim amp
+
+config AUDIO_SECONDARY_MIC_USE_EXT_BIAS_ENABLE
+	tristate "samsung audio use external LDO bias for seconardy mic bias"
+	help
+	 To add support for external mic bias
+
 config AUDIO_QUAT_I2S_ENABLE
 	tristate "QUAT_I2S feature"
 	help
-	 To add support for quat_i2s 
+	 To add support for quat_i2s
+
+config MACH_KOR_EARJACK_WR
+	bool "enable earjack-noise workaround"
+	default n
+	help
+	  Say Y to enable earjack-noise workaround at charging
 
 endmenu

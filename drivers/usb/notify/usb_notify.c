@@ -21,6 +21,7 @@
 #include <linux/wakelock.h>
 #include <linux/kthread.h>
 #include <linux/usb_notify.h>
+#include "dock_notify.h"
 
 #define DEFAULT_OVC_POLL_SEC 3
 
@@ -70,7 +71,7 @@ static struct usb_notify *u_notify;
  *  NOTIFY_EVENT_STATE can be called in both interrupt context
  *		and process context. But it executes queue_work.
  *  NOTIFY_EVENT_EXTRA can be called directly without queue_work.
- *           But it must be call in process context.
+ *           But it must be called in process context.
  */
 static int check_event_type(enum otg_notify_events event)
 {
@@ -149,13 +150,12 @@ static void enable_ovc(struct usb_notify *u_noti, int enable)
 
 static int ovc_scan_thread(void *data)
 {
-
 	struct ovc *ovcinfo = NULL;
 	int state;
 
 	if (!u_notify) {
 		pr_err("%s u_notify is NULL\n", __func__);
-		goto err;
+		return 0;
 	}
 
 	ovcinfo = &u_notify->ovc_info;
@@ -190,9 +190,10 @@ static int ovc_scan_thread(void *data)
 		if (!ovcinfo->can_ovc)
 			ovcinfo->thread_remove = 1;
 	}
-err:
+
 	pr_info("ovc_scan_thread exit\n");
 	complete_and_exit(&ovcinfo->scanning_done, 0);
+	return 0;
 }
 
 void ovc_start(struct usb_notify *u_noti)
@@ -396,8 +397,8 @@ static void otg_notify_state(unsigned long event, int enable)
 		goto no_save_event;
 	}
 
-	pr_info("%s+ event=%s, enable=%s\n", __func__,
-		event_string(event), enable == true ? "on" : "off");
+	pr_info("%s+ event=%s(%lu), enable=%s\n", __func__,
+		event_string(event), event, enable == 0 ? "off" : "on");
 
 	notify = get_otg_notify();
 
@@ -435,7 +436,7 @@ static void otg_notify_state(unsigned long event, int enable)
 		break;
 	case NOTIFY_EVENT_LANHUB:
 		if (notify->unsupport_host) {
-			pr_err("This model don't support usb host\n");
+			pr_err("This model doesn't support usb host\n");
 			goto err;
 		}
 		u_notify->diable_v_drive = enable;
@@ -464,7 +465,7 @@ static void otg_notify_state(unsigned long event, int enable)
 		break;
 	case NOTIFY_EVENT_HOST:
 		if (notify->unsupport_host) {
-			pr_err("This model don't support usb host\n");
+			pr_err("This model doesn't support usb host\n");
 			goto err;
 		}
 		u_notify->diable_v_drive = 0;
@@ -476,10 +477,20 @@ static void otg_notify_state(unsigned long event, int enable)
 			if (gpio_is_valid(notify->redriver_en_gpio))
 				gpio_direction_output
 					(notify->redriver_en_gpio, 1);
+			if (notify->auto_drive_vbus) {
+				u_notify->oc_noti = 1;
+				if (notify->vbus_drive)
+					notify->vbus_drive(1);
+			}
 			if (notify->set_host)
 				notify->set_host(true);
 		} else {
 			u_notify->ndev.mode = NOTIFY_NONE_MODE;
+			if (notify->auto_drive_vbus) {
+				u_notify->oc_noti = 0;
+				if (notify->vbus_drive)
+					notify->vbus_drive(0);
+			}
 			if (notify->set_host)
 				notify->set_host(false);
 			if (gpio_is_valid(notify->redriver_en_gpio))
@@ -503,7 +514,7 @@ static void otg_notify_state(unsigned long event, int enable)
 	case NOTIFY_EVENT_SMARTDOCK_TA:
 	case NOTIFY_EVENT_AUDIODOCK:
 		if (notify->unsupport_host) {
-			pr_err("This model don't support usb host\n");
+			pr_err("This model doesn't support usb host\n");
 			goto err;
 		}
 		u_notify->diable_v_drive = enable;
@@ -523,8 +534,8 @@ static void otg_notify_state(unsigned long event, int enable)
 		break;
 	case NOTIFY_EVENT_DRIVE_VBUS:
 		if (notify->unsupport_host) {
-			pr_err("This model don't support usb host\n");
-			goto err;
+			pr_err("This model doesn't support usb host\n");
+			goto no_save_event;
 		}
 		if (u_notify->diable_v_drive) {
 			pr_info("cable type=%s disable vbus draw\n",
@@ -559,8 +570,8 @@ static void extra_notify_state(unsigned long event, int enable)
 		goto err;
 	}
 
-	pr_info("%s+ event=%s, enable=%s\n", __func__,
-		event_string(event), enable == true ? "on" : "off");
+	pr_info("%s+ event=%s(%lu), enable=%s\n", __func__,
+		event_string(event), event, enable == 0 ? "off" : "on");
 
 	notify = get_otg_notify();
 
@@ -606,9 +617,9 @@ static void extra_notify_state(unsigned long event, int enable)
 		break;
 	}
 
-	pr_info("%s- event=%s, cable=%s\n", __func__,
-		event_string(event),
-			event_string(u_notify->c_type));
+	pr_info("%s- event=%s(%lu), cable=%s\n", __func__,
+		event_string(event), event,
+		event_string(u_notify->c_type));
 err:
 	return;
 }
@@ -629,7 +640,8 @@ static int otg_notifier_callback(struct notifier_block *nb,
 {
 	struct otg_state_work *state_work;
 
-	pr_info("%s event=%lu\n", __func__, event);
+	pr_info("%s event=%s(%lu)\n", __func__,
+			event_string(event), event);
 
 	if (!u_notify) {
 		pr_err("u_notify is NULL\n");
@@ -656,7 +668,8 @@ static int otg_notifier_callback(struct notifier_block *nb,
 static int extra_notifier_callback(struct notifier_block *nb,
 		unsigned long event, void *param)
 {
-	pr_info("%s event=%lu\n", __func__, event);
+	pr_info("%s event=%s(%lu)\n", __func__,
+			event_string(event), event);
 
 	if (!u_notify) {
 		pr_err("u_notify is NULL\n");
@@ -709,7 +722,10 @@ void send_otg_notify(struct otg_notify *n,
 		pr_err("%s otg_notify is null\n", __func__);
 		return;
 	}
-	pr_info("%s event=%lu enable=%d\n", __func__, event, enable);
+
+	pr_info("%s event=%s(%lu) enable=%d\n", __func__,
+			event_string(event), event, enable);
+
 	if (check_event_type(event) == NOTIFY_EVENT_EXTRA)
 		blocking_notifier_call_chain
 			(&n->extra_notifier, event, &enable);
@@ -738,10 +754,8 @@ struct otg_notify *get_otg_notify(void)
 {
 	if (!u_notify)
 		return NULL;
-
 	if (!u_notify->o_notify)
 		return NULL;
-
 	return u_notify->o_notify;
 }
 EXPORT_SYMBOL(get_otg_notify);
@@ -913,6 +927,8 @@ int set_otg_notify(struct otg_notify *n)
 		wake_lock_init(&u_notify->wlock,
 			WAKE_LOCK_SUSPEND, "usb_notify");
 
+	register_usbdev_notify();
+
 	pr_info("registered otg_notify -\n");
 	return 0;
 err4:
@@ -963,6 +979,7 @@ static void __exit usb_notify_exit(void)
 module_init(usb_notify_init);
 module_exit(usb_notify_exit);
 
-MODULE_AUTHOR("Samsung usb team");
-MODULE_DESCRIPTION("Usb notify layer");
+MODULE_AUTHOR("Samsung USB Team");
+MODULE_DESCRIPTION("USB Notify Layer");
 MODULE_LICENSE("GPL");
+

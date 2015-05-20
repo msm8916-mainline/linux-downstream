@@ -25,8 +25,8 @@
 #include <linux/mutex.h>
 #include <linux/android_pmem.h>
 #include <linux/io.h>
-#include <soc/qcom/scm.h>
-//#include <linux/tzcom.h>
+#include <soc/qcom/scm.h> // multiple oemflag
+//#include <mach/scm.h>   // one oemflag => old version
 #include <linux/types.h>
 
 #define TZIC_DEV "tzic"
@@ -80,54 +80,90 @@ static uint8_t get_tamper_fuse_cmd_new(uint32_t flag);
 
 static int set_tamper_fuse_cmd()
 {
-	uint32_t fuse_id = HLOS_IMG_TAMPER_FUSE;
+	struct scm_desc desc = {0};
+	uint32_t fuse_id;
 
-	return scm_call(SCM_SVC_FUSE, SCM_BLOW_SW_FUSE_ID, &fuse_id,
-		sizeof(fuse_id), NULL, 0);
+	desc.args[0] = fuse_id = HLOS_IMG_TAMPER_FUSE;
+	desc.arginfo = SCM_ARGS(1);
+
+	if (!is_scm_armv8()) {
+		return scm_call(SCM_SVC_FUSE, SCM_BLOW_SW_FUSE_ID, &fuse_id, sizeof(fuse_id), NULL, 0);
+	} else {
+		return scm_call2(SCM_SIP_FNID(SCM_SVC_FUSE, SCM_BLOW_SW_FUSE_ID), &desc);
+	}
 }
 
 static int set_tamper_fuse_cmd_new(uint32_t flag)
 {
-	uint32_t fuse_id = flag;
+	struct scm_desc desc = {0};
+	uint32_t fuse_id;
 
-	return scm_call(SCM_SVC_FUSE, SCM_BLOW_SW_FUSE_ID, &fuse_id,
-		sizeof(fuse_id), NULL, 0);
+	desc.args[0] = fuse_id = flag;
+	desc.arginfo = SCM_ARGS(1);
+
+	if (!is_scm_armv8()) {
+		return scm_call(SCM_SVC_FUSE, SCM_BLOW_SW_FUSE_ID, &fuse_id, sizeof(fuse_id), NULL, 0);
+	} else {
+		return scm_call2(SCM_SIP_FNID(SCM_SVC_FUSE, SCM_BLOW_SW_FUSE_ID), &desc);
+	}
 }
 
 static uint8_t get_tamper_fuse_cmd()
-{
-	uint32_t fuse_id = HLOS_IMG_TAMPER_FUSE;
-
-	void *cmd_buf;
-	size_t cmd_len;
-	size_t resp_len = 0;
+{ 
+	int ret;
+	uint32_t fuse_id;
 	uint8_t resp_buf;
-	cmd_buf = (void *)&fuse_id;
-	cmd_len = sizeof(fuse_id);
+	size_t resp_len;
+	struct scm_desc desc = {0};
 
 	resp_len = sizeof(resp_buf);
 
-	scm_call(SCM_SVC_FUSE, SCM_IS_SW_FUSE_BLOWN_ID, cmd_buf,
-		cmd_len, &resp_buf, resp_len);
+	desc.args[0] = fuse_id = HLOS_IMG_TAMPER_FUSE;
+	desc.arginfo = SCM_ARGS(1);
+
+	if (!is_scm_armv8()) {
+	ret = scm_call(SCM_SVC_FUSE, SCM_IS_SW_FUSE_BLOWN_ID, &fuse_id,	sizeof(fuse_id), &resp_buf, resp_len);
+	} else {
+	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_FUSE, SCM_IS_SW_FUSE_BLOWN_ID),
+	&desc);
+	resp_buf = desc.ret[0];
+	}
+
+	if (ret) {
+	printk("scm_call/2 returned %d", ret);
+	resp_buf = 0xff;
+	}
+
 	ic = resp_buf;
 	return resp_buf;
 }
 
 static uint8_t get_tamper_fuse_cmd_new(uint32_t flag)
 {
-	uint32_t fuse_id = flag;
-
-	void *cmd_buf;
-	size_t cmd_len;
-	size_t resp_len = 0;
+	int ret;
+	uint32_t fuse_id;
 	uint8_t resp_buf;
-	cmd_buf = (void *)&fuse_id;
-	cmd_len = sizeof(fuse_id);
+	size_t resp_len;
+	struct scm_desc desc = {0};
 
 	resp_len = sizeof(resp_buf);
 
-	scm_call(SCM_SVC_FUSE, SCM_IS_SW_FUSE_BLOWN_ID, cmd_buf,
-		cmd_len, &resp_buf, resp_len);
+	desc.args[0] = fuse_id = flag;
+	desc.arginfo = SCM_ARGS(1);
+
+	if (!is_scm_armv8()) {
+	ret = scm_call(SCM_SVC_FUSE, SCM_IS_SW_FUSE_BLOWN_ID, &fuse_id,	sizeof(fuse_id), &resp_buf, resp_len);
+	} else {
+	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_FUSE, SCM_IS_SW_FUSE_BLOWN_ID),
+	&desc);
+	resp_buf = desc.ret[0];
+	}
+
+	if (ret) {
+	printk("scm_call/1 returned %d", ret);
+	resp_buf = 0xff;
+	}
+
 	ic = resp_buf;
 	return resp_buf;
 }
@@ -304,8 +340,7 @@ static void __exit tzic_exit(void)
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("Samsung TZIC Driver");
-MODULE_VERSION("1.00");
+MODULE_VERSION("1.03");
 
 module_init(tzic_init);
 module_exit(tzic_exit);
-

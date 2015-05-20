@@ -166,10 +166,11 @@ obj-$(CONFIG_CORESIGHT)		+= coresight/
 obj-$(CONFIG_ESOC)		+= esoc/
 
 obj-$(CONFIG_BIF)		+= bif/
+obj-$(CONFIG_BATTERY_SAMSUNG)   += battery/
 obj-$(CONFIG_SENSORS)		+= sensors/
 obj-$(CONFIG_SENSORS_SSC)	+= sensors/
-
+obj-$(CONFIG_MSM_VIBRATOR)      += motor/
 obj-$(CONFIG_VIBETONZ)		+= motor/
-obj-$(CONFIG_BATTERY_SAMSUNG)   += battery/
-obj-$(CONFIG_SEC_NET_FILTER)	+= secfilter/
 
+# SecFilter Driver
+obj-$(CONFIG_SEC_NET_FILTER)	+= secfilter/

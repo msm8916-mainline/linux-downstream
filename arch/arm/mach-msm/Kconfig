@@ -14,7 +14,7 @@ config ARCH_MSM8974
 	select MSM_DEVFREQ_DEVBW
 	select DEVFREQ_SIMPLE_DEV
 	select MSM_PIL
-	select MSM_SPM_V2
+	select MSM_SPM
 	select MSM_L2_SPM
 	select MSM_PM if PM
 	select MSM_RPM_SMD
@@ -36,7 +36,7 @@ config ARCH_MSM8974
 	select ENABLE_VMALLOC_SAVINGS
 	select MSM_IRQ
 	select PINCTRL
-	select PINCTRL_MSM_TLMM_V3
+	select PINCTRL_MSM_TLMM
 
 config ARCH_APQ8084
 	bool "APQ8084"
@@ -59,7 +59,7 @@ config ARCH_APQ8084
 	select ARCH_WANT_KMAP_ATOMIC_FLUSH
 	select MEMORY_HOLE_CARVEOUT
 	select QMI_ENCDEC
-	select MSM_SPM_V2
+	select MSM_SPM
 	select MSM_L2_SPM
 	select MSM_RPM_SMD
 	select MSM_RPM_STATS_LOG
@@ -75,39 +75,40 @@ config ARCH_APQ8084
 	select MAXIMUM_CURRENT_THROTTLING
 	select MSM_IRQ
 	select PINCTRL
-	select PINCTRL_MSM_TLMM_V3
+	select PINCTRL_MSM_TLMM
 
-config ARCH_MPQ8092
-	bool "MPQ8092"
-	select REGULATOR
-	select ARCH_MSM_KRAITMP
-	select PM_DEVFREQ
-	select MSM_DEVFREQ_CPUBW
-	select GPIO_MSM_V3
+config ARCH_MSM8909
+	bool "MSM8909"
+	select ARCH_MSM_CORTEXMP
 	select ARM_GIC
-	select HAVE_ARM_ARCH_TIMER
+	select MULTI_IRQ_HANDLER
 	select CPU_V7
-	select MSM_SCM
-	select MSM_GPIOMUX
-	select MSM_QDSP6V2_CODECS
-	select MSM_QDSP6_APRV2 if SND_SOC
-	select MEMORY_HOLE_CARVEOUT
-	select QMI_ENCDEC
-	select MIGHT_HAVE_PCI
-	select ARCH_SUPPORTS_MSI
-	select ARM_HAS_SG_CHAIN
-	select MSM_RPM_SMD
-	select REGULATOR_RPM_SMD
+	select HAVE_ARM_ARCH_TIMER
+	select MAY_HAVE_SPARSE_IRQ
+	select SPARSE_IRQ
 	select PINCTRL
-	select PINCTRL_MSM_TLMM_V3
-	select USB_ARCH_HAS_XHCI
-	select MSM_IRQ
-	select MSM_SPM_V2
-	select MSM_L2_SPM
+	select PINCTRL_MSM_TLMM
+	select USE_PINCTRL_IRQ
 	select MSM_PM if PM
 	select MSM_RPM_SMD
 	select MSM_RPM_STATS_LOG
 	select MSM_RPM_LOG
+	select CPU_FREQ
+	select MSM_CORTEX_A7
+	select MSM_IRQ
+	select ARM_TICKET_LOCKS
+	select ARM_HAS_SG_CHAIN
+	select ARCH_WANT_KMAP_ATOMIC_FLUSH
+	select MSM_QDSP6_APRV3
+	select MSM_QDSP6V2_CODECS
+	select MSM_AUDIO_QDSP6V2 if SND_SOC
+	select CPU_FREQ_MSM
+	select CPU_FREQ
+	select PM_DEVFREQ
+	select MSM_DEVFREQ_DEVBW
+	select DEVFREQ_SIMPLE_DEV
+	select DEVFREQ_GOV_MSM_BW_HWMON
+	select MSM_BIMC_BWMON
 
 config ARCH_MSM8916
 	bool "MSM8916"
@@ -119,7 +120,7 @@ config ARCH_MSM8916
 	select MAY_HAVE_SPARSE_IRQ
 	select SPARSE_IRQ
 	select PINCTRL
-	select PINCTRL_MSM_TLMM_V4
+	select PINCTRL_MSM_TLMM
 	select USE_PINCTRL_IRQ
 	select MSM_PM if PM
 	select MSM_RPM_SMD
@@ -137,6 +138,7 @@ config ARCH_MSM8916
 	select DEVFREQ_SIMPLE_DEV
 	select DEVFREQ_GOV_MSM_BW_HWMON
 	select MSM_BIMC_BWMON
+	select ARMBW_HWMON
 	select MSM_RPM_SMD
 	select MSM_QDSP6_APRV3
 	select MSM_QDSP6V2_CODECS
@@ -149,10 +151,10 @@ config ARCH_MSM8916
 
 config ARCH_MSM8939
 	bool "MSM8939"
-        depends on ARCH_MSM8916
+	depends on ARCH_MSM8916
 	help
 	  The SAMSUNG intend to divide MSM8916 & MSM8939 KERNEL feature to cover many
-          products using these ARCH_8916/8939 series chipset unlike QC SRC government.
+	  products using these ARCH_8916/8939 series chipset unlike QC SRC government.
 
 config ARCH_FSM9900
 	bool "FSM9900"
@@ -176,6 +178,30 @@ config ARCH_FSM9900
 	select MIGHT_HAVE_PCI
 	select MSM_IRQ
 
+config ARCH_FSM9010
+	bool "FSM9010"
+	select ARM_GIC
+	select GIC_SECURE
+	select ARCH_MSM_CORTEXMP
+	select CPU_V7
+	select MSM_SCM
+	select HAVE_ARM_ARCH_TIMER
+	select MSM_NATIVE_RESTART
+	select MSM_CORTEX_A7
+	select PM_DEVFREQ
+	select MSM_DEVFREQ_CPUBW
+	select MSM_PIL
+	select ARM_HAS_SG_CHAIN
+	select REGULATOR
+	select MSM_NOPM
+	select MSM_JTAG_MM if CORESIGHT_ETM
+	select MSM_IRQ
+	select ARCH_SUPPORTS_MSI
+	select MIGHT_HAVE_PCI
+	select PINCTRL
+	select PINCTRL_MSM_TLMM
+	select USE_PINCTRL_IRQ
+
 config ARCH_MDM9630
 	bool "MDM9630"
 	select ARM_GIC
@@ -186,7 +212,7 @@ config ARCH_MDM9630
 	select REGULATOR
 	select REGULATOR_RPM_SMD
 	select HAVE_ARM_ARCH_TIMER
-	select MSM_SPM_V2
+	select MSM_SPM
 	select MSM_PM if PM
 	select GPIO_MSM_V3
 	select MIGHT_HAVE_PCI
@@ -198,7 +224,7 @@ config ARCH_MDM9630
 	select PM_DEVFREQ
 	select MSM_DEVFREQ_DEVBW
 	select PINCTRL
-	select PINCTRL_MSM_TLMM_V3
+	select PINCTRL_MSM_TLMM
 	select MSM_IRQ
 	select MSM_QDSP6_APRV2
 	select MSM_QDSP6V2_CODECS
@@ -209,20 +235,44 @@ config ARCH_MSMZIRC
 	select ARM_GIC
 	select CPU_V7
 	select REGULATOR
+	select REGULATOR_RPM_SMD
 	select HAVE_ARM_ARCH_TIMER
-	select MSM_SPM_V2
-	select MSM_NOPM
+	select MSM_RPM_SMD
+	select MSM_SPM
+	select MSM_PM if PM
 	select MEMORY_HOLE_CARVEOUT
 	select QMI_ENCDEC
 	select MSM_CORTEX_A7
 	select PINCTRL
-	select PINCTRL_MSM_TLMM_V4
+	select PINCTRL_MSM_TLMM
+	select USE_PINCTRL_IRQ
+	select PCI
+	select MSM_IRQ
+	select MSM_JTAG_MM if CORESIGHT_ETM
+	select MSM_QDSP6_APRV3
+	select MSM_QDSP6V2_CODECS
+	select MSM_AUDIO_QDSP6V2 if SND_SOC
+	select MSM_CLK_CONTROLLER_V2
+
+config ARCH_MDMFERRUM
+	bool "MDMFERRUM"
+	select ARM_GIC
+	select CPU_V7
+	select ARCH_MSM_CORTEXMP
+	select HAVE_ARM_ARCH_TIMER
+	select MAY_HAVE_SPARSE_IRQ
+	select SPARSE_IRQ
+	select PINCTRL
+	select PINCTRL_MSM_TLMM
+	select MSM_CORTEX_A7
+	select MSM_NOPM
+	select CPU_FREQ_MSM
+	select CPU_FREQ
 	select MSM_IRQ
 
 config ARCH_MSM8610
 	bool "MSM8610"
 	select ARM_GIC
-	select GIC_SECURE
 	select ARCH_MSM_CORTEXMP
 	select CPU_V7
 	select MSM_SCM
@@ -234,7 +284,7 @@ config ARCH_MSM8610
 	select MSM_QDSP6V2_CODECS
 	select QMI_ENCDEC
 	select MSM_RPM_SMD
-	select MSM_SPM_V2
+	select MSM_SPM
 	select MSM_L2_SPM
 	select MSM_PM if PM
 	select MEMORY_HOLE_CARVEOUT
@@ -243,6 +293,8 @@ config ARCH_MSM8610
 	select CPU_FREQ_MSM
 	select CPU_FREQ
 	select PM_DEVFREQ
+	select DEVFREQ_GOV_MSM_BW_HWMON
+	select ARMBW_HWMON
 	select MSM_DEVFREQ_DEVBW
 	select MSM_PIL
 	select MSM_RUN_QUEUE_STATS
@@ -256,13 +308,12 @@ config ARCH_MSM8610
 	select MSM_IOMMU_SYNC
 	select MSM_RPM_STATS_LOG
 	select PINCTRL
-	select PINCTRL_MSM_TLMM_V3
+	select PINCTRL_MSM_TLMM
 	select MSM_IRQ
 
 config ARCH_MSM8226
 	bool "MSM8226"
 	select ARM_GIC
-	select GIC_SECURE
 	select ARCH_MSM_CORTEXMP
 	select CPU_V7
 	select MSM_SCM
@@ -274,7 +325,7 @@ config ARCH_MSM8226
 	select MSM_QDSP6V2_CODECS
 	select QMI_ENCDEC
 	select MSM_RPM_SMD
-	select MSM_SPM_V2
+	select MSM_SPM
 	select MSM_L2_SPM
 	select MSM_PM if PM
 	select MEMORY_HOLE_CARVEOUT
@@ -283,6 +334,8 @@ config ARCH_MSM8226
 	select CPU_FREQ_MSM
 	select CPU_FREQ
 	select PM_DEVFREQ
+	select DEVFREQ_GOV_MSM_BW_HWMON
+	select ARMBW_HWMON
 	select MSM_DEVFREQ_DEVBW
 	select MSM_PIL
 	select MSM_RUN_QUEUE_STATS
@@ -296,37 +349,8 @@ config ARCH_MSM8226
 	select MSM_RPM_STATS_LOG
 	select ARCH_WANT_KMAP_ATOMIC_FLUSH
 	select PINCTRL
-	select PINCTRL_MSM_TLMM_V3
+	select PINCTRL_MSM_TLMM
 	select ENABLE_VMALLOC_SAVINGS
-	select MSM_IRQ
-
-config ARCH_MSMSAMARIUM
-	bool "MSMSAMARIUM"
-	select ARCH_MSM_KRAITMP
-	select GPIO_MSM_V3
-	select ARM_GIC
-	select CPU_V7
-	select HAVE_ARM_ARCH_TIMER
-	select MSM_SCM
-	select PM_DEVFREQ
-	select MSM_DEVFREQ_CPUBW
-	select MSM_PIL
-	select MSM_GPIOMUX
-	select MSM_SPM_V2
-	select MSM_L2_SPM
-	select MSM_QDSP6_APRV2
-	select MSM_QDSP6V2_CODECS
-	select MSM_PM if PM
-	select MSM_RPM_SMD
-	select REGULATOR
-	select REGULATOR_RPM_SMD
-	select REGULATOR_SPM
-	select ARM_HAS_SG_CHAIN
-	select MSM_RUN_QUEUE_STATS
-	select ARCH_WANT_KMAP_ATOMIC_FLUSH
-	select QMI_ENCDEC
-	select PINCTRL
-	select PINCTRL_MSM_TLMM_V3
 	select MSM_IRQ
 endmenu
 
@@ -337,60 +361,32 @@ config SEC_FACTORY
 		  It will support a sec factory mode
 
 config SEC_8939_PROJECT
-	depends on ARCH_MSM8916
-		default n
-		bool "Samsung 8939 Project which is temporary"
-		help
-		  Support for Samsung 8939 Project
+	  depends on ARCH_MSM8916
+	  default n
+	  bool "Samsung 8939 Project which is temporary"
+	  help
+	   Support for Samsung 8939 Project
 
 config SEC_A7_PROJECT
-	depends on ARCH_MSM8916
-		default n
-		bool "Samsung A7 Project"
-		help
+  depends on ARCH_MSM8916
+		  default n
+	  bool "Samsung A7 Project"
+		  help
 		  Support for Samsung A7 Project
-
-config MACH_A7_EUR_OPEN
-	depends on SEC_A7_PROJECT
-		default n
-		bool "Samsung A7 EUR Open"
-		help
-		  Support for Samsung A7 Eur Open device.
-
-config MACH_A7_CHN_OPEN
-	depends on SEC_A7_PROJECT
-		default n
-		bool "Samsung A7 CHN Open"
-		help
-		  Support for Samsung A7 China Open device.
-
-config MACH_A7_CHN_TW
-	depends on SEC_A7_PROJECT
-		default n
-		bool "Samsung A7 CHN TW"
-		help
-		  Support for Samsung A7 China TW device.
-
-config MACH_A7_CHN_CTC
-	depends on SEC_A7_PROJECT
-		default n
-		bool "Samsung A7 CHN Ctc"
-		help
-		  Support for Samsung A7 China Ctc device.
-
+		  
 config MACH_A73G_EUR_OPEN
 	depends on SEC_A7_PROJECT
 		default n
 		bool "Samsung A73G EUR Open"
 		help
 		  Support for Samsung A73G Eur Open device.
-
-config MACH_A7_KOR_OPEN
-	depends on SEC_A7_PROJECT
-		default n
-		bool "Samsung A7 KOR Open"
-		help
-		  Support for Samsung A7 KOR Open device.
+		  
+config MACH_A7_EUR_OPEN
+  depends on SEC_A7_PROJECT
+	  default n
+	  bool "Samsung A7 EUR Open"
+	  help
+	  Support for Samsung A7 Eur Open device.
 
 config SEC_A3_PROJECT
     depends on ARCH_MSM8916
@@ -406,42 +402,19 @@ config MACH_A3U_EUR_OPEN
         help
           Support for Samsung A3U EUR Open device.
 
-config SEC_SERRANOVE_PROJECT
-    depends on ARCH_MSM8916
-        default n
-        bool "Samsung SERRANOVE Project"
-        help
-          Support for Samsung SERRANOVE Project
-
-config MACH_SERRANOVELTE_EUR_OPEN
-    depends on SEC_SERRANOVE_PROJECT
-        default n
-        bool "Samsung SERRANOVELTE EUR Open"
-        help
-          Support for Samsung SERRANOVELTE EUR Open device.
-
-config MACH_SERRANOVE3G_EUR_OPEN
-    depends on SEC_SERRANOVE_PROJECT
-        default n
-        bool "Samsung SERRANOVE3G EUR Open"
-        help
-          Support for Samsung SERRANOVE3G EUR Open device.
-
-config USER_RESET_DEBUG
-        bool "KOR reset reason debug feature in user version"
-        default n
-        help
-          This option enables debugging log for B10 project.
-          This option provides reset history log in user version.
-          This option enable proc/reset_reason support
-          It's only support KOR Model
-
 config SEC_A5_PROJECT
     depends on ARCH_MSM8916
         default n
         bool "Samsung A5 Project"
         help
           Support for Samsung A5 Project
+
+config MACH_A5U_CAN_BMC
+    depends on SEC_A5_PROJECT
+        default n
+        bool "Samsung A5U CAN BMC"
+        help
+          Support for Samsung CAM BMC device.
 
 config MACH_A5U_EUR_OPEN
     depends on SEC_A5_PROJECT
@@ -453,9 +426,375 @@ config MACH_A5U_EUR_OPEN
 config MACH_A5U_KOR_OPEN
     depends on SEC_A5_PROJECT
         default n
-        bool "Samsung A5U KOR OPEN"
+        bool "Samsung A5U KOR Open"
         help
-          Support for Samsung A5U KOR OPEN device.
+          Support for Samsung A5U KOR Open device.
+
+config SEC_K5_PROJECT
+  depends on ARCH_MSM8916
+		  default n
+	  bool "Samsung K5 Project"
+		  help
+		  Support for Samsung K5 Project
+
+config MACH_K5_CHN_OPEN
+  depends on SEC_K5_PROJECT
+	  default n
+	  bool "Samsung K5 CHN Open"
+	  help
+	  Support for Samsung K5 CHN Open device.
+
+config SEC_H7_PROJECT
+  depends on ARCH_MSM8916
+		  default n
+	  bool "Samsung H7 Project"
+		  help
+		  Support for Samsung H7 Project
+
+config MACH_H7_CHN_OPEN
+  depends on SEC_H7_PROJECT
+	  default n
+	  bool "Samsung H7 CHN Open"
+	  help
+	  Support for Samsung H7 CHN Open device.
+
+config SEC_A8_PROJECT
+  depends on ARCH_MSM8916
+		  default n
+	  bool "Samsung A8 Project"
+		  help
+		  Support for Samsung A8 Project
+
+config MACH_A8_CHN_OPEN
+  depends on SEC_A8_PROJECT
+	  default n
+	  bool "Samsung A8 CHN Open"
+	  help
+	  Support for Samsung A8 CHN Open device.
+
+config SEC_J1_PROJECT
+	depends on ARCH_MSM8916
+		default n
+		bool "Samsung J1 Project"
+		help
+		  Support for Samsung J1 Project
+
+config MACH_J1_VZW
+	depends on SEC_J1_PROJECT
+		default n
+		bool "Samsung J1 Verizon"
+		help
+		  Support for Samsung J1 Verizon device.
+
+config SEC_E5_PROJECT
+    depends on ARCH_MSM8916
+        default n
+        bool "Samsung E5 Project"
+        help
+          Support for Samsung E5 Project
+
+config MACH_E5_EUR_OPEN
+    depends on SEC_E5_PROJECT
+        default n
+        bool "Samsung E5 EUR Open"
+        help
+          Support for Samsung E5 EUR Open device.
+
+config USER_RESET_DEBUG
+        bool "KOR reset reason debug feature in user version"
+        default n
+        help
+          This option enables debugging log for B10 project.
+          This option provides reset history log in user version.
+          This option enable proc/reset_reason support
+          It's only support KOR Model
+
+config MACH_E5_USA_TFN
+    depends on SEC_E5_PROJECT
+        default n
+        bool "Samsung E5 USA TFN"
+        help
+          Support for Samsung E5 USA TFN device.
+
+config MACH_E53G_EUR_OPEN
+    depends on SEC_E5_PROJECT
+        default n
+        bool "Samsung E53G EUR Open"
+        help
+          Support for Samsung E53G EUR Open device.
+
+config SEC_E7_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung E7 Project"
+	help
+	  Support for Samsung E7 Project
+
+config MACH_E7_EUR_OPEN
+	depends on SEC_E7_PROJECT
+	default n
+	bool "Samsung E7 EUR Open"
+	help
+	  Support for Samsung E7 EUR Open device.
+
+config MACH_E7_CHN_OPEN
+	depends on SEC_E7_PROJECT
+	default n
+	bool "Samsung E7 CHN OPEN"
+	help
+	  Support for Samsung E7 CHN OPEN device.
+
+config MACH_E7_CHN_CTC
+	depends on SEC_E7_PROJECT
+	default n
+	bool "Samsung E7 CHN CTC"
+	help
+	  Support for Samsung E7 CHN CTC device.
+
+config MACH_E73G_SEA_OPEN
+	depends on SEC_E7_PROJECT
+	default n
+	bool "Samsung E73G SEA Open"
+	help
+	  Support for Samsung E73G SEA Open device.
+
+config SEC_GT58_PROJECT
+    depends on ARCH_MSM8916
+        default n
+        bool "Samsung GT5 8 Project"
+        help
+          Support for Samsung GT5 8 Project
+
+config MACH_GT58_EUR_OPEN
+    depends on SEC_GT58_PROJECT
+        default n
+        bool "Samsung GT5 8 LTE EUR Open"
+        help
+          Support for Samsung GT5 8 LTE EUR Open device.
+
+config MACH_GT58_SEA_XSA
+    depends on SEC_GT58_PROJECT
+        default n
+        bool "Samsung GT5 8 LTE SEA XSA"
+        help
+          Support for Samsung GT5 8 LTE SEA XSA device.
+
+config MACH_GT58_USA_VZW
+    depends on SEC_GT58_PROJECT
+        default n
+        bool "Samsung GT5 8 LTE USA VZW"
+        help
+          Support for Samsung GT5 8 LTE USA VZW device.
+
+config MACH_GT58_USA_TMO
+    depends on SEC_GT58_PROJECT
+        default n
+        bool "Samsung GT5 8 LTE USA TMO"
+        help
+          Support for Samsung GT5 8 LTE USA TMO device.
+
+config MACH_GT58WIFI_EUR_OPEN
+    depends on SEC_GT58_PROJECT
+        default n
+        bool "Samsung GT5 8 WIFI EUR Open"
+        help
+          Support for Samsung GT5 8 WIFI EUR Open device.
+
+config MACH_GT5NOTE8_EUR_OPEN
+    depends on SEC_GT58_PROJECT
+        default n
+        bool "Samsung GT5 NOTE8 LTE EUR Open"
+        help
+          Support for Samsung GT5 NOTE8 LTE EUR Open device.
+
+config MACH_GT5NOTE8WIFI_EUR_OPEN
+    depends on SEC_GT58_PROJECT
+        default n
+        bool "Samsung GT5 NOTE8 WIFI EUR Open"
+        help
+          Support for Samsung GT5 NOTE8 WIFI EUR Open device.
+
+config SEC_GT510_PROJECT
+    depends on ARCH_MSM8916
+        default n
+        bool "Samsung GT5 10 Project"
+        help
+          Support for Samsung GT5 10 Project
+
+config MACH_GT510_EUR_OPEN
+    depends on SEC_GT510_PROJECT
+        default n
+        bool "Samsung GT5 10 LTE EUR Open"
+        help
+          Support for Samsung GT5 10 LTE EUR Open device.
+
+config MACH_GT510_USA_VZW
+    depends on SEC_GT510_PROJECT
+        default n
+        bool "Samsung GT5 10 LTE USA VZW"
+        help
+          Support for Samsung GT5 10 LTE USA VZW device.
+
+config MACH_GT510_CHN_OPEN
+    depends on SEC_GT510_PROJECT
+        default n
+        bool "Samsung GT5 10 LTE CHN Open"
+        help
+          Support for Samsung GT5 10 LTE CHN Open device.
+
+config MACH_GT5103G_EUR_OPEN
+    depends on SEC_GT510_PROJECT
+        default n
+        bool "Samsung GT5 10 3G EUR Open"
+        help
+          Support for Samsung GT5 10 3G EUR Open device.
+
+config MACH_GT510WIFI_EUR_OPEN
+    depends on SEC_GT510_PROJECT
+        default n
+        bool "Samsung GT5 10 WIFI EUR Open"
+        help
+          Support for Samsung GT5 10 WIFI EUR Open device.
+
+config MACH_GT5NOTE10_EUR_OPEN
+    depends on SEC_GT510_PROJECT
+        default n
+        bool "Samsung GT5 NOTE 10 LTE EUR Open"
+        help
+          Support for Samsung GT5 NOTE 10 LTE EUR Open device.
+
+config MACH_GT5NOTE10_CHN_OPEN
+    depends on SEC_GT510_PROJECT
+        default n
+        bool "Samsung GT5 NOTE 10 LTE CHN Open"
+        help
+          Support for Samsung GT5 NOTE 10 LTE CHN Open device.
+
+config MACH_GT5NOTE10_KOR_OPEN
+    depends on SEC_GT510_PROJECT
+        default n
+        bool "Samsung GT5 NOTE 10 LTE KOR Open"
+        help
+          Support for Samsung GT5 NOTE 10 LTE KOR Open device.
+
+config MACH_GT5NOTE10WIFI_EUR_OPEN
+    depends on SEC_GT510_PROJECT
+        default n
+        bool "Samsung GT5 NOTE 10 WIFI EUR Open"
+        help
+          Support for Samsung GT5 NOTE 10 WIFI EUR Open device.
+
+config SEC_FORTUNA_PROJECT
+    depends on ARCH_MSM8916
+	default n
+	bool "Samsung FORTUNA Project"
+	help
+	  Support for Samsung Fortuna Project
+
+config MACH_FORTUNA_TFN
+    depends on SEC_FORTUNA_PROJECT
+        default n
+        bool "Samsung FORTUNA USA TFN"
+        help
+          Support for Samsung FORTUNA USA TFN device.
+
+config MACH_FORTUNA_USC
+    depends on SEC_FORTUNA_PROJECT
+        default n
+        bool "Samsung FORTUNA USA USC"
+        help
+          Support for Samsung FORTUNA USA USC device.
+
+config MACH_FORTUNA_TMO
+    depends on SEC_FORTUNA_PROJECT
+        default n
+        bool "Samsung FORTUNA USA TMO"
+        help
+          Support for Samsung FORTUNA USA TMO device.
+
+config MACH_FORTUNA_BMC
+    depends on SEC_FORTUNA_PROJECT
+        default n
+        bool "Samsung FORTUNA CAN BMC"
+        help
+          Support for Samsung FORTUNA CAN BMC device.
+		  
+config MACH_FORTUNA_SPR
+    depends on SEC_FORTUNA_PROJECT
+        default n
+        bool "Samsung FORTUNA USA SPR"
+        help
+          Support for Samsung FORTUNA USA SPR device.
+
+config SEC_A5_EUR_PROJECT
+	depends on ARCH_MSM8916
+		default n
+		bool "Samsung A5 EUR Project"
+		help
+			Support for Samsung A5 EUR Project
+
+config MACH_A5_EUR_OPEN
+	depends on SEC_A5_EUR_PROJECT
+		default n
+		bool "Samsung A5 EUR Open"
+		help
+		  Support for Samsung A5 EUR Open device.
+
+config SEC_A53G_EUR_PROJECT
+	depends on ARCH_MSM8916
+		default n
+		bool "Samsung A53G EUR Project"
+		help
+		  Support for Samsung A53G EUR Project
+
+config MACH_A53G_EUR_OPEN
+	depends on SEC_A53G_EUR_PROJECT
+		default n
+		bool "Samsung A53G EUR Open"
+		help
+		  Support for Samsung A53G EUR Open device.
+
+config SEC_ROSSA_PROJECT
+    depends on ARCH_MSM8916
+	default n
+	bool "Samsung ROSSA Project"
+	help
+	  Support for Samsung Rossa Project
+
+config MACH_ROSSA_SPR
+    depends on SEC_ROSSA_PROJECT
+	default n
+	bool "Samsung ROSSA Sprint"
+	help
+	  Support for Samsung ROSSA Sprint device.
+
+config MACH_ROSSA_TMO
+    depends on SEC_ROSSA_PROJECT
+	default n
+	bool "Samsung ROSSA TMobile"
+	help
+	  Support for Samsung ROSSA TMobile device.
+
+config MACH_ROSSA_VZW
+    depends on SEC_ROSSA_PROJECT
+	default n
+	bool "Samsung ROSSA Verizon"
+	help
+	  Support for Samsung ROSSA Verizon device.
+
+config SEC_SIGNUM_PROJECT
+    depends on ARCH_MSM8916
+        default n
+        bool "Samsung SIGNUM Project"
+        help
+          Support for Samsung SIGNUM Project
+
+config MACH_SIGNUMLTE_EUR_OPEN
+    depends on SEC_SIGNUM_PROJECT
+        default n
+        bool "Samsung SIGNUM LTE EUR OPEN"
+        help
+          Support for Samsung SIGNUM LTE EUR OPEN device.
 
 config MSM_KRAIT_TBB_ABORT_HANDLER
 	bool "Krait TBB/TBH data abort handler"
@@ -534,12 +873,11 @@ config PHYS_OFFSET
 	hex
 	default "0x00000000" if ARCH_MSM8974
 	default "0x00000000" if ARCH_APQ8084
-	default "0x00000000" if ARCH_MPQ8092
-	default "0x80000000" if ARCH_MSM8916
 	default "0x00000000" if ARCH_MSM8226
 	default "0x00000000" if ARCH_MSM8610
-	default "0x00000000" if ARCH_MSMSAMARIUM
-	default "0x11400000" if ARCH_FSM9900
+	default "0x80000000" if ARCH_MSM8916
+	default "0x0b600000" if ARCH_FSM9900
+	default "0x00000000" if ARCH_FSM9010
 	default "0x00000000" if ARCH_MDM9630
 	default "0x80000000" if ARCH_MSMZIRC
 	default "0x00200000" if !MSM_STACKED_MEMORY
@@ -601,13 +939,13 @@ choice
 		  Say Y here if you want the debug print routines to direct
 		  their output to the serial port on MSM 8974 devices.
 
-	config DEBUG_MPQ8092_UART
-                bool "Kernel low-level debugging messages via MPQ8092 UART"
-                depends on ARCH_MPQ8092
-                select MSM_HAS_DEBUG_UART_HS_V14
-                help
-                  Say Y here if you want the debug print routines to direct
-                  their output to the serial port on MPQ8092 devices.
+	config DEBUG_MSM8909_UART
+		bool "Kernel low-level debugging messages via MSM8909 UART"
+		depends on ARCH_MSM8909
+		select MSM_HAS_DEBUG_UART_HS_V14
+		help
+		  Say Y here if you want the debug print routines to direct
+		  their output to the serial port on MSM8909 devices.
 
 	config DEBUG_MSM8916_UART
                 bool "Kernel low-level debugging messages via MSM8916 UART"
@@ -633,13 +971,15 @@ choice
 		  Say Y here if you want the debug print routines to direct
 		  their output to the serial port on FSM9900 devices.
 
-	config DEBUG_MSMSAMARIUM_UART
-		bool "Kernel low-level debugging messages via MSM SAMARIUM UART"
-		depends on ARCH_MSMSAMARIUM
+	config DEBUG_FSM9010_UART
+		bool "Kernel low-level debugging messages via FSM9010 UART"
+		depends on ARCH_FSM9010
 		select MSM_HAS_DEBUG_UART_HS_V14
 		help
-		  Say Y here if you want the debug print routines to direct
-		  their output to the serial port on MSM SAMARIUM devices.
+		  Say Y here if you want the debug print routines to
+		  direct their output to the serial port on FSM9010
+		  devices. This is useful in the early kernel
+		  development.
 
 	config DEBUG_MSM8226_UART
 		bool "Kernel low-level debugging messages via MSM 8226 UART"
@@ -656,6 +996,14 @@ choice
 		help
 		  Say Y here if you want the debug print routines to direct
 		  their output to the serial port on MSM ZIRC devices.
+	config DEBUG_MDMFERRUM_UART
+		bool "Kernel low-level debugging messages via MDM FERRUM UART"
+		depends on ARCH_MDMFERRUM
+		select MSM_HAS_DEBUG_UART_HS_V14
+		help
+		 Say Y here if you want the debug print routines to direct
+		 their output to the serial port on MDM FERRUM devices.
+
 endchoice
 
 choice
@@ -803,27 +1151,6 @@ config MSM_RPC_LOOPBACK_XPRT
 	  Support for routing RPC messages between APPS clients
 	  and APPS servers.  Helps in testing APPS RPC framework.
 
-if CPU_FREQ_MSM
-
-config MSM_CPU_FREQ_SET_MIN_MAX
-	bool "Set Min/Max CPU frequencies."
-	default n
-	help
-	  Allow setting min and max CPU frequencies. Sysfs can be used
-	  to override these values.
-
-config MSM_CPU_FREQ_MAX
-	int "Max CPU Frequency"
-	depends on MSM_CPU_FREQ_SET_MIN_MAX
-	default 384000
-
-config MSM_CPU_FREQ_MIN
-	int "Min CPU Frequency"
-	depends on MSM_CPU_FREQ_SET_MIN_MAX
-	default 245760
-
-endif # CPU_FREQ_MSM
-
 config RTAC
 	bool "MSM8K real-time audio calibration support"
 	default y
@@ -948,24 +1275,6 @@ config MSM_SMCMOD
 	  to execute the Secure Monitor Call (SMC) to switch from non-secure
 	  to secure execution in the fsm9xxx and msm8x26 targets. This module
 	  utilizes Ion for buffer management.
-
-config MSM_BUSPM_DEV
-	tristate "MSM Bus Performance Monitor Kernel Module"
-	depends on MSM_BUS_SCALING
-	default n
-	help
-	  This kernel module is used to mmap() hardware registers for the
-	  performance monitors, counters, etc. The module can also be used to
-	  allocate physical memory which is used by bus performance hardware to
-	  dump performance data.
-
-config MSM_TZ_LOG
-	tristate "MSM Trust Zone (TZ) Log Driver"
-	depends on DEBUG_FS
-	help
-	  This option enables a driver with a debugfs interface for messages
-	  produced by the Secure code (Trust zone). These messages provide
-	  diagnostic information about TZ operation.
 
 config MSM_DIRECT_SCLK_ACCESS
 	bool "Direct access to the SCLK timer"
@@ -1111,6 +1420,11 @@ config MSM_L2_ERP_2BIT_PANIC
 	  For production builds, it may be acceptable to say 'N' here, since
 	  an uncorrectable error might not necessarily cause further problems.
 
+config SEC_PERIPHERAL_SECURE_CHK
+	bool "PERIPHERAL SECURE check"
+	default n
+	help
+	  To check the authentication of peripheral image.
 config MSM_CPR
 	tristate "Use MSM CPR in S/W mode"
 	help
@@ -1119,22 +1433,6 @@ config MSM_CPR
 
 config HAVE_ARCH_HAS_CURRENT_TIMER
 	bool
-
-config MSM_CACHE_DUMP
-	bool "Cache dumping support"
-	help
-	  Add infrastructure to dump the L1 and L2 caches to an allocated buffer.
-	  This allows for analysis of the caches in case cache corruption is
-	  suspected.
-
-config MSM_CACHE_DUMP_ON_PANIC
-	bool "Dump caches on panic"
-	depends on MSM_CACHE_DUMP
-	help
-	  By default, the caches are flushed on panic. This means that trying to
-	  look at them in a RAM dump will give useless data. Select this if you
-	  want to dump the L1 and L2 caches on panic before any flush occurs.
-	  If unsure, say N
 
 config MSM_HSIC_SYSMON
 	tristate "MSM HSIC system monitor driver"
@@ -1177,18 +1475,9 @@ config MSM_UARTDM_Core_v14
 	help
 		Select if BLSP based UART Core v.14 or higher is present.
 
-config MSM_BOOT_STATS
-	bool "Use MSM boot stats reporting"
-	help
-	 Use this to report msm boot stats such as bootloader throughput,
-	 display init, total boot time.
-	 This figures are reported in mpm sleep clock cycles and have a
-	 resolution of 31 bits as 1 bit is used as an overflow check.
-
-config MSM_XPU_ERR_FATAL
-	bool "Configure XPU violations as fatal errors"
-	help
-	 Select if XPU violations have to be configured as fatal errors.
+config KNOX_KAP
+       bool "Enable KNOX KAP mode"
+       default n
 
 config TIMA_LKMAUTH
        bool "Enable LKM authentication TIMA feature"
@@ -1230,6 +1519,10 @@ config KRAIT_REGULATOR
 	 regulators running in ganged mode inside the PMIC. Enable
 	 this option to support such configurations.
 
+config EXTEND_SERIAL_NUM_16
+	bool "serial number is 16 digit"
+	default n
+
 config MSM_PP2S_FEMTO
 	bool "FSM99XX PP2S Interrupt Notification"
 	depends on ARCH_FSM9900
@@ -1238,26 +1531,18 @@ config MSM_PP2S_FEMTO
 	  Select Y if you want this notification to manifest.
 	  If unsure, select N.
 
-config SEC_THERMISTOR
-        bool "Use external thermistor near AP for checking temprature"
-        default n
-        help
-        Use thermistor driver for checking temperature near AP chip.
+config FSM9900_GSM_NL
+	bool "FSM9900 GSM NL Hardware Support"
+	depends on ARCH_FSM9900
+	help
+	  Enables the support for GSM NL hardware module. When this option
+	  is enabled, the GPIO pins for DIQ interface are configured differently.
+	  The DIQ functionality is disabled and the UART functionality is enabled.
+	  The serial port connection can be established to communicate with the
+	  GSM NL module.
 
-config RTC_AUTO_PWRON
-        bool "RTC Auto Power on PM8x16 PMICs"
-        depends on ARCH_MSM8916
+config SAMSUNG_PRODUCT_SHIP
+        bool "set up for product shipping"
         default n
-        help
-          Support for the auto power on alarm on the PM8X16 PMIC.
-          Say Y if you want to enable this feature.
-
-config RTC_AUTO_PWRON_PARAM
-        bool "RTC Auto Power on with param PM8x16 PMICs"
-        depends on RTC_AUTO_PWRON
-        default n
-        help
-          This option is used to prevent invalid RTC alarm power on.
-          Say Y if you want to enable this feature.
 
 endif

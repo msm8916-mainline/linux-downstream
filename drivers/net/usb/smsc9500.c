@@ -114,13 +114,13 @@ u32 mac_addr_lo32=0xFFFFFFFFUL;
 #endif
 MODULE_PARM_DESC(mac_addr_lo32,"Specifies the low 32 bits of the mac address");
 
-u32 phy_addr=0xFFFFFFFFUL;
+u32 smsc_phy_addr=0xFFFFFFFFUL;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
-	module_param(phy_addr, uint, 0);
+	module_param(smsc_phy_addr, uint, 0);
 #else
-	MODULE_PARM(phy_addr,"i");
+	MODULE_PARM(smsc_phy_addr,"i");
 #endif
-MODULE_PARM_DESC(phy_addr,"phy_addr, only valid if it is external phy set by strap; 0-31=external phy with specified address, else autodetect external phy addr");
+MODULE_PARM_DESC(smsc_phy_addr,"phy_addr, only valid if it is external phy set by strap; 0-31=external phy with specified address, else autodetect external phy addr");
 
 bool scatter_gather=FALSE;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
@@ -3285,6 +3285,7 @@ direction is 0 - Input config
 pull is 1 - push pull
 pull is 0 - open drain
 */
+#ifdef CONFIG_USB_NOTIFY_LAYER
 static int smsc9500_gpio_init(struct usbnet * dev, int gpio, int direction, int pull)
 {
 	u32 gpio_cfg;
@@ -3333,7 +3334,6 @@ static int smsc9500_gpio_get(struct usbnet * dev, int gpio)
 	return ret;
 }
 
-#ifdef CONFIG_USB_HOST_NOTIFY
 int smsc9500_ovc_gpio_check(void *data)
 {
 	struct usbnet *dev = (struct usbnet *)data;
@@ -3345,7 +3345,7 @@ int smsc9500_ovc_gpio_check(void *data)
 		ret = HNOTIFY_HIGH;
 	else if (gpio == 0)
 		ret = HNOTIFY_LOW;
-	else if (gpio < 0)
+	else
 		ret = HNOTIFY_INITIAL;
 	return ret;
 }
@@ -4734,9 +4734,9 @@ static int smsc9500_reset(struct usbnet *dev)
 	smsc9500_rx_setmulticastlist(dev);
 
 	adapterData->dwSavedLinkSettings = link_mode;
-	if (!Phy_Initialize(dev, phy_addr, link_mode))
+	if (!Phy_Initialize(dev, smsc_phy_addr, link_mode))
 		return SMSC9500_FAIL;
-#ifdef CONFIG_USB_HOST_NOTIFY
+#ifdef CONFIG_USB_NOTIFY_LAYER
 	smsc9500_gpio_init(dev, 3, 0, 0);
 #endif
 	SMSC_TRACE(DBG_INIT,"<--------out of smsc9500_reset, return 0\n");

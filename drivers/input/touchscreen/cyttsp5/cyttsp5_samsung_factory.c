@@ -87,7 +87,9 @@ static void run_difference_read(void *device_data);
 static void run_local_idac_read(void *device_data);
 static void run_global_idac_read(void *device_data);
 static void baseline_reset(void *device_data);
+#ifdef USE_REPORT_RATE
 static void report_rate(void *device_data);
+#endif
 #ifdef SAMSUNG_TOUCH_MODE	
 static void hover_enable(void *device_data);
 static void glove_mode(void *device_data);
@@ -127,7 +129,9 @@ struct factory_cmd factory_cmds[] = {
 	{FACTORY_CMD("run_global_idac_read", run_global_idac_read),},
 	{FACTORY_CMD("get_module_vendor", not_support_cmd),},
 	{FACTORY_CMD("baseline_reset", baseline_reset),},
+#ifdef USE_REPORT_RATE
 	{FACTORY_CMD("report_rate", report_rate),},
+#endif
 #ifdef SAMSUNG_TOUCH_MODE	
 	{FACTORY_CMD("hover_enable", hover_enable),},
 	{FACTORY_CMD("glove_mode", glove_mode),},
@@ -1023,7 +1027,7 @@ static inline void _check_rc(struct cyttsp5_samsung_factory_data* sfd,
 	}
 
 	set_cmd_result(sfd, strbuff, strnlen(strbuff, sizeof(strbuff)));
-	dev_info(sfd->dev, "%s: %s(%d)\n", __func__,
+	dev_dbg(sfd->dev, "%s: %s(%d)\n", __func__,
 		strbuff, strnlen(strbuff, sizeof(strbuff)));
 
 	mutex_lock(&sfd->factory_cmd_lock);
@@ -1404,6 +1408,7 @@ static int report_rate_set_param(struct cyttsp5_samsung_factory_data* sfd)
 	return rc;
 }
 
+#ifdef USE_REPORT_RATE
 static void report_rate(void *device_data)
 {
 	struct cyttsp5_samsung_factory_data* sfd =
@@ -1446,6 +1451,7 @@ static void report_rate(void *device_data)
 check_rc:
 	_check_rc(sfd, rc);
 }
+#endif
 
 #if defined(TSP_BOOSTER)
 static void boost_level(void *device_data)
@@ -1600,9 +1606,8 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 		} while (cur - buf <= len);
 	}
 
-	dev_info(sfd->dev, "cmd = %s\n", factory_cmd_ptr->cmd_name);
 	for (i = 0; i < param_cnt; i++)
-		dev_info(sfd->dev, "cmd param %d= %d\n", i,
+		dev_info(sfd->dev, "cmd = %s, param %d= %d\n", factory_cmd_ptr->cmd_name, i,
 			sfd->factory_cmd_param[i]);
 
 	factory_cmd_ptr->cmd_func(sfd);
@@ -1617,7 +1622,7 @@ static ssize_t show_cmd_status(struct device *dev,
 	struct cyttsp5_samsung_factory_data *sfd = dev_get_drvdata(dev);
 	char strbuff[16] = {0};
 
-	dev_info(sfd->dev, "tsp cmd: status:%d, PAGE_SIZE=%ld\n",
+	dev_dbg(sfd->dev, "tsp cmd: status:%d, PAGE_SIZE=%ld\n",
 			sfd->factory_cmd_state, PAGE_SIZE);
 
 	if (sfd->factory_cmd_state == FACTORYCMD_WAITING)

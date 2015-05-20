@@ -21,10 +21,6 @@
 #include <linux/power_supply.h>
 #endif
 
-#if defined(CONFIG_MUIC_SM5502_SUPPORT_LANHUB_TA)
-extern bool lanhub_ta_case;
-#endif
-
 static void sec_otg_set_id_state(int id)
 {
 	struct msm_otg *motg = the_msm_otg;
@@ -51,7 +47,7 @@ static void sec_otg_set_id_state(int id)
 	}
 }
 
-int sec_set_host(int enable)
+int sec_set_host(bool enable)
 {
 	if (enable) {
 		pr_info("USB OTG START : ID clear\n");
@@ -118,71 +114,88 @@ static struct sec_cable support_cable_list[] = {
 #ifdef CONFIG_USB_HOST_NOTIFY
 	{ .cable_type = EXTCON_USB_HOST, },
 	{ .cable_type = EXTCON_USB_HOST_5V, },
-#endif	
-	{ .cable_type = EXTCON_TA, },
+#if defined (CONFIG_MUIC_SUPPORT_LANHUB)
+	{ .cable_type = EXTCON_LANHUB, },
+	{ .cable_type = EXTCON_LANHUB_TA, },
+#endif
 	{ .cable_type = EXTCON_AUDIODOCK, },
 	{ .cable_type = EXTCON_SMARTDOCK_TA, },
+#endif
 	{ .cable_type = EXTCON_SMARTDOCK_USB, },
 	{ .cable_type = EXTCON_JIG_USBON, },
+	{ .cable_type = EXTCON_CHARGE_DOWNSTREAM, },
 };
-
-extern void set_ncm_ready(bool ready);
-static void sec_usb_work(int usb_mode)
-{
-	struct power_supply *psy;
-
-	if(!usb_mode)
-		set_ncm_ready(false);
-
-	psy = power_supply_get_by_name("msm-usb");
-	//pr_info("usb: phy-msm-usb power supply set(%d)", usb_mode);
-	power_supply_set_present(psy, usb_mode);
-}
-
 
 static void sec_cable_event_worker(struct work_struct *work)
 {
 	struct sec_cable *cable =
 			    container_of(work, struct sec_cable, work);
+	struct otg_notify *n = get_otg_notify();
 
 	pr_info("sec otg: %s is %s\n",
 		extcon_cable_name[cable->cable_type],
 		cable->cable_state ? "attached" : "detached");
 
-
 	switch (cable->cable_type) {
 	case EXTCON_USB:
 	case EXTCON_SMARTDOCK_USB:
 	case EXTCON_JIG_USBON:
-		sec_usb_work(cable->cable_state);
-		break;
-	case EXTCON_TA: break;
-#ifdef CONFIG_USB_HOST_NOTIFY		
-	case EXTCON_AUDIODOCK:
+	case EXTCON_CHARGE_DOWNSTREAM:
 		if (cable->cable_state)
-			sec_otg_notify(HNOTIFY_AUDIODOCK_ON);
+			send_otg_notify(n, NOTIFY_EVENT_VBUS, 1);
 		else
-			sec_otg_notify(HNOTIFY_AUDIODOCK_OFF);
+			send_otg_notify(n, NOTIFY_EVENT_VBUS, 0);
 		break;
-	case EXTCON_SMARTDOCK_TA:
-		if (cable->cable_state)
-			sec_otg_notify(HNOTIFY_SMARTDOCK_ON);
-		else
-			sec_otg_notify(HNOTIFY_SMARTDOCK_OFF);
+#ifdef CONFIG_USB_HOST_NOTIFY
+	case EXTCON_USB_HOST:
+		if (cable->cable_state) {
+			send_otg_notify(n, NOTIFY_EVENT_DRIVE_VBUS, 1);
+			send_otg_notify(n, NOTIFY_EVENT_HOST, 1);
+		} else {
+			send_otg_notify(n, NOTIFY_EVENT_HOST, 0);
+			send_otg_notify(n, NOTIFY_EVENT_DRIVE_VBUS, 0);
+		}
 		break;
 	case EXTCON_USB_HOST_5V:
 		if (cable->cable_state)
-			sec_otg_notify(HNOTIFY_OTG_POWER_ON);
+			send_otg_notify(n, NOTIFY_EVENT_VBUSPOWER, 1);
 		else
-			sec_otg_notify(HNOTIFY_OTG_POWER_OFF);
+			send_otg_notify(n, NOTIFY_EVENT_VBUSPOWER, 0);
 		break;
-	case EXTCON_USB_HOST: 
+#if defined (CONFIG_MUIC_SUPPORT_LANHUB)
+	case EXTCON_LANHUB:
 		if (cable->cable_state)
-			sec_otg_notify(HNOTIFY_ID);
-		else	
-			sec_otg_notify(HNOTIFY_ID_PULL);
+			send_otg_notify(n, NOTIFY_EVENT_LANHUB, 1);
+		else
+			send_otg_notify(n, NOTIFY_EVENT_LANHUB, 0);
 		break;
-#endif		
+	case EXTCON_LANHUB_TA:
+		if (cable->cable_state) {
+			pr_info("sec otg: TA attached with lanhub, otg off\n");
+			send_otg_notify(n, NOTIFY_EVENT_DRIVE_VBUS, 0);
+		} else {
+			if (extcon_get_cable_state(cable->edev, extcon_cable_name[EXTCON_USB_HOST])) {
+				pr_info("sec otg: TA detached with lanhub, otg on\n");
+				send_otg_notify(n, NOTIFY_EVENT_DRIVE_VBUS, 1);
+			} else {
+				pr_info("sec otg: usb host detached already, do nothing\n");
+			}
+		}
+		break;
+#endif
+	case EXTCON_AUDIODOCK:
+		if (cable->cable_state)
+			send_otg_notify(n, NOTIFY_EVENT_AUDIODOCK, 1);
+		else
+			send_otg_notify(n, NOTIFY_EVENT_AUDIODOCK, 0);
+		break;
+	case EXTCON_SMARTDOCK_TA:
+		if (cable->cable_state)
+			send_otg_notify(n, NOTIFY_EVENT_SMARTDOCK_TA, 1);
+		else
+			send_otg_notify(n, NOTIFY_EVENT_SMARTDOCK_TA, 0);
+		break;
+#endif
 	default : break;
 	}
 

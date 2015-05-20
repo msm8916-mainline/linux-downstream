@@ -91,7 +91,16 @@ config MSM_EEPROM
           Enable support for ROM Interface for Calibration
           Provides interface for reading the Claibration data.
           and also provides support for writing data in case of FLASH ROM.
-	  Currently supports I2C, CCI and SPI protocol
+          Currently supports I2C, CCI and SPI protocol
+
+config MSM_FRONT_EEPROM
+        bool "Qualcomm MSM Camera ROM Interface for Calibration support"
+        depends on MSMB_CAMERA
+        ---help---
+          Enable support for ROM Interface for Calibration
+          Provides interface for reading the Claibration data.
+          and also provides support for writing data in case of FLASH ROM.
+          Currently supports I2C, CCI and SPI protocol
 
 config MSM_OTP
         bool "Qualcomm MSM Camera ROM Interface for Calibration support"
@@ -181,6 +190,21 @@ config OV5645
 		1280 * 270. It does not support auto focus. It supports
 		few special effects like saturation.
 
+config SR200PC20
+	bool "Sensor for front camera"
+	depends on MSMB_CAMERA
+	default n
+	---help---
+	  Siliconfile 2.0MP sensor,
+	  Front sensor.
+config SR544
+    bool "Sensor for back camera"
+	depends on MSMB_CAMERA
+	default n
+	---help---
+	5MP sensor
+	Rear sensor
+
 config SP1628
 	bool "Sensor SP1628 (YUV 720P)"
 	depends on MSMB_CAMERA
@@ -235,6 +259,40 @@ config S5K8B1YX
 		hfr video at 60, 90 and 120 fps. This sensor driver does
 		not support auto focus.
 
+config S5K6A3YX
+	bool "Sensor S5K6A3YX (BAYER 1.9M)"
+	depends on MSMB_CAMERA
+	---help---
+		S.LSI. 2 MP Bayer Sensor, supports 2 mipi lanes,
+
+config S5K4H5YB
+	bool "Sensor S5K4H5YB (BAYER 8M)"
+	depends on MSMB_CAMERA
+	---help---
+		S.LSI. 8 MP Bayer Sensor with auto focus, uses
+		4 mipi lanes full resolution @30fps and
+
+config S5K3L2XX
+	bool "Sensor S5K3L2XX (BAYER 13M)"
+	depends on MSMB_CAMERA
+	---help---
+		S.LSI. 13MP Bayer Sensor with auto focus, uses
+		4 mipi lanes full resolution @30fps
+
+config S5K3P3SX
+	bool "Sensor S5K3P3SX (BAYER 16M)"
+	depends on MSMB_CAMERA
+	---help---
+		S.LSI. 16MP Bayer Sensor with auto focus, uses
+		4 mipi lanes full resolution @30fps
+
+config S5K5E3YX
+	bool "Sensor S5K5E3YX (BAYER 5M)"
+	depends on MSMB_CAMERA
+	---help---
+		S.LSI. 5MP Bayer Sensor with auto focus, uses
+		2 mipi lanes full resolution @30fps
+
 config OV12830
 	bool "OmniVision OV12830 (BAYER 12MP)"
 	depends on MSMB_CAMERA
@@ -266,3 +324,14 @@ config MSM_GEMINI
 	depends on MSMB_CAMERA && (ARCH_MSM7X30 || ARCH_MSM8X60 || ARCH_MSM8960)
 	---help---
 	  Enables support for the Gemini JPEG encoder engine for 8x60.
+
+config SEC_CAMERA_TUNING
+	bool "Generic Tuning Concept"
+	---help---
+	  Enable support for Tuning in eng Binary
+
+config CAM_USE_EXT_VANA_GPIO
+	bool "Samsung EXT_VANA_GPIO"
+	depends on MSMB_CAMERA
+	---help---
+	  Board use external LDO controlled by GPIO.

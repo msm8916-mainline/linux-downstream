@@ -49,7 +49,7 @@
 #include <asm/timex.h>
 #include <asm/io.h>
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 
 #define CREATE_TRACE_POINTS
@@ -628,8 +628,8 @@ static inline void debug_assert_init(struct timer_list *timer)
 static void do_init_timer(struct timer_list *timer, unsigned int flags,
 			  const char *name, struct lock_class_key *key)
 {
-
 	struct tvec_base *base;
+
 #ifdef CONFIG_SMP
 	if (flags & TIMER_DEFERRABLE)
 		base = tvec_base_deferral;
@@ -756,33 +756,33 @@ __mod_timer(struct timer_list *timer, unsigned long expires,
 #ifdef CONFIG_SMP
 	if (base != tvec_base_deferral) {
 #endif
-	cpu = smp_processor_id();
+		 cpu = smp_processor_id();
 
 #if defined(CONFIG_NO_HZ_COMMON) && defined(CONFIG_SMP)
-	if (!pinned && get_sysctl_timer_migration() && idle_cpu(cpu))
-		cpu = get_nohz_timer_target();
+		if (!pinned && get_sysctl_timer_migration() && idle_cpu(cpu))
+			cpu = get_nohz_timer_target();
 #endif
-	new_base = per_cpu(tvec_bases, cpu);
+		new_base = per_cpu(tvec_bases, cpu);
 
-	if (base != new_base) {
-		/*
-		 * We are trying to schedule the timer on the local CPU.
-		 * However we can't change timer's base while it is
-		 * running, otherwise del_timer_sync() can't detect that
-		 * the timer's * handler yet has not finished. This also
-		 * guarantees that * the timer is serialized wrt itself.
-		 */
-		if (likely(base->running_timer != timer)) {
-			/* See the comment in lock_timer_base() */
-			timer_set_base(timer, NULL);
-			spin_unlock(&base->lock);
-			base = new_base;
-			spin_lock(&base->lock);
-			timer_set_base(timer, base);
+		if (base != new_base) {
+			/*
+			 * We are trying to schedule the timer on the local CPU.
+			 * However we can't change timer's base while it is
+			 * running, otherwise del_timer_sync() can't detect that
+			 * the timer's * handler yet has not finished. This also
+			 * guarantees that * the timer is serialized wrt itself.
+			 */
+			if (likely(base->running_timer != timer)) {
+				/* See the comment in lock_timer_base() */
+				timer_set_base(timer, NULL);
+				spin_unlock(&base->lock);
+				base = new_base;
+				spin_lock(&base->lock);
+				timer_set_base(timer, base);
+			}
 		}
-	}
 #ifdef CONFIG_SMP
- 	}
+	}
 #endif
 
 	timer->expires = expires;
@@ -842,7 +842,7 @@ unsigned long apply_slack(struct timer_list *timer, unsigned long expires)
 
 	bit = find_last_bit(&mask, BITS_PER_LONG);
 
-	mask = (1 << bit) - 1;
+	mask = (1UL << bit) - 1;
 
 	expires_limit = expires_limit & ~(mask);
 
@@ -1560,8 +1560,8 @@ static int __cpuinit init_timers_cpu(int cpu)
 			 */
 			if (cpu != NR_CPUS)
 				base = kmalloc_node(sizeof(*base),
-						GFP_KERNEL | __GFP_ZERO,
-						cpu_to_node(cpu));
+						    GFP_KERNEL | __GFP_ZERO,
+						    cpu_to_node(cpu));
 			else
 				base = kmalloc(sizeof(*base),
 					       GFP_KERNEL | __GFP_ZERO);
@@ -1707,15 +1707,15 @@ void __init init_timers(void)
 	init_timer_stats();
 
 	BUG_ON(err != NOTIFY_OK);
+
 #ifdef CONFIG_SMP
 	/*
 	 * initialize cpu unbound deferrable timer base only when CONFIG_SMP.
 	 * UP kernel handles the timers with cpu 0 timer base.
-	 */	
+	 */
 	err = init_timers_cpu(NR_CPUS);
 	BUG_ON(err);
 #endif
-
 
 	register_cpu_notifier(&timers_nb);
 	open_softirq(TIMER_SOFTIRQ, run_timer_softirq);

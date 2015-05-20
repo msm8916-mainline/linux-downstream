@@ -4,15 +4,6 @@
 
 menu "Misc devices"
 
-config SEC_FPGA_ICE40XX
-        tristate "this feature allows FPGA_ICE40XX"
-        default y
-        help
-          This is a driver for IR LEd driver based on Lattice chip.
-          Lattice FPGA can support IR LED.
-          To compile this driver as a module, choose M here.
-          If unsure, say N.
-
 config SENSORS_LIS3LV02D
 	tristate
 	depends on INPUT
@@ -404,6 +395,13 @@ config SAMSUNG_JACK
 	 To samsung jack is reviewed and supported in all the
 	 samsung devices.
 
+config SAMSUNG_JACK_WATCH_DOG_RESET_WORK_AROUND
+	bool "prevent watch dog reset by ear det interrupt storming"
+	depends on SAMSUNG_JACK
+	default n
+	help
+	This is SW workaround code for watch dog reset due to HW
+
 config EARJACK_ADC_SYSFS
 	bool "EarJack & BTN adc sysfs"
 	depends on SAMSUNG_JACK
@@ -411,6 +409,14 @@ config EARJACK_ADC_SYSFS
 	help
 	This is sysfs for sec_jack driver jack type and
 	btn type adc values.
+
+config DYNAMIC_MICBIAS_CONTROL
+	bool "Earjack micbias dynamic control for reduce current consumption"
+	default n
+	help
+	 This is earjack micbias control for reduce current consumption.
+	 When mic does not used or button is released,
+	 micbias set to low voltage.
 
 config TIMA_LOG
 	tristate "Support for dumping TIMA log"
@@ -574,6 +580,12 @@ config SM5502_MUIC
 	help
 	  This option enables SILICON MITUS MUIC.
 
+config SM5504_MUIC
+	bool "SILICON MITUS MUIC"
+	default n
+	help
+	  This option enables SILICON MITUS MUIC.
+
 config USBID_STANDARD_VER_01
 	bool "USBID STANDARD VER 01"
 	default n
@@ -600,6 +612,12 @@ config MUIC_SUPPORT_CHARGING_CABLE
 	default n
 	help
 	 This option will enable the Charging (Power sharing) Cable
+
+config MUIC_SUPPORT_VZW_INCOMPATIBLE
+	bool "MUIC VZW INCOMPATIBLE CHARGER SUPPORT"
+	default n
+	help
+	 This option will enable the Incompatible Charger for VZW requirement
 
 config MUIC_SUPPORT_DESKDOCK
 	bool "MUIC DESK DOCK SUPPORT"
@@ -685,43 +703,6 @@ config QPNP_MISC
 	  and the driver provides an API to check if this interrupt
 	  is available on the current PMIC chip.
 
-config USB_HSIC_SMSC_HUB
-	tristate "Support for HSIC based MSM on-chip SMSC3503 HUB"
-	depends on USB_EHCI_MSM_HSIC
-	help
-	  Enables support for the HSIC (High Speed Inter-Chip) based
-	  SMSC3503 hub controller present on the Qualcomm chipsets.
-
-	  This adds support for connecting devices like mouse in HSIC
-	  Host mode.
-
-config CHECK_SIMSLOT_COUNT
-	bool "Dual/Single sim support"
-
-config CHECK_SIMSLOT_COUNT_GPIO
-	int "Number simslot count gpio"
-	depends on CHECK_SIMSLOT_COUNT
-	default 0
-	help
-	  Provides Number of SS/DS detect GPIO value.
-
-config CHECK_SIMSLOT_COUNT_DT
-	bool "Define number of simslot count gpio at DeviceTree file"
-	depends on CHECK_SIMSLOT_COUNT
-	default n
-	help
-	  Say 'y' if you want to define gpio number at DeviceTree file instead of defconfig file.
-
-config BCM2079X_NFC_I2C
-	tristate "BCM2079X NFC driver for I2C interface"
-	depends on I2C
-	default n
-	help
-	  Say yes if you want BCM2079X Near Field Communication driver.
-	  This is for spi connected version. If unsure, say N here.
-	  To compile this driver as a module, choose m here. The module will
-	  be called bcm2079x-i2c.
-
 config NFC_PN547
 	bool "NXP PN547 NFC Controller Driver"
 	depends on I2C
@@ -732,7 +713,6 @@ config NFC_PN547
 	  It is used by many services. NFC is fully controlled using I2C
 	  to communicate the AP chip.
 
-
 config NFC_PN547_8916_USE_BBCLK2
 	bool "NXP PN547 NFC CLOCK Controller"
 	depends on NFC_PN547
@@ -742,14 +722,6 @@ config NFC_PN547_8916_USE_BBCLK2
 	  This option enables device driver support for the NFC.
 	  It is used by many services. NFC is fully controlled using I2C
 	  to communicate the AP chip.
-
-config NFC_PN547_8916_CLK_CTL
-	bool "NXP PN547 NFC CLOCK Control"
-	depends on NFC_PN547
-	default n
-	help
-	  NXP PN547 Near Field Communication controller support.
-	  This option control the clock in suspend and resume.
 
 config SEC_NFC_I2C
 	tristate "SEC NFC driver for I2C interface"
@@ -816,16 +788,15 @@ config SEC_NFC_USE_8916_BBCLK2
 	  This option should be enabled if you use PMIC(8916) BB_CLK2 for NFC
 	  external clock.
 
-config SEC_NFC_MARGINTIME
-	bool "SEC NFC MARGINTIME"
-	default n
+config USB_HSIC_SMSC_HUB
+	tristate "Support for HSIC based MSM on-chip SMSC3503 HUB"
+	depends on USB_EHCI_MSM_HSIC
 	help
-	  SAMSUNG SEC NFC MARGINTIME feature.
-	  This feature provides support for SAMSUNG NFC products.
-	  You should select this feature if your NFC product uses AVDD Cap 10uF .
+	  Enables support for the HSIC (High Speed Inter-Chip) based
+	  SMSC3503 hub controller present on the Qualcomm chipsets.
 
-	  Say Y here to compile support for SAMSUNG SEC NFC MARGINTIME feature into the
-	  kernel.
+	  This adds support for connecting devices like mouse in HSIC
+	  Host mode.
 
 config TI_DRV2667
 	tristate "TI's DRV2667 haptic controller support"
@@ -838,12 +809,13 @@ config TI_DRV2667
 	  To compile this driver as a module, choose M here: the
 	  module will be called ti_drv2667.
 
-config APQ8084_DOCKING_STATION
-	tristate "QTI APQ8084 Docking Station USB/Ethernet support"
+config QCOM_LIQUID_DOCK
+	tristate "QTI LiQUID Docking Station USB/Ethernet support"
 	depends on OF_GPIO
 	help
 	  This option enables support for the USB and Ethernet ports found on
-	  the QTI APQ8084 Docking Station.
+	  the docking station of various models of Qualcomm Technology's
+	  LiQUID Mobile Development Platforms.
 
 config SEC_MISC
 	bool "Samsung P series miscellaneous driver"
@@ -860,6 +832,29 @@ config SEC_GPIO_SETTINGS
 	---help---
 	  Use this driver to configure active,
 	  suspend settings of gpios
+
+config CHECK_SIMSLOT_COUNT
+	bool "Dual/Single sim support"
+
+config CHECK_SIMSLOT_COUNT_GPIO
+	int "Number simslot count gpio"
+	depends on CHECK_SIMSLOT_COUNT
+	default 0
+	help
+	  Provides Number of SS/DS detect GPIO value.
+
+config CHECK_SIMSLOT_COUNT_DT
+	bool "Define number of simslot count gpio at DeviceTree file"
+	depends on CHECK_SIMSLOT_COUNT
+	default n
+	help
+	  Say 'y' if you want to define gpio number at DeviceTree file instead of defconfig file.
+
+config MACH_KOR_EARJACK_WR
+	bool "enable earjack-noise workaround"
+	default n
+	help
+	  Say Y to enable earjack-noise workaround at charging
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

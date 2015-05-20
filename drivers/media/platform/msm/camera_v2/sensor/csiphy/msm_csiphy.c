@@ -112,6 +112,9 @@ static int msm_csiphy_lane_config(struct csiphy_device *csiphy_dev,
 			csiphybase +
 			csiphy_dev->ctrl_reg->csiphy_reg.
 			mipi_csiphy_lnck_cfg3_addr);
+		msm_camera_io_w(0xff, csiphybase +
+			csiphy_dev->ctrl_reg->csiphy_reg.
+			mipi_csiphy_lnck_cfg4_addr);
 		msm_camera_io_w(0x24,
 			csiphybase + csiphy_dev->ctrl_reg->
 			csiphy_reg.mipi_csiphy_interrupt_mask0_addr);
@@ -130,6 +133,9 @@ static int msm_csiphy_lane_config(struct csiphy_device *csiphy_dev,
 			csiphybase +
 			csiphy_dev->ctrl_reg->csiphy_reg.
 			mipi_csiphy_glbl_reset_addr);
+		msm_camera_io_w(0xff, csiphybase +
+			csiphy_dev->ctrl_reg->csiphy_reg.
+			mipi_csiphy_lnn_cfg4_addr + 0x40);
 	}
 
 	lane_mask &= 0x1f;
@@ -153,6 +159,9 @@ static int msm_csiphy_lane_config(struct csiphy_device *csiphy_dev,
 			mipi_csiphy_interrupt_mask_val, csiphybase +
 			csiphy_dev->ctrl_reg->csiphy_reg.
 			mipi_csiphy_interrupt_clear_addr + 0x4*j);
+		msm_camera_io_w(0xff,
+			csiphybase + csiphy_dev->ctrl_reg->csiphy_reg.
+			mipi_csiphy_lnn_cfg4_addr + 0x40*j);
 		j++;
 		lane_mask >>= 1;
 	}
@@ -208,6 +217,61 @@ static int msm_csiphy_subdev_g_chip_ident(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int msm_csiphy_recovery(struct csiphy_device *csiphy_dev)
+{
+	int i = 0;
+	uint16_t csi_lane_mask;
+
+	pr_err("msm_csiphy_recovery: E\n");
+
+	if (csiphy_dev->hw_version < CSIPHY_VERSION_V30) {
+		csiphy_dev->lane_mask[csiphy_dev->pdev->id] = 0;
+		for (i = 0; i < 4; i++)
+			msm_camera_io_w(0x0, csiphy_dev->base +
+				csiphy_dev->ctrl_reg->csiphy_reg.
+				mipi_csiphy_lnn_cfg2_addr + 0x40*i);
+	} else {
+		csi_lane_mask = 0x1f;
+
+		csiphy_dev->lane_mask[csiphy_dev->pdev->id] &=
+			~(csi_lane_mask);
+		i = 0;
+		while (csi_lane_mask) {
+			if (csi_lane_mask & 0x1) {
+				msm_camera_io_w(0x0, csiphy_dev->base +
+					csiphy_dev->ctrl_reg->csiphy_reg.
+					mipi_csiphy_lnn_cfg2_addr + 0x40*i);
+			}
+			csi_lane_mask >>= 1;
+			i++;
+		}
+	}
+
+	csiphy_dev->ref_count = 0;
+
+	msm_camera_io_w(0x0, csiphy_dev->base +
+		csiphy_dev->ctrl_reg->csiphy_reg.mipi_csiphy_lnck_cfg2_addr);
+	msm_camera_io_w(0x0, csiphy_dev->base +
+		csiphy_dev->ctrl_reg->csiphy_reg.mipi_csiphy_glbl_pwr_cfg_addr);
+
+	if (csiphy_dev->hw_dts_version <= CSIPHY_VERSION_V22) {
+		msm_cam_clk_enable(&csiphy_dev->pdev->dev,
+			csiphy_clk_info, csiphy_dev->csiphy_clk,
+			csiphy_dev->num_clk, 0);
+	} else if (csiphy_dev->hw_dts_version >= CSIPHY_VERSION_V30) {
+		msm_cam_clk_enable(&csiphy_dev->pdev->dev,
+			csiphy_clk_info, csiphy_dev->csiphy_clk,
+			csiphy_dev->num_clk, 0);
+			iounmap(csiphy_dev->clk_mux_base);
+	}
+
+	iounmap(csiphy_dev->base);
+	csiphy_dev->base = NULL;
+	csiphy_dev->csiphy_state = CSIPHY_POWER_DOWN;
+	pr_err("msm_csiphy_recovery: X\n");
+	return 0;
+}
+
 #if DBG_CSIPHY
 static int msm_csiphy_init(struct csiphy_device *csiphy_dev)
 {
@@ -222,8 +286,9 @@ static int msm_csiphy_init(struct csiphy_device *csiphy_dev)
 	if (csiphy_dev->csiphy_state == CSIPHY_POWER_UP) {
 		pr_err("%s: csiphy invalid state %d\n", __func__,
 			csiphy_dev->csiphy_state);
-		rc = -EINVAL;
-		return rc;
+//		rc = -EINVAL;
+//		return rc;
+		msm_csiphy_recovery(csiphy_dev);
 	}
 	CDBG("%s:%d called\n", __func__, __LINE__);
 
@@ -319,8 +384,9 @@ static int msm_csiphy_init(struct csiphy_device *csiphy_dev)
 	if (csiphy_dev->csiphy_state == CSIPHY_POWER_UP) {
 		pr_err("%s: csiphy invalid state %d\n", __func__,
 			csiphy_dev->csiphy_state);
-		rc = -EINVAL;
-		return rc;
+//		rc = -EINVAL;
+//		return rc;
+		msm_csiphy_recovery(csiphy_dev);
 	}
 	CDBG("%s:%d called\n", __func__, __LINE__);
 

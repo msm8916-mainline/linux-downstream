@@ -21,38 +21,6 @@
 #define KGSL_3D0_SHADER_MEMORY	"kgsl_3d0_shader_memory"
 #define KGSL_3D0_IRQ		"kgsl_3d0_irq"
 
-enum kgsl_iommu_context_id {
-	KGSL_IOMMU_CONTEXT_USER = 0,
-	KGSL_IOMMU_CONTEXT_PRIV = 1,
-};
-
-/**
- * struct kgsl_iommu_ctx - Struct holding context name and id
- * @iommu_ctx_name:	Context name
- * @ctx_id:		Iommu context ID - user or priv
- */
-struct kgsl_iommu_ctx {
-	const char *iommu_ctx_name;
-	enum kgsl_iommu_context_id ctx_id;
-};
-
-/**
- * struct kgsl_device_iommu_data - Struct holding iommu context data obtained
- * from dtsi file
- * @iommu_ctxs:		Pointer to array of struct holding context name and id
- * @iommu_ctx_count:	Number of contexts defined in the dtsi file
- * @iommu_halt_enable:	Indicates if smmu halt h/w feature is supported
- * @physstart:		Start of iommu registers physical address
- * @physend:		End of iommu registers physical address
- */
-struct kgsl_device_iommu_data {
-	const struct kgsl_iommu_ctx *iommu_ctxs;
-	int iommu_ctx_count;
-	int iommu_halt_enable;
-	unsigned int physstart;
-	unsigned int physend;
-};
-
 /**
  * struct kgsl_pwrlevel - Struct holding different pwrlevel info obtained from
  * from dtsi file
@@ -60,14 +28,12 @@ struct kgsl_device_iommu_data {
  * @bus_freq:		Bus bandwidth vote index
  * @bus_min:		Min bus index @gpu_freq
  * @bus_max:		Max bus index @gpu_freq
- * @io_fraction:	IO percetage vote to the CPU
  */
 struct kgsl_pwrlevel {
 	unsigned int gpu_freq;
 	unsigned int bus_freq;
 	unsigned int bus_min;
 	unsigned int bus_max;
-	unsigned int io_fraction;
 };
 
 /**
@@ -86,7 +52,8 @@ struct kgsl_pwrlevel {
  * @csdev:		Pointer to the coresight device for this device
  * @coresight_pdata:	Coresight configuration for specific device
  * @chipid:		Chip ID for the device's GPU
- * @pm_qos_latency:		latency value for cpu
+ * @pm_qos_active_latency:	GPU PM QoS latency request for active state
+ * @pm_qos_wakeup_latency:	GPU PM QoS latency request during wakeup
  */
 struct kgsl_device_platform_data {
 	struct kgsl_pwrlevel pwrlevel[KGSL_MAX_PWRLEVELS];
@@ -103,7 +70,8 @@ struct kgsl_device_platform_data {
 	struct coresight_device *csdev;
 	struct coresight_platform_data *coresight_pdata;
 	unsigned int chipid;
-	unsigned int pm_qos_latency;
+	unsigned int pm_qos_active_latency;
+	unsigned int pm_qos_wakeup_latency;
 };
 
 #ifdef CONFIG_MSM_KGSL_DRM

@@ -27,17 +27,17 @@ config MMC_PERF_PROFILING
 	  If you say Y here, support will be added for collecting
 	  performance numbers at the MMC Queue and Host layers.
 
-config MMC_SUPPORT_STLOG
-	bool "Enable storage log"
-	depends on MMC && PROC_STLOG
-	default y
-
 config SEC_HYBRID_TRAY
 	bool "Samsung HYBRID TRAY Project"
 	depends on MMC != n
 	default n
 	help
 	  Support for Samsung HYBRID TRAY Project
+
+config MMC_SUPPORT_STLOG
+	bool "Enable storage log"
+	depends on MMC && PROC_STLOG
+	default y
 
 if MMC
 

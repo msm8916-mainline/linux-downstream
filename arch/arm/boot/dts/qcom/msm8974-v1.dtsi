@@ -41,6 +41,7 @@
 		compatible = "qcom,android-usb";
 		reg = <0xfc42b0c8 0xc8>;
 		qcom,pm-qos-latency = <2 1001 30001>;
+		qcom,android-usb-uicc-nluns = /bits/ 8 <1>;
 	};
 
 	qcom,msm-imem@fc42b000 {
@@ -144,8 +145,6 @@
 		<0xE0024 0x0>;
 	qcom,iommu-groups = <&venus_domain_ns &venus_domain_cp>;
 	qcom,iommu-group-buffer-types = <0xfff 0x1ff>;
-	qcom,buffer-type-tz-usage-table = <0x1 0x1>,
-					<0x7fe 0x2>;
 	qcom,msm-bus-clients {
 		qcom,msm-bus-client@0 {
 			qcom,msm-bus,name = "venc-ddr";
@@ -231,6 +230,10 @@
 
 &usb3 {
 	qcom,usbin-vadc = <&pm8941_vadc>;
+	dwc3@f9200000 {
+		snps,ssphy-clear-auto-suspend-on-disconnect;
+		snps,usb3-u1u2-disable;
+	};
 };
 
 &gdsc_venus {

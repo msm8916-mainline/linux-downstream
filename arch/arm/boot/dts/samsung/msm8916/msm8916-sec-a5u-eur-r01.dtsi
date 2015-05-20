@@ -13,15 +13,14 @@
 #include "msm8916.dtsi"
 #include "msm8916-pinctrl-sec-a5u-eur-r01.dtsi"
 #include "msm8916-camera-sensor-cdp-a5u.dtsi"
-#include "msm8916-sec-a5-eur-battery-r00.dtsi"
-#include "../../../../../../drivers/video/msm/mdss/samsung/EA8061V_AMS497EE01/dsi_panel_EA8061V_AMS497EE01_hd_octa_video.dtsi"
+#include "msm8916-sec-a5u-eur-battery-r00.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/EA8061V_AMS497EE01/dsi_panel_EA8061V_AMS497EE01_HD_octa_video.dtsi"
 
 
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
 		/*i2c-gpio bus_id*/
-		i2c7 = &i2c_7;
 		i2c12 = &i2c_12;
 	};
 };
@@ -173,7 +172,7 @@
 
 			rt5033_buck1 {
 				compatible = "richtek,rt5033-dcdc1";
-				regulator-name = "CAM_SENSOR_CORE_1.25V"; /* change name by yourself */
+				regulator-name = "CAM_SENSOR_CORE_1.2V"; /* change name by yourself */
 				regulator-min-microvolt = <1500000>;
 				regulator-max-microvolt = <1500000>; /* max == min then apply_uV = 1 */
 				/* regulator-microvolt-offset = < >; optional*/
@@ -193,7 +192,7 @@
 				strobe_timeout = <544>;
 				torch_current = <38>;
 				lv_protection = <3300>;
-				mid_level = <4400>;
+				mid_level = <4800>;
 				rt5033,led1-gpio = <&msm_gpio 34 0x00>;
 				rt5033,led2-gpio = <&msm_gpio 36 0x00>;
 				pinctrl-names = "fled_default","fled_sleep";
@@ -274,7 +273,7 @@
 			compatible = "taos,tmd3782";
 			reg = <0x39>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&prox_int_active>;
+			pinctrl-0 = <&prox_int_active &prox_enable_active>;
 			interrupt-parent = <&msm_gpio>;
 			interrupts = <113 0>;
 			reg_vio-supply = <&pm8916_l5>;
@@ -573,6 +572,7 @@
 
 &dsi_ea8061_video_hd {
 	qcom,mdss-dsi-booting-brightness = <255>;
+	samsung,panel-extra-power-gpio1 = <&msm_gpio 87 0>;
 };
 
 &mdss_dsi0 {
@@ -581,7 +581,6 @@
 	pinctrl-0 = <&mdss_dsi_active &lcd_esd_det_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &lcd_esd_det_suspend>;
 	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
-	qcom,platform-panel-extra-power-gpio1 = <&msm_gpio 87 0>;
 };
 
 &pm8916_chg {

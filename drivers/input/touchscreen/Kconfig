@@ -970,6 +970,40 @@ config TOUCHSCREEN_SYNAPTICS_I2C_RMI4
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_i2c_rmi4.
+config TOUCHSCREEN_SYNAPTICS_S7301
+	tristate "SYNAPTICS S7301 Touchscreen Interface"
+	depends on I2C
+	help
+		Say Y here if you want support for SYNAPTICS S7301
+		touchscreen controllers.
+
+		To compile this driver as a module, choose M here: the
+		module will be called melfas_ts.
+		
+config TOUCHSCREEN_SYNAPTICS_S7301_KEYS
+	bool "S7301 touch key support"
+	default n
+	help
+		Say Y here if you want support for SYNAPTICS S7301
+		touchscreen controller Keys.
+
+config TOUCHSCREEN_SYNAPTICS_S7301_WORKAROUND
+	bool "S7301 touch key workaround"
+	default n
+	help 
+		Say Y here if you want support for SYNAPTICS S7301
+		touchscreen controller reset control
+
+config TOUCHSCREEN_SYNAPTICS_S7301_KEYLED
+	bool "S7301 touch keyled support"
+	default n
+	help
+		Say Y here if you want support for SYNAPTICS S7301
+		with GPIO led control
+config SEC_TOUCHSCREEN_SURFACE_TOUCH
+	tristate "SEC surface touch"
+	help
+		Say Y here if you want support for surface touch.
 
 config TOUCHSCREEN_SYNAPTICS_DSX_RMI4_DEV
 	tristate "Synaptics I2C touchscreen rmi device"
@@ -1003,10 +1037,10 @@ config TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE
 
 config SECURE_TOUCH
 	bool "Secure Touch"
-	depends on TOUCHSCREEN_ATMEL_MXT
+	depends on (TOUCHSCREEN_ATMEL_MXT || TOUCHSCREEN_SYNAPTICS_I2C_RMI4 || \
+	  TOUCHSCREEN_SYNAPTICS_DSX_I2C_v21 || TOUCHSCREEN_ATMEL_MAXTOUCH_TS)
 	help
-	  Say Y here to enable Secure Touch support in the Atmel MXT
-	  driver.
+	  Say Y here to enable Secure Touch in supported drivers.
 
 	  If unsure, say N.
 
@@ -1020,6 +1054,31 @@ config TOUCHSCREEN_GT9XX
 
           If unsure, say N.
 
+source "drivers/input/touchscreen/gt9xx/Kconfig"
+
+config TOUCHSCREEN_BU21150
+	tristate "JDI AFE BU21150"
+	depends on SPI_MASTER
+	help
+	  This enables support for character device channel for
+	  Rohm BU21150 Touch AFE.
+
+	  Say Y here if you have a Rohm bu21150 AFE connected to
+	  your system.
+
+	  If unsure, say N.
+
+config INPUT_MT_WRAPPER
+	tristate "Input Multitouch Wrapper"
+	help
+	  This enables support for character device channel for
+	  passing to the input system a multi-touch coordinates.
+
+	  Say Y here if you want to enable the driver.
+
+	  If unsure, say N.
+
+
 config TOUCHSCREEN_MMS300
         tristate "MELFAS MMS300 touchscreen"
         depends on I2C
@@ -1032,11 +1091,25 @@ config TOUCHSCREEN_MMS300
           To compile this driver as a module, choose M here: the
           module will be called mms300 series.
 
-source "drivers/input/touchscreen/gt9xx/Kconfig"
-source "drivers/input/touchscreen/synaptics/Kconfig"
-source "drivers/input/touchscreen/stm_fts/Kconfig"
-source "drivers/input/touchscreen/cyttsp5/Kconfig"
-source "drivers/input/touchscreen/zinitix/Kconfig"
-source "drivers/input/touchscreen/atmel_mxt/Kconfig"
+config TOUCHSCREEN_MMS300_A
+        tristate "MELFAS MMS300 touchscreen for A5U"
+        depends on I2C
+        help
+          Say Y here if you have the MELFAS MMS300 touchscreen controller
+          chip in your system.
 
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the
+          module will be called mms300 series.
+          
+source "drivers/input/touchscreen/stm_fts/Kconfig"
+source "drivers/input/touchscreen/mxt_t/Kconfig"
+source "drivers/input/touchscreen/cyttsp5/Kconfig"
+source "drivers/input/touchscreen/imagis_core3/Kconfig"
+source "drivers/input/touchscreen/zinitix/Kconfig"
+source "drivers/input/touchscreen/wacom/Kconfig"
+source "drivers/input/touchscreen/melfas_mms400/Kconfig"
+source "drivers/input/touchscreen/zinitix_bt532/Kconfig"
 endif
+source "drivers/input/touchscreen/zinitix_j1/Kconfig"

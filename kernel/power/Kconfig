@@ -28,6 +28,10 @@ config CPU_FREQ_LIMIT_USERSPACE
 	  /sys/power/cpufreq_max_limit
 	  /sys/power/cpufreq_table
 
+config CPU_FREQ_LIMIT_HMP
+	bool "Booster code for HMP scheduler"
+	default n
+
 config HAS_WAKELOCK
 	bool
 	default y
@@ -260,8 +264,7 @@ config ARCH_HAS_OPP
 	bool
 
 config PM_OPP
-	bool "Operating Performance Point (OPP) Layer library"
-	depends on ARCH_HAS_OPP
+	bool
 	---help---
 	  SOCs have a standard set of tuples consisting of frequency and
 	  voltage pairs that the device will support per voltage domain. This

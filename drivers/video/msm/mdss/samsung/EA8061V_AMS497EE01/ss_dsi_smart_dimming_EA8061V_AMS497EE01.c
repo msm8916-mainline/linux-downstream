@@ -168,7 +168,7 @@ static void print_lux_table(struct SMART_DIM *psmart)
 			snprintf(pBuffer + strnlen(pBuffer, 256), 256, " %d",
 				psmart->gen_table[lux_loop].gamma_setting[cnt]);
 
-		pr_info("lux : %3d  %s", psmart->plux_table[lux_loop], pBuffer);
+		pr_info("lux : %3d  %s\n", psmart->plux_table[lux_loop], pBuffer);
 		memset(pBuffer, 0x00, 256);
 	}
 }
@@ -927,6 +927,8 @@ static void v3_hexa(int *index, struct SMART_DIM *pSmart, char *str)
 			- (pSmart->GRAY.TABLE[index[V11_INDEX]].R_Gray);
 	do_div(result_2, result_3);
 	str[27] = (result_2  - v3_coefficient) & 0xff;
+	if(str[27] == 0)
+		str[27]=0xff;
 
 	result_1 = (pSmart->vregout_voltage)
 			- (pSmart->GRAY.TABLE[index[V3_INDEX]].G_Gray);
@@ -935,6 +937,8 @@ static void v3_hexa(int *index, struct SMART_DIM *pSmart, char *str)
 			- (pSmart->GRAY.TABLE[index[V11_INDEX]].G_Gray);
 	do_div(result_2, result_3);
 	str[28] = (result_2  - v3_coefficient) & 0xff;
+	if(str[28] == 0)
+		str[28]=0xff;
 
 	result_1 = (pSmart->vregout_voltage)
 			- (pSmart->GRAY.TABLE[index[V3_INDEX]].B_Gray);
@@ -943,6 +947,8 @@ static void v3_hexa(int *index, struct SMART_DIM *pSmart, char *str)
 			- (pSmart->GRAY.TABLE[index[V11_INDEX]].B_Gray);
 	do_div(result_2, result_3);
 	str[29] = (result_2  - v3_coefficient) & 0xff;
+	if(str[29] == 0)
+		str[29]=0xff;
 
 }
 
@@ -1700,7 +1706,7 @@ static void generate_gamma(struct SMART_DIM *psmart, char *str, int size)
 
 #ifdef SMART_DIMMING_DEBUG
 	if (lux_loop != psmart->lux_table_max)
-		pr_info("%s searching ok index : %d lux : %d", __func__,
+		pr_info("%s searching ok index : %d lux : %d\n", __func__,
 			lux_loop, ptable[lux_loop].lux);
 #endif
 }

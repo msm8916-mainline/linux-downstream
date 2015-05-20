@@ -279,3 +279,4 @@ module_exit(notify_class_exit);
 MODULE_AUTHOR("Dongrak Shin <dongrak.shin@samsung.com>");
 MODULE_DESCRIPTION("Usb host notify driver");
 MODULE_LICENSE("GPL");
+

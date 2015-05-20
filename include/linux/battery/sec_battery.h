@@ -44,6 +44,7 @@ struct sec_battery_extcon_cable{
 #define ADC_CH_COUNT		10
 #define ADC_SAMPLE_COUNT	10
 
+#define DEFAULT_HEALTH_CHECK_COUNT	5
 #define TEMP_HIGHLIMIT_DEFAULT	2000
 
 struct adc_sample_info {
@@ -118,6 +119,9 @@ struct sec_battery_info {
 
 	/* health change check*/
 	bool health_change;
+	/* ovp-uvlo health check */
+	unsigned int health_check_count;
+
 	/* time check */
 	unsigned long charging_start_time;
 	unsigned long charging_passed_time;
@@ -131,6 +135,7 @@ struct sec_battery_info {
 	int temperature;	/* battery temperature */
 	int temper_amb;		/* target temperature */
 	int chg_temp;		/* charger temperature */
+	int pre_chg_temp;
 
 	int temp_adc;
 	int temp_ambient_adc;
@@ -184,6 +189,7 @@ struct sec_battery_info {
 	int stability_test;
 	int eng_not_full_status;
 
+	bool charging_block;
 #if defined(CONFIG_BATTERY_SWELLING)
 	int swelling_temp_high_threshold;
 	int swelling_temp_high_recovery;
@@ -193,12 +199,33 @@ struct sec_battery_info {
 	int swelling_block_time;
 
 	bool swelling_mode;
-	bool swelling_block;
 	unsigned long swelling_block_start;
 	unsigned long swelling_block_passed;
 	int swelling_full_check_cnt;
 #endif
+#if defined(CONFIG_BATTERY_SWELLING_SELF_DISCHARGING)
+	bool force_discharging;
+	bool self_discharging;
+	bool discharging_ntc;
+	int discharging_ntc_adc;
+	int self_discharging_adc;
+#endif
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+	int earjack_wr_enable;
+	int earjack_wr_state;
+	int earjack_wr_soc_1st;
+	int earjack_wr_soc_2nd;
+	int earjack_wr_input_current_1st;
+	int earjack_wr_input_current_2nd;
+#endif
 };
+
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+#define EARJACK_WR_NONE			(0)
+#define EARJACK_WR_EARJACK		(0x01 << 0)
+#define EARJACK_WR_LCD			(0x01 << 1)
+#define EARJACK_WR_SOUNDPATH	(0x01 << 2)
+#endif
 
 ssize_t sec_bat_show_attrs(struct device *dev,
 				struct device_attribute *attr, char *buf);
@@ -261,6 +288,7 @@ enum {
 	FG_REG_DUMP,
 	FG_RESET_CAP,
 	FG_CAPACITY,
+	FG_ASOC,
 	AUTH,
 	CHG_CURRENT_ADC,
 	WC_ADC,
@@ -298,6 +326,12 @@ enum {
 #endif
 	BATT_STABILITY_TEST,
 	BATT_INBAT_VOLTAGE,
+	BATT_CAPACITY_MAX,
+	BATT_DISCHARGING_CHECK,
+	BATT_DISCHARGING_CHECK_ADC,
+	BATT_DISCHARGING_NTC,
+	BATT_DISCHARGING_NTC_ADC,
+	BATT_SELF_DISCHARGING_CONTROL,
 };
 
 #ifdef CONFIG_OF

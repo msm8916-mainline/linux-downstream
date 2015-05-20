@@ -4,21 +4,28 @@
 
 #if defined(CONFIG_MACH_A7_CHN_CTC)
 static sec_bat_adc_table_data_t temp_table[] = {
-	{25990, 900},
-	{26420, 800},
-	{27100, 700},
-	{27510, 650},
-	{28070, 600},
-	{28660, 550},
-	{29280, 500},
-	{30050, 450},
-	{30910, 400},
-	{32820, 300},
-	{34930, 200},
-	{37080, 100},
-	{38030, 50},
-	{38960, 0},
-	{39770, -50},
+	{26975, 700},
+	{27351, 650},
+	{27695, 610},
+	{27835, 600},
+	{27935, 590},
+	{28402, 550},
+	{29025, 500},
+	{29386, 470},
+	{29546, 460},
+	{29702, 450},
+	{30567, 400},
+	{31457, 350},
+	{32432, 300},
+	{33470, 250},
+	{34540, 200},
+	{35640, 150},
+	{36700, 100},
+	{37740, 50},
+	{38438, 10},
+	{38560, 0},
+	{38753, -10},
+	{39460, -50},
 	{40175, -100},
 	{41335, -200},
 };
@@ -67,10 +74,18 @@ static sec_bat_adc_table_data_t temp_table[] = {
 #endif
 
 #if defined(CONFIG_BATTERY_SWELLING)
-#define BATT_SWELLING_HIGH_TEMP_BLOCK		550
+#define BATT_SWELLING_HIGH_TEMP_BLOCK		500
 #define BATT_SWELLING_HIGH_TEMP_RECOV		450
 #define BATT_SWELLING_LOW_TEMP_BLOCK		100
 #define BATT_SWELLING_LOW_TEMP_RECOV		150
 #define BATT_SWELLING_RECHG_VOLTAGE		4150
 #define BATT_SWELLING_BLOCK_TIME	10 * 60 /* 10 min */
+#endif
+
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+#define EARJACK_WR_SYSTEM_REV			0x08
+#define EARJACK_WR_SOC_1ST				80
+#define EARJACK_WR_SOC_2ND				90
+#define EARJACK_WR_INPUT_CURRENT_1ST	700
+#define EARJACK_WR_INPUT_CURRENT_2ND	500
 #endif

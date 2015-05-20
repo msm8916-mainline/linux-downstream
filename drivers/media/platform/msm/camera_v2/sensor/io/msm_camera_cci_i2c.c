@@ -81,6 +81,7 @@ int32_t msm_camera_cci_i2c_read_seq(struct msm_camera_i2c_client *client,
 		pr_err("%s:%d no memory\n", __func__, __LINE__);
 		return -ENOMEM;
 	}
+	cci_ctrl.status = 0; //prevent
 	cci_ctrl.cmd = MSM_CCI_I2C_READ;
 	cci_ctrl.cci_info = client->cci_client;
 	cci_ctrl.cfg.cci_i2c_read_cfg.addr = addr;
@@ -126,6 +127,14 @@ int32_t msm_camera_cci_i2c_write(struct msm_camera_i2c_client *client,
 	cci_ctrl.cfg.cci_i2c_write_cfg.data_type = data_type;
 	cci_ctrl.cfg.cci_i2c_write_cfg.addr_type = client->addr_type;
 	cci_ctrl.cfg.cci_i2c_write_cfg.size = 1;
+#if defined(CONFIG_SR200PC20)
+	if (addr == 0xff){
+		pr_err("delay START = %d\n", (int)data*10);
+		mdelay(data*10);
+		return 0;
+	}
+#endif
+
 	rc = v4l2_subdev_call(client->cci_client->cci_subdev,
 			core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
 	if (rc < 0) {
@@ -141,7 +150,7 @@ int32_t msm_camera_cci_i2c_write_seq(struct msm_camera_i2c_client *client,
 {
 	int32_t rc = -EFAULT;
 	uint8_t i = 0;
-	struct msm_camera_cci_ctrl cci_ctrl;
+	struct msm_camera_cci_ctrl cci_ctrl = {0};
 	struct msm_camera_i2c_reg_array reg_conf_tbl[num_byte];
 
 	if ((client->addr_type != MSM_CAMERA_I2C_BYTE_ADDR
@@ -168,6 +177,56 @@ int32_t msm_camera_cci_i2c_write_seq(struct msm_camera_i2c_client *client,
 			core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
 	CDBG("%s line %d rc = %d\n", __func__, __LINE__, rc);
 	rc = cci_ctrl.status;
+	return rc;
+}
+
+int32_t msm_camera_cci_i2c_write_burst(struct msm_camera_i2c_client *client,
+	uint32_t addr, uint8_t *data, uint32_t num_byte)
+{
+	int32_t rc = -EFAULT;
+	uint32_t i = 0;
+	struct msm_camera_cci_ctrl cci_ctrl;
+	struct msm_camera_i2c_reg_array *reg_conf_tbl = NULL;
+
+	if ((client->addr_type != MSM_CAMERA_I2C_BYTE_ADDR
+		&& client->addr_type != MSM_CAMERA_I2C_WORD_ADDR)
+		|| num_byte == 0)
+		return rc;
+
+	reg_conf_tbl = (struct msm_camera_i2c_reg_array *)
+		kzalloc(num_byte * sizeof(struct msm_camera_i2c_reg_array), GFP_KERNEL);
+	if (!reg_conf_tbl) {
+		pr_err("%s:%d failed: no memory", __func__, __LINE__);
+		return -ENOMEM;
+	}
+
+	CDBG("%s reg addr = 0x%x num bytes: %d\n",
+			  __func__, addr, num_byte);
+	memset(reg_conf_tbl, 0,
+		num_byte * sizeof(struct msm_camera_i2c_reg_array));
+	reg_conf_tbl[0].reg_addr = addr;
+	for (i = 0; i < num_byte; i++) {
+		reg_conf_tbl[i].reg_data = data[i];
+		reg_conf_tbl[i].delay = 0;
+		CDBG("%s:%d data[%d] %x\n", __func__, __LINE__, i,
+			reg_conf_tbl[i].reg_data);
+	}
+	cci_ctrl.status = 0;//prevent
+	cci_ctrl.cmd = MSM_CCI_I2C_WRITE_BURST;
+	cci_ctrl.cci_info = client->cci_client;
+	cci_ctrl.cfg.cci_i2c_write_cfg.reg_setting = reg_conf_tbl;
+	cci_ctrl.cfg.cci_i2c_write_cfg.data_type = MSM_CAMERA_I2C_BURST_DATA;
+	cci_ctrl.cfg.cci_i2c_write_cfg.addr_type = client->addr_type;
+	cci_ctrl.cfg.cci_i2c_write_cfg.size = num_byte;
+	rc = v4l2_subdev_call(client->cci_client->cci_subdev,
+			core, ioctl, VIDIOC_MSM_CCI_CFG, &cci_ctrl);
+	if (rc < 0) {
+		pr_err("%s:%d failed: VIDIOC_MSM_CCI_CFG rc %d\n", __func__, __LINE__,
+			rc);
+	}
+
+	rc = cci_ctrl.status;
+	kfree(reg_conf_tbl);
 	return rc;
 }
 
@@ -206,6 +265,41 @@ int32_t msm_camera_cci_i2c_write_table(
 	else if (write_setting->delay)
 		usleep_range(write_setting->delay * 1000, (write_setting->delay
 			* 1000) + 1000);
+
+	return rc;
+}
+
+int32_t msm_camera_cci_i2c_write_burst_table(
+		struct msm_camera_i2c_client *client,
+		struct msm_camera_i2c_reg_setting *write_setting)
+{
+	int32_t rc = -EFAULT;
+	struct msm_camera_i2c_reg_array *reg_array = NULL;
+
+	if (!client || !write_setting) {
+		pr_err("[CCI]%s:%d failed\n", __func__, __LINE__);
+		return rc;
+	}
+
+	if ((write_setting->addr_type != MSM_CAMERA_I2C_BYTE_ADDR
+				&& write_setting->addr_type != MSM_CAMERA_I2C_WORD_ADDR)
+			|| (write_setting->data_type != MSM_CAMERA_I2C_BYTE_DATA
+				&& write_setting->data_type != MSM_CAMERA_I2C_WORD_DATA
+				&& write_setting->data_type != MSM_CAMERA_I2C_BURST_DATA)) {
+		pr_err("[CCI]%s:%d failed data_type(%d)\n", __func__, __LINE__, write_setting->data_type);
+		return rc;
+	}
+
+	reg_array =
+		(struct msm_camera_i2c_reg_array *)write_setting->reg_setting;
+	pr_err("%s:%d size %d addr %x\n", __func__, __LINE__,
+			reg_array->delay, reg_array->reg_addr);
+	rc = msm_camera_cci_i2c_write_burst(client, reg_array->reg_addr,
+			reg_array->reg_burst_data, reg_array->delay);
+	if (rc < 0) {
+		pr_err("%s:%d failed: msm_camera_cci_i2c_write_seq rc %d\n",
+				__func__, __LINE__, rc);
+	}
 
 	return rc;
 }

@@ -110,11 +110,10 @@ static int of_i2c_gpio_get_pins(struct device_node *np,
 	return 0;
 }
 
-static void of_i2c_gpio_get_props(struct platform_device *pdev,
+static void of_i2c_gpio_get_props(struct device_node *np,
 				  struct i2c_gpio_platform_data *pdata)
 {
 	u32 reg;
-	struct device_node *np = pdev->dev.of_node;
 
 	of_property_read_u32(np, "i2c-gpio,delay-us", &pdata->udelay);
 
@@ -127,8 +126,6 @@ static void of_i2c_gpio_get_props(struct platform_device *pdev,
 		of_property_read_bool(np, "i2c-gpio,scl-open-drain");
 	pdata->scl_is_output_only =
 		of_property_read_bool(np, "i2c-gpio,scl-output-only");
-
-	of_property_read_u32(np, "cell-index", &pdev->id);
 }
 
 static int i2c_gpio_probe(struct platform_device *pdev)
@@ -179,7 +176,7 @@ static int i2c_gpio_probe(struct platform_device *pdev)
 	if (pdev->dev.of_node) {
 		pdata->sda_pin = sda_pin;
 		pdata->scl_pin = scl_pin;
-		of_i2c_gpio_get_props(pdev, pdata);
+		of_i2c_gpio_get_props(pdev->dev.of_node, pdata);
 	} else {
 		memcpy(pdata, pdev->dev.platform_data, sizeof(*pdata));
 	}

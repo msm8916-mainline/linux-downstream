@@ -29,6 +29,8 @@
 
 struct msm_vfe_cfg_cmd_list;
 
+#define MSM_VFE_REG_CFG_FRAME_ID_NOT_MATCH_ERROR	0xCACFC
+
 enum ISP_START_PIXEL_PATTERN {
 	ISP_BAYER_RGRGRG,
 	ISP_BAYER_GRGRGR,
@@ -265,6 +267,7 @@ enum msm_vfe_reg_cfg_type {
 struct msm_vfe_cfg_cmd2 {
 	uint16_t num_cfg;
 	uint16_t cmd_len;
+	uint32_t frame_id;
 	void __user *cfg_data;
 	void __user *cfg_cmd;
 };

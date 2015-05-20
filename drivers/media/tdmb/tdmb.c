@@ -98,7 +98,6 @@ static struct tdmb_dt_platform_data *dt_pdata;
 static struct device  *dmb_device;
 
 static bool tdmb_pwr_on;
-
 #ifdef CONFIG_TDMB_VREG_SUPPORT
 static int tdmb_vreg_init(struct device *dev)
 {
@@ -217,6 +216,7 @@ static void tdmb_gpio_off(void)
 
 static bool tdmb_power_on(void)
 {
+	int param = 0;
 	if (tdmb_create_databuffer(tdmbdrv_func->get_int_size()) == false) {
 		DPRINTK("tdmb_create_databuffer fail\n");
 		goto create_databuffer_fail;
@@ -225,7 +225,10 @@ static bool tdmb_power_on(void)
 		DPRINTK("tdmb_create_workqueue fail\n");
 		goto create_workqueue_fail;
 	}
-	if (tdmbdrv_func->power_on() == false) {
+#ifdef CONFIG_TDMB_XTAL_FREQ
+	param = dt_pdata->tdmb_xtal_freq;
+#endif
+	if (tdmbdrv_func->power_on(param) == false) {
 		DPRINTK("power_on fail\n");
 		goto power_on_fail;
 	}
@@ -963,7 +966,13 @@ static struct tdmb_dt_platform_data *get_tdmb_dt_pdata(struct device *dev)
 		} else {
 		DPRINTK("%s : without tdmb_use_irq\n", __func__);
 	}
-
+#ifdef CONFIG_TDMB_XTAL_FREQ
+	if (of_property_read_u32(dev->of_node, "tdmb_xtal_freq",
+							&pdata->tdmb_xtal_freq)) {
+		DPRINTK("Failed to get tdmb_xtal_freq\n");
+		goto alloc_err;
+	}
+#endif
 	pdata->tdmb_pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(pdata->tdmb_pinctrl)) {
 		DPRINTK("devm_pinctrl_get is fail");

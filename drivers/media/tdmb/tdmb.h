@@ -157,6 +157,9 @@ struct tdmb_dt_platform_data {
 	int tdmb_rst;
 	int tdmb_use_rst;
 	int tdmb_use_irq;
+#ifdef CONFIG_TDMB_XTAL_FREQ
+	int tdmb_xtal_freq;
+#endif
 	struct pinctrl *tdmb_pinctrl;
 	struct pinctrl_state *pwr_on, *pwr_off, *gpio_init;
 #ifdef CONFIG_TDMB_ANT_DET
@@ -178,7 +181,7 @@ bool tdmb_store_data(unsigned char *data, unsigned long len);
 
 struct tdmb_drv_func {
 	bool (*init) (void);
-	bool (*power_on) (void);
+	bool (*power_on) (int param);
 	void (*power_off) (void);
 	bool (*scan_ch) (struct ensemble_info_type *ensembleInfo,
 						unsigned long freq);

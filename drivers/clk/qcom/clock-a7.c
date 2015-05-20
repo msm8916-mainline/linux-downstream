@@ -175,10 +175,10 @@ static void get_speed_bin_b(struct platform_device *pdev, int *bin,
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "efuse");
 	if (!res) {
-		dev_info(&pdev->dev,
-			 "No speed/PVS binning available. Defaulting to 0!\n");
-		return;
-	}
+			dev_info(&pdev->dev,
+				"No speed/PVS binning available. Defaulting to 0!\n");
+			return;
+		}
 
 	base = devm_ioremap(&pdev->dev, res->start, resource_size(res));
 	if (!base) {
@@ -329,6 +329,7 @@ static struct of_device_id clock_a7_match_table[] = {
 	{.compatible = "qcom,clock-a7-8226"},
 	{.compatible = "qcom,clock-a7-krypton"},
 	{.compatible = "qcom,clock-a7-9630"},
+	{.compatible = "qcom,clock-a7-zirc"},
 	{.compatible = "qcom,clock-a53-8916"},
 	{}
 };

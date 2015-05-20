@@ -14,8 +14,6 @@
 #define mark_addr_rdwrite(a)
 #endif
 
-static void check_poison_mem(unsigned char *mem, size_t bytes);
-
 static inline void set_page_poison(struct page *page)
 {
 	__set_bit(PAGE_DEBUG_FLAG_POISON, &page->debug_flags);
@@ -38,7 +36,6 @@ static void poison_page(struct page *page)
 	set_page_poison(page);
 	memset(addr, PAGE_POISON, PAGE_SIZE);
 	mark_addr_rdonly(addr);
-	check_poison_mem(addr, PAGE_SIZE);
 	kunmap_atomic(addr);
 }
 

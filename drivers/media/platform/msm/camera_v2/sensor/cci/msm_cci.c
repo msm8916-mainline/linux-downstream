@@ -183,7 +183,7 @@ static int32_t msm_cci_validate_queue(struct cci_device *cci_dev,
 }
 
 static int32_t msm_cci_data_queue(struct cci_device *cci_dev,
-	struct msm_camera_cci_ctrl *c_ctrl, enum cci_i2c_queue_t queue)
+	struct msm_camera_cci_ctrl *c_ctrl, enum cci_i2c_queue_t queue, uint8_t is_burst)
 {
 	uint16_t i = 0, j = 0, k = 0, h = 0, len = 0;
 	int32_t rc = 0;
@@ -224,8 +224,14 @@ static int32_t msm_cci_data_queue(struct cci_device *cci_dev,
 			cmd_size, i2c_cmd->reg_addr, i2c_cmd->reg_data);
 		delay = i2c_cmd->delay;
 		data[i++] = CCI_I2C_WRITE_CMD;
-		if (i2c_cmd->reg_addr)
+		if (i2c_msg->data_type == MSM_CAMERA_I2C_BURST_DATA) {
+			if (i2c_cmd->reg_addr) {
+				reg_addr = i2c_cmd->reg_addr;
+			}
+		}
+		else {
 			reg_addr = i2c_cmd->reg_addr;
+		}
 		/* either byte or word addr */
 		if (i2c_msg->addr_type == MSM_CAMERA_I2C_BYTE_ADDR)
 			data[i++] = reg_addr;
@@ -235,16 +241,19 @@ static int32_t msm_cci_data_queue(struct cci_device *cci_dev,
 		}
 		/* max of 10 data bytes */
 		do {
-			if (i2c_msg->data_type == MSM_CAMERA_I2C_BYTE_DATA) {
+			if ((i2c_msg->data_type == MSM_CAMERA_I2C_BYTE_DATA) ||
+				(i2c_msg->data_type == MSM_CAMERA_I2C_BURST_DATA)) {
 				data[i++] = i2c_cmd->reg_data;
-				reg_addr++;
+				if (!is_burst)
+					reg_addr++;
 			} else {
 				if ((i + 1) <= 10) {
 					data[i++] = (i2c_cmd->reg_data &
 						0xFF00) >> 8; /* MSB */
 					data[i++] = i2c_cmd->reg_data &
 						0x00FF; /* LSB */
-					reg_addr += 2;
+					if (!is_burst)
+						reg_addr += 2;
 				} else
 					break;
 			}
@@ -524,7 +533,7 @@ ERROR:
 }
 
 static int32_t msm_cci_i2c_write(struct v4l2_subdev *sd,
-	struct msm_camera_cci_ctrl *c_ctrl)
+	struct msm_camera_cci_ctrl *c_ctrl, uint8_t is_burst)
 {
 	int32_t rc = 0;
 	struct cci_device *cci_dev;
@@ -532,12 +541,13 @@ static int32_t msm_cci_i2c_write(struct v4l2_subdev *sd,
 	enum cci_i2c_master_t master;
 	enum cci_i2c_queue_t queue = QUEUE_0;
 	cci_dev = v4l2_get_subdevdata(sd);
-	if (c_ctrl->cci_info->cci_i2c_master > MASTER_MAX
-			|| c_ctrl->cci_info->cci_i2c_master < 0) {
+
+	master = c_ctrl->cci_info->cci_i2c_master;
+	if (master >= MASTER_MAX
+			|| master < 0) {
 		pr_err("%s:%d Invalid I2C master addr\n", __func__, __LINE__);
 		return -EINVAL;
 	}
-	master = c_ctrl->cci_info->cci_i2c_master;
 	CDBG("%s master %d, queue %d\n", __func__, master, queue);
 	CDBG("%s set param sid 0x%x retries %d id_map %d\n", __func__,
 		c_ctrl->cci_info->sid, c_ctrl->cci_info->retries,
@@ -581,7 +591,7 @@ static int32_t msm_cci_i2c_write(struct v4l2_subdev *sd,
 		goto ERROR;
 	}
 
-	rc = msm_cci_data_queue(cci_dev, c_ctrl, queue);
+	rc = msm_cci_data_queue(cci_dev, c_ctrl, queue, is_burst);
 	if (rc < 0) {
 		CDBG("%s failed line %d\n", __func__, __LINE__);
 		goto ERROR;
@@ -851,7 +861,10 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 		rc = msm_cci_i2c_read_bytes(sd, cci_ctrl);
 		break;
 	case MSM_CCI_I2C_WRITE:
-		rc = msm_cci_i2c_write(sd, cci_ctrl);
+		rc = msm_cci_i2c_write(sd, cci_ctrl, 0);
+		break;
+	case MSM_CCI_I2C_WRITE_BURST:
+		rc = msm_cci_i2c_write(sd, cci_ctrl, 1);
 		break;
 	case MSM_CCI_GPIO_WRITE:
 		break;

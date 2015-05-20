@@ -18,6 +18,7 @@
 #define IPA_FLT_TABLE_INDEX_NOT_FOUND		(-1)
 #define IPA_FLT_STATUS_OF_ADD_FAILED		(-1)
 #define IPA_FLT_STATUS_OF_DEL_FAILED		(-1)
+#define IPA_FLT_STATUS_OF_MDFY_FAILED		(-1)
 
 static int ipa_generate_hw_rule_from_eq(
 		const struct ipa_ipfltri_rule_eq *attrib, u8 **buf)
@@ -130,9 +131,9 @@ static int ipa_generate_hw_rule_from_eq(
 	}
 
 	if (num_ihl_offset_meq_32) {
-		*buf = ipa_write_8(attrib->ihl_offset_meq_32[0].offset, *buf);
-		*buf = ipa_write_32(attrib->ihl_offset_meq_32[0].mask, *buf);
-		*buf = ipa_write_32(attrib->ihl_offset_meq_32[0].value, *buf);
+		*buf = ipa_write_8(attrib->ihl_offset_meq_32[1].offset, *buf);
+		*buf = ipa_write_32(attrib->ihl_offset_meq_32[1].mask, *buf);
+		*buf = ipa_write_32(attrib->ihl_offset_meq_32[1].value, *buf);
 		*buf = ipa_pad_to_32(*buf);
 		num_ihl_offset_meq_32--;
 	}
@@ -641,12 +642,12 @@ int __ipa_commit_flt_v1(enum ipa_ip_type ip)
 	}
 
 	if (ip == IPA_IP_v4) {
-		avail = ipa_ctx->ip4_flt_tbl_lcl ? IPA_v1_RAM_V4_FLT_SIZE :
-			IPA_RAM_V4_FLT_SIZE_DDR;
+		avail = ipa_ctx->ip4_flt_tbl_lcl ? IPA_MEM_v1_RAM_V4_FLT_SIZE :
+			IPA_MEM_PART(v4_flt_size_ddr);
 		size = sizeof(struct ipa_ip_v4_filter_init);
 	} else {
-		avail = ipa_ctx->ip6_flt_tbl_lcl ? IPA_v1_RAM_V6_FLT_SIZE :
-			IPA_RAM_V6_FLT_SIZE_DDR;
+		avail = ipa_ctx->ip6_flt_tbl_lcl ? IPA_MEM_v1_RAM_V6_FLT_SIZE :
+			IPA_MEM_PART(v6_flt_size_ddr);
 		size = sizeof(struct ipa_ip_v6_filter_init);
 	}
 	cmd = kmalloc(size, GFP_KERNEL);
@@ -670,13 +671,13 @@ int __ipa_commit_flt_v1(enum ipa_ip_type ip)
 		desc.opcode = IPA_IP_V4_FILTER_INIT;
 		v4->ipv4_rules_addr = mem->phys_base;
 		v4->size_ipv4_rules = mem->size;
-		v4->ipv4_addr = IPA_v1_RAM_V4_FLT_OFST;
+		v4->ipv4_addr = IPA_MEM_v1_RAM_V4_FLT_OFST;
 	} else {
 		v6 = (struct ipa_ip_v6_filter_init *)cmd;
 		desc.opcode = IPA_IP_V6_FILTER_INIT;
 		v6->ipv6_rules_addr = mem->phys_base;
 		v6->size_ipv6_rules = mem->size;
-		v6->ipv6_addr = IPA_v1_RAM_V6_FLT_OFST;
+		v6->ipv6_addr = IPA_MEM_v1_RAM_V6_FLT_OFST;
 	}
 
 	desc.pyld = cmd;
@@ -721,11 +722,11 @@ static int ipa_generate_flt_hw_tbl_v2(enum ipa_ip_type ip,
 	u32 hdr_top;
 
 	if (ip == IPA_IP_v4)
-		body_start_offset = IPA_v2_RAM_APPS_V4_FLT_OFST -
-			IPA_v2_RAM_V4_FLT_OFST;
+		body_start_offset = IPA_MEM_PART(apps_v4_flt_ofst) -
+			IPA_MEM_PART(v4_flt_ofst);
 	else
-		body_start_offset = IPA_v2_RAM_APPS_V6_FLT_OFST -
-			IPA_v2_RAM_V6_FLT_OFST;
+		body_start_offset = IPA_MEM_PART(apps_v6_flt_ofst) -
+			IPA_MEM_PART(v6_flt_ofst);
 
 	num_words = 7;
 	head1->size = num_words * 4;
@@ -831,20 +832,22 @@ int __ipa_commit_flt_v2(enum ipa_ip_type ip)
 	}
 
 	if (ip == IPA_IP_v4) {
-		avail = ipa_ctx->ip4_flt_tbl_lcl ? IPA_v2_RAM_APPS_V4_FLT_SIZE :
-			IPA_RAM_V4_FLT_SIZE_DDR;
+		avail = ipa_ctx->ip4_flt_tbl_lcl ?
+			IPA_MEM_PART(apps_v4_flt_size) :
+			IPA_MEM_PART(v4_flt_size_ddr);
 		local_addrh = ipa_ctx->smem_restricted_bytes +
-			IPA_v2_RAM_V4_FLT_OFST + 4;
+			IPA_MEM_PART(v4_flt_ofst) + 4;
 		local_addrb = ipa_ctx->smem_restricted_bytes +
-			IPA_v2_RAM_APPS_V4_FLT_OFST;
+			IPA_MEM_PART(apps_v4_flt_ofst);
 		lcl = ipa_ctx->ip4_flt_tbl_lcl;
 	} else {
-		avail = ipa_ctx->ip6_flt_tbl_lcl ? IPA_v2_RAM_APPS_V6_FLT_SIZE :
-			IPA_RAM_V6_FLT_SIZE_DDR;
+		avail = ipa_ctx->ip6_flt_tbl_lcl ?
+			IPA_MEM_PART(apps_v6_flt_size) :
+			IPA_MEM_PART(v6_flt_size_ddr);
 		local_addrh = ipa_ctx->smem_restricted_bytes +
-			IPA_v2_RAM_V6_FLT_OFST + 4;
+			IPA_MEM_PART(v6_flt_ofst) + 4;
 		local_addrb = ipa_ctx->smem_restricted_bytes +
-			IPA_v2_RAM_APPS_V6_FLT_OFST;
+			IPA_MEM_PART(apps_v6_flt_ofst);
 		lcl = ipa_ctx->ip6_flt_tbl_lcl;
 	}
 
@@ -883,10 +886,12 @@ int __ipa_commit_flt_v2(enum ipa_ip_type ip)
 
 		if (ip == IPA_IP_v4) {
 			local_addrh = ipa_ctx->smem_restricted_bytes +
-				IPA_v2_RAM_V4_FLT_OFST + 8 + i * 4;
+				IPA_MEM_PART(v4_flt_ofst) +
+				8 + i * 4;
 		} else {
 			local_addrh = ipa_ctx->smem_restricted_bytes +
-				IPA_v2_RAM_V6_FLT_OFST + 8 + i * 4;
+				IPA_MEM_PART(v6_flt_ofst) +
+				8 + i * 4;
 		}
 		cmd[num_desc].size = 4;
 		cmd[num_desc].system_addr = head1.phys_base + 4 + i * 4;
@@ -907,10 +912,12 @@ int __ipa_commit_flt_v2(enum ipa_ip_type ip)
 
 		if (ip == IPA_IP_v4) {
 			local_addrh = ipa_ctx->smem_restricted_bytes +
-				IPA_v2_RAM_V4_FLT_OFST + 13 * 4 + (i - 11) * 4;
+				IPA_MEM_PART(v4_flt_ofst) +
+				13 * 4 + (i - 11) * 4;
 		} else {
 			local_addrh = ipa_ctx->smem_restricted_bytes +
-				IPA_v2_RAM_V6_FLT_OFST + 13 * 4 + (i - 11) * 4;
+				IPA_MEM_PART(v6_flt_ofst) +
+				13 * 4 + (i - 11) * 4;
 		}
 		cmd[num_desc].size = 4;
 		cmd[num_desc].system_addr = head2.phys_base + (i - 11) * 4;
@@ -992,8 +999,8 @@ static int __ipa_add_flt_rule(struct ipa_flt_tbl *tbl, enum ipa_ip_type ip,
 			}
 		} else {
 			if (rule->rt_tbl_idx > ((ip == IPA_IP_v4) ?
-					IPA_v2_V4_MODEM_RT_INDEX_HI :
-					IPA_v2_V6_MODEM_RT_INDEX_HI)) {
+				IPA_MEM_PART(v4_modem_rt_index_hi) :
+				IPA_MEM_PART(v6_modem_rt_index_hi))) {
 				IPAERR("invalid RT tbl\n");
 				goto error;
 			}
@@ -1066,6 +1073,65 @@ static int __ipa_del_flt_rule(u32 rule_hdl)
 	ipa_id_remove(id);
 
 	return 0;
+}
+
+static int __ipa_mdfy_flt_rule(struct ipa_flt_rule_mdfy *frule,
+		enum ipa_ip_type ip)
+{
+	struct ipa_flt_entry *entry;
+	struct ipa_rt_tbl *rt_tbl = NULL;
+
+	entry = ipa_id_find(frule->rule_hdl);
+	if (entry == NULL) {
+		IPAERR("lookup failed\n");
+		goto error;
+	}
+
+	if (entry->cookie != IPA_COOKIE) {
+		IPAERR("bad params\n");
+		goto error;
+	}
+
+	if (entry->rt_tbl)
+		entry->rt_tbl->ref_cnt--;
+
+	if (frule->rule.action != IPA_PASS_TO_EXCEPTION) {
+		if (!frule->rule.eq_attrib_type) {
+			if (!frule->rule.rt_tbl_hdl) {
+				IPAERR("invalid RT tbl\n");
+				goto error;
+			}
+
+			rt_tbl = ipa_id_find(frule->rule.rt_tbl_hdl);
+			if (rt_tbl == NULL) {
+				IPAERR("RT tbl not found\n");
+				goto error;
+			}
+
+			if (rt_tbl->cookie != IPA_COOKIE) {
+				IPAERR("RT table cookie is invalid\n");
+				goto error;
+			}
+		} else {
+			if (frule->rule.rt_tbl_idx > ((ip == IPA_IP_v4) ?
+				IPA_MEM_PART(v4_modem_rt_index_hi) :
+				IPA_MEM_PART(v6_modem_rt_index_hi))) {
+				IPAERR("invalid RT tbl\n");
+				goto error;
+			}
+		}
+	}
+
+	entry->rule = frule->rule;
+	entry->rt_tbl = rt_tbl;
+	if (entry->rt_tbl)
+		entry->rt_tbl->ref_cnt++;
+	entry->hw_len = 0;
+
+	return 0;
+
+error:
+	return -EPERM;
 }
 
 static int __ipa_add_global_flt_rule(enum ipa_ip_type ip,
@@ -1195,7 +1261,6 @@ int ipa_del_flt_rule(struct ipa_ioc_del_flt_rule *hdls)
 
 	if (hdls->commit)
 		if (ipa_ctx->ctrl->ipa_commit_flt(hdls->ip)) {
-			mutex_unlock(&ipa_ctx->lock);
 			result = -EPERM;
 			goto bail;
 		}
@@ -1206,6 +1271,48 @@ bail:
 	return result;
 }
 EXPORT_SYMBOL(ipa_del_flt_rule);
+
+/**
+ * ipa_mdfy_flt_rule() - Modify the specified filtering rules in SW and optionally
+ * commit to IPA HW
+ *
+ * Returns:	0 on success, negative on failure
+ *
+ * Note:	Should not be called from atomic context
+ */
+int ipa_mdfy_flt_rule(struct ipa_ioc_mdfy_flt_rule *hdls)
+{
+	int i;
+	int result;
+
+	if (hdls == NULL || hdls->num_rules == 0 || hdls->ip >= IPA_IP_MAX) {
+		IPAERR("bad parm\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&ipa_ctx->lock);
+	for (i = 0; i < hdls->num_rules; i++) {
+		if (__ipa_mdfy_flt_rule(&hdls->rules[i], hdls->ip)) {
+			IPAERR("failed to mdfy rt rule %i\n", i);
+			hdls->rules[i].status = IPA_FLT_STATUS_OF_MDFY_FAILED;
+		} else {
+			hdls->rules[i].status = 0;
+		}
+	}
+
+	if (hdls->commit)
+		if (ipa_ctx->ctrl->ipa_commit_flt(hdls->ip)) {
+			result = -EPERM;
+			goto bail;
+		}
+	result = 0;
+bail:
+	mutex_unlock(&ipa_ctx->lock);
+
+	return result;
+}
+EXPORT_SYMBOL(ipa_mdfy_flt_rule);
+
 
 /**
  * ipa_commit_flt() - Commit the current SW filtering table of specified type to

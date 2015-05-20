@@ -18,7 +18,7 @@
 #include <linux/notifier.h>
 #include <linux/slab.h>
 #include <linux/err.h>
-#ifdef CONFIG_SCHED_HMP
+#ifdef CONFIG_CPU_FREQ_LIMIT_HMP
 #include <linux/sched.h>
 #endif
 
@@ -98,7 +98,7 @@ int cpufreq_limit_put(struct cpufreq_limit_handle *handle)
 	return 0;
 }
 
-#ifdef CONFIG_SCHED_HMP
+#ifdef CONFIG_CPU_FREQ_LIMIT_HMP
 struct cpufreq_limit_hmp {
 	unsigned int		little_cpu_start;
 	unsigned int		little_cpu_end;
@@ -137,7 +137,6 @@ ssize_t cpufreq_limit_get_table(char *buf)
 {
 	ssize_t len = 0;
 	int i, count = 0;
-	unsigned int freq;
 
 	struct cpufreq_frequency_table *table;
 
@@ -152,6 +151,7 @@ ssize_t cpufreq_limit_get_table(char *buf)
 		count = i;
 
 	for (i = count; i >= 0; i--) {
+		unsigned int freq;
 		freq = table[i].frequency;
 
 		if (freq == CPUFREQ_ENTRY_INVALID || freq < hmp_param.big_min_freq)
@@ -175,6 +175,7 @@ ssize_t cpufreq_limit_get_table(char *buf)
 		count = i;
 
 	for (i = count; i >= 0; i--) {
+		unsigned int freq;
 		freq = table[i].frequency / hmp_param.little_divider;
 
 		if (freq == CPUFREQ_ENTRY_INVALID)
@@ -233,9 +234,8 @@ static int cpufreq_limit_hmp_boost(int enable)
 static int cpufreq_limit_adjust_freq(struct cpufreq_policy *policy,
 		unsigned long *min, unsigned long *max)
 {
-	unsigned int hmp_boost_active = 0;
 
-	pr_info("%s+: cpu=%d, min=%ld, max=%ld\n", __func__, policy->cpu, *min, *max);
+	pr_debug("%s+: cpu=%d, min=%ld, max=%ld\n", __func__, policy->cpu, *min, *max);
 
 	if (is_little(policy->cpu)) { /* Little */
 		if (*min >= hmp_param.big_min_freq) { /* Big clock */
@@ -253,6 +253,7 @@ static int cpufreq_limit_adjust_freq(struct cpufreq_policy *policy,
 		}
 	}
 	else { /* BIG */
+		unsigned int hmp_boost_active = 0;
 		if (*min >= hmp_param.big_min_freq) { /* Big clock */
 			hmp_boost_active = 1;
 		}
@@ -282,7 +283,7 @@ static inline int cpufreq_limit_adjust_freq(struct cpufreq_policy *policy,
 static inline int cpufreq_limit_hmp_boost(int enable) { return 0; }
 static inline int set_little_divider(struct cpufreq_policy *policy,
 		unsigned long *v) { return 0; }
-#endif /* CONFIG_SCHED_HMP */
+#endif /* CONFIG_CPU_FREQ_LIMIT_HMP */
 
 static int cpufreq_limit_notifier_policy(struct notifier_block *nb,
 		unsigned long val, void *data)
@@ -306,7 +307,7 @@ static int cpufreq_limit_notifier_policy(struct notifier_block *nb,
 	pr_debug("CPUFREQ(%d): %s: umin=%d,umax=%d\n",
 		policy->cpu, __func__, policy->user_policy.min, policy->user_policy.max);
 
-#ifndef CONFIG_SCHED_HMP /* TODO */
+#ifndef CONFIG_CPU_FREQ_LIMIT_HMP /* TODO */
 	if (policy->user_policy.min > min)
 		min = policy->user_policy.min;
 	if (policy->user_policy.max && policy->user_policy.max < max)
@@ -316,7 +317,7 @@ static int cpufreq_limit_notifier_policy(struct notifier_block *nb,
 
 	mutex_unlock(&cpufreq_limit_lock);
 
-#ifdef CONFIG_SCHED_HMP
+#ifdef CONFIG_CPU_FREQ_LIMIT_HMP
 	if (!min && max == ULONG_MAX) {
 		cpufreq_limit_hmp_boost(0);
 		goto done;
@@ -378,7 +379,7 @@ static ssize_t show_cpufreq_limit_requests(struct kobject *kobj,
 static struct global_attr cpufreq_limit_requests_attr =
 	__ATTR(cpufreq_limit_requests, 0444, show_cpufreq_limit_requests, NULL);
 
-#ifdef CONFIG_SCHED_HMP
+#ifdef CONFIG_CPU_FREQ_LIMIT_HMP
 #define MAX_ATTRIBUTE_NUM 12
 
 #define show_one(file_name, object)									\
@@ -519,11 +520,11 @@ define_one_global_rw(little_max_freq);
 define_one_global_rw(little_min_lock);
 define_one_global_rw(little_divider);
 define_one_global_rw(hmp_boost_type);
-#endif /* CONFIG_SCHED_HMP */
+#endif /* CONFIG_CPU_FREQ_LIMIT_HMP */
 
 static struct attribute *limit_attributes[] = {
 	&cpufreq_limit_requests_attr.attr,
-#ifdef CONFIG_SCHED_HMP
+#ifdef CONFIG_CPU_FREQ_LIMIT_HMP
 	&little_cpu_num.attr,
 	&big_cpu_num.attr,
 	&big_min_freq.attr,

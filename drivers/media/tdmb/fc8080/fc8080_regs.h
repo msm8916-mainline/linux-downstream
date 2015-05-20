@@ -44,8 +44,8 @@ extern "C" {
 /* #define FIC_USE_I2C */
 #endif
 
-#if (CONFIG_TDMB_XTAL != 0)
-#define FC8080_FREQ_XTAL  CONFIG_TDMB_XTAL
+#ifdef CONFIG_TDMB_XTAL_FREQ
+extern u32 main_xtal_freq;
 #else
 	/* X-TAL Frequency Configuration */
 /*#define FC8080_FREQ_XTAL  16000*/

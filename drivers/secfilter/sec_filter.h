@@ -35,6 +35,10 @@
 #define     _PF_DEFINED
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,2,0)  
+#define     _SKB_FRAG_STRUCT_CHANGED                // from version 3.2, the structre  skb_frag_struct was changed
+#endif
+
 #ifdef CONFIG_SEC_NET_FILTER
 int nfqnl_enqueue_packet(struct nf_queue_entry *entry, unsigned int queuenum);
 #endif

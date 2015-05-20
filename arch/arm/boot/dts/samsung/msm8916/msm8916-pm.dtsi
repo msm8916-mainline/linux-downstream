@@ -19,7 +19,7 @@
 		qcom,name = "core0";
 		qcom,core-id = <0>;
 		qcom,saw2-ver-reg = <0xfd0>;
-		qcom,saw2-cfg = <0x14>;
+		qcom,saw2-cfg = <0x01>;
 		qcom,saw2-spm-dly= <0x3C102800>;
 		qcom,saw2-spm-ctl = <0xe>;
 		qcom,saw2-spm-cmd-wfi = [60 03 60 0B 0f];
@@ -37,7 +37,7 @@
 		qcom,name = "core1";
 		qcom,core-id = <1>;
 		qcom,saw2-ver-reg = <0xfd0>;
-		qcom,saw2-cfg = <0x14>;
+		qcom,saw2-cfg = <0x01>;
 		qcom,saw2-spm-dly= <0x3c102800>;
 		qcom,saw2-spm-ctl = <0xe>;
 		qcom,saw2-spm-cmd-wfi = [60 03 60 0B 0f];
@@ -55,7 +55,7 @@
 		qcom,name = "core2";
 		qcom,core-id = <2>;
 		qcom,saw2-ver-reg = <0xfd0>;
-		qcom,saw2-cfg = <0x14>;
+		qcom,saw2-cfg = <0x01>;
 		qcom,saw2-spm-dly= <0x3c102800>;
 		qcom,saw2-spm-ctl = <0xe>;
 		qcom,saw2-spm-cmd-wfi = [60 03 60 0B 0f];
@@ -73,7 +73,7 @@
 		qcom,name = "core3";
 		qcom,core-id = <3>;
 		qcom,saw2-ver-reg = <0xfd0>;
-		qcom,saw2-cfg = <0x14>;
+		qcom,saw2-cfg = <0x01>;
 		qcom,saw2-spm-dly= <0x3c102800>;
 		qcom,saw2-spm-ctl = <0xe>;
 		qcom,saw2-spm-cmd-wfi = [60 03 60 0B 0f];
@@ -167,7 +167,6 @@
 					qcom,ss-power = <560>;
 					qcom,energy-overhead = <12000>;
 					qcom,time-overhead = <20>;
-					qcom,default-idle;
 				};
 
 				qcom,pm-cpu-level@1 {
@@ -188,7 +187,6 @@
 					qcom,energy-overhead = <200000>;
 					qcom,time-overhead = <330>;
 					qcom,use-broadcast-timer;
-					qcom,default-suspend;
 				};
 			};
 		};
@@ -224,18 +222,17 @@
 			<0xff 60>,  /* mss_to_apps_irq(3) */
 			<0xff 61>,  /* mss_a2_bam_irq */
 			<0xff 65>,  /* o_gc_sys_irq[0] */
-			<0xff 74>,  /* venus0_mmu_cirpt[1] */
-			<0xff 75>,  /* venus0_mmu_cirpt[0] */
-			<0xff 78>,  /* mdss_mmu_cirpt[0] */
-			<0xff 79>,  /* mdss_mmu_cirpt[1] */
-			<0xff 97>,  /* camss_vfe_mmu_cirpt[1] */
-			<0xff 102>, /* camss_jpeg_mmu_cirpt[1] */
-			<0xff 109>, /* ocmem_dm_nonsec_irq */
-			<0xff 131>, /* blsp1_qup_5_irq */
-			<0xff 140>, /* blsp1_uart_3_irq */
-			<0xff 166>, /* usb_hs_irq */
+			<0xff 74>,  /* smmu_bus_intr[2] */
+			<0xff 75>,  /* smmu_bus_intr[3] */
+			<0xff 78>,  /* smmu_bus_intr[5] */
+			<0xff 79>,  /* smmu_bus_intr[6] */
+			<0xff 97>,  /* smmu_bus_intr[10] */
+			<0xff 102>, /* smmu_bus_intr[14] */
+			<0xff 131>, /* qup_irq */
+			<0xff 140>, /* uart_dm_intr */
 			<0xff 155>, /* sdc1_irq(0) */
 			<0xff 157>, /* sdc2_irq(0) */
+			<0xff 166>, /* usb_hs_irq */
 			<0xff 170>, /* sdc1_pwr_cmd_irq */
 			<0xff 173>, /* o_wcss_apss_smd_hi */
 			<0xff 174>, /* o_wcss_apss_smd_med */
@@ -268,7 +265,6 @@
 			<0xff 239>, /* crypto_bam_irq[1]*/
 			<0xff 240>, /* summary_irq_kpss */
 			<0xff 253>, /* sdc2_pwr_cmd_irq */
-			<0xff 263>, /* msm_iommu_global_client_irq */
 			<0xff 269>, /* rpm_wdog_expired_irq */
 			<0xff 270>, /* blsp1_bam_irq[0] */
 			<0xff 275>, /* rpm_ipc(30) */

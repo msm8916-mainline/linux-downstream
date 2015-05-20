@@ -134,19 +134,30 @@ fw-shipped-$(CONFIG_USB_SERIAL_KEYSPAN_PDA) += keyspan_pda/keyspan_pda.fw
 fw-shipped-$(CONFIG_USB_SERIAL_XIRCOM) += keyspan_pda/xircom_pgs.fw
 fw-shipped-$(CONFIG_USB_VICAM) += vicam/firmware.fw
 fw-shipped-$(CONFIG_VIDEO_CPIA2) += cpia2/stv0672_vp4.bin
-fw-shipped-$(CONFIG_TOUCHSCREEN_MXT336S) += tsp_atmel/mxt336s.fw
 fw-shipped-$(CONFIG_KEYBOARD_TC360_TOUCHKEY) += coreriver/tc360.fw
-fw-shipped-$(CONFIG_KEYBOARD_TC360_TOUCHKEY) += coreriver/tc360_serrano_eur.fw
 fw-shipped-$(CONFIG_YAM) += yam/1200.bin yam/9600.bin
 
-fw-shipped-$(CONFIG_TOUCHSCREEN_MMS300) += tsp_melfas/mms345l_a5.fw
-fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH) += abov/abov_tk_a7.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_MMS300) += tsp_melfas/mms345l_e5.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_MMS300_A) += tsp_melfas/mms345l_a5.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MMS449) += tsp_melfas/mms449_k5.fw tsp_melfas/mms449_h7.fw
+fw-shipped-$(CONFIG_KEYBOARD_TC360_TKEY) += tkey/tc360_e5.fw tkey/tc360_e7.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1664T) += tsp_atmel/mxtt_klimt.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1664T) += tsp_atmel/mxtt_gt510lte.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1664T) += tsp_atmel/mxtt_gt5note10.fw
+fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH) += tkey/abov_tk_k5.fw
 fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_A3) += abov/abov_tk_a3.fw
 fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_A5) += abov/abov_tk_a5.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI_G)    += tsp_synaptics/synaptics_s5100_k_a3.fw
+fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_A7) += abov/abov_tk_a7.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_FTS) += tsp_stm/stm.fw tsp_stm/stm_de.fw
 
-fw-shipped-$(CONFIG_SEC_FPGA_ICE40XX) += ice40xx/i2c_top_bitmap_1.fw
-
+fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9007A_0450.bin
+fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9007A_C430.bin
+fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9007A_C483.bin
+fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9007_0200.bin
+fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9007A_0267.bin
+fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9010_0174.bin
+fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9010_0208.bin
+fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9002_B781.bin
 fw-shipped-all := $(fw-shipped-y) $(fw-shipped-m) $(fw-shipped-)
 
 # Directories which we _might_ need to create, so we have a rule for them.

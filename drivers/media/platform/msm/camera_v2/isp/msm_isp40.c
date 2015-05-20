@@ -437,8 +437,10 @@ static void msm_vfe40_process_camif_irq(struct vfe_device *vfe_dev,
 			msm_isp_update_framedrop_reg(vfe_dev);
 		}
 	}
-	if (irq_status0 & (1 << 1))
+	if (irq_status0 & (1 << 1)){
+		vfe_dev->eof_event_occur = 1;
 		ISP_DBG("%s: EOF IRQ\n", __func__);
+	}
 	if (irq_status0 & (1 << 2))
 		ISP_DBG("%s: EPOCH0 IRQ\n", __func__);
 	if (irq_status0 & (1 << 3)) {
@@ -691,7 +693,7 @@ static long msm_vfe40_reset_hardware(struct vfe_device *vfe_dev ,
 	if (blocking) {
 		msm_camera_io_w_mb(rst_val, vfe_dev->vfe_base + 0xC);
 		rc = wait_for_completion_timeout(
-			&vfe_dev->reset_complete, msecs_to_jiffies(50));
+			&vfe_dev->reset_complete, msecs_to_jiffies(1000));
 	} else {
 		msm_camera_io_w_mb(0x1EF, vfe_dev->vfe_base + 0xC);
 	}

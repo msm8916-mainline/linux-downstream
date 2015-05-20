@@ -34,6 +34,11 @@
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
 #include <linux/earlysuspend.h>
 #endif
+#if defined(CONFIG_SECURE_TOUCH)
+#include <linux/completion.h>
+#include <linux/atomic.h>
+#include <linux/clk.h>
+#endif
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))
 #define KERNEL_ABOVE_2_6_38
@@ -90,6 +95,10 @@
 #define MASK_3BIT 0x07
 #define MASK_2BIT 0x03
 #define MASK_1BIT 0x01
+
+#define PINCTRL_STATE_ACTIVE    "pmx_ts_active"
+#define PINCTRL_STATE_SUSPEND   "pmx_ts_suspend"
+#define PINCTRL_STATE_RELEASE   "pmx_ts_release"
 
 #define SYNA_FW_NAME_MAX_LEN	50
 
@@ -272,14 +281,25 @@ struct synaptics_rmi4_data {
 	bool stay_awake;
 	bool staying_awake;
 	bool fw_updating;
+	bool support_vkeys;
 	int (*irq_enable)(struct synaptics_rmi4_data *rmi4_data, bool enable);
 	int (*reset_device)(struct synaptics_rmi4_data *rmi4_data);
 
 	struct pinctrl *ts_pinctrl;
-	struct pinctrl_state *gpio_state_active;
-	struct pinctrl_state *gpio_state_suspend;
+	struct pinctrl_state *pinctrl_state_active;
+	struct pinctrl_state *pinctrl_state_suspend;
+	struct pinctrl_state *pinctrl_state_release;
 	char fw_name[SYNA_FW_NAME_MAX_LEN];
 	bool suspended;
+#if defined(CONFIG_SECURE_TOUCH)
+	atomic_t st_enabled;
+	atomic_t st_pending_irqs;
+	bool st_initialized;
+	struct completion st_powerdown;
+	struct completion st_irq_processed;
+	struct clk *core_clk;
+	struct clk *iface_clk;
+#endif
 };
 
 struct synaptics_dsx_bus_access {
@@ -288,6 +308,10 @@ struct synaptics_dsx_bus_access {
 		unsigned char *data, unsigned short length);
 	int (*write)(struct synaptics_rmi4_data *rmi4_data, unsigned short addr,
 		unsigned char *data, unsigned short length);
+#if defined(CONFIG_SECURE_TOUCH)
+	int (*get)(struct synaptics_rmi4_data *rmi4_data);
+	void (*put)(struct synaptics_rmi4_data *rmi4_data);
+#endif
 };
 
 struct synaptics_rmi4_exp_fn {
@@ -334,6 +358,17 @@ static inline int synaptics_rmi4_reg_write(
 {
 	return rmi4_data->hw_if->bus_access->write(rmi4_data, addr, data, len);
 }
+
+#if defined(CONFIG_SECURE_TOUCH)
+static inline int synaptics_rmi4_bus_get(struct synaptics_rmi4_data *rmi4_data)
+{
+	return rmi4_data->hw_if->bus_access->get(rmi4_data);
+}
+static inline void synaptics_rmi4_bus_put(struct synaptics_rmi4_data *rmi4_data)
+{
+	rmi4_data->hw_if->bus_access->put(rmi4_data);
+}
+#endif
 
 static inline ssize_t synaptics_rmi4_store_error(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)

@@ -75,6 +75,7 @@ enum MODE {
 #endif
 	MOVIE_MODE,
 	AUTO_MODE,
+	READING_MODE,
 	MAX_MODE,
 };
 
@@ -89,7 +90,29 @@ enum ACCESSIBILITY {
 	NEGATIVE,
 	COLOR_BLIND,
 	CURTAIN,
+	GRAYSCALE,
+	GRAYSCALE_NEGATIVE,
 	ACCESSIBILITY_MAX,
+};
+
+enum HMT_GRAY {
+	HMT_GRAY_OFF = 0,
+	HMT_GRAY_1,
+	HMT_GRAY_2,
+	HMT_GRAY_3,
+	HMT_GRAY_4,
+	HMT_GRAY_5,
+	HMT_GRAY_MAX,
+};
+
+enum HMT_COLOR_TEMPERATURE {
+	HMT_COLOR_TEMP_OFF = 0,
+	HMT_COLOR_TEMP_3000K, // 3000K
+	HMT_COLOR_TEMP_4000K, // 4000K
+	HMT_COLOR_TEMP_5000K, // 5000K
+	HMT_COLOR_TEMP_6500K, // 6500K + gamma 2.2
+	HMT_COLOR_TEMP_7500K, // 7500K + gamma 2.2
+	HMT_COLOR_TEMP_MAX
 };
 
 struct mdnie_lite_tun_type {
@@ -101,6 +124,7 @@ struct mdnie_lite_tun_type {
 	enum MODE mdnie_mode;
 	enum OUTDOOR outdoor;
 	enum ACCESSIBILITY mdnie_accessibility;
+	enum HMT_COLOR_TEMPERATURE hmt_color_temperature;
 
 	char scr_white_red;
 	char scr_white_green;
@@ -160,8 +184,11 @@ struct mdnie_lite_tune_data {
 	struct dsi_cmd_desc *DSI0_NEGATIVE_MDNIE;
 	struct dsi_cmd_desc *DSI0_COLOR_BLIND_MDNIE;
 	struct dsi_cmd_desc *DSI0_HBM_CE_MDNIE;
+	struct dsi_cmd_desc *DSI0_HBM_CE_TEXT_MDNIE;
 	struct dsi_cmd_desc *DSI0_RGB_SENSOR_MDNIE;
 	struct dsi_cmd_desc *DSI0_CURTAIN;
+	struct dsi_cmd_desc *DSI0_GRAYSCALE_MDNIE;
+	struct dsi_cmd_desc *DSI0_GRAYSCALE_NEGATIVE_MDNIE;
 	struct dsi_cmd_desc *DSI0_UI_DYNAMIC_MDNIE;
 	struct dsi_cmd_desc *DSI0_UI_STANDARD_MDNIE;
 	struct dsi_cmd_desc *DSI0_UI_NATURAL_MDNIE;
@@ -208,6 +235,8 @@ struct mdnie_lite_tune_data {
 	struct dsi_cmd_desc *DSI0_TDMB_AUTO_MDNIE;
 
 	struct dsi_cmd_desc *(*mdnie_tune_value_dsi0)[MAX_MODE][MAX_OUTDOOR_MODE];
+	struct dsi_cmd_desc **hmt_color_temperature_tune_value_dsi0;
+
 	int dsi0_bypass_mdnie_size;
 	int mdnie_color_blinde_cmd_offset;
 	int mdnie_step_index[MDNIE_STEP_MAX];
@@ -290,6 +319,7 @@ struct mdnie_lite_tune_data {
 	struct dsi_cmd_desc *DSI1_TDMB_AUTO_MDNIE;
 
 	struct dsi_cmd_desc *(*mdnie_tune_value_dsi1)[MAX_MODE][MAX_OUTDOOR_MODE];
+	struct dsi_cmd_desc **hmt_color_temperature_tune_value_dsi1;
 	int dsi1_rgb_sensor_mdnie_1_size;
 	int dsi1_rgb_sensor_mdnie_2_size;
 #endif

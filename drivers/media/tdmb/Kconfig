@@ -96,9 +96,9 @@ config TDMB_I2C
 	depends on TDMB
 	bool "I2C"
 
-config TDMB_XTAL
+config TDMB_XTAL_FREQ
 	depends on TDMB
-	int "Set XTAL value"
+	bool "use xtal freq"
 	default 0
 
 config TDMB_DEBUG
