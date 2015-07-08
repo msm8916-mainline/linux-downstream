@@ -1,0 +1,56 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "msm8936.dtsi"
+#include "msm8939-qrd-skuk.dtsi"
+
+/ {
+	qcom,board-id = <0x1000b 5>;
+};
+
+&i2c_4 {
+	smb358_otg_supply: smb358-charger@57 {
+		compatible = "qcom,smb358-charger";
+		reg = <0x57>;
+		qcom,irq-gpio = <&msm_gpio 62 2>;
+		vcc-i2c-supply = <&pm8916_l5>;
+		qcom,float-voltage-mv = <4350>;
+		qcom,disable-apsd;
+		qcom,chg-vadc = <&pm8916_vadc>;
+		qcom,chg-inhibit-disabled;
+		qcom,bms-controlled-charging;
+		regulator-name = "smb358_otg_vreg";
+		qcom,fastchg-current-max-ma = <1500>;
+		qcom,bms-psy-name = "bms";
+		qcom,hot-bat-decidegc = <500>;
+		qcom,cold-bat-decidegc = <0>;
+		qcom,bat-present-decidegc = <200>;
+		qcom,warm-bat-decidegc = <450>;
+		qcom,cool-bat-decidegc = <100>;
+		qcom,warm-bat-ma = <350>;
+		qcom,cool-bat-ma = <350>;
+		qcom,warm-bat-mv = <4200>;
+		qcom,cool-bat-mv = <4200>;
+	};
+};
+
+&pm8916_chg {
+	status = "ok";
+	qcom,use-external-charger;
+};
+
+&pm8916_bms {
+	status = "ok";
+	qcom,disable-bms;
+};
