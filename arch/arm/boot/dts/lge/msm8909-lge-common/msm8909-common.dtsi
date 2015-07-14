@@ -1,0 +1,57 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	memory {
+		ramoops_mem: ramoops_region@b0000000 {
+			linux,reserve-contiguous-region;
+			linux,reserve-region;
+			linux,remove-completely;
+			reg = <0x0 0xb0000000 0x0 0x100000>;
+			label = "ramoops_mem";
+		};
+	};
+};
+
+&soc {
+	ramoops {
+		compatible = "ramoops";
+		mem-size = <0x80000>;
+		mem-address = <0xb0000000>;
+		record-size = <4096>;
+		console-size = <0x40000>;
+		ftrace-size = <0x40000>;
+		dump-oops = <1>;
+	};
+
+	bootlog {
+		compatible = "bootlog";
+	};
+
+    qcom,wdt@b017000 {
+		qcom,bark-time = <17000>;
+		qcom,pet-time = <10000>;
+	};
+
+    qcom,iris-fm {
+        compatible = "qcom,iris_fm";
+        qcom,fm-sw-gpio = <&msm_gpio 22 0>;
+    };
+
+    lge,monitor-thermal {
+        compatible = "lge,monitor-thermal";
+        lge,hot-poll-time = <10000>;
+        lge,hot-crit-temp = <48>;
+        lge,poll-time = <60000>;
+        qcom,monitor-thermal-vadc = <&pm8916_vadc>;
+    };
+};

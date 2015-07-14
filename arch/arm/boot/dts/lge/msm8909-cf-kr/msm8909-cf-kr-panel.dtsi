@@ -1,0 +1,64 @@
+/* Copyright (c) 2013, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../msm8909-lge-common/dsi-panel-tianma-hvga-cmd.dtsi"
+#include "../msm8909-lge-common/dsi-panel-tianma-hvga-video.dtsi"
+#include "../msm8909-lge-common/msm8909-backlight-lm3530.dtsi"
+
+
+&mdss_mdp {
+		qcom,mdss-pref-prim-intf = "dsi";
+};
+
+&pmx_mdss {
+		qcom,num-grp-pins = <1>;
+		qcom,pins = <&gp 25>;
+};
+
+&pmx_mdss_te {
+		qcom,num-grp-pins = <1>;
+		qcom,pins = <&gp 24>;
+};
+
+&mdss_dsi0 {
+		qcom,dsi-pref-prim-pan = <&dsi_tianma_hvga_cmd>;
+		pinctrl-names = "mdss_default", "mdss_sleep";
+		pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
+		pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
+
+		qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+
+		qcom,panel-supply-entries {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			qcom,panel-supply-entry@0 {
+				reg = <0>;
+				qcom,supply-name = "vdd";
+				qcom,supply-min-voltage = <2800000>;
+				qcom,supply-max-voltage = <2800000>;
+				qcom,supply-enable-load = <100000>;
+				qcom,supply-disable-load = <100>;
+			};
+
+			qcom,panel-supply-entry@1 {
+				reg = <1>;
+				qcom,supply-name = "vddio";
+				qcom,supply-min-voltage = <1800000>;
+				qcom,supply-max-voltage = <1800000>;
+				qcom,supply-enable-load = <100000>;
+				qcom,supply-disable-load = <100>;
+				qcom,supply-post-on-sleep = <1>;
+			};
+		};
+};
+

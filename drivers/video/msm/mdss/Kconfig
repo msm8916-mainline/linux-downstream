@@ -1,0 +1,117 @@
+config FB_MSM_MDSS_WRITEBACK
+	bool "MDSS Writeback Panel"
+	---help---
+	The MDSS Writeback Panel provides support for routing the output of
+	MDSS frame buffer driver and MDP processing to memory.
+
+config FB_MSM_MDSS_HDMI_PANEL
+	depends on FB_MSM_MDSS
+	bool "MDSS HDMI Tx Panel"
+	default n
+	---help---
+	The MDSS HDMI Panel provides support for transmitting TMDS signals of
+	MDSS frame buffer data to connected hdmi compliant TVs, monitors etc.
+
+config FB_MSM_MDSS_HDMI_MHL_SII8334
+	depends on FB_MSM_MDSS_HDMI_PANEL
+	bool 'MHL SII8334 support '
+	default n
+	---help---
+	  Support the HDMI to MHL conversion.
+	  MHL (Mobile High-Definition Link) technology
+	  uses USB connector to output HDMI content
+
+config FB_MSM_MDSS_DSI_CTRL_STATUS
+	tristate "DSI controller status check feature"
+	---help---
+	  Check DSI controller status periodically (default period is 5
+	  seconds) by sending Bus-Turn-Around (BTA) command. If DSI controller
+	  fails to acknowledge the BTA command, it sends PANEL_ALIVE=0 status
+	  to HAL layer to reset the controller.
+
+config FB_MSM_MDSS_EDP_PANEL
+	depends on FB_MSM_MDSS
+	bool "MDSS eDP Panel"
+	---help---
+	The MDSS eDP Panel provides support for eDP host controller driver
+	which runs in Video mode only and is responsible for transmitting
+	frame buffer from host SOC to eDP display panel.
+
+config FB_MSM_MDSS_MDP3
+	depends on FB_MSM_MDSS
+	bool "MDP3 display controller"
+	---help---
+	The MDP3 provides support for an older version display controller
+	included in latest display sub-system, known as MDSS.
+
+config TIANMA_ILI9488_HVGA_CMD_PANEL
+	bool "Enable TIANMA ILI9488 HVGA CMD panel"
+	default n
+	---help---
+	Support TIANMA ILI9488 HVGA CMD panel
+	The resulotion is (320x480) and 60fps is supported
+	Need 1.8v and 2.8v
+
+config TIANMA_ILI9488_HVGA_VIDEO_PANEL
+	bool "Enable TIANMA ILI9488 HVGA VIDEO panel"
+	default n
+	---help---
+	Support TIANMA ILI9488 HVGA VIDEO panel
+	The resulotion is (320x480) and 60fps is supported
+	Need 1.8v and 2.8v
+
+config LCD_DFPS
+	bool "Enable DFPS"
+	default n
+	---help---
+	Support the dynamic change of fps
+	Support the read and write operation with sysfs
+	The read operation shows the information about bitclk and the current fps
+
+config DSV_CONTROL_API
+	bool "Enable DSV control api"
+	default n
+	---help---
+	Support the dsv control api
+
+config LGE_LCD_TUNING
+	bool "lcd_gamma_tuning"
+	default n
+	depends on MACH_LGE
+	---help---
+	Support LCD gamma tuning
+	Support sysfs
+
+config LGE_DISPLAY_POWER_SEQUENCE
+	bool "lge panel power sequence"
+	default y
+	---help---
+	Support panel power sequence
+
+config LGE_DISPLAY_TUNING
+	bool "Enable panel/mipi/backlight tuning"
+	default n
+	---help---
+	Support LCD initial code, mipi clock, and backlight tuning
+	Support sysfs
+
+config LGE_DISPLAY_DFPS
+	bool "LG Dynamic LCD Refresh Driver"
+	select ARCH_HAS_OPP
+	select DEVFREQ_GOV_SIMPLE_ONDEMAND
+	default n
+	---help---
+	This adds the DEVFREQ driver for LG display
+
+config LGE_DISPLAY_VSYNC_SKIP
+	bool "MDSS VSYNC Skip scheme"
+	default n
+	---help---
+	This feature provides VSYNC skip scheme.
+
+config LGE_DISPLAY_LCD_OFF_DIMMING
+	bool "FOTA BOOT LCD OFF DIMMING"
+	default n
+	---help---
+	This feature provides LCD DIMMING when fota booting mode.
+

@@ -1,0 +1,86 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_6 {
+	lm3632@11 {
+		compatible                = "backlight,lm3632";
+		status                    = "ok";
+		reg                       = <0x11>;
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bklight_en_active>;
+		pinctrl-1 = <&bklight_en_suspend>;
+
+		lm3632,vcc_i2c-supply = <&pm8909_l6>;
+		lm3632,lcd_bl_en = <&msm_gpio 24 0x00>;
+		lm3632,dsv_p_en = <&msm_gpio 17 0x00>;
+		lm3632,dsv_n_en = <&msm_gpio 33 0x00>;
+		/*Do lm3632 initialization in kernel
+		in case of disabling cont-splash*/
+		//lm3632,init_on_kernel;
+		lm3632,max_current = <0x17>;
+		lm3632,min_brightness = <0x05>;
+		lm3632,default_brightness = <0x9C>;
+		lm3632,max_brightness = <0xFF>;
+		lm3632,enable_pwm = <0>;
+		lm3632,blmap_size = <256>;
+		lm3632,blmap = <
+			2 2 2 2 2 2 2 2 2 2
+			/*0% (10th)*/
+			4 4 4 4 4 4 4 4 5 5
+			5 5 5 5 5 5 6 6 6 6
+			6 6 6 6 7 7 7 7 7 7
+			7 7 8 8 8 8 8 8 9 9
+			9 9 9 9 9 9 10 10 10 10
+			/*20%(60th) */
+			10 10 10 10 11 11 11 12 12 12
+			13 13 13 14 14 14 15 15 16 16
+			17 17 18 18 19 19 20 20 21 21
+			22 22 23 23 24 24 25 25 26 26
+			27 27 27 28 28 28 29 29
+			/*40%(108th)*/
+			29 29
+			29 29 29 29 32 32 32 33 34 35
+			37 38 39 40 41 41 42 43 46 46
+			46 48 51 52 53 54 50 50 51 52
+			53 53 54 55 55 56 57 57 58 59
+			59 60 61 62 64 64 64 64 64
+			/*60% (159th)*/
+			64 64 64 65 66 67 67 67 67 69 71
+			73 74 75 76 77 78 79 80 81 82
+			83 84 85 86 87 88 89 90 91 92
+			94 96 98 100 102 104 106 108 110 112
+			114 116 117 118 119 120 120
+			/*80% (207th)*/
+			120 120 120
+			120 124 126 128 131 134 137 139 140 142
+			144 146 148 150 152 154 156 158 159 160
+			162 164 166 167 169 171 173 175 177 178
+			180 181 183 185 186 187 188 190 192 193
+			195 197 196 198 200 200>;
+
+/*
+		cell-index = <0>;
+		label                   = "lm3632";
+		qcom,flash-name         = "lm3632";
+		qcom,slave-id           = <0x11 0x01 0x01>; //to do checking
+		qcom,flash-type         = <1>;              // LED_FLASH
+		qcom,gpio-no-mux        = <0>;
+		gpios                   = <&msm_gpio 31 0>; // FLASH_STROBE_TRIG, GPIO 31
+		qcom,gpio-flash-en      = <0>;
+		qcom,gpio-req-tbl-num   = <0>;
+		qcom,gpio-req-tbl-flags = <0>;
+		qcom,gpio-req-tbl-label = "FLASH_EN";
+		qcom,cci-master = <0>;
+*/
+	};
+};

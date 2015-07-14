@@ -1,0 +1,144 @@
+/*
+ * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+};
+
+&i2c_3 {
+	actuator0: qcom,actuator@18 {
+		cell-index = <0>;
+		reg = <0x18 0x0>;
+		compatible = "qcom,actuator";
+		qcom,cci-master = <0>;
+	};
+
+
+	qcom,camera@0 {
+		cell-index = <0>;
+		compatible = "qcom,camera";
+		reg = <0x2>;
+		qcom,csiphy-sd-index = <0>;
+		qcom,csid-sd-index = <0>;
+		qcom,mount-angle = <90>;
+		qcom,actuator-src = <&actuator0>;
+	//	qcom,led-flash-src = <&led_flash0>;
+	//	qcom,eeprom-src = <&eeprom0>;		//Not support eeprom
+
+
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_default
+				&cam_sensor_rear_default>;
+		pinctrl-1 = <&cam_sensor_mclk0_sleep &cam_sensor_rear_sleep>;
+		gpios = <&msm_gpio 26 0>,
+			<&msm_gpio 35 0>,
+			<&msm_gpio 93 0>,	//2V8_CAM_AVDD
+			<&msm_gpio 94 0>,	//1V8_CAM_DVDD
+			<&msm_gpio 34 0>;	//CAM_VCM_PWDN
+
+		qcom,gpio-reset = <1>;
+		qcom,gpio-vana = <2>;
+		qcom,gpio-vdig = <3>;
+		qcom,gpio-vaf = <4>;
+
+		qcom,gpio-req-tbl-num = <0 1 2 3 4>;
+		qcom,gpio-req-tbl-flags = <1 0 0 0 0>;
+		qcom,gpio-req-tbl-label = "CAMIF_MCLK", "CAM_RESET1", "CAM_AVDD", "CAM_DVDD", "CAM_VCM";
+		qcom,csi-lane-assign = <0x4320>;
+		qcom,csi-lane-mask = <0x07>;
+		qcom,sensor-position = <0>;
+		qcom,sensor-mode = <0>;
+		status = "ok";
+		clocks = <&clock_gcc clk_mclk0_clk_src>,
+				<&clock_gcc clk_gcc_camss_mclk0_clk>;
+		clock-names = "cam_src_clk", "cam_clk";
+	};
+
+	/* Rev A */
+	qcom,camera@40 {
+		compatible = "qcom,hi351";
+		reg = <0x40 0x0>;
+		qcom,slave-id = <0x40 0x4 0xA4>;
+		qcom,csiphy-sd-index = <0>;
+		qcom,csid-sd-index = <0>;
+		qcom,mount-angle = <90>;
+		qcom,sensor-name = "hi351";
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_default
+				&cam_sensor_rear_default>;
+		pinctrl-1 = <&cam_sensor_mclk0_sleep &cam_sensor_rear_sleep>;
+		gpios = <&msm_gpio 26 0>,
+			<&msm_gpio 34 0>,	//MAIN_CAM0_PWDN
+			<&msm_gpio 35 0>,	// MAIN_CAM0_RESET
+			<&msm_gpio 93 0>,	//1V8_CAM_IOVDD
+			<&msm_gpio 94 0>,	//2V8_CAM_AVDD
+			<&msm_gpio 99 0>;	//1V2_CAM_DVDD
+
+		qcom,gpio-standby = <1>;
+		qcom,gpio-reset = <2>;
+		qcom,gpio-vio = <3>;
+		qcom,gpio-vana = <4>;
+		qcom,gpio-vdig = <5>;
+
+		qcom,gpio-req-tbl-num = <0 1 2 3 4 5>;
+		qcom,gpio-req-tbl-flags = <1 0 0 0 0 0>;
+		qcom,gpio-req-tbl-label = "CAMIF_MCLK", "CAM_PWDN", "CAM_RESET1", "CAM_IOVDD", "CAM_AVDD", "CAM_DVDD";
+		qcom,csi-lane-assign = <0x4320>;
+		qcom,csi-lane-mask = <0x07>;
+		qcom,sensor-position = <0>;
+		qcom,sensor-mode = <0>;
+		status = "ok";
+		clocks = <&clock_gcc clk_mclk0_clk_src>,
+				<&clock_gcc clk_gcc_camss_mclk0_clk>;
+		clock-names = "cam_src_clk", "cam_clk";
+	};
+
+	qcom,camera@60 {
+		compatible = "qcom,hi707";
+		reg = <0x60>;
+		qcom,slave-id = <0x60 0x4 0xB8>;
+		qcom,csiphy-sd-index = <0>;
+		qcom,csid-sd-index = <1>;
+		qcom,mount-angle = <270>;
+		qcom,sensor-name = "hi707";
+
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_default &cam_sensor_front_default>;
+		pinctrl-1 = <&cam_sensor_mclk1_sleep &cam_sensor_front_sleep>;
+		gpios = <&msm_gpio 27 0>,
+			<&msm_gpio 28 0>,	//VT_CAM_RESET
+			<&msm_gpio 32 0>,	//VT_CAM__PWDN
+			<&msm_gpio 93 0>,	//1V8_CAM_IOVDD
+			<&msm_gpio 94 0>,	//2V8_CAM_AVDD
+			<&msm_gpio 3 0>;	//1V8_CAM_DVDD
+
+
+		qcom,gpio-reset = <1>;
+		qcom,gpio-standby = <2>;
+		qcom,gpio-vio = <3>;
+		qcom,gpio-vana = <4>;
+		qcom,gpio-vdig = <5>;
+
+		qcom,gpio-req-tbl-num = <0 1 2 3 4 5>;
+		qcom,gpio-req-tbl-flags = <1 0 0 0 0 0>;
+		qcom,gpio-req-tbl-label = "CAMIF_MCLK", "CAM_PWDN", "CAM_RESET1", "CAM_IOVDD", "CAM_AVDD", "CAM_DVDD";
+		qcom,csi-lane-assign = <0x0004>;
+		qcom,csi-lane-mask = <0x18>;
+		qcom,sensor-position = <1>;
+		qcom,sensor-mode = <1>;
+		status = "ok";
+		clocks = <&clock_gcc clk_mclk1_clk_src>,
+		         <&clock_gcc clk_gcc_camss_mclk1_clk>;
+		clock-names = "cam_src_clk", "cam_clk";
+	};
+
+};

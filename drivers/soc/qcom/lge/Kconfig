@@ -1,0 +1,218 @@
+config MACH_LGE
+	bool "Machine LGE"
+	help
+	  Support for machine LGE.
+
+menu "LGE Board Selection"
+
+config MACH_MSM8909_LGPS22
+	bool "MSM8909 LGPS22"
+	depends on ARCH_MSM8909
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8909 LGPS22 device.
+
+config MACH_MSM8909_CF_LGU_KR
+	bool "MSM8909 CF LGU KR"
+	depends on ARCH_MSM8909
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8909 CF LGU KR device.
+
+config MACH_MSM8909_CF_SKT_KR
+	bool "MSM8909 CF SKT KR"
+	depends on ARCH_MSM8909
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8909 CF SKT KR device.	  
+
+config MACH_MSM8909_CF_KT_KR
+	bool "MSM8909 CF KT KR"
+	depends on ARCH_MSM8909
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8909 CF KT KR device.
+
+config MACH_MSM8909_CF_GLOBAL_COM
+    bool "MSM8909 CF GLOBAL COM"
+    depends on ARCH_MSM8909
+    select MACH_LGE
+    help
+      Support for the Qualcomm MSM8909 CF GLOBAL COM device.
+
+config MACH_MSM8909_CF_JCM_JP
+	bool "MSM8909 CF JCM JP"
+	depends on ARCH_MSM8909
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8909 CF JCM JP device.
+
+endmenu
+
+config LGE_BOARD_REVISION
+	bool "LGE Board Revision"
+	depends on MACH_LGE
+	help
+	  Support for LGE board revision module.
+	  This module sets board revision as getting value from boot loader,
+	  and provides board revision via lge_get_board_revno API.
+
+config DTS_TARGET
+	string "DTS target dir"
+	default "msm8909-cf-kr" if MACH_MSM8909_CF_LGU_KR
+	default "msm8909-cf_global_com" if MACH_MSM8909_CF_GLOBAL_COM
+	default "msm8909-cf_jcm_jp" if MACH_MSM8909_CF_JCM_JP
+	help
+	  CONFIG_DTS_TARGET should be set to support appended dts.
+	  ex) CONFIG_DTS_TARGET="msm8909-cf-kr".
+	  
+menu "LGE Specific Patches"
+
+config LGE_PM_CABLE_DETECTION
+	tristate "Support LGE PM Cable Detection"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE PM Cable Detection
+
+config LGE_PM_CHARGING_SCENARIO
+	tristate "Support LGE PM Charging Scenario"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE PM Charging Scenario
+
+config LGE_PM_DEBUG
+	tristate "Support LGE PM Debug Feature"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE PM Debug Feature
+
+config LGE_BOOTLOADER_LOG
+	tristate "Support LGE bootloader log"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE bootloader log
+
+config LGE_BOOTLOADER_TIME_CHECKER
+	bool "Show bootloader(LK, SBL) time"
+	default n
+	depends on MACH_LGE
+	help
+	  This shows the lk and sbl1 booting time in MSM8909.
+	  If this feature is enabled, it should be check by adb shell.
+	  Device Node : sys/module/lge_bootloader_time_checker/
+
+config LGE_HANDLE_PANIC
+	tristate "Support LGE Kernel Panic Handler"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE Crash Handler
+
+config LGE_MISC_CHECKER
+	tristate "Support LGE misc checker"
+	default n
+	depends on MACH_LGE
+	help
+	  This creates module parameters to read/write ftm items in misc.
+
+config LGE_UART_CONTROL
+	tristate "Support LGE uart control"
+	default n
+	depends on MACH_LGE
+	help
+	  This controls uart console on boot.
+
+config LGE_EARJACK_DEBUGGER
+	bool "Earjack UART debugger support"
+	default n
+	depends on MACH_LGE
+	help
+	  Support earjack type UART debugger cable
+
+config PRE_SELF_DIAGNOSIS
+    tristate "Support LGE self diagnosis for factory"
+    default n
+    depends on MACH_LGE
+    help
+      LGE self diagnosis
+
+config LGE_DOCK
+	bool "LGE Dock Driver"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE Dock Driver
+
+config LGE_PM_BATTERY_ID_CHECKER
+	bool "Virtual Device for LGE Battery ID Checker"
+	depends on LGE_PM
+	help
+	 Say Y here to enable LGE Battery ID Checker
+
+config LGE_BOOT_MODE
+	bool "Support Get Booting mode from cmdline"
+	depends on MACH_LGE
+	default n
+	help
+	  This is get bootimg mode from cmdline. And that mode is
+	  offers to any module by using lge_get_boot_mode API.
+
+config LGE_LAF_MODE
+	bool "Support Get laf mode from cmdline"
+	depends on MACH_LGE
+	default n
+	help
+	  This is get laf mode from cmdline. And that mode is
+	  offers to any module by using lge_get_laf_mode API.
+
+config LGE_PM_PSEUDO_BATTERY
+    tristate "Support pseudo battery mode"
+    depends on MACH_LGE
+    default n
+    help
+      Say Y here to enable pseudo mode setting
+
+config LGE_PM_SMPL_COUNT
+    bool "SMPL Counter"
+    depends on MACH_LGE
+    help
+      Say Y here to enable smpl count for hiddenmenu.
+
+config LGE_PM_UNIFIED_NODE
+    bool "enable LGE PM Unified sysfs node"
+    help
+      Support LGE PM Unified sysfs node
+
+config LGE_PM_CHARGING_CONTROLLER
+	bool "LGE Charging controller"
+	depends on LGE_PM
+	help
+	  enable the LGE Charging controller
+
+config LGE_SENSOR_UNIFIED_NODE
+    bool "enable LGE SENSOR Unified sysfs node"
+    help
+      Support LGE SENSOR Unified sysfs node
+
+endmenu
+
+menu "LGE QFPROM Values"
+
+config LGE_QFPROM_INTERFACE
+	bool "Support qfprom interface"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE QFPROM DRIVER.
+
+config LGE_QFPROM_SECHASH
+	string "Support qfprom sec hash"
+	default 0x0
+	depends on LGE_QFPROM_INTERFACE
+	help
+	  LGE QFPROM DRIVER-SEC partition's hash value.
+endmenu

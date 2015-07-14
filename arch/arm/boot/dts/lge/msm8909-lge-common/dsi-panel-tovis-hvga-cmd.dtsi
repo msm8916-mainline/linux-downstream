@@ -1,0 +1,109 @@
+&mdss_mdp {
+	dsi_tovis_hvga_cmd: qcom,mdss_dsi_tovis_ili9488_hvga_cmd_none_lcd_panel {
+		compatible = "qcom,mdss-dsi-panel";
+		qcom,cont-splash-enabled;
+		qcom,mdss-dsi-panel-name = "TOVIS 320p cmd mode dsi panel";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
+		qcom,mdss-dsi-panel-destination = "display_1";
+		qcom,mdss-pan-physical-width-dimension = <49>;
+		qcom,mdss-pan-physical-height-dimension = <73>;
+		qcom,mdss-dsi-panel-width = <320>;
+		qcom,mdss-dsi-panel-height = <480>;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-h-back-porch = <14>;
+		qcom,mdss-dsi-h-pulse-width = <8>;
+		qcom,mdss-dsi-h-front-porch = <49>;
+		qcom,mdss-dsi-h-sync-skew = <0>;
+		qcom,mdss-dsi-v-back-porch = <14>;
+		qcom,mdss-dsi-v-pulse-width = <4>;
+		qcom,mdss-dsi-v-front-porch = <14>;
+		qcom,mdss-dsi-underflow-color = <0>;
+		//qcom,mdss-dsi-bl-min-level = <1>;
+		//qcom,mdss-dsi-bl-max-level = <255>;
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+		qcom,mdss-dsi-h-sync-pulse = <0>;
+		qcom,mdss-dsi-traffic-mode = "non_burst_sync_event";
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-te-dcs-command = <1>;
+		qcom,mdss-dsi-te-v-sync-rd-ptr-irq-line = <0x2c>;
+		qcom,mdss-dsi-te-v-sync-continues-lines = <0x3c>;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+		qcom,mdss-dsi-t-clk-pre = <0x27>;
+		qcom,mdss-dsi-t-clk-post = <0x20>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-mdp-trigger = "trigger_te";
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-panel-timings = [4A 1A 12 00 25 26 16 1C 1C 03 04 00];
+		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-off-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-reset-sequence = <1 2>, <0 10>, <1 120>;
+		qcom,mdss-dsi-on-command = [
+				29 01 00 00 00 00 03
+				  F8 21 04
+				29 01 00 00 00 00 02
+				  21 00
+				39 01 00 00 00 00 02
+				  36 08
+				23 01 00 00 00 00 02
+				  B4 00
+				29 01 00 00 00 00 04
+				  B6 02 22 3B
+				29 01 00 00 00 00 03
+				  C0 0A 0A
+				23 01 00 00 00 00 02
+				  C1 44
+				23 01 00 00 00 00 02
+				  C2 02
+				29 01 00 00 00 00 05
+				  C5 00 42 80 00
+				29 01 00 00 00 00 10
+				  E0 05 08 0A 00 0C 03 2D 56 4A 09 11 0D 27 2D 0F
+				29 01 00 00 00 00 10
+				  E1 00 0D 15 03 0E 02 38 43 52 09 11 0E 34 36 0F
+				29 01 00 00 00 00 05
+				  2A 00 00 01 3F
+				29 01 00 00 00 00 05
+				  2B 00 00 01 DF
+				15 01 00 00 00 00 02
+				  3A 66
+				23 01 00 00 00 00 02
+				  B7 C6
+				39 01 00 00 00 00 03
+				  B1 A0 10
+				29 01 00 00 00 00 05
+				  F7 A9 51 2C 82
+				29 01 00 00 00 00 05
+				  B5 02 02 0A 04
+				/*15 01 00 00 00 00 02
+				  51 FF
+				15 01 00 00 00 00 02
+				  53 24
+				15 01 00 00 05 00 02
+				  55 01
+				15 01 00 00 00 00 02
+				  CC 01
+				15 01 00 00 00 00 02
+				  35 00
+				29 01 00 00 00 00 03
+				  44 00 00*/
+				05 01 00 00 78 00 01
+				  11
+				05 01 00 00 50 00 01
+				  2C
+				05 01 00 00 3C 00 01
+				  29
+				];
+		qcom,mdss-dsi-off-command = [
+				05 01 00 00 32 00 01
+				  28
+				05 01 00 00 78 00 01
+				  10
+				];
+	};
+};

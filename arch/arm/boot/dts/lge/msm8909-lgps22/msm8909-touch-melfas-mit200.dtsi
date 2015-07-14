@@ -1,0 +1,110 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	i2c@78b9000 { /* BLSP1 QUP5 */
+		qcom,clk-freq-out = <400000>;
+
+		lge_touch_rev_a@34 {
+			status = "ok";
+			revision = "rev_a";
+			compatible = "lge,touch_core";
+			reg = <0x34>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <13 0x2>;
+			lge,rst-gpio	=	<&msm_gpio 12 0x00>;
+			lge,int-gpio	=	<&msm_gpio 13 0x00>;
+			lge,sda-gpio	=	<&msm_gpio 18 0x00>;
+			lge,scl-gpio	=	<&msm_gpio 19 0x00>;
+			lge,id-gpio		=	<&msm_gpio 0 0x00>;
+			lge,id2-gpio	=	<&msm_gpio 0 0x00>;
+
+			pinctrl-names = "pmx_ts_active","pmx_ts_suspend";
+			pinctrl-0 = <&ts_int_active &ts_reset_active &ts_ldo_active &ts_evdd_ldo_active>;
+			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_ldo_suspend &ts_evdd_ldo_suspend>;
+
+			/* IC Type. This should be matched with proper device. */
+			/*		0 : MMS-100S Series. MMS-128S , MMS-134S */
+			/*		1 : MMS-100A Series. MMS-136 , MMS-144 , MMS-152 */
+			/*		2 : MIT-200. AIT(Advanced Incell Touch)*/
+			lge,auto_fw_update = <1>;
+			lge,ic_type = <2>;
+			lge,maker = "Melfas";
+			lge,product = "L0M45P1";
+			lge,fw_image = "melfas/mit200/lgps22/L0M45P1_00_07.fw";
+
+			/* panel status check */
+			openshort_enable = <0>;
+
+			/* Limitation Value. */
+			raw_data_max = <42125>;
+			raw_data_min = <11394>;
+			raw_data_margin = <1000>;
+			raw_data_otp_min = <15000>;
+			raw_data_otp_max = <39000>;
+			open_short_min = <10>;
+			slope_max = <110>;
+			slope_min = <90>;
+
+			/* platform_data->caps */
+			button_support = <0>;
+			button_name = <>;
+			is_width_supported = <1>;
+			is_pressure_supported = <1>;
+			is_id_supported = <1>;
+			max_width = <30>;
+			max_pressure = <0xff>;
+			max_id = <10>;
+			x_max = <480>;
+			y_max = <854>;
+			lcd_x = <480>;
+			lcd_y = <854>;
+			operation_mode = <1>;
+			key_type = <3>;
+			report_mode = <0>;
+			delta_pos_threshold = <0>;
+			panel_id = "L", "?", "?", "?";
+
+			/* platform_data->role */
+			booting_delay = <10>;
+			reset_delay = <5>;
+			suspend_pwr = <0>;
+			resume_pwr = <0>;
+			ghost_detection_enable = <0>;
+			use_crack_mode = <0>;
+			active_area_gap = <24>;
+
+			/*platform_data->pwr*/
+			/* type 0 : none(default) */
+			/*		1 : gpio */
+			/*		2 : regulator */
+			/* name if type == 1, gpio active conditino "low" or "high" */
+			/*		if type == 2, supply name for regulator */
+			/* value if type == 1, gpio pin no. */
+			/* 		 if type == 2, regulator voltage */
+			vdd_type0 = <1>;
+			vdd_name0 = "high";
+			vdd_value0 = <&msm_gpio 1 0x00>;
+			vdd-supply = <0>;
+
+			vdd_type1 = <1>;
+			vdd_name1 = "high";
+			vdd_value1 = <&msm_gpio 2 0x00>;
+			vio_i2c-supply = <0>;
+
+			vdd_type2 = <0>;
+			vdd_name2 = "NULL";
+			vdd_value2 = <0>;
+			vio_int-supply = <0>;
+		};
+	};
+};

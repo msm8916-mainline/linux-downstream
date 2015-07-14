@@ -1,0 +1,87 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_1 { /* BLSP1 QUP1 */
+	 avago@39 { /* Ambient light and proximity sensor */
+		compatible = "avago,apds993x";
+		reg = <0x39>;
+		pinctrl-names = "default","sleep";
+		pinctrl-0 = <&apds993x_default>;
+		pinctrl-1 = <&apds993x_sleep>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <95 0x2002>;
+		vdd-supply = <&pm8909_l17>;
+		vio-supply = <&pm8909_l6>;
+		avago,irq-gpio = <&msm_gpio 95 0x2002>;
+		avago,ps-threshold = <600>;
+		avago,ps-hysteresis-threshold = <500>;
+		avago,ps-pulse = <8>;
+		avago,ps-pgain = <0>;
+		avago,als-B = <186>;
+		avago,als-C = <75>;
+		avago,als-D = <129>;
+		avago,ga-value = <256>;
+	};
+
+	/* Acceleration sensor */
+	bosch_bma2x2@11 {
+		compatible = "bosch,bma2x2";
+		status = "ok";
+		reg = <0x11>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <96 0x2>;
+		Bosch,vdd_ana-supply = <&pm8909_l17>;
+		Bosch,vddio_i2c-supply = <&pm8909_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bma2x2_int_active>;
+		pinctrl-1 = <&bma2x2_int_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 96 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <2850000>;
+		Bosch,vdd_ana_supply_max = <3300000>;
+		Bosch,vdd_ana_load_ua = <15000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <5>;
+	};
+
+	/* Magnetic Sensor Driver */
+	bosch_bmm050@13 {
+		compatible = "bosch,bmm050";
+		status = "ok";
+		reg = <0x13>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <65 0x2>;
+		Bosch,vdd_ana-supply = <&pm8909_l17>;
+		Bosch,vddio_i2c-supply = <&pm8909_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bmm_drdy_active>;
+		pinctrl-1 = <&bmm_drdy_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 65 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <2850000>;
+		Bosch,vdd_ana_supply_max = <3300000>;
+		Bosch,vdd_ana_load_ua = <15000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <5>;
+	};
+
+};

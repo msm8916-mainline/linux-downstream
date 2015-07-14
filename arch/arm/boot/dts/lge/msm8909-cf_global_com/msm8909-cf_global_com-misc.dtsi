@@ -1,0 +1,60 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
+		pinctrl-0 = <&gpio_key_active>;
+		pinctrl-1 = <&gpio_key_suspend>;
+
+		vol_down {
+			label = "volume_down";
+			gpios = <&msm_gpio 91 0x1>;
+			linux,input-type = <1>;
+			linux,code = <114>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&msm_gpio 90 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+	};
+
+	hall-bu52031nvx {
+		status = "ok";
+		compatible = "rohm,hall-bu52031nvx";
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <65 0x0>;
+		hallic-pouch-irq-gpio = <&msm_gpio 65 0x00>;
+	};
+	i2c@78ba000 {
+		lp5521@32 {
+			compatible = "ti,lp5521";
+			status = "ok";
+			revision = "rev_a...rev_c","rev_e...";
+			reg = <0x32>;
+			ti,led_en = <&msm_gpio 1 0x0>;
+			ti,led_current = <64 50 50>; /* Red, Green, Blue */
+			vio-supply = <&pm8916_l6>;
+		};
+	};
+};
+#include "msm8909-touch-melfas-mms128s.dtsi"
+#include "msm8909-touch-leadingui-lu2020.dtsi"

@@ -1,0 +1,139 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_1 { /* BLSP1 QUP1 */
+	 avago@39 { /* Ambient light and proximity sensor */
+		compatible = "avago,apds9130";
+		reg = <0x39>;
+		status = "ok";
+        revision = "rev_a...rev_c","rev_e...";
+		pinctrl-names = "default","sleep";
+		pinctrl-0 = <&apds9130_int_active>;
+		pinctrl-1 = <&apds9130_int_suspend>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <95 0x2002>;
+		Avago,vdd_ana-supply = <&pm8909_l17>;
+		Avago,vddio_i2c-supply = <&pm8909_l6>;
+		Avago,irq-gpio = <&msm_gpio 95 0x2002>;
+		Avago,i2c-pull-up;
+		Avago,vdd_ana_supply_min = <2850000>;
+		Avago,vdd_ana_supply_max = <3300000>;
+		Avago,vdd_ana_load_ua = <15000>;
+		Avago,vddio_dig_supply_min = <1800000>;
+		Avago,vddio_dig_supply_max = <1800000>;
+		Avago,vddio_dig_load_ua = <10000>;
+		Avago,vddio_i2c_supply_min = <1800000>;
+		Avago,vddio_i2c_supply_max = <1800000>;
+		Avago,vddio_i2c_load_ua = <10000>;
+		Avago,near_offset = <280>;
+		Avago,far_offset = <70>;
+		Avago,crosstalk_max = <720>;
+		Avago,ppcount = <8>;
+		Avago,pdrive = <0>;
+	};
+
+	/* Acceleration sensor */
+	bosch_bma2x2@11 {
+		compatible = "bosch,bma2x2";
+		status = "disabled";
+		revision = "rev_d";
+		reg = <0x11>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <96 0x2>;
+		Bosch,vdd_ana-supply = <&pm8909_l17>;
+		Bosch,vddio_i2c-supply = <&pm8909_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bma2x2_int_active>;
+		pinctrl-1 = <&bma2x2_int_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 96 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <2850000>;
+		Bosch,vdd_ana_supply_max = <3300000>;
+		Bosch,vdd_ana_load_ua = <15000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <5>;
+	};
+
+	/* Magnetic Sensor Driver */
+	bosch_bmm050@13 {
+		compatible = "bosch,bmm050";
+		status = "disabled";
+		revision = "rev_d";
+		reg = <0x13>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <65 0x2>;
+		Bosch,vdd_ana-supply = <&pm8909_l17>;
+		Bosch,vddio_i2c-supply = <&pm8909_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bmm_drdy_active>;
+		pinctrl-1 = <&bmm_drdy_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 65 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <2850000>;
+		Bosch,vdd_ana_supply_max = <3300000>;
+		Bosch,vdd_ana_load_ua = <15000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <5>;
+	};
+
+    /* Accelerometer sensor from rev.A" */
+    k2hh@1e {
+        status = "ok";
+        revision = "rev_a...rev_c","rev_e...";
+        reg = <0x1e>;
+        compatible = "st,k2hh";
+        interrupt-parent = <&msm_gpio>;
+        interrupts = <96 0x0>;
+        stm,sensor_vdd-supply = <&pm8909_l17>;
+        stm,sensor_vcc_i2c-supply = <&pm8909_l6>;
+        pinctrl-names = "k2hh_int_active", "k2hh_int_suspend";
+        pinctrl-0 = <&k2hh_int_active>;
+        pinctrl-1 = <&k2hh_int_suspend>;
+        st,gpio-int = <&msm_gpio 96 0x0>;
+        axis_map_x = <0>;
+        axis_map_y = <1>;
+        axis_map_z = <2>;
+        negate_x = <1>;
+        negate_y = <1>;
+        negate_z = <1>;
+        poll_interval = <100>;
+        min_interval = <9>;
+        fs_range = <32>;
+    };
+};
+
+/*sysfs node for unified usercal*/
+/{
+	lge,sensor-sysfs {
+		compatible = "lge,sensor-sysfs";
+
+		sysfs,node =
+			/* group , user_node,  kernel node */
+			"accelerometer", "run_calibration",  "/sys/devices/virtual/input/lge_accelerometer/run_fast_calibration",
+			"accelerometer", "selftest",         "/sys/devices/virtual/input/lge_accelerometer/selftest",
+//			"gyroscope",     "run_calibration",  "/sys/devices/virtual/input/lge_gyroscope/run_calibration",
+//			"gyroscope",     "selftest",         "/sys/devices/virtual/input/lge_gyroscope/selftest",
+			"proximity",     "run_calibration",  "/sys/devices/virtual/input/lge_proximity/run_calibration",
+			"proximity",     "calibration_data", "/sys/devices/virtual/input/lge_proximity/prox_cal_data"
+			;
+	};
+};

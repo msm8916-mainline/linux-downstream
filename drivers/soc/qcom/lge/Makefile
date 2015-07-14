@@ -1,0 +1,25 @@
+obj-$(CONFIG_LGE_BOARD_REVISION) += lge_board_revision.o
+obj-$(CONFIG_LGE_HANDLE_PANIC) += lge_handle_panic.o
+obj-$(CONFIG_LGE_BOOTLOADER_LOG) += lge_bootloader_log.o
+obj-$(CONFIG_LGE_BOOTLOADER_TIME_CHECKER) += lge_bootloader_time_checker.o
+obj-$(CONFIG_LGE_MISC_CHECKER) += lge_misc_checker.o
+obj-$(CONFIG_LGE_UART_CONTROL) += lge_uart_control.o
+obj-$(CONFIG_LGE_EARJACK_DEBUGGER) += lge_earjack_debugger.o
+obj-$(CONFIG_LGE_PM_DEBUG) += lge_monitor_thermal.o
+obj-$(CONFIG_LGE_PM_DEBUG) += lge_gpio_debug.o
+obj-$(CONFIG_LGE_DOCK) += lge_dock.o
+obj-$(CONFIG_LGE_PM_CABLE_DETECTION) += lge_cable_detection.o
+obj-$(CONFIG_LGE_PM_BATTERY_ID_CHECKER) += lge_battery_id_checker.o
+obj-$(CONFIG_LGE_BOOT_MODE) += lge_boot_mode.o
+obj-$(CONFIG_LGE_LAF_MODE) += lge_laf_mode.o
+obj-$(CONFIG_LGE_PM_PSEUDO_BATTERY) += lge_pseudo_batt.o
+obj-$(CONFIG_LGE_PM_SMPL_COUNT) += lge_smpl_count.o
+obj-$(CONFIG_LGE_PM_UNIFIED_NODE) += lge_power_sysfs.o
+obj-$(CONFIG_LGE_USB_DIAG_LOCK) += lge_diag_lock.o
+obj-$(CONFIG_LGE_PM_CHARGING_CONTROLLER) += lge_charging_scenario.o
+obj-$(CONFIG_LGE_PM_CHARGING_CONTROLLER) += lge_charging_controller.o
+obj-$(CONFIG_PRE_SELF_DIAGNOSIS) += lge_pre_selfd.o
+obj-$(CONFIG_LGE_QFPROM_INTERFACE) += lge_qfprom_access.o
+obj-$(CONFIG_LGE_SENSOR_UNIFIED_NODE) += lge_sensors_sysfs.o
+
+CFLAGS_lge_bootloader_log.o += -I$(srctree)/arch/arm/mach-msm/include
