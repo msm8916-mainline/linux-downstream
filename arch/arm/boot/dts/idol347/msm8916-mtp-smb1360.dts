@@ -1,0 +1,102 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
+/dts-v1/;
+
+#include "msm8916-mtp.dtsi"
+#include "msm8916-memory.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. MSM 8916 SMB1360 MTP";
+	compatible = "qcom,msm8916-mtp", "qcom,msm8916", "qcom,mtp";
+	qcom,board-id = <8 1>;
+};
+
+&soc {
+	//JRD BSP +++ eric.gong@tcl.com "[idol3-4.7][charger] porting smb1360."
+	i2c@78b6000 {
+		smb1360_otg_supply: smb1360-chg-fg@14 {
+			compatible = "qcom,smb1360-chg-fg";
+			reg = <0x14>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <9 2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&smb_int_default>;
+			regulator-name = "smb1360_otg_vreg";
+			qcom,stat-pulsed-irq;
+			qcom,chg-inhibit-disabled;
+			qcom,float-voltage-mv = <4350>;
+			qcom,fg-cc-to-cv-mv = <4328>;
+			qcom,thermistor-c1-coeff = <0x86C8>;
+			qcom,iterm-ma = <75>;
+			qcom,charging-timeout = <0>;
+
+			/* battery-profile selection properties */
+			qcom,batt-profile-select;
+			qcom,smb1360-vadc = <&pm8916_vadc>;
+			qcom,batt-id-vref-uv = <1800000>;
+			qcom,batt-id-rpullup-kohm = <100>;
+			qcom,profile-a-rid-kohm = <52>;
+			qcom,profile-b-rid-kohm = <200>;
+
+			/* battery capacity */
+			qcom,fg-batt-capacity-mah = <2000>;
+			qcom,fg-cc-soc-coeff = <0x8819>;
+			qcom,fg-cutoff-voltage-mv = <3400>;// add soc 0% voltage 3.4v
+			qcom,fg-ibatt-standby-ma = <200>;
+
+			qcom,recharge-thresh-mv = <100>;
+			qcom,fg-reset-thresold-mv = <200>;
+			qcom,fg-soc-max = <85>;
+			qcom,fg-soc-min = <15>;
+			qcom,fg-delta-soc = <1>;
+			qcom,fg-auto-recharge-soc = <99>;
+			qcom,thermal-mitigation = <1500 850 650 550>;
+
+			qcom,otp-rslow-cfg;//JRD BSP eric.gong "[Qualcomm]smb1360: Modify the rslow via OTP backup"
+			qcom,empty-soc-disabled;
+			qcom,shdn-after-pwroff;
+			qcom,fg-reset-at-pon;
+			qcom,otg-batt-curr-limit = <1500>;
+
+			qcom,config-hard-thresholds;
+			qcom,hot-bat-decidegc = <550>;
+			qcom,cold-bat-decidegc = <0>;
+			qcom,soft-jeita-supported;
+			qcom,warm-bat-decidegc = <450>;
+			qcom,cool-bat-decidegc = <100>;
+			qcom,warm-bat-mv = <4100>;
+			qcom,cool-bat-mv = <4350>;
+			qcom,warm-bat-ma = <650>;
+			qcom,cool-bat-ma = <550>;
+		};
+	};
+	//JRD BSP --- eric.gong@tcl.com "[idol3-4.7][charger] porting smb1360."
+};
+
+&usb_otg {
+	qcom,hsusb-otg-mode = <3>; // 1 - Peripheral only mode;2 - Host only mode;3 - OTG mode
+	qcom,usbid-gpio = <&msm_gpio 69 0>;// change usbid from 37 to 69 for NPI EDL 2015/01/07
+	pinctrl-names = "default";
+	pinctrl-0 = <&usbid_default>;
+	vbus_otg-supply = <&smb1360_otg_supply>;
+};
+
+&pm8916_chg {
+	status = "ok";
+	qcom,use-external-charger;
+};
+
+&pm8916_bms {
+	status = "ok";
+	qcom,disable-bms;
+};

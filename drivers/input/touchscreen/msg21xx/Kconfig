@@ -1,0 +1,11 @@
+# modify(add) by junfeng.zhou.sz for [TP driver development (1st source)] with PR721418 begin . 20140714 
+config TOUCHSCREEN_MSG21XX             
+       tristate "MSG21xx touchscreens"
+       depends on I2C
+       help
+         Say Y here if you have a MSG21xx touchscreen on TCL RIO.
+         If unsure, say N.
+
+         To compile this driver as a module, choose M here: the
+         module will be called MSG21xx.
+# modify(add) by junfeng.zhou.sz for [TP driver development (1st source)] with PR721418 end .

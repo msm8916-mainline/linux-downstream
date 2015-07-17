@@ -1,0 +1,10 @@
+#[PLATFORM]-Add-BEGIN by TCTNB.ZXZ, FR-788074, 2014/09/20 add msg2633 TP
+config TOUCHSCREEN_MSG            
+       tristate "MSG touchscreens"
+       depends on I2C
+       help
+         Say Y here if you have a MSG touchscreen on TCL RIO.
+         If unsure, say N.
+         To compile this driver as a module, choose M here: the
+         module will be called MSG.
+# [PLATFORM]-Add-END by TCTNB.ZXZ

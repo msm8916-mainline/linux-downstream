@@ -1,0 +1,252 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&mdss_mdp {
+	dsi_otm1284a_lg_720_vid: qcom,mdss_dsi_otm1284a_lg_720p_video {
+		qcom,mdss-dsi-panel-name = "otm1284a lg 720p video mode dsi panel";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,mdss-dsi-panel-destination = "display_1";
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-panel-width = <720>;
+		qcom,mdss-dsi-panel-height = <1280>;
+		qcom,mdss-dsi-h-front-porch = <64>;
+		qcom,mdss-dsi-h-back-porch = <64>;
+		qcom,mdss-dsi-h-pulse-width = <8>;
+		qcom,mdss-dsi-h-sync-skew = <0>;
+                qcom,mdss-dsi-v-front-porch = <16>;
+		qcom,mdss-dsi-v-back-porch = <14>;
+		qcom,mdss-dsi-v-pulse-width = <4>;
+		qcom,mdss-dsi-h-left-border = <0>;
+		qcom,mdss-dsi-h-right-border = <0>;
+		qcom,mdss-dsi-v-top-border = <0>;
+		qcom,mdss-dsi-v-bottom-border = <0>;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-underflow-color = <0xff>;
+		qcom,mdss-dsi-border-color = <0>;
+		qcom,mdss-dsi-on-command = [39 01 00 00 00 00 02 00 00
+			39 01 00 00 00 00 04 ff 12 84 01
+
+			39 01 00 00 00 00 02 00 80                   //Orise mode enable
+			39 01 00 00 00 00 03 ff 12 84
+
+			39 01 00 00 00 00 02 00 92                  //mipi 4lane
+			39 01 00 00 00 00 03 ff 30 02
+
+                        //---Panel Setting------//
+			39 01 00 00 00 00 02 00 80
+			39 01 00 00 00 00 0A c0 00 64 00 10 10 00 64 10 10
+
+			39 01 00 00 00 00 02 00 90
+			39 01 00 00 00 00 07 c0 00 5c 00 01 00 04
+
+			39 01 00 00 00 00 02 00 b3
+			39 01 00 00 00 00 03 c0 00 55
+
+			39 01 00 00 00 00 02 00 81
+			39 01 00 00 00 00 02 c1 66
+
+                        //----Power Setting------//
+			39 01 00 00 00 00 02 00 A0
+			39 01 00 00 00 00 0F c4 05 10 04 02 05 15 1A 05 10 05 02 05 15 1A
+
+			39 01 00 00 00 00 02 00 b0
+			39 01 00 00 00 00 03 c4 00 00
+
+			39 01 00 00 00 00 02 00 91                //VGH=13V, VGL=-11V, pump ratio:VGH=6x, VGL=-5x
+			39 01 00 00 00 00 03 c5 23 52
+
+			39 01 00 00 00 00 02 00 00
+			39 01 00 00 00 00 03 d8 ac ac
+
+			39 01 00 00 00 00 02 00 00
+			39 01 00 00 00 00 02 d9 ba
+
+			39 01 00 00 00 00 02 00 b3                //VDD_18V=1.7V, LVDSVDD=1.6V
+			39 01 00 00 00 00 02 c5 84
+
+			39 01 00 00 00 00 02 00 bb
+			39 01 00 00 00 00 02 c5 8a
+
+			39 01 00 00 00 00 02 00 82
+			39 01 00 00 00 00 02 C4 0a  
+
+			39 01 00 00 00 00 02 00 c6
+			39 01 00 00 00 00 02 b0 03
+
+			39 01 00 00 00 00 02 00 c2           //prechange disable
+			39 01 00 00 00 00 02 f5 40
+
+			39 01 00 00 00 00 02 00 c3          //sample hold gvdd
+			39 01 00 00 00 00 02 f5 85
+
+			39 01 00 00 00 00 02 00 87          // en  op
+			39 01 00 00 00 00 02 C4 18
+
+                        //----for power IC ------//
+                        39 01 00 00 00 00 02 00 90
+			39 01 00 00 00 00 05 f5 02 11 02 15
+
+			39 01 00 00 00 00 02 00 90
+			39 01 00 00 00 00 02 c5 50
+
+                        39 01 00 00 00 00 02 00 94
+			39 01 00 00 00 00 02 c5 66
+
+                        //---power on setting------//
+                        39 01 00 00 00 00 02 00 b2
+			39 01 00 00 00 00 03 f5 00 00
+
+			39 01 00 00 00 00 02 00 b4
+			39 01 00 00 00 00 03 f5 00 00
+
+			39 01 00 00 00 00 02 00 b6
+			39 01 00 00 00 00 03 F5 00 00
+
+			39 01 00 00 00 00 02 00 B8
+			39 01 00 00 00 00 03 F5 00 00
+
+			39 01 00 00 00 00 02 00 94           //VCL pump dis
+			39 01 00 00 00 00 03 f5 00 00
+
+			39 01 00 00 00 00 02 00 d2           //VCL reg.en
+			39 01 00 00 00 00 03 f5 06 15
+
+			39 01 00 00 00 00 02 00 b4
+			39 01 00 00 00 00 02 c5 cc
+
+                        //----panel timing state control------//
+			39 01 00 00 00 00 02 00 80
+			39 01 00 00 00 00 0C cb 00 00 00 00 00 00 00 00 00 00 00
+
+			39 01 00 00 00 00 02 00 90
+			39 01 00 00 00 00 10 cb 00 00 00 00 05 05 00 00 05 00 05 05 00 05 05
+
+			39 01 00 00 00 00 02 00 a0
+			39 01 00 00 00 00 10 cb 05 05 05 00 00 00 00 00 00 00 00 05 05 00 00
+
+			39 01 00 00 00 00 02 00 b0
+			39 01 00 00 00 00 0f cb 05 00 05 05 00 05 05 05 05 05 00 00 00 00
+
+			39 01 00 00 00 00 02 00 c0
+			39 01 00 00 00 00 10 cb 00 00 00 00 05 05 00 00 05 00 05 05 00 05 05
+
+			39 01 00 00 00 00 02 00 d0
+			39 01 00 00 00 00 10 cb 05 05 05 00 00 00 00 00 00 00 00 05 05 00 00
+
+			39 01 00 00 00 00 02 00 e0
+			39 01 00 00 00 00 0F cb 05 00 05 05 00 05 05 05 05 05 00 00 00 00
+
+			39 01 00 00 00 00 02 00 f0
+			39 01 00 00 00 00 0C cb ff ff ff ff ff ff ff ff ff ff ff
+
+                        //-----panel pad mapping control-----//
+			39 01 00 00 00 00 02 00 80
+			39 01 00 00 00 00 10 cc 00 00 00 00 2e 2d 00 00 29 00 2a 0c 00 0a 10
+
+			39 01 00 00 00 00 02 00 90
+			39 01 00 00 00 00 10 cc 0e 02 04 00 00 00 00 00 00 00 00 2e 2d 00 00
+
+			39 01 00 00 00 00 02 00 a0
+			39 01 00 00 00 00 0F cc 29 00 2a 0b 00 09 0f 0d 01 03 00 00 00 00
+
+			39 01 00 00 00 00 02 00 b0
+			39 01 00 00 00 00 10 cc 00 00 00 00 2d 2e 00 00 2a 00 29 0b 00 09 0f
+
+			39 01 00 00 00 00 02 00 c0
+			39 01 00 00 00 00 10 cc 0d 01 03 00 00 00 00 00 00 00 00 2d 2e 00 00
+
+			39 01 00 00 00 00 02 00 d0
+			39 01 00 00 00 00 0F cc 2a 00 29 0c 00 0a 10 0e 02 04 00 00 00 00
+
+                        //-----panel timing setting--------//
+                        39 01 00 00 00 00 02 00 80    //panel VST setting
+                        39 01 00 00 00 00 0d ce 8b 03 06 8a 03 06 89 03 06 88 03 06
+                        
+                        39 01 00 00 00 00 02 00 90    //panel VEND setting
+                        39 01 00 00 00 00 0f ce f0 00 00 f0 00 00 f0 00 00 f0 00 00 00 00
+
+                        39 01 00 00 00 00 02 00 a0    //panel CLKA1/2 setting
+                        39 01 00 00 00 00 0f ce 38 07 84 fe 00 06 00 38 06 84 ff 00 06 00
+
+                        39 01 00 00 00 00 02 00 b0    //panel CLKA3/4 setting
+                        39 01 00 00 00 00 0f ce 38 05 85 00 00 06 00 38 04 84 01 00 06 00
+
+                        39 01 00 00 00 00 02 00 c0    //panel CLKb1/2 setting
+                        39 01 00 00 00 00 0f ce 38 03 85 02 00 06 00 38 02 85 03 00 06 00
+
+                        39 01 00 00 00 00 02 00 d0    //panel CLKb3/4 setting
+                        39 01 00 00 00 00 0f ce 38 01 85 04 00 06 00 38 00 85 05 00 06 00
+
+                        39 01 00 00 00 00 02 00 80    //panel CLKc1/2 setting
+                        39 01 00 00 00 00 0f cf 70 00 00 10 00 00 00 70 00 00 10 00 00 00
+
+                        39 01 00 00 00 00 02 00 90    //panel CLKc3/4 setting
+                        39 01 00 00 00 00 0f cf 70 00 00 10 00 00 00 70 00 00 10 00 00 00
+                           
+                        39 01 00 00 00 00 02 00 a0    //panel CLKd1/2 setting
+                        39 01 00 00 00 00 0f cf 70 00 00 10 00 00 00 70 00 00 10 00 00 00
+
+                        39 01 00 00 00 00 02 00 b0    //panel CLKd3/4 setting
+                        39 01 00 00 00 00 0f cf 70 00 00 10 00 00 00 70 00 00 10 00 00 00
+
+                        39 01 00 00 00 00 02 00 c0    //panel ECLK setting
+                        39 01 00 00 00 00 0c cf 02 02 20 20 00 00 01 02 01 00 00
+
+                        39 01 00 00 00 00 02 00 b5
+                        39 01 00 00 00 00 07 c5 ff ff ff ff ff ff
+
+                        //-----Gamma setting-----//
+			39 01 00 00 00 00 02 00 00
+			39 01 00 00 00 00 15 e1 1f 37 4f 5E 6b 79 77 9d 8a 9f 68 55 69 45 3e 34 2c 1f 16 0d
+
+			39 01 00 00 00 00 02 00 00
+			39 01 00 00 00 00 15 e2 1f 37 4f 5E 6b 79 77 9d 8a 9f 68 55 69 45 3e 34 2c 1f 16 0d
+
+			39 01 00 00 00 00 02 00 00
+			39 01 00 00 00 00 02 00 00
+			39 01 00 00 00 00 04 ff ff ff ff
+
+			05 01 00 00 78 00 02 11 00
+			05 01 00 00 00 00 02 29 00];
+		qcom,mdss-dsi-off-command = [05 01 00 00 32 00 02 28 00
+					05 01 00 00 05 00 02 10 00];
+		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+                qcom,mdss-dsi-panel-status-check-mode = "bta_check";
+		qcom,mdss-dsi-h-sync-pulse = <1>;
+		qcom,mdss-dsi-traffic-mode = "burst_mode";//"non_burst_sync_pulse";//
+		//qcom,mdss-dsi-lane-map = "lane_map_0123";
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-panel-timings = [75 1A 10 00 3C 40 14 1F 15 03 04 00];
+		qcom,mdss-dsi-t-clk-post = <0x04>;
+		qcom,mdss-dsi-t-clk-pre = <0x19>;
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <255>;
+		//qcom,mdss-dsi-bl-pmic-pwm-frequency = <100>;
+		//qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+                //qcom,mdss-dsi-lp11-init;
+		//qcom,mdss-dsi-init-delay-us = <50000>;
+		qcom,mdss-dsi-reset-sequence = <1 20>, <0 10>, <1 20>;
+	};
+};

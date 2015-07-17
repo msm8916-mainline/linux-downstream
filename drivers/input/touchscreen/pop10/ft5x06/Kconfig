@@ -1,0 +1,23 @@
+#
+# TCT Touchscreen driver
+#
+
+# [PLATFORM]-Mod-BEGIN by weihong.chen.sz, 2014/08/20, add macro for POP10 TP driver.
+
+config FT5X06_TOUCHPANEL_DRIVER_POP10
+	tristate "Focaltech ft5x06 touchpanel driver"
+	default n
+	help
+	  This is the main file for touchpanel driver for Focaltech ft5x06
+	  touchscreens.
+
+	  Say Y here if you have a Focaltech ft5x06 touchscreen connected
+	  to your system.
+
+	  If unsure, say N.
+
+          To compile this driver as a module, choose M here: the
+          module will be called ft5x06_ts.
+
+# [PLATFORM]-Mod-END by weihong.chen.sz
+

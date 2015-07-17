@@ -1,0 +1,125 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	sound {
+		compatible = "qcom,msm8x16-audio-codec";
+		qcom,model = "msm8939-snd-card-mtp";
+		qcom,msm-snd-card-id = <0>;
+		qcom,msm-codec-type = "internal";
+		qcom,msm-ext-pa = "secondary", "quaternary";/*NB.THW 2014/11/17 add for FR.789207*/
+		qcom,msm-mbhc-hphl-swh = <1>;/*NB.HJ 2014/11/19 NO type*/
+		qcom,msm-mbhc-gnd-swh = <0>;
+		qcom,msm-micbias1-ext-cap;
+		qcom,msm-mclk-freq = <9600000>;/*NB.THW 2014/11/17 add for FR.789207*/
+		qcom,msm-hs-micbias-type = "internal";
+		qcom,audio-routing =
+			"RX_BIAS", "MCLK",
+			"SPK_RX_BIAS", "MCLK",
+			"INT_LDO_H", "MCLK",
+/* [PLATFORM]-Add-BEGIN by TCTNB.HJ, 2014/11/20*/
+			"MIC BIAS External", "Handset Mic",
+			"MIC BIAS Internal2", "Headset Mic",
+			"MIC BIAS External", "Secondary Mic",
+			"AMIC1", "MIC BIAS External",
+			"AMIC2", "MIC BIAS Internal2",
+			"AMIC3", "MIC BIAS External";
+/* [PLATFORM]-Add-END by TCTNB.HJ, 2014/11/20*/
+		pinctrl-names = "cdc_lines_act",
+				"cdc_lines_sus",
+				/*NB.THW 2014/11/17 add for FR.789207*/
+				"cdc_lines_quat_sec_ext_act",
+				"cdc_lines_quat_sec_ext_sus",
+				/*NB.THW 2014/11/17 end*/
+				"cross_conn_det_act",
+				"cross_conn_det_sus";
+
+		pinctrl-0 = <&cdc_pdm_lines_act>;
+		pinctrl-1 = <&cdc_pdm_lines_sus>;
+		/*NB.THW 2014/11/17 add for FR.789207*/
+		pinctrl-2 = <&cdc_pdm_lines_act &cdc_ext_pa_act
+						&cdc_ext_pa_ws_act &ext_cdc_tlmm_lines_act
+						&akm_mclk_active>;
+		pinctrl-3 = <&cdc_pdm_lines_sus &cdc_ext_pa_sus
+						&cdc_ext_pa_ws_sus &ext_cdc_tlmm_lines_sus
+						&akm_mclk_suspend>;
+		pinctrl-4 = <&cross_conn_det_act>;
+		pinctrl-5 = <&cross_conn_det_sus>;
+		/*NB.THW 2014/11/17 end*/
+
+//		qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;/*NB.THW 2014/11/17 remove for FR.789207*/
+                asoc-platform = <&pcm0>, <&pcm1>, <&voip>, <&voice>,
+				<&loopback>, <&compress>, <&hostless>,
+				<&afe>, <&lsm>, <&routing>, <&lpa>;
+		asoc-platform-names = "msm-pcm-dsp.0", "msm-pcm-dsp.1",
+				"msm-voip-dsp", "msm-pcm-voice", "msm-pcm-loopback",
+				"msm-compress-dsp", "msm-pcm-hostless", "msm-pcm-afe",
+				"msm-lsm-client", "msm-pcm-routing", "msm-pcm-lpa";
+		asoc-cpu = <&dai_hdmi>, <&dai_mi2s0>, <&dai_mi2s1>,
+				<&dai_mi2s2>, <&dai_mi2s3>, <&sb_0_rx>, <&sb_0_tx>,
+				<&sb_1_rx>, <&sb_1_tx>, <&sb_3_rx>, <&sb_3_tx>,
+				<&sb_4_rx>, <&sb_4_tx>, <&sb_5_tx>, <&bt_sco_rx>,
+				<&bt_sco_tx>, <&int_fm_rx>, <&int_fm_tx>, <&afe_pcm_rx>,
+				<&afe_pcm_tx>, <&afe_proxy_rx>, <&afe_proxy_tx>,
+				<&incall_record_rx>, <&incall_record_tx>, <&incall_music_rx>,
+				<&incall_music_2_rx>;
+		asoc-cpu-names = "msm-dai-q6-hdmi.8", "msm-dai-q6-mi2s.0",
+				"msm-dai-q6-mi2s.1", "msm-dai-q6-mi2s.2",
+				"msm-dai-q6-mi2s.3", "msm-dai-q6-dev.16384",
+				"msm-dai-q6-dev.16385", "msm-dai-q6-dev.16386",
+				"msm-dai-q6-dev.16387", "msm-dai-q6-dev.16390",
+				"msm-dai-q6-dev.16391", "msm-dai-q6-dev.16392",
+				"msm-dai-q6-dev.16393", "msm-dai-q6-dev.16395",
+				"msm-dai-q6-dev.12288", "msm-dai-q6-dev.12289",
+				"msm-dai-q6-dev.12292", "msm-dai-q6-dev.12293",
+				"msm-dai-q6-dev.224", "msm-dai-q6-dev.225",
+				"msm-dai-q6-dev.241", "msm-dai-q6-dev.240",
+				"msm-dai-q6-dev.32771", "msm-dai-q6-dev.32772",
+				"msm-dai-q6-dev.32773", "msm-dai-q6-dev.32770";
+		asoc-codec = <&stub_codec>, <&pm8916_tombak_dig>;
+		asoc-codec-names = "msm-stub-codec.1", "tombak_codec";
+	};
+};
+
+/* [PLATFORM]-Add-BEGIN by TCTNB.HJ, 2014/11/18, HIFI*/
+#if 0
+&i2c_4 {
+	ak4375_device: ak4375@10 {
+		compatible = "akm,ak4375";
+		reg = <0x10>;
+        pinctrl-names = "akm_pwdn_active",
+                        "akm_pwdn_suspend",
+                        "akm_mclk_active",
+                        "akm_mclk_suspend";
+        pinctrl-0 = <&akm_pwdn_active>;
+        pinctrl-1 = <&akm_pwdn_suspend>;
+        pinctrl-2 = <&akm_mclk_active>;
+        pinctrl-3 = <&akm_mclk_suspend>;
+        akm,cdc-pwdn-gpios = <&msm_gpio 101 0>;
+        akm,cdc-mclk-gpios = <&msm_gpio 116 0>;
+	};
+};
+#else
+&i2c_4 {
+	ak4375_device: ak4375@10 {
+		compatible = "akm,ak4375";
+		reg = <0x10>;
+        pinctrl-names = "akm_pwdn_active",
+                        "akm_pwdn_suspend";
+        pinctrl-0 = <&akm_pwdn_active>;
+        pinctrl-1 = <&akm_pwdn_suspend>;
+        akm,cdc-pwdn-gpios = <&msm_gpio 101 0>;
+	};
+};
+#endif
+/* [PLATFORM]-Add-END by TCTNB.HJ*/
+

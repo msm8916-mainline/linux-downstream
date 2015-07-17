@@ -1,0 +1,67 @@
+config IDOL347_SENSOR_HALL
+	tristate "Hall sensor"
+	default n
+	help
+         Say Y here to enable support for the Hall sensor
+         To compile this driver as a module, choose M here: the module will
+         be called hall_sensor.
+
+config IDOL347_SENSOR_KIONIX_ACCEL
+	tristate "KIONIX_ACCEL"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for the Kionix digital 3-axis
+	  accelerometer.
+	  This driver can also be built as a module. If so, the module will be
+	  called kionix_accel.
+
+config IDOL347_SENSOR_TSL27723
+	tristate "TAOS TSL27723 proximity and ambient light sensor"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for the TAOS tsl27723,
+	  proximity and ambient light sensors.
+	  This driver can also be built as a module.  If so, the module
+	  will be called tsl277x.
+
+config IDOL347_SENSOR_BMG
+	tristate "Bosch Gyroscope Sensor Driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here, you get support for Bosch Sensortec
+	  gyroscope sensor drivers of BMG160/BMI055/BMI058 e.t.c.\
+
+config IDOL347_SENSOR_BMG_FIFO
+	tristate "Bosch Gyroscope FIFO Support"
+	depends on IDOL347_BMG
+	help
+	  If you say yes here, you get support for Gyroscope sensor FIFO operations.
+
+config IDOL347_SENSOR_AKM09911_MAG
+	tristate "AKM09911 3-axis electronic compass sensor driver"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you want to enable the akm09911 ecompass sensor
+	  driver.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called akm09911.
+
+config IDOL347_SENSOR_RPR521
+	tristate "ROHM RPR521 proximity and ambient light sensor"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for the ROHM RPR521,
+	  proximity and ambient light sensors.
+	  This driver can also be built as a module.  If so, the module
+	  will be called RPR521.
+
+config IDOL347_SENSOR_STK3X1X
+	tristate "proximity and ambient light sensor"
+	depends on I2C
+	default n
