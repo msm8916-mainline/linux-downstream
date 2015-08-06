@@ -2115,14 +2115,6 @@ unsigned int snd_soc_write(struct snd_soc_codec *codec,
 			   unsigned int reg, unsigned int val)
 {
 	dev_dbg(codec->dev, "write %x = %x\n", reg, val);
-
-	/* Bruno++ hard code ADC3 Volume to 8 */
-	if (reg == 0x167) {
-		printk("!!! Audio driver write 0x167 to val 0x%x, hard code Volume to 8.", val);
-		val &= 0x87;
-		val |= 0x40;
-	}
-
 	trace_snd_soc_reg_write(codec, reg, val);
 	return codec->write(codec, reg, val);
 }

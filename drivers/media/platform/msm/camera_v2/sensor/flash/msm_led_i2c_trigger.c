@@ -682,12 +682,14 @@ int msm_flash_led_high_timer_set(struct msm_led_flash_ctrl_t *fctrl, int timer1,
 	}
 	return rc;
 }
-
+static unsigned long  Zenflash_time;  //ASUS_BSP Deka "Implement Zenflash delay time"
 /*For ASUS FLASH---*/
 
 int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 {
 	int rc = 0;
+       struct timeval begin_zenflash; //ASUS_BSP Deka "Implement Zenflash delay time"
+
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
 	CDBG("%s:%d called\n", __func__, __LINE__);
@@ -714,6 +716,10 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
 
+        //ASUS_BSP +++ Deka "Implement Zenflash delay time"
+        do_gettimeofday(&begin_zenflash);
+        Zenflash_time = begin_zenflash.tv_sec* 1000 + begin_zenflash.tv_usec / 1000;
+        //ASUS_BSP --- Deka "Implement Zenflash delay time"
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -722,6 +728,8 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 {
 	int rc = 0;
+       struct timeval begin_zenflash; //ASUS_BSP Deka "Implement Zenflash delay time"
+    
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
 	CDBG("%s:%d called\n", __func__, __LINE__);
@@ -747,7 +755,10 @@ int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
-
+        //ASUS_BSP +++ Deka "Implement Zenflash delay time"
+       do_gettimeofday(&begin_zenflash);
+       Zenflash_time = begin_zenflash.tv_sec* 1000 + begin_zenflash.tv_usec / 1000;
+        //ASUS_BSP --- Deka "Implement Zenflash delay time"
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -755,6 +766,8 @@ int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 int msm_flash_led_high_second(struct msm_led_flash_ctrl_t *fctrl)
 {
 	int rc = 0;
+       struct timeval begin_zenflash; //ASUS_BSP Deka "Implement Zenflash delay time"
+       
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
 	CDBG("%s:%d called\n", __func__, __LINE__);
@@ -780,7 +793,10 @@ int msm_flash_led_high_second(struct msm_led_flash_ctrl_t *fctrl)
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
-
+        //ASUS_BSP +++ Deka "Implement Zenflash delay time"
+       do_gettimeofday(&begin_zenflash);
+       Zenflash_time = begin_zenflash.tv_sec * 1000 + begin_zenflash.tv_usec / 1000;
+        //ASUS_BSP --- Deka "Implement Zenflash delay time"
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -788,12 +804,15 @@ int msm_flash_led_high_second(struct msm_led_flash_ctrl_t *fctrl)
 #define	FLASH_BRIGHTNESS_PROC_FILE	"driver/asus_flash_brightness"
 #define	STATUS_PROC_FILE	"driver/flash_status"
 #define	DUMP_PROC_FILE	"driver/flash_dump_reg"
+#define	ZENFLASH_PROC_FILE	"driver/zenflash"  //ASUS_BSP Deka "Implement Zenflash delay time"
 static struct proc_dir_entry *flash_brightness_proc_file;
 static struct proc_dir_entry *status_proc_file;
 static struct proc_dir_entry *dump_proc_file;
+static struct proc_dir_entry *zenflash_proc_file;  //ASUS_BSP Deka "Implement Zenflash delay time"
 static int last_flash_brightness_value;
 static int ATD_status;
 static bool asus_flash_status;
+
 
 static int flash_brightness_proc_read(struct seq_file *buf, void *v)
 {
@@ -941,7 +960,30 @@ static const struct file_operations status_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
+//ASUS_BSP +++ Deka "Implement Zenflash delay time"
+static int zenflash_proc_read(struct seq_file *buf, void *v)
+{
+    seq_printf(buf, "%lu\n", Zenflash_time);
+    Zenflash_time=0;
+    return 0;
+}
 
+static int zenflash_proc_open(struct inode *inode, struct  file *file)
+{
+    return single_open(file, zenflash_proc_read, NULL);
+}
+
+
+static const struct file_operations zenflash_fops = {
+	.owner = THIS_MODULE,
+	.open = zenflash_proc_open,
+	.read = seq_read,
+	//.write = status_proc_write,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+//ASUS_BSP --- Deka "Implement Zenflash delay time"
 static void create_proc_file(void)
 {
     ATD_status = 0;
@@ -965,6 +1007,14 @@ static void create_proc_file(void)
     } else {
 	printk("%s failed!\n", __func__);
     }
+    //ASUS_BSP +++ Deka "Implement Zenflash delay time"
+    zenflash_proc_file = proc_create(ZENFLASH_PROC_FILE, 0664, NULL, &zenflash_fops);
+    if (zenflash_proc_file) {
+	printk("%s sucessed!\n", __func__);
+    } else {
+	printk("%s failed!\n", __func__);
+    }
+    //ASUS_BSP --- Deka "Implement Zenflash delay time"
 }
 
 static ssize_t asus_flash_show(struct file *dev, char *buffer, size_t count, loff_t *ppos)

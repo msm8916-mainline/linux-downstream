@@ -654,7 +654,7 @@ static void msm8x16_wcd_boost_on(struct snd_soc_codec *codec)
 		0x82);
 	snd_soc_update_bits(codec,
 		MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL,
-		0x69, 0x69);
+		0x68, 0x68);
 	snd_soc_update_bits(codec,
 		MSM8X16_WCD_A_ANALOG_SPKR_DRV_DBG,
 		0x01, 0x01);
@@ -1376,6 +1376,56 @@ static int msm8x16_wcd_ext_spk_boost_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int msm8x16_wcd_spk_gain_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	u8 spk_pa_gain;
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+
+	spk_pa_gain = snd_soc_read(codec, MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL);
+
+	spk_pa_gain = spk_pa_gain & 0x1;
+
+	if (spk_pa_gain == 0x00) {
+		ucontrol->value.integer.value[0] = 0;
+	} else if (spk_pa_gain == 0x01) {
+		ucontrol->value.integer.value[0] = 1;
+	} else  {
+		dev_err(codec->dev, "%s: ERROR: Unsupported SPK Gain = 0x%x\n",
+			__func__, spk_pa_gain);
+		return -EINVAL;
+	}
+
+	ucontrol->value.integer.value[0] = spk_pa_gain;
+	dev_dbg(codec->dev, "%s: spk_pa_gain = 0x%x\n", __func__, spk_pa_gain);
+	return 0;
+}
+
+static int msm8x16_wcd_spk_gain_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	u8 spk_pa_gain;
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+
+	dev_dbg(codec->dev, "%s: ucontrol->value.integer.value[0] = %ld\n",
+		__func__, ucontrol->value.integer.value[0]);
+
+	switch (ucontrol->value.integer.value[0]) {
+	case 0:
+		spk_pa_gain = 0x0;
+		break;
+	case 1:
+		spk_pa_gain = 0x1;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL,
+			    0x01, spk_pa_gain);
+	return 0;
+}
+
 static int msm8x16_wcd_ext_spk_boost_set(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
@@ -1625,6 +1675,11 @@ static const char * const msm8x16_wcd_spk_boost_ctrl_text[] = {
 static const struct soc_enum msm8x16_wcd_spk_boost_ctl_enum[] = {
 		SOC_ENUM_SINGLE_EXT(2, msm8x16_wcd_spk_boost_ctrl_text),
 };
+static const char * const msm8x16_wcd_spk_gain_text[] = {
+		"POS_18_DB", "POS_12_DB"};
+static const struct soc_enum msm8x16_wcd_spk_gain_enum[] = {
+		SOC_ENUM_SINGLE_EXT(2, msm8x16_wcd_spk_gain_text),
+};
 
 static const char * const msm8x16_wcd_ext_spk_boost_ctrl_text[] = {
 		"DISABLE", "ENABLE"};
@@ -1665,6 +1720,9 @@ static const struct snd_kcontrol_new msm8x16_wcd_snd_controls[] = {
 
 	SOC_ENUM_EXT("Speaker Boost", msm8x16_wcd_spk_boost_ctl_enum[0],
 		msm8x16_wcd_spk_boost_get, msm8x16_wcd_spk_boost_set),
+
+	SOC_ENUM_EXT("Speaker Gain", msm8x16_wcd_spk_gain_enum[0],
+		msm8x16_wcd_spk_gain_get, msm8x16_wcd_spk_gain_put),
 
 	SOC_ENUM_EXT("Ext Spk Boost", msm8x16_wcd_ext_spk_boost_ctl_enum[0],
 		msm8x16_wcd_ext_spk_boost_get, msm8x16_wcd_ext_spk_boost_set),
@@ -2241,7 +2299,7 @@ static int msm8x16_wcd_codec_enable_spk_pa(struct snd_soc_dapm_widget *w,
 			if (msm8x16_wcd->spk_boost_set)
 				snd_soc_update_bits(codec,
 					MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL,
-					0xEF, 0xEF);
+					0xEE, 0xEE);
 			else
 				snd_soc_update_bits(codec,
 					MSM8X16_WCD_A_ANALOG_SPKR_DAC_CTL,
@@ -2251,7 +2309,7 @@ static int msm8x16_wcd_codec_enable_spk_pa(struct snd_soc_dapm_widget *w,
 		case BOOST_ON_FOREVER:
 			snd_soc_update_bits(codec,
 				MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL,
-				0xEF, 0xEF);
+				0xEE, 0xEE);
 			break;
 		case BYPASS_ALWAYS:
 			snd_soc_update_bits(codec,
@@ -2283,13 +2341,13 @@ static int msm8x16_wcd_codec_enable_spk_pa(struct snd_soc_dapm_widget *w,
 			if (msm8x16_wcd->spk_boost_set)
 				snd_soc_update_bits(codec,
 					MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL,
-					0xEF, 0x69);
+					0xEE, 0x68);
 			break;
 		case BOOST_ALWAYS:
 		case BOOST_ON_FOREVER:
 			snd_soc_update_bits(codec,
 				MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL,
-				0xEF, 0x69);
+				0xEE, 0x68);
 			break;
 		case BYPASS_ALWAYS:
 			break;
@@ -3849,7 +3907,7 @@ static const struct msm8x16_wcd_reg_mask_val msm8x16_wcd_reg_defaults_2_0[] = {
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_DIGITAL_PERPH_RESET_CTL3, 0x0F),
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_TX_1_2_OPAMP_BIAS, 0x4F),
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_NCP_FBCTRL, 0x28),
-	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL, 0x69),
+	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL, 0x68),
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_SPKR_DRV_DBG, 0x01),
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_BOOST_EN_CTL, 0x5F),
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_SLOPE_COMP_IP_ZERO, 0x88),
@@ -3868,7 +3926,7 @@ static const struct msm8x16_wcd_reg_mask_val msm8909_wcd_reg_defaults[] = {
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_PERPH_RESET_CTL3, 0x0F),
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_TX_1_2_OPAMP_BIAS, 0x4C),
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_NCP_FBCTRL, 0x28),
-	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL, 0x69),
+	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_SPKR_DRV_CTL, 0x68),
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_SPKR_DRV_DBG, 0x01),
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_PERPH_SUBTYPE, 0x0A),
 	MSM8X16_WCD_REG_VAL(MSM8X16_WCD_A_ANALOG_SPKR_DAC_CTL, 0x03),

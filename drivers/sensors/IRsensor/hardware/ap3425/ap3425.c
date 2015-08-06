@@ -42,9 +42,9 @@ static int ap3425_proximity_hw_get_adc(void);
 static int ap3425_proximity_hw_set_hi_threshold(int hi_threshold);
 static int ap3425_proximity_hw_set_lo_threshold(int low_threshold);
 static int ap3425_proximity_hw_set_led_current(uint8_t led_current);
-static int ap3425_proximity_hw_set_gain(uint8_t gain);
 static int ap3425_proximity_hw_set_persistence(uint8_t persistence);
 static int ap3425_proximity_hw_set_integration(uint8_t integration);
+static int ap3425_proximity_hw_set_mean(uint8_t mean);
 
 static int ap3425_light_hw_turn_onoff(bool bOn);
 static int ap3425_light_hw_get_adc(void);
@@ -80,20 +80,42 @@ static int ap3425_proximity_hw_set_config(void)
 	int ret = 0;	
 	ret = ap3425_proximity_hw_set_led_current(AP3425_SYS_LED_667);
 	if (ret < 0)		
-		return ret;
+		return ret;	
 
-	ret = ap3425_proximity_hw_set_integration(AP3425_PS_INTEG_3);
-	if (ret < 0)		
-		return ret;
+	switch(g_ASUS_hwID){
+		case ZE500KL_EVB:
+		case ZE500KL_SR1:
+		case ZE500KL_SR2:
+		case ZE500KL_ER1:
+		case ZE500KL_ER2:
+			ret = ap3425_proximity_hw_set_integration(AP3425_PS_INTEG_3);
+			if (ret < 0)		
+				return ret;
+			break;		
+		case ZE500KL_PR:
+			ret = ap3425_proximity_hw_set_integration(AP3425_PS_INTEG_17);
+			if (ret < 0)		
+				return ret;
+			break;
+		default:
+			err("ap3425_proximity_hw_set_config HW ID error\n");
+	}
 
-	if (g_ASUS_hwID <= ZE500KL_ER1){
-		
-	}else{
-		ret = ap3425_proximity_hw_set_gain(AP3425_SYS_LED_G2);
+	if(g_ASUS_hwID>=ZE500KL_PR){
+		ret = ap3425_proximity_hw_set_mean(AP3425_PS_MEAN_1);
+	}
+
+	/* ZE500KG */
+	if(g_ASUS_hwID >= ZE500KG_PREMP){
+		ret = ap3425_proximity_hw_set_mean(AP3425_PS_MEAN_2);
+		if (ret < 0)		
+			return ret;
+
+		ret = ap3425_proximity_hw_set_integration(AP3425_PS_INTEG_5);
 		if (ret < 0)		
 			return ret;
 	}
-
+	
 	return 0;
 }
 
@@ -106,6 +128,13 @@ static int ap3425_light_hw_set_config(void)
 			return ret;
 	}else{
 		ret = ap3425_light_hw_set_integration(AP3425_ALS_GAIN_2144);
+		if (ret < 0)		
+			return ret;
+	}
+
+	/* ZE500KG */
+	if(g_ASUS_hwID >= ZE500KG_PREMP){
+		ret = ap3425_light_hw_set_integration(AP3425_ALS_GAIN_8576);
 		if (ret < 0)		
 			return ret;
 	}
@@ -393,30 +422,30 @@ static int ap3425_proximity_hw_set_led_current(uint8_t led_current)
 	return 0;
 }
 
-static int ap3425_proximity_hw_set_gain(uint8_t gain)
+static int ap3425_proximity_hw_set_mean(uint8_t mean)
 {
 	int ret = 0;	
 	uint8_t data_origin= 0;
 	uint8_t data_buf = 0;	
 
-	/* read Proximity Integration state */
-	data_buf = i2c_read_reg_u8(g_i2c_client, AP3425_REG_PS_LEDG);
+	/* read Proximity Mean state */
+	data_buf = i2c_read_reg_u8(g_i2c_client, AP3425_REG_PS_MEAN);
 	if (data_buf < 0) {
-		err("ap3425_proximity_hw_set_gain read ERROR\n");
+		err("ap3425_proximity_hw_set_mean read ERROR\n");
 		return data_buf;
 	}
-	dbg("ap3425_proximity_hw_set_gain read (0x%02X) \n", data_buf);
+	dbg("ap3425_proximity_hw_set_mean read (0x%02X) \n", data_buf);
 
-	gain <<= AP3425_SYS_LED_GAIN_SHIFT;
-	data_buf &=AP3425_SYS_LED_GAIN_MASK;
-	data_buf |= gain;
+	//mean <<= AP3425_SYS_LED_GAIN_SHIFT;
+	//data_buf &=AP3425_SYS_LED_GAIN_MASK;
+	data_buf = mean;
 
-	ret = i2c_write_reg_u8(g_i2c_client, AP3425_REG_PS_LEDG, data_buf);
+	ret = i2c_write_reg_u8(g_i2c_client, AP3425_REG_PS_MEAN, data_buf);
 	if (ret < 0) {
-		err("ap3425_proximity_hw_set_gain write ERROR \n");
+		err("ap3425_proximity_hw_set_mean write ERROR \n");
 		return ret;
 	} else {
-		log("ap3425_proximity_hw_set_gain write (0x%X -> 0x%X) \n", data_origin, data_buf);
+		log("ap3425_proximity_hw_set_mean write (0x%X -> 0x%X) \n", data_origin, data_buf);
 	}
 	
 	return 0;

@@ -81,12 +81,12 @@ struct kionix_odr_table {
 	int RES;
 };
 static const struct kionix_odr_table kx022_odr_table[] = {
-															/*  ms,	range,	mode */
-	{ 15,	 			ODR200F,	KX022_RES_16BIT},			/*  2.5,	6~ 10	FASTEST MODE , full power mode */
-	{ 35, 			ODR50F,		KX022_RES_16BIT},			/*  20,	21~30	GAME MODE */
-	{ 70, 			ODR25F,		KX022_RES_16BIT},			/*  66,	31~70	UI MODE */
-	{ 250,			ODR12_5F,	KX022_RES_16BIT},			/*  80,	71~250	NORMAL MODE */
-	{ 0xFFFFFFFF,		ODR0_781F,	KX022_RES_16BIT},			/*  1280,	251~max	NO POLL */
+																/*  ms,	range,	mode */
+	{ 15,	 			ODR200F,		KX022_RES_16BIT},			/*  10,	0~ 10	FASTEST MODE , full power mode */
+	{ 35, 			ODR100F,		KX022_RES_16BIT},			/*  20,	20~66	GAME MODE */
+	{ 70, 			ODR50F,			KX022_RES_16BIT},			/*  66,	100~200	UI MODE */
+	{ 250,			ODR25F,			KX022_RES_16BIT},			/*  100,	1000~	NORMAL MODE */
+	{ 0xFFFFFFFF,		ODR12_5F,		KX022_RES_16BIT},			/*  1000,	max		SLOW MODE */
 };
 
 /*************************************************
@@ -657,6 +657,7 @@ static int kx022_update_odr(unsigned int poll_interval)
 			break;
 	}
 	kionix_Gsensor_data->data_ctrl = kx022_odr_table[i].mask;
+	kionix_Gsensor_data->data_ctrl |= LPRO_9;
 	if (KX022_DEBUG_MESSAGE)
 		printk("[Gsensor] alp : kx022_update_odr  i(%d), cutoff(%d), mask(%d), poll(%d)\n", i, kx022_odr_table[i].cutoff, kx022_odr_table[i].mask, poll_interval);
 
@@ -934,6 +935,10 @@ static int kx022_enable_by_orientation(void)
 	/* turn on outputs */
 	kionix_Gsensor_data->ctrl_reg1 |= (PC1_ON | RES_16bit | DRDYE | GRP4_G_4G);
 	err = i2c_smbus_write_byte_data(kionix_Gsensor_data->client, CTRL_REG1, kionix_Gsensor_data->ctrl_reg1);
+	if (err < 0)
+		return err;
+
+	err = kx022_update_odr(ODR_GAME_MODE);
 	if (err < 0)
 		return err;
 
@@ -1247,6 +1252,7 @@ ssize_t gsensor_enable_store(struct device *dev, struct device_attribute *attr, 
 			break;
 		case 1:
 			printk("[Gsensor] alp : kx022_enable_by_acceleation !!!\n");
+			kionix_Gsensor_data->data_report_count = 0;
 			Gsensor_sysfs_read_calibration_data(&kionix_Gsensor_data->asus_gsensor_cali_data);
 			check_gsensor_calibtarion_data();
 			kx022_enable();
@@ -1257,6 +1263,7 @@ ssize_t gsensor_enable_store(struct device *dev, struct device_attribute *attr, 
 			break;
 		case 3:
 			printk("[Gsensor] alp : kx022_enable_by_orientation !!!\n");
+			kionix_Gsensor_data->data_report_count = 0;
 			Gsensor_sysfs_read_calibration_data(&kionix_Gsensor_data->asus_gsensor_cali_data);
 			check_gsensor_calibtarion_data();
 			kx022_enable_by_orientation();
@@ -2203,25 +2210,40 @@ static void kx022_late_resume(struct early_suspend *h)
 #ifdef CONFIG_PM_SLEEP
 static int kx022_suspend(struct device *dev)
 {
-	if (kionix_Gsensor_data->irq_status == 1)	{
-		i2c_smbus_read_byte_data(kionix_Gsensor_data->client, INT_REL);
-		disable_irq(kionix_Gsensor_data->irq);
-	}	
-	printk("[Gsensor] alp : kx022_suspend\n");
-	printk("[Gsensor] alp : kx022 irq status(%d)\n", kionix_Gsensor_data->irq_status );
+	mutex_lock(&kionix_Gsensor_data->lock);
+	if (atomic_read(&kionix_Gsensor_data->enabled) != KX022_DEVICE_DISABLE) {
+		kx022_device_power_off();
+		if (kionix_Gsensor_data->irq_status==1)	{
+			disable_irq(kionix_Gsensor_data->irq);
+			kionix_Gsensor_data->irq_status = 0;
+		}
+	}
+	mutex_unlock(&kionix_Gsensor_data->lock);
+	printk("[Gsensor] alp : kx022_suspend irq status(%d)\n", kionix_Gsensor_data->irq_status );
 	return 0;
 }
 
 static int kx022_resume(struct device *dev)
 {
-	if (kionix_Gsensor_data->irq_status == 1)	{
-		printk("[Gsensor] kx022_resume : kx022_resume Clean interrupt!!\n");
-		i2c_smbus_read_byte_data(kionix_Gsensor_data->client, INT_REL);
-		enable_irq(kionix_Gsensor_data->irq);
+	printk("[Gsensor] alp : kx022_resume\n");
+	mutex_lock(&kionix_Gsensor_data->lock);
+	if (atomic_read(&kionix_Gsensor_data->enabled) != KX022_DEVICE_DISABLE)	{
+		switch(atomic_read(&kionix_Gsensor_data->enabled))	{
+		case KX022_ACC_ENABLE:
+			kionix_Gsensor_data->data_report_count = 0;
+			kx022_enable();
+			break;
+		case KX022_ORI_ENABLE:
+			kionix_Gsensor_data->data_report_count = 0;
+			kx022_enable_by_orientation();
+			break;
+		case KX022_BOTH_ENABLE:
+			kionix_Gsensor_data->data_report_count = 0;
+			kx022_enable();
+			break;
+		}
 	}
-
-	if (KX022_DEBUG_MESSAGE)
-		printk("[Gsensor] alp : kx022_resume\n");
+	mutex_unlock(&kionix_Gsensor_data->lock);
 	return 0;
 }
 #endif

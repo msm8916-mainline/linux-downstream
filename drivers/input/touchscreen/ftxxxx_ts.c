@@ -156,6 +156,10 @@ u8 FTS_gesture_register_d7;
 int report_touch_locatoin_count[10];
 /* --- asus jacob add for print touch location --- */
 
+/* +++ asus jacob add for reduce log +++ */
+int SkipTouchCount = 0;
+/* --- asus jacob add for reduce log --- */
+
 /* +++ asus jacob add for reconfig double tap parameter +++ */
 bool ReConfigDoubleTap = false;
 u8 g_touch_slop = 0;
@@ -780,10 +784,15 @@ static irqreturn_t ftxxxx_ts_interrupt(int irq, void *dev_id)
 #endif
 	ret = ftxxxx_read_Touchdata(ftxxxx_ts);
 
-	if ((ret == 0) && (atomic_read(&ftxxxx_ts->irq_ref_cnt) == 1) && (suspend_resume_process == false) && (!disable_tp_flag))
+	if ((ret == 0) && (atomic_read(&ftxxxx_ts->irq_ref_cnt) == 1) && (suspend_resume_process == false) && (!disable_tp_flag)) {
 		ftxxxx_report_value(ftxxxx_ts);
-	else
-		printk("[Focal][Interrupt] skip report touch !\n");
+		if (SkipTouchCount)
+			SkipTouchCount = 0;
+	} else {
+		if (((SkipTouchCount%200) == 0) || SkipTouchCount == 1)
+			printk("[Focal][Interrupt] skip report touch !\n");
+		SkipTouchCount++;
+	}
 #ifdef FTS_GESTRUE/*zax 20140922*/
 					}
 #endif
@@ -1459,6 +1468,8 @@ static void focal_resume_work(struct work_struct *work)
 
 	}
 #endif
+
+	SkipTouchCount = 0;
 
 	ftxxxx_ts->suspend_flag = 0;
 

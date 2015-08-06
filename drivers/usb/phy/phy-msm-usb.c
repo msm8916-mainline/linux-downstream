@@ -76,6 +76,8 @@
 
 #define USB_SUSPEND_DELAY_TIME	(500 * HZ/1000) /* 500 msec */
 
+extern bool g_Charger_mode;
+
 enum msm_otg_phy_reg_mode {
 	USB_PHY_REG_OFF,
 	USB_PHY_REG_ON,
@@ -779,8 +781,11 @@ const struct file_operations asus_otg_5v_output_fops = {
 //ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][Spec] Set asus charger upon charger type detection"
 static void asus_otg_chg_usb_work(struct work_struct *w)
 {
-	cancel_delayed_work_sync(&asus_chg_unknown_delay_work);
-	asus_otg_set_charger(USB_IN);
+	struct msm_otg *motg = the_msm_otg;
+	if(test_bit(B_SESS_VLD, &motg->inputs)){
+		cancel_delayed_work_sync(&asus_chg_unknown_delay_work);
+		asus_otg_set_charger(USB_IN);
+	}
 }
 
 static void asus_otg_chg_unknown_delay_work(struct work_struct *w)
@@ -3757,6 +3762,10 @@ static void msm_otg_init_sm(struct msm_otg *motg)
 				else
 					clear_bit(ID, &motg->inputs);
 			}
+			if(g_Charger_mode){
+				printk("[usb_otg]Set ID pin in charger mode\n");
+				set_bit(ID, &motg->inputs);
+			}
 			/*
 			 * VBUS initial state is reported after PMIC
 			 * driver initialization. Wait for it.
@@ -4714,6 +4723,10 @@ static void msm_id_status_w(struct work_struct *w)
 	int work = 0;
 	int id_state = 0;
 
+	if (g_Charger_mode) {
+		printk("[usb_otg] skip %s in charger mode\n", __func__);
+		return;
+	}
 //ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][Spec] Skip set ID events when screen off"
 	if (motg->pdata->pmic_id_irq)
 		id_state = msm_otg_read_pmic_id_state(motg);

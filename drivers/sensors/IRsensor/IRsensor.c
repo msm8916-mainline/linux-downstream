@@ -1294,6 +1294,10 @@ bool proximity_check_status(void)
 	int adc_value = 0;
 	bool status = false;	
 
+	/* check probe status */
+	if(ASUS_IR_SENSOR_PROBE == false)
+		return status;
+
 	mutex_lock(&g_ir_lock);
 	
 	if (!g_ps_data->HAL_switch_on) {

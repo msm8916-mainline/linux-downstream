@@ -105,8 +105,9 @@
 #define AP3425_PS_INTEG_MAX			(63)
 #define AP3425_PS_INTEG					0x00 	/*0x00~0x3f*/
 #define AP3425_PS_INTEG_3				0x03
-#define AP3425_PS_INTEG_16			0x10
-#define AP3425_PS_INTEG_37			0x25
+#define AP3425_PS_INTEG_17			0x10
+#define AP3425_PS_INTEG_5				0x04
+#define AP3425_PS_INTEG_38			0x25
 
 /* PS Persistence */
 #define AP3425_PS_PERSIS_MAX			(63)

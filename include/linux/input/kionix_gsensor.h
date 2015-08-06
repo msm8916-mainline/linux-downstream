@@ -113,6 +113,7 @@
 
 /* DATA CONTROL REGISTER BITS */
 #define ODR0_781F		8
+#define ODR0_1_563F		9
 #define ODR12_5F			0
 #define ODR25F			1
 #define ODR50F			2
@@ -121,6 +122,8 @@
 #define ODR400F			5
 #define ODR800F			6
 #define ODR1600F			7
+#define LPRO_9			(1 << 6)
+#define ODR_GAME_MODE	20
 /* INTERRUPT CONTROL REGISTER 1 BITS */
 /* Set these during probe if using irq mode */
 #define KXTJ9_IEL			(1 << 3)
