@@ -1,0 +1,98 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "msm8916-qrd-wt86528.dtsi"
+#include "msm8916-memory.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. MSM 8916 QRD SKUL";
+	compatible = "qcom,msm8916-qrd-skul2", "qcom,msm8916-qrd", "qcom,msm8916", "qcom,qrd";
+	qcom,board-id = <0x1010b 9>;          
+                                                                
+
+};
+
+&soc {
+        
+
+//{==== add by maxwill for fan54015 charging control begin ====
+                                                                                                 
+	i2c@78b8000 {                                                                                         
+		fan54015_otg_supply: fan54015-chg@6A {                                                             
+			compatible = "freescale,fan54015-chg";                                                               
+			reg = <0x6A>;            
+			
+
+                       pinctrl-names = "otg_pin_high","otg_pin_low";
+		       pinctrl-0 = <&otg_pin_high>;
+		       pinctrl-1 = <&otg_pin_low>;        
+
+		        regulator-name = "fan54015_otg_vreg";                                                              
+		       qcom,bms-controlled-charging;        
+		};                                                                                                  
+	};                                                                                                    
+
+//==== add by maxwill for fan54015 charging control end ====}
+
+  
+	sound {
+		qcom,msm-hs-micbias-type = "internel";
+		qcom,msm-micbias1-ext-cap;
+		qcom,audio-routing =
+				"RX_BIAS", "MCLK",
+				"SPK_RX_BIAS", "MCLK",
+				"INT_LDO_H", "MCLK",
+				"MIC BIAS External", "Handset Mic",
+				"MIC BIAS Internal2", "Headset Mic",
+				"MIC BIAS External", "Secondary Mic",
+				"AMIC1", "MIC BIAS External",
+				"AMIC2", "MIC BIAS Internal2",
+				"AMIC3", "MIC BIAS External";
+
+
+	};
+};
+&pm8916_chg {
+	qcom,vddmax-mv = <4350>;
+	qcom,vddsafe-mv = <4380>;
+	qcom,vinmin-mv = <4470>;
+	qcom,batt-hot-percentage = <35>;
+	qcom,batt-cold-percentage = <70>;
+	qcom,tchg-mins = <360>;
+	status = "okay";
+};
+
+/ {
+	qrd_batterydata: qcom,battery-data {
+		qcom,rpull-up-kohm = <68>;
+		qcom,vref-batt-therm = <1800000>;
+
+		//#include "batterydata-wingtech-guangyu-4v35-2300mah.dtsi"   //NewFeature,mahao.wt,DEL,2015.3.16,add for Fan54015 driver    
+		#include "batterydata-qrd-skuh-4v35-2000mah.dtsi"   //NewFeature,mahao.wt,ADD,2015.3.16,add for Fan54015 driver
+	};
+};
+
+&pm8916_bms {
+	status = "ok";
+	qcom,battery-data = <&qrd_batterydata>;
+};
+
+&usb_otg {                                                                                             
+	qcom,hsusb-otg-mode = <3>;                                                                            
+	qcom,usbid-gpio = <&msm_gpio 110 0>;                                                                  
+	pinctrl-names = "default";                                                                            
+	pinctrl-0 = <&usbid_default>;                                                                         
+	vbus_otg-supply = <&fan54015_otg_supply>;                                                              
+};                                                                                                         
+                                                                                           
