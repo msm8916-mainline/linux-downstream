@@ -158,15 +158,14 @@ int fat_file_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 
 	return res ? res : err;
 }
-//wanggongzhen.wt 2015-1-29 , bug low memory , sdcard speed is too low,videorecordig crash when stop
-extern ssize_t generic_file_aio_write_sdcard(struct kiocb *iocb, const struct iovec *iov,
-		unsigned long nr_segs, loff_t pos);
+
+
 const struct file_operations fat_file_operations = {
 	.llseek		= generic_file_llseek,
 	.read		= do_sync_read,
 	.write		= do_sync_write,
 	.aio_read	= generic_file_aio_read,
-	.aio_write	= generic_file_aio_write_sdcard,
+	.aio_write	= generic_file_aio_write,
 	.mmap		= generic_file_mmap,
 	.release	= fat_file_release,
 	.unlocked_ioctl	= fat_generic_ioctl,

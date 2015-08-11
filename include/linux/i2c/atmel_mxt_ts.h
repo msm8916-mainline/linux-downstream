@@ -40,6 +40,10 @@
 #define MXT_BOOTLOADER_ID_1386E		0x10
 #define MXT_BOOTLOADER_ID_1664S		0x14
 
+#define PINCTRL_STATE_ACTIVE   "pmx_ts_active"
+#define PINCTRL_STATE_SUSPEND  "pmx_ts_suspend"
+#define PINCTRL_STATE_RELEASE  "pmx_ts_release"
+
 /* Config data for a given maXTouch controller with a specific firmware */
 struct mxt_config_info {
 	const u8 *config;
@@ -84,7 +88,11 @@ struct mxt_platform_data {
 	bool need_calibration;
 	bool no_force_update;
 	bool no_lpm_support;
+	bool create_vkeys;
 	u8 bl_addr;
+	/* Points to the virtual key array */
+	unsigned int *vkey_codes;
+	unsigned char nvkeys;
 
 	u8(*read_chg) (void);
 	int (*init_hw) (bool);

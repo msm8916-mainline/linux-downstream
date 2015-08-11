@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,11 +30,13 @@
 
 #define MAX_NUM_IRQS 14
 #define NUM_IRQ_REGS 2
+#define WCD9XXX_SYSTEM_RESUME_TIMEOUT_MS 700
 
 #define BYTE_BIT_MASK(nr) (1UL << ((nr) % BITS_PER_BYTE))
 #define BIT_BYTE(nr) ((nr) / BITS_PER_BYTE)
 
 static irqreturn_t wcd9xxx_spmi_irq_handler(int linux_irq, void *data);
+
 char *irq_names[MAX_NUM_IRQS] = {
 	"spk_cnp_int",
 	"spk_clip_int",
@@ -156,14 +158,24 @@ int wcd9xxx_spmi_request_irq(int irq, irq_handler_t handler,
 			const char *name, void *priv)
 {
 	int rc;
+	unsigned long irq_flags;
+
 	map.linuxirq[irq] =
 		spmi_get_irq_byname(map.spmi[BIT_BYTE(irq)], NULL,
 				    irq_names[irq]);
+
+	if (strcmp(name, "mbhc sw intr"))
+		irq_flags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |
+			IRQF_ONESHOT;
+	else
+		irq_flags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |
+			IRQF_ONESHOT | IRQF_NO_SUSPEND;
+	pr_debug("%s: name:%s irq_flags = %lx\n", __func__, name, irq_flags);
+
 	rc = devm_request_threaded_irq(&map.spmi[BIT_BYTE(irq)]->dev,
 				map.linuxirq[irq], NULL,
 				wcd9xxx_spmi_irq_handler,
-				IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
-				| IRQF_ONESHOT,
+				irq_flags,
 				name, priv);
 		if (rc < 0) {
 			dev_err(&map.spmi[BIT_BYTE(irq)]->dev,
@@ -206,7 +218,7 @@ static int get_order_irq(int  i)
 static irqreturn_t wcd9xxx_spmi_irq_handler(int linux_irq, void *data)
 {
 	int irq, i, j;
-	u8 status[NUM_IRQ_REGS] = {0};
+	unsigned long status[NUM_IRQ_REGS] = {0};
 
 	if (unlikely(wcd9xxx_spmi_lock_sleep() == false)) {
 		pr_err("Failed to hold suspend\n");
@@ -215,13 +227,7 @@ static irqreturn_t wcd9xxx_spmi_irq_handler(int linux_irq, void *data)
 
 	irq = get_irq_bit(linux_irq);
 	if (irq == MAX_NUM_IRQS)
-	{
-		//maybe a bug , wanggongzhen.wt, this should release the lock , otherwise will block suspend
-		printk("wgz this should not enter , maybe there has error\n");
-		wcd9xxx_spmi_unlock_sleep();
-		//wgz add end
 		return IRQ_HANDLED;
-	}
 
 	status[BIT_BYTE(irq)] |= BYTE_BIT_MASK(irq);
 	for (i = 0; i < NUM_IRQ_REGS; i++) {
@@ -338,29 +344,26 @@ EXPORT_SYMBOL(wcd9xxx_spmi_resume);
 bool wcd9xxx_spmi_lock_sleep()
 {
 	/*
-	 * wcd9xxx_spmi_{lock/unlock}_sleep will be called by wcd9xxx_spmi_irq_thread
+	 * wcd9xxx_spmi_{lock/unlock}_sleep will be called by
+	 * wcd9xxx_spmi_irq_thread
 	 * and its subroutines only motly.
 	 * but btn0_lpress_fn is not wcd9xxx_spmi_irq_thread's subroutine and
 	 * It can race with wcd9xxx_spmi_irq_thread.
 	 * So need to embrace wlock_holders with mutex.
-	 *
-	 * If system didn't resume, we can simply return false so codec driver's
-	 * IRQ handler can return without handling IRQ.
-	 * As interrupt line is still active, codec will have another IRQ to
-	 * retry shortly.
 	 */
 	mutex_lock(&map.pm_lock);
 	if (map.wlock_holders++ == 0) {
 		pr_debug("%s: holding wake lock\n", __func__);
 		pm_qos_update_request(&map.pm_qos_req,
 				      msm_cpuidle_get_deep_idle_latency());
+		pm_stay_awake(&map.spmi[0]->dev);
 	}
 	mutex_unlock(&map.pm_lock);
 	pr_debug("%s: wake lock counter %d\n", __func__,
 			map.wlock_holders);
 	pr_debug("%s: map.pm_state = %d\n", __func__, map.pm_state);
 
-	wait_event(map.pm_wq,
+	if (!wait_event_timeout(map.pm_wq,
 				((wcd9xxx_spmi_pm_cmpxchg(
 					WCD9XXX_PM_SLEEPABLE,
 					WCD9XXX_PM_AWAKE)) ==
@@ -368,7 +371,17 @@ bool wcd9xxx_spmi_lock_sleep()
 					(wcd9xxx_spmi_pm_cmpxchg(
 						 WCD9XXX_PM_SLEEPABLE,
 						 WCD9XXX_PM_AWAKE) ==
-						 WCD9XXX_PM_AWAKE)));
+						 WCD9XXX_PM_AWAKE)),
+					msecs_to_jiffies(
+					WCD9XXX_SYSTEM_RESUME_TIMEOUT_MS))) {
+		pr_warn("%s: system didn't resume within %dms, s %d, w %d\n",
+			__func__,
+			WCD9XXX_SYSTEM_RESUME_TIMEOUT_MS, map.pm_state,
+			map.wlock_holders);
+		wcd9xxx_spmi_unlock_sleep();
+		return false;
+	}
+	wake_up_all(&map.pm_wq);
 	pr_debug("%s: leaving pm_state = %d\n", __func__, map.pm_state);
 	return true;
 }
@@ -388,6 +401,7 @@ void wcd9xxx_spmi_unlock_sleep()
 			map.pm_state = WCD9XXX_PM_SLEEPABLE;
 		pm_qos_update_request(&map.pm_qos_req,
 				PM_QOS_DEFAULT_VALUE);
+		pm_relax(&map.spmi[0]->dev);
 	}
 	mutex_unlock(&map.pm_lock);
 	pr_debug("%s: wake lock counter %d\n", __func__,

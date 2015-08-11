@@ -272,6 +272,80 @@ DEFINE_EVENT(power_domain, power_domain_target,
 
 	TP_ARGS(name, state, cpu_id)
 );
+
+DECLARE_EVENT_CLASS(kpm_module,
+
+	TP_PROTO(unsigned int managed_cpus, unsigned int max_cpus),
+
+	TP_ARGS(managed_cpus, max_cpus),
+
+	TP_STRUCT__entry(
+		__field(u32, managed_cpus)
+		__field(u32, max_cpus)
+	),
+
+	TP_fast_assign(
+		__entry->managed_cpus = managed_cpus;
+		__entry->max_cpus = max_cpus;
+	),
+
+	TP_printk("managed:%x max_cpus=%u", (unsigned int)__entry->managed_cpus,
+					(unsigned int)__entry->max_cpus)
+);
+
+DEFINE_EVENT(kpm_module, set_max_cpus,
+	TP_PROTO(unsigned int managed_cpus, unsigned int max_cpus),
+	TP_ARGS(managed_cpus, max_cpus)
+);
+
+DEFINE_EVENT(kpm_module, reevaluate_hotplug,
+	TP_PROTO(unsigned int managed_cpus, unsigned int max_cpus),
+	TP_ARGS(managed_cpus, max_cpus)
+);
+
+TRACE_EVENT(core_ctl_eval_need,
+
+	TP_PROTO(unsigned int cpu, unsigned int old_need,
+		 unsigned int new_need, unsigned int updated),
+	TP_ARGS(cpu, old_need, new_need, updated),
+	TP_STRUCT__entry(
+		__field(u32, cpu)
+		__field(u32, old_need)
+		__field(u32, new_need)
+		__field(u32, updated)
+	),
+	TP_fast_assign(
+		__entry->cpu = cpu;
+		__entry->old_need = old_need;
+		__entry->new_need = new_need;
+		__entry->updated = updated;
+	),
+	TP_printk("cpu=%u, old_need=%u, new_need=%u, updated=%u", __entry->cpu,
+		  __entry->old_need, __entry->new_need, __entry->updated)
+);
+
+TRACE_EVENT(core_ctl_set_busy,
+
+	TP_PROTO(unsigned int cpu, unsigned int busy,
+		 unsigned int old_is_busy, unsigned int is_busy),
+	TP_ARGS(cpu, busy, old_is_busy, is_busy),
+	TP_STRUCT__entry(
+		__field(u32, cpu)
+		__field(u32, busy)
+		__field(u32, old_is_busy)
+		__field(u32, is_busy)
+	),
+	TP_fast_assign(
+		__entry->cpu = cpu;
+		__entry->busy = busy;
+		__entry->old_is_busy = old_is_busy;
+		__entry->is_busy = is_busy;
+	),
+	TP_printk("cpu=%u, busy=%u, old_is_busy=%u, new_is_busy=%u",
+		  __entry->cpu, __entry->busy, __entry->old_is_busy,
+		  __entry->is_busy)
+);
+
 #endif /* _TRACE_POWER_H */
 
 /* This part must be outside protection */

@@ -16,6 +16,8 @@ Required properties:
 	"arm,coresight-tpiu" for coresight tpiu device,
 	"qcom,coresight-replicator" for coresight replicator device,
 	"arm,coresight-funnel" for coresight funnel devices,
+	"qcom,coresight-tpda" for coresight tpda device,
+	"qcom,coresight-tpdm" for coresight tpdm device,
 	"arm,coresight-stm" for coresight stm trace device,
 	"arm,coresight-etm" for coresight etm trace devices,
 	"arm,coresight-etmv4" for coresight etmv4 trace devices,
@@ -62,6 +64,14 @@ Required properties:
 		compatible : should be "arm,coresight-funnel"
 		reg-names  : should be:
 			"funnel-base" - physical base address of funnel registers
+	- for coresight tpda trace device
+		compatible : should be "qcom,coresight-tpda"
+		reg-names  : should be:
+			"tpda-base" - physical base address of tpda registers
+	- for coresight tpdm trace device
+		compatible : should be "qcom,coresight-tpdm"
+		reg-names  : should be:
+			"tpdm-base" - physical base address of tpdm registers
 	- for coresight stm trace device
 		compatible : should be "arm,coresight-stm"
 		reg-names  : should be:
@@ -123,12 +133,17 @@ Optional properties:
 - coresight-default-sink : represents the default compile time CoreSight sink
 - coresight-ctis : list of ctis that this component interacts with
 - qcom,cti-save : boolean, indicating cti context needs to be saved and restored
+- qcom,cti-hwclk : boolean, indicating support of hardware clock to access cti
+		   registers to be saved and restored
+- qcom,cti-gpio-trigin : cti trigger input driven by gpio
+- qcom,cti-gpio-trigout : cti trigger output sent to gpio
 - qcom,pc-save : program counter save implemented
 - qcom,blk-size : block size for tmc-etr to usb transfers
 - qcom,memory-size : size of coherent memory to be allocated for tmc-etr buffer
 - qcom,round-robin : indicates if per core etms are allowed round-robin access
 		     by the funnel
 - qcom,write-64bit : only 64bit data writes supported by stm
+- qcom,data-barrier : barrier required for every stm data write to channel space
 - <supply-name>-supply: phandle to the regulator device tree node. The required
 			<supply-name> is "vdd" for SD card and "vdd-io" for SD
 			I/O supply. Used for tpiu component
@@ -141,19 +156,8 @@ Optional properties:
 				units being uA. Here <supply> can be "vdd" for
 				SD card vdd supply or "vdd-io" for SD I/O vdd
 				supply.
-- qcom,seta-gpios : specifies gpios included in set A that are routed to the
-		    mictor connector. Used for tpiu component
-- qcom,seta-gpios-func : active function select for set A gpios
-- qcom,seta-gpios-drv : active drive strength for set A gpios
-- qcom,seta-gpios-pull : active pull configuration for set A gpios
-- qcom,seta-gpios-dir : active direction for set A gpios
-- qcom,setb-gpios : specifies gpios included in set B that are routed to the
-		    mictor connector. Used for tpiu component
-- qcom,setb-gpios-func : active function select for set B gpios
-- qcom,setb-gpios-drv : active drive strength for set B gpios
-- qcom,setb-gpios-pull : active pull configuration for set B gpios
-- qcom,setb-gpios-dir : active direction for set B gpios
 - qcom,hwevent-clks : list of clocks required by hardware event driver
+- qcom,hwevent-regs : list of regulators required by hardware event driver
 - qcom,byte-cntr-absent : specifies if the byte counter feature is absent on
 			  the device. Only relevant in case of tmc-etr device.
 - interrupts : <a b c> where a is 0 or 1 depending on if the interrupt is
@@ -178,13 +182,20 @@ Optional properties:
 		    for tpiu component
 - nidnt-gpio : specifies gpio for NIDnT hardware detection
 - nidnt-gpio-polarity : specifies gpio polarity for NIDnT hardware detection
+- pinctrl-names : names corresponding to the numbered pinctrl. The allowed
+		  names are subset of the following: cti-trigin-pctrl,
+		  cti-trigout-pctrl. Used for cti component
+- pinctrl-<n>: list of pinctrl phandles for the different pinctrl states. Refer
+	       to "Documentation/devicetree/bindings/pinctrl/pinctrl-bindings.txt".
 -qcom,funnel-save-restore : boolean, indicating funnel port needs to be disabled
 			    for the ETM whose CPU is being powered down. The port
 			    state is restored when CPU is powered up. Used for
 			    funnel component.
 -qcom,tmc-flush-powerdown : boolean, indicating trace data needs to be flushed before
 			    powering down CPU. Used for TMC component.
-
+-qcom,cmb-elem-size: specifies the CMB element size supported by each monitor
+		     connected to the aggregator on each port. Should be specified
+		     in pairs (port, cmb element size).
 Examples:
 
 1. Sinks
@@ -253,7 +264,42 @@ Examples:
 		coresight-child-ports = <0>;
 	};
 
+	tpda_lmh: tpda@fbb91000 {
+		compatible = "qcom,coresight-tpda";
+		reg = <0xfbb91000x1000>;
+		reg-names = "tpda-base";
+
+		coresight-id = <7>;
+		coresight-name = "coresight-tpda-lmh";
+		coresight-nr-inports = <32>;
+		coresight-outports = <0>;
+		coresight-child-list = <&funnel_in0>;
+		coresight-child-ports = <4>;
+		qcom,cmb-elem-size = <0 64>;
+
+		clocks = <&clock_rpm clk_qdss_clk>,
+			 <&clock_rpm clk_qdss_a_clk>;
+		clock-names = "core_clk", "core_a_clk";
+	};
+
 3. Sources
+	tpdm_lmh: tpdm@fbb90000 {
+		compatible = "qcom,coresight-tpdm";
+		reg = <0xfbb90000x1000>;
+		reg-names = "tpdm-base";
+
+		coresight-id = <8>;
+		coresight-name = "coresight-tpdm-lmh";
+		coresight-nr-inports = <0>;
+		coresight-outports = <0>;
+		coresight-child-list = <&tpda_lmh>;
+		coresight-child-ports = <0>;
+
+		clocks = <&clock_rpm clk_qdss_clk>,
+			 <&clock_rpm clk_qdss_a_clk>;
+		clock-names = "core_clk", "core_a_clk";
+	};
+
 	stm: stm@fc321000 {
 		compatible = "arm,coresight-stm";
 		reg = <0xfc321000 0x1000>,
@@ -294,6 +340,10 @@ Examples:
 		coresight-id = <15>;
 		coresight-name = "coresight-cti0";
 		coresight-nr-inports = <0>;
+
+		qcom,cti-gpio-trigout = <1>;
+		pinctrl-names = "cti-trigout-pctrl";
+		pinctrl-0 = <&trigout_a>;
 	};
 
 	cti1: cti@fc309000 {
@@ -319,6 +369,7 @@ Examples:
 		coresight-nr-inports = <0>;
 
 		qcom,hwevent-clks = "core_mmss_clk";
+		qcom,hwevent-regs = "gdsc_ufs";
 	};
 
 	fuse: fuse@fc4be024 {

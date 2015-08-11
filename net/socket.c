@@ -88,6 +88,7 @@
 #include <linux/magic.h>
 #include <linux/slab.h>
 #include <linux/xattr.h>
+#include <linux/qmp_sphinx_instrumentation.h>
 
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
@@ -1526,9 +1527,14 @@ SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int, addrlen)
 						      (struct sockaddr *)
 						      &address, addrlen);
 		}
-		fput_light(sock->file, fput_needed);
-		if (!err)
+		if (!err) {
+			if (sock->sk)
+				sock_hold(sock->sk);
 			sockev_notify(SOCKEV_BIND, sock);
+			if (sock->sk)
+				sock_put(sock->sk);
+		}
+		fput_light(sock->file, fput_needed);
 	}
 	return err;
 }
@@ -1555,9 +1561,14 @@ SYSCALL_DEFINE2(listen, int, fd, int, backlog)
 		if (!err)
 			err = sock->ops->listen(sock, backlog);
 
-		fput_light(sock->file, fput_needed);
-		if (!err)
+		if (!err) {
+			if (sock->sk)
+				sock_hold(sock->sk);
 			sockev_notify(SOCKEV_LISTEN, sock);
+			if (sock->sk)
+				sock_put(sock->sk);
+		}
+		fput_light(sock->file, fput_needed);
 	}
 	return err;
 }
@@ -1782,6 +1793,8 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len,
 	struct iovec iov;
 	int fput_needed;
 
+	qmp_sphinx_logk_sendto(fd, buff, len, flags, addr, addr_len);
+
 	if (len > INT_MAX)
 		len = INT_MAX;
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
@@ -1840,6 +1853,8 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 	struct sockaddr_storage address;
 	int err, err2;
 	int fput_needed;
+
+	qmp_sphinx_logk_recvfrom(fd, ubuf, size, flags, addr, addr_len);
 
 	if (size > INT_MAX)
 		size = INT_MAX;
@@ -1985,6 +2000,10 @@ static int copy_msghdr_from_user(struct msghdr *kmsg,
 {
 	if (copy_from_user(kmsg, umsg, sizeof(struct msghdr)))
 		return -EFAULT;
+
+	if (kmsg->msg_namelen < 0)
+		return -EINVAL;
+
 	if (kmsg->msg_namelen > sizeof(struct sockaddr_storage))
 		kmsg->msg_namelen = sizeof(struct sockaddr_storage);
 	return 0;

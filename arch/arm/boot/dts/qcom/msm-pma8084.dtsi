@@ -306,17 +306,6 @@
 				qcom,hw-settle-time = <0>;
 				qcom,fast-avg-setup = <0>;
 			};
-
-			chan@15 {
-				label = "mpp6_div1";
-				reg = <0x15>;
-				qcom,decimation = <0>;
-				qcom,pre-div-channel-scaling = <0>;
-				qcom,calibration-type = "absolute";
-				qcom,scale-function = <0>;
-				qcom,hw-settle-time = <0>;
-				qcom,fast-avg-setup = <0>;
-			};
 		};
 
 		pma8084_adc_tm: vadc@3400 {
@@ -854,6 +843,7 @@
 			qcom,channel-id = <0>;
 			qcom,supported-sizes = <6>, <7>, <9>;
 			qcom,ramp-index = <0>;
+			#pwm-cells = <2>;
 		};
 
 		pma8084_lpg2: pwm@b200 {
@@ -864,6 +854,7 @@
 			qcom,channel-id = <1>;
 			qcom,supported-sizes = <6>, <7>, <9>;
 			qcom,ramp-index = <1>;
+			#pwm-cells = <2>;
 		};
 
 		pma8084_lpg3: pwm@b300 {
@@ -874,6 +865,7 @@
 			qcom,channel-id = <2>;
 			qcom,supported-sizes = <6>, <7>, <9>;
 			qcom,ramp-index = <2>;
+			#pwm-cells = <2>;
 		};
 
 		pma8084_lpg4: pwm@b400 {
@@ -884,6 +876,7 @@
 			qcom,channel-id = <3>;
 			qcom,supported-sizes = <6>, <7>, <9>;
 			qcom,ramp-index = <3>;
+			#pwm-cells = <2>;
 		};
 
 		pma8084_lpg5: pwm@b500 {
@@ -894,6 +887,7 @@
 			qcom,channel-id = <4>;
 			qcom,supported-sizes = <6>, <7>, <9>;
 			qcom,ramp-index = <4>;
+			#pwm-cells = <2>;
 		};
 
 		pma8084_lpg6: pwm@b600 {
@@ -904,6 +898,7 @@
 			qcom,channel-id = <5>;
 			qcom,supported-sizes = <6>, <7>, <9>;
 			qcom,ramp-index = <5>;
+			#pwm-cells = <2>;
 		};
 	};
 };

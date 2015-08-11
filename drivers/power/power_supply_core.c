@@ -54,6 +54,28 @@ static bool __power_supply_is_supplied_by(struct power_supply *supplier,
 }
 
 /**
+ * power_supply_set_voltage_limit - set current limit
+ * @psy:	the power supply to control
+ * @limit:	current limit in uV from the power supply.
+ *		0 will disable the power supply.
+ *
+ * This function will set a maximum supply current from a source
+ * and it will disable the charger when limit is 0.
+ */
+int power_supply_set_voltage_limit(struct power_supply *psy, int limit)
+{
+	const union power_supply_propval ret = {limit,};
+
+	if (psy->set_property)
+		return psy->set_property(psy, POWER_SUPPLY_PROP_VOLTAGE_MAX,
+								&ret);
+
+	return -ENXIO;
+}
+EXPORT_SYMBOL(power_supply_set_voltage_limit);
+
+
+/**
  * power_supply_set_current_limit - set current limit
  * @psy:	the power supply to control
  * @limit:	current limit in uA from the power supply.
@@ -244,32 +266,6 @@ int power_supply_set_low_power_state(struct power_supply *psy, int value)
 	return -ENXIO;
 }
 EXPORT_SYMBOL(power_supply_set_low_power_state);
-
-/**
- * power_supply_get_battery_charg_state - get battery charge state for power_supply
- * @psy:	the power supply to control
- * @value:	value to be passed to the power_supply
- *
- */
-int power_supply_get_battery_charge_state(struct power_supply *psy)
-{
-
-	union power_supply_propval ret = {0,};
-
-	if (!psy) {
-		pr_err("power supply is NULL\n");
-	}
-
-	if (psy->get_property)
-	{
-		psy->get_property(psy, POWER_SUPPLY_PROP_ONLINE,&ret);		
-	}
-	pr_debug("online:%d\n",ret.intval);
-
-	return ret.intval;
-}
-
-EXPORT_SYMBOL(power_supply_get_battery_charge_state);
 
 static int __power_supply_changed_work(struct device *dev, void *data)
 {
@@ -728,6 +724,7 @@ static ssize_t show_StopCharging_Test(struct device *dev,struct device_attribute
 
     	return sprintf(buf, "chr=%d\n", charging_enable);
 }
+
 static ssize_t store_StopCharging_Test(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
 {    
     return -1;
@@ -760,6 +757,7 @@ static ssize_t store_StartCharging_Test(struct device *dev,struct device_attribu
 }
 static DEVICE_ATTR(StartCharging_Test, 0664, show_StartCharging_Test, store_StartCharging_Test);
 //start charging/stop charging end
+
 
 int power_supply_register(struct device *parent, struct power_supply *psy)
 {

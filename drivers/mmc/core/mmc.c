@@ -68,6 +68,10 @@ static const struct mmc_fixup mmc_fixups[] = {
 	MMC_FIXUP_EXT_CSD_REV(CID_NAME_ANY, CID_MANFID_HYNIX,
 			      0x014a, add_quirk, MMC_QUIRK_BROKEN_HPI, 5),
 
+	/* Disable HPI feature for Kingstone card */
+	MMC_FIXUP_EXT_CSD_REV("MMC16G", CID_MANFID_KINGSTON, CID_OEMID_ANY,
+			add_quirk, MMC_QUIRK_BROKEN_HPI, 5),
+
 	/*
 	 * Some Hynix cards exhibit data corruption over reboots if cache is
 	 * enabled. Disable cache for all versions until a class of cards that
@@ -77,6 +81,8 @@ static const struct mmc_fixup mmc_fixups[] = {
 		  MMC_QUIRK_CACHE_DISABLE),
 	MMC_FIXUP(CID_NAME_ANY, CID_MANFID_NUMONYX_MICRON, CID_OEMID_ANY,
 		add_quirk_mmc, MMC_QUIRK_CACHE_DISABLE),
+	MMC_FIXUP("MMC16G", CID_MANFID_KINGSTON, CID_OEMID_ANY, add_quirk_mmc,
+		  MMC_QUIRK_CACHE_DISABLE),
 
 	END_FIXUP
 };
@@ -84,35 +90,14 @@ static const struct mmc_fixup mmc_fixups[] = {
 /*
  * Given the decoded CSD structure, decode the raw CID to our CID structure.
  */
-
-struct emmc_id_pnm {
-	unsigned int		manfid;
-	unsigned char 		pnm[6];
-	char  * emmc_name;
-};
-
-static struct emmc_id_pnm emmc_arrary[]={
-{0x15,{0x51,0x37,0x58,0x53,0x41,0x42},"KMQ7x000SA-B315-Samsung"},
-{0x90,{0x48,0x38,0x47,0x32,0x64,0x04},"H9TQ65A8GTMCUR-Hynix"},
-{0xfe,{0x50,0x31,0x4a,0x39,0x35,0x4b},"MT29TZZZ8D5BKFAH-125-Micron"},
-{0x15,{0x51,0x38,0x58,0x53,0x41,0x42},"KMQ8X000SA-B414-Samsung"},
-{0x90,{0x48,0x41,0x47,0x32,0x65,0x05},"H9T17A8GTMCUR-Hynix"},
-{0x90,{0x48,0x38,0x47,0x31,0x65,0x05},"H9TQ64A8GTMCUR-KUM-Hynix"},
-{0x90,{0x48,0x41,0x47,0x32,0x65,0x05},"H9TQ17ABJTMCUR-KUM-Hynix"},
-{0x13,{0x52,0x31,0x4A,0x39,0x36,0x4E},"MT29TZZZ5D6YKFAH-125-Micron"},
-};
-
-
 static int mmc_decode_cid(struct mmc_card *card)
 {
 	u32 *resp = card->raw_cid;
-	unsigned int i,j;
-        char * temp_emmc_name="flash not found";
+
 	/*
 	 * The selection of the format here is based upon published
 	 * specs from sandisk and from what people have reported.
 	 */
-	 printk("XXX::mmca_vsn::csd.mmca_vsn=%d\r\n",card->csd.mmca_vsn);//hoper
 	switch (card->csd.mmca_vsn) {
 	case 0: /* MMC v1.0 - v1.2 */
 	case 1: /* MMC v1.4 */
@@ -146,36 +131,15 @@ static int mmc_decode_cid(struct mmc_card *card)
 		card->cid.serial	= UNSTUFF_BITS(resp, 16, 32);
 		card->cid.month		= UNSTUFF_BITS(resp, 12, 4);
 		card->cid.year		= UNSTUFF_BITS(resp, 8, 4) + 1997;
-		for(i=0;i<(sizeof(emmc_arrary)/sizeof(emmc_arrary[0]));i++)
-			{
-				j = 0;
-				if(!(emmc_arrary[i].manfid==card->cid.manfid))
-					;
-				else
-					{
-						for(j=0;j<6;j++)
-						{
-							if(!(emmc_arrary[i].pnm[j]==card->cid.prod_name[j]))
-								break;
-						}
-					}
-				if(j==6)
-					{
-						printk("XXX::emmc_name=%s\r\n",emmc_arrary[i].emmc_name);//hoper
-						temp_emmc_name = emmc_arrary[i].emmc_name;
-						break;
-					}
-			}
 		break;
 
-		default:
-			hardwareinfo_set_prop(HARDWARE_FLASH,temp_emmc_name);
-			pr_err("%s: card has unknown MMCA version %d\n",
+	default:
+		pr_err("%s: card has unknown MMCA version %d\n",
 			mmc_hostname(card->host), card->csd.mmca_vsn);
 		return -EINVAL;
 	}
 
-	hardwareinfo_set_prop(HARDWARE_FLASH,temp_emmc_name);
+	hardwareinfo_set_prop(HARDWARE_FLASH,card->cid.prod_name);
 	return 0;
 }
 
@@ -802,9 +766,7 @@ static int mmc_select_powerclass(struct mmc_card *card,
 				EXT_CSD_PWR_CL_52_195 :
 				EXT_CSD_PWR_CL_DDR_52_195;
 		else if (host->ios.clock <= 200000000)
-			index = (bus_width <= EXT_CSD_BUS_WIDTH_8) ?
-				EXT_CSD_PWR_CL_200_195 :
-				EXT_CSD_PWR_CL_DDR_200_195;
+			index = EXT_CSD_PWR_CL_200_195;
 		break;
 	case MMC_VDD_27_28:
 	case MMC_VDD_28_29:
@@ -822,9 +784,9 @@ static int mmc_select_powerclass(struct mmc_card *card,
 				EXT_CSD_PWR_CL_52_360 :
 				EXT_CSD_PWR_CL_DDR_52_360;
 		else if (host->ios.clock <= 200000000)
-			index = (bus_width <= EXT_CSD_BUS_WIDTH_8) ?
-				EXT_CSD_PWR_CL_200_360 :
-				EXT_CSD_PWR_CL_DDR_200_360;
+			index = (bus_width == EXT_CSD_DDR_BUS_WIDTH_8) ?
+				EXT_CSD_PWR_CL_DDR_200_360 :
+				EXT_CSD_PWR_CL_200_360;
 		break;
 	default:
 		pr_warning("%s: Voltage range not supported "
@@ -1182,12 +1144,7 @@ static int mmc_select_hs400(struct mmc_card *card, u8 *ext_csd)
 	mmc_set_timing(host, MMC_TIMING_LEGACY);
 	mmc_set_clock(host, MMC_HIGH_26_MAX_DTR);
 
-	err = mmc_select_hs(card, ext_csd);
-	if (err)
-		goto out;
-	mmc_card_clr_highspeed(card);
-
-	/* Switch to 8-bit DDR mode */
+	/* Switch to 8-bit HighSpeed DDR mode */
 	err = mmc_select_hsddr(card, ext_csd);
 	if (err)
 		goto out;

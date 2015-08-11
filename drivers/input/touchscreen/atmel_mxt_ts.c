@@ -330,6 +330,18 @@ enum mxt_device_state { INIT, APPMODE, BOOTLOADER };
 #define MXT_DEBUGFS_DIR	"ts_debug"
 #define MXT_DEBUGFS_FILE_OBJ	"object"
 #define MXT_DEBUGFS_FILE_SUSPEND	"suspend"
+#define DISP_PROP "atmel,display-coords"
+#define PANEL_PROP "atmel,panel-coords"
+
+#define MAX_BUF_SIZE	256
+#define VKEY_VER_CODE	"0x01"
+
+#define HEIGHT_SCALE_NUM 8
+#define HEIGHT_SCALE_DENOM 10
+
+/* numerator and denomenator for border equations */
+#define BORDER_ADJUST_NUM 3
+#define BORDER_ADJUST_DENOM 4
 
 struct mxt_info {
 	u8 family_id;
@@ -380,6 +392,10 @@ struct mxt_data {
 	struct regulator *vcc_ana;
 	struct regulator *vcc_dig;
 	struct regulator *vcc_i2c;
+	struct pinctrl *ts_pinctrl;
+	struct pinctrl_state *pinctrl_state_active;
+	struct pinctrl_state *pinctrl_state_suspend;
+	struct pinctrl_state *pinctrl_state_release;
 	struct mxt_address_pair addr_pair;
 #if defined(CONFIG_FB)
 	struct notifier_block fb_notif;
@@ -393,6 +409,8 @@ struct mxt_data {
 	u32 keyarray_new;
 	u8 t9_max_reportid;
 	u8 t9_min_reportid;
+	u16 t9_ymax_reso;
+	u16 t9_xmax_reso;
 	u8 t15_max_reportid;
 	u8 t15_min_reportid;
 	u8 t42_max_reportid;
@@ -414,6 +432,81 @@ struct mxt_data {
 };
 
 static struct dentry *debug_base;
+static struct kobject *vkey_kobj;
+static char *vkey_buf;
+
+static ssize_t vkey_show(struct kobject  *obj,
+	struct kobj_attribute *attr, char *buf)
+{
+	strlcpy(buf, vkey_buf, MAX_BUF_SIZE);
+	return strnlen(buf, MAX_BUF_SIZE);
+}
+
+static struct kobj_attribute vkey_obj_attr = {
+	.attr = {
+		.mode = S_IRUGO,
+		.name = "virtualkeys.atmel_mxt_ts",
+	},
+	.show = vkey_show,
+};
+
+static struct attribute *vkey_attr[] = {
+	&vkey_obj_attr.attr,
+	NULL,
+};
+
+static struct attribute_group vkey_grp = {
+	.attrs = vkey_attr,
+};
+
+static int mxt_virtual_keys_init(struct device *dev,
+			struct mxt_data *data)
+{
+	int width, height, center_x, center_y;
+	int x1 = 0, x2 = 0, i, c = 0, rc = 0, border;
+
+	vkey_buf = devm_kzalloc(dev, MAX_BUF_SIZE, GFP_KERNEL);
+	if (!vkey_buf) {
+		dev_err(dev, "Failed to allocate memory\n");
+		return -ENOMEM;
+	}
+
+	border = (data->pdata->panel_maxx - data->pdata->disp_maxx) * 2;
+	width = ((data->pdata->disp_maxx -
+			(border * (data->pdata->nvkeys - 1)))
+			/ data->pdata->nvkeys);
+	height = (data->pdata->panel_maxy - data->pdata->disp_maxy);
+	center_y = data->pdata->disp_maxy + (height / 2);
+	height = height * HEIGHT_SCALE_NUM / HEIGHT_SCALE_DENOM;
+
+	x2 -= border * BORDER_ADJUST_NUM / BORDER_ADJUST_DENOM;
+
+	for (i = 0; i < data->pdata->nvkeys; i++) {
+		x1 = x2 + border;
+		x2 = x2 + border + width;
+		center_x = x1 + (x2 - x1) / 2;
+		c += snprintf(vkey_buf + c, MAX_BUF_SIZE - c,
+				"%s:%d:%d:%d:%d:%d\n", VKEY_VER_CODE,
+				data->pdata->vkey_codes[i],
+				center_x, center_y, width, height);
+	}
+
+	vkey_buf[c] = '\0';
+
+	vkey_kobj = kobject_create_and_add("board_properties", NULL);
+	if (!vkey_kobj) {
+		dev_err(dev, "unable to create kobject\n");
+		return -ENOMEM;
+	}
+
+	rc = sysfs_create_group(vkey_kobj, &vkey_grp);
+	if (rc) {
+		dev_err(dev, "failed to create attributes\n");
+		kobject_put(vkey_kobj);
+	}
+
+	return rc;
+}
 
 static bool mxt_object_readable(unsigned int type)
 {
@@ -1493,6 +1586,7 @@ static int mxt_save_objects(struct mxt_data *data)
 	struct mxt_object *t15_object;
 	struct mxt_object *t42_object;
 	int error;
+	u8 val[4];
 
 	/* Store T7 and T9 locally, used in suspend/resume operations */
 	t7_object = mxt_get_object(data, MXT_GEN_POWER_T7);
@@ -1520,6 +1614,18 @@ static int mxt_save_objects(struct mxt_data *data)
 	data->t9_min_reportid = t9_object->max_reportid -
 					(t9_object->num_report_ids *
 					(t9_object->instances + 1)) + 1;
+
+	error = __mxt_read_reg(client,
+		t9_object->start_address + MXT_TOUCH_XRANGE_LSB, 4, val);
+	if (error) {
+		dev_err(&client->dev, "Failed to get X-Y reso\n");
+		return -EINVAL;
+	}
+
+	/* Y resolution */
+	data->t9_ymax_reso = (val[1]<<8) + val[0];
+	/* X resolution */
+	data->t9_xmax_reso = (val[3]<<8) + val[2];
 
 	if (data->pdata->key_codes) {
 		t15_object = mxt_get_object(data, MXT_TOUCH_KEYARRAY_T15);
@@ -1658,8 +1764,9 @@ static int mxt_initialize(struct mxt_data *data)
 	info->matrix_ysize = val;
 
 	dev_info(&client->dev,
-			"Matrix X Size: %d Matrix Y Size: %d\n",
-			info->matrix_xsize, info->matrix_ysize);
+		"Matrix X Size: %d Matrix Y Size: %d Panel X Resolution: %d Panel Y Resolution: %d\n",
+		info->matrix_xsize, info->matrix_ysize,
+		data->t9_xmax_reso, data->t9_ymax_reso);
 
 	return 0;
 
@@ -2355,6 +2462,146 @@ power_off:
 	return 0;
 }
 
+static int mxt_pinctrl_select(struct mxt_data *data, bool on)
+{
+	struct pinctrl_state *pins_state;
+	int error;
+
+	pins_state = on ? data->pinctrl_state_active :
+		data->pinctrl_state_suspend;
+	if (!IS_ERR_OR_NULL(pins_state)) {
+		error = pinctrl_select_state(data->ts_pinctrl, pins_state);
+		if (error) {
+			dev_err(&data->client->dev, "can not set %s pins\n",
+				on ? PINCTRL_STATE_ACTIVE :
+					PINCTRL_STATE_SUSPEND);
+			return error;
+		}
+	} else {
+		dev_err(&data->client->dev,
+			"not a valid '%s' pinstate\n",
+			on ? PINCTRL_STATE_ACTIVE : PINCTRL_STATE_SUSPEND);
+	}
+
+	return 0;
+
+}
+
+static int mxt_configure_gpio(struct mxt_data *data, bool enable)
+{
+	int error;
+
+	if (data->ts_pinctrl) {
+		error = mxt_pinctrl_select(data, enable);
+		if (error < 0)
+			return error;
+	}
+
+	if (enable) {
+		if (gpio_is_valid(data->pdata->reset_gpio)) {
+			/* configure touchscreen reset out gpio */
+			error = gpio_request(data->pdata->reset_gpio,
+						"mxt_reset_gpio");
+			if (error) {
+				dev_err(&data->client->dev,
+					"unable to request gpio [%d]\n",
+					data->pdata->reset_gpio);
+				return error;
+			}
+
+			error = gpio_direction_output(
+					data->pdata->reset_gpio, 0);
+			if (error) {
+				dev_err(&data->client->dev,
+				"unable to set direction for gpio [%d]\n",
+				data->pdata->reset_gpio);
+				goto err_free_reset_gpio;
+			}
+
+			mxt_reset_delay(data);
+
+			error = gpio_direction_output(
+					data->pdata->reset_gpio, 1);
+			if (error) {
+				dev_err(&data->client->dev,
+				"unable to set direction for gpio [%d]\n",
+				data->pdata->reset_gpio);
+				goto err_free_reset_gpio;
+			}
+		} else {
+			dev_err(&data->client->dev,
+				"reset gpio not provided\n");
+			return -EINVAL;
+		}
+
+		if (gpio_is_valid(data->pdata->irq_gpio)) {
+			/* configure touchscreen irq gpio */
+			error = gpio_request(data->pdata->irq_gpio,
+						"mxt_irq_gpio");
+			if (error) {
+				dev_err(&data->client->dev,
+					"unable to request gpio [%d]\n",
+					data->pdata->irq_gpio);
+				goto err_free_reset_gpio;
+			}
+
+			error = gpio_direction_input(data->pdata->irq_gpio);
+			if (error) {
+				dev_err(&data->client->dev,
+				"unable to set direction for gpio [%d]\n",
+				data->pdata->irq_gpio);
+				goto err_free_irq_gpio;
+			}
+		} else {
+			dev_err(&data->client->dev,
+				"irq gpio not provided\n");
+			goto err_free_reset_gpio;
+		}
+	} else {
+		if (gpio_is_valid(data->pdata->irq_gpio))
+			gpio_free(data->pdata->irq_gpio);
+		if (gpio_is_valid(data->pdata->reset_gpio)) {
+			/*
+			 * This is intended to save leakage current only.
+			 * Even if the call(gpio_direction_input) fails,
+			 * only leakage current will be more but functionality
+			 * will not be affected.
+			 */
+			error = gpio_direction_input(data->pdata->reset_gpio);
+			if (error) {
+				dev_err(&data->client->dev,
+				"unable to set direction for gpio [%d]\n",
+				data->pdata->reset_gpio);
+			}
+			gpio_free(data->pdata->reset_gpio);
+		}
+	}
+
+	return 0;
+
+err_free_irq_gpio:
+	if (gpio_is_valid(data->pdata->irq_gpio))
+		gpio_free(data->pdata->irq_gpio);
+err_free_reset_gpio:
+	if (gpio_is_valid(data->pdata->reset_gpio)) {
+		/*
+		 * This is intended to save leakage current only.
+		 * Even if the call(gpio_direction_input) fails,
+		 * only leakage current will be more but functionality
+		 * will not be affected.
+		 */
+		error = gpio_direction_input(data->pdata->reset_gpio);
+		if (error) {
+			dev_err(&data->client->dev,
+			"unable to set direction for gpio [%d]\n",
+			data->pdata->reset_gpio);
+		}
+		gpio_free(data->pdata->reset_gpio);
+	}
+
+	return error;
+}
+
 static int mxt_regulator_configure(struct mxt_data *data, bool on)
 {
 	int rc;
@@ -2585,9 +2832,27 @@ static int mxt_suspend(struct device *dev)
 		}
 	}
 
+	/* disable gpios */
+	error = mxt_configure_gpio(data, false);
+	if (error) {
+		dev_err(dev, "failed to disable gpios\n");
+		goto err_configure_gpio;
+	}
+
 	data->dev_sleep = true;
 	return 0;
 
+err_configure_gpio:
+	/* put regulators in low power mode */
+	if (data->lpm_support) {
+		error = mxt_regulator_lpm(data, false);
+		if (error < 0)
+			dev_err(dev, "failed to enter low power mode\n");
+	} else {
+		error = mxt_power_on(data, true);
+		if (error < 0)
+			dev_err(dev, "failed to disable regulators\n");
+	}
 err_reg_lpm:
 	mutex_lock(&input_dev->mutex);
 	if (input_dev->users)
@@ -2612,18 +2877,25 @@ static int mxt_resume(struct device *dev)
 		return 0;
 	}
 
+	/* enable gpios */
+	error = mxt_configure_gpio(data, true);
+	if (error) {
+		dev_err(dev, "failed to enable gpios\n");
+		return error;
+	}
+
 	/* put regulators back in active power mode */
 	if (data->lpm_support) {
 		error = mxt_regulator_lpm(data, false);
 		if (error < 0) {
 			dev_err(dev, "failed to enter high power mode\n");
-			return error;
+			goto err_configure_gpio;
 		}
 	} else {
 		error = mxt_power_on(data, true);
 		if (error < 0) {
 			dev_err(dev, "failed to enable regulators\n");
-			return error;
+			goto err_configure_gpio;
 		}
 		mxt_power_on_delay(data);
 	}
@@ -2658,6 +2930,10 @@ static int mxt_resume(struct device *dev)
 	data->dev_sleep = false;
 	return 0;
 
+err_configure_gpio:
+	error = mxt_configure_gpio(data, false);
+	if (error)
+		dev_err(dev, "failed to disable gpios\n");
 err_mxt_start:
 	/* put regulators in low power mode */
 	if (data->lpm_support) {
@@ -2793,11 +3069,11 @@ static void mxt_debugfs_init(struct mxt_data *data)
 
 #ifdef CONFIG_OF
 static int mxt_get_dt_coords(struct device *dev, char *name,
-				struct mxt_platform_data *pdata)
+		struct device_node *node, struct mxt_platform_data *pdata)
 {
 	u32 coords[MXT_COORDS_ARR_SIZE];
 	struct property *prop;
-	struct device_node *np = dev->of_node;
+	struct device_node *np = (node == NULL) ? (dev->of_node) : (node);
 	int coords_size, rc;
 
 	prop = of_find_property(np, name, NULL);
@@ -2875,12 +3151,12 @@ static int mxt_parse_dt(struct device *dev, struct mxt_platform_data *pdata)
 	struct property *prop;
 	u32 temp_val;
 
-	rc = mxt_get_dt_coords(dev, "atmel,panel-coords", pdata);
-	if (rc)
+	rc = mxt_get_dt_coords(dev, "atmel,panel-coords", NULL, pdata);
+	if (rc && (rc != -EINVAL))
 		return rc;
 
-	rc = mxt_get_dt_coords(dev, "atmel,display-coords", pdata);
-	if (rc)
+	rc = mxt_get_dt_coords(dev, "atmel,display-coords", NULL, pdata);
+	if (rc && (rc != -EINVAL))
 		return rc;
 
 	/* regulator info */
@@ -2900,6 +3176,8 @@ static int mxt_parse_dt(struct device *dev, struct mxt_platform_data *pdata)
 				0, &pdata->reset_gpio_flags);
 	pdata->irq_gpio = of_get_named_gpio_flags(np, "atmel,irq-gpio",
 				0, &pdata->irq_gpio_flags);
+
+	pdata->create_vkeys = of_property_read_bool(np, "atmel,create-vkeys");
 
 	/* keycodes for keyarray object*/
 	prop = of_find_property(np, "atmel,key-codes", NULL);
@@ -3058,6 +3336,139 @@ static void mxt_secure_touch_init(struct mxt_data *data)
 }
 #endif
 
+static int mxt_pinctrl_init(struct mxt_data *data)
+{
+	int retval;
+
+	/* Get pinctrl if target uses pinctrl */
+	data->ts_pinctrl = devm_pinctrl_get(&(data->client->dev));
+	if (IS_ERR_OR_NULL(data->ts_pinctrl)) {
+		retval = PTR_ERR(data->ts_pinctrl);
+		dev_dbg(&data->client->dev,
+			"Target does not use pinctrl %d\n", retval);
+		goto err_pinctrl_get;
+	}
+
+	data->pinctrl_state_active
+		= pinctrl_lookup_state(data->ts_pinctrl,
+				PINCTRL_STATE_ACTIVE);
+	if (IS_ERR_OR_NULL(data->pinctrl_state_active)) {
+		retval = PTR_ERR(data->pinctrl_state_active);
+		dev_err(&data->client->dev,
+			"Can not lookup %s pinstate %d\n",
+			PINCTRL_STATE_ACTIVE, retval);
+		goto err_pinctrl_lookup;
+	}
+
+	data->pinctrl_state_suspend
+		= pinctrl_lookup_state(data->ts_pinctrl,
+				PINCTRL_STATE_SUSPEND);
+	if (IS_ERR_OR_NULL(data->pinctrl_state_suspend)) {
+		retval = PTR_ERR(data->pinctrl_state_suspend);
+		dev_err(&data->client->dev,
+			"Can not lookup %s pinstate %d\n",
+			PINCTRL_STATE_SUSPEND, retval);
+		goto err_pinctrl_lookup;
+	}
+
+	data->pinctrl_state_release
+		= pinctrl_lookup_state(data->ts_pinctrl,
+				PINCTRL_STATE_RELEASE);
+	if (IS_ERR_OR_NULL(data->pinctrl_state_release)) {
+		retval = PTR_ERR(data->pinctrl_state_release);
+		dev_dbg(&data->client->dev,
+			"Can not lookup %s pinstate %d\n",
+			PINCTRL_STATE_RELEASE, retval);
+	}
+
+	return 0;
+
+err_pinctrl_lookup:
+	devm_pinctrl_put(data->ts_pinctrl);
+err_pinctrl_get:
+	data->ts_pinctrl = NULL;
+	return retval;
+}
+
+static int mxt_check_child_node_and_create_vkeys(struct mxt_data *data,
+		struct mxt_platform_data *pdata, struct device_node *np)
+{
+	u8 family_id;
+	u16 x_reso, y_reso;
+	u32 temp_val, d[MXT_COORDS_ARR_SIZE], p[MXT_COORDS_ARR_SIZE];
+	int error, proplen;
+	struct i2c_client *client = data->client;
+
+	if (!of_property_read_u32_array(np, DISP_PROP, d, ARRAY_SIZE(d)) &&
+		!of_property_read_u32_array(np, PANEL_PROP, p, ARRAY_SIZE(p)) &&
+		!of_property_read_u32(np, "atmel,family-id", &temp_val) &&
+		of_find_property(np, "atmel,vkey-codes", &proplen)) {
+
+		/* Read family id from dt */
+		family_id = (u8) temp_val;
+
+		/* Read X resolution of touch panel from dt */
+		x_reso = (u16) p[2];
+
+		/* Read Y resolution of touch panel from dt */
+		y_reso = (u16) p[3];
+
+		/*
+		 * Check if family id, x-resolution and y-resolution read from
+		 * the child DT node match with those read from the touch
+		 * controller. In case there is a match:
+		 * 1. Populate platform data
+		 * 2. Create /sys/board_properties/virtual_keys.<devicename>
+		 *  sysfs
+		 * Otherwise return -EINVAL to indicate that current child
+		 * node's characteristics don't match that of the touch
+		 * controller's.
+		 */
+		if (family_id == data->info.family_id &&
+				x_reso == data->t9_xmax_reso &&
+				y_reso == data->t9_ymax_reso) {
+
+			/* Populate platform data's display coordinates */
+			pdata->disp_minx = d[0];
+			pdata->disp_miny = d[1];
+			pdata->disp_maxx = d[2];
+			pdata->disp_maxy = d[3];
+
+			/* Populate platform data's panel coordinates */
+			pdata->panel_minx = p[0];
+			pdata->panel_miny = p[1];
+			pdata->panel_maxx = p[2];
+			pdata->panel_maxy = p[3];
+
+			/* Parse vkey-codes property */
+			pdata->nvkeys = proplen / sizeof(u32);
+			pdata->vkey_codes = devm_kzalloc(&client->dev,
+					sizeof(int) * pdata->nvkeys,
+					GFP_KERNEL);
+			if (!pdata->vkey_codes)
+				return -ENOMEM;
+
+			error = of_property_read_u32_array(np,
+					"atmel,vkey-codes",
+					pdata->vkey_codes, pdata->nvkeys);
+			if (error) {
+				dev_err(&client->dev, "Unable to read virtual key codes\n");
+				return error;
+			}
+
+			error = mxt_virtual_keys_init(&client->dev, data);
+			if (error) {
+				dev_err(&client->dev, "Unable to create virtual keys\n");
+				return error;
+			}
+		} else
+			return -EINVAL;
+	} else
+		return -EINVAL;
+
+	return 0;
+}
+
 static int mxt_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
@@ -3065,6 +3476,7 @@ static int mxt_probe(struct i2c_client *client,
 	struct mxt_data *data;
 	struct input_dev *input_dev;
 	int error, i;
+	struct device_node *child, *np;
 
 	if (client->dev.of_node) {
 		pdata = devm_kzalloc(&client->dev,
@@ -3110,25 +3522,6 @@ static int mxt_probe(struct i2c_client *client,
 	__set_bit(BTN_TOUCH, input_dev->keybit);
 	__set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
 
-	/* For single touch */
-	input_set_abs_params(input_dev, ABS_X,
-			pdata->disp_minx, pdata->disp_maxx, 0, 0);
-	input_set_abs_params(input_dev, ABS_Y,
-			pdata->disp_miny, pdata->disp_maxy, 0, 0);
-	input_set_abs_params(input_dev, ABS_PRESSURE,
-			     0, 255, 0, 0);
-
-	/* For multi touch */
-	input_mt_init_slots(input_dev, MXT_MAX_FINGER, 0);
-	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR,
-			     0, MXT_MAX_AREA, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_POSITION_X,
-			pdata->disp_minx, pdata->disp_maxx, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_POSITION_Y,
-			pdata->disp_miny, pdata->disp_maxy, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_PRESSURE,
-			     0, 255, 0, 0);
-
 	/* set key array supported keys */
 	if (pdata->key_codes) {
 		for (i = 0; i < MXT_KEYARRAY_MAX_KEYS; i++) {
@@ -3150,64 +3543,36 @@ static int mxt_probe(struct i2c_client *client,
 		goto err_free_mem;
 	}
 
-	if (gpio_is_valid(pdata->reset_gpio)) {
-		/* configure touchscreen reset out gpio */
-		error = gpio_request(pdata->reset_gpio, "mxt_reset_gpio");
-		if (error) {
-			dev_err(&client->dev, "unable to request gpio [%d]\n",
-						pdata->reset_gpio);
-			goto err_regulator_on;
-		}
-
-		error = gpio_direction_output(pdata->reset_gpio, 0);
-		if (error) {
-			dev_err(&client->dev,
-				"unable to set direction for gpio [%d]\n",
-				pdata->reset_gpio);
-			goto err_reset_gpio_req;
-		}
-		mxt_reset_delay(data);
-	}
-
 	if (pdata->power_on)
 		error = pdata->power_on(true);
 	else
 		error = mxt_power_on(data, true);
 	if (error) {
 		dev_err(&client->dev, "Failed to power on hardware\n");
-		goto err_reset_gpio_req;
+		goto err_regulator_on;
 	}
 
-	if (gpio_is_valid(pdata->irq_gpio)) {
-		/* configure touchscreen irq gpio */
-		error = gpio_request(pdata->irq_gpio, "mxt_irq_gpio");
-		if (error) {
-			dev_err(&client->dev, "unable to request gpio [%d]\n",
-						pdata->irq_gpio);
-			goto err_power_on;
-		}
-		error = gpio_direction_input(pdata->irq_gpio);
-		if (error) {
+	error = mxt_pinctrl_init(data);
+	if (!error && data->ts_pinctrl) {
+		/*
+		* Pinctrl handle is optional. If pinctrl handle is found
+		* let pins to be configured in active state. If not found
+		* continue further without error
+		*/
+		if (pinctrl_select_state(data->ts_pinctrl,
+				data->pinctrl_state_active))
 			dev_err(&client->dev,
-				"unable to set direction for gpio [%d]\n",
-				pdata->irq_gpio);
-			goto err_irq_gpio_req;
-		}
-		data->irq = client->irq = gpio_to_irq(pdata->irq_gpio);
-	} else {
-		dev_err(&client->dev, "irq gpio not provided\n");
+				"Can not select %s pinstate\n",
+				PINCTRL_STATE_ACTIVE);
+	}
+
+	error = mxt_configure_gpio(data, true);
+	if (error) {
+		dev_err(&client->dev, "Failed to configure gpios\n");
 		goto err_power_on;
 	}
 
-	if (gpio_is_valid(pdata->reset_gpio)) {
-		error = gpio_direction_output(pdata->reset_gpio, 1);
-		if (error) {
-			dev_err(&client->dev,
-				"unable to set direction for gpio [%d]\n",
-				pdata->reset_gpio);
-				goto err_irq_gpio_req;
-		}
-	}
+	data->irq = client->irq = gpio_to_irq(pdata->irq_gpio);
 
 	mxt_power_on_delay(data);
 
@@ -3220,11 +3585,41 @@ static int mxt_probe(struct i2c_client *client,
 
 	error = mxt_initialize(data);
 	if (error)
-		goto err_irq_gpio_req;
+		goto err_configure_gpio;
+
+	if (pdata->create_vkeys) {
+		np = client->dev.of_node;
+		for_each_child_of_node(np, child) {
+			if (!mxt_check_child_node_and_create_vkeys(data,
+						 pdata, child)) {
+				dev_info(&client->dev, "vkeys created successfully\n");
+				break;
+			}
+		}
+		if (child == NULL)
+			dev_err(&client->dev, "Failed to create vkeys\n");
+	}
+
+	/* For single touch */
+	input_set_abs_params(input_dev, ABS_X,
+			data->pdata->disp_minx, data->pdata->disp_maxx, 0, 0);
+	input_set_abs_params(input_dev, ABS_Y,
+			data->pdata->disp_miny, data->pdata->disp_maxy, 0, 0);
+	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 255, 0, 0);
+
+	/* For multi touch */
+	input_mt_init_slots(input_dev, MXT_MAX_FINGER, 0);
+	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR,
+			     0, MXT_MAX_AREA, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_POSITION_X,
+			data->pdata->disp_minx, data->pdata->disp_maxx, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_POSITION_Y,
+			data->pdata->disp_miny, data->pdata->disp_maxy, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, 255, 0, 0);
 
 	error = irq_of_parse_and_map(client->dev.of_node, 0);
 	if (!error)
-		goto err_irq_gpio_req;
+		goto err_parse_irq;
 
 	error = request_threaded_irq(client->irq, NULL, mxt_interrupt,
 			pdata->irqflags | IRQF_ONESHOT,
@@ -3279,17 +3674,32 @@ err_free_irq:
 	free_irq(client->irq, data);
 err_free_object:
 	kfree(data->object_table);
-err_irq_gpio_req:
+err_parse_irq:
+	if (data->pdata->create_vkeys) {
+		sysfs_remove_group(vkey_kobj, &vkey_grp);
+		kobject_put(vkey_kobj);
+	}
+err_configure_gpio:
 	if (gpio_is_valid(pdata->irq_gpio))
 		gpio_free(pdata->irq_gpio);
+	if (gpio_is_valid(pdata->reset_gpio))
+		gpio_free(pdata->reset_gpio);
 err_power_on:
+	if (data->ts_pinctrl) {
+		if (IS_ERR_OR_NULL(data->pinctrl_state_release)) {
+			devm_pinctrl_put(data->ts_pinctrl);
+			data->ts_pinctrl = NULL;
+		} else {
+			error = pinctrl_select_state(data->ts_pinctrl,
+				data->pinctrl_state_release);
+			if (error)
+				pr_err("failed to select release pinctrl state\n");
+		}
+	}
 	if (pdata->power_on)
 		pdata->power_on(false);
 	else
 		mxt_power_on(data, false);
-err_reset_gpio_req:
-	if (gpio_is_valid(pdata->reset_gpio))
-		gpio_free(pdata->reset_gpio);
 err_regulator_on:
 	if (pdata->init_hw)
 		pdata->init_hw(false);
@@ -3303,9 +3713,14 @@ err_free_mem:
 
 static int mxt_remove(struct i2c_client *client)
 {
+	int retval;
 	struct mxt_data *data = i2c_get_clientdata(client);
 
 	sysfs_remove_group(&client->dev.kobj, &mxt_attr_group);
+	if (data->pdata->create_vkeys) {
+		sysfs_remove_group(vkey_kobj, &vkey_grp);
+		kobject_put(vkey_kobj);
+	}
 	free_irq(data->irq, data);
 	input_unregister_device(data->input_dev);
 #if defined(CONFIG_FB)
@@ -3314,6 +3729,17 @@ static int mxt_remove(struct i2c_client *client)
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
 	unregister_early_suspend(&data->early_suspend);
 #endif
+	if (data->ts_pinctrl) {
+		if (IS_ERR_OR_NULL(data->pinctrl_state_release)) {
+			devm_pinctrl_put(data->ts_pinctrl);
+			data->ts_pinctrl = NULL;
+		} else {
+			retval = pinctrl_select_state(data->ts_pinctrl,
+					data->pinctrl_state_release);
+			if (retval < 0)
+				pr_err("failed to select release pinctrl state\n");
+		}
+	}
 
 	if (data->pdata->power_on)
 		data->pdata->power_on(false);

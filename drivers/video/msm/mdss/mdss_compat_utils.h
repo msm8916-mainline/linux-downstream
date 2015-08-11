@@ -33,6 +33,27 @@ struct fb_cmap32 {
 	compat_caddr_t	transp;
 };
 
+struct fb_image32 {
+	u32 dx;
+	u32 dy;
+	u32 width;
+	u32 height;
+	u32 fg_color;
+	u32 bg_color;
+	u8 depth;
+	compat_caddr_t data;
+	struct fb_cmap32 cmap;
+};
+
+struct fb_cursor32 {
+	u16 set;
+	u16 enable;
+	u16 rop;
+	compat_caddr_t mask;
+	struct fbcurpos	hot;
+	struct fb_image32 image;
+};
+
 struct mdp_ccs32 {
 };
 
@@ -147,6 +168,12 @@ struct mdp_pa_cfg_data32 {
 	struct mdp_pa_cfg32 pa_data;
 };
 
+struct mdp_rgb_lut_data32 {
+	uint32_t flags;
+	uint32_t lut_type;
+	struct fb_cmap32 cmap;
+};
+
 struct mdp_igc_lut_data32 {
 	uint32_t block;
 	uint32_t len, ops;
@@ -184,6 +211,7 @@ struct mdp_lut_cfg_data32 {
 		struct mdp_igc_lut_data32 igc_lut_data;
 		struct mdp_pgc_lut_data32 pgc_lut_data;
 		struct mdp_hist_lut_data32 hist_lut_data;
+		struct mdp_rgb_lut_data32 rgb_lut_data;
 	} data;
 };
 
@@ -252,9 +280,13 @@ struct mdss_ad_init32 {
 	uint16_t frame_h;
 	uint8_t logo_v;
 	uint8_t logo_h;
+	uint32_t alpha;
+	uint32_t alpha_base;
 	uint32_t bl_lin_len;
+	uint32_t bl_att_len;
 	compat_caddr_t bl_lin;
 	compat_caddr_t bl_lin_inv;
+	compat_caddr_t bl_att_lut;
 };
 
 struct mdss_ad_cfg32 {
@@ -294,6 +326,10 @@ struct mdss_ad_input32 {
 struct mdss_calib_cfg32 {
 	uint32_t ops;
 	uint32_t calib_mask;
+};
+
+struct mdp_pp_init_data32 {
+	uint32_t init_request;
 };
 
 struct mdp_histogram_cfg32 {
@@ -342,6 +378,7 @@ struct msmfb_mdp_pp32 {
 		struct mdss_ad_input32 ad_input;
 		struct mdp_calib_config_buffer32 calib_buffer;
 		struct mdp_calib_dcm_state32 calib_dcm;
+		struct mdp_pp_init_data32 init_data;
 	} data;
 };
 
@@ -364,6 +401,14 @@ struct mdp_overlay32 {
 	uint8_t vert_deci;
 	struct mdp_overlay_pp_params32 overlay_pp_cfg;
 	struct mdp_scale_data scale;
+	uint8_t color_space;
+};
+
+struct mdp_overlay_list32 {
+	uint32_t num_overlays;
+	compat_caddr_t overlay_list;
+	uint32_t flags;
+	uint32_t processed_overlays;
 };
 
 #endif

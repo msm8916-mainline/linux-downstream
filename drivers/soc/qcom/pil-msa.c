@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -50,6 +50,8 @@
 #define RMB_PMI_META_DATA		0x10
 #define RMB_PMI_CODE_START		0x14
 #define RMB_PMI_CODE_LENGTH		0x18
+#define RMB_PROTOCOL_VERSION		0x1C
+#define RMB_MBA_DEBUG_INFORMATION	0x20
 
 #define POLL_INTERVAL_US		50
 
@@ -64,13 +66,20 @@
 #define EXTERNAL_BHS_STATUS		BIT(4)
 #define BHS_TIMEOUT_US			50
 
+#define MSS_RESTART_PARAM_ID		0x2
 #define MSS_RESTART_ID			0xA
+
+#define MSS_MAGIC			0XAABADEAD
 
 static int pbl_mba_boot_timeout_ms = 1000;
 module_param(pbl_mba_boot_timeout_ms, int, S_IRUGO | S_IWUSR);
 
 static int modem_auth_timeout_ms = 10000;
 module_param(modem_auth_timeout_ms, int, S_IRUGO | S_IWUSR);
+
+/* If set to 0xAABADEAD, MBA failures trigger a kernel panic */
+static uint modem_trigger_panic;
+module_param(modem_trigger_panic, uint, S_IRUGO | S_IWUSR);
 
 static void modem_log_rmb_regs(void __iomem *base)
 {
@@ -85,7 +94,13 @@ static void modem_log_rmb_regs(void __iomem *base)
 				readl_relaxed(base + RMB_PMI_CODE_START));
 	pr_err("RMB_PMI_CODE_LENGTH: %08x\n",
 				readl_relaxed(base + RMB_PMI_CODE_LENGTH));
+	pr_err("RMB_PROTOCOL_VERSION: %08x\n",
+				readl_relaxed(base + RMB_PROTOCOL_VERSION));
+	pr_err("RMB_MBA_DEBUG_INFORMATION: %08x\n",
+			readl_relaxed(base + RMB_MBA_DEBUG_INFORMATION));
 
+	if (modem_trigger_panic == MSS_MAGIC)
+		panic("%s: System ramdump is needed!!!\n", __func__);
 }
 
 static int pil_mss_power_up(struct q6v5_data *drv)
@@ -140,9 +155,14 @@ static int pil_mss_enable_clks(struct q6v5_data *drv)
 	ret = clk_prepare_enable(drv->rom_clk);
 	if (ret)
 		goto err_rom_clk;
+	ret = clk_prepare_enable(drv->gpll0_mss_clk);
+	if (ret)
+		goto err_gpll0_mss_clk;
 
 	return 0;
 
+err_gpll0_mss_clk:
+	clk_disable_unprepare(drv->rom_clk);
 err_rom_clk:
 	clk_disable_unprepare(drv->axi_clk);
 err_axi_clk:
@@ -153,24 +173,38 @@ err_ahb_clk:
 
 static void pil_mss_disable_clks(struct q6v5_data *drv)
 {
+	clk_disable_unprepare(drv->gpll0_mss_clk);
 	clk_disable_unprepare(drv->rom_clk);
 	clk_disable_unprepare(drv->axi_clk);
-	clk_disable_unprepare(drv->ahb_clk);
+	if (!drv->ahb_clk_vote)
+		clk_disable_unprepare(drv->ahb_clk);
 }
 
 static int pil_mss_restart_reg(struct q6v5_data *drv, u32 mss_restart)
 {
 	int ret = 0;
-	int scm_ret;
+	int scm_ret = 0;
+	struct scm_desc desc = {0};
+
+	desc.args[0] = mss_restart;
+	desc.args[1] = 0;
+	desc.arginfo = SCM_ARGS(2);
 
 	if (drv->restart_reg && !drv->restart_reg_sec) {
 		writel_relaxed(mss_restart, drv->restart_reg);
 		mb();
 		udelay(2);
 	} else if (drv->restart_reg_sec) {
-		ret = scm_call(SCM_SVC_PIL, MSS_RESTART_ID, &mss_restart,
-			sizeof(mss_restart), &scm_ret, sizeof(scm_ret));
-		if (ret)
+		if (!is_scm_armv8()) {
+			ret = scm_call(SCM_SVC_PIL, MSS_RESTART_ID,
+					&mss_restart, sizeof(mss_restart),
+					&scm_ret, sizeof(scm_ret));
+		} else {
+			ret = scm_call2(SCM_SIP_FNID(SCM_SVC_PIL,
+						MSS_RESTART_ID), &desc);
+			scm_ret = desc.ret[0];
+		}
+		if (ret || scm_ret)
 			pr_err("Secure MSS restart failed\n");
 	}
 
@@ -240,6 +274,26 @@ int pil_mss_shutdown(struct pil_desc *pil)
 		drv->is_booted = false;
 	}
 
+	return ret;
+}
+
+int pil_mss_deinit_image(struct pil_desc *pil)
+{
+	struct modem_data *drv = dev_get_drvdata(pil->dev);
+	struct q6v5_data *q6_drv = container_of(pil, struct q6v5_data, desc);
+	int ret = 0;
+
+	ret = pil_mss_shutdown(pil);
+
+	if (q6_drv->ahb_clk_vote)
+		clk_disable_unprepare(q6_drv->ahb_clk);
+
+	/* In case of any failure where reclaim MBA memory
+	 * could not happen, free the memory here */
+	if (drv->q6->mba_virt)
+		dma_free_attrs(&drv->mba_mem_dev, drv->q6->mba_size,
+				drv->q6->mba_virt, drv->q6->mba_phys,
+				&drv->attrs_dma);
 	return ret;
 }
 
@@ -335,7 +389,7 @@ static int pil_mss_reset(struct pil_desc *pil)
 			goto err_q6v5_reset;
 	}
 
-	pr_info("pil: MBA boot done\n");
+	dev_info(pil->dev, "MBA boot done\n");
 	drv->is_booted = true;
 
 	return 0;
@@ -343,6 +397,8 @@ static int pil_mss_reset(struct pil_desc *pil)
 err_q6v5_reset:
 	modem_log_rmb_regs(drv->rmb_base);
 	pil_mss_disable_clks(drv);
+	if (drv->ahb_clk_vote)
+		clk_disable_unprepare(drv->ahb_clk);
 err_clks:
 	pil_mss_restart_reg(drv, 1);
 err_restart:
@@ -360,7 +416,7 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 	char fw_name[10] = "mba.mbn";
 	char *fw_name_p;
 	void *mba_virt;
-	dma_addr_t mba_phys;
+	dma_addr_t mba_phys, mba_phys_end;
 	int ret, count;
 	const u8 *data;
 
@@ -376,8 +432,10 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 	drv->mba_size = SZ_1M;
 	md->mba_mem_dev.coherent_dma_mask =
 		DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
-	mba_virt = dma_alloc_coherent(&md->mba_mem_dev, drv->mba_size,
-					&mba_phys, GFP_KERNEL);
+	init_dma_attrs(&md->attrs_dma);
+	dma_set_attr(DMA_ATTR_STRONGLY_ORDERED, &md->attrs_dma);
+	mba_virt = dma_alloc_attrs(&md->mba_mem_dev, drv->mba_size,
+			&mba_phys, GFP_KERNEL, &md->attrs_dma);
 	if (!mba_virt) {
 		dev_err(pil->dev, "MBA metadata buffer allocation failed\n");
 		ret = -ENOMEM;
@@ -386,10 +444,18 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 
 	drv->mba_phys = mba_phys;
 	drv->mba_virt = mba_virt;
+	mba_phys_end = mba_phys + drv->mba_size;
 
+	dev_info(pil->dev, "MBA: loading from %pa to %pa\n", &mba_phys,
+								&mba_phys_end);
 	/* Load the MBA image into memory */
 	count = fw->size;
 	data = fw ? fw->data : NULL;
+	if (!data) {
+		dev_err(pil->dev, "MBA data is NULL\n");
+		ret = -ENOMEM;
+		goto err_mss_reset;
+	}
 	memcpy(mba_virt, data, count);
 	wmb();
 
@@ -404,8 +470,8 @@ int pil_mss_reset_load_mba(struct pil_desc *pil)
 	return 0;
 
 err_mss_reset:
-	dma_free_coherent(&md->mba_mem_dev, drv->mba_size, drv->mba_virt,
-				drv->mba_phys);
+	dma_free_attrs(&md->mba_mem_dev, drv->mba_size, drv->mba_virt,
+				drv->mba_phys, &md->attrs_dma);
 err_dma_alloc:
 	release_firmware(fw);
 	return ret;
@@ -419,12 +485,14 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 	dma_addr_t mdata_phys;
 	s32 status;
 	int ret;
+	DEFINE_DMA_ATTRS(attrs);
 
 	drv->mba_mem_dev.coherent_dma_mask =
 		DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
+	dma_set_attr(DMA_ATTR_STRONGLY_ORDERED, &attrs);
 	/* Make metadata physically contiguous and 4K aligned. */
-	mdata_virt = dma_alloc_coherent(&drv->mba_mem_dev, size, &mdata_phys,
-					GFP_KERNEL);
+	mdata_virt = dma_alloc_attrs(&drv->mba_mem_dev, size, &mdata_phys,
+					GFP_KERNEL, &attrs);
 	if (!mdata_virt) {
 		dev_err(pil->dev, "MBA metadata buffer allocation failed\n");
 		return -ENOMEM;
@@ -450,7 +518,7 @@ static int pil_msa_auth_modem_mdt(struct pil_desc *pil, const u8 *metadata,
 		ret = -EINVAL;
 	}
 
-	dma_free_coherent(&drv->mba_mem_dev, size, mdata_virt, mdata_phys);
+	dma_free_attrs(&drv->mba_mem_dev, size, mdata_virt, mdata_phys, &attrs);
 
 	if (ret) {
 		modem_log_rmb_regs(drv->rmb_base);
@@ -501,6 +569,7 @@ static int pil_msa_mba_verify_blob(struct pil_desc *pil, phys_addr_t phy_addr,
 static int pil_msa_mba_auth(struct pil_desc *pil)
 {
 	struct modem_data *drv = dev_get_drvdata(pil->dev);
+	struct q6v5_data *q6_drv = container_of(pil, struct q6v5_data, desc);
 	int ret;
 	s32 status;
 
@@ -515,12 +584,19 @@ static int pil_msa_mba_auth(struct pil_desc *pil)
 		ret = -EINVAL;
 	}
 
-	if (drv->q6 && drv->q6->mba_virt)
+	if (drv->q6 && drv->q6->mba_virt) {
 		/* Reclaim MBA memory. */
-		dma_free_coherent(&drv->mba_mem_dev, drv->q6->mba_size,
-					drv->q6->mba_virt, drv->q6->mba_phys);
+		dma_free_attrs(&drv->mba_mem_dev, drv->q6->mba_size,
+					drv->q6->mba_virt, drv->q6->mba_phys,
+					&drv->attrs_dma);
+		drv->q6->mba_virt = NULL;
+	}
+
 	if (ret)
 		modem_log_rmb_regs(drv->rmb_base);
+	if (q6_drv->ahb_clk_vote)
+		clk_disable_unprepare(q6_drv->ahb_clk);
+
 	return ret;
 }
 
@@ -546,7 +622,7 @@ struct pil_reset_ops pil_msa_mss_ops_selfauth = {
 	.proxy_unvote = pil_mss_remove_proxy_votes,
 	.verify_blob = pil_msa_mba_verify_blob,
 	.auth_and_reset = pil_msa_mba_auth,
-	.deinit_image = pil_mss_shutdown,
+	.deinit_image = pil_mss_deinit_image,
 	.shutdown = pil_mss_shutdown,
 };
 

@@ -56,7 +56,10 @@ enum rmnet_ioctl_extended_cmds_e {
 	RMNET_IOCTL_SET_QOS_VERSION            = 0x0011,   /* 8/6 byte QoS hdr*/
 	RMNET_IOCTL_GET_QOS_VERSION            = 0x0012,   /* 8/6 byte QoS hdr*/
 	RMNET_IOCTL_GET_SUPPORTED_QOS_MODES    = 0x0013,   /* Get QoS modes   */
-	RMNET_IOCTL_EXTENDED_MAX               = 0x0014
+	RMNET_IOCTL_SET_SLEEP_STATE            = 0x0014,   /* Set sleep state */
+	RMNET_IOCTL_SET_XLAT_DEV_INFO          = 0x0015,   /* xlat dev name   */
+	RMNET_IOCTL_DEREGISTER_DEV             = 0x0016,   /* Dereg a net dev */
+	RMNET_IOCTL_EXTENDED_MAX               = 0x0017
 };
 
 /* Return values for the RMNET_IOCTL_GET_SUPPORTED_FEATURES IOCTL */
@@ -133,7 +136,7 @@ struct rmnet_ioctl_data_s {
 struct QMI_QOS_HDR_S {
 	unsigned char    version;
 	unsigned char    flags;
-	unsigned long    flow_id;
+	uint32_t         flow_id;
 };
 
 /* QMI QoS 8-byte header. */

@@ -30,9 +30,10 @@
 			vdd-supply = <&pm8916_l17>;
 			vcc_i2c-supply = <&pm8916_l6>;
 			/* pins used by touchscreen */
-			pinctrl-names = "pmx_ts_active","pmx_ts_suspend";
+			pinctrl-names = "pmx_ts_active","pmx_ts_suspend","pmx_ts_release";
 			pinctrl-0 = <&ts_int_active &ts_reset_active>;
 			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+			pinctrl-2 = <&ts_release>;
 			synaptics,irq-gpio = <&msm_gpio 13 0x2008>;
 			synaptics,reset-gpio = <&msm_gpio 12 0x0>;
 			synaptics,i2c-pull-up;
@@ -46,7 +47,7 @@
 			synaptics,device2 {
 				synaptics,package-id = <3408>;
 				synaptics,display-coords = <0 0 1079 1919>;
-				synaptics,panel-coords = <0 0 1079 2084>;
+				synaptics,panel-coords = <0 0 1079 2063>;
 			};
 		};
 	};
@@ -129,15 +130,6 @@
 			ak,layout = <0x6>;
 			ak,auto-report;
 		};
-	};
-
-	wcd9xxx_intc: wcd9xxx_irq {
-		compatible = "qcom,wcd9xxx-irq";
-		interrupt-controller;
-		#interrupt-cells = <1>;
-		interrupt-parent = <&intc>;
-		interrupts = <0 68 0>;
-		interrupt-names = "cdc-int";
 	};
 
 	i2c@78b6000 { /* BLSP1 QUP2 */
@@ -224,7 +216,11 @@
 			"MIC BIAS Internal3", "Secondary Mic",
 			"AMIC1", "MIC BIAS Internal1",
 			"AMIC2", "MIC BIAS Internal2",
-			"AMIC3", "MIC BIAS Internal3";
+			"AMIC3", "MIC BIAS Internal3",
+			"DMIC1", "MIC BIAS Internal1",
+			"MIC BIAS Internal1", "Digital Mic1",
+			"DMIC2", "MIC BIAS Internal1",
+			"MIC BIAS Internal1", "Digital Mic2";
 		pinctrl-names = "cdc_lines_act",
 				"cdc_lines_sus",
 				"cdc_lines_sec_ext_act",
@@ -236,6 +232,7 @@
 		pinctrl-3 = <&cdc_pdm_lines_sus &cdc_ext_pa_sus
 						&cdc_ext_pa_ws_sus>;
 	};
+
 	sound-9306 {
 		compatible = "qcom,msm8x16-audio-codec";
 		qcom,model = "msm8x16-tapan-snd-card";
@@ -425,6 +422,7 @@
 #include "dsi-panel-jdi-1080p-video.dtsi"
 #include "dsi-panel-nt35590-720p-video.dtsi"
 #include "dsi-panel-nt35590-720p-cmd.dtsi"
+#include "dsi-panel-hx8394d-720p-video.dtsi"
 
 &mdss_mdp {
 	qcom,mdss-pref-prim-intf = "dsi";
@@ -454,6 +452,14 @@
 	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
 	qcom,cont-splash-enabled;
 	qcom,esd-check-enabled;
+};
+
+&dsi_hx8394d_720_vid {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+	qcom,mdss-dsi-bl-pmic-pwm-frequency = <100>;
+	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
+	qcom,cont-splash-enabled;
 };
 
 &pmx_mdss {

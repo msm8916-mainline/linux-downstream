@@ -49,7 +49,6 @@
 /* XO clock */
 #define BB_CLK1_ID		1
 #define BB_CLK2_ID		2
-#define RF_CLK1_ID		4
 #define RF_CLK2_ID		5
 
 static void __iomem *virt_base;
@@ -69,12 +68,10 @@ DEFINE_CLK_RPM_SMD_QDSS(qdss_clk, qdss_a_clk, RPM_MISC_CLK_TYPE, QDSS_ID);
 /* SMD_XO_BUFFER */
 DEFINE_CLK_RPM_SMD_XO_BUFFER(bb_clk1, bb_clk1_a, BB_CLK1_ID);
 DEFINE_CLK_RPM_SMD_XO_BUFFER(bb_clk2, bb_clk2_a, BB_CLK2_ID);
-DEFINE_CLK_RPM_SMD_XO_BUFFER(rf_clk1, rf_clk1_a, RF_CLK1_ID);
 DEFINE_CLK_RPM_SMD_XO_BUFFER(rf_clk2, rf_clk2_a, RF_CLK2_ID);
 
 DEFINE_CLK_RPM_SMD_XO_BUFFER_PINCTRL(bb_clk1_pin, bb_clk1_a_pin, BB_CLK1_ID);
 DEFINE_CLK_RPM_SMD_XO_BUFFER_PINCTRL(bb_clk2_pin, bb_clk2_a_pin, BB_CLK2_ID);
-DEFINE_CLK_RPM_SMD_XO_BUFFER_PINCTRL(rf_clk1_pin, rf_clk1_a_pin, RF_CLK1_ID);
 DEFINE_CLK_RPM_SMD_XO_BUFFER_PINCTRL(rf_clk2_pin, rf_clk2_a_pin, RF_CLK2_ID);
 
 /* Voter clocks */
@@ -88,6 +85,10 @@ static DEFINE_CLK_VOTER(snoc_msmbus_a_clk,  &snoc_a_clk.c,  LONG_MAX);
 static DEFINE_CLK_VOTER(sysmmnoc_msmbus_a_clk,  &sysmmnoc_a_clk.c,  LONG_MAX);
 static DEFINE_CLK_VOTER(bimc_msmbus_a_clk,  &bimc_a_clk.c,  LONG_MAX);
 static DEFINE_CLK_VOTER(pcnoc_keepalive_a_clk, &pcnoc_a_clk.c, LONG_MAX);
+
+static DEFINE_CLK_VOTER(pcnoc_usb_a_clk, &pcnoc_a_clk.c,  LONG_MAX);
+static DEFINE_CLK_VOTER(snoc_usb_a_clk,  &snoc_a_clk.c,  LONG_MAX);
+static DEFINE_CLK_VOTER(bimc_usb_a_clk,  &bimc_a_clk.c,  LONG_MAX);
 
 /* Branch Voter clocks */
 static DEFINE_CLK_BRANCH_VOTER(xo_gcc, &xo_clk_src.c);
@@ -104,12 +105,14 @@ static struct mux_clk rpm_debug_mux = {
 	.base = &virt_base,
 	MUX_SRC_LIST(
 	{&snoc_clk.c,  0x0000},
+	{&sysmmnoc_clk.c, 0x0001},
 	{&pcnoc_clk.c, 0x0008},
-	/* BIMC_CLK is 2x clock to the BIMC Core as well as DDR, while the
-	 * axi clock is for the BIMC AXI interface. The AXI clock is 1/2 of
-	 * the BIMC Clock. measure the gcc_bimc_apss_axi_clk.
+	/* BIMC_CLK is 2x clock to the BIMC Core as well as DDR.
+	 * The BIMC Clock gcc_bimc_clk is 1/2 of BIMC_CLK, and
+	 * gcc_bimc_apss_axi_clk s not in-sync with gcc_bimc_clk,
+	 * so measure gcc_bimc_clk.
 	 */
-	{&bimc_clk.c,  0x0155},
+	{&bimc_clk.c,  0x0154},
 	),
 	.c = {
 		.dbg_name = "rpm_debug_mux",
@@ -139,6 +142,10 @@ static struct clk_lookup msm_clocks_rpm[] = {
 	CLK_LIST(bimc_msmbus_a_clk),
 	CLK_LIST(pcnoc_keepalive_a_clk),
 
+	CLK_LIST(pcnoc_usb_a_clk),
+	CLK_LIST(snoc_usb_a_clk),
+	CLK_LIST(bimc_usb_a_clk),
+
 	/* CoreSight clocks */
 	CLK_LIST(qdss_clk),
 	CLK_LIST(qdss_a_clk),
@@ -156,8 +163,6 @@ static struct clk_lookup msm_clocks_rpm[] = {
 	CLK_LIST(bb_clk1_a),
 	CLK_LIST(bb_clk2),
 	CLK_LIST(bb_clk2_a),
-	CLK_LIST(rf_clk1),
-	CLK_LIST(rf_clk1_a),
 	CLK_LIST(rf_clk2),
 	CLK_LIST(rf_clk2_a),
 
@@ -165,8 +170,6 @@ static struct clk_lookup msm_clocks_rpm[] = {
 	CLK_LIST(bb_clk1_a_pin),
 	CLK_LIST(bb_clk2_pin),
 	CLK_LIST(bb_clk2_a_pin),
-	CLK_LIST(rf_clk1_pin),
-	CLK_LIST(rf_clk1_a_pin),
 	CLK_LIST(rf_clk2_pin),
 	CLK_LIST(rf_clk2_a_pin),
 

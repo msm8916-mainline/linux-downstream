@@ -34,6 +34,10 @@
 #include <asm/uaccess.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+#include <linux/jiffies.h>
+#include <linux/kthread.h>
+
+#define POLL_MS_100HZ 10
 
 #define ACCEL_INPUT_DEV_NAME	"accelerometer"
 #define DEVICE_NAME		"kxtj9"
@@ -95,6 +99,7 @@
  * The following table lists the maximum appropriate poll interval for each
  * available output data rate.
  */
+
 static struct sensors_classdev sensors_cdev = {
 	.name = "kxtj9-accel",
 	.vendor = "Kionix",
@@ -145,11 +150,17 @@ struct kxtj9_data {
 	u8 ctrl_reg1;
 	u8 data_ctrl;
 	u8 int_ctrl;
+	int tj9_wkp_flag;
+	bool tj9_delay_change;
+
 	bool	power_enabled;
 	struct regulator *vdd;
 	struct regulator *vio;
 	struct sensors_classdev cdev;
 	struct cali_data per_cali_g;
+	struct task_struct *tj9_task;
+	struct hrtimer	poll_timer;
+	wait_queue_head_t	tj9_wq;
 };
 struct kxtj9_data *kxtj9_info;
 static int enable_changed;
@@ -179,6 +190,9 @@ static void kxtj9_report_acceleration_data(struct kxtj9_data *tj9)
 	s16 acc_data[3]; /* Data bytes from hardware xL, xH, yL, yH, zL, zH */
 	s16 x, y, z;
 	int err;
+	ktime_t	timestamp;
+
+	timestamp = ktime_get_boottime();
 
 	err = kxtj9_i2c_read(tj9, XOUT_L, (u8 *)acc_data, 6);
 	if (err < 0)
@@ -202,9 +216,15 @@ static void kxtj9_report_acceleration_data(struct kxtj9_data *tj9)
 	wing_info("gsensor x = %d,y = %d,z = %d\n",tj9->pdata.negate_x ? -x : x,tj9->pdata.negate_y ? -y : y,tj9->pdata.negate_z ? -z : z);
 	if(tj9->enable){
 		if(enable_changed){
-			input_report_abs(tj9->input_dev, ABS_X, (tj9->pdata.negate_x ? -x : x) - tj9->per_cali_g.x);
-			input_report_abs(tj9->input_dev, ABS_Y, (tj9->pdata.negate_y ? -y : y) - tj9->per_cali_g.y);
-			input_report_abs(tj9->input_dev, ABS_Z, (tj9->pdata.negate_z ? -z : z) - tj9->per_cali_g.z);
+			input_report_abs(tj9->input_dev, ABS_X, (tj9->pdata.negate_x ? -x : x)*16 - tj9->per_cali_g.x);
+			input_report_abs(tj9->input_dev, ABS_Y, (tj9->pdata.negate_y ? -y : y)*16 - tj9->per_cali_g.y);
+			input_report_abs(tj9->input_dev, ABS_Z, (tj9->pdata.negate_z ? -z : z)*16 - tj9->per_cali_g.z);
+			input_event(tj9->input_dev, EV_SYN, SYN_TIME_SEC,
+					ktime_to_timespec(timestamp).tv_sec);
+			input_event(tj9->input_dev, EV_SYN, SYN_TIME_NSEC,
+					ktime_to_timespec(timestamp).tv_nsec);
+
+			
 			input_sync(tj9->input_dev);
 		}
 		enable_changed = 1;
@@ -540,12 +560,18 @@ static int kxtj9_enable_set(struct sensors_classdev *sensors_cdev,
 		kxtj9_disable(tj9);
 		tj9->enable = false;
 		enable_changed = 1;
+		hrtimer_cancel(&tj9->poll_timer);
 	} else if (enabled == 1) {
 		if (!kxtj9_enable(tj9)) {
 			enable_irq(tj9->client->irq);
 			tj9->enable = true;
 			enable_changed = 0;
 		}
+		hrtimer_start(&tj9->poll_timer,
+				ns_to_ktime(tj9->last_poll_interval * NSEC_PER_MSEC),
+				HRTIMER_MODE_REL);
+
+
 	} else {
 		dev_err(&tj9->client->dev,
 			"Invalid value of input, input=%d\n", enabled);
@@ -606,6 +632,7 @@ static int kxtj9_poll_delay_set(struct sensors_classdev *sensors_cdev,
 					struct kxtj9_data, cdev);
 	struct input_dev *input_dev = tj9->input_dev;
 
+	tj9->tj9_delay_change = true;
 	/* Lock the device to prevent races with open/close (and itself) */
 	mutex_lock(&input_dev->mutex);
 
@@ -617,6 +644,10 @@ static int kxtj9_poll_delay_set(struct sensors_classdev *sensors_cdev,
 	if (tj9->enable) {
 		kxtj9_update_odr(tj9, tj9->last_poll_interval);
 		enable_irq(tj9->client->irq);
+		hrtimer_cancel(&tj9->poll_timer);
+		hrtimer_start(&tj9->poll_timer,
+					ns_to_ktime(tj9->last_poll_interval * NSEC_PER_MSEC),
+					HRTIMER_MODE_REL);
 	}
 	mutex_unlock(&input_dev->mutex);
 
@@ -665,8 +696,48 @@ static struct attribute *kxtj9_attributes[] = {
 static struct attribute_group kxtj9_attribute_group = {
 	.attrs = kxtj9_attributes
 };
+static int akm_poll_thread(void *data)
+{
+	struct kxtj9_data *sensor = data;
+	struct input_dev *input_dev = sensor->input_dev;
+
+	while (1) {
+		wait_event_interruptible(sensor->tj9_wq,
+			((sensor->tj9_wkp_flag != 0) ||
+				kthread_should_stop()));
+		sensor->tj9_wkp_flag = 0;
+
+		if (kthread_should_stop())
+			break;
+		mutex_lock(&input_dev->mutex);
+		if (sensor->tj9_delay_change) {
+			if (sensor->last_poll_interval <= POLL_MS_100HZ)
+				set_wake_up_idle(true);
+			else
+				set_wake_up_idle(false);
+			sensor->tj9_delay_change = false;
+		}
+		mutex_unlock(&input_dev->mutex);
+
+		kxtj9_report_acceleration_data(sensor);
+	}
+	return 0;
+}
+
+static enum hrtimer_restart akm_timer_func(struct hrtimer *hrtimer)
+{
+	struct kxtj9_data *sensor;
+	ktime_t ktime;
+	sensor = container_of(hrtimer, struct kxtj9_data, poll_timer);
+	ktime = ktime_set(0, sensor->last_poll_interval * NSEC_PER_MSEC);
+	hrtimer_forward_now(&sensor->poll_timer, ktime);
+	sensor->tj9_wkp_flag = 1;
+	wake_up_interruptible(&sensor->tj9_wq);
+	return HRTIMER_RESTART;
+}
 
 #ifdef CONFIG_INPUT_KXTJ9_POLLED_MODE
+#if 0
 static void kxtj9_poll(struct input_polled_dev *dev)
 {
 	struct kxtj9_data *tj9 = dev->private;
@@ -726,11 +797,12 @@ static int kxtj9_setup_polled_device(struct kxtj9_data *tj9)
 
 	return 0;
 }
+#endif
 
 static void kxtj9_teardown_polled_device(struct kxtj9_data *tj9)
 {
-	input_unregister_polled_device(tj9->poll_dev);
-	input_free_polled_device(tj9->poll_dev);
+	//input_unregister_polled_device(tj9->poll_dev);
+	//input_free_polled_device(tj9->poll_dev);
 }
 
 #else
@@ -852,7 +924,8 @@ static int kxtj9_parse_dt(struct device *dev,
 #endif /* !CONFIG_OF */
 
 /* GS open fops */
-ssize_t gsensor_open(struct inode *inode, struct file *file)
+
+int gsensor_open(struct inode *inode, struct file *file)
 {
 
 	file->private_data = kxtj9_info;
@@ -861,7 +934,7 @@ ssize_t gsensor_open(struct inode *inode, struct file *file)
 
 
 /* GS release fops */
-ssize_t gsensor_release(struct inode *inode, struct file *file)
+int gsensor_release(struct inode *inode, struct file *file)
 {
 	
 	return 0;
@@ -956,6 +1029,7 @@ static int kxtj9_probe(struct i2c_client *client,
 			"failed to allocate memory for module data\n");
 		return -ENOMEM;
 	}
+
 	if (client->dev.of_node) {
 		memset(&tj9->pdata, 0 , sizeof(tj9->pdata));
 		err = kxtj9_parse_dt(&client->dev, &tj9->pdata);
@@ -1004,7 +1078,12 @@ static int kxtj9_probe(struct i2c_client *client,
 		dev_err(&client->dev, "device not recognized\n");
 		goto err_power_off;
 	}
+
 	i2c_set_clientdata(client, tj9);
+
+	err = kxtj9_setup_input_device(tj9);
+	if (err)
+		goto err_power_off;
 
 	tj9->ctrl_reg1 = tj9->pdata.res_ctl | tj9->pdata.g_range;
 	tj9->last_poll_interval = tj9->pdata.init_interval;
@@ -1030,6 +1109,7 @@ static int kxtj9_probe(struct i2c_client *client,
 		/* If in irq mode, populate INT_CTRL_REG1 and enable DRDY. */
 		tj9->int_ctrl |= KXTJ9_IEN | KXTJ9_IEA | KXTJ9_IEL;
 		tj9->ctrl_reg1 |= DRDYE;
+
 		err = kxtj9_setup_input_device(tj9);
 		if (err)
 			goto err_power_off;
@@ -1051,13 +1131,20 @@ static int kxtj9_probe(struct i2c_client *client,
 		}
 
 	} else {
-		err = kxtj9_setup_polled_device(tj9);
+		/*err = kxtj9_setup_polled_device(tj9);
 		if (err)
-			goto err_power_off;
+			goto err_power_off;*/
+		hrtimer_init(&tj9->poll_timer, CLOCK_BOOTTIME,
+					HRTIMER_MODE_REL);
+		tj9->poll_timer.function = akm_timer_func;
+		init_waitqueue_head(&tj9->tj9_wq);
+		tj9->tj9_wkp_flag = 0;
+		tj9->tj9_task = kthread_run(akm_poll_thread, tj9, "sns_akm");
 	}
 
 	hardwareinfo_set_prop(HARDWARE_ACCELEROMETER,"kxtj2");	
 
+	dev_dbg(&client->dev, "%s: kxtj9_probe OK.\n", __func__);
 	kxtj9_device_power_off(tj9);
 	return 0;
 

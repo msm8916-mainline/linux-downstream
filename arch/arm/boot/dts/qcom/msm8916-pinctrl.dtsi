@@ -12,17 +12,16 @@
 
 &soc {
 	tlmm_pinmux: pinctrl@1000000 {
-		compatible = "qcom,msm-tlmm-v4";
+		compatible = "qcom,msm-tlmm-8916";
 		reg = <0x1000000 0x300000>;
 		interrupts = <0 208 0>;
 
 		/*General purpose pins*/
 		gp: gp {
-			qcom,pin-type-gp;
 			qcom,num-pins = <122>;
 			#qcom,pin-cells = <1>;
 			msm_gpio: msm_gpio {
-				compatible = "qcom,msm-tlmmv4-gp-intc";
+				compatible = "qcom,msm-tlmm-gp";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
@@ -75,7 +74,7 @@
 			};
 			cdc_pdm_lines_sus: pdm_lines_off {
 				drive-strength = <2>;
-				bias-disable;
+				bias-pull-down;
 			};
 		};
 
@@ -110,6 +109,38 @@
 			};
 		};
 
+		cdc-dmic-lines {
+			qcom,pins = <&gp 0>, <&gp 1>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <4>;
+			label = "cdc-dmic-lines";
+			cdc_dmic_lines_act: dmic_lines_on {
+				drive-strength = <8>;
+			};
+			cdc_dmic_lines_sus: dmic_lines_off {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+
+		fan-otg-pin {
+			qcom,pins = <&gp 114>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "fan-otg-pin";                                         
+			otg_pin_high: otg_pin_high {
+				drive-strength = <2>;
+				bias-pull-up;
+				output-high;
+			};
+			otg_pin_low: otg_pin_low {
+				drive-strength = <2>;
+				bias-pull-down;
+				output-low;      
+				
+			};
+		};
 		cross-conn-det {
 			qcom,pins = <&gp 120>;
 			qcom,num-grp-pins = <1>;
@@ -117,7 +148,8 @@
 			label = "cross-conn-det-sw";
 			cross_conn_det_act: lines_on {
 				drive-strength = <8>;
-				bias-pull-none;
+				output-low;
+				bias-pull-down;
 			};
 			cross_conn_det_sus: lines_off {
 				drive-strength = <2>;
@@ -177,7 +209,6 @@
 
 		/* SDC pin type */
 		sdc: sdc {
-			qcom,pin-type-sdc;
 			/* 0-2 for sdc1 4-6 for sdc2 */
 			qcom,num-pins = <7>;
 			/* Order of pins */
@@ -288,7 +319,7 @@
 			qcom,pin-func = <1>;
 			label = "spi0-active";
 			/* active state */
-			spi0_default: default {
+			spi0_default: spi0_default {
 				drive-strength = <12>; /* 12 MA */
 				bias-disable = <0>; /* No PULL */
 			};
@@ -301,7 +332,7 @@
 			qcom,pin-func = <0>;
 			label = "spi0-suspend";
 			/* suspended state */
-			spi0_sleep: sleep {
+			spi0_sleep: spi0_sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* pull down */
 			};
@@ -389,7 +420,6 @@
 
 		/* QDSD pin type */
 		qdsd: qdsd {
-			qcom,pin-type-qdsd;
 			/* 0-> clk, 1 -> cmd, 2->data0, 3->data1, 4->data2, 5->data3 */
 			qcom,num-pins = <6>;
 
@@ -1089,8 +1119,8 @@
 		};
 
 		gpio_led_pins {
-			qcom,pins = <&gp 8>, <&gp 9>, <&gp 10>;
-			qcom,num-grp-pins = <3>;
+			qcom,pins = <&gp 16>, <&gp 17>;
+			qcom,num-grp-pins = <2>;
 			label = "gpio-led-pins";
 			gpio_led_off: led_off {
 				drive-strength = <2>;
@@ -1268,10 +1298,10 @@
 
 		cam_sensor_front_sleep {
 			/* RESET, STANDBY */
-			qcom,pins = <&gp 28>;
-			qcom,num-grp-pins = <1>;
+			qcom,pins = <&gp 28>, <&gp 33>;
+			qcom,num-grp-pins = <2>;
 			qcom,pin-func = <0>;
-			label = "cam_sensor_front_sleep";
+			label = "cam-sensor-front-sleep";
 			/*suspended state */
 			cam_sensor_front_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
@@ -1279,21 +1309,8 @@
 			};
 		};
 
-		cam_sensor_front_sleep_powerdown {
-			/* RESET, STANDBY */
-			qcom,pins = <&gp 33>;
-			qcom,num-grp-pins = <1>;
-			qcom,pin-func = <0>;
-			label = "cam_sensor_front_sleep_powerdown";
-			/*suspended state */
-			cam_sensor_front_sleep_powerdown: sleep {
-				drive-strength = <2>; /* 2 MA */
-				bias-pull-up ; /* PULL DOWN */
-			};
-		};
-
 		cam_sensor_flash {
-			/* FLSH_RESET,FLASH_EN,FLASH_NOW */
+			/* FLASH_RESET,FLASH_EN,FLASH_NOW */
 			qcom,pins = <&gp 36>, <&gp 31>,<&gp 32> ;
 			qcom,num-grp-pins = <3>;
 			qcom,pin-func = <0>;

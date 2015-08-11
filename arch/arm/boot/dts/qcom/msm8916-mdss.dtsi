@@ -38,7 +38,7 @@
 		/* VBIF QoS remapper settings*/
 		qcom,mdss-vbif-qos-rt-setting = <2 2 2 2>;
 		qcom,mdss-vbif-qos-nrt-setting = <1 1 1 1>;
-
+		qcom,max-mixer-width = <2048>;
 		qcom,mdss-mdp-reg-offset = <0x00001000>;
 		qcom,max-clk-rate = <320000000>;
 		qcom,mdss-pipe-vig-off = <0x00005000>;
@@ -70,6 +70,7 @@
 		qcom,mdss-has-non-scalar-rgb;
 		qcom,mdss-has-decimation;
 		qcom,mdss-traffic-shaper-enabled;
+		qcom,mdss-no-hist-vote;
 
 		vdd-cx-supply = <&pm8916_s1_corner>;
 		clocks = <&clock_gcc clk_gcc_mdss_ahb_clk>,
@@ -79,9 +80,6 @@
 			 <&clock_gcc clk_gcc_mdss_vsync_clk>;
 		clock-names = "iface_clk", "bus_clk", "core_clk_src",
 				"core_clk", "vsync_clk";
-		qcom,vbif-settings = <0x004 0x00000001>,
-				     <0x0d8 0x00000707>,
-				     <0x124 0x00000003>;
 		qcom,mdp-settings = <0x000011e4 0x00000000>,
 				    <0x00065048 0x00000008>,
 				    <0x00065848 0x00000008>,
@@ -99,7 +97,9 @@
 		mdss_fb0: qcom,mdss_fb_primary {
 			cell-index = <0>;
 			compatible = "qcom,mdss-fb";
-			qcom,memblock-reserve = <0x83200000 0xfa0000>;
+			qcom,cont-splash-memory {
+				linux,contiguous-region = <&cont_splash_mem>;
+			};
 		};
 
 		mdss_fb1: qcom,mdss_fb_wfd {
@@ -113,8 +113,9 @@
 		label = "MDSS DSI CTRL->0";
 		cell-index = <0>;
 		reg = <0x1a98000 0x25c>,
-		      <0x1a98500 0x2b0>;
-		reg-names = "dsi_ctrl", "dsi_phy";
+		      <0x1a98500 0x2b0>,
+		      <0x193e000 0x30>;
+		reg-names = "dsi_ctrl", "dsi_phy", "mmss_misc_phys";
 		qcom,mdss-fb-map = <&mdss_fb0>;
 		qcom,mdss-mdp = <&mdss_mdp>;
 		gdsc-supply = <&gdsc_mdss>;
@@ -137,6 +138,10 @@
 			00 00 00 00 0a 00 00 01 97
 			00 00 00 00 0f 00 00 01 97
 			00 c0 00 00 00 00 00 01 bb];
+
+		qcom,mmss-ulp-clamp-ctrl-offset = <0x20>;
+		qcom,mmss-phyreset-ctrl-offset = <0x24>;
+		qcom,timing-db-mode;
 
 		qcom,core-supply-entries {
 			#address-cells = <1>;
@@ -163,7 +168,7 @@
 				qcom,supply-max-voltage = <1200000>;
 				qcom,supply-enable-load = <100000>;
 				qcom,supply-disable-load = <100>;
-				qcom,supply-post-on-sleep = <20>;
+			//	qcom,supply-post-on-sleep = <20>;
 			};
 		};
 
@@ -200,4 +205,5 @@
 };
 
 #include "dsi-panel-sim-video.dtsi"
+#include "dsi-panel-sim-cmd.dtsi"
 

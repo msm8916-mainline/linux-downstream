@@ -55,23 +55,6 @@
 			bias-pull-down;
 		};
 	};
-
-	lm3642-en-pin {
-		qcom,pins = <&gp 31>, <&gp 86>;
-		qcom,num-grp-pins = <2>;
-		label = "lm3642_en_pins";
-		qcom,pin-func = <0>;
-
-		lm3642_en_default: en-default {
-			driver-strength = <2>;
-			bias-disable;
-		};
-		lm3642_en_suspend: en-suspend {
-			driver-strength = <2>;
-			bias-pull-down;
-		};
-	};
-
 };
 
 &i2c_0 { /* BLSP1 QUP2 */
@@ -106,7 +89,7 @@
 		avago,als-B = <186>;
 		avago,als-C = <75>;
 		avago,als-D = <129>;
-		avago,ga-value = <98>;
+		avago,ga-value = <313>;
 	};
 
 	st@18 {
@@ -160,25 +143,6 @@
 		};
 	};
 
-	flash_lm3642:qcom,led-flash@63 {
-		reg = <0x63>;
-		cell-index = <0>;
-		qcom,slave-id = <0xC6 0x00 0x0011>;
-		compatible = "ti,lm3642";
-		label = "lm3642";
-		qcom,flash-type = <1>;
-		pinctrl-names = "cam_flash_default","cam_flash_suspend";
-		pinctrl-0 = <&lm3642_en_default>;
-		pinctrl-1 = <&lm3642_en_suspend>;
-		gpios = <&msm_gpio 86 0>,
-			<&msm_gpio 31 0>;
-		qcom,gpio-flash-en = <0>;
-		qcom,gpio-flash-now = <1>;
-		qcom,gpio-req-tbl-num = <0 1>;
-		qcom,gpio-req-tbl-flags = <0 0>;
-		qcom,gpio-req-tbl-label = "FLASH_EN",
-			"FLASH_NOW";
-	};
 };
 
 &mdss_mdp {
@@ -276,6 +240,37 @@
 					"cdc_lines_sus";
 			pinctrl-0 = <&cdc_pdm_lines_act>;
 			pinctrl-1 = <&cdc_pdm_lines_sus>;
+			asoc-platform = <&pcm0>, <&pcm1>, <&voip>, <&voice>,
+					<&loopback>, <&compress>, <&hostless>,
+					<&afe>, <&lsm>, <&routing>, <&lpa>;
+			asoc-platform-names = "msm-pcm-dsp.0", "msm-pcm-dsp.1",
+					"msm-voip-dsp", "msm-pcm-voice", "msm-pcm-loopback",
+					"msm-compress-dsp", "msm-pcm-hostless", "msm-pcm-afe",
+					"msm-lsm-client", "msm-pcm-routing", "msm-pcm-lpa";
+			asoc-cpu = <&dai_pri_auxpcm>, <&dai_hdmi>,
+					<&dai_mi2s0>, <&dai_mi2s1>, <&dai_mi2s2>, <&dai_mi2s3>,
+					<&sb_0_rx>, <&sb_0_tx>, <&sb_1_rx>, <&sb_1_tx>,
+					<&sb_3_rx>, <&sb_3_tx>, <&sb_4_rx>, <&sb_4_tx>,
+					<&bt_sco_rx>, <&bt_sco_tx>, <&int_fm_rx>, <&int_fm_tx>,
+					<&afe_pcm_rx>, <&afe_pcm_tx>, <&afe_proxy_rx>,
+					<&afe_proxy_tx>, <&incall_record_rx>,
+					<&incall_record_tx>, <&incall_music_rx>,
+					<&incall_music_2_rx>;
+			asoc-cpu-names = "msm-dai-q6-auxpcm.1", "msm-dai-q6-hdmi.8",
+					"msm-dai-q6-mi2s.0", "msm-dai-q6-mi2s.1",
+					"msm-dai-q6-mi2s.2", "msm-dai-q6-mi2s.3",
+					"msm-dai-q6-dev.16384", "msm-dai-q6-dev.16385",
+					"msm-dai-q6-dev.16386", "msm-dai-q6-dev.16387",
+					"msm-dai-q6-dev.16390", "msm-dai-q6-dev.16391",
+					"msm-dai-q6-dev.16392", "msm-dai-q6-dev.16393",
+					"msm-dai-q6-dev.12288", "msm-dai-q6-dev.12289",
+					"msm-dai-q6-dev.12292", "msm-dai-q6-dev.12293",
+					"msm-dai-q6-dev.224", "msm-dai-q6-dev.225",
+					"msm-dai-q6-dev.241", "msm-dai-q6-dev.240",
+					"msm-dai-q6-dev.32771", "msm-dai-q6-dev.32772",
+					"msm-dai-q6-dev.32773", "msm-dai-q6-dev.32770";
+			asoc-codec = <&stub_codec>, <&pm8916_tombak_dig>;
+			asoc-codec-names = "msm-stub-codec.1", "tombak_codec";
 	};
 
 	i2c@78b9000 { /* BLSP1 QUP5 */
@@ -287,9 +282,10 @@
 			vdd-supply = <&vdd_vreg>;
 			vcc_i2c-supply = <&pm8916_l16>;
 			/* pins used by touchscreen */
-			pinctrl-names = "pmx_ts_active","pmx_ts_suspend";
+			pinctrl-names = "pmx_ts_active","pmx_ts_suspend","pmx_ts_suspend";
 			pinctrl-0 = <&ts_int_active &ts_reset_active>;
 			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+			pinctrl-2 = <&ts_release>;
 			synaptics,display-coords = <0 0 1100 1756>;
 			synaptics,panel-coords = <0 0 1100 1899>;
 			synaptics,irq-gpio = <&msm_gpio 13 0x2008>;
@@ -313,7 +309,7 @@
 		qcom,disp-maxx = <720>;
 		qcom,disp-maxy = <1280>;
 		qcom,panel-maxx = <720>;
-		qcom,panel-maxy = <1369>;
+		qcom,panel-maxy = <1385>;
 		qcom,key-codes = <158 172 139>;
 	};
 };

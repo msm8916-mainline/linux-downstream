@@ -18,6 +18,7 @@
 	compatible = "qcom,msm8916-qrd-skuic", "qcom,msm8916-qrd", "qcom,msm8916", "qcom,qrd";
 };
 
+
 &soc {
 	i2c@78b9000 { /* BLSP1 QUP5 */
 		mstar@26 {

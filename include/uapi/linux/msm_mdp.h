@@ -95,8 +95,13 @@
 #define MDSS_MDP_HW_REV_102_1	MDSS_MDP_REV(1, 2, 1) /* 8974 v3.0 (Pro) */
 #define MDSS_MDP_HW_REV_103	MDSS_MDP_REV(1, 3, 0) /* 8084 v1.0 */
 #define MDSS_MDP_HW_REV_103_1	MDSS_MDP_REV(1, 3, 1) /* 8084 v1.1 */
-#define MDSS_MDP_HW_REV_200	MDSS_MDP_REV(2, 0, 0) /* 8092 v1.0 */
+#define MDSS_MDP_HW_REV_105	MDSS_MDP_REV(1, 5, 0) /* 8994 v1.0 */
 #define MDSS_MDP_HW_REV_106	MDSS_MDP_REV(1, 6, 0) /* 8916 v1.0 */
+#define MDSS_MDP_HW_REV_107	MDSS_MDP_REV(1, 7, 0)
+#define MDSS_MDP_HW_REV_108	MDSS_MDP_REV(1, 8, 0) /* 8939 v1.0 */
+#define MDSS_MDP_HW_REV_109	MDSS_MDP_REV(1, 9, 0) /* 8994 v2.0 */
+#define MDSS_MDP_HW_REV_110	MDSS_MDP_REV(1, 10, 0) /* 8992 v1.0 */
+#define MDSS_MDP_HW_REV_200	MDSS_MDP_REV(2, 0, 0) /* 8092 v1.0 */
 
 enum {
 	NOTIFY_UPDATE_START,
@@ -152,6 +157,10 @@ enum {
 	MDP_YCBYCR_H2V1,  /* YCbYCr interleave */
 	MDP_RGB_565_TILE,	  /* RGB 565 in tile format */
 	MDP_BGR_565_TILE,	  /* BGR 565 in tile format */
+	MDP_ARGB_1555,	/*ARGB 1555*/
+	MDP_RGBA_5551,	/*RGBA 5551*/
+	MDP_ARGB_4444,	/*ARGB 4444*/
+	MDP_RGBA_4444,	/*RGBA 4444*/
 	MDP_IMGTYPE_LIMIT,
 	MDP_RGB_BORDERFILL,	/* border fill pipe */
 	MDP_FB_FORMAT = MDP_IMGTYPE2_START,    /* framebuffer format */
@@ -212,8 +221,15 @@ enum {
 #define MDP_MEMORY_ID_TYPE_FB		0x00001000
 #define MDP_BWC_EN			0x00000400
 #define MDP_DECIMATION_EN		0x00000800
+#define MDP_SMP_FORCE_ALLOC		0x00200000
 #define MDP_TRANSP_NOP 0xffffffff
 #define MDP_ALPHA_NOP 0xff
+
+/*
+ * MDP_DEINTERLACE & MDP_SHARPENING Flags are not valid for MDP3
+ * so using them together for MDP_SMART_BLIT.
+ */
+#define MDP_SMART_BLIT			0xC0000000
 
 #define MDP_FB_PAGE_PROTECTION_NONCACHED         (0)
 #define MDP_FB_PAGE_PROTECTION_WRITECOMBINE      (1)
@@ -290,6 +306,8 @@ struct mdp_blit_req {
 	uint32_t transp_mask;
 	uint32_t flags;
 	int sharpening_strength;  /* -127 <--> 127, default 64 */
+	uint8_t color_space;
+	uint32_t fps;
 };
 
 struct mdp_blit_req_list {
@@ -553,6 +571,7 @@ struct mdp_scale_data {
  * @PIPE_TYPE_VIG:     VIG pipe.
  * @PIPE_TYPE_RGB:     RGB pipe.
  * @PIPE_TYPE_DMA:     DMA pipe.
+ * @PIPE_TYPE_CURSOR:  CURSOR pipe.
  * @PIPE_TYPE_MAX:     Used to track maximum number of pipe type.
  */
 enum mdp_overlay_pipe_type {
@@ -560,6 +579,7 @@ enum mdp_overlay_pipe_type {
 	PIPE_TYPE_VIG,
 	PIPE_TYPE_RGB,
 	PIPE_TYPE_DMA,
+	PIPE_TYPE_CURSOR,
 	PIPE_TYPE_MAX,
 };
 
@@ -632,6 +652,7 @@ struct mdp_overlay {
 	uint8_t vert_deci;
 	struct mdp_overlay_pp_params overlay_pp_cfg;
 	struct mdp_scale_data scale;
+	uint8_t color_space;
 };
 
 struct msmfb_overlay_3d {
@@ -758,6 +779,7 @@ enum {
 	mdp_lut_igc,
 	mdp_lut_pgc,
 	mdp_lut_hist,
+	mdp_lut_rgb,
 	mdp_lut_max,
 };
 
@@ -778,6 +800,20 @@ struct mdp_pgc_lut_data {
 	struct mdp_ar_gc_lut_data *b_data;
 };
 
+/*
+ * mdp_rgb_lut_data is used to provide parameters for configuring the
+ * generic RGB lut in case of gamma correction or other LUT updation usecases
+ */
+struct mdp_rgb_lut_data {
+	uint32_t flags;
+	uint32_t lut_type;
+	struct fb_cmap cmap;
+};
+
+enum {
+	mdp_rgb_lut_gc,
+	mdp_rgb_lut_hist,
+};
 
 struct mdp_lut_cfg_data {
 	uint32_t lut_type;
@@ -785,6 +821,7 @@ struct mdp_lut_cfg_data {
 		struct mdp_igc_lut_data igc_lut_data;
 		struct mdp_pgc_lut_data pgc_lut_data;
 		struct mdp_hist_lut_data hist_lut_data;
+		struct mdp_rgb_lut_data rgb_lut_data;
 	} data;
 };
 
@@ -836,6 +873,15 @@ struct mdp_calib_config_buffer {
 struct mdp_calib_dcm_state {
 	uint32_t ops;
 	uint32_t dcm_state;
+};
+
+struct mdp_pp_init_data {
+	uint32_t init_request;
+};
+
+enum {
+	MDP_PP_DISABLE,
+	MDP_PP_ENABLE,
 };
 
 enum {
@@ -952,6 +998,7 @@ enum {
 	mdp_op_calib_buffer,
 	mdp_op_calib_dcm_state,
 	mdp_op_max,
+	mdp_op_pp_init_cfg,
 };
 
 enum {
@@ -983,6 +1030,7 @@ struct msmfb_mdp_pp {
 		struct mdss_ad_input ad_input;
 		struct mdp_calib_config_buffer calib_buffer;
 		struct mdp_calib_dcm_state calib_dcm;
+		struct mdp_pp_init_data init_data;
 	} data;
 };
 
@@ -996,6 +1044,7 @@ enum {
 	metadata_op_wb_secure,
 	metadata_op_get_caps,
 	metadata_op_crc,
+	metadata_op_get_ion_fd,
 	metadata_op_max
 };
 
@@ -1029,6 +1078,7 @@ struct msmfb_metadata {
 		uint32_t video_info_code;
 		struct mdss_hw_caps caps;
 		uint8_t secure_en;
+		int fbmem_ionfd;
 	} data;
 };
 
@@ -1057,7 +1107,8 @@ struct mdp_display_commit {
 	uint32_t flags;
 	uint32_t wait_for_finish;
 	struct fb_var_screeninfo var;
-	struct mdp_rect roi;
+	struct mdp_rect l_roi;
+	struct mdp_rect r_roi;
 };
 
 /**
@@ -1091,7 +1142,7 @@ struct mdp_mixer_info {
 	int z_order;
 };
 
-#define MAX_PIPE_PER_MIXER  4
+#define MAX_PIPE_PER_MIXER  7
 
 struct msmfb_mixer_info_req {
 	int mixer_num;
@@ -1114,5 +1165,11 @@ enum {
 	MDP_WRITEBACK_MIRROR_ON,
 	MDP_WRITEBACK_MIRROR_PAUSE,
 	MDP_WRITEBACK_MIRROR_RESUME,
+};
+
+enum {
+	MDP_CSC_ITU_R_601,
+	MDP_CSC_ITU_R_601_FR,
+	MDP_CSC_ITU_R_709,
 };
 #endif /*_UAPI_MSM_MDP_H_*/

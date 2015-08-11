@@ -1,4 +1,4 @@
-/* Copyright (c) 2007, 2012-2013 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2007, 2012-2015, The Linux Foundation. All rights reserved.
  * Copyright (C) 2007 Google Incorporated
  *
  * This software is licensed under the terms of the GNU General Public
@@ -32,6 +32,13 @@
 #define PQF_MINUS_2           (PHI_Q_FACTOR - 2)	/* to get 0.25 */
 #define PQF_PLUS_5_PLUS_2     (PQF_PLUS_5 + 2)
 #define PQF_PLUS_5_MINUS_2    (PQF_PLUS_5 - 2)
+
+enum {
+	LAYER_FG = 0,
+	LAYER_BG,
+	LAYER_FB,
+	LAYER_MAX,
+};
 
 static long long mdp_do_div(long long num, long long den)
 {
@@ -362,27 +369,37 @@ bool check_if_rgb(int color)
 	return rgb;
 }
 
-uint8_t *mdp_dst_adjust_rot_addr(struct ppp_blit_op *iBuf,
-	uint8_t *addr, uint32_t bpp, uint32_t uv)
+uint8_t *mdp_adjust_rot_addr(struct ppp_blit_op *iBuf,
+	uint8_t *addr, uint32_t bpp, uint32_t uv, uint32_t layer)
 {
-	uint32_t dest_ystride = iBuf->dst.prop.width * bpp;
+	uint32_t ystride = 0;
 	uint32_t h_slice = 1;
+	uint32_t roi_width = 0;
+	uint32_t roi_height = 0;
+	uint32_t color_fmt = 0;
 
-	if (uv && ((iBuf->dst.color_fmt == MDP_Y_CBCR_H2V2) ||
-		(iBuf->dst.color_fmt == MDP_Y_CRCB_H2V2)))
+	if (layer == LAYER_BG) {
+		ystride = iBuf->bg.prop.width * bpp;
+		roi_width =  iBuf->bg.roi.width;
+		roi_height = iBuf->bg.roi.height;
+		color_fmt = iBuf->bg.color_fmt;
+	} else {
+		ystride = iBuf->dst.prop.width * bpp;
+		roi_width =  iBuf->dst.roi.width;
+		roi_height = iBuf->dst.roi.height;
+		color_fmt = iBuf->dst.color_fmt;
+	}
+	if (uv && ((color_fmt == MDP_Y_CBCR_H2V2) ||
+		(color_fmt == MDP_Y_CRCB_H2V2)))
 		h_slice = 2;
 
 	if (((iBuf->mdp_op & MDPOP_ROT90) == MDPOP_ROT90) ^
 		((iBuf->mdp_op & MDPOP_LR) == MDPOP_LR)) {
-		addr +=
-		    (iBuf->dst.roi.width -
-			    MIN(16, iBuf->dst.roi.width)) * bpp;
+		addr += (roi_width - MIN(16, roi_width)) * bpp;
 	}
 	if ((iBuf->mdp_op & MDPOP_UD) == MDPOP_UD) {
-		addr +=
-			((iBuf->dst.roi.height -
-			MIN(16, iBuf->dst.roi.height))/h_slice) *
-			dest_ystride;
+		addr += ((roi_height - MIN(16, roi_height))/h_slice) *
+			ystride;
 	}
 
 	return addr;
@@ -390,7 +407,7 @@ uint8_t *mdp_dst_adjust_rot_addr(struct ppp_blit_op *iBuf,
 
 void mdp_adjust_start_addr(struct ppp_blit_op *blit_op,
 	struct ppp_img_desc *img, int v_slice,
-	int h_slice, int layer)
+	int h_slice, uint32_t layer)
 {
 	uint32_t bpp = ppp_bpp(img->color_fmt);
 	int x = img->roi.x;
@@ -403,8 +420,8 @@ void mdp_adjust_start_addr(struct ppp_blit_op *blit_op,
 		img->p0 += (x + y * ALIGN(width, 128)) * bpp;
 	else
 		img->p0 += (x + y * width) * bpp;
-	if (layer != 0)
-		img->p0 = mdp_dst_adjust_rot_addr(blit_op, img->p0, bpp, 0);
+	if (layer != LAYER_FG)
+		img->p0 = mdp_adjust_rot_addr(blit_op, img->p0, bpp, 0, layer);
 
 	if (img->p1) {
 		/*
@@ -421,9 +438,9 @@ void mdp_adjust_start_addr(struct ppp_blit_op *blit_op,
 			img->p1 += ((x / h_slice) * h_slice +
 			((y == 0) ? 0 : ((y + 1) / v_slice - 1) * width)) * bpp;
 
-		if (layer != 0)
-			img->p0 = mdp_dst_adjust_rot_addr(blit_op,
-					img->p0, bpp, 0);
+		if (layer != LAYER_FG)
+			img->p0 = mdp_adjust_rot_addr(blit_op,
+					img->p0, bpp, 0, layer);
 	}
 }
 
@@ -486,7 +503,7 @@ int load_csc_matrix(int matrix_type, struct ppp_csc_table *csc)
 	return load_secondary_matrix(csc);
 }
 
-int config_ppp_src(struct ppp_img_desc *src)
+int config_ppp_src(struct ppp_img_desc *src, uint32_t yuv2rgb)
 {
 	uint32_t val;
 
@@ -510,12 +527,12 @@ int config_ppp_src(struct ppp_img_desc *src)
 	val |= (src->roi.x % 2) ? PPP_SRC_BPP_ROI_ODD_X : 0;
 	val |= (src->roi.y % 2) ? PPP_SRC_BPP_ROI_ODD_Y : 0;
 	PPP_WRITEL(val, MDP3_PPP_SRC_FORMAT);
-	PPP_WRITEL(ppp_pack_pattern(src->color_fmt),
+	PPP_WRITEL(ppp_pack_pattern(src->color_fmt, yuv2rgb),
 		MDP3_PPP_SRC_UNPACK_PATTERN1);
 	return 0;
 }
 
-int config_ppp_out(struct ppp_img_desc *dst)
+int config_ppp_out(struct ppp_img_desc *dst, uint32_t yuv2rgb)
 {
 	uint32_t val;
 	bool pseudoplanr_output = false;
@@ -534,7 +551,7 @@ int config_ppp_out(struct ppp_img_desc *dst)
 	if (pseudoplanr_output)
 		val |= PPP_DST_PLANE_PSEUDOPLN;
 	PPP_WRITEL(val, MDP3_PPP_OUT_FORMAT);
-	PPP_WRITEL(ppp_pack_pattern(dst->color_fmt),
+	PPP_WRITEL(ppp_pack_pattern(dst->color_fmt, yuv2rgb),
 		MDP3_PPP_OUT_PACK_PATTERN1);
 
 	val = ((dst->roi.height & MDP3_PPP_XY_MASK) << MDP3_PPP_XY_OFFSET) |
@@ -573,7 +590,7 @@ int config_ppp_background(struct ppp_img_desc *bg)
 
 	PPP_WRITEL(ppp_src_config(bg->color_fmt),
 		MDP3_PPP_BG_FORMAT);
-	PPP_WRITEL(ppp_pack_pattern(bg->color_fmt),
+	PPP_WRITEL(ppp_pack_pattern(bg->color_fmt, 0),
 		MDP3_PPP_BG_UNPACK_PATTERN1);
 	return 0;
 }
@@ -953,7 +970,7 @@ int config_ppp_scale(struct ppp_blit_op *blit_op, uint32_t *pppop_reg_ptr)
 			PPP_WRITEL(phase_step_y, MDP3_PPP_SCALE_PHASEY_STEP);
 
 
-			if (dstW > src->roi.width || dstW > src->roi.height)
+			if (dstW > src->roi.width || dstH > src->roi.height)
 				ppp_load_up_lut();
 
 			if (mdp_blur)
@@ -1108,9 +1125,11 @@ int config_ppp_rotation(uint32_t mdp_op, uint32_t *pppop_reg_ptr)
 
 int config_ppp_op_mode(struct ppp_blit_op *blit_op)
 {
+	uint32_t yuv2rgb;
 	uint32_t ppp_operation_reg = 0;
 	int sv_slice, sh_slice;
 	int dv_slice, dh_slice;
+	static struct ppp_img_desc bg_img_param;
 
 	sv_slice = sh_slice = dv_slice = dh_slice = 1;
 
@@ -1153,6 +1172,7 @@ int config_ppp_op_mode(struct ppp_blit_op *blit_op)
 
 	config_ppp_csc(blit_op->src.color_fmt,
 		blit_op->dst.color_fmt, &ppp_operation_reg);
+	yuv2rgb = ppp_operation_reg & PPP_OP_CONVERT_YCBCR2RGB;
 
 	if (blit_op->mdp_op & MDPOP_DITHER)
 		ppp_operation_reg |= PPP_OP_DITHER_EN;
@@ -1186,19 +1206,60 @@ int config_ppp_op_mode(struct ppp_blit_op *blit_op)
 		blit_op->dst.p1 = NULL;
 	}
 
-	blit_op->bg = blit_op->dst;
+	if ((bg_img_param.p0) && (!(blit_op->mdp_op & MDPOP_SMART_BLIT))) {
+		/* Use cached smart blit BG layer info in smart Blit FG request */
+		blit_op->bg = bg_img_param;
+		if (check_if_rgb(blit_op->bg.color_fmt)) {
+			blit_op->bg.p1 = 0;
+			blit_op->bg.stride1 = 0;
+		}
+		memset(&bg_img_param, 0, sizeof(bg_img_param));
+	} else {
+		blit_op->bg = blit_op->dst;
+	}
 	/* Jumping from Y-Plane to Chroma Plane */
 	/* first pixel addr calculation */
-	mdp_adjust_start_addr(blit_op, &blit_op->src, sv_slice, sh_slice, 0);
-	mdp_adjust_start_addr(blit_op, &blit_op->bg, dv_slice, dh_slice, 1);
-	mdp_adjust_start_addr(blit_op, &blit_op->dst, dv_slice, dh_slice, 2);
+	mdp_adjust_start_addr(blit_op, &blit_op->src, sv_slice,
+			      sh_slice, LAYER_FG);
+	mdp_adjust_start_addr(blit_op, &blit_op->bg, dv_slice,
+			      dh_slice, LAYER_BG);
+	mdp_adjust_start_addr(blit_op, &blit_op->dst, dv_slice,
+			      dh_slice, LAYER_FB);
+
+        /* Cache smart blit BG layer info */
+	if (blit_op->mdp_op & MDPOP_SMART_BLIT)
+                bg_img_param = blit_op->src;
 
 	config_ppp_scale(blit_op, &ppp_operation_reg);
 
 	config_ppp_blend(blit_op, &ppp_operation_reg);
 
-	config_ppp_src(&blit_op->src);
-	config_ppp_out(&blit_op->dst);
+	config_ppp_src(&blit_op->src, yuv2rgb);
+	config_ppp_out(&blit_op->dst, yuv2rgb);
+
+	pr_debug("BLIT FG Param Fmt %d (x %d,y %d,w %d,h %d), ROI(x %d,y %d, w\
+		 %d, h %d) Addr_P0 %p, Stride S0 %d Addr_P1 %p, Stride S1 %d\n",
+		blit_op->src.color_fmt, blit_op->src.prop.x, blit_op->src.prop.y,
+		blit_op->src.prop.width, blit_op->src.prop.height,
+		blit_op->src.roi.x, blit_op->src.roi.y, blit_op->src.roi.width,
+		blit_op->src.roi.height, blit_op->src.p0, blit_op->src.stride0,
+                blit_op->src.p1, blit_op->src.stride1);
+	if (blit_op->bg.p0 != blit_op->dst.p0)
+		pr_debug("BLIT BG Param Fmt %d (x %d,y %d,w %d,h %d), ROI(x %d,y %d, w\
+			 %d, h %d) Addr %p, Stride S0 %d Addr_P1 %p, Stride S1 %d\n",
+			blit_op->bg.color_fmt, blit_op->bg.prop.x, blit_op->bg.prop.y,
+			blit_op->bg.prop.width, blit_op->bg.prop.height,
+			blit_op->bg.roi.x, blit_op->bg.roi.y, blit_op->bg.roi.width,
+			blit_op->bg.roi.height, blit_op->bg.p0, blit_op->bg.stride0,
+	                blit_op->bg.p1, blit_op->bg.stride1);
+	pr_debug("BLIT FB Param Fmt %d (x %d,y %d,w %d,h %d), ROI(x %d,y %d, w\
+		 %d, h %d) Addr %p, Stride S0 %d Addr_P1 %p, Stride S1 %d\n",
+		blit_op->dst.color_fmt, blit_op->dst.prop.x, blit_op->dst.prop.y,
+		blit_op->dst.prop.width, blit_op->dst.prop.height,
+		blit_op->dst.roi.x, blit_op->dst.roi.y, blit_op->dst.roi.width,
+		blit_op->dst.roi.height, blit_op->dst.p0, blit_op->src.stride0,
+                blit_op->dst.p1, blit_op->dst.stride1);
+
 	PPP_WRITEL(ppp_operation_reg, MDP3_PPP_OP_MODE);
 	mb();
 	return 0;

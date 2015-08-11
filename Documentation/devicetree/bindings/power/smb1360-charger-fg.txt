@@ -59,6 +59,10 @@ Optional Properties:
 				signal when interrupt happened. If this property is not specified,
 				the default configuration is static level irq.
 - qcom,shdn-after-pwroff:	A bool property to configure smb1360 for shutdown at power-off.
+- qcom,empty-soc-disabled:	A bool property to indicate whether stop updating empty_soc flag.
+				System reports 0% SOC when empty_soc being set.
+- qcom,awake-min-soc		A bool property to indicate whether the system is prevented from
+				sleeping when SOC is under the min_soc threshold.
 - qcom,batt-profile-select	A boolean flag to indicate of battery-profile
 				selection is enabled.
 - qcom,profile-a-rid-kohm	The battery-ID resistor (RID) in Kohm supported by
@@ -101,6 +105,63 @@ Optional Properties:
 				from battery when device working at OTG mode.
 				The possible values are: 350, 550, 950, 1500mA.
 - qcom,fg-auto-recharge-soc	This property defines the auto recharging SOC threshold.
+- qcom,min-icl-100ma		A bool property to set the minimum ICL current
+				to 100mA. If this property is not set the minimum
+				ICL is set to 500mA in all the scenarios.
+- qcom,config-hard-thresholds	This property indicates if cold and hot thresholds need be modified.
+				If it's not defined, default temp thresholds will be used. If this
+				defined, it's required to specify the "qcom,hot-bat-decidegc" and
+				"qcom,cold-bat-decidegc" values.
+- qcom,hot-bat-decidegc		Hot battery temperature in decidegC. This property must be
+				out of range [0, 55].
+- qcom,cold-bat-decidegc	Cold battery temperature in decidegC. This property must be
+				out of range [0, 55].
+- qcom,soft-jeita-supported	This property indicates whether soft jeita supported.
+- qcom,warm-bat-decidegc	Warm battery temperature in decidegC. After hitting this threshold,
+				"qcom,warm-bat-ma" defines maximum charging current and
+				"qcom,warm-bat-mv" defines maximum target voltage.
+				This property must be in range [0, 55] if needed.
+- qcom,cool-bat-decidegc	Cool battery temperature in decidegC. After hitting this threshold,
+				"qcom,cool-bat-ma" defines maximum charging current and
+				"qcom,cool-bat-mv" defines maximum target voltage.
+				This property must be in range [0, 55] if needed.
+- qcom,warm-bat-mv		Maximum warm battery target voltage in milli-volts.
+- qcom,cool-bat-mv		Maximum cool battery target voltage in milli-volts.
+- qcom,warm-bat-ma		Maximum warm battery charge current in milli-amps.
+- qcom,cool-bat-ma		Maximum cool battery charge current in milli-amps.
+- qcom,fg-reset-at-pon		This is a bool property which indicates if the
+				FG reset at power-on is enabled.
+- qcom,fg-reset-thresold-mv	This value indicates the volatge threshold to
+				reset the FG. This value is compared against
+				the difference between in predicted voltage and
+				current voltage. If this value is not specified
+				a default value of 50mV is used. Unit is in milli-volts.
+- qcom,rsense-10mhom		A bool property to indicate the Rsense resistor
+				configuraton. If set, the Rsense is 10mOhm else
+				its 20mOhm.
+- qcom,otg-fet-present		A bool property to indicate that a pMOS FET is present
+				to boost the OTG current. On enabling this the max OTG
+				current supported is 3x(qcom,otg-batt-curr-limit).
+- qcom,otg-fet-enable-gpio	GPIO for enabling and disabling OTG FET.
+				Following should be the PMIC gpio configuration:
+				{
+					qcom,mode = <1>; //Digital output
+					qcom,pull = <0>; //Pull up configuration
+					qcom,vin-sel = <0>; //Voltage level: VPH_PWR
+					qcom,src-sel = <0>; //Pin function: GPIO
+					qcom,master-en = <1>; //Enable
+				}
+				Please go through the documentation for PMIC gpio
+				configuration details:
+				Documentation/devicetree/bindings/gpio/qpnp-pin.txt
+- qcom,parallel-charging-enabled: A bool property which enables SMB1360 to
+				operate in the parallel mode. SMB1360 acts
+				as the primary charger.
+- qcom,max-parallel-current-ma: This is the max charging current which can be
+				drawn from the secondary charger. If this is
+				not specified this value defaults to 540mA.
+				The overall current charging current is
+				1500mA(from SMB) + qcom,max-parallel-current-ma.
 
 Example:
 	i2c@f9967000 {
@@ -138,7 +199,21 @@ Example:
 			qcom,fg-soc-min = <15>;
 			qcom,fg-auto-recharge-soc = <99>;
 			qcom,thermal-mitigation = <1500 700 300 0>;
+			qcom,config-hard-thresholds;
+			qcom,hot-bat-decidegc = <650>;
+			qcom,cold-bat-decidegc = <(-100)>;
+			qcom,soft-jeita-supported;
+			qcom,warm-bat-decidegc = <450>;
+			qcom,cool-bat-decidegc = <100>;
+			qcom,warm-bat-mv = <4100>;
+			qcom,cool-bat-mv = <4100>;
+			qcom,warm-bat-ma = <750>;
+			qcom,cool-bat-ma = <750>;
 
 			qcom,otg-batt-curr-limit = <950>;
+			qcom,fg-reset-at-pon;
+
+			qcom,otg-fet-present;
+			qcom,otg-fet-enable-gpio = <&pm8916_gpios 3 0>;
 		};
 	};

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -202,6 +202,7 @@ static bool dynamic_mtu_enabled;
 static uint16_t ul_mtu = DEFAULT_BUFFER_SIZE;
 static uint16_t dl_mtu = DEFAULT_BUFFER_SIZE;
 static uint16_t buffer_size = DEFAULT_BUFFER_SIZE;
+static bool no_cpu_affinity;
 
 static struct bam_ch_info bam_ch[BAM_DMUX_NUM_CHANNELS];
 static int bam_mux_initialized;
@@ -526,8 +527,12 @@ static void bam_mux_process_data(struct sk_buff *rx_skb)
 	unsigned long flags;
 	struct bam_mux_hdr *rx_hdr;
 	unsigned long event_data;
+	uint8_t ch_id;
+	void (*notify)(void *, int, unsigned long);
+	void *priv;
 
 	rx_hdr = (struct bam_mux_hdr *)rx_skb->data;
+	ch_id = rx_hdr->ch_id;
 
 	process_dynamic_mtu(rx_hdr->signal & DYNAMIC_MTU_MASK);
 
@@ -537,15 +542,19 @@ static void bam_mux_process_data(struct sk_buff *rx_skb)
 	rx_skb->truesize = rx_hdr->pkt_len + sizeof(struct sk_buff);
 
 	event_data = (unsigned long)(rx_skb);
+	notify = NULL;
+	priv = NULL;
 
-	spin_lock_irqsave(&bam_ch[rx_hdr->ch_id].lock, flags);
-	if (bam_ch[rx_hdr->ch_id].notify)
-		bam_ch[rx_hdr->ch_id].notify(
-			bam_ch[rx_hdr->ch_id].priv, BAM_DMUX_RECEIVE,
-							event_data);
+	spin_lock_irqsave(&bam_ch[ch_id].lock, flags);
+	if (bam_ch[ch_id].notify) {
+		notify = bam_ch[ch_id].notify;
+		priv = bam_ch[ch_id].priv;
+	}
+	spin_unlock_irqrestore(&bam_ch[ch_id].lock, flags);
+	if (notify)
+		notify(priv, BAM_DMUX_RECEIVE, event_data);
 	else
 		dev_kfree_skb_any(rx_skb);
-	spin_unlock_irqrestore(&bam_ch[rx_hdr->ch_id].lock, flags);
 
 	queue_rx();
 }
@@ -629,6 +638,16 @@ static inline void handle_bam_mux_cmd_open(struct bam_mux_hdr *rx_hdr)
 		set_ul_mtu(0, false);
 	}
 	spin_lock_irqsave(&bam_ch[rx_hdr->ch_id].lock, flags);
+	if (bam_ch_is_remote_open(rx_hdr->ch_id)) {
+		/*
+		 * Receiving an open command for a channel that is already open
+		 * is an invalid operation and likely signifies a significant
+		 * issue within the A2 which should be caught immediately
+		 * before it snowballs and the root cause is lost.
+		 */
+		panic("A2 sent invalid duplicate open for channel %d\n",
+								rx_hdr->ch_id);
+	}
 	bam_ch[rx_hdr->ch_id].status |= BAM_CH_REMOTE_OPEN;
 	bam_ch[rx_hdr->ch_id].num_tx_pkts = 0;
 	spin_unlock_irqrestore(&bam_ch[rx_hdr->ch_id].lock, flags);
@@ -839,6 +858,11 @@ static void bam_mux_write_done(struct work_struct *work)
 	kfree(info);
 	hdr = (struct bam_mux_hdr *)skb->data;
 	DBG_INC_WRITE_CNT(skb->len);
+	/* Restore skb for client */
+	skb_pull(skb, sizeof(*hdr));
+	if (hdr->pad_len)
+		skb_trim(skb, skb->len - hdr->pad_len);
+
 	event_data = (unsigned long)(skb);
 	spin_lock_irqsave(&bam_ch[hdr->ch_id].lock, flags);
 	bam_ch[hdr->ch_id].num_tx_pkts--;
@@ -1303,7 +1327,10 @@ static void rx_switch_to_interrupt_mode(void)
 
 fail:
 	pr_err("%s: reverting to polling\n", __func__);
-	queue_work_on(0, bam_mux_rx_workqueue, &rx_timer_work);
+	if (no_cpu_affinity)
+		queue_work(bam_mux_rx_workqueue, &rx_timer_work);
+	else
+		queue_work_on(0, bam_mux_rx_workqueue, &rx_timer_work);
 }
 
 /**
@@ -1499,9 +1526,14 @@ static void bam_mux_rx_notify(struct sps_event_notify *notify)
 			polling_mode = 1;
 			/*
 			 * run on core 0 so that netif_rx() in rmnet uses only
-			 * one queue
+			 * one queue if RPS enable use no_cpu_affinity
 			 */
-			queue_work_on(0, bam_mux_rx_workqueue, &rx_timer_work);
+			if (no_cpu_affinity)
+				queue_work(bam_mux_rx_workqueue,
+							&rx_timer_work);
+			else
+				queue_work_on(0, bam_mux_rx_workqueue,
+							&rx_timer_work);
 		}
 		break;
 	default:
@@ -2251,7 +2283,7 @@ static int bam_init(void)
 	a2_props.virt_addr = a2_virt_addr;
 	a2_props.virt_size = a2_phys_size;
 	a2_props.irq = a2_bam_irq;
-	a2_props.options = SPS_BAM_OPT_IRQ_WAKEUP;
+	a2_props.options = SPS_BAM_OPT_IRQ_WAKEUP | SPS_BAM_ATMC_MEM;
 	a2_props.num_pipes = A2_NUM_PIPES;
 	a2_props.summing_threshold = A2_SUMMING_THRESHOLD;
 	a2_props.constrained_logging = true;
@@ -2626,15 +2658,18 @@ static int bam_dmux_probe(struct platform_device *pdev)
 
 		set_dl_mtu(requested_dl_mtu);
 
+		no_cpu_affinity = of_property_read_bool(pdev->dev.of_node,
+						"qcom,no-cpu-affinity");
 		BAM_DMUX_LOG(
-			"%s: base:%p size:%x irq:%d satellite:%d num_buffs:%d dl_mtu:%x\n",
+			"%s: base:%p size:%x irq:%d satellite:%d num_buffs:%d dl_mtu:%x cpu-affinity:%d\n",
 						__func__,
 						(void *)(uintptr_t)a2_phys_base,
 						a2_phys_size,
 						a2_bam_irq,
 						satellite_mode,
 						num_buffers,
-						dl_mtu);
+						dl_mtu,
+						no_cpu_affinity);
 	} else { /* fallback to default init data */
 		a2_phys_base = A2_PHYS_BASE;
 		a2_phys_size = A2_PHYS_SIZE;
@@ -2781,7 +2816,8 @@ static int __init bam_dmux_init(void)
 	}
 #endif
 
-	bam_ipc_log_txt = ipc_log_context_create(BAM_IPC_LOG_PAGES, "bam_dmux");
+	bam_ipc_log_txt = ipc_log_context_create(BAM_IPC_LOG_PAGES, "bam_dmux",
+			0);
 	if (!bam_ipc_log_txt) {
 		pr_err("%s : unable to create IPC Logging Context", __func__);
 	}

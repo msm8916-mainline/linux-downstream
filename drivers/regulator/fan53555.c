@@ -25,6 +25,8 @@
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <linux/regmap.h>
+#include <linux/debugfs.h>
+#include <linux/delay.h>
 #include <linux/regulator/fan53555.h>
 
 /* Voltage setting */
@@ -58,7 +60,18 @@
 
 #define FAN53555_NVOLTAGES	64	/* Numbers of voltages */
 
-/* IC Type */
+/* Chip vendor */
+enum {
+	FAN53555 = 0,
+	SY8827,
+};
+
+static int vendor_id[] = {
+	[FAN53555] = FAN53555,
+	[SY8827]   = SY8827,
+};
+
+/* FAN53555 chip ID */
 enum {
 	FAN53555_CHIP_ID_00 = 0,
 	FAN53555_CHIP_ID_01,
@@ -85,7 +98,8 @@ struct fan53555_device_info {
 	struct regulator_desc desc;
 	struct regulator_dev *rdev;
 	struct regulator_init_data *regulator;
-	/* IC Type and Rev */
+	/* IC Vendor, Type and Rev */
+	int chip_vendor;
 	int chip_id;
 	int chip_rev;
 	/* Voltage setting register */
@@ -98,9 +112,68 @@ struct fan53555_device_info {
 	unsigned int slew_rate;
 	/* Sleep voltage cache */
 	unsigned int sleep_vol_cache;
+	unsigned int peek_poke_address;
+
+	struct dentry *debug_root;
 
 	bool disable_suspend;
 };
+
+static int delay_array[] = {10, 20, 30, 40, 50};
+
+static int fan53555_read(struct fan53555_device_info *di, unsigned int reg,
+						unsigned int *val)
+{
+	int i = 0, rc = 0;
+
+	rc = regmap_read(di->regmap, reg, val);
+	for (i = 0; rc && i < ARRAY_SIZE(delay_array); i++) {
+		pr_debug("Failed reading reg=%u - retry(%d)\n", reg, i);
+		msleep(delay_array[i]);
+		rc = regmap_read(di->regmap, reg, val);
+	}
+
+	if (rc)
+		pr_err("Failed reading reg=%u rc=%d\n", reg, rc);
+
+	return rc;
+}
+
+static int fan53555_write(struct fan53555_device_info *di, unsigned int reg,
+						unsigned int val)
+{
+	int i = 0, rc = 0;
+
+	rc = regmap_write(di->regmap, reg, val);
+	for (i = 0; rc && i < ARRAY_SIZE(delay_array); i++) {
+		pr_debug("Failed writing reg=%u - retry(%d)\n", reg, i);
+		msleep(delay_array[i]);
+		rc = regmap_write(di->regmap, reg, val);
+	}
+
+	if (rc)
+		pr_err("Failed writing reg=%u rc=%d\n", reg, rc);
+
+	return rc;
+}
+
+static int fan53555_update_bits(struct fan53555_device_info *di,
+			unsigned int reg, unsigned int mask, unsigned int val)
+{
+	int i = 0, rc = 0;
+
+	rc = regmap_update_bits(di->regmap, reg, mask, val);
+	for (i = 0; rc && i < ARRAY_SIZE(delay_array); i++) {
+		pr_debug("Failed updating reg=%u - retry(%d)\n", reg, i);
+		msleep(delay_array[i]);
+		rc = regmap_update_bits(di->regmap, reg, mask, val);
+	}
+
+	if (rc)
+		pr_err("Failed updating reg=%u rc=%d\n", reg, rc);
+
+	return rc;
+}
 
 static int fan53555_set_suspend_voltage(struct regulator_dev *rdev, int uV)
 {
@@ -112,7 +185,7 @@ static int fan53555_set_suspend_voltage(struct regulator_dev *rdev, int uV)
 	ret = regulator_map_voltage_linear(rdev, uV, uV);
 	if (ret < 0)
 		return -EINVAL;
-	ret = regmap_update_bits(di->regmap, di->sleep_reg,
+	ret = fan53555_update_bits(di, di->sleep_reg,
 					VSEL_NSEL_MASK, ret);
 	if (ret < 0)
 		return -EINVAL;
@@ -129,11 +202,11 @@ static int fan53555_set_mode(struct regulator_dev *rdev, unsigned int mode)
 
 	switch (mode) {
 	case REGULATOR_MODE_FAST:
-		regmap_update_bits(di->regmap, di->vol_reg,
+		fan53555_update_bits(di, di->vol_reg,
 				VSEL_MODE, VSEL_MODE);
 		break;
 	case REGULATOR_MODE_NORMAL:
-		regmap_update_bits(di->regmap, di->vol_reg, VSEL_MODE, 0);
+		fan53555_update_bits(di, di->vol_reg, VSEL_MODE, 0);
 		break;
 	default:
 		return -EINVAL;
@@ -147,7 +220,7 @@ static unsigned int fan53555_get_mode(struct regulator_dev *rdev)
 	unsigned int val;
 	int ret = 0;
 
-	ret = regmap_read(di->regmap, di->vol_reg, &val);
+	ret = fan53555_read(di, di->vol_reg, &val);
 	if (ret < 0)
 		return ret;
 	if (val & VSEL_MODE)
@@ -276,7 +349,7 @@ static int fan53555_device_setup(struct fan53555_device_info *di,
 	reg = FAN53555_CONTROL;
 	data = di->slew_rate << CTL_SLEW_SHIFT;
 	mask = CTL_SLEW_MASK;
-	return regmap_update_bits(di->regmap, reg, mask, data);
+	return fan53555_update_bits(di, reg, mask, data);
 }
 
 static int fan53555_regulator_register(struct fan53555_device_info *di,
@@ -284,7 +357,6 @@ static int fan53555_regulator_register(struct fan53555_device_info *di,
 {
 	struct regulator_desc *rdesc = &di->desc;
 
-	rdesc->name = "fan53555-reg";
 	if (di->disable_suspend)
 		rdesc->ops = &fan53555_regulator_disable_suspend_ops;
 	else
@@ -379,7 +451,7 @@ static int fan53555_restore_working_reg(struct device_node *node,
 	u32 val;
 
 	/* Restore register from back up register */
-	ret = regmap_read(di->regmap, di->sleep_reg, &val);
+	ret = fan53555_read(di, di->sleep_reg, &val);
 	if (ret < 0) {
 		dev_err(di->dev,
 			"Failed to get backup data from reg %d, ret = %d\n",
@@ -387,7 +459,7 @@ static int fan53555_restore_working_reg(struct device_node *node,
 		return ret;
 	}
 
-	ret = regmap_update_bits(di->regmap,
+	ret = fan53555_update_bits(di,
 		di->vol_reg, VSEL_FULL_MASK, val);
 	if (ret < 0) {
 		dev_err(di->dev,
@@ -446,12 +518,60 @@ static int fan53555_of_init(struct device_node *node,
 	return 0;
 }
 
+static int get_reg(void *data, u64 *val)
+{
+	struct fan53555_device_info *di = data;
+	int rc;
+	unsigned int temp = 0;
+
+	rc = fan53555_read(di, di->peek_poke_address, &temp);
+	if (rc < 0)
+		dev_err(di->dev, "Couldn't read reg %x rc = %d\n",
+				di->peek_poke_address, rc);
+	else
+		*val = temp;
+
+	return rc;
+}
+
+static int set_reg(void *data, u64 val)
+{
+	struct fan53555_device_info *di = data;
+	int rc;
+	unsigned int temp = 0;
+
+	temp = (unsigned int) val;
+	rc = fan53555_write(di, di->peek_poke_address, temp);
+	if (rc < 0)
+		dev_err(di->dev, "Couldn't write 0x%02x to 0x%02x rc= %d\n",
+			di->peek_poke_address, temp, rc);
+
+	return rc;
+}
+DEFINE_SIMPLE_ATTRIBUTE(poke_poke_debug_ops, get_reg, set_reg, "0x%02llx\n");
+
+static struct of_device_id fan53555_match_table[] = {
+	{
+		.name		= "fan53555-regulator",
+		.compatible	= "fairchild,fan53555-regulator",
+		.data		= (void *)&vendor_id[FAN53555],
+	},
+	{
+		.name		= "sy8827-regulator",
+		.compatible	= "silergy,sy8827-regulator",
+		.data		= (void *)&vendor_id[SY8827],
+	},
+	{},
+};
+MODULE_DEVICE_TABLE(of, fan53555_match_table);
+
 static int fan53555_regulator_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
 	struct fan53555_device_info *di;
 	struct fan53555_platform_data *pdata;
 	struct regulator_config config = { };
+	const struct of_device_id *match = NULL;
 	unsigned int val;
 	int ret;
 
@@ -479,22 +599,28 @@ static int fan53555_regulator_probe(struct i2c_client *client,
 	di->dev = &client->dev;
 	di->regulator = pdata->regulator;
 	i2c_set_clientdata(client, di);
+	match = of_match_node(fan53555_match_table, client->dev.of_node);
+	if (match == NULL) {
+		dev_err(di->dev, "device tree match not found\n");
+		return -EINVAL;
+	}
+	di->chip_vendor = *((int *)match->data);
 	/* Get chip ID */
-	ret = regmap_read(di->regmap, FAN53555_ID1, &val);
+	ret = fan53555_read(di, FAN53555_ID1, &val);
 	if (ret < 0) {
 		dev_err(&client->dev, "Failed to get chip ID!\n");
 		return -ENODEV;
 	}
 	di->chip_id = val & DIE_ID;
 	/* Get chip revision */
-	ret = regmap_read(di->regmap, FAN53555_ID2, &val);
+	ret = fan53555_read(di, FAN53555_ID2, &val);
 	if (ret < 0) {
 		dev_err(&client->dev, "Failed to get chip Rev!\n");
 		return -ENODEV;
 	}
 	di->chip_rev = val & DIE_REV;
-	dev_info(&client->dev, "FAN53555 Option[%d] Rev[%d] Detected!\n",
-				di->chip_id, di->chip_rev);
+	dev_info(&client->dev, "%s Option[%d] Rev[%d] Detected!\n",
+				match->name, di->chip_id, di->chip_rev);
 	/* Device init */
 	ret = fan53555_device_setup(di, pdata);
 	if (ret < 0) {
@@ -515,9 +641,32 @@ static int fan53555_regulator_probe(struct i2c_client *client,
 	config.driver_data = di;
 	config.of_node = client->dev.of_node;
 
+	di->desc.name = match->name;
 	ret = fan53555_regulator_register(di, &config);
 	if (ret < 0)
 		dev_err(&client->dev, "Failed to register regulator!\n");
+
+	di->debug_root = debugfs_create_dir((char *)match->name, NULL);
+	if (!di->debug_root)
+		dev_err(&client->dev, "Couldn't create debug dir\n");
+
+	if (di->debug_root) {
+		struct dentry *ent;
+
+		ent = debugfs_create_x32("address", S_IFREG | S_IWUSR | S_IRUGO,
+					  di->debug_root,
+					  &(di->peek_poke_address));
+		if (!ent)
+			dev_err(&client->dev, "Couldn't create address debug file rc = %d\n",
+									ret);
+
+		ent = debugfs_create_file("data", S_IFREG | S_IWUSR | S_IRUGO,
+					  di->debug_root, di,
+					  &poke_poke_debug_ops);
+		if (!ent)
+			dev_err(&client->dev, "Couldn't create data debug file rc = %d\n",
+									ret);
+	}
 
 	return ret;
 
@@ -528,14 +677,11 @@ static int fan53555_regulator_remove(struct i2c_client *client)
 	struct fan53555_device_info *di = i2c_get_clientdata(client);
 
 	regulator_unregister(di->rdev);
+
+	debugfs_remove_recursive(di->debug_root);
+
 	return 0;
 }
-
-static struct of_device_id fan53555_match_table[] = {
-	{ .compatible = "fairchild,fan53555-regulator",},
-	{},
-};
-MODULE_DEVICE_TABLE(of, fan53555_match_table);
 
 static const struct i2c_device_id fan53555_id[] = {
 	{"fan53555", -1},

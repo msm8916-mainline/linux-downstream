@@ -436,7 +436,6 @@ config CPU_32v5
 
 config CPU_32v6
 	bool
-	select CPU_USE_DOMAINS if CPU_V6 && MMU
 	select TLS_REG_EMUL if !CPU_32v6K && !MMU
 
 config CPU_32v6K
@@ -651,7 +650,7 @@ config ARM_VIRT_EXT
 
 config SWP_EMULATE
 	bool "Emulate SWP/SWPB instructions"
-	depends on !CPU_USE_DOMAINS && CPU_V7
+	depends on CPU_V7
 	default y if SMP
 	select HAVE_PROC_CPU if PROC_FS
 	help
@@ -676,22 +675,20 @@ config SWP_EMULATE
 
 	  If unsure, say Y.
 
-#+Bug288248, yangruijiao.wt, ADD, make 12306 can run. Case Id:01728470
 config FORCE_INSTRUCTION_ALIGNMENT
-   bool "Force instructions address alignment"
-   depends on CPU_V7 && ALIGNMENT_TRAP
-   help
-     Branching to an address in ARM state which is not word aligned,
-     where this is defined to be UNPREDICTABLE, can cause one of the
-     following two behaviours: 1. The unaligned location is forced to
-     be aligned. 2. Using the unaligned address generates a Prefetch
-     Abort on the first instruction using the unaligned PC value.
+	bool "Force instructions address alignment"
+	depends on CPU_V7 && ALIGNMENT_TRAP
+	help
+	  Branching to an address in ARM state which is not word aligned,
+	  where this is defined to be UNPREDICTABLE, can cause one of the
+	  following two behaviours: 1. The unaligned location is forced to
+	  be aligned. 2. Using the unaligned address generates a Prefetch
+	  Abort on the first instruction using the unaligned PC value.
 
-     To be consistant for the user space binaries, the unaligned location
-     is forced aligned with this config.
+	  To be consistant for the user space binaries, the unaligned location
+	  is forced aligned with this config.
 
-     If unsure, say Y.
-#-Bug288248, yangruijiao.wt, ADD, make 12306 can run. Case Id:01728470
+	  If unsure, say Y.
 
 config CPU_BIG_ENDIAN
 	bool "Build big-endian kernel"

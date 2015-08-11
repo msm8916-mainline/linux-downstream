@@ -201,16 +201,16 @@ static unsigned long writeout_period_time = 0;
 static unsigned long zone_dirtyable_memory(struct zone *zone)
 {
 	unsigned long nr_pages;
-	
+
 	nr_pages = zone_page_state(zone, NR_FREE_PAGES);
 	nr_pages -= min(nr_pages, zone->dirty_balance_reserve);
-	
+
 	nr_pages += zone_page_state(zone, NR_INACTIVE_FILE);
 	nr_pages += zone_page_state(zone, NR_ACTIVE_FILE);
-	
+
 	return nr_pages;
 }
-				
+
 static unsigned long highmem_dirtyable_memory(unsigned long total)
 {
 #ifdef CONFIG_HIGHMEM
@@ -218,11 +218,9 @@ static unsigned long highmem_dirtyable_memory(unsigned long total)
 	unsigned long x = 0;
 
 	for_each_node_state(node, N_HIGH_MEMORY) {
-		struct zone *z =
-			&NODE_DATA(node)->node_zones[ZONE_HIGHMEM];
+		struct zone *z = &NODE_DATA(node)->node_zones[ZONE_HIGHMEM];
 
-		x += zone_page_state(z, NR_FREE_PAGES) +
-		     zone_reclaimable_pages(z) - z->dirty_balance_reserve;
+		x += zone_dirtyable_memory(z);
 	}
 	/*
 	 * Unreclaimable memory (kernel memory or anonymous memory
@@ -258,7 +256,6 @@ static unsigned long global_dirtyable_memory(void)
 {
 	unsigned long x;
 
-//	x = global_page_state(NR_FREE_PAGES) + global_reclaimable_pages();
 	x = global_page_state(NR_FREE_PAGES);
 	x -= min(x, dirty_balance_reserve);
 
@@ -315,31 +312,6 @@ void global_dirty_limits(unsigned long *pbackground, unsigned long *pdirty)
 	trace_global_dirty_state(background, dirty);
 }
 
-/**
- * zone_dirtyable_memory - number of dirtyable pages in a zone
- * @zone: the zone
- *
- * Returns the zone's number of pages potentially available for dirty
- * page cache.  This is the base value for the per-zone dirty limits.
- */
-//static unsigned long zone_dirtyable_memory(struct zone *zone)
-//{
-	/*
-	 * The effective global number of dirtyable pages may exclude
-	 * highmem as a big-picture measure to keep the ratio between
-	 * dirty memory and lowmem reasonable.
-	 *
-	 * But this function is purely about the individual zone and a
-	 * highmem zone can hold its share of dirty pages, so we don't
-	 * care about vm_highmem_is_dirtyable here.
-	 */
-//	unsigned long nr_pages = zone_page_state(zone, NR_FREE_PAGES) +
-//		zone_reclaimable_pages(zone);
-
-	/* don't allow this to underflow */
-//	nr_pages -= min(nr_pages, zone->dirty_balance_reserve);
-//	return nr_pages;
-//}
 /**
  * zone_dirty_limit - maximum number of dirty pages allowed in a zone
  * @zone: the zone
@@ -1451,237 +1423,6 @@ pause:
 	if (nr_reclaimable > background_thresh)
 		bdi_start_background_writeback(bdi);
 }
-//wanggongzhen.wt 2015-1-29 , bug low memory , sdcard speed is too low,videorecordig crash when stop
-#define SDCARD_CACHE_PAGES 10000	//40M
-static void balance_dirty_pages_sdcard(struct address_space *mapping,
-				unsigned long pages_dirtied)
-{
-	unsigned long nr_reclaimable;	/* = file_dirty + unstable_nfs */
-	unsigned long bdi_reclaimable;
-	unsigned long nr_dirty;  /* = file_dirty + writeback + unstable_nfs */
-	unsigned long bdi_dirty;
-	unsigned long freerun;
-	unsigned long background_thresh;
-	unsigned long dirty_thresh;
-	unsigned long bdi_thresh;
-	long period;
-	long pause;
-	long max_pause;
-	long min_pause;
-	int nr_dirtied_pause;
-	bool dirty_exceeded = false;
-	unsigned long task_ratelimit;
-	unsigned long dirty_ratelimit;
-	unsigned long pos_ratio;
-	struct backing_dev_info *bdi = mapping->backing_dev_info;
-	unsigned long start_time = jiffies;
-
-	for (;;) {
-		unsigned long now = jiffies;
-
-		/*
-		 * Unstable writes are a feature of certain networked
-		 * filesystems (i.e. NFS) in which data may have been
-		 * written to the server's write cache, but has not yet
-		 * been flushed to permanent storage.
-		 */
-		nr_reclaimable = global_page_state(NR_FILE_DIRTY) +
-					global_page_state(NR_UNSTABLE_NFS);
-		nr_dirty = nr_reclaimable + global_page_state(NR_WRITEBACK);
-
-		global_dirty_limits(&background_thresh, &dirty_thresh);
-
-		/*
-		 * Throttle it only when the background writeback cannot
-		 * catch-up. This avoids (excessively) small writeouts
-		 * when the bdi limits are ramping up.
-		 */
-		freerun = dirty_freerun_ceiling(dirty_thresh,
-						background_thresh);
-		if (nr_dirty <= freerun) {
-			current->dirty_paused_when = now;
-			current->nr_dirtied = 0;
-			current->nr_dirtied_pause =
-				dirty_poll_interval(nr_dirty, dirty_thresh);
-			break;
-		}
-
-		if (unlikely(!writeback_in_progress(bdi)))
-			bdi_start_background_writeback(bdi);
-
-		/*
-		 * bdi_thresh is not treated as some limiting factor as
-		 * dirty_thresh, due to reasons
-		 * - in JBOD setup, bdi_thresh can fluctuate a lot
-		 * - in a system with HDD and USB key, the USB key may somehow
-		 *   go into state (bdi_dirty >> bdi_thresh) either because
-		 *   bdi_dirty starts high, or because bdi_thresh drops low.
-		 *   In this case we don't want to hard throttle the USB key
-		 *   dirtiers for 100 seconds until bdi_dirty drops under
-		 *   bdi_thresh. Instead the auxiliary bdi control line in
-		 *   bdi_position_ratio() will let the dirtier task progress
-		 *   at some rate <= (write_bw / 2) for bringing down bdi_dirty.
-		 */
-		bdi_thresh = bdi_dirty_limit(bdi, dirty_thresh);
-
-		/*
-		 * In order to avoid the stacked BDI deadlock we need
-		 * to ensure we accurately count the 'dirty' pages when
-		 * the threshold is low.
-		 *
-		 * Otherwise it would be possible to get thresh+n pages
-		 * reported dirty, even though there are thresh-m pages
-		 * actually dirty; with m+n sitting in the percpu
-		 * deltas.
-		 */
-		if (bdi_thresh < 2 * bdi_stat_error(bdi)) {
-			bdi_reclaimable = bdi_stat_sum(bdi, BDI_RECLAIMABLE);
-			bdi_dirty = bdi_reclaimable +
-				    bdi_stat_sum(bdi, BDI_WRITEBACK);
-		} else {
-			bdi_reclaimable = bdi_stat(bdi, BDI_RECLAIMABLE);
-			bdi_dirty = bdi_reclaimable +
-				    bdi_stat(bdi, BDI_WRITEBACK);
-		}
-
-		dirty_exceeded = (bdi_dirty > bdi_thresh) &&
-				  (nr_dirty > dirty_thresh);
-		if (dirty_exceeded && !bdi->dirty_exceeded)
-			bdi->dirty_exceeded = 1;
-
-		bdi_update_bandwidth(bdi, dirty_thresh, background_thresh,
-				     nr_dirty, bdi_thresh, bdi_dirty,
-				     start_time);
-
-		dirty_ratelimit = bdi->dirty_ratelimit;
-		pos_ratio = bdi_position_ratio(bdi, dirty_thresh,
-					       background_thresh, nr_dirty,
-					       bdi_thresh, bdi_dirty);
-		task_ratelimit = ((u64)dirty_ratelimit * pos_ratio) >>
-							RATELIMIT_CALC_SHIFT;
-		max_pause = bdi_max_pause(bdi, bdi_dirty);
-		min_pause = bdi_min_pause(bdi, max_pause,
-					  task_ratelimit, dirty_ratelimit,
-					  &nr_dirtied_pause);
-
-		if (unlikely(task_ratelimit == 0)) {
-			period = max_pause;
-			pause = max_pause;
-			goto pause;
-		}
-		period = HZ * pages_dirtied / task_ratelimit;
-		pause = period;
-		if (current->dirty_paused_when)
-			pause -= now - current->dirty_paused_when;
-		/*
-		 * For less than 1s think time (ext3/4 may block the dirtier
-		 * for up to 800ms from time to time on 1-HDD; so does xfs,
-		 * however at much less frequency), try to compensate it in
-		 * future periods by updating the virtual time; otherwise just
-		 * do a reset, as it may be a light dirtier.
-		 */
-		if (pause < min_pause) {
-			trace_balance_dirty_pages(bdi,
-						  dirty_thresh,
-						  background_thresh,
-						  nr_dirty,
-						  bdi_thresh,
-						  bdi_dirty,
-						  dirty_ratelimit,
-						  task_ratelimit,
-						  pages_dirtied,
-						  period,
-						  min(pause, 0L),
-						  start_time);
-			if (pause < -HZ) {
-				current->dirty_paused_when = now;
-				current->nr_dirtied = 0;
-			} else if (period) {
-				current->dirty_paused_when += period;
-				current->nr_dirtied = 0;
-			} else if (current->nr_dirtied_pause <= pages_dirtied)
-				current->nr_dirtied_pause += pages_dirtied;
-			break;
-		}
-		if (unlikely(pause > max_pause)) {
-			/* for occasional dropped task_ratelimit */
-			now += min(pause - max_pause, max_pause);
-			pause = max_pause;
-		}
-
-pause:
-		if(strstr(current->comm,"sdcard")&&nr_dirty<SDCARD_CACHE_PAGES)
-		{
-		}
-		else
-		{
-		trace_balance_dirty_pages(bdi,
-					  dirty_thresh,
-					  background_thresh,
-					  nr_dirty,
-					  bdi_thresh,
-					  bdi_dirty,
-					  dirty_ratelimit,
-					  task_ratelimit,
-					  pages_dirtied,
-					  period,
-					  pause,
-					  start_time);
-		__set_current_state(TASK_KILLABLE);
-		io_schedule_timeout(pause);
-		}
-
-		current->dirty_paused_when = now + pause;
-		current->nr_dirtied = 0;
-		current->nr_dirtied_pause = nr_dirtied_pause;
-
-		/*
-		 * This is typically equal to (nr_dirty < dirty_thresh) and can
-		 * also keep "1000+ dd on a slow USB stick" under control.
-		 */
-		if (task_ratelimit)
-			break;
-
-		/*
-		 * In the case of an unresponding NFS server and the NFS dirty
-		 * pages exceeds dirty_thresh, give the other good bdi's a pipe
-		 * to go through, so that tasks on them still remain responsive.
-		 *
-		 * In theory 1 page is enough to keep the comsumer-producer
-		 * pipe going: the flusher cleans 1 page => the task dirties 1
-		 * more page. However bdi_dirty has accounting errors.  So use
-		 * the larger and more IO friendly bdi_stat_error.
-		 */
-		if (bdi_dirty <= bdi_stat_error(bdi))
-			break;
-
-		if (fatal_signal_pending(current))
-			break;
-		if(strstr(current->comm,"sdcard")&&nr_dirty<SDCARD_CACHE_PAGES)
-			break;
-	}
-
-	if (!dirty_exceeded && bdi->dirty_exceeded)
-		bdi->dirty_exceeded = 0;
-
-	if (writeback_in_progress(bdi))
-		return;
-
-	/*
-	 * In laptop mode, we wait until hitting the higher threshold before
-	 * starting background writeout, and then write out all the way down
-	 * to the lower threshold.  So slow writers cause minimal disk activity.
-	 *
-	 * In normal mode, we start background writeout at the lower
-	 * background_thresh, to keep the amount of dirty memory low.
-	 */
-	if (laptop_mode)
-		return;
-
-	if (nr_reclaimable > background_thresh)
-		bdi_start_background_writeback(bdi);
-}
-
 
 void set_page_dirty_balance(struct page *page, int page_mkwrite)
 {
@@ -1769,52 +1510,6 @@ void balance_dirty_pages_ratelimited(struct address_space *mapping)
 		balance_dirty_pages(mapping, current->nr_dirtied);
 }
 EXPORT_SYMBOL(balance_dirty_pages_ratelimited);
-
-void balance_dirty_pages_ratelimited_sdcard(struct address_space *mapping)
-{
-	struct backing_dev_info *bdi = mapping->backing_dev_info;
-	int ratelimit;
-	int *p;
-
-	if (!bdi_cap_account_dirty(bdi))
-		return;
-
-	ratelimit = current->nr_dirtied_pause;
-	if (bdi->dirty_exceeded)
-		ratelimit = min(ratelimit, 32 >> (PAGE_SHIFT - 10));
-
-	preempt_disable();
-	/*
-	 * This prevents one CPU to accumulate too many dirtied pages without
-	 * calling into balance_dirty_pages(), which can happen when there are
-	 * 1000+ tasks, all of them start dirtying pages at exactly the same
-	 * time, hence all honoured too large initial task->nr_dirtied_pause.
-	 */
-	p =  &__get_cpu_var(bdp_ratelimits);
-	if (unlikely(current->nr_dirtied >= ratelimit))
-		*p = 0;
-	else if (unlikely(*p >= ratelimit_pages)) {
-		*p = 0;
-		ratelimit = 0;
-	}
-	/*
-	 * Pick up the dirtied pages by the exited tasks. This avoids lots of
-	 * short-lived tasks (eg. gcc invocations in a kernel build) escaping
-	 * the dirty throttling and livelock other long-run dirtiers.
-	 */
-	p = &__get_cpu_var(dirty_throttle_leaks);
-	if (*p > 0 && current->nr_dirtied < ratelimit) {
-		unsigned long nr_pages_dirtied;
-		nr_pages_dirtied = min(*p, ratelimit - current->nr_dirtied);
-		*p -= nr_pages_dirtied;
-		current->nr_dirtied += nr_pages_dirtied;
-	}
-	preempt_enable();
-
-	if (unlikely(current->nr_dirtied >= ratelimit))
-		balance_dirty_pages_sdcard(mapping, current->nr_dirtied);
-}
-
 
 void throttle_vm_writeout(gfp_t gfp_mask)
 {
@@ -2334,11 +2029,12 @@ int __set_page_dirty_nobuffers(struct page *page)
 	if (!TestSetPageDirty(page)) {
 		struct address_space *mapping = page_mapping(page);
 		struct address_space *mapping2;
+		unsigned long flags;
 
 		if (!mapping)
 			return 1;
 
-		spin_lock_irq(&mapping->tree_lock);
+		spin_lock_irqsave(&mapping->tree_lock, flags);
 		mapping2 = page_mapping(page);
 		if (mapping2) { /* Race with truncate? */
 			BUG_ON(mapping2 != mapping);
@@ -2347,7 +2043,7 @@ int __set_page_dirty_nobuffers(struct page *page)
 			radix_tree_tag_set(&mapping->page_tree,
 				page_index(page), PAGECACHE_TAG_DIRTY);
 		}
-		spin_unlock_irq(&mapping->tree_lock);
+		spin_unlock_irqrestore(&mapping->tree_lock, flags);
 		if (mapping->host) {
 			/* !PageAnon && !swapper_space */
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);

@@ -78,9 +78,6 @@ static long hardwareinfo_ioctl(struct file *file, unsigned int cmd,unsigned long
 	case HARDWARE_BACK_CAM_MOUDULE_ID_GET:
 		hardwareinfo_num = HARDWARE_BACK_CAM_MOUDULE_ID;
 		break;
-	case HARDWARE_FRONT_CAM_MODULE_ID_GET:
-		hardwareinfo_num = HARDWARE_FRONT_CAM_MOUDULE_ID;
-		break;
 	case HARDWARE_BATTERY_ID_GET:
 		hardwareinfo_num = HARDWARE_BATTERY_ID;
 		break;		

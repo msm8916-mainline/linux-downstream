@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,7 +20,7 @@
 #define clk_gpll0_ao				0x6b2fb034
 #define clk_gpll0_out_main			0x850fecec
 #define clk_gpll0_out_aux			0x64e55d63
-#define clk_gpll0_usbfs				0xed4d330a
+#define clk_gpll0_misc				0xe06ee816
 #define clk_gpll1				0x916f8847
 #define clk_gpll1_out_main                      0x8e313934
 #define clk_gpll2				0x7c34503b
@@ -33,7 +33,9 @@
 #define clk_gpll4_out_main                      0xdca8db2a
 #define clk_gpll6				0xa8c1bffa
 #define clk_gpll6_out_main			0x27b8b7be
-#define clk_a53sspll				0xf761da94
+#define clk_a53ss_c0_pll			0xf761da94
+#define clk_a53ss_c1_pll			0xfbc57bbd
+#define clk_a53ss_cci_pll			0x17d32f1e
 #define clk_apss_ahb_clk_src			0x36f8495f
 #define clk_blsp1_qup1_i2c_apps_clk_src		0x17f78f5e
 #define clk_blsp1_qup1_spi_apps_clk_src		0xf534c4fa
@@ -98,6 +100,8 @@
 #define clk_gcc_smmu_cfg_clk			0x75eaefa5
 #define clk_gcc_venus_tbu_clk			0x7e0b97ce
 #define clk_gcc_vfe_tbu_clk			0x061f2f95
+#define clk_gcc_cpp_tbu_clk			0xab6f19ab
+#define clk_gcc_mdp_rt_tbu_clk			0x51e8fc68
 #define clk_gcc_blsp1_qup1_i2c_apps_clk		0xc303fae9
 #define clk_gcc_blsp1_qup1_spi_apps_clk		0x759a76b0
 #define clk_gcc_blsp1_qup2_i2c_apps_clk		0x1076f220
@@ -165,6 +169,7 @@
 #define clk_gcc_mdss_vsync_clk			0x32a09f1f
 #define clk_gcc_mss_cfg_ahb_clk			0x111cde81
 #define clk_gcc_mss_q6_bimc_axi_clk		0x67544d62
+#define clk_gcc_oxili_timer_clk			0x1180db06
 #define clk_gcc_oxili_ahb_clk			0xd15c8a00
 #define clk_gcc_oxili_gfx3d_clk			0x49a51fd9
 #define clk_gcc_pdm2_clk			0x99d55711
@@ -189,6 +194,9 @@
 #define clk_gcc_bimc_gpu_clk			0x19922503
 #define clk_gcc_bimc_gfx_clk			0x3edd69ad
 
+#define clk_pixel_clk_src                       0x8b6f83d8
+#define clk_byte_clk_src                        0x3a911c53
+
 /* clock_rpm controlled clocks */
 #define clk_pcnoc_clk				0xc1296d0f
 #define clk_pcnoc_a_clk				0x9bcffee4
@@ -196,12 +204,14 @@
 #define clk_pcnoc_msmbus_a_clk			0x9753a54f
 #define clk_pcnoc_keepalive_a_clk		0x9464f720
 #define clk_pcnoc_sps_clk			0x23d3f584
+#define clk_pcnoc_usb_a_clk			0x11d6a74e
 #define clk_snoc_clk				0x2c341aa0
 #define clk_snoc_a_clk				0x8fcef2af
 #define clk_snoc_msmbus_clk			0xe6900bb6
 #define clk_snoc_msmbus_a_clk			0x5d4683bd
 #define clk_snoc_mmnoc_axi_clk			0xfedd4bd5
 #define clk_snoc_mmnoc_ahb_clk			0xd2149dbb
+#define clk_snoc_usb_a_clk			0x34b7821b
 #define clk_sysmmnoc_clk			0xebb1df78
 #define clk_sysmmnoc_a_clk			0x6ca682a2
 #define clk_sysmmnoc_msmbus_clk			0xd61e5721
@@ -211,6 +221,7 @@
 #define clk_bimc_acpu_a_clk			0x4446311b
 #define clk_bimc_msmbus_clk			0xd212feea
 #define clk_bimc_msmbus_a_clk			0x71d1a499
+#define clk_bimc_usb_a_clk			0xea410834
 #define clk_qdss_clk				0x1492202a
 #define clk_qdss_a_clk				0xdd121669
 #define clk_xo_clk_src				0x6ac2a778

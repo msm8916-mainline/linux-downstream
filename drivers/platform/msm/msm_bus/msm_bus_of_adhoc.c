@@ -27,6 +27,8 @@
 #include "msm_bus_adhoc.h"
 
 #define DEFAULT_QOS_FREQ	19200
+#define DEFAULT_UTIL_FACT	100
+#define DEFAULT_VRAIL_COMP	100
 
 static int get_qos_mode(struct platform_device *pdev,
 			struct device_node *node, const char *qos_mode)
@@ -146,6 +148,22 @@ static struct msm_bus_fab_device_type *get_fab_device_info(
 		fab_dev->qos_freq = DEFAULT_QOS_FREQ;
 	}
 
+	ret = of_property_read_u32(dev_node, "qcom,util-fact",
+						&fab_dev->util_fact);
+	if (ret) {
+		dev_info(&pdev->dev, "Util-fact is missing, default to %d\n",
+				DEFAULT_UTIL_FACT);
+		fab_dev->util_fact = DEFAULT_UTIL_FACT;
+	}
+
+	ret = of_property_read_u32(dev_node, "qcom,vrail-comp",
+						&fab_dev->vrail_comp);
+	if (ret) {
+		dev_info(&pdev->dev, "Vrail-comp is missing, default to %d\n",
+				DEFAULT_VRAIL_COMP);
+		fab_dev->vrail_comp = DEFAULT_VRAIL_COMP;
+	}
+
 	return fab_dev;
 
 fab_dev_err:
@@ -161,6 +179,7 @@ static void get_qos_params(
 {
 	const char *qos_mode = NULL;
 	unsigned int ret;
+	unsigned int temp;
 
 	ret = of_property_read_string(dev_node, "qcom,qos-mode", &qos_mode);
 
@@ -179,6 +198,12 @@ static void get_qos_params(
 	of_property_read_u32(dev_node, "qcom,prio0",
 						&node_info->qos_params.prio0);
 
+	of_property_read_u32(dev_node, "qcom,reg-prio1",
+					&node_info->qos_params.reg_prio1);
+
+	of_property_read_u32(dev_node, "qcom,reg-prio0",
+					&node_info->qos_params.reg_prio0);
+
 	of_property_read_u32(dev_node, "qcom,prio-rd",
 					&node_info->qos_params.prio_rd);
 
@@ -193,6 +218,14 @@ static void get_qos_params(
 
 	of_property_read_u32(dev_node, "qcom,ws",
 						&node_info->qos_params.ws);
+
+	ret = of_property_read_u32(dev_node, "qcom,bw_buffer", &temp);
+
+	if (ret)
+		node_info->qos_params.bw_buffer = 0;
+	else
+		node_info->qos_params.bw_buffer = KBTOB(temp);
+
 }
 
 
@@ -245,6 +278,26 @@ static struct msm_bus_node_info_type *get_node_info_data(
 
 		if (of_property_read_u32(con_node, "cell-id",
 				&node_info->connections[i]))
+			goto node_info_err;
+		of_node_put(con_node);
+	}
+
+	if (of_get_property(dev_node, "qcom,blacklist", &size)) {
+		node_info->num_blist = size/sizeof(u32);
+		node_info->black_listed_connections = devm_kzalloc(&pdev->dev,
+		size, GFP_KERNEL);
+	} else {
+		node_info->num_blist = 0;
+		node_info->black_listed_connections = 0;
+	}
+
+	for (i = 0; i < node_info->num_blist; i++) {
+		con_node = of_parse_phandle(dev_node, "qcom,blacklist", i);
+		if (IS_ERR_OR_NULL(con_node))
+			goto node_info_err;
+
+		if (of_property_read_u32(con_node, "cell-id",
+				&node_info->black_listed_connections[i]))
 			goto node_info_err;
 		of_node_put(con_node);
 	}
@@ -337,10 +390,37 @@ static unsigned int get_bus_node_device_data(
 			dev_err(&pdev->dev,
 				"Failed to get bus clk for bus%d ctx%d",
 				 node_device->node_info->id, ACTIVE_CTX);
+
+		node_device->qos_clk.clk = of_clk_get_by_name(dev_node,
+							"bus_qos_clk");
+
+		if (IS_ERR_OR_NULL(node_device->qos_clk.clk))
+			dev_dbg(&pdev->dev,
+				"%s:Failed to get bus qos clk for %d",
+				__func__, node_device->node_info->id);
+
 		if (msmbus_coresight_init_adhoc(pdev, dev_node))
 			dev_warn(&pdev->dev,
 				 "Coresight support absent for bus: %d\n",
 				  node_device->node_info->id);
+	} else {
+		node_device->qos_clk.clk = of_clk_get_by_name(dev_node,
+							"bus_qos_clk");
+
+		if (IS_ERR_OR_NULL(node_device->qos_clk.clk))
+			dev_dbg(&pdev->dev,
+				"%s:Failed to get bus qos clk for mas%d",
+				__func__, node_device->node_info->id);
+
+		node_device->clk[DUAL_CTX].clk = of_clk_get_by_name(dev_node,
+							"node_clk");
+
+		if (IS_ERR_OR_NULL(node_device->clk[DUAL_CTX].clk))
+			dev_dbg(&pdev->dev,
+				"%s:Failed to get bus clk for bus%d ctx%d",
+				__func__, node_device->node_info->id,
+								DUAL_CTX);
+
 	}
 	return 0;
 }
@@ -404,8 +484,13 @@ struct msm_bus_device_node_registration
 		for (j = 0; j < pdata->info[i].node_info->num_connections;
 									j++) {
 			dev_dbg(&pdev->dev, "connection[%d]: %d\n", j,
-					pdata->info[i].node_info->
-					connections[j]);
+				pdata->info[i].node_info->connections[j]);
+		}
+		for (j = 0; j < pdata->info[i].node_info->num_blist;
+									 j++) {
+			dev_dbg(&pdev->dev, "black_listed_node[%d]: %d\n", j,
+				pdata->info[i].node_info->
+				black_listed_connections[j]);
 		}
 		if (pdata->info[i].fabdev)
 			dev_dbg(&pdev->dev, "base_addr %zu\nbus_type %d\n",

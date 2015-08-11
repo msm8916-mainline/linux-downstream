@@ -23,7 +23,6 @@
 	i2c@78ba000 { /* BLSP1 QUP6 */
 		nfc-nci@e {
 			compatible = "qcom,nfc-nci";
-                        status = "disabled";
 			reg = <0x0e>;
 			qcom,irq-gpio = <&msm_gpio 21 0x00>;
 			qcom,dis-gpio = <&msm_gpio 20 0x00>;
@@ -125,9 +124,10 @@
 	status = "ok";
 };
 
+/* mask sdhc_2 config ,move sdhc_2 config to skul&skum dtsi by shenyong 2015.01.24
 &sdhc_2 {
 	vdd-supply = <&pm8916_l11>;
-	qcom,vdd-voltage-level = <3000000 3000000>;//2800000 2950000
+	qcom,vdd-voltage-level = <2800000 2950000>;
 	qcom,vdd-current-level = <15000 400000>;
 
 	vdd-io-supply = <&pm8916_l12>;
@@ -135,25 +135,22 @@
 	qcom,vdd-io-current-level = <200 50000>;
 
 	pinctrl-names = "active", "sleep";
-	//bug289089,shenyong.wt,start,config sdhc2 pinctrl
-	pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on /*&sdc2_cd_on*/>;
-	pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off /*&sdc2_cd_off*/>;
+	pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_on>;
+	pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
 
 	#address-cells = <0>;
 	interrupt-parent = <&sdhc_2>;
-	interrupts = <0 1>;// 2
+	interrupts = <0 1 2>;
 	#interrupt-cells = <1>;
 	interrupt-map-mask = <0xffffffff>;
 	interrupt-map = <0 &intc 0 125 0
 			1 &intc 0 221 0
-			/*2 &msm_gpio 38 0*/>;
+			2 &msm_gpio 38 0>;
 	interrupt-names = "hc_irq", "pwr_irq", "status_irq";
-	//cd-gpios = <&msm_gpio 38 0x0>;
+	cd-gpios = <&msm_gpio 38 0x0>;
 
-	qcom,nonremovable;
-	//bug289089,shenyong.wt,end,config sdhc2 pinctrl
 	status = "ok";
-};
+};*/
 
 &spmi_bus {
 	qcom,pm8916@1 {

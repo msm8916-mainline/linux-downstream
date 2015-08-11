@@ -107,6 +107,19 @@ Parent node Optional properties
 			default lenght.
 - qcom,resume-soc:	Capacity in percent at which charging should resume
 			when a fully charged battery drops below this level.
+- qcom,low-temp-threshold : The temperature threshold below which the IBAT
+			averaging and UUC smoothening is disabled. This value
+			is in deci-degrees centigrade. If not specified it
+			defaults to 0.
+- qcom,ibat-avg-samples : The number of samples to be averaged for IBAT
+			estimation. If not specified it defaults to 16.
+			The possible values are 1 to 16.
+- qcom,batt-aging-comp : A boolean that defines if battery aging compensation
+			is enabled.
+- qcom,use-reported-soc : Bool property to enable the reported_soc logic. To
+			enable this feature, qcom,resume-soc must be defined as
+			a proper value. The BMS is also required to control the
+			charging, discharging and recharging.
 
 qcom,batt-pres-status node required properties:
 - reg : offset and length of the PMIC LBC battery interface BATT_PRES_STATUS

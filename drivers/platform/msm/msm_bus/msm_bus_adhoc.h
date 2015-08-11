@@ -40,8 +40,9 @@ struct msm_bus_noc_ops {
 			uint32_t qos_delta, uint32_t qos_freq);
 	int (*limit_mport)(struct msm_bus_node_device_type *dev,
 			void __iomem *qos_base, uint32_t qos_off,
-			uint32_t qos_delta, uint32_t qos_freq, bool enable_lim,
+			uint32_t qos_delta, uint32_t qos_freq, int enable_lim,
 			uint64_t lim_bw);
+	bool (*update_bw_reg)(int mode);
 };
 
 struct nodebw {
@@ -56,6 +57,8 @@ struct msm_bus_fab_device_type {
 	uint32_t base_offset;
 	uint32_t qos_freq;
 	uint32_t qos_off;
+	uint32_t util_fact;
+	uint32_t vrail_comp;
 	struct msm_bus_noc_ops noc_ops;
 	enum msm_bus_hw_sel bus_type;
 	bool bypass_qos_prg;
@@ -68,10 +71,13 @@ struct qos_params_type {
 	unsigned int prio_wr;
 	unsigned int prio1;
 	unsigned int prio0;
+	unsigned int reg_prio1;
+	unsigned int reg_prio0;
 	unsigned int gp;
 	unsigned int thmp;
 	unsigned int ws;
 	int cur_mode;
+	u64 bw_buffer;
 };
 
 struct msm_bus_node_info_type {
@@ -84,10 +90,14 @@ struct msm_bus_node_info_type {
 	int *qport;
 	struct qos_params_type qos_params;
 	unsigned int num_connections;
+	unsigned int num_blist;
 	bool is_fab_dev;
 	bool virt_dev;
+	bool is_traversed;
 	unsigned int *connections;
+	unsigned int *black_listed_connections;
 	struct device **dev_connections;
+	struct device **black_connections;
 	unsigned int bus_device_id;
 	struct device *bus_device;
 	unsigned int buswidth;
@@ -109,7 +119,7 @@ struct msm_bus_node_device_type {
 };
 
 int msm_bus_enable_limiter(struct msm_bus_node_device_type *nodedev,
-				bool throttle_en, uint64_t lim_bw);
+				int throttle_en, uint64_t lim_bw);
 int msm_bus_update_clks(struct msm_bus_node_device_type *nodedev,
 	int ctx, int **dirty_nodes, int *num_dirty);
 int msm_bus_commit_data(int *dirty_nodes, int ctx, int num_dirty);

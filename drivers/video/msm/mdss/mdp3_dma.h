@@ -16,6 +16,7 @@
 
 #include <linux/notifier.h>
 #include <linux/sched.h>
+#include <linux/msm_mdp.h>
 
 #define MDP_HISTOGRAM_BL_SCALE_MAX 1024
 #define MDP_HISTOGRAM_BL_LEVEL_MAX 255
@@ -191,12 +192,6 @@ struct mdp3_dma_ccs {
 	u32 *post_lv;
 };
 
-struct mdp3_dma_lut {
-	u16 *color0_lut;
-	u16 *color1_lut;
-	u16 *color2_lut;
-};
-
 struct mdp3_dma_lut_config {
 	int lut_enable;
 	u32 lut_sel;
@@ -233,6 +228,26 @@ struct mdp3_notification {
 	void *arg;
 };
 
+struct mdp3_tear_check {
+	int frame_rate;
+	bool hw_vsync_mode;
+	u32 tear_check_en;
+	u32 sync_cfg_height;
+	u32 vsync_init_val;
+	u32 sync_threshold_start;
+	u32 sync_threshold_continue;
+	u32 start_pos;
+	u32 rd_ptr_irq;
+	u32 refx100;
+};
+
+struct mdp3_rect {
+	u32 x;
+	u32 y;
+	u32 w;
+	u32 h;
+};
+
 struct mdp3_intf;
 
 struct mdp3_dma {
@@ -254,16 +269,27 @@ struct mdp3_dma {
 
 	struct mdp3_dma_cursor cursor;
 	struct mdp3_dma_color_correct_config ccs_config;
+	struct mdp_csc_cfg_data ccs_cache;
+
 	struct mdp3_dma_lut_config lut_config;
 	struct mdp3_dma_histogram_config histogram_config;
 	int histo_state;
 	struct mdp3_dma_histogram_data histo_data;
 	unsigned int vsync_status;
 	bool update_src_cfg;
+	bool has_panic_ctrl;
+	struct mdp3_rect roi;
+
+	u32 lut_sts;
+	struct fb_cmap *gc_cmap;
+	struct fb_cmap *hist_cmap;
 
 	int (*dma_config)(struct mdp3_dma *dma,
 			struct mdp3_dma_source *source_config,
 			struct mdp3_dma_output_config *output_config);
+
+	int (*dma_sync_config)(struct mdp3_dma *dma, struct mdp3_dma_source
+				*source_config, struct mdp3_tear_check *te);
 
 	void (*dma_config_source)(struct mdp3_dma *dma);
 
@@ -280,9 +306,10 @@ struct mdp3_dma {
 
 	int (*config_lut)(struct mdp3_dma *dma,
 			struct mdp3_dma_lut_config *config,
-			struct mdp3_dma_lut *lut);
+			struct fb_cmap *cmap);
 
-	int (*update)(struct mdp3_dma *dma, void *buf, struct mdp3_intf *intf);
+	int (*update)(struct mdp3_dma *dma,
+			void *buf, struct mdp3_intf *intf, void *data);
 
 	int (*update_cursor)(struct mdp3_dma *dma, int x, int y);
 
@@ -319,6 +346,7 @@ struct mdp3_video_intf_cfg {
 	int hsync_polarity;
 	int vsync_polarity;
 	int de_polarity;
+	int underflow_color;
 };
 
 struct mdp3_dsi_cmd_intf_cfg {

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -66,6 +66,13 @@ void mdp3_check_dsi_ctrl_status(struct work_struct *work,
 		return;
 	}
 
+	if (mdp3_session->in_splash_screen) {
+		schedule_delayed_work(&pdsi_status->check_status,
+			msecs_to_jiffies(interval));
+		pr_debug("%s: cont splash is on\n", __func__);
+		return;
+	}
+
 	mutex_lock(&mdp3_session->lock);
 	if (!mdp3_session->status) {
 		pr_debug("%s: display off already\n", __func__);
@@ -82,7 +89,7 @@ void mdp3_check_dsi_ctrl_status(struct work_struct *work,
 		pr_err("%s: wait_for_dma_done error\n", __func__);
 	mutex_unlock(&mdp3_session->lock);
 
-	if ((pdsi_status->mfd->panel_power_on)) {
+	if (mdss_fb_is_power_on_interactive(pdsi_status->mfd)) {
 		if (ret > 0) {
 			schedule_delayed_work(&pdsi_status->check_status,
 						msecs_to_jiffies(interval));

@@ -42,6 +42,8 @@ struct handoff_vdd {
 static LIST_HEAD(handoff_vdd_list);
 
 static DEFINE_MUTEX(msm_clock_init_lock);
+LIST_HEAD(orphan_clk_list);
+static LIST_HEAD(clk_notifier_list);
 
 /* Find the voltage level required for a given rate. */
 int find_vdd_level(struct clk *clk, unsigned long rate)
@@ -86,7 +88,7 @@ static int update_vdd(struct clk_vdd_class *vdd_class)
 	new_base = level * n_reg;
 	for (i = 0; i < vdd_class->num_regulators; i++) {
 		rc = regulator_set_voltage(r[i], uv[new_base + i],
-					   uv[max_lvl + i]);
+			vdd_class->use_max_uV ? INT_MAX : uv[max_lvl + i]);
 		if (rc)
 			goto set_voltage_fail;
 
@@ -117,16 +119,19 @@ enable_disable_fail:
 	 * previous voltage setting for r[i] first.
 	 */
 	if (ua) {
-		regulator_set_voltage(r[i], uv[cur_base + i], uv[max_lvl + i]);
+		regulator_set_voltage(r[i], uv[cur_base + i],
+			vdd_class->use_max_uV ? INT_MAX : uv[max_lvl + i]);
 		regulator_set_optimum_mode(r[i], ua[cur_base + i]);
 	}
 
 set_mode_fail:
-	regulator_set_voltage(r[i], uv[cur_base + i], uv[max_lvl + i]);
+	regulator_set_voltage(r[i], uv[cur_base + i],
+			vdd_class->use_max_uV ? INT_MAX : uv[max_lvl + i]);
 
 set_voltage_fail:
 	for (i--; i >= 0; i--) {
-		regulator_set_voltage(r[i], uv[cur_base + i], uv[max_lvl + i]);
+		regulator_set_voltage(r[i], uv[cur_base + i],
+			vdd_class->use_max_uV ? INT_MAX : uv[max_lvl + i]);
 		if (ua)
 			regulator_set_optimum_mode(r[i], ua[cur_base + i]);
 		if (cur_lvl == 0 || cur_lvl == vdd_class->num_levels)
@@ -470,6 +475,163 @@ int clk_reset(struct clk *clk, enum clk_reset_action action)
 }
 EXPORT_SYMBOL(clk_reset);
 
+/**
+ * __clk_notify - call clk notifier chain
+ * @clk: struct clk * that is changing rate
+ * @msg: clk notifier type (see include/linux/clk.h)
+ * @old_rate: old clk rate
+ * @new_rate: new clk rate
+ *
+ * Triggers a notifier call chain on the clk rate-change notification
+ * for 'clk'.  Passes a pointer to the struct clk and the previous
+ * and current rates to the notifier callback.  Intended to be called by
+ * internal clock code only.  Returns NOTIFY_DONE from the last driver
+ * called if all went well, or NOTIFY_STOP or NOTIFY_BAD immediately if
+ * a driver returns that.
+ */
+static int __clk_notify(struct clk *clk, unsigned long msg,
+		unsigned long old_rate, unsigned long new_rate)
+{
+	struct msm_clk_notifier *cn;
+	struct msm_clk_notifier_data cnd;
+	int ret = NOTIFY_DONE;
+
+	cnd.clk = clk;
+	cnd.old_rate = old_rate;
+	cnd.new_rate = new_rate;
+
+	list_for_each_entry(cn, &clk_notifier_list, node) {
+		if (cn->clk == clk) {
+			ret = srcu_notifier_call_chain(&cn->notifier_head, msg,
+					&cnd);
+			break;
+		}
+	}
+
+	return ret;
+}
+
+/*
+ * clk rate change notifiers
+ *
+ * Note - The following notifier functionality is a verbatim copy
+ * of the implementation in the common clock framework, copied here
+ * until MSM switches to the common clock framework.
+ */
+
+/**
+ * msm_clk_notif_register - add a clk rate change notifier
+ * @clk: struct clk * to watch
+ * @nb: struct notifier_block * with callback info
+ *
+ * Request notification when clk's rate changes.  This uses an SRCU
+ * notifier because we want it to block and notifier unregistrations are
+ * uncommon.  The callbacks associated with the notifier must not
+ * re-enter into the clk framework by calling any top-level clk APIs;
+ * this will cause a nested prepare_lock mutex.
+ *
+ * Pre-change notifier callbacks will be passed the current, pre-change
+ * rate of the clk via struct msm_clk_notifier_data.old_rate.  The new,
+ * post-change rate of the clk is passed via struct
+ * msm_clk_notifier_data.new_rate.
+ *
+ * Post-change notifiers will pass the now-current, post-change rate of
+ * the clk in both struct msm_clk_notifier_data.old_rate and struct
+ * msm_clk_notifier_data.new_rate.
+ *
+ * Abort-change notifiers are effectively the opposite of pre-change
+ * notifiers: the original pre-change clk rate is passed in via struct
+ * msm_clk_notifier_data.new_rate and the failed post-change rate is passed
+ * in via struct msm_clk_notifier_data.old_rate.
+ *
+ * msm_clk_notif_register() must be called from non-atomic context.
+ * Returns -EINVAL if called with null arguments, -ENOMEM upon
+ * allocation failure; otherwise, passes along the return value of
+ * srcu_notifier_chain_register().
+ */
+int msm_clk_notif_register(struct clk *clk, struct notifier_block *nb)
+{
+	struct msm_clk_notifier *cn;
+	int ret = -ENOMEM;
+
+	if (!clk || !nb)
+		return -EINVAL;
+
+	mutex_lock(&clk->prepare_lock);
+
+	/* search the list of notifiers for this clk */
+	list_for_each_entry(cn, &clk_notifier_list, node)
+		if (cn->clk == clk)
+			break;
+
+	/* if clk wasn't in the notifier list, allocate new clk_notifier */
+	if (cn->clk != clk) {
+		cn = kzalloc(sizeof(struct msm_clk_notifier), GFP_KERNEL);
+		if (!cn)
+			goto out;
+
+		cn->clk = clk;
+		srcu_init_notifier_head(&cn->notifier_head);
+
+		list_add(&cn->node, &clk_notifier_list);
+	}
+
+	ret = srcu_notifier_chain_register(&cn->notifier_head, nb);
+
+	clk->notifier_count++;
+
+out:
+	mutex_unlock(&clk->prepare_lock);
+
+	return ret;
+}
+
+/**
+ * msm_clk_notif_unregister - remove a clk rate change notifier
+ * @clk: struct clk *
+ * @nb: struct notifier_block * with callback info
+ *
+ * Request no further notification for changes to 'clk' and frees memory
+ * allocated in msm_clk_notifier_register.
+ *
+ * Returns -EINVAL if called with null arguments; otherwise, passes
+ * along the return value of srcu_notifier_chain_unregister().
+ */
+int msm_clk_notif_unregister(struct clk *clk, struct notifier_block *nb)
+{
+	struct msm_clk_notifier *cn = NULL;
+	int ret = -EINVAL;
+
+	if (!clk || !nb)
+		return -EINVAL;
+
+	mutex_lock(&clk->prepare_lock);
+
+	list_for_each_entry(cn, &clk_notifier_list, node)
+		if (cn->clk == clk)
+			break;
+
+	if (cn->clk == clk) {
+		ret = srcu_notifier_chain_unregister(&cn->notifier_head, nb);
+
+		clk->notifier_count--;
+
+		/* XXX the notifier code should handle this better */
+		if (!cn->notifier_head.head) {
+			srcu_cleanup_notifier_head(&cn->notifier_head);
+			list_del(&cn->node);
+			kfree(cn);
+		}
+
+	} else {
+		ret = -ENOENT;
+	}
+
+	mutex_unlock(&clk->prepare_lock);
+
+	return ret;
+}
+
 unsigned long clk_get_rate(struct clk *clk)
 {
 	if (IS_ERR_OR_NULL(clk))
@@ -510,10 +672,14 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 
 	start_rate = clk->rate;
 
-	if (clk->ops->pre_set_rate)
+	if (clk->notifier_count)
+		__clk_notify(clk, PRE_RATE_CHANGE, clk->rate, rate);
+
+	if (clk->ops->pre_set_rate) {
 		rc = clk->ops->pre_set_rate(clk, rate);
-	if (rc)
-		goto out;
+		if (rc)
+			goto abort_set_rate;
+	}
 
 	/* Enforce vdd requirements for target frequency. */
 	if (clk->prepare_count) {
@@ -534,10 +700,15 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 	if (clk->ops->post_set_rate)
 		clk->ops->post_set_rate(clk, start_rate);
 
+	if (clk->notifier_count)
+		__clk_notify(clk, POST_RATE_CHANGE, start_rate, clk->rate);
+
 out:
 	mutex_unlock(&clk->prepare_lock);
 	return rc;
 
+abort_set_rate:
+	__clk_notify(clk, ABORT_RATE_CHANGE, clk->rate, rate);
 err_set_rate:
 	if (clk->prepare_count)
 		unvote_rate_vdd(clk, rate);
@@ -557,17 +728,19 @@ long clk_round_rate(struct clk *clk, unsigned long rate)
 	if (IS_ERR_OR_NULL(clk))
 		return -EINVAL;
 
-	if (!clk->ops->round_rate)
-		return -ENOSYS;
-
 	for (i = 0; i < clk->num_fmax; i++)
 		fmax = max(fmax, clk->fmax[i]);
-
 	if (!fmax)
 		fmax = ULONG_MAX;
-
 	rate = min(rate, fmax);
-	rrate = clk->ops->round_rate(clk, rate);
+
+	if (clk->ops->round_rate)
+		rrate = clk->ops->round_rate(clk, rate);
+	else if (clk->rate)
+		rrate = clk->rate;
+	else
+		return -ENOSYS;
+
 	if (rrate > fmax)
 		return -EINVAL;
 	return rrate;
@@ -586,9 +759,30 @@ int clk_set_max_rate(struct clk *clk, unsigned long rate)
 }
 EXPORT_SYMBOL(clk_set_max_rate);
 
+int parent_to_src_sel(struct clk_src *parents, int num_parents, struct clk *p)
+{
+	int i;
+
+	for (i = 0; i < num_parents; i++) {
+		if (parents[i].src == p)
+			return parents[i].sel;
+	}
+
+	return -EINVAL;
+}
+EXPORT_SYMBOL(parent_to_src_sel);
+
+int clk_get_parent_sel(struct clk *c, struct clk *parent)
+{
+	return parent_to_src_sel(c->parents, c->num_parents, parent);
+}
+EXPORT_SYMBOL(clk_get_parent_sel);
+
 int clk_set_parent(struct clk *clk, struct clk *parent)
 {
 	int rc = 0;
+	if (IS_ERR_OR_NULL(clk))
+		return -EINVAL;
 
 	if (!clk->ops->set_parent && clk->parent == parent)
 		return 0;
@@ -649,6 +843,9 @@ static void vdd_class_init(struct clk_vdd_class *vdd)
 	if (!vdd)
 		return;
 
+	if (vdd->skip_handoff)
+		return;
+
 	list_for_each_entry(v, &handoff_vdd_list, list) {
 		if (v->vdd_class == vdd)
 			return;
@@ -673,7 +870,7 @@ static int __handoff_clk(struct clk *clk)
 {
 	enum handoff state = HANDOFF_DISABLED_CLK;
 	struct handoff_clk *h = NULL;
-	int rc;
+	int rc, i;
 
 	if (clk == NULL || clk->flags & CLKFLAG_INIT_DONE ||
 	    clk->flags & CLKFLAG_SKIP_HANDOFF)
@@ -681,6 +878,9 @@ static int __handoff_clk(struct clk *clk)
 
 	if (clk->flags & CLKFLAG_INIT_ERR)
 		return -ENXIO;
+
+	if (clk->flags & CLKFLAG_EPROBE_DEFER)
+		return -EPROBE_DEFER;
 
 	/* Handoff any 'depends' clock first. */
 	rc = __handoff_clk(clk->depends);
@@ -704,6 +904,12 @@ static int __handoff_clk(struct clk *clk)
 	rc = __handoff_clk(clk->parent);
 	if (rc)
 		goto err;
+
+	for (i = 0; i < clk->num_parents; i++) {
+		rc = __handoff_clk(clk->parents[i].src);
+		if (rc)
+			goto err;
+	}
 
 	if (clk->ops->handoff)
 		state = clk->ops->handoff(clk);
@@ -735,7 +941,17 @@ static int __handoff_clk(struct clk *clk)
 		pr_debug("Handed off %s rate=%lu\n", clk->dbg_name, clk->rate);
 	}
 
+	if (clk->init_rate && clk_set_rate(clk, clk->init_rate))
+		pr_err("failed to set an init rate of %lu on %s\n",
+			clk->init_rate, clk->dbg_name);
+	if (clk->always_on && clk->init_rate && clk_prepare_enable(clk))
+		pr_err("failed to enable always-on clock %s\n",
+			clk->dbg_name);
+
 	clk->flags |= CLKFLAG_INIT_DONE;
+	/* if the clk is on orphan list, remove it */
+	list_del_init(&clk->list);
+	clock_debug_register(clk);
 
 	return 0;
 
@@ -743,8 +959,14 @@ err_depends:
 	clk_disable_unprepare(clk->parent);
 err:
 	kfree(h);
-	clk->flags |= CLKFLAG_INIT_ERR;
-	pr_err("%s handoff failed (%d)\n", clk->dbg_name, rc);
+	if (rc == -EPROBE_DEFER) {
+		clk->flags |= CLKFLAG_EPROBE_DEFER;
+		if (list_empty(&clk->list))
+			list_add_tail(&clk->list, &orphan_clk_list);
+	} else {
+		pr_err("%s handoff failed (%d)\n", clk->dbg_name, rc);
+		clk->flags |= CLKFLAG_INIT_ERR;
+	}
 	return rc;
 }
 
@@ -758,7 +980,9 @@ err:
  */
 int msm_clock_register(struct clk_lookup *table, size_t size)
 {
-	int n = 0;
+	int n = 0, rc;
+	struct clk *c, *safe;
+	bool found_more_clks;
 
 	mutex_lock(&msm_clock_init_lock);
 
@@ -778,12 +1002,26 @@ int msm_clock_register(struct clk_lookup *table, size_t size)
 	 * Detect and preserve initial clock state until clock_late_init() or
 	 * a driver explicitly changes it, whichever is first.
 	 */
+
 	for (n = 0; n < size; n++)
 		__handoff_clk(table[n].clk);
 
-	clkdev_add_table(table, size);
+	/* maintain backwards compatibility */
+	if (table[0].con_id || table[0].dev_id)
+		clkdev_add_table(table, size);
 
-	clock_debug_register(table, size);
+	do {
+		found_more_clks = false;
+		/* clear cached __handoff_clk return values */
+		list_for_each_entry_safe(c, safe, &orphan_clk_list, list)
+			c->flags &= ~CLKFLAG_EPROBE_DEFER;
+
+		list_for_each_entry_safe(c, safe, &orphan_clk_list, list) {
+			rc = __handoff_clk(c);
+			if (!rc)
+				found_more_clks = true;
+		}
+	} while (found_more_clks);
 
 	mutex_unlock(&msm_clock_init_lock);
 

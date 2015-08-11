@@ -232,6 +232,7 @@ static const char fsg_string_interface[] = "Mass Storage";
 
 #ifdef CONFIG_USB_CSW_HACK
 static int write_error_after_csw_sent;
+static int must_report_residue;
 static int csw_hack_sent;
 #endif
 /*-------------------------------------------------------------------------*/
@@ -558,7 +559,7 @@ static int fsg_setup(struct usb_function *f,
 		//printk("XXX::common->nluns=%d, luns_count=%d\r\n",fsg->common->nluns, luns_count);//hoper		
 		*(u8 *)req->buf = luns_count - 2;
 		//shenyong.wt,20140912,end.add mtp+cdrom
-		
+
 		//+++Require,HuangNan_Wingtech,remove internal sd card
 		//*(u8 *)req->buf = fsg->common->nluns - 2;
         //---Require,HuangNan_Wingtech,remove internal sd card
@@ -1016,6 +1017,16 @@ write_error:
 			if ((nwritten == amount) && !csw_hack_sent) {
 				if (write_error_after_csw_sent)
 					break;
+
+				/*
+				 * If residue still exists and nothing left to
+				 * write, device must send correct residue to
+				 * host in this case.
+				 */
+				if (!amount_left_to_write && common->residue) {
+					must_report_residue = 1;
+					break;
+				}
 				/*
 				 * Check if any of the buffer is in the
 				 * busy state, if any buffer is in busy state,
@@ -1773,8 +1784,9 @@ static int send_status(struct fsg_common *common)
 	 * writing on to storage media, need to set
 	 * residue to zero,assuming that write will succeed.
 	 */
-	if (write_error_after_csw_sent) {
+	if (write_error_after_csw_sent || must_report_residue) {
 		write_error_after_csw_sent = 0;
+		must_report_residue = 0;
 		csw->Residue = cpu_to_le32(common->residue);
 	} else
 		csw->Residue = 0;

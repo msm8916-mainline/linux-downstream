@@ -218,7 +218,7 @@ static void ehci_adjust_port_wakeup_flags(struct ehci_hcd *ehci,
 	spin_unlock_irq(&ehci->lock);
 }
 
-static int ehci_bus_suspend (struct usb_hcd *hcd)
+int ehci_bus_suspend(struct usb_hcd *hcd)
 {
 	struct ehci_hcd		*ehci = hcd_to_ehci (hcd);
 	int			port;
@@ -357,10 +357,10 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 	hrtimer_cancel(&ehci->hrtimer);
 	return 0;
 }
-
+EXPORT_SYMBOL(ehci_bus_suspend);
 
 /* caller has locked the root hub, and should reset/reinit on error */
-static int __maybe_unused ehci_bus_resume(struct usb_hcd *hcd)
+int __maybe_unused ehci_bus_resume(struct usb_hcd *hcd)
 {
 	struct ehci_hcd		*ehci = hcd_to_ehci (hcd);
 	u32			temp;
@@ -513,6 +513,7 @@ skip_clear_resume:
 	spin_unlock_irq(&ehci->lock);
 	return -ESHUTDOWN;
 }
+EXPORT_SYMBOL(ehci_bus_resume);
 
 #else
 
@@ -1282,8 +1283,8 @@ static int ehci_hub_control (
 				ehci_quiesce(ehci);
 				spin_lock_irqsave(&ehci->lock, flags);
 
-			/* Put all enabled ports into suspend */
-				while (ports--) {
+				/* Put all enabled ports into suspend */
+				while (!ehci->no_testmode_suspend && ports--) {
 					u32 __iomem *sreg =
 						&ehci->regs->port_status[ports];
 
@@ -1294,12 +1295,6 @@ static int ehci_hub_control (
 							temp | PORT_SUSPEND,
 							sreg);
 				}
-				spin_unlock_irq(&ehci->lock);
-				ehci_halt(ehci);
-				spin_lock_irq(&ehci->lock);
-				temp = ehci_readl(ehci, status_reg);
-				temp |= selector << 16;
-				ehci_writel(ehci, temp, status_reg);
 
 				spin_unlock_irqrestore(&ehci->lock, flags);
 				ehci_halt(ehci);

@@ -12,7 +12,6 @@
 #include <linux/reboot.h>
 
 struct tag;
-struct meminfo;
 struct pt_regs;
 struct smp_operations;
 #ifdef CONFIG_SMP
@@ -42,11 +41,9 @@ struct machine_desc {
 	unsigned char		reserve_lp2 :1;	/* never has lp2	*/
 	enum reboot_mode	reboot_mode;	/* default restart mode	*/
 	struct smp_operations	*smp;		/* SMP operations	*/
-	void			(*fixup)(struct tag *, char **,
-					 struct meminfo *);
+	void			(*fixup)(struct tag *, char **);
 	void			(*reserve)(void);/* reserve mem blocks	*/
 	void			(*map_io)(void);/* IO mapping function	*/
-	void			(*init_very_early)(void);
 	void			(*init_early)(void);
 	void			(*init_irq)(void);
 	void			(*init_time)(void);
@@ -61,12 +58,12 @@ struct machine_desc {
 /*
  * Current machine - only accessible during boot.
  */
-extern struct machine_desc *machine_desc;
+extern const struct machine_desc *machine_desc;
 
 /*
  * Machine type table - also only accessible during boot
  */
-extern struct machine_desc __arch_info_begin[], __arch_info_end[];
+extern const struct machine_desc __arch_info_begin[], __arch_info_end[];
 #define for_each_machine_desc(p)			\
 	for (p = __arch_info_begin; p < __arch_info_end; p++)
 

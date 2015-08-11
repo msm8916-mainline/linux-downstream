@@ -224,6 +224,7 @@ static struct sensors_classdev sensors_light_cdev = {
 	.min_delay = 1000,	/* in microseconds */
 	.fifo_reserved_event_count = 0,
 	.fifo_max_event_count = 0,
+	.flags = 2,
 	.enabled = 0,
 	.delay_msec = 100,
 	.sensors_enable = NULL,
@@ -242,6 +243,7 @@ static struct sensors_classdev sensors_proximity_cdev = {
 	.min_delay = 1000,	/* in microseconds */
 	.fifo_reserved_event_count = 0,
 	.fifo_max_event_count = 0,
+	.flags = 3,
 	.enabled = 0,
 	.delay_msec = 100,
 	.sensors_enable = NULL,
@@ -516,7 +518,7 @@ static void elan_epl_ps_poll_rawdata(void)
 
 	epl_info("### ps_ch1_raw_data  (%d), value(%d) ###\n\n",
 		 gRawData.ps_ch1_raw, gRawData.ps_state);
-
+	//printk("xmm ps = %d\n",gRawData.ps_state);
 	input_report_abs(epld->ps_input_dev, ABS_DISTANCE, gRawData.ps_state);
 	input_sync(epld->ps_input_dev);
 }
@@ -758,6 +760,7 @@ static void polling_do_work(struct work_struct *work)
 	}
 
 	if (isAlsOnly || isInterleaving) {
+		//printk("xmm  als only\n");
 		elan_sensor_lsensor_enable(epld);
 		elan_epl_als_rawdata();
 		if (isInterleaving) {
@@ -767,6 +770,7 @@ static void polling_do_work(struct work_struct *work)
 			}
 		}
 	} else if (isPsOnly) {
+	//printk("xmm  ps only\n");
 		elan_sensor_psensor_enable(epld);
 
 		if (PS_INTERRUPT_MODE) {
@@ -962,7 +966,7 @@ static int elan_als_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int elan_als_read(struct file *file, char __user *buffer, size_t count,
+static ssize_t elan_als_read(struct file *file, char __user *buffer, size_t count,
 			 loff_t *ppos)
 {
 	struct elan_epl_data *epld = epl_data;
@@ -1104,6 +1108,7 @@ static long elan_ps_ioctl(struct file *file, unsigned int cmd,
 {
 	int value;
 	int flag;
+	u16 buf[2];
 	struct elan_epl_data *epld = epl_data;
 
 	void __user *argp = (void __user *)arg;
@@ -1140,7 +1145,7 @@ static long elan_ps_ioctl(struct file *file, unsigned int cmd,
 		if (copy_to_user(argp, &value, sizeof(value)))
 			return -EFAULT;
 
-		epl_info("elan proximity Sensor get data (%d)\n", value);
+		printk("elan proximity Sensor get data (%d)\n", value);
 		break;
 
 
@@ -1152,7 +1157,7 @@ static long elan_ps_ioctl(struct file *file, unsigned int cmd,
 
 			set_psensor_intr_threshold(value+LOW_OFFSET, value+HIGH_OFFSET);
 			epld->cali_value = value;
-			epl_info("pppppxmmmmm---th_l %d, th_h %d\n",value+LOW_OFFSET,value+HIGH_OFFSET);
+			printk("pppppxmmmmm---th_l %d, th_h %d\n",value+LOW_OFFSET,value+HIGH_OFFSET);
 		}
 		
 			break;
@@ -1160,7 +1165,10 @@ static long elan_ps_ioctl(struct file *file, unsigned int cmd,
 
 		msleep(PS_DELAY);
 		msleep(PS_DELAY);
-		if (copy_to_user(argp, &gRawData.ps_ch1_raw, sizeof(gRawData.ps_ch1_raw)))
+		buf[0] = gRawData.ps_ch1_raw;
+		buf[1] = gRawData.ps_state;
+		//if (copy_to_user(argp, &gRawData.ps_ch1_raw, sizeof(gRawData.ps_ch1_raw)))
+		if (copy_to_user(argp, buf, sizeof(buf)))
 			return -EFAULT;
 			
 			break;
@@ -1528,6 +1536,7 @@ static int elan_als_set_enable(struct sensors_classdev *sensors_cdev,
 	return elan_enable_als_sensor(epld->client, enable);
 }
 
+#ifndef CONFIG_DISPSENSOR_CAMERA_OPEN
 static int elan_ps_set_enable(struct sensors_classdev *sensors_cdev,
 			      unsigned int enable)
 {
@@ -1544,9 +1553,99 @@ static int elan_ps_set_enable(struct sensors_classdev *sensors_cdev,
 
 	return elan_enable_ps_sensor(epld->client, enable);
 }
+#else
+static int ps_enabled = 0;
+static int camera_opened = 0;
+
+static int elan_ps_set_enable_real(struct sensors_classdev *sensors_cdev,
+			      unsigned int enable)
+{
+	struct elan_epl_data *epld =
+	    container_of(sensors_cdev, struct elan_epl_data, ps_cdev);
+	int ret = 0;
+	static int current_status = -1;
+
+	if(current_status == enable)
+	{
+		return ret;
+	}
+
+	if ((enable != 0) && (enable != 1)) {
+		pr_err("%s: invalid value(%d)\n", __func__, enable);
+		return -EINVAL;
+	}
+	if(enable == 1){
+		gRawData.ps_min_raw = 0xffff;
+	}
+
+	ret = elan_enable_ps_sensor(epld->client, enable);
+	if(ret < 0){
+		pr_err("%s: enable(%d) failed!\n", __func__, enable);
+		current_status = -1;
+		return -EFAULT;
+	}
+	current_status = enable;
+
+	return ret;
+}
+
+static int elan_ps_set_enable(struct sensors_classdev *sensors_cdev,
+			      unsigned int enable)
+{
+	int ret = 0;
+	ps_enabled = enable;
+	if(!camera_opened)
+	{
+		ret = elan_ps_set_enable_real(sensors_cdev,enable);
+	}
+	else
+	{
+		pr_info("camera is opened , omit ps enable\n");
+	}
+
+	return ret;
+}
+
+static void camera_callback_func(struct work_struct *work)
+{
+	if(!camera_opened) //powerdown
+	{
+		if(ps_enabled)
+		{
+			elan_ps_set_enable_real(&epl_data->ps_cdev, 1);
+		}
+	}
+	else		//powerup
+	{
+		if(ps_enabled)
+		{
+			elan_ps_set_enable_real(&epl_data->ps_cdev, 0);
+		}
+	}
+
+}
+
+static DECLARE_DELAYED_WORK(camera_callback_work, camera_callback_func);
+
+extern void (*msm_sensor_power_on)(int up_down) ;
+void msm_sensor_camera_power_on(int power_up)
+{
+	cancel_delayed_work_sync(&camera_callback_work);
+	if(power_up)	//powerup
+	{
+		camera_opened = 1;
+		schedule_delayed_work(&camera_callback_work,10);
+	}
+	else		//powerdown
+	{
+		camera_opened = 0;
+		schedule_delayed_work(&camera_callback_work,2*HZ);
+	}
+}
+#endif
 
 /*at least 500ms, "echo A > poll_delay" means poll A msec! */
-static ssize_t elan_als_poll_delay(struct sensors_classdev *sensors_cdev,
+static int elan_als_poll_delay(struct sensors_classdev *sensors_cdev,
 				   unsigned int delay_msec)
 {
 	struct elan_epl_data *epld =
@@ -1566,7 +1665,7 @@ static ssize_t elan_als_poll_delay(struct sensors_classdev *sensors_cdev,
 }
 
 /*at least 500ms, "echo A > poll_delay" means poll A msec! */
-static ssize_t elan_ps_poll_delay(struct sensors_classdev *sensors_cdev,
+static int elan_ps_poll_delay(struct sensors_classdev *sensors_cdev,
 				  unsigned int delay_msec)
 {
 	struct elan_epl_data *epld =
@@ -1802,6 +1901,9 @@ static int elan_sensor_probe(struct i2c_client *client,
 		goto exit_create_class_sysfs;
 	}
 
+#ifdef CONFIG_DISPSENSOR_CAMERA_OPEN
+	msm_sensor_power_on = msm_sensor_camera_power_on;
+#endif
 	epl_info("sensor probe success.\n");
 	hardwareinfo_set_prop(HARDWARE_ALSPS,"elan2182");
 	return err;

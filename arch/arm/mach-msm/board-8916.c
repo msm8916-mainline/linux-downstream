@@ -28,11 +28,6 @@
 #include "board-dt.h"
 #include "platsmp.h"
 
-static void __init msm8916_early_memory(void)
-{
-	of_scan_flat_dt(dt_scan_for_memory_hole, NULL);
-}
-
 static void __init msm8916_dt_reserve(void)
 {
 	of_scan_flat_dt(dt_scan_for_memory_reserve, NULL);
@@ -95,13 +90,22 @@ static const char *msm8939_dt_match[] __initconst = {
 	NULL
 };
 
+static const char *msm8929_dt_match[] __initconst = {
+	"qcom,msm8929",
+	NULL
+};
+
+static const char *msmtellurium_dt_match[] __initconst = {
+	"qcom,msmtellurium",
+	NULL
+};
+
 DT_MACHINE_START(MSM8916_DT,
 		"Qualcomm Technologies, Inc. MSM 8916 (Flattened Device Tree)")
 	.map_io = msm8916_map_io,
 	.init_machine = msm8916_init,
 	.dt_compat = msm8916_dt_match,
 	.reserve = msm8916_dt_reserve,
-	.init_very_early = msm8916_early_memory,
 	.smp = &msm8916_smp_ops,
 MACHINE_END
 
@@ -120,6 +124,23 @@ DT_MACHINE_START(MSM8936_DT,
 	.init_machine = msm8916_init,
 	.dt_compat = msm8936_dt_match,
 	.reserve = msm8916_dt_reserve,
-	.init_very_early = msm8916_early_memory,
+	.smp = &msm8936_smp_ops,
+MACHINE_END
+
+DT_MACHINE_START(MSM8929_DT,
+	"Qualcomm Technologies, Inc. MSM 8929 (Flattened Device Tree)")
+	.map_io = msm8916_map_io,
+	.init_machine = msm8916_init,
+	.dt_compat = msm8929_dt_match,
+	.reserve = msm8916_dt_reserve,
+	.smp = &msm8936_smp_ops,
+MACHINE_END
+
+DT_MACHINE_START(MSMTellurium_DT,
+	"Qualcomm Technologies, Inc. MSM Tellurium (Flattened Device Tree)")
+	.map_io = msm8916_map_io,
+	.init_machine = msm8916_init,
+	.dt_compat = msmtellurium_dt_match,
+	.reserve = msm8916_dt_reserve,
 	.smp = &msm8936_smp_ops,
 MACHINE_END

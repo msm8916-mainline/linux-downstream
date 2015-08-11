@@ -23,6 +23,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/slimbus/slimbus.h>
 #include <soc/qcom/subsystem_notif.h>
+#include <soc/qcom/liquid_dock.h>
 #include <sound/core.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
@@ -42,12 +43,19 @@
 
 static int slim0_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 static int hdmi_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+static int mi2s_tx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+static int mi2s_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 
 #define SAMPLING_RATE_8KHZ 8000
 #define SAMPLING_RATE_16KHZ 16000
+#define SAMPLING_RATE_32KHZ   32000
+#define SAMPLING_RATE_44DOT1KHZ 44100
 #define SAMPLING_RATE_48KHZ 48000
 #define SAMPLING_RATE_96KHZ 96000
+#define SAMPLING_RATE_128KHZ   128000
+#define SAMPLING_RATE_176DOT4KHZ  176400
 #define SAMPLING_RATE_192KHZ 192000
+
 
 static int apq8084_auxpcm_rate = 8000;
 #define LO_1_SPK_AMP	0x1
@@ -147,11 +155,52 @@ struct msm_auxpcm_ctrl {
 	u32 cnt;
 };
 
+static const struct afe_clk_cfg lpass_default = {
+	AFE_API_VERSION_I2S_CONFIG,
+	Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ,
+	Q6AFE_LPASS_OSR_CLK_DISABLE,
+	Q6AFE_LPASS_CLK_SRC_INTERNAL,
+	Q6AFE_LPASS_CLK_ROOT_DEFAULT,
+	Q6AFE_LPASS_MODE_CLK1_VALID,
+	0,
+};
+
+static const char *const mi2s_pin_states[] = {"Disable",
+					      "quad_mi2s_active"};
+
+/*
+ * enum mi2s_pin_state - states for the mi2s pinctrl states
+ * Note: these states are similar to the "pinctrl-names"
+ * in board/target specific DTSI file.
+ */
+enum mi2s_pin_state {
+	MI2S_STATE_DISABLE = 0,
+	MI2S_STATE_QUAD_ON = 1
+};
+
+/*
+ * struct msm_mi2s_pinctrl_info - manage all the pinctrl information
+ *
+ * @pinctrl:		TSC pinctrl state holder.
+ * @disable:		pinctrl state to disable all the pins.
+ * @quad_mi2s_active:	pinctrl state to activate Quaternary MI2S.
+ * @curr_state:		the current state of the TLMM pins.
+ */
+struct msm_mi2s_pinctrl_info {
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *disable;
+	struct pinctrl_state *quad_mi2s_active;
+	enum mi2s_pin_state curr_mi2s_state;
+};
+
 struct apq8084_asoc_mach_data {
 	u32 mclk_freq;
 	int us_euro_gpio;
 	struct msm_auxpcm_ctrl *pri_auxpcm_ctrl;
 	struct msm_auxpcm_ctrl *sec_auxpcm_ctrl;
+	u32 quad_rx_clk_usrs;
+	u32 quad_tx_clk_usrs;
+	struct msm_mi2s_pinctrl_info mi2s_pinctrl_info;
 };
 
 struct apq8084_asoc_wcd93xx_codec {
@@ -185,6 +234,7 @@ static char *msm_sec_auxpcm_gpio_name[][2] = {
 
 void *lpaif_pri_muxsel_virt_addr;
 void *lpaif_sec_muxsel_virt_addr;
+void *lpaif_quad_muxsel_virt_addr;
 
 struct apq8084_liquid_dock_dev {
 	int dock_plug_gpio;
@@ -205,6 +255,7 @@ enum {
 	SLIM_3_RX_2 = 168, /* External echo-cancellation ref */
 	SLIM_3_TX_1 = 169, /* HDMI RX */
 	SLIM_3_TX_2 = 170, /* HDMI RX */
+	SLIM_4_RX_1 = 171, /* In-call music delivery2 */
 	SLIM_6_TX_1 = 163, /* In-call recording RX */
 	SLIM_6_TX_2 = 164, /* In-call recording RX */
 	SLIM_6_RX_1 = 165, /* In-call music delivery TX */
@@ -243,6 +294,12 @@ static int clk_users;
 static atomic_t prim_auxpcm_rsc_ref;
 static atomic_t sec_auxpcm_rsc_ref;
 static bool codec_reg_done;
+static int apq8084_mi2s_rx_ch = 1;
+static int apq8084_mi2s_tx_ch = 1;
+static atomic_t quad_mi2s_ref_count;
+
+static const char *const mi2s_tx_ch_text[] = {"One", "Two"};
+static const char *const mi2s_rx_ch_text[] = {"One", "Two"};
 
 static int apq8084_liquid_ext_spk_power_amp_init(void)
 {
@@ -334,6 +391,23 @@ static void apq8084_liquid_ext_spk_power_amp_enable(u32 on)
 			on ? "Enable" : "Disable");
 }
 
+static void apq8084_liquid_route_aud_dock_dev(void)
+{
+	struct apq8084_liquid_dock_dev *dock_dev = apq8084_liquid_dock_dev;
+	struct snd_soc_dapm_context *dapm = dock_dev->dapm;
+
+	mutex_lock(&dapm->codec->mutex);
+
+	/* Turn off external amp to turn off liquid spkr */
+	if ((apq8084_ext_spk_pamp & LO_1_SPK_AMP) &&
+		(apq8084_ext_spk_pamp & LO_3_SPK_AMP) &&
+		(apq8084_ext_spk_pamp & LO_2_SPK_AMP) &&
+		(apq8084_ext_spk_pamp & LO_4_SPK_AMP))
+		apq8084_liquid_ext_spk_power_amp_enable(0);
+
+	mutex_unlock(&dapm->codec->mutex);
+}
+
 static void apq8084_liquid_docking_irq_work(struct work_struct *work)
 {
 	struct apq8084_liquid_dock_dev *dock_dev =
@@ -369,14 +443,71 @@ static irqreturn_t apq8084_liquid_docking_irq_handler(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+static int apq8084_liquid_dock_notify_handler(struct notifier_block *this,
+					unsigned long dock_event,
+					void *unused)
+{
+	int err = 0;
+
+	/* plug in docking speaker+plug in device OR unplug one of them */
+	u32 dock_plug_irq_flags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |
+					IRQF_SHARED;
+
+	if (dock_event) {
+		err = gpio_request(apq8084_liquid_dock_dev->dock_plug_gpio,
+					   "dock-plug-det-irq");
+		if (err) {
+			pr_err("%s: fail request dock-plug-det-irq err = %d\n",
+				__func__, err);
+			goto exit;
+		}
+
+		apq8084_liquid_dock_dev->dock_plug_det =
+			gpio_get_value(apq8084_liquid_dock_dev->dock_plug_gpio);
+		if (apq8084_liquid_dock_dev->dock_plug_det)
+			apq8084_liquid_route_aud_dock_dev();
+		apq8084_liquid_dock_dev->dock_plug_irq =
+			gpio_to_irq(apq8084_liquid_dock_dev->dock_plug_gpio);
+
+		err = request_irq(apq8084_liquid_dock_dev->dock_plug_irq,
+				  apq8084_liquid_docking_irq_handler,
+				  dock_plug_irq_flags,
+				  "liquid_dock_plug_irq",
+				  apq8084_liquid_dock_dev);
+		if (err < 0) {
+			pr_err("%s: Request Irq Failed err = %d\n",
+				__func__, err);
+			goto out;
+		}
+
+		INIT_WORK(
+			&apq8084_liquid_dock_dev->irq_work,
+			apq8084_liquid_docking_irq_work);
+	} else {
+		if (apq8084_liquid_dock_dev->dock_plug_gpio)
+			gpio_free(apq8084_liquid_dock_dev->dock_plug_gpio);
+
+		if (apq8084_liquid_dock_dev->dock_plug_irq)
+			free_irq(apq8084_liquid_dock_dev->dock_plug_irq,
+				 apq8084_liquid_dock_dev);
+	}
+	return NOTIFY_OK;
+
+out:
+	gpio_free(apq8084_liquid_dock_dev->dock_plug_gpio);
+exit:
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block apq8084_liquid_docking_notifier = {
+	.notifier_call  = apq8084_liquid_dock_notify_handler,
+};
+
 static int apq8084_liquid_init_docking(struct snd_soc_dapm_context *dapm)
 {
 	int ret = 0;
 	int dock_plug_gpio = 0;
 
-	/* plug in docking speaker+plug in device OR unplug one of them */
-	u32 dock_plug_irq_flags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |
-					IRQF_SHARED;
 	dock_plug_gpio = of_get_named_gpio(spdev->dev.of_node,
 					   "qcom,dock-plug-det-irq", 0);
 
@@ -390,45 +521,10 @@ static int apq8084_liquid_init_docking(struct snd_soc_dapm_context *dapm)
 		}
 
 		apq8084_liquid_dock_dev->dock_plug_gpio = dock_plug_gpio;
-
-		ret = gpio_request(apq8084_liquid_dock_dev->dock_plug_gpio,
-					   "dock-plug-det-irq");
-		if (ret) {
-			pr_err("%s:failed request apq8084_liquid_dock_plug_gpio.\n",
-				__func__);
-			ret = -EINVAL;
-			goto out;
-		}
-
-		apq8084_liquid_dock_dev->dock_plug_det =
-			gpio_get_value(apq8084_liquid_dock_dev->dock_plug_gpio);
-		apq8084_liquid_dock_dev->dock_plug_irq =
-			gpio_to_irq(apq8084_liquid_dock_dev->dock_plug_gpio);
-
 		apq8084_liquid_dock_dev->dapm = dapm;
 
-		ret = request_irq(apq8084_liquid_dock_dev->dock_plug_irq,
-				  apq8084_liquid_docking_irq_handler,
-				  dock_plug_irq_flags,
-				  "liquid_dock_plug_irq",
-				  apq8084_liquid_dock_dev);
-		if (ret < 0) {
-			pr_err("%s: Request Irq Failed err = %d\n",
-				__func__, ret);
-			goto out2;
-		}
-
-		INIT_WORK(
-			&apq8084_liquid_dock_dev->irq_work,
-			apq8084_liquid_docking_irq_work);
+		register_liquid_dock_notify(&apq8084_liquid_docking_notifier);
 	}
-	return 0;
-
-out2:
-	gpio_free(apq8084_liquid_dock_dev->dock_plug_gpio);
-out:
-	kfree(apq8084_liquid_dock_dev);
-	apq8084_liquid_dock_dev = NULL;
 exit:
 	return ret;
 }
@@ -730,12 +826,23 @@ static char const *slim0_rx_sample_rate_text[] = {"KHZ_48", "KHZ_96",
 static const char *const proxy_rx_ch_text[] = {"One", "Two", "Three", "Four",
 					      "Five", "Six", "Seven", "Eight"};
 
-static char const *hdmi_rx_sample_rate_text[] = {"KHZ_48", "KHZ_96",
-						 "KHZ_192"};
+static char const *hdmi_rx_sample_rate_text[] = {"KHZ_32", "KHZ_44_1", "KHZ_48",
+						 "KHZ_96", "KHZ_128",
+						 "KHZ_176_4", "KHZ_192"};
 
 static const char * const slim1_tx_ch_text[] = {"One", "Two"};
 static const char * const slim3_rx_ch_text[] = {"One", "Two"};
 static const char *const slim1_rate_text[] = {"8000", "16000", "48000"};
+
+enum {
+	HDMI_RATE_32KHZ = 0,
+	HDMI_RATE_44DOT1KHZ,
+	HDMI_RATE_48KHZ,
+	HDMI_RATE_96KHZ,
+	HDMI_RATE_128KHZ,
+	HDMI_RATE_176DOT4KHZ,
+	HDMI_RATE_192KHZ
+};
 
 static int slim0_rx_sample_rate_get(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
@@ -993,21 +1100,31 @@ static int hdmi_rx_sample_rate_get(struct snd_kcontrol *kcontrol,
 
 	switch (hdmi_rx_sample_rate) {
 	case SAMPLING_RATE_192KHZ:
-		sample_rate_val = 2;
+		sample_rate_val = HDMI_RATE_192KHZ;
 		break;
-
+	case SAMPLING_RATE_176DOT4KHZ:
+		sample_rate_val = HDMI_RATE_176DOT4KHZ;
+		break;
+	case SAMPLING_RATE_128KHZ:
+		sample_rate_val = HDMI_RATE_128KHZ;
+		break;
 	case SAMPLING_RATE_96KHZ:
-		sample_rate_val = 1;
+		sample_rate_val = HDMI_RATE_96KHZ;
 		break;
-
+	case SAMPLING_RATE_44DOT1KHZ:
+		sample_rate_val = HDMI_RATE_44DOT1KHZ;
+		break;
+	case SAMPLING_RATE_32KHZ:
+		sample_rate_val = HDMI_RATE_32KHZ;
+		break;
 	case SAMPLING_RATE_48KHZ:
 	default:
-		sample_rate_val = 0;
+		sample_rate_val = HDMI_RATE_48KHZ;
 		break;
 	}
 	ucontrol->value.integer.value[0] = sample_rate_val;
 	pr_debug("%s: hdmi_rx_sample_rate = %d\n", __func__,
-				hdmi_rx_sample_rate);
+		  hdmi_rx_sample_rate);
 	return 0;
 }
 
@@ -1015,20 +1132,32 @@ static int hdmi_rx_sample_rate_put(struct snd_kcontrol *kcontrol,
 				   struct snd_ctl_elem_value *ucontrol)
 {
 	pr_debug("%s: ucontrol value = %ld\n", __func__,
-			ucontrol->value.integer.value[0]);
+		 ucontrol->value.integer.value[0]);
 	switch (ucontrol->value.integer.value[0]) {
-	case 2:
+	case HDMI_RATE_192KHZ:
 		hdmi_rx_sample_rate = SAMPLING_RATE_192KHZ;
 		break;
-	case 1:
+	case HDMI_RATE_176DOT4KHZ:
+		hdmi_rx_sample_rate = SAMPLING_RATE_176DOT4KHZ;
+		break;
+	case HDMI_RATE_128KHZ:
+		hdmi_rx_sample_rate = SAMPLING_RATE_128KHZ;
+		break;
+	case HDMI_RATE_96KHZ:
 		hdmi_rx_sample_rate = SAMPLING_RATE_96KHZ;
 		break;
-	case 0:
+	case HDMI_RATE_44DOT1KHZ:
+		hdmi_rx_sample_rate = SAMPLING_RATE_44DOT1KHZ;
+		break;
+	case HDMI_RATE_32KHZ:
+		hdmi_rx_sample_rate = SAMPLING_RATE_32KHZ;
+		break;
+	case HDMI_RATE_48KHZ:
 	default:
 		hdmi_rx_sample_rate = SAMPLING_RATE_48KHZ;
 	}
 	pr_debug("%s: hdmi_rx_sample_rate = %d\n", __func__,
-			hdmi_rx_sample_rate);
+		 hdmi_rx_sample_rate);
 	return 0;
 }
 
@@ -1289,6 +1418,322 @@ static struct snd_soc_ops msm_sec_auxpcm_be_ops = {
 	.shutdown = msm_sec_auxpcm_shutdown,
 };
 
+static int msm_quad_mi2s_set_pinctrl(struct apq8084_asoc_mach_data *pdata)
+{
+	struct msm_mi2s_pinctrl_info *pinctrl_info = &pdata->mi2s_pinctrl_info;
+	int ret = 0;
+
+	pr_debug("%s: curr_mi2s_state = %s\n", __func__,
+		 mi2s_pin_states[pinctrl_info->curr_mi2s_state]);
+	/* Enable Quaternary MI2S TLMM pins and set to appropriate state */
+	switch (pinctrl_info->curr_mi2s_state) {
+	case MI2S_STATE_DISABLE:
+		ret = pinctrl_select_state(pinctrl_info->pinctrl,
+					   pinctrl_info->quad_mi2s_active);
+		if (ret) {
+			pr_err("%s: pinctrl_select_state failed with %d\n",
+				__func__, ret);
+			ret = -EIO;
+			goto err;
+		}
+		pinctrl_info->curr_mi2s_state = MI2S_STATE_QUAD_ON;
+		break;
+	case MI2S_STATE_QUAD_ON:
+		pr_err("%s: MI2S TLMM pins already set\n", __func__);
+		break;
+	default:
+		pr_err("%s: MI2S TLMM pin state is invalid\n", __func__);
+		return -EINVAL;
+	}
+
+err:
+	return ret;
+}
+
+static int msm_quad_mi2s_reset_pinctrl(struct apq8084_asoc_mach_data *pdata)
+{
+	struct msm_mi2s_pinctrl_info *pinctrl_info = &pdata->mi2s_pinctrl_info;
+	int ret = 0;
+
+	pr_debug("%s: curr_mi2s_state = %s\n", __func__,
+		 mi2s_pin_states[pinctrl_info->curr_mi2s_state]);
+	/* Reset Quaternary MI2S TLMM pins and set to appropriate state */
+	switch (pinctrl_info->curr_mi2s_state) {
+	case MI2S_STATE_QUAD_ON:
+		ret = pinctrl_select_state(pinctrl_info->pinctrl,
+					   pinctrl_info->disable);
+		if (ret) {
+			pr_err("%s: pinctrl_select_state failed with %d\n",
+				__func__, ret);
+			ret = -EIO;
+			goto err;
+		}
+		pinctrl_info->curr_mi2s_state = MI2S_STATE_DISABLE;
+		break;
+	case MI2S_STATE_DISABLE:
+		pr_err("%s: MI2S TLMM pins already disabled\n", __func__);
+		break;
+	default:
+		pr_err("%s: MI2S TLMM pin state is invalid\n", __func__);
+		return -EINVAL;
+	}
+
+err:
+	return ret;
+}
+
+static int apq8084_quad_mi2s_clk_ctl(struct snd_soc_pcm_runtime *rtd,
+				bool enable,
+				struct snd_pcm_substream *substream)
+{
+	struct snd_soc_card *card = rtd->card;
+	struct apq8084_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct afe_clk_cfg *lpass_clk = NULL;
+	int ret = 0;
+	u32 afe_port_id;
+
+	if (pdata == NULL) {
+		pr_err("%s:platform data is null\n", __func__);
+		return -EINVAL;
+	}
+	lpass_clk = kzalloc(sizeof(struct afe_clk_cfg), GFP_KERNEL);
+	if (lpass_clk == NULL) {
+		pr_err("%s:Failed to allocate memory\n", __func__);
+		return -ENOMEM;
+	}
+	memcpy(lpass_clk, &lpass_default, sizeof(struct afe_clk_cfg));
+	pr_debug("%s: lpass clock enable = %d\n", __func__, enable);
+	if (enable) {
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			afe_port_id = AFE_PORT_ID_QUATERNARY_MI2S_RX;
+			if (pdata->quad_rx_clk_usrs == 0) {
+				lpass_clk->clk_val1 =
+					    Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ;
+				lpass_clk->clk_set_mode =
+						Q6AFE_LPASS_MODE_CLK1_VALID;
+			}
+			ret = afe_set_lpass_clock(afe_port_id, lpass_clk);
+			if (ret < 0) {
+				pr_err("%s:afe_set_lpass_clock failed with %d\n",
+					__func__, ret);
+				goto err;
+			} else {
+				pdata->quad_rx_clk_usrs++;
+			}
+		} else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+			afe_port_id = AFE_PORT_ID_QUATERNARY_MI2S_TX;
+			if (pdata->quad_tx_clk_usrs == 0) {
+				lpass_clk->clk_val1 =
+					    Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ;
+				lpass_clk->clk_set_mode =
+						Q6AFE_LPASS_MODE_CLK1_VALID;
+			}
+			ret = afe_set_lpass_clock(afe_port_id, lpass_clk);
+			if (ret < 0) {
+				pr_err("%s:afe_set_lpass_clock failed with %d\n",
+					__func__, ret);
+				goto err;
+			} else {
+				pdata->quad_tx_clk_usrs++;
+			}
+		}
+	} else {
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			afe_port_id = AFE_PORT_ID_QUATERNARY_MI2S_RX;
+			if (pdata->quad_rx_clk_usrs > 0)
+				pdata->quad_rx_clk_usrs--;
+			if (pdata->quad_rx_clk_usrs == 0) {
+				lpass_clk->clk_val1 =
+						Q6AFE_LPASS_IBIT_CLK_DISABLE;
+				lpass_clk->clk_set_mode =
+						Q6AFE_LPASS_MODE_CLK1_VALID;
+			}
+			ret = afe_set_lpass_clock(afe_port_id, lpass_clk);
+			if (ret < 0) {
+				pr_err("%s:afe_set_lpass_clock failed with %d\n",
+					__func__, ret);
+				goto err;
+			}
+		} else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+			afe_port_id = AFE_PORT_ID_QUATERNARY_MI2S_TX;
+			if (pdata->quad_tx_clk_usrs > 0)
+				pdata->quad_tx_clk_usrs--;
+			if (pdata->quad_tx_clk_usrs == 0) {
+				lpass_clk->clk_val1 =
+						Q6AFE_LPASS_IBIT_CLK_DISABLE;
+				lpass_clk->clk_set_mode =
+						Q6AFE_LPASS_MODE_CLK1_VALID;
+			}
+			ret = afe_set_lpass_clock(afe_port_id, lpass_clk);
+			if (ret < 0) {
+				pr_err("%s:afe_set_lpass_clock failed with %d\n",
+					__func__, ret);
+				goto err;
+			}
+		}
+	}
+	pr_debug("%s: clk 1 = 0x%x clk2 = 0x%x mode = 0x%x\n",
+			 __func__, lpass_clk->clk_val1,
+			lpass_clk->clk_val2,
+			lpass_clk->clk_set_mode);
+	ret = 0;
+err:
+	kfree(lpass_clk);
+	return ret;
+}
+
+static int msm_quad_mi2s_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct apq8084_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	int ret = 0;
+	uint32_t pcm_sel_reg;
+
+	pr_debug("%s(): substream = %s, quad_mi2s_ref_count = %d\n",
+		 __func__, substream->name, atomic_read(&quad_mi2s_ref_count));
+
+	if (pdata == NULL || lpaif_quad_muxsel_virt_addr == NULL) {
+		pr_err("%s: Invalid parameters for Quad MI2S\n", __func__);
+		ret = -EINVAL;
+		goto err;
+	}
+	if (atomic_inc_return(&quad_mi2s_ref_count) == 1) {
+		pcm_sel_reg = ioread32(lpaif_quad_muxsel_virt_addr);
+		if (pcm_sel_reg & (I2S_PCM_SEL << I2S_PCM_SEL_OFFSET)) {
+			iowrite32(pcm_sel_reg &
+				~(I2S_PCM_SEL << I2S_PCM_SEL_OFFSET),
+				  lpaif_quad_muxsel_virt_addr);
+		}
+
+		ret = msm_quad_mi2s_set_pinctrl(pdata);
+		if (ret) {
+			pr_err("%s: MI2S TLMM pinctrl set failed with %d\n",
+				__func__, ret);
+			return ret;
+		}
+
+		ret = apq8084_quad_mi2s_clk_ctl(rtd, true, substream);
+		if (ret) {
+			pr_err("%s: Setting clk control failed with %d\n",
+				__func__, ret);
+			return ret;
+		}
+		/* This sets the CONFIG PARAMETER WS_SRC.
+		 * SND_SOC_DAIFMT_CBS_CFS means internal clock/master mode.
+		 * SND_SOC_DAIFMT_CBM_CFM means external clock/slave mode.
+		 */
+		ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_CBS_CFS);
+		if (ret)
+			pr_err("%s: set fmt cpu dai failed with %d\n",
+				__func__, ret);
+	}
+err:
+	return ret;
+}
+
+static void msm_quad_mi2s_shutdown(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct apq8084_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	int ret;
+
+	pr_debug("%s(): substream = %s, quad_mi2s_ref_count = %d\n",
+		 __func__, substream->name, atomic_read(&quad_mi2s_ref_count));
+
+	if (pdata == NULL) {
+		pr_err("%s: Invalid platform data\n", __func__);
+		return;
+	}
+
+	if (atomic_dec_return(&quad_mi2s_ref_count) == 0) {
+		ret = msm_quad_mi2s_reset_pinctrl(pdata);
+		if (ret)
+			pr_err("%s Reset pinctrl failed with %d\n",
+				__func__, ret);
+		ret = apq8084_quad_mi2s_clk_ctl(rtd, false, substream);
+		if (ret)
+			pr_err("%s Clock disable failed with %d\n",
+				__func__, ret);
+	}
+}
+
+static struct snd_soc_ops apq8084_quad_mi2s_be_ops = {
+	.startup = msm_quad_mi2s_startup,
+	.shutdown = msm_quad_mi2s_shutdown,
+};
+
+static int apq8084_mi2s_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+					     struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+						SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+						SNDRV_PCM_HW_PARAM_CHANNELS);
+	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
+				mi2s_tx_bit_format);
+	rate->min = rate->max = SAMPLING_RATE_48KHZ;
+	channels->min = channels->max = apq8084_mi2s_tx_ch;
+	pr_debug("%s: format = %d rate = %d, channels = %d\n",
+			__func__, params_format(params), params_rate(params),
+			apq8084_mi2s_tx_ch);
+	return 0;
+}
+
+static int apq8084_mi2s_tx_ch_get(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: apq8084_i2s_tx_ch  = %d\n", __func__,
+		 apq8084_mi2s_tx_ch);
+	ucontrol->value.integer.value[0] = apq8084_mi2s_tx_ch - 1;
+	return 0;
+}
+
+static int apq8084_mi2s_tx_ch_put(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	apq8084_mi2s_tx_ch = ucontrol->value.integer.value[0] + 1;
+	pr_debug("%s: apq8084_i2s_tx_ch = %d\n", __func__,
+		 apq8084_mi2s_tx_ch);
+	return 1;
+}
+static int apq8084_mi2s_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+					     struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+						SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+						SNDRV_PCM_HW_PARAM_CHANNELS);
+	param_set_mask(params, SNDRV_PCM_HW_PARAM_FORMAT,
+				mi2s_rx_bit_format);
+	rate->min = rate->max = SAMPLING_RATE_48KHZ;
+	channels->min = channels->max = apq8084_mi2s_rx_ch;
+	pr_debug("%s: format = %d rate = %d, channels = %d\n",
+			__func__, params_format(params), params_rate(params),
+			apq8084_mi2s_rx_ch);
+	return 0;
+}
+
+static int apq8084_mi2s_rx_ch_get(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: apq8084_i2s_rx_ch  = %d\n", __func__,
+		 apq8084_mi2s_rx_ch);
+	ucontrol->value.integer.value[0] = apq8084_mi2s_rx_ch - 1;
+	return 0;
+}
+
+static int apq8084_mi2s_rx_ch_put(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	apq8084_mi2s_rx_ch = ucontrol->value.integer.value[0] + 1;
+	pr_debug("%s: apq8084_i2s_rx_ch = %d\n", __func__,
+		 apq8084_mi2s_tx_ch);
+	return 1;
+}
+
 static int msm_slim_0_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 					    struct snd_pcm_hw_params *params)
 {
@@ -1426,6 +1871,23 @@ static int msm_slim_3_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	return 0;
 }
 
+static int msm_slim_4_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+					    struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+						SNDRV_PCM_HW_PARAM_RATE);
+
+	struct snd_interval *channels = hw_param_interval(params,
+						SNDRV_PCM_HW_PARAM_CHANNELS);
+
+	rate->min = rate->max = 48000;
+	channels->min = channels->max = 1;
+
+	pr_debug("%s() channels->min %u channels->max %u\n", __func__,
+		 channels->min, channels->max);
+	return 0;
+}
+
 static int msm_slim_6_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 					    struct snd_pcm_hw_params *params)
 {
@@ -1500,10 +1962,12 @@ static const struct soc_enum msm_snd_enum[] = {
 	SOC_ENUM_SINGLE_EXT(2, rx_bit_format_text),
 	SOC_ENUM_SINGLE_EXT(3, slim0_rx_sample_rate_text),
 	SOC_ENUM_SINGLE_EXT(8, proxy_rx_ch_text),
-	SOC_ENUM_SINGLE_EXT(3, hdmi_rx_sample_rate_text),
+	SOC_ENUM_SINGLE_EXT(7, hdmi_rx_sample_rate_text),
 	SOC_ENUM_SINGLE_EXT(2, slim1_tx_ch_text),
 	SOC_ENUM_SINGLE_EXT(3, slim1_rate_text),
 	SOC_ENUM_SINGLE_EXT(3, slim3_rx_ch_text),
+	SOC_ENUM_SINGLE_EXT(2, mi2s_rx_ch_text),
+	SOC_ENUM_SINGLE_EXT(2, mi2s_tx_ch_text),
 };
 
 static const struct snd_kcontrol_new msm_snd_controls[] = {
@@ -1535,6 +1999,10 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 			msm_slim_3_rx_ch_get, msm_slim_3_rx_ch_put),
 	SOC_SINGLE_EXT("Incall Rec Mode", SND_SOC_NOPM, 0, 1, 0,
 		msm_incall_rec_mode_get, msm_incall_rec_mode_put),
+	SOC_ENUM_EXT("QUAT_MI2S_RX Channels", msm_snd_enum[11],
+			apq8084_mi2s_rx_ch_get, apq8084_mi2s_rx_ch_put),
+	SOC_ENUM_EXT("QUAT_MI2S_TX Channels", msm_snd_enum[12],
+			apq8084_mi2s_tx_ch_get, apq8084_mi2s_tx_ch_put),
 };
 
 static bool apq8084_swap_gnd_mic(struct snd_soc_codec *codec)
@@ -1721,6 +2189,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic5");
 	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic6");
 
+	snd_soc_dapm_ignore_suspend(dapm, "MADINPUT");
 	snd_soc_dapm_ignore_suspend(dapm, "EAR");
 	snd_soc_dapm_ignore_suspend(dapm, "HEADPHONE");
 	snd_soc_dapm_ignore_suspend(dapm, "LINEOUT1");
@@ -1734,6 +2203,8 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "AMIC2");
 	snd_soc_dapm_ignore_suspend(dapm, "AMIC3");
 	snd_soc_dapm_ignore_suspend(dapm, "AMIC4");
+	snd_soc_dapm_ignore_suspend(dapm, "AMIC5");
+	snd_soc_dapm_ignore_suspend(dapm, "AMIC6");
 	snd_soc_dapm_ignore_suspend(dapm, "DMIC1");
 	snd_soc_dapm_ignore_suspend(dapm, "DMIC2");
 	snd_soc_dapm_ignore_suspend(dapm, "DMIC3");
@@ -1828,6 +2299,20 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 		tomtom_register_ext_clk_cb(msm_snd_enable_codec_ext_clk,
 					   msm_snd_get_ext_clk_cnt,
 					   rtd->codec);
+
+		err = msm_snd_enable_codec_ext_clk(rtd->codec, 1, false);
+		if (IS_ERR_VALUE(err)) {
+			pr_err("%s: Failed to enable mclk, err = 0x%x\n",
+				__func__, err);
+			goto out;
+		}
+		tomtom_enable_qfuse_sensing(rtd->codec);
+		err = msm_snd_enable_codec_ext_clk(rtd->codec, 0, false);
+		if (IS_ERR_VALUE(err)) {
+			pr_err("%s: Failed to disable mclk, err = 0x%x\n",
+				__func__, err);
+			goto out;
+		}
 	} else
 		taiko_event_register(apq8084_codec_event_cb, rtd->codec);
 
@@ -2164,6 +2649,27 @@ end:
 	return ret;
 }
 
+static int apq8084_slimbus_4_hw_params(struct snd_pcm_substream *substream,
+				       struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	int ret = 0;
+	unsigned int rx_ch = SLIM_4_RX_1;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		pr_debug("%s: SLIMBUS_4_RX -> MDM TX shared ch %d\n",
+			 __func__, rx_ch);
+
+		ret = snd_soc_dai_set_channel_map(cpu_dai, 0, 0, 1, &rx_ch);
+		if (ret < 0) {
+			pr_err("%s: Erorr %d setting SLIM_4 RX channel map\n",
+				__func__, ret);
+		}
+	}
+	return ret;
+}
+
 static int apq8084_slimbus_6_hw_params(struct snd_pcm_substream *substream,
 				       struct snd_pcm_hw_params *params)
 {
@@ -2222,6 +2728,12 @@ static struct snd_soc_ops apq8084_slimbus_3_be_ops = {
 	.shutdown = apq8084_snd_shudown,
 };
 
+static struct snd_soc_ops apq8084_slimbus_4_be_ops = {
+	.startup = apq8084_snd_startup,
+	.hw_params = apq8084_slimbus_4_hw_params,
+	.shutdown = apq8084_snd_shudown,
+};
+
 static struct snd_soc_ops apq8084_slimbus_6_be_ops = {
 	.startup = apq8084_snd_startup,
 	.hw_params = apq8084_slimbus_6_hw_params,
@@ -2237,6 +2749,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name	= "MultiMedia1",
 		.platform_name  = "msm-pcm-dsp.0",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -2252,6 +2765,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name   = "MultiMedia2",
 		.platform_name  = "msm-pcm-dsp.0",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
@@ -2267,6 +2781,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name   = "CS-VOICE",
 		.platform_name  = "msm-pcm-voice",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
@@ -2283,6 +2798,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name	= "VoIP",
 		.platform_name  = "msm-voip-dsp",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -2298,6 +2814,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name	= "MultiMedia3",
 		.platform_name  = "msm-pcm-lpa",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -2314,6 +2831,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "SLIMBUS0_HOSTLESS",
 		.platform_name = "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			    SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2324,20 +2842,19 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.codec_name = "snd-soc-dummy",
 	},
 	{
-		.name = "QCHAT",
-		.stream_name = "QCHAT",
-		.cpu_dai_name   = "QCHAT",
-		.platform_name  = "msm-pcm-voice",
+		.name = "Quaternary MI2S TX Hostless",
+		.stream_name = "Quaternary MI2S_TX Hostless Capture",
+		.cpu_dai_name = "QUAT_MI2S_TX_HOSTLESS",
+		.platform_name	= "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			    SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
 		.ignore_suspend = 1,
-		/* this dainlink has playback support */
 		.ignore_pmdown_time = 1,
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
-		.be_id = MSM_FRONTEND_DAI_QCHAT,
 	},
 	{
 		.name = "MSM AFE-PCM RX",
@@ -2360,11 +2877,13 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.ignore_suspend = 1,
 	},
 	{
-		.name = "APQ8084 Compr",
-		.stream_name = "COMPR",
+		.name = "APQ8084 Compress1",
+		.stream_name = "Compress1",
 		.cpu_dai_name	= "MultiMedia4",
 		.platform_name  = "msm-compress-dsp",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			 SND_SOC_DPCM_TRIGGER_POST},
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -2380,6 +2899,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name   = "AUXPCM_HOSTLESS",
 		.platform_name  = "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2395,6 +2915,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "SLIMBUS1_HOSTLESS",
 		.platform_name = "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			    SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2410,6 +2931,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "SLIMBUS3_HOSTLESS",
 		.platform_name = "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			    SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2425,6 +2947,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "SLIMBUS4_HOSTLESS",
 		.platform_name = "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			    SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2440,6 +2963,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name   = "VoLTE",
 		.platform_name  = "msm-pcm-voice",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			    SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2456,6 +2980,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name   = "MultiMedia5",
 		.platform_name  = "msm-pcm-dsp.1",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
@@ -2472,6 +2997,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "LSM1",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = { SND_SOC_DPCM_TRIGGER_POST,
 			     SND_SOC_DPCM_TRIGGER_POST },
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2483,26 +3009,13 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 	},
 	/* Multiple Tunnel instances */
 	{
-		.name = "APQ8084 Compr2",
-		.stream_name = "COMPR2",
-		.cpu_dai_name	= "MultiMedia6",
-		.platform_name  = "msm-compress-dsp",
-		.dynamic = 1,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			 SND_SOC_DPCM_TRIGGER_POST},
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		 /* this dai link has playback support */
-		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA6,
-	},
-	{
-		.name = "APQ8084 Compr3",
-		.stream_name = "COMPR3",
+		.name = "APQ8084 Compress2",
+		.stream_name = "Compress2",
 		.cpu_dai_name	= "MultiMedia7",
 		.platform_name  = "msm-compress-dsp",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			 SND_SOC_DPCM_TRIGGER_POST},
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -2513,11 +3026,30 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA7,
 	},
 	{
+		.name = "APQ8084 Compress3",
+		.stream_name = "Compress3",
+		.cpu_dai_name	= "MultiMedia10",
+		.platform_name  = "msm-compress-dsp",
+		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			 SND_SOC_DPCM_TRIGGER_POST},
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		 /* this dai link has playback support */
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA10,
+	},
+	{
 		.name = "APQ8084 Compr8",
 		.stream_name = "COMPR8",
 		.cpu_dai_name	= "MultiMedia8",
 		.platform_name  = "msm-compr-dsp",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			 SND_SOC_DPCM_TRIGGER_POST},
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -2534,6 +3066,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "VOICE_STUB",
 		.platform_name = "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 		 SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2549,6 +3082,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name   = "VOLTE_STUB",
 		.platform_name  = "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 				SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2564,6 +3098,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "HDMI_HOSTLESS",
 		.platform_name = "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2578,6 +3113,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name   = "INT_HFP_BT_HOSTLESS",
 		.platform_name  = "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			    SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2593,6 +3129,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "MultiMedia6",
 		.platform_name  = "msm-pcm-loopback",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
@@ -2609,6 +3146,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "VOICE2_STUB",
 		.platform_name = "msm-pcm-hostless",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			    SND_SOC_DPCM_TRIGGER_POST},
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2624,6 +3162,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "LSM2",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = { SND_SOC_DPCM_TRIGGER_POST,
 			     SND_SOC_DPCM_TRIGGER_POST },
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2639,6 +3178,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "LSM3",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = { SND_SOC_DPCM_TRIGGER_POST,
 			     SND_SOC_DPCM_TRIGGER_POST },
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2654,6 +3194,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "LSM4",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = { SND_SOC_DPCM_TRIGGER_POST,
 			     SND_SOC_DPCM_TRIGGER_POST },
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2669,6 +3210,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "LSM5",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = { SND_SOC_DPCM_TRIGGER_POST,
 			     SND_SOC_DPCM_TRIGGER_POST },
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2684,6 +3226,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "LSM6",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = { SND_SOC_DPCM_TRIGGER_POST,
 			     SND_SOC_DPCM_TRIGGER_POST },
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2699,6 +3242,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "LSM7",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = { SND_SOC_DPCM_TRIGGER_POST,
 			     SND_SOC_DPCM_TRIGGER_POST },
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2714,6 +3258,7 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.cpu_dai_name = "LSM8",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = { SND_SOC_DPCM_TRIGGER_POST,
 			     SND_SOC_DPCM_TRIGGER_POST },
 		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
@@ -2722,6 +3267,156 @@ static struct snd_soc_dai_link apq8084_common_dai_links[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.be_id = MSM_FRONTEND_DAI_LSM8,
+	},
+	{
+		.name = "QCHAT",
+		.stream_name = "QCHAT",
+		.cpu_dai_name   = "QCHAT",
+		.platform_name  = "msm-pcm-voice",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		/* this dainlink has playback support */
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_QCHAT,
+	},
+	/* Multiple Offload instances */
+	{
+		.name = "APQ8084 Compress4",
+		.stream_name = "Compress4",
+		.cpu_dai_name	= "MultiMedia11",
+		.platform_name  = "msm-compress-dsp",
+		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			 SND_SOC_DPCM_TRIGGER_POST},
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		 /* this dai link has playback support */
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA11,
+	},
+	{
+		.name = "APQ8084 Compress5",
+		.stream_name = "Compress5",
+		.cpu_dai_name	= "MultiMedia12",
+		.platform_name  = "msm-compress-dsp",
+		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			 SND_SOC_DPCM_TRIGGER_POST},
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		 /* this dai link has playback support */
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA12,
+	},
+	{
+		.name = "APQ8084 Compress6",
+		.stream_name = "Compress6",
+		.cpu_dai_name	= "MultiMedia13",
+		.platform_name  = "msm-compress-dsp",
+		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			 SND_SOC_DPCM_TRIGGER_POST},
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		 /* this dai link has playback support */
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA13,
+	},
+	{
+		.name = "APQ8084 Compress7",
+		.stream_name = "Compress7",
+		.cpu_dai_name	= "MultiMedia14",
+		.platform_name  = "msm-compress-dsp",
+		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			 SND_SOC_DPCM_TRIGGER_POST},
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		 /* this dai link has playback support */
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA14,
+	},
+	{
+		.name = "APQ8084 Compress8",
+		.stream_name = "Compress8",
+		.cpu_dai_name	= "MultiMedia15",
+		.platform_name  = "msm-compress-dsp",
+		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			 SND_SOC_DPCM_TRIGGER_POST},
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		 /* this dai link has playback support */
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA15,
+	},
+	{
+		.name = "APQ8084 Compress9",
+		.stream_name = "Compress9",
+		.cpu_dai_name	= "MultiMedia16",
+		.platform_name  = "msm-compress-dsp",
+		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			 SND_SOC_DPCM_TRIGGER_POST},
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		 /* this dai link has playback support */
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA16,
+	},
+	{
+		.name = "APQ8084 Media9",
+		.stream_name = "MultiMedia9",
+		.cpu_dai_name   = "MultiMedia9",
+		.platform_name  = "msm-pcm-dsp.0",
+		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.ignore_suspend = 1,
+		/* this dainlink has playback support */
+		.ignore_pmdown_time = 1,
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA9,
+	},
+	{
+		.name = "VoWLAN",
+		.stream_name = "VoWLAN",
+		.cpu_dai_name   = "VoWLAN",
+		.platform_name  = "msm-pcm-voice",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.ignore_suspend = 1,
+		/* this dainlink has playback support */
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_VOWLAN,
 	},
 };
 
@@ -2815,6 +3510,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-rx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_RX,
 		.be_hw_params_fixup = msm_proxy_rx_be_hw_params_fixup,
 		/* this dai link has playback support */
@@ -2829,6 +3525,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-tx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_AFE_PCM_TX,
 		.be_hw_params_fixup = msm_proxy_tx_be_hw_params_fixup,
 		.ignore_suspend = 1,
@@ -2871,6 +3568,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-rx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SEC_AUXPCM_RX,
 		.be_hw_params_fixup = msm_auxpcm_be_params_fixup,
 		.ops = &msm_sec_auxpcm_be_ops,
@@ -2886,6 +3584,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-tx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SEC_AUXPCM_TX,
 		.be_hw_params_fixup = msm_auxpcm_be_params_fixup,
 		.ops = &msm_sec_auxpcm_be_ops,
@@ -2899,6 +3598,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name = "msm-stub-codec.1",
 		.codec_dai_name	= "msm-stub-rx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_1_RX,
 		.be_hw_params_fixup = msm_slim_1_rx_be_hw_params_fixup,
 		.ops = &apq8084_slimbus_1_be_ops,
@@ -2914,6 +3614,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name = "msm-stub-codec.1",
 		.codec_dai_name	= "msm-stub-tx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_1_TX,
 		.be_hw_params_fixup = msm_slim_1_tx_be_hw_params_fixup,
 		.ops = &apq8084_slimbus_1_be_ops,
@@ -2927,6 +3628,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name = "msm-stub-codec.1",
 		.codec_dai_name	= "msm-stub-rx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_3_RX,
 		.be_hw_params_fixup = msm_slim_3_rx_be_hw_params_fixup,
 		.ops = &apq8084_slimbus_3_be_ops,
@@ -2942,6 +3644,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name = "msm-stub-codec.1",
 		.codec_dai_name	= "msm-stub-tx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_3_TX,
 		.be_hw_params_fixup = msm_slim_3_tx_be_hw_params_fixup,
 		.ops = &apq8084_slimbus_3_be_ops,
@@ -2956,6 +3659,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name     = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-tx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_INCALL_RECORD_TX,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
@@ -2969,6 +3673,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name     = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-tx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_INCALL_RECORD_RX,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
@@ -2982,6 +3687,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name     = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-rx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_VOICE_PLAYBACK_TX,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
@@ -2994,6 +3700,7 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name     = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-rx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_6_RX,
 		.be_hw_params_fixup = msm_slim_6_rx_be_hw_params_fixup,
 		.ops = &apq8084_slimbus_6_be_ops,
@@ -3008,9 +3715,38 @@ static struct snd_soc_dai_link apq8084_common_be_dai_links[] = {
 		.codec_name     = "msm-stub-codec.1",
 		.codec_dai_name = "msm-stub-tx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_6_TX,
 		.be_hw_params_fixup = msm_slim_6_tx_be_hw_params_fixup,
 		.ops = &apq8084_slimbus_6_be_ops,
+		.ignore_suspend = 1,
+	},
+	/* MI2S Backend DAI Links */
+	{
+		.name = LPASS_BE_QUAT_MI2S_RX,
+		.stream_name = "Quaternary MI2S Playback",
+		.cpu_dai_name = "msm-dai-q6-mi2s.3",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "msm-stub-codec.1",
+		.codec_dai_name = "msm-stub-rx",
+		.no_pcm = 1,
+		.be_id = MSM_BACKEND_DAI_QUATERNARY_MI2S_RX,
+		.be_hw_params_fixup = &apq8084_mi2s_rx_be_hw_params_fixup,
+		.ops = &apq8084_quad_mi2s_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+	},
+	{
+		.name = LPASS_BE_QUAT_MI2S_TX,
+		.stream_name = "Quaternary MI2S Capture",
+		.cpu_dai_name = "msm-dai-q6-mi2s.3",
+		.platform_name = "msm-pcm-routing",
+		.codec_name = "msm-stub-codec.1",
+		.codec_dai_name = "msm-stub-tx",
+		.no_pcm = 1,
+		.be_id = MSM_BACKEND_DAI_QUATERNARY_MI2S_TX,
+		.be_hw_params_fixup = &apq8084_mi2s_tx_be_hw_params_fixup,
+		.ops = &apq8084_quad_mi2s_be_ops,
 		.ignore_suspend = 1,
 	},
 };
@@ -3025,6 +3761,7 @@ static struct snd_soc_dai_link apq8084_tomtom_be_dai_links[] = {
 		.codec_name = "tomtom_codec",
 		.codec_dai_name	= "tomtom_rx1",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_0_RX,
 		.init = &msm_audrx_init,
 		.be_hw_params_fixup = msm_slim_0_rx_be_hw_params_fixup,
@@ -3041,6 +3778,7 @@ static struct snd_soc_dai_link apq8084_tomtom_be_dai_links[] = {
 		.codec_name = "tomtom_codec",
 		.codec_dai_name	= "tomtom_tx1",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_0_TX,
 		.be_hw_params_fixup = msm_slim_0_tx_be_hw_params_fixup,
 		.ops = &apq8084_be_ops,
@@ -3051,12 +3789,13 @@ static struct snd_soc_dai_link apq8084_tomtom_be_dai_links[] = {
 		.stream_name = "Slimbus4 Playback",
 		.cpu_dai_name = "msm-dai-q6-dev.16392",
 		.platform_name = "msm-pcm-routing",
-		.codec_name = "tomtom_codec",
-		.codec_dai_name	= "tomtom_rx1",
+		.codec_name = "msm-stub-codec.1",
+		.codec_dai_name	= "msm-stub-rx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_4_RX,
-		.be_hw_params_fixup = msm_slim_0_rx_be_hw_params_fixup,
-		.ops = &apq8084_be_ops,
+		.be_hw_params_fixup = msm_slim_4_rx_be_hw_params_fixup,
+		.ops = &apq8084_slimbus_4_be_ops,
 		/* this dai link has playback support */
 		.ignore_pmdown_time = 1,
 		.ignore_suspend = 1,
@@ -3070,9 +3809,11 @@ static struct snd_soc_dai_link apq8084_tomtom_be_dai_links[] = {
 		.codec_name = "tomtom_codec",
 		.codec_dai_name = "tomtom_mad1",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_5_TX,
 		.be_hw_params_fixup = msm_slim_5_tx_be_hw_params_fixup,
 		.ops = &apq8084_be_ops,
+		.ignore_suspend = 1,
 	},
 	{
 		.name = LPASS_BE_STUB_RX,
@@ -3082,6 +3823,7 @@ static struct snd_soc_dai_link apq8084_tomtom_be_dai_links[] = {
 		.codec_name = "tomtom_codec",
 		.codec_dai_name = "tomtom_rx2",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_EXTPROC_RX,
 		.be_hw_params_fixup = msm_slim_0_rx_be_hw_params_fixup,
 		.init = &msm_stubrx_init,
@@ -3098,6 +3840,7 @@ static struct snd_soc_dai_link apq8084_tomtom_be_dai_links[] = {
 		.codec_name = "tomtom_codec",
 		.codec_dai_name = "tomtom_tx1",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_EXTPROC_TX,
 		.be_hw_params_fixup = msm_slim_0_tx_be_hw_params_fixup,
 		.ops = &apq8084_be_ops,
@@ -3111,6 +3854,7 @@ static struct snd_soc_dai_link apq8084_tomtom_be_dai_links[] = {
 		.codec_name     = "tomtom_codec",
 		.codec_dai_name	= "tomtom_tx3",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_EXTPROC_EC_TX,
 		/* This BE is used for external EC reference from codec. Since
 		 * Rx is fed as reference for EC, the config of this DAI is
@@ -3132,6 +3876,8 @@ static struct snd_soc_dai_link apq8084_taiko_be_dai_links[] = {
 		.codec_name = "taiko_codec",
 		.codec_dai_name	= "taiko_rx1",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_0_RX,
 		.init = &msm_audrx_init,
 		.be_hw_params_fixup = msm_slim_0_rx_be_hw_params_fixup,
@@ -3148,6 +3894,8 @@ static struct snd_soc_dai_link apq8084_taiko_be_dai_links[] = {
 		.codec_name = "taiko_codec",
 		.codec_dai_name	= "taiko_tx1",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE
+			| ASYNC_DPCM_SND_SOC_HW_PARAMS,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_0_TX,
 		.be_hw_params_fixup = msm_slim_0_tx_be_hw_params_fixup,
 		.ops = &apq8084_be_ops,
@@ -3158,12 +3906,13 @@ static struct snd_soc_dai_link apq8084_taiko_be_dai_links[] = {
 		.stream_name = "Slimbus4 Playback",
 		.cpu_dai_name = "msm-dai-q6-dev.16392",
 		.platform_name = "msm-pcm-routing",
-		.codec_name = "taiko_codec",
-		.codec_dai_name	= "taiko_rx1",
+		.codec_name = "msm-stub-codec.1",
+		.codec_dai_name	= "msm-stub-rx",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_4_RX,
-		.be_hw_params_fixup = msm_slim_0_rx_be_hw_params_fixup,
-		.ops = &apq8084_be_ops,
+		.be_hw_params_fixup = msm_slim_4_rx_be_hw_params_fixup,
+		.ops = &apq8084_slimbus_4_be_ops,
 		/* this dai link has playback support */
 		.ignore_pmdown_time = 1,
 		.ignore_suspend = 1,
@@ -3177,6 +3926,7 @@ static struct snd_soc_dai_link apq8084_taiko_be_dai_links[] = {
 		.codec_name = "taiko_codec",
 		.codec_dai_name = "taiko_mad1",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_SLIMBUS_5_TX,
 		.be_hw_params_fixup = msm_slim_5_tx_be_hw_params_fixup,
 		.ops = &apq8084_be_ops,
@@ -3189,6 +3939,7 @@ static struct snd_soc_dai_link apq8084_taiko_be_dai_links[] = {
 		.codec_name = "taiko_codec",
 		.codec_dai_name = "taiko_rx2",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_EXTPROC_RX,
 		.be_hw_params_fixup = msm_slim_0_rx_be_hw_params_fixup,
 		.init = &msm_stubrx_init,
@@ -3205,6 +3956,7 @@ static struct snd_soc_dai_link apq8084_taiko_be_dai_links[] = {
 		.codec_name = "taiko_codec",
 		.codec_dai_name = "taiko_tx1",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_EXTPROC_TX,
 		.be_hw_params_fixup = msm_slim_0_tx_be_hw_params_fixup,
 		.ops = &apq8084_be_ops,
@@ -3218,6 +3970,7 @@ static struct snd_soc_dai_link apq8084_taiko_be_dai_links[] = {
 		.codec_name     = "taiko_codec",
 		.codec_dai_name	= "taiko_tx3",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_EXTPROC_EC_TX,
 		/* This BE is used for external EC reference from codec. Since
 		 * Rx is fed as reference for EC, the config of this DAI is
@@ -3239,10 +3992,28 @@ static struct snd_soc_dai_link apq8084_hdmi_dai_link[] = {
 		.codec_name     = "msm-hdmi-audio-codec-rx",
 		.codec_dai_name = "msm_hdmi_audio_codec_rx_dai",
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_HDMI_RX,
 		.be_hw_params_fixup = apq8084_hdmi_be_hw_params_fixup,
 		.ignore_pmdown_time = 1,
 		.ignore_suspend = 1,
+	},
+};
+
+static struct snd_soc_dai_link apq8084_cpe_lsm_dailink[] = {
+	/* CPE LSM FE */
+	{
+		.name = "CPE Listen service",
+		.stream_name = "CPE Listen Audio Service",
+		.cpu_dai_name = "CPE_LSM_NOHOST",
+		.platform_name = "msm-cpe-lsm",
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST },
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "tomtom_mad1",
+		.codec_name = "tomtom_codec",
 	},
 };
 
@@ -3258,7 +4029,8 @@ static struct snd_soc_dai_link apq8084_tomtom_dai_links[
 		 ARRAY_SIZE(apq8084_tomtom_fe_dai_links) +
 		 ARRAY_SIZE(apq8084_common_be_dai_links) +
 		 ARRAY_SIZE(apq8084_tomtom_be_dai_links) +
-		 ARRAY_SIZE(apq8084_hdmi_dai_link)];
+		 ARRAY_SIZE(apq8084_hdmi_dai_link) +
+		 ARRAY_SIZE(apq8084_cpe_lsm_dailink)];
 
 struct snd_soc_card snd_soc_card_tomtom_apq8084 = {
 	.name		= "apq8084-tomtom-snd-card",
@@ -3267,6 +4039,92 @@ struct snd_soc_card snd_soc_card_tomtom_apq8084 = {
 struct snd_soc_card snd_soc_card_taiko_apq8084 = {
 	.name		= "apq8084-taiko-snd-card",
 };
+
+static int apq8084_populate_dai_link_component_of_node(
+					struct snd_soc_card *card)
+{
+	int i, index, ret = 0;
+	struct device *cdev = card->dev;
+	struct snd_soc_dai_link *dai_link = card->dai_link;
+	struct device_node *np;
+
+	if (!cdev) {
+		pr_err("%s: Sound card device memory NULL\n", __func__);
+		return -ENODEV;
+	}
+
+	for (i = 0; i < card->num_links; i++) {
+		if (dai_link[i].platform_of_node && dai_link[i].cpu_of_node)
+			continue;
+
+		/* populate platform_of_node for snd card dai links */
+		if (dai_link[i].platform_name &&
+		    !dai_link[i].platform_of_node) {
+			index = of_property_match_string(cdev->of_node,
+						"asoc-platform-names",
+						dai_link[i].platform_name);
+			if (index < 0) {
+				pr_debug("%s: No match found for platform name: %s\n",
+					__func__, dai_link[i].platform_name);
+				ret = index;
+				goto err;
+			}
+			np = of_parse_phandle(cdev->of_node, "asoc-platform",
+					      index);
+			if (!np) {
+				pr_err("%s: retrieving phandle for platform %s, index %d failed\n",
+					__func__, dai_link[i].platform_name,
+					index);
+				ret = -ENODEV;
+				goto err;
+			}
+			dai_link[i].platform_of_node = np;
+			dai_link[i].platform_name = NULL;
+		}
+
+		/* populate cpu_of_node for snd card dai links */
+		if (dai_link[i].cpu_dai_name && !dai_link[i].cpu_of_node) {
+			index = of_property_match_string(cdev->of_node,
+						 "asoc-cpu-names",
+						 dai_link[i].cpu_dai_name);
+			if (index >= 0) {
+				np = of_parse_phandle(cdev->of_node, "asoc-cpu",
+						index);
+				if (!np) {
+					pr_err("%s: retrieving phandle for cpu dai %s failed\n",
+						__func__,
+						dai_link[i].cpu_dai_name);
+					ret = -ENODEV;
+					goto err;
+				}
+				dai_link[i].cpu_of_node = np;
+				dai_link[i].cpu_dai_name = NULL;
+			}
+		}
+
+		/* populate codec_of_node for snd card dai links */
+		if (dai_link[i].codec_name && !dai_link[i].codec_of_node) {
+			index = of_property_match_string(cdev->of_node,
+						 "asoc-codec-names",
+						 dai_link[i].codec_name);
+			if (index < 0)
+				continue;
+			np = of_parse_phandle(cdev->of_node, "asoc-codec",
+					      index);
+			if (!np) {
+				pr_err("%s: retrieving phandle for codec %s failed\n",
+					__func__, dai_link[i].codec_name);
+				ret = -ENODEV;
+				goto err;
+			}
+			dai_link[i].codec_of_node = np;
+			dai_link[i].codec_name = NULL;
+		}
+	}
+
+err:
+	return ret;
+}
 
 static int apq8084_dtparse_auxpcm(struct platform_device *pdev,
 				  struct msm_auxpcm_ctrl **auxpcm_ctrl,
@@ -3331,6 +4189,65 @@ err:
 	return ret;
 }
 
+/**
+ * msm_mi2s_get_pinctrl() - Get the MI2S pinctrl definitions.
+ *
+ * @pdev:	A pointer to the Audio platform device.
+ *
+ * Get the pinctrl states' handles from the device tree. The function doesn't
+ * enforce wrong pinctrl definitions, i.e. it's the client's responsibility to
+ * define all the necessary states for the board being used.
+ *
+ * Return 0 on success, error value otherwise.
+ */
+static int msm_mi2s_get_pinctrl(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+	struct apq8084_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
+	struct msm_mi2s_pinctrl_info *pinctrl_info = &pdata->mi2s_pinctrl_info;
+	struct pinctrl *pinctrl;
+	int ret;
+
+	pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR_OR_NULL(pinctrl)) {
+		pr_err("%s: Unable to get pinctrl handle\n", __func__);
+		return -EINVAL;
+	}
+	pinctrl_info->pinctrl = pinctrl;
+
+	/* get all the states handles from Device Tree*/
+	pinctrl_info->disable = pinctrl_lookup_state(pinctrl,
+						"pmx-quad-mi2s-sleep");
+	if (IS_ERR(pinctrl_info->disable)) {
+		pr_err("%s: could not get disable pinstate\n", __func__);
+		goto err;
+	}
+
+	pinctrl_info->quad_mi2s_active = pinctrl_lookup_state(pinctrl,
+						"pmx-quad-mi2s-active");
+	if (IS_ERR(pinctrl_info->quad_mi2s_active)) {
+		pr_err("%s: could not get quad_mi2s_active pinstate\n",
+			__func__);
+		goto err;
+	}
+
+	/* Reset the MI2S TLMM pins to a default state */
+	ret = pinctrl_select_state(pinctrl_info->pinctrl,
+					pinctrl_info->disable);
+	if (ret != 0) {
+		pr_err("%s: Disable MI2S TLMM pins failed with %d\n",
+			__func__, ret);
+		return -EIO;
+	}
+	pinctrl_info->curr_mi2s_state = MI2S_STATE_DISABLE;
+	return 0;
+
+err:
+	devm_pinctrl_put(pinctrl);
+	pinctrl_info->pinctrl = NULL;
+	return -EINVAL;
+}
+
 static int apq8084_prepare_us_euro(struct snd_soc_card *card)
 {
 	struct apq8084_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
@@ -3365,6 +4282,11 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	const struct of_device_id *match;
 
 	match = of_match_node(apq8084_asoc_machine_of_match, dev->of_node);
+	if (!match) {
+		dev_err(dev, "%s: No DT match found for sound card\n",
+			__func__);
+		return NULL;
+	}
 
 	if (!strcmp(match->data, "tomtom_codec")) {
 		card = &snd_soc_card_tomtom_apq8084;
@@ -3421,6 +4343,12 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		dev_dbg(dev, "%s(): No hdmi audio support\n", __func__);
 	}
 
+	if (!strcmp(match->data, "tomtom_codec")) {
+		memcpy(dailink + len_4, apq8084_cpe_lsm_dailink,
+		       sizeof(apq8084_cpe_lsm_dailink));
+		len_4 += ARRAY_SIZE(apq8084_cpe_lsm_dailink);
+	}
+
 	card->dai_link = dailink;
 	card->num_links = len_4;
 
@@ -3468,6 +4396,12 @@ static int apq8084_asoc_machine_probe(struct platform_device *pdev)
 
 	match = of_match_node(apq8084_asoc_machine_of_match,
 			      pdev->dev.of_node);
+	if (!match) {
+		dev_err(&pdev->dev, "%s: No DT match found for sound card\n",
+			__func__);
+		ret = -EINVAL;
+		goto err;
+	}
 	if (!strcmp(match->data, "tomtom_codec"))
 		mclk_freq_prop_name = "qcom,tomtom-mclk-clk-freq";
 	else
@@ -3493,6 +4427,12 @@ static int apq8084_asoc_machine_probe(struct platform_device *pdev)
 	atomic_set(&prim_auxpcm_rsc_ref, 0);
 	atomic_set(&sec_auxpcm_rsc_ref, 0);
 	spdev = pdev;
+
+	ret = apq8084_populate_dai_link_component_of_node(card);
+	if (ret) {
+		ret = -EPROBE_DEFER;
+		goto err;
+	}
 
 	ret = snd_soc_register_card(card);
 	if (ret == -EPROBE_DEFER) {
@@ -3521,6 +4461,24 @@ static int apq8084_asoc_machine_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev,
 		"%s: Secondary Auxpcm pin data parse failed\n", __func__);
 		goto err;
+	}
+
+	/* Parse pinctrl info for MI2S ports, if defined */
+	ret = msm_mi2s_get_pinctrl(pdev);
+	if (!ret) {
+		pr_debug("%s: MI2S pinctrl parsing successful\n", __func__);
+		lpaif_quad_muxsel_virt_addr =
+				ioremap(LPAIF_QUAD_MODE_MUXSEL, 4);
+		if (lpaif_quad_muxsel_virt_addr == NULL) {
+			pr_err("%s Quad MI2S mux virt addr is null\n",
+				__func__);
+			ret = -EINVAL;
+			goto err;
+		}
+	} else {
+		dev_info(&pdev->dev,
+			"%s: Parsing pinctrl failed with %d. Cannot use MI2S Ports\n",
+			__func__, ret);
 	}
 
 	pdata->us_euro_gpio = of_get_named_gpio(pdev->dev.of_node,
@@ -3572,6 +4530,10 @@ static int apq8084_asoc_machine_probe(struct platform_device *pdev)
 	return 0;
 
 err:
+	if (pdata->mi2s_pinctrl_info.pinctrl) {
+		dev_dbg(&pdev->dev, "%s: freeing MI2S pinctrl\n", __func__);
+		devm_pinctrl_put(pdata->mi2s_pinctrl_info.pinctrl);
+	}
 	if (pdata->us_euro_gpio > 0) {
 		dev_dbg(&pdev->dev, "%s free us_euro gpio %d\n",
 			__func__, pdata->us_euro_gpio);
@@ -3597,14 +4559,8 @@ static int apq8084_asoc_machine_remove(struct platform_device *pdev)
 	if (gpio_is_valid(ext_spk_amp_gpio))
 		gpio_free(ext_spk_amp_gpio);
 
+	unregister_liquid_dock_notify(&apq8084_liquid_docking_notifier);
 	if (apq8084_liquid_dock_dev != NULL) {
-		if (apq8084_liquid_dock_dev->dock_plug_gpio)
-			gpio_free(apq8084_liquid_dock_dev->dock_plug_gpio);
-
-		if (apq8084_liquid_dock_dev->dock_plug_irq)
-			free_irq(apq8084_liquid_dock_dev->dock_plug_irq,
-				 apq8084_liquid_dock_dev);
-
 		kfree(apq8084_liquid_dock_dev);
 		apq8084_liquid_dock_dev = NULL;
 	}

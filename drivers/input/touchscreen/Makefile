@@ -76,11 +76,20 @@ obj-$(CONFIG_TOUCHSCREEN_WM97XX_ZYLONITE)	+= zylonite-wm97xx.o
 obj-$(CONFIG_TOUCHSCREEN_W90X900)	+= w90p910_ts.o
 obj-$(CONFIG_TOUCHSCREEN_TPS6507X)	+= tps6507x-ts.o
 
-obj-$(CONFIG_TOUCHSCREEN_FT5X06)	+= ft5x06_ts.o focal_mcap_test_lib.a
+ifeq ($(CONFIG_ARM64),y)
+obj-$(CONFIG_TOUCHSCREEN_FT5X06)	+= ft5x06_ts.o focal_mcap_test_lib64.a
+else  # Target is 32-bit.
+obj-$(CONFIG_TOUCHSCREEN_FT5X06)	+= ft5x06_ts.o focal_mcap_test_lib32.a
+endif
+
 
 obj-$(CONFIG_TOUCHSCREEN_MSTAR21XX)	+= msg21xx_ts.o
-
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_RMI4_DEV)	+= synaptics_rmi_dev.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE) 	+= synaptics_fw_update.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI4)		+= synaptics_i2c_rmi4.o
 obj-$(CONFIG_TOUCHSCREEN_GT9XX)		+= gt9xx/
+obj-$(CONFIG_TOUCHSCREEN_BU21150)	+= bu21150.o
+obj-$(CONFIG_INPUT_MT_WRAPPER)		+= input_mt_wrapper.o
+obj-$(CONFIG_TOUCHSCREEN_GSL1688E) += gsl_ts_driver.o gsl_ReadArrayData.o gsl_point_id.o
+#$(obj)/gsl_point_id.o: $(srctree)/$(obj)/gsl_point_id
+#	cp $(srctree)/$(obj)/gsl_point_id $(obj)/gsl_point_id.o

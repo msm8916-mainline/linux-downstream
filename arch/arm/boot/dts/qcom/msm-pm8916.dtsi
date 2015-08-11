@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -31,12 +31,14 @@
 			interrupt-names = "kpdpwr", "resin";
 			qcom,pon-dbc-delay = <15625>;
 			qcom,system-reset;
+			qcom,clear-warm-reset;
+			qcom,store-hard-reset-reason;
 
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
 				qcom,support-reset = <1>;
 				qcom,pull-up = <1>;
-				qcom,s1-timer = <6000>;
+				qcom,s1-timer = <10256>;
 				qcom,s2-timer = <2000>;
 				qcom,s2-type = <1>;
 				linux,code = <116>;
@@ -196,6 +198,7 @@
 			qcom,adc-bit-resolution = <15>;
 			qcom,adc-vdd-reference = <1800>;
 			qcom,adc_tm-vadc = <&pm8916_vadc>;
+			qcom,pmic-revid = <&pm8916_revid>;
 		};
 
 		pm8916_chg: qcom,charger {
@@ -208,12 +211,12 @@
 			qcom,vddsafe-mv = <4350>;
 			qcom,vinmin-mv = <4470>;
 			qcom,ibatsafe-ma = <1440>;
-			qcom,thermal-mitigation = <1440 720 540 0>;
+			qcom,thermal-mitigation = <1440 720 540 0>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
 			qcom,cool-bat-decidegc = <150>;
 			qcom,warm-bat-decidegc = <450>;
-			qcom,cool-bat-mv = <4350>;
-			qcom,warm-bat-mv = <4150>;
-			qcom,ibatmax-warm-ma = <990>;
+			qcom,cool-bat-mv = <4350>;//NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config
+			qcom,warm-bat-mv = <4200>;
+			qcom,ibatmax-warm-ma = <720>;
 			qcom,ibatmax-cool-ma = <540>;
 			qcom,batt-hot-percentage = <35>;
 			qcom,batt-cold-percentage = <70>;
@@ -267,9 +270,9 @@
 			status = "disabled";
 
 			qcom,v-cutoff-uv = <3400000>;
-			qcom,max-voltage-uv = <4200000>;
+			qcom,max-voltage-uv = <4350000>;           
 			qcom,r-conn-mohm = <0>;
-			qcom,shutdown-soc-valid-limit = <30>;
+			qcom,shutdown-soc-valid-limit = <10>; //BUG,mahao.wt,MODIFY,2015.5.26,For batt capacity mutation in Restart-up
 			qcom,low-soc-calculate-soc-threshold = <15>;
 			qcom,low-voltage-calculate-soc-ms = <1000>;
 			qcom,low-soc-calculate-soc-ms = <5000>;
@@ -286,6 +289,8 @@
 			qcom,force-s3-on-suspend;
 			qcom,force-s2-in-charging;
 			qcom,report-charger-eoc;
+
+			qcom,resume-soc = <99>; //NewFeature,mahao.wt,MODIFY,2015.3.20,For S86528  JEITA  Config             
 
 			qcom,batt-pres-status@1208 {
 				reg = <0x1208 0x1>;
@@ -538,6 +543,7 @@
 			reg-names = "qpnp-lpg-channel-base";
 			qcom,channel-id = <0>;
 			qcom,supported-sizes = <6>, <9>;
+			#pwm-cells = <2>;
 		};
 
 		pm8916_vib: qcom,vibrator@c000 {
@@ -548,7 +554,7 @@
 		};
 
 		pm8916_tombak_dig: msm8x16_wcd_codec@f000{
-			compatible = "qcom,wcd-spmi";
+			compatible = "qcom,msm8x16_wcd_codec";
 			reg = <0xf000 0x100>;
 			interrupt-parent = <&spmi_bus>;
 			interrupts = <0x1 0xf0 0x0>,
@@ -599,7 +605,7 @@
 		};
 
 		pm8916_tombak_analog: msm8x16_wcd_codec@f100{
-			compatible = "qcom,wcd-spmi";
+			compatible = "qcom,msm8x16_wcd_codec";
 			reg = <0xf100 0x100>;
 			interrupt-parent = <&spmi_bus>;
 			interrupts = <0x1 0xf1 0x0>,

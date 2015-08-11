@@ -45,17 +45,15 @@
 #include <linux/poll.h>
 #include <linux/irq_work.h>
 #include <linux/utsname.h>
-//WingTech: Alex_ma <-add for RTC time of printk-> on20140918 
-#if defined(CONFIG_PRINTK_RTC_TIME)
-#include <linux/rtc.h>
-#include <linux/time.h>
-#endif 
-//WingTech: Alex_ma <-add for RTC time of printk-> on20140918 end
 
 #include <asm/uaccess.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/printk.h>
+
+#ifdef CONFIG_EARLY_PRINTK_DIRECT
+extern void printascii(char *);
+#endif
 
 /* printk's without a loglevel use this.. */
 #define DEFAULT_MESSAGE_LOGLEVEL CONFIG_DEFAULT_MESSAGE_LOGLEVEL
@@ -214,6 +212,9 @@ struct log {
 	u8 facility;		/* syslog facility */
 	u8 flags:5;		/* internal record flags */
 	u8 level:3;		/* syslog level */
+#if defined(CONFIG_LOG_BUF_MAGIC)
+	u32 magic;		/* handle for ramdump analysis tools */
+#endif
 };
 
 /*
@@ -276,6 +277,13 @@ static u32 log_oops_next_idx;
 static u32 syslog_oops_buf_idx;
 
 static const char log_oops_end[] = "---end of oops log buffer---";
+#endif
+
+#if defined(CONFIG_LOG_BUF_MAGIC)
+static u32 __log_align __used = LOG_ALIGN;
+#define LOG_MAGIC(msg) ((msg)->magic = 0x5d7aefca)
+#else
+#define LOG_MAGIC(msg)
 #endif
 
 /* cpu currently holding logbuf_lock */
@@ -436,6 +444,7 @@ static void log_store(int facility, int level,
 		 * to signify a wrap around.
 		 */
 		memset(log_buf + log_next_idx, 0, sizeof(struct log));
+		LOG_MAGIC((struct log *)(log_buf + log_next_idx));
 		log_next_idx = 0;
 	}
 
@@ -448,6 +457,7 @@ static void log_store(int facility, int level,
 	msg->facility = facility;
 	msg->level = level & 7;
 	msg->flags = flags & 0x1f;
+	LOG_MAGIC(msg);
 	if (ts_nsec > 0)
 		msg->ts_nsec = ts_nsec;
 	else
@@ -1009,75 +1019,20 @@ static bool printk_time;
 #endif
 module_param_named(time, printk_time, bool, S_IRUGO | S_IWUSR);
 
-//WingTech: Alex_ma <-add for RTC time of printk-> on20140918 
-#if defined(CONFIG_PRINTK_RTC_TIME)
-static bool printk_rtc_time = 1;
-module_param_named(rtc_time, printk_rtc_time, bool, S_IRUGO | S_IWUSR);
-#endif
-//WingTech: Alex_ma <-add for RTC time of printk-> on20140918 end
-
 static size_t print_time(u64 ts, char *buf)
 {
 	unsigned long rem_nsec;
-//WingTech: Alex_ma <-add for RTC time of printk-> on20140918 
-#ifdef CONFIG_PRINTK_RTC_TIME
-		struct rtc_device *rtc;
-	  struct rtc_time tm;
-		struct timespec now;
-	#endif
-//WingTech: Alex_ma <-add for RTC time of printk-> on20140918 end
 
 	if (!printk_time)
 		return 0;
 
 	rem_nsec = do_div(ts, 1000000000);
-	
-//WingTech: Alex_ma <-add for RTC time of printk-> on20140918 
-#if defined(CONFIG_PRINTK_RTC_TIME)
-	if(printk_rtc_time){
-		if (!buf)
-			{
-				rtc = rtc_class_open(CONFIG_RTC_HCTOSYS_DEVICE);
-				if (rtc) {
-					do_gettimeofday_nolock(&now);
-					rtc_time_to_tm(now.tv_sec, &tm);;
-					rtc_class_close(rtc);
-					return snprintf(NULL, 0, "[%5lu.000000][UTC:%d-%02d-%02d %02d:%02d:%02d(%u)] ", 
-							(unsigned long)ts,tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,tm.tm_hour, tm.tm_min, tm.tm_sec,(unsigned int) now.tv_sec);
-				}	
-				else
-				{	
-					return snprintf(NULL, 0, "[%5lu.000000] ", (unsigned long)ts);
-				}
-			}
-				rtc = rtc_class_open(CONFIG_RTC_HCTOSYS_DEVICE);
-				if (rtc) {
-					do_gettimeofday_nolock(&now);
-					rtc_time_to_tm(now.tv_sec, &tm);;
-					rtc_class_close(rtc);
-					return sprintf(buf, "[%5lu.%06lu][UTC:%d-%02d-%02d %02d:%02d:%02d(%u)]",
-			       (unsigned long)ts, rem_nsec / 1000,tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,tm.tm_hour, tm.tm_min, tm.tm_sec,(unsigned int) now.tv_sec);
-				}	
-				else
-				{	
-						return sprintf(buf, "[%5lu.%06lu] ",(unsigned long)ts, rem_nsec / 1000);
-				}
-		}
-		else
-		{
-			if (!buf)
-				return snprintf(NULL, 0, "[%5lu.000000] ", (unsigned long)ts);
-			
-			return sprintf(buf, "[%5lu.%06lu] ",(unsigned long)ts, rem_nsec / 1000);
-		}
-#else
+
 	if (!buf)
 		return snprintf(NULL, 0, "[%5lu.000000] ", (unsigned long)ts);
 
 	return sprintf(buf, "[%5lu.%06lu] ",
 		       (unsigned long)ts, rem_nsec / 1000);
-#endif	
-//WingTech: Alex_ma <-add for RTC time of printk-> on20140918  end	       
 }
 
 static size_t print_prefix(const struct log *msg, bool syslog, char *buf)
@@ -1171,7 +1126,8 @@ static int syslog_oops_buf_print(char __user *buf, int size, char *text)
 	int len = 0;
 
 	raw_spin_lock_irq(&logbuf_lock);
-	if (syslog_seq < log_oops_first_seq) {
+	if (log_oops_first_seq != ULLONG_MAX &&
+	    syslog_seq < log_oops_first_seq) {
 		syslog_seq = log_oops_first_seq;
 		syslog_oops_buf_idx = 0;
 	}
@@ -1907,6 +1863,10 @@ asmlinkage int vprintk_emit(int facility, int level,
 			text = (char *)end_of_header;
 		}
 	}
+
+#ifdef CONFIG_EARLY_PRINTK_DIRECT
+	printascii(text);
+#endif
 
 	if (level == -1)
 		level = default_message_loglevel;

@@ -20,6 +20,7 @@ qcom,wingtech-guangyu-4v35-2300mah-data {
 	qcom,chg-term-ua = <100000>;
 	qcom,batt-id-kohm = <110>;
 	qcom,flat-ocv-threshold-uv = <3800000>;
+	                 
 	qcom,battery-type = "wingtech_guangyu_4v35_2300mah";
 
 	qcom,fcc-temp-lut {
@@ -91,7 +92,7 @@ qcom,wingtech-guangyu-4v35-2300mah-data {
 				<950 228 100 86 81>,
 				<997 230 100 87 82>,
 				<1050 233 102 89 84>,
-				<1109 236 104 91 86>,
+				<1109 236 104 91 86>,		
 				<1172 247 103 90 84>,
 				<1244 259 101 85 80>,
 				<1326 269 101 86 81>,

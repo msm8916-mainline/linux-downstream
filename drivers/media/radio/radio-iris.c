@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved
+/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -120,6 +120,7 @@ struct iris_device {
 	struct hci_fm_data_rd_rsp default_data;
 	struct hci_fm_spur_data spur_data;
 	unsigned char is_station_valid;
+	struct hci_fm_blend_table blend_tbl;
 };
 
 static struct video_device *priv_videodev;
@@ -1249,6 +1250,31 @@ static int hci_fm_get_ch_det_th(struct radio_hci_dev *hdev,
 	return radio_hci_send_cmd(hdev, opcode, 0, NULL);
 }
 
+static int hci_fm_get_blend_tbl(struct radio_hci_dev *hdev,
+		unsigned long param)
+{
+	u16 opcode = hci_opcode_pack(HCI_OGF_FM_RECV_CTRL_CMD_REQ,
+				HCI_OCF_FM_GET_BLND_TBL);
+	return radio_hci_send_cmd(hdev, opcode, 0, NULL);
+}
+
+static int hci_fm_set_blend_tbl(struct radio_hci_dev *hdev,
+		unsigned long param)
+{
+	struct hci_fm_blend_table *blnd_tbl =
+			 (struct hci_fm_blend_table *) param;
+	u16 opcode;
+
+	if (blnd_tbl == NULL) {
+		FMDERR("%s, blend tbl is null\n", __func__);
+		return -EINVAL;
+	}
+	opcode = hci_opcode_pack(HCI_OGF_FM_RECV_CTRL_CMD_REQ,
+			HCI_OCF_FM_SET_BLND_TBL);
+	return radio_hci_send_cmd(hdev, opcode,
+			sizeof(struct hci_fm_blend_table), blnd_tbl);
+}
+
 static int radio_hci_err(__u32 code)
 {
 	switch (code) {
@@ -1660,6 +1686,47 @@ static int hci_fm_do_cal_req(struct radio_hci_dev *hdev,
 		&cal_mode);
 
 }
+
+static int hci_fm_set_spur_tbl_req(struct radio_hci_dev *hdev,
+					unsigned long param)
+{
+	u16 opcode = 0, len = 0;
+	struct hci_fm_set_spur_table_req *spur_req =
+		(struct hci_fm_set_spur_table_req *)param;
+
+	opcode = hci_opcode_pack(HCI_OGF_FM_COMMON_CTRL_CMD_REQ,
+			HCI_OCF_FM_SET_SPUR_TABLE);
+	if (spur_req->no_of_freqs_entries > ENTRIES_EACH_CMD)
+		len = (ENTRIES_EACH_CMD * SPUR_DATA_LEN)
+			+ SPUR_DATA_INDEX;
+	else
+		len = (spur_req->no_of_freqs_entries * SPUR_DATA_LEN)
+			+ SPUR_DATA_INDEX;
+
+	return radio_hci_send_cmd(hdev, opcode, len, spur_req);
+}
+
+static int hci_fm_get_spur_tbl_data(struct radio_hci_dev *hdev,
+					unsigned long param)
+{
+	u16 opcode = 0;
+	unsigned int spur_freq = (unsigned int)param;
+
+	opcode = hci_opcode_pack(HCI_OGF_FM_COMMON_CTRL_CMD_REQ,
+			HCI_OCF_FM_GET_SPUR_TABLE);
+	return radio_hci_send_cmd(hdev, opcode, sizeof(int), &spur_freq);
+}
+
+static int hci_set_blend_tbl_req(struct hci_fm_blend_table *arg,
+		struct radio_hci_dev *hdev)
+{
+	int ret = 0;
+	struct hci_fm_blend_table *blend_tbl = arg;
+	ret = radio_hci_request(hdev, hci_fm_set_blend_tbl,
+		 (unsigned long)blend_tbl, RADIO_HCI_TIMEOUT);
+	return ret;
+}
+
 static int hci_cmd(unsigned int cmd, struct radio_hci_dev *hdev)
 {
 	int ret = 0;
@@ -1750,6 +1817,10 @@ static int hci_cmd(unsigned int cmd, struct radio_hci_dev *hdev)
 		break;
 	case HCI_FM_GET_DET_CH_TH_CMD:
 		ret = radio_hci_request(hdev, hci_fm_get_ch_det_th, arg,
+					msecs_to_jiffies(RADIO_HCI_TIMEOUT));
+		break;
+	case HCI_FM_GET_BLND_TBL_CMD:
+		ret = radio_hci_request(hdev, hci_fm_get_blend_tbl, arg,
 					msecs_to_jiffies(RADIO_HCI_TIMEOUT));
 		break;
 	default:
@@ -2120,6 +2191,29 @@ static void hci_cc_riva_read_default_rsp(struct radio_hci_dev *hdev,
 	radio_hci_req_complete(hdev, status);
 }
 
+static void hci_cc_get_spur_tbl(struct radio_hci_dev *hdev,
+		struct sk_buff *skb)
+{
+	struct iris_device *radio = video_get_drvdata(video_get_dev());
+	__u8 status;
+
+	if (unlikely(radio == NULL)) {
+		FMDERR(":radio is null");
+		return;
+	}
+	if (unlikely(skb == NULL)) {
+		FMDERR("%s, socket buffer is null\n", __func__);
+		return;
+	}
+	status = *((__u8 *) skb->data);
+	if (!status) {
+		iris_q_evt_data(radio, &skb->data[1], SPUR_DATA_LEN,
+							IRIS_BUF_SPUR);
+		iris_q_event(radio, IRIS_EVT_SPUR_TBL);
+	}
+	radio_hci_req_complete(hdev, status);
+}
+
 static void hci_cc_ssbi_peek_rsp(struct radio_hci_dev *hdev,
 		struct sk_buff *skb)
 {
@@ -2177,7 +2271,7 @@ static void hci_cc_do_calibration_rsp(struct radio_hci_dev *hdev,
 		struct sk_buff *skb)
 {
 	struct iris_device *radio = video_get_drvdata(video_get_dev());
-	static struct hci_cc_do_calibration_rsp rsp ;
+	static struct hci_cc_do_calibration_rsp rsp;
 
 	if (unlikely(skb == NULL)) {
 		FMDERR("%s, socket buffer is null\n", __func__);
@@ -2216,6 +2310,28 @@ static void hci_cc_get_ch_det_threshold_rsp(struct radio_hci_dev *hdev,
 	if (!status)
 		memcpy(&radio->ch_det_threshold, &skb->data[1],
 			sizeof(struct hci_fm_ch_det_threshold));
+
+	radio_hci_req_complete(hdev, status);
+}
+
+static void hci_cc_get_blend_tbl_rsp(struct radio_hci_dev *hdev,
+		struct sk_buff *skb)
+{
+	struct iris_device *radio = video_get_drvdata(video_get_dev());
+	u8  status;
+
+	if (unlikely(radio == NULL)) {
+		FMDERR(":radio is null");
+		return;
+	}
+	if (unlikely(skb == NULL)) {
+		FMDERR("%s, socket buffer is null\n", __func__);
+		return;
+	}
+	status = skb->data[0];
+	if (!status)
+		memcpy(&radio->blend_tbl, &skb->data[1],
+			sizeof(struct hci_fm_blend_table));
 
 	radio_hci_req_complete(hdev, status);
 }
@@ -2262,6 +2378,7 @@ static inline void hci_cmd_complete_event(struct radio_hci_dev *hdev,
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_EN_WAN_AVD_CTRL):
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_EN_NOTCH_CTRL):
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_SET_CH_DET_THRESHOLD):
+	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_SET_BLND_TBL):
 	case hci_trans_ctrl_cmd_op_pack(HCI_OCF_FM_RDS_RT_REQ):
 	case hci_trans_ctrl_cmd_op_pack(HCI_OCF_FM_RDS_PS_REQ):
 	case hci_common_cmd_op_pack(HCI_OCF_FM_DEFAULT_DATA_WRITE):
@@ -2273,9 +2390,12 @@ static inline void hci_cmd_complete_event(struct radio_hci_dev *hdev,
 	case hci_diagnostic_cmd_op_pack(HCI_FM_SET_INTERNAL_TONE_GENRATOR):
 	case hci_common_cmd_op_pack(HCI_OCF_FM_SET_CALIBRATION):
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_SET_EVENT_MASK):
+	case hci_common_cmd_op_pack(HCI_OCF_FM_SET_SPUR_TABLE):
 		hci_cc_rsp(hdev, skb);
 		break;
-
+	case hci_common_cmd_op_pack(HCI_OCF_FM_GET_SPUR_TABLE):
+		hci_cc_get_spur_tbl(hdev, skb);
+		break;
 	case hci_diagnostic_cmd_op_pack(HCI_OCF_FM_SSBI_PEEK_REG):
 		hci_cc_ssbi_peek_rsp(hdev, skb);
 		break;
@@ -2330,6 +2450,9 @@ static inline void hci_cmd_complete_event(struct radio_hci_dev *hdev,
 		break;
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_GET_CH_DET_THRESHOLD):
 		hci_cc_get_ch_det_threshold_rsp(hdev, skb);
+		break;
+	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_GET_BLND_TBL):
+		hci_cc_get_blend_tbl_rsp(hdev, skb);
 		break;
 	default:
 		FMDERR("%s opcode 0x%x", hdev->name, opcode);
@@ -3450,6 +3573,22 @@ static int iris_vidioc_g_ctrl(struct file *file, void *priv,
 			ctrl->value |= (cf0 << 24);
 		}
 		break;
+	case V4L2_CID_PRIVATE_BLEND_SINRHI:
+		retval = hci_cmd(HCI_FM_GET_BLND_TBL_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get blend table  %d", retval);
+			goto END;
+		}
+		ctrl->value = radio->blend_tbl.scBlendSinrHi;
+		break;
+	case V4L2_CID_PRIVATE_BLEND_RMSSIHI:
+		retval = hci_cmd(HCI_FM_GET_BLND_TBL_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get blend table  %d", retval);
+			goto END;
+		}
+		ctrl->value = radio->blend_tbl.scBlendRmssiHi;
+		break;
 	default:
 		retval = -EINVAL;
 		break;
@@ -3459,8 +3598,9 @@ END:
 	if (retval > 0)
 		retval = -EINVAL;
 	if (retval < 0)
-		FMDERR("get control failed with %d, id: %d\n",
-			retval, ctrl->id);
+		FMDERR("get control failed with %d\n", retval);
+	if (ctrl != NULL)
+		FMDERR("get control failed id: %d\n", ctrl->id);
 
 	return retval;
 }
@@ -3517,6 +3657,8 @@ static int iris_vidioc_s_ext_ctrls(struct file *file, void *priv,
 	struct hci_fm_tx_rt tx_rt;
 	struct hci_fm_def_data_wr_req default_data;
 	struct hci_fm_set_cal_req_proc proc_cal_req;
+	struct hci_fm_set_spur_table_req spur_tbl_req;
+	char *spur_data;
 
 	struct iris_device *radio = video_get_drvdata(video_devdata(file));
 	char *data = NULL;
@@ -3652,6 +3794,59 @@ static int iris_vidioc_s_ext_ctrls(struct file *file, void *priv,
 				(unsigned long)&proc_cal_req,
 				 RADIO_HCI_TIMEOUT);
 		break;
+	case V4L2_CID_PRIVATE_IRIS_SET_SPURTABLE:
+		memset(&spur_tbl_req, 0, sizeof(spur_tbl_req));
+		data = (ctrl->controls[0]).string;
+		bytes_to_copy = (ctrl->controls[0]).size;
+		spur_tbl_req.mode = data[0];
+		spur_tbl_req.no_of_freqs_entries = data[1];
+		spur_data = kmalloc((data[1] * SPUR_DATA_LEN) + 2,
+							GFP_ATOMIC);
+		if (!spur_data) {
+			FMDERR("Allocation failed for Spur data");
+			retval = -EFAULT;
+			goto END;
+		}
+		if (copy_from_user(spur_data,
+				&data[2], (bytes_to_copy - 2))) {
+			kfree(spur_data);
+			retval = -EFAULT;
+			goto END;
+		}
+
+		if (spur_tbl_req.no_of_freqs_entries <= ENTRIES_EACH_CMD) {
+			memcpy(&spur_tbl_req.spur_data[0], spur_data,
+					(data[1] * SPUR_DATA_LEN));
+			retval = radio_hci_request(radio->fm_hdev,
+					hci_fm_set_spur_tbl_req,
+					(unsigned long)&spur_tbl_req,
+					RADIO_HCI_TIMEOUT);
+		} else {
+			memcpy(&spur_tbl_req.spur_data[0], spur_data,
+				(ENTRIES_EACH_CMD * SPUR_DATA_LEN));
+			retval = radio_hci_request(radio->fm_hdev,
+					hci_fm_set_spur_tbl_req,
+					(unsigned long)&spur_tbl_req,
+					RADIO_HCI_TIMEOUT);
+			if (retval < 0) {
+				FMDERR("Spur command failed to execute");
+				kfree(spur_data);
+				goto END;
+			}
+			spur_tbl_req.mode = 0x02;/* 02-Continue mode */
+			spur_tbl_req.no_of_freqs_entries =
+				spur_tbl_req.no_of_freqs_entries
+					- ENTRIES_EACH_CMD;
+			memcpy(&spur_tbl_req.spur_data[0],
+				&spur_data[ENTRIES_EACH_CMD * SPUR_DATA_LEN],
+			(spur_tbl_req.no_of_freqs_entries * SPUR_DATA_LEN));
+			retval = radio_hci_request(radio->fm_hdev,
+					hci_fm_set_spur_tbl_req,
+					(unsigned long)&spur_tbl_req,
+					RADIO_HCI_TIMEOUT);
+		}
+		kfree(spur_data);
+		break;
 	default:
 		FMDBG("Shouldn't reach here\n");
 		retval = -1;
@@ -3681,6 +3876,7 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 	struct hci_fm_def_data_wr_req wrd;
 	char sinr_th, sinr;
 	__u8 intf_det_low_th, intf_det_high_th, intf_det_out;
+	unsigned int spur_freq;
 
 	if (unlikely(radio == NULL)) {
 		FMDERR(":radio is null");
@@ -3720,7 +3916,6 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 		}
 		saved_val = radio->mute_mode.hard_mute;
 		radio->mute_mode.hard_mute = ctrl->value;
-		radio->mute_mode.soft_mute = IOC_SFT_MUTE;
 		retval = hci_set_fm_mute_mode(
 				&radio->mute_mode,
 				radio->fm_hdev);
@@ -4210,10 +4405,17 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 	case V4L2_CID_PRIVATE_IRIS_RIVA_POKE:
 		if (radio->riva_data_req.cmd_params.length <=
 		    MAX_RIVA_PEEK_RSP_SIZE) {
+#ifdef CONFIG_COMPAT
+			retval = copy_from_user(
+					radio->riva_data_req.data,
+					(void *)(__s64)ctrl->value,
+					radio->riva_data_req.cmd_params.length);
+#else
 			retval = copy_from_user(
 					radio->riva_data_req.data,
 					(void *)ctrl->value,
 					radio->riva_data_req.cmd_params.length);
+#endif
 			if (retval != 0) {
 				retval = -retval;
 				goto END;
@@ -4618,6 +4820,55 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 		retval = hci_def_data_write(&wrd, radio->fm_hdev);
 		if (retval < 0)
 			FMDERR("set RxRePeat count failed\n");
+		break;
+	case V4L2_CID_PRIVATE_IRIS_GET_SPUR_TBL:
+		spur_freq = ctrl->value;
+		retval = radio_hci_request(radio->fm_hdev,
+					hci_fm_get_spur_tbl_data,
+					(unsigned long)spur_freq,
+					RADIO_HCI_TIMEOUT);
+		if (retval < 0)
+			FMDERR("get Spur data failed\n");
+		break;
+	case V4L2_CID_PRIVATE_BLEND_SINRHI:
+		if (!is_valid_blend_value(ctrl->value)) {
+			FMDERR("%s: blend sinr count is not valid\n",
+				__func__);
+			retval = -EINVAL;
+			goto END;
+		}
+		retval = hci_cmd(HCI_FM_GET_BLND_TBL_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get blend table  %d", retval);
+			goto END;
+		}
+		radio->blend_tbl.scBlendSinrHi = ctrl->value;
+		retval = hci_set_blend_tbl_req(&radio->blend_tbl,
+					 radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to set blend tble %d ", retval);
+			goto END;
+		}
+		break;
+	case V4L2_CID_PRIVATE_BLEND_RMSSIHI:
+		if (!is_valid_blend_value(ctrl->value)) {
+			FMDERR("%s: blend rmssi count is not valid\n",
+				__func__);
+			retval = -EINVAL;
+			goto END;
+		}
+		retval = hci_cmd(HCI_FM_GET_BLND_TBL_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get blend table  %d", retval);
+			goto END;
+		}
+		radio->blend_tbl.scBlendRmssiHi = ctrl->value;
+		retval = hci_set_blend_tbl_req(&radio->blend_tbl,
+					 radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to set blend tble %d ", retval);
+			goto END;
+		}
 		break;
 	default:
 		retval = -EINVAL;
@@ -5095,6 +5346,9 @@ static const struct v4l2_ioctl_ops iris_ioctl_ops = {
 static const struct v4l2_file_operations iris_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = video_ioctl2,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = v4l2_compat_ioctl32,
+#endif
 	.release        = iris_fops_release,
 };
 

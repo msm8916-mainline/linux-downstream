@@ -91,6 +91,22 @@ void __init msm_map_fsm9900_io(void)
 }
 #endif /* CONFIG_ARCH_FSM9900 */
 
+#ifdef CONFIG_ARCH_FSM9010
+static struct map_desc fsm9010_io_desc[] __initdata = {
+	MSM_CHIP_DEVICE(APCS_GCC, FSM9010),
+	MSM_CHIP_DEVICE(MPM2_PSHOLD, FSM9010),
+#ifdef CONFIG_DEBUG_FSM9010_UART
+	MSM_DEVICE(DEBUG_UART),
+#endif
+};
+
+void __init msm_map_fsm9010_io(void)
+{
+	iotable_init(fsm9010_io_desc, ARRAY_SIZE(fsm9010_io_desc));
+}
+#endif /* CONFIG_ARCH_FSM9010 */
+
+
 #ifdef CONFIG_ARCH_MDM9630
 static struct map_desc mdm9630_io_desc[] __initdata = {
 	MSM_CHIP_DEVICE(TLMM, MDM9630),
@@ -103,20 +119,19 @@ void __init msm_map_mdm9630_io(void)
 }
 #endif /* CONFIG_ARCH_MDM9630 */
 
-#ifdef CONFIG_ARCH_MPQ8092
-static struct map_desc mpq8092_io_desc[] __initdata = {
-	MSM_CHIP_DEVICE(MPM2_PSHOLD, MPQ8092),
-	MSM_CHIP_DEVICE(TLMM, MPQ8092),
-#ifdef CONFIG_DEBUG_MPQ8092_UART
+#if defined(CONFIG_ARCH_MSM8909) || defined(CONFIG_ARCH_MDMFERRUM)
+static struct map_desc msm8909_io_desc[] __initdata = {
+	MSM_CHIP_DEVICE(APCS_GCC, MSM8909),
+#if defined(CONFIG_DEBUG_MSM8909_UART) || defined(CONFIG_DEBUG_MDMFERRUM_UART)
 	MSM_DEVICE(DEBUG_UART),
 #endif
 };
 
-void __init msm_map_mpq8092_io(void)
+void __init msm_map_msm8909_io(void)
 {
-	iotable_init(mpq8092_io_desc, ARRAY_SIZE(mpq8092_io_desc));
+	iotable_init(msm8909_io_desc, ARRAY_SIZE(msm8909_io_desc));
 }
-#endif /* CONFIG_ARCH_MPQ8092 */
+#endif /* CONFIG_ARCH_MSM8909 || CONFIG_ARCH_MDMFERRUM */
 
 #ifdef CONFIG_ARCH_MSM8916
 static struct map_desc msm8916_io_desc[] __initdata = {
@@ -161,21 +176,6 @@ void __init msm_map_msm8610_io(void)
 	iotable_init(msm8610_io_desc, ARRAY_SIZE(msm8610_io_desc));
 }
 #endif /* CONFIG_ARCH_MSM8610 */
-
-#ifdef CONFIG_ARCH_MSMSAMARIUM
-static struct map_desc msmsamarium_io_desc[] __initdata = {
-	MSM_CHIP_DEVICE(TLMM, MSMSAMARIUM),
-	MSM_CHIP_DEVICE(MPM2_PSHOLD, MSMSAMARIUM),
-#if defined(CONFIG_DEBUG_MSMSAMARIUM_UART) || defined(CONFIG_DEBUG_MSM8974_UART)
-	MSM_DEVICE(DEBUG_UART),
-#endif
-};
-
-void __init msm_map_msmsamarium_io(void)
-{
-	iotable_init(msmsamarium_io_desc, ARRAY_SIZE(msmsamarium_io_desc));
-}
-#endif /* CONFIG_ARCH_MSMSAMARIUM */
 
 #ifdef CONFIG_ARCH_MSMZIRC
 static struct map_desc msmzirc_io_desc[] __initdata = {

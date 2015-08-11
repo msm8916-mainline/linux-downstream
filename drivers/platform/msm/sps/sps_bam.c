@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -118,25 +118,21 @@ int sps_bam_driver_init(u32 options)
 	return 0;
 }
 
-/**
- * BAM interrupt service routine
- *
- * This function is the BAM interrupt service routine.
- *
- * @ctxt - pointer to ISR's registered argument
- *
- * @return void
+/*
+ * Check BAM interrupt
  */
-static irqreturn_t bam_isr(int irq, void *ctxt)
+int sps_bam_check_irq(struct sps_bam *dev)
 {
-	struct sps_bam *dev = ctxt;
 	struct sps_pipe *pipe;
 	u32 source;
 	unsigned long flags = 0;
+	int ret = 0;
 
+	SPS_DBG1("sps:%s:bam=%pa.\n", __func__, BAM_ID(dev));
 
 	spin_lock_irqsave(&dev->isr_lock, flags);
 
+polling:
 	/* Get BAM interrupt source(s) */
 	if ((dev->state & BAM_STATE_MTI) == 0) {
 		u32 mask = dev->pipe_active_mask;
@@ -144,11 +140,11 @@ static irqreturn_t bam_isr(int irq, void *ctxt)
 		source = bam_check_irq_source(dev->base, dev->props.ee,
 						mask, &cb_case);
 
-		SPS_DBG1("sps:bam_isr:bam=%pa;source=0x%x;mask=0x%x.\n",
+		SPS_DBG1("sps:bam=%pa;source=0x%x;mask=0x%x.\n",
 				BAM_ID(dev), source, mask);
 
 		if ((source & (1UL << 31)) && (dev->props.callback)) {
-			SPS_DBG1("sps:bam_isr:bam=%pa;callback for case %d.\n",
+			SPS_DBG1("sps:bam=%pa;callback for case %d.\n",
 				BAM_ID(dev), cb_case);
 			dev->props.callback(cb_case, dev->props.user);
 		}
@@ -159,7 +155,7 @@ static irqreturn_t bam_isr(int irq, void *ctxt)
 		/* If MTIs are used, must poll each active pipe */
 		source = dev->pipe_active_mask;
 
-		SPS_DBG1("sps:bam_isr for MTI:bam=%pa;source=0x%x.\n",
+		SPS_DBG1("sps:MTI:bam=%pa;source=0x%x.\n",
 				BAM_ID(dev), source);
 	}
 
@@ -186,7 +182,71 @@ static irqreturn_t bam_isr(int irq, void *ctxt)
 		dev->irq_from_disabled_pipe++;
 	}
 
+	if (dev->props.options & SPS_BAM_RES_CONFIRM) {
+		u32 mask = dev->pipe_active_mask;
+		enum sps_callback_case cb_case;
+		source = bam_check_irq_source(dev->base, dev->props.ee,
+						mask, &cb_case);
+
+		SPS_DBG1(
+			"sps:check if there is any new IRQ coming:bam=%pa;source=0x%x;mask=0x%x.\n",
+				BAM_ID(dev), source, mask);
+
+		if ((source & (1UL << 31)) && (dev->props.callback)) {
+			SPS_DBG1("sps:bam=%pa;callback for case %d.\n",
+				BAM_ID(dev), cb_case);
+			dev->props.callback(cb_case, dev->props.user);
+		}
+
+		if (source)
+			goto polling;
+	}
+
 	spin_unlock_irqrestore(&dev->isr_lock, flags);
+
+	return ret;
+}
+
+/**
+ * BAM interrupt service routine
+ *
+ * This function is the BAM interrupt service routine.
+ *
+ * @ctxt - pointer to ISR's registered argument
+ *
+ * @return void
+ */
+static irqreturn_t bam_isr(int irq, void *ctxt)
+{
+	struct sps_bam *dev = ctxt;
+
+	SPS_DBG1("sps:bam_isr: bam:%pa; IRQ #:%d.\n",
+		BAM_ID(dev), irq);
+
+	if (dev->props.options & SPS_BAM_RES_CONFIRM) {
+		if (dev->props.callback) {
+			bool ready = false;
+			dev->props.callback(SPS_CALLBACK_BAM_RES_REQ, &ready);
+			if (ready) {
+				SPS_DBG1(
+					"sps:bam_isr: handle IRQ for bam:%pa IRQ #:%d.\n",
+					BAM_ID(dev), irq);
+				sps_bam_check_irq(dev);
+				dev->props.callback(SPS_CALLBACK_BAM_RES_REL,
+							&ready);
+			} else {
+				SPS_DBG1(
+					"sps:bam_isr: BAM is not ready and thus skip IRQ for bam:%pa IRQ #:%d.\n",
+					BAM_ID(dev), irq);
+			}
+		} else {
+			SPS_ERR(
+				"sps:Client of BAM %pa requires confirmation but does not register callback\n",
+				BAM_ID(dev));
+		}
+	} else {
+		sps_bam_check_irq(dev);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -220,10 +280,26 @@ int sps_bam_enable(struct sps_bam *dev)
 		dev->state &= ~BAM_STATE_IRQ;
 	} else {
 		/* Register BAM ISR */
-		if (dev->props.irq > 0)
-			result = request_irq(dev->props.irq,
-				    (irq_handler_t) bam_isr,
-				    IRQF_TRIGGER_HIGH, "sps", dev);
+		if (dev->props.irq > 0) {
+			if (dev->props.options & SPS_BAM_RES_CONFIRM) {
+				result = request_irq(dev->props.irq,
+					(irq_handler_t) bam_isr,
+					IRQF_TRIGGER_RISING, "sps", dev);
+				SPS_DBG(
+					"sps:BAM %pa uses edge for IRQ# %d\n",
+					BAM_ID(dev), dev->props.irq);
+			} else {
+				result = request_irq(dev->props.irq,
+					(irq_handler_t) bam_isr,
+					IRQF_TRIGGER_HIGH, "sps", dev);
+				SPS_DBG(
+					"sps:BAM %pa uses level for IRQ# %d\n",
+					BAM_ID(dev), dev->props.irq);
+			}
+		} else {
+			SPS_DBG1("sps:BAM %pa does not have an vaild IRQ# %d\n",
+				BAM_ID(dev), dev->props.irq);
+		}
 
 		if (result) {
 			SPS_ERR("sps:Failed to enable BAM %pa IRQ %d\n",
@@ -790,7 +866,7 @@ int sps_bam_pipe_connect(struct sps_pipe *bam_pipe,
 
 		/* Clear the data FIFO for debug */
 		if (map->data.base != NULL && bam_pipe->mode == SPS_MODE_SRC)
-			memset(map->data.base, 0, hw_params.data_size);
+			memset_io(map->data.base, 0, hw_params.data_size);
 
 		/* set NWD bit for BAM2BAM producer pipe */
 		if (bam_pipe->mode == SPS_MODE_SRC) {
@@ -835,7 +911,7 @@ int sps_bam_pipe_connect(struct sps_pipe *bam_pipe,
 	if (desc_buf != NULL)
 		if (bam_pipe->mode == SPS_MODE_SRC ||
 		    hw_params.mode == BAM_PIPE_MODE_SYSTEM)
-			memset(desc_buf, 0, hw_params.desc_size);
+			memset_io(desc_buf, 0, hw_params.desc_size);
 
 	bam_pipe->desc_size = hw_params.desc_size;
 	bam_pipe->num_descs = bam_pipe->desc_size / sizeof(struct sps_iovec);
@@ -1042,6 +1118,7 @@ int sps_bam_pipe_set_params(struct sps_bam *dev, u32 pipe_index, u32 options)
 	int ack_xfers;
 	u32 size;
 	int n;
+	bool atmc_enbl = false;
 
 	/* Capture some options */
 	wake_up_is_one_shot = ((options & SPS_O_WAKEUP_IS_ONESHOT));
@@ -1088,10 +1165,25 @@ int sps_bam_pipe_set_params(struct sps_bam *dev, u32 pipe_index, u32 options)
 		/* Allocate both descriptor cache and user pointer array */
 		size = pipe->num_descs * sizeof(void *);
 
-		if (pipe->desc_size + size <= PAGE_SIZE)
-			pipe->sys.desc_cache =
-				kzalloc(pipe->desc_size + size, GFP_KERNEL);
-		else {
+		if (pipe->desc_size + size <= PAGE_SIZE) {
+			if (dev->props.options & SPS_BAM_ATMC_MEM) {
+				pipe->sys.desc_cache =
+					kzalloc(pipe->desc_size + size,
+							GFP_ATOMIC);
+				atmc_enbl = true;
+			} else {
+				pipe->sys.desc_cache =
+					kzalloc(pipe->desc_size + size,
+							GFP_KERNEL);
+			}
+			if (pipe->sys.desc_cache == NULL) {
+				SPS_ERR("sps:BAM %pa pipe %d: %d Atmc = %s\n",
+					BAM_ID(dev), pipe_index,
+					pipe->desc_size + size ,
+					atmc_enbl ? "true" : "false");
+				return -ENOMEM;
+			}
+		} else {
 			pipe->sys.desc_cache =
 				vmalloc(pipe->desc_size + size);
 
@@ -1105,13 +1197,6 @@ int sps_bam_pipe_set_params(struct sps_bam *dev, u32 pipe_index, u32 options)
 			memset(pipe->sys.desc_cache, 0, pipe->desc_size + size);
 		}
 
-		if (pipe->sys.desc_cache == NULL) {
-			/*** MUST BE LAST POINT OF FAILURE (see below) *****/
-			SPS_ERR("sps:Desc cache error: BAM %pa pipe %d: %d\n",
-				BAM_ID(dev), pipe_index,
-				pipe->desc_size + size);
-			return SPS_ERROR;
-		}
 		pipe->sys.user_ptrs = (void **)(pipe->sys.desc_cache +
 						 pipe->desc_size);
 		pipe->sys.cache_offset = pipe->sys.acked_offset;

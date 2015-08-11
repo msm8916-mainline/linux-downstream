@@ -151,8 +151,11 @@ do {									\
 #define ETMPDSR				(0x314)
 
 #define ETM_MAX_ADDR_CMP		(16)
+#define ETM_MAX_DATA_CMP		(8)
 #define ETM_MAX_CNTR			(4)
 #define ETM_MAX_CTXID_CMP		(3)
+#define ETM_MAX_EXT_INP			(4)
+#define ETM_MAX_EXT_OUTP		(4)
 
 #define ETM_MODE_EXCLUDE		BIT(0)
 #define ETM_MODE_CYCACC			BIT(1)
@@ -1859,6 +1862,20 @@ static ssize_t etm_store_pcsave(struct device *dev,
 static DEVICE_ATTR(pcsave, S_IRUGO | S_IWUSR, etm_show_pcsave,
 		   etm_store_pcsave);
 
+static ssize_t etm_show_cpu(struct device *dev,
+				   struct device_attribute *attr,
+				   char *buf)
+{
+	struct etm_drvdata *drvdata = dev_get_drvdata(dev->parent);
+	int cpu;
+
+	cpu = drvdata->cpu;
+	if (cpu < 0)
+		return -EINVAL;
+	return scnprintf(buf, PAGE_SIZE, "%#x\n", cpu);
+}
+static DEVICE_ATTR(cpu, S_IRUGO, etm_show_cpu, NULL);
+
 static struct attribute *etm_attrs[] = {
 	&dev_attr_nr_addr_cmp.attr,
 	&dev_attr_nr_cntr.attr,
@@ -1893,6 +1910,7 @@ static struct attribute *etm_attrs[] = {
 	&dev_attr_ctxid_mask.attr,
 	&dev_attr_sync_freq.attr,
 	&dev_attr_timestamp_event.attr,
+	&dev_attr_cpu.attr,
 	NULL,
 };
 
@@ -1909,8 +1927,6 @@ int coresight_etm_get_funnel_port(int cpu)
 {
 	struct coresight_platform_data *pdata;
 
-	if (cpu > num_possible_cpus())
-		return -EINVAL;
 	if (!etmdrvdata[cpu])
 		return -ENODEV;
 
@@ -1963,11 +1979,42 @@ static void etm_init_arch_data(void *info)
 
 	etmccr = etm_readl(drvdata, ETMCCR);
 	drvdata->nr_addr_cmp = BMVAL(etmccr, 0, 3) * 2;
+	if (drvdata->nr_addr_cmp > ETM_MAX_ADDR_CMP) {
+		dev_err(drvdata->dev,
+			"nr_addr_cmp out of bounds %u\n", drvdata->nr_addr_cmp);
+		drvdata->nr_addr_cmp = ETM_MAX_ADDR_CMP;
+	}
 	drvdata->nr_cntr = BMVAL(etmccr, 13, 15);
+	if (drvdata->nr_cntr > ETM_MAX_CNTR) {
+		dev_err(drvdata->dev,
+			"nr_cntr out of bounds %u\n", drvdata->nr_cntr);
+		drvdata->nr_cntr = ETM_MAX_CNTR;
+	}
 	drvdata->nr_ext_inp = BMVAL(etmccr, 17, 19);
+	if (drvdata->nr_ext_inp > ETM_MAX_EXT_INP) {
+		dev_err(drvdata->dev,
+			"nr_ext_inp out of bounds %u\n", drvdata->nr_ext_inp);
+		drvdata->nr_ext_inp = ETM_MAX_EXT_INP;
+	}
 	drvdata->nr_ext_out = BMVAL(etmccr, 20, 22);
+	if (drvdata->nr_ext_out > ETM_MAX_EXT_OUTP) {
+		dev_err(drvdata->dev,
+			"nr_ext_out out of bounds %u\n", drvdata->nr_ext_out);
+		drvdata->nr_ext_out = ETM_MAX_EXT_OUTP;
+	}
 	drvdata->nr_ctxid_cmp = BMVAL(etmccr, 24, 25);
+	if (drvdata->nr_ctxid_cmp > ETM_MAX_CTXID_CMP) {
+		dev_err(drvdata->dev,
+			"nr_ctxid_cmp out of bounds %u\n",
+			drvdata->nr_ctxid_cmp);
+		drvdata->nr_ctxid_cmp = ETM_MAX_CTXID_CMP;
+	}
 	drvdata->nr_data_cmp = BMVAL(etmccr, 4, 7);
+	if (drvdata->nr_data_cmp > ETM_MAX_DATA_CMP) {
+		dev_err(drvdata->dev,
+			"nr_data_cmp out of bounds %u\n", drvdata->nr_data_cmp);
+		drvdata->nr_data_cmp = ETM_MAX_DATA_CMP;
+	}
 
 	if (etm_version_gte(drvdata->arch, ETM_ARCH_V1_0)) {
 		etmcr = etm_readl(drvdata, ETMCR);
@@ -2317,8 +2364,6 @@ static int etm_probe(struct platform_device *pdev)
 		goto err0;
 	}
 
-	etmdrvdata[drvdata->cpu] = drvdata;
-
 	if (count++ == 0)
 		register_hotcpu_notifier(&etm_cpu_notifier);
 
@@ -2356,20 +2401,23 @@ static int etm_probe(struct platform_device *pdev)
 		}
 	}
 
+	etmdrvdata[drvdata->cpu] = drvdata;
+
 	put_online_cpus();
 
 	clk_disable_unprepare(drvdata->clk);
 
-	if (drvdata->os_unlock) {
-		mutex_lock(&drvdata->mutex);
+	mutex_lock(&drvdata->mutex);
+	if (drvdata->os_unlock && !drvdata->init) {
 		ret = etm_late_init(drvdata);
 		if (ret) {
 			mutex_unlock(&drvdata->mutex);
 			goto err1;
 		}
 		drvdata->init = true;
-		mutex_unlock(&drvdata->mutex);
 	}
+	mutex_unlock(&drvdata->mutex);
+
 	return 0;
 err1:
 	if (--count == 0)

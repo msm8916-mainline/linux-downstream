@@ -152,11 +152,7 @@ void timekeeping_inject_sleeptime(struct timespec *delta);
 #ifdef CONFIG_ARCH_USES_GETTIMEOFFSET
 extern u32 (*arch_gettimeoffset)(void);
 #endif
-//WingTech: Alex_ma <-add for RTC time of printk-> on20140918
-#if defined(CONFIG_PRINTK_RTC_TIME)
-extern int do_gettimeofday_nolock(struct timespec *tv);;
-#endif
-////WingTech: Alex_ma <-add for RTC time of printk-> on20140918 end
+
 extern void do_gettimeofday(struct timeval *tv);
 extern int do_settimeofday(const struct timespec *tv);
 extern int do_sys_settimeofday(const struct timespec *tv,

@@ -23,11 +23,14 @@ mcKernelApi-objs := MobiCoreKernelApi/main.o \
 ccflags-y := -DNDEBUG -I$(GUD_ROOT_FOLDER)
 ccflags-y += -Wno-declaration-after-statement
 
+#Netlink changed arguments number
+ccflags-y += -DMC_NETLINK_COMPAT_V37
+
 ccflags-$(CONFIG_MOBICORE_DEBUG) += -DDEBUG
 ccflags-$(CONFIG_MOBICORE_VERBOSE) += -DDEBUG_VERBOSE
 
 # Choose one platform from the folder
-MOBICORE_PLATFORM := $(shell (ls -1 $(PWD)/$(GUD_ROOT_FOLDER)/MobiCoreDriver/platforms | tail -1) )
+MOBICORE_PLATFORM := $(shell (ls -1 $(srctree)/$(GUD_ROOT_FOLDER)/MobiCoreDriver/platforms | tail -1) )
 # Use the available platform folder
 ccflags-y += -I$(GUD_ROOT_FOLDER)/MobiCoreDriver/platforms/$(MOBICORE_PLATFORM)
 # MobiCore Driver includes

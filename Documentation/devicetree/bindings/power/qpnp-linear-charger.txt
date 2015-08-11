@@ -93,11 +93,20 @@ Parent node optional properties:
 					BPD and disables BTC. Declare this node
 					only if you are using an external charger
 					and not the PMIC internal LBC.
-- qcom,disable-follow-on-reset		If specified charger ignores PMIC
-					reset signal.
-					This should not be enabled for real
-					world software. To be enabled only
-					for testing.
+- qcom,chgr-led-support			There is a current sink device in linear
+					charger module, it is used to control a
+					led which can act as a charger led as well
+					as a general notification led.
+- qcom,bms-controlled-charging		This property enables BMS to control
+					charging. BMS and charger communicates
+					with each other via power_supply
+					framework.
+- qcom,parallel-charger			This is a bool property to indicate the
+					LBC will operate as a secondary charger
+					in the parallel mode. If this is enabled
+					the charging operations will be controlled by
+					the primary-charger.
+
 
 Sub node required structure:
 - A qcom,charger node must be a child of an SPMI node that has specified
