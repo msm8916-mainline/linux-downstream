@@ -1580,11 +1580,11 @@
 		qcom,core-limit-temp = <80>;
 		qcom,core-temp-hysteresis = <10>;
 		qcom,core-control-mask = <0xe>;
-		qcom,hotplug-temp = <100>;	/* --- BSP Shawn_Huang when CPU 100dC hotplug */
+		qcom,hotplug-temp = <107>;	/* --- BSP Shawn_Huang when CPU 107dC hotplug */
 		qcom,hotplug-temp-hysteresis = <15>;
 		qcom,cpu-sensors = "tsens_tz_sensor5", "tsens_tz_sensor5",
 				"tsens_tz_sensor4", "tsens_tz_sensor4";
-		qcom,freq-mitigation-temp = <100>;	/* --- BSP Shawn_Huang cpu 100dC mitigation to 400 */
+		qcom,freq-mitigation-temp = <107>;	/* --- BSP Shawn_Huang cpu 107dC mitigation to 400 */
 		qcom,freq-mitigation-temp-hysteresis = <10>;
 		qcom,freq-mitigation-value = <400000>;
 		qcom,freq-mitigation-control-mask = <0x01>;

@@ -111,7 +111,7 @@
 
 /* PS Persistence */
 #define AP3425_PS_PERSIS_MAX			(63)
-#define AP3425_PS_PERSIS				0x00 	/*0x00~0x3f*/
+#define AP3425_PS_PERSIS_0				0x00 	/*0x00~0x3f*/
 
 /* PS MEAN */
 #define AP3425_PS_MEAN_0         		0x00	/* 5ms @2T*/

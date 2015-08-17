@@ -512,25 +512,19 @@ static int mdss_mdp_video_stop(struct mdss_mdp_ctl *ctl, int panel_power_state)
 	return 0;
 }
 
-//Mickey+++, add for record missing vsync
-unsigned long vsync_ts = 0;
-spinlock_t vsyncLock;
-//Mickey---
-
 static void mdss_mdp_video_vsync_intr_done(void *arg)
 {
 	struct mdss_mdp_ctl *ctl = arg;
 	struct mdss_mdp_video_ctx *ctx = ctl->priv_data;
 	struct mdss_mdp_vsync_handler *tmp;
 	ktime_t vsync_time;
-    unsigned long flags; //Mickey+++, add for record missing vsync
 
 	if (!ctx) {
 		pr_err("invalid ctx\n");
 		return;
 	}
 
-    vsync_time = ktime_get();
+	vsync_time = ktime_get();
 	ctl->vsync_cnt++;
 
 	MDSS_XLOG(ctl->num, ctl->vsync_cnt, ctl->vsync_cnt);
@@ -540,11 +534,6 @@ static void mdss_mdp_video_vsync_intr_done(void *arg)
 
 	ctx->polling_en = false;
 	complete_all(&ctx->vsync_comp);
-    //Mickey+++, add for record missing vsync
-    spin_lock_irqsave(&vsyncLock, flags);
-    vsync_ts= ktime_to_ms(vsync_time);
-    spin_unlock_irqrestore(&vsyncLock, flags);
-    //Mickey---
 	spin_lock(&ctx->vsync_lock);
 	list_for_each_entry(tmp, &ctx->vsync_handlers, list) {
 		tmp->vsync_handler(ctl, vsync_time);
@@ -1159,7 +1148,6 @@ static int mdss_mdp_video_intfs_setup(struct mdss_mdp_ctl *ctl,
 	init_completion(&ctx->vsync_comp);
 	spin_lock_init(&ctx->vsync_lock);
 	spin_lock_init(&ctx->dfps_lock);
-    spin_lock_init(&vsyncLock); //Mickey+++, add for record missing vsync
 	mutex_init(&ctx->vsync_mtx);
 	atomic_set(&ctx->vsync_ref, 0);
 	INIT_WORK(&ctl->recover_work, recover_underrun_work);

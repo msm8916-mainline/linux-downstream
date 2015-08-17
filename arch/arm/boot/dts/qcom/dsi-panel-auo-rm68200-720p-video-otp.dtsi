@@ -44,6 +44,7 @@
 		qcom,mdss-dsi-underflow-color = <0xff>;
 		qcom,mdss-dsi-border-color = <0>;
                 qcom,mdss-dsi-on-command = [15 01 00 00 00 00 02 FE 00
+                                15 01 00 00 00 00 02 5E 0C
                                 15 01 00 00 00 00 02 51 00
                                 15 01 00 00 00 00 02 53 24
 				15 01 00 00 00 00 02 55 00

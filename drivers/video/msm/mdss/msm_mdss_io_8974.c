@@ -799,8 +799,13 @@ static void mdss_dsi_link_clk_unprepare(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 
 static int mdss_dsi_link_clk_set_rate(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
-	u32 esc_clk_rate = 19200000;
+    u32 esc_clk_rate;
 	int rc = 0;
+
+    if(g_asus_lcdID == ZE500KL_LCD_AUO)
+        esc_clk_rate = 19200000;
+    else
+        esc_clk_rate = 9600000;
 
 	if (!ctrl_pdata) {
 		pr_err("%s: Invalid input data\n", __func__);

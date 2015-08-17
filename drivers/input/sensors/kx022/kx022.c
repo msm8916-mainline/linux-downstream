@@ -790,17 +790,6 @@ static int kx022_enable(void)
 	if (KX022_DEBUG_MESSAGE)
 		printk("[Gsensor] alp:kx022_enable ++\n");
 
-	if (kionix_Gsensor_data->suspend_resume_state == 1)	{
-		printk("[Gsensor] alp : kx022_enable  already suspend return !\n");
-		kionix_Gsensor_data->resume_enable = KX022_RESUME_MISSENABLE;
-		return 0;
-	}
-
-	if (atomic_read(&kionix_Gsensor_data->enabled) == KX022_ACC_ENABLE)	{
-		printk("[Gsensor] alp : kx022_enable  already enable , return 0\n");
-		return 0;
-	}
-	
 	if (kionix_Gsensor_data->irq_status == 0)	{
 		enable_irq(kionix_Gsensor_data->irq);
 		printk("[Gsensor] alp : kx022_enable  irq (%d)\n", kionix_Gsensor_data->irq);

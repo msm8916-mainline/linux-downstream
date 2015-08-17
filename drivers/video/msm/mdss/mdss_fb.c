@@ -2497,29 +2497,12 @@ static void mdss_fb_release_kickoff(struct msm_fb_data_type *mfd)
  *
  * See enum mdp_notify_event for events handled.
  */
-
-//Mickey+++, add for record missing vsync
-extern unsigned long vsync_ts;
-unsigned long vsyncMissed = 0;
-unsigned long potentialVsyncMissed = 0;
-unsigned long waitCount = 0;
-extern spinlock_t vsyncLock;
-#define SF_VSYNC_PHASE_OFFSET 5 //ASUS BSP Bernard: to match phase offset
-//Mickey---
-
 static int __mdss_fb_sync_buf_done_callback(struct notifier_block *p,
 		unsigned long event, void *data)
 {
 	struct msm_sync_pt_data *sync_pt_data;
 	struct msm_fb_data_type *mfd;
 	int fence_cnt;
-    //Mickey+++, add for record missing vsync
-    unsigned long fence_wait_ts1 = 0, fence_wait_ts2 = 0, fence_wait = 0;
-    unsigned long flags;
-    bool vMissed = false;
-    unsigned long phaseOffset = SF_VSYNC_PHASE_OFFSET;
-    static bool asEvt = true;
-    //Mickey---
 
 	sync_pt_data = container_of(p, struct msm_sync_pt_data, notifier);
 	mfd = container_of(sync_pt_data, struct msm_fb_data_type,
@@ -2534,37 +2517,10 @@ static int __mdss_fb_sync_buf_done_callback(struct notifier_block *p,
 	case MDP_NOTIFY_FRAME_READY:
 		if (sync_pt_data->async_wait_fences &&
 			sync_pt_data->temp_fen_cnt) {
-            fence_wait_ts1 = ktime_to_ms(ktime_get()); //Mickey+++, add for record missing vsync
 			fence_cnt = sync_pt_data->temp_fen_cnt;
 			sync_pt_data->temp_fen_cnt = 0;
 			__mdss_fb_wait_for_fence_sub(sync_pt_data,
 				sync_pt_data->temp_fen, fence_cnt);
-
-            //Mickey+++, add for record missing vsync
-            fence_wait_ts2 = ktime_to_ms(ktime_get());
-
-            spin_lock_irqsave(&vsyncLock, flags);
-            if (vsync_ts > fence_wait_ts1 &&  vsync_ts <=  fence_wait_ts2){
-                vsyncMissed++;
-                vMissed = true;
-            }
-            spin_unlock_irqrestore(&vsyncLock, flags);
-
-            fence_wait = fence_wait_ts2 - fence_wait_ts1;
-            if (!vMissed && fence_wait >=  (16-phaseOffset)  && fence_wait <=16){
-                potentialVsyncMissed++;
-            }
-
-            if (fence_wait >=  (16-phaseOffset)){
-                waitCount++;
-                asEvt = true;
-             }
-
-            if (waitCount % 50 == 0 && asEvt) {
-                ASUSEvtlog("[Display] vsyncMissed=%lu, potentialVsyncMissed=%lu, waitCount=%lu, phaseOffset=%lu\n", vsyncMissed, potentialVsyncMissed, waitCount, phaseOffset);
-                asEvt = false;
-            }
-            //Mickey---
 		}
 		break;
 	case MDP_NOTIFY_FRAME_FLUSHED:

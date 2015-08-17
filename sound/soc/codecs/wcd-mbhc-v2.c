@@ -183,7 +183,7 @@ static void wcd_program_hs_vref(const struct wcd_mbhc *mbhc)
 	//snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_MBHC_BTN3_CTL,
 	//		0x03, reg_val);
 	snd_soc_update_bits(codec, MSM8X16_WCD_A_ANALOG_MBHC_BTN3_CTL,
-			0x03, 0x03);
+			0x03, 0x02);
 }
 
 static void wcd_program_btn_threshold(const struct wcd_mbhc *mbhc, bool micbias)
@@ -1114,22 +1114,22 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	if (plug_type == MBHC_PLUG_TYPE_HIGH_HPH &&
 		(!det_extn_cable_en)) {
 		if (wcd_is_special_headset(mbhc)) {
+			pr_debug("%s: Special headset found %d\n",
+					__func__, plug_type);
+			plug_type = MBHC_PLUG_TYPE_HEADSET;
+			goto report;
+		}
+		else { 
 			/*ASUS_BSP : detect impedance first*/
 			if (mbhc->impedance_detect)
 				wcd_mbhc_calc_impedance(mbhc,
 					&mbhc->zl, &mbhc->zr);
-			/*ASUS_BSP : check impedance is higher than 1000*/
-			if ((mbhc->zl >= 1000) && ( mbhc->zr >= 1000)) {
+			/*ASUS_BSP : check impedance is higher than 500*/
+			if ((mbhc->zl >= 500) && ( mbhc->zr >= 500)) {
 				pr_debug("%s: plug in might be illigal headset \n",
 					__func__);
 				plug_type = MBHC_PLUG_TYPE_INVALID ;
 				goto exit;
-			}
-			else {
-				pr_debug("%s: Special headset found %d\n",
-						__func__, plug_type);
-				plug_type = MBHC_PLUG_TYPE_HEADSET;
-				goto report;
 			}
 		}
 	}

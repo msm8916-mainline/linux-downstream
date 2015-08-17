@@ -53,10 +53,6 @@ void set_dimming_cmd(void);
 void set_bklt_cmd(int mode);
 static struct mutex cmd_mutex;
 static char ctrl_display[2] = {0x53, 0x2C};
-/*cabc_type
-true:cabc on , usually represent power saving on,
-false: cabc off , usually represent power saving off or ultra-saving mode*/
-static bool cabc_type = true;
 
 #ifndef ASUS_FACTORY_BUILD
 static char cabc_mode[2] = {0x55, Still_MODE};
@@ -70,11 +66,11 @@ static struct dsi_cmd_desc backlight_cmd[] = {
 };
 
 static struct dsi_cmd_desc panel_dimming_cmd[] = {
-    { {DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(ctrl_display)}, ctrl_display},
+    { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(ctrl_display)}, ctrl_display},	/*short package*/
 };
 
 static struct dsi_cmd_desc tcon_cabc_cmd[] = {
-    { {DTYPE_GEN_LWRITE, 1, 0, 0, 0, sizeof(cabc_mode)}, cabc_mode},
+    { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(cabc_mode)}, cabc_mode},	/*short package*/
 };
 
 static struct panel_list supp_panels[] = {
@@ -279,12 +275,6 @@ static ssize_t lcd_info_write(struct file *filp, const char *buff, size_t len, l
     return len;
 }
 
-//Mickey+++, add for record missing vsync
-extern unsigned long vsyncMissed;
-extern unsigned long potentialVsyncMissed;
-extern unsigned long waitCount;
-//Mickey---
-
 static ssize_t lcd_info_read(struct file *file, char __user *buf,
                              size_t count, loff_t *ppos)
 {
@@ -296,11 +286,7 @@ static ssize_t lcd_info_read(struct file *file, char __user *buf,
     if (!buff)
         return -ENOMEM;
 
-    //Mickey+++, add for record missing vsync
-    //len += sprintf(buff, "===================\nPanel Vendor: %s\nUnique ID: %s\nUnique ID after CRC: %x\nSW Calibration Enable: %s\nCalibrated Value: %d\nActual Backlight: %d\nAdjust Backlight: %d\nCABC Mode: %d\n===================\n\nVsync Missed=%lu\nwaitCount5=%lu\nwaitCount7=%lu\nwaitCount10=%lu\nwaitCount12=%lu\nwaitCount15=%lu\n", supp_panels[g_asus_lcdID].name, lcd_unique_id, g_lcd_uniqueId_crc, g_asus_lcdID_verify ? "Y" : "N", g_calibrated_bl, g_actual_bl, g_adjust_bl, cabc_mode[1], vsyncMissed, waitCount5, waitCount7, waitCount10, waitCount12, waitCount15);
-    len += sprintf(buff, "===================\nPanel Vendor: %s\nUnique ID: %s\nUnique ID after CRC: %x\nSW Calibration Enable: %s\nCalibrated Value: %d\nActual Backlight: %d\nAdjust Backlight: %d\nCABC Mode: %d\n===================\n\nVsync Missed=%lu\npotentialVsyncMissed=%lu\nwaitCount=%lu\n", supp_panels[g_asus_lcdID].name, lcd_unique_id, g_lcd_uniqueId_crc, g_asus_lcdID_verify ? "Y" : "N", g_calibrated_bl, g_actual_bl, g_adjust_bl, cabc_mode[1], vsyncMissed, potentialVsyncMissed, waitCount);
-    //Mickey---
-
+    len += sprintf(buff, "===================\nPanel Vendor: %s\nUnique ID: %s\nUnique ID after CRC: %x\nSW Calibration Enable: %s\nCalibrated Value: %d\nActual Backlight: %d\nAdjust Backlight: %d\nCABC Mode: %d\n===================\n", supp_panels[g_asus_lcdID].name, lcd_unique_id, g_lcd_uniqueId_crc, g_asus_lcdID_verify ? "Y" : "N", g_calibrated_bl, g_actual_bl, g_adjust_bl, cabc_mode[1]);
     ret = simple_read_from_buffer(buf, count, ppos, buff, len);
     kfree(buff);
 
@@ -499,14 +485,7 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
         level = BL_BOUNDARY_VAL;
 
     printk("[BL] Set %s brightness (Actual:%d) (Adjust:%d)\n", supp_panels[g_asus_lcdID].name, tmp_level, level);
-
-	/*cabc turn on/off depend on bl value when power saving mode on*/
-    if ((level <= 20) && (cabc_mode[1] >= UI_MODE) && (cabc_type == true)) {
-        set_tcon_cabc(0);
-    } else if ((level > 20) && (cabc_mode[1] == OFF_MODE) && (cabc_type == true)) {
-        set_tcon_cabc(2);
-    }
-
+ 
 	if(display_commit_cnt <= 4)
     	set_bklt_cmd(level);
 
@@ -934,9 +913,6 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	if (ctrl->on_cmds.cmd_cnt) {
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
 	}
-	
-	if ((g_dcs_bl_value > 20) && (cabc_type == true))
-		cabc_mode[1] = Still_MODE;
 
     set_tcon_cabc(cabc_mode[1]);	//ASUS_BSP: Louis+++, restore cabc level
 
@@ -1262,19 +1238,14 @@ static ssize_t cabc_proc_write(struct file *filp, const char *buff, size_t len, 
 
     initKernelEnv();
 
-    if (strncmp(messages, "0", 1) == 0) { //off
+	if(strncmp(messages, "0", 1) == 0)  //off
 		set_tcon_cabc(0);
-        cabc_type = false;
-    } else if (strncmp(messages, "1", 1) == 0) {//ui
+	else if(strncmp(messages, "1", 1) == 0) //ui
 		set_tcon_cabc(1);
-        cabc_type = true;
-    } else if (strncmp(messages, "2", 1) == 0) {//still
+	else if(strncmp(messages, "2", 1) == 0) //still
 		set_tcon_cabc(2);
-        cabc_type = true;
-    } else if (strncmp(messages, "3", 1) == 0) {//moving
+	else if(strncmp(messages, "3", 1) == 0) //moving
 		set_tcon_cabc(3);
-        cabc_type = true;
-    }
 
     deinitKernelEnv(); 
     return len;

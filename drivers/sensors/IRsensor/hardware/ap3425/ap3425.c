@@ -114,6 +114,10 @@ static int ap3425_proximity_hw_set_config(void)
 		ret = ap3425_proximity_hw_set_integration(AP3425_PS_INTEG_5);
 		if (ret < 0)		
 			return ret;
+
+		ret = ap3425_proximity_hw_set_persistence(AP3425_PS_PERSIS_0);
+		if (ret < 0)		
+			return ret;
 	}
 	
 	return 0;
