@@ -1266,9 +1266,12 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 			     int op_enable)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+	struct mdss_panel_data *pdata;
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	int ret = 0;
 	int cur_power_state, req_power_state = MDSS_PANEL_POWER_OFF;
-
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,panel_data);
 	if (!mfd || !op_enable)
 		return -EPERM;
 
@@ -1341,7 +1344,12 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 				/* Stop Display thread */
 				if (mfd->disp_thread)
 					mdss_fb_stop_disp_thread(mfd);
+
 				mdss_fb_set_backlight(mfd, 0);
+				if ( (asus_lcd_id[0]=='2') && (asus_lcd_id[0]=='3') ){
+					printk("[DISP] %s Backlight Disabled\n",__func__);
+					gpio_set_value((ctrl_pdata->bklt_en_gpio), 0);
+				}
 				mfd->bl_updated = 0;
 			}
 			mfd->panel_power_state = req_power_state;

@@ -187,8 +187,9 @@ struct ftxxxx_ts_data {
 	struct work_struct usb_detect_work;
 	struct workqueue_struct *reset_wq;
 	struct work_struct reset_ic_work;
-	struct workqueue_struct *resume_wq;
+	struct workqueue_struct *suspend_resume_wq;
 	struct work_struct resume_work;
+	struct work_struct suspend_work;
 	/********add by jinpeng_He begin***********/
 	u8 fw_ver[3];
 	u32 tp_id_gpio1;

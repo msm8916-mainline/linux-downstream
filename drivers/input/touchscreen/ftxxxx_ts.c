@@ -47,14 +47,14 @@
 
 
 /**add by jinpeng_He for early_suspend+++**/
-#if defined(CONFIG_FB)
-#include <linux/notifier.h>
-#include <linux/fb.h>
-struct notifier_block tp_fb_notif;
+//#if defined(CONFIG_FB)
+//#include <linux/notifier.h>
+//#include <linux/fb.h>
+//struct notifier_block tp_fb_notif;
 
-static int asus_otg_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
+//static int asus_otg_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
 
-#endif
+//#endif
 
 /*#include "linux/input/proximity_class.h"*/
 /*#include <linux/ft3x17.h>*/
@@ -162,7 +162,7 @@ u8 B_VenderID;
 u8 F_VenderID;
 char B_projectcode[8];
 u8 F_projectcode;
-
+u8 Gesture_flag;
 u8 FTS_gesture_register_d2;
 u8 FTS_gesture_register_d5;
 u8 FTS_gesture_register_d6;
@@ -258,12 +258,12 @@ int ftxxxx_i2c_Read(struct i2c_client *client, char *writebuf, int writelen, cha
 	}
 
 	if (retry == IICReadWriteRetryTime) {
-		dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: i2c read error.  error code = %d \n", __func__, ret);
+		dev_err(&client->dev, "[Focal][Touch] %s: i2c read error.  error code = %d \n", __func__, ret);
 		IICErrorCountor += 1;
 
 		if (IICErrorCountor >= 10) {
-			dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: i2c read/write error over 10 times !! \n", __func__);
-			dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: excute reset IC process !! \n", __func__);
+			dev_err(&client->dev, "[Focal][Touch] %s: i2c read/write error over 10 times !! \n", __func__);
+			dev_err(&client->dev, "[Focal][Touch] %s: excute reset IC process !! \n", __func__);
 //			ASUSEvtlog("[Touch] touch i2c read/write error over 10 times, reset IC \n");
 			queue_work(ftxxxx_ts->reset_wq, &ftxxxx_ts->reset_ic_work);
 			return ret;
@@ -281,33 +281,34 @@ int ftxxxx_i2c_Write(struct i2c_client *client, char *writebuf, int writelen)
 {
 	int ret;
 	int retry = 0;
+	if(writelen>0)
+	{
+		struct i2c_msg msg[] = {
+			{
+				.addr = client->addr,
+				.flags = 0,
+				.len = writelen,
+				.buf = writebuf,
+			},
+		};
 
-	struct i2c_msg msg[] = {
-		{
-			.addr = client->addr,
-			.flags = 0,
-			.len = writelen,
-			.buf = writebuf,
-		},
-	};
+		for (retry = 0; retry < IICReadWriteRetryTime; retry++) {
+			ret = i2c_transfer(client->adapter, msg, 1);
 
-	for (retry = 0; retry < IICReadWriteRetryTime; retry++) {
-		ret = i2c_transfer(client->adapter, msg, 1);
+			if (ret >= 0)
+				break;
 
-		if (ret >= 0)
-			break;
-
-		msleep(1);
+			msleep(1);
+		}
 	}
-
 	if (retry == IICReadWriteRetryTime) {
-		dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: i2c write error.  error code = %d \n", __func__, ret);
+		dev_err(&client->dev, "[Focal][Touch] %s: i2c write error.  error code = %d \n", __func__, ret);
 
 		IICErrorCountor += 1;
 
 		if (IICErrorCountor >= 10) {
-			dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: i2c read/write error over 10 times !! \n", __func__);
-			dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: excute reset IC process !! \n", __func__);
+			dev_err(&client->dev, "[Focal][Touch] %s: i2c read/write error over 10 times !! \n", __func__);
+			dev_err(&client->dev, "[Focal][Touch] %s: excute reset IC process !! \n", __func__);
 //			ASUSEvtlog("[Touch] touch i2c read/write error over 10 times, reset IC \n");			
 			queue_work(ftxxxx_ts->reset_wq, &ftxxxx_ts->reset_ic_work);
 			return ret;
@@ -502,7 +503,7 @@ static ssize_t focal_show_tpfwver(struct switch_dev *sdev, char *buf)
 		printk("[Focal][Touch] %s :  read FW fail \n ", __func__);
 		num_read_chars = snprintf(buf, PAGE_SIZE, "get tp fw version fail!\n");
 	} else {
-		printk("touch_version: = %s-0x%x-0x%x\n ",touch_version.glass_vendor,touch_version.project_id,touch_version.firmware_version);
+		printk("[Focal][Touch] touch_version: = %s-0x%x-0x%x\n ",touch_version.glass_vendor,touch_version.project_id,touch_version.firmware_version);
 		num_read_chars = snprintf(buf, PAGE_SIZE, "0x%02X-0x%02X-0x%02X\n",touch_version.project_id,touch_version.vendor_id,touch_version.firmware_version);
 	}
 	return num_read_chars;
@@ -527,7 +528,7 @@ static void check_gesture(struct ftxxxx_ts_data *data, int gesture_id)
 					input_sync(data->input_dev);
 					input_report_key(data->input_dev, KEY_GESTURE_U, 0);
 					input_sync(data->input_dev);
-					printk(KERN_EMERG "double click\n");
+					printk(KERN_EMERG "[Focal][Touch] double click\n");
 					dclick_flags=false;
 				}
 				break;
@@ -536,7 +537,7 @@ static void check_gesture(struct ftxxxx_ts_data *data, int gesture_id)
 				input_sync(data->input_dev);
 				input_report_key(data->input_dev, KEY_GESTURE_V, 0);
 				input_sync(data->input_dev);
-				printk(KERN_EMERG"click GESTURE_V\n");
+				printk(KERN_EMERG"[Focal][Touch] click GESTURE_V\n");
 			
 				break;
 
@@ -545,7 +546,7 @@ static void check_gesture(struct ftxxxx_ts_data *data, int gesture_id)
 				input_sync(data->input_dev);
 				input_report_key(data->input_dev, KEY_GESTURE_Z, 0);
 				input_sync(data->input_dev);
-				printk(KERN_EMERG "click GESTURE_Z\n");
+				printk(KERN_EMERG "[Focal][Touch] click GESTURE_Z\n");
 				
 				break;
 			case GESTURE_E:
@@ -553,7 +554,7 @@ static void check_gesture(struct ftxxxx_ts_data *data, int gesture_id)
 				input_sync(data->input_dev);
 				input_report_key(data->input_dev, KEY_GESTURE_E, 0);
 				input_sync(data->input_dev);
-				printk(KERN_EMERG "click GESTURE_E\n");
+				printk(KERN_EMERG "[Focal][Touch] click GESTURE_E\n");
 				
 				break;
 			case GESTURE_C:
@@ -561,7 +562,7 @@ static void check_gesture(struct ftxxxx_ts_data *data, int gesture_id)
 				input_sync(data->input_dev);
 				input_report_key(data->input_dev, KEY_GESTURE_C, 0);
 				input_sync(data->input_dev);
-				printk(KERN_EMERG "click GESTURE_C\n");
+				printk(KERN_EMERG "[Focal][Touch] click GESTURE_C\n");
 				
 				break;
 			case GESTURE_S:
@@ -569,7 +570,7 @@ static void check_gesture(struct ftxxxx_ts_data *data, int gesture_id)
 				input_sync(data->input_dev);
 				input_report_key(data->input_dev, KEY_GESTURE_S, 0);
 				input_sync(data->input_dev);
-				printk(KERN_EMERG "click GESTURE_S\n");
+				printk(KERN_EMERG "[Focal][Touch] click GESTURE_S\n");
 				
 				break;
 
@@ -578,7 +579,7 @@ static void check_gesture(struct ftxxxx_ts_data *data, int gesture_id)
 				input_sync(data->input_dev);
 				input_report_key(data->input_dev, KEY_GESTURE_W, 0);
 				input_sync(data->input_dev);
-				printk(KERN_EMERG "click GESTURE_W\n");
+				printk(KERN_EMERG "[Focal][Touch] click GESTURE_W\n");
 				
 				break;
 			default:
@@ -605,7 +606,7 @@ static int fts_read_Gestruedata(struct ftxxxx_ts_data *data)
 	printk("[Focal][Touch] %s : tpd read FTS_GESTRUE_POINTS_HEADER.\n", __func__);
 
 	if (ret < 0) {
-		printk("[Focal][TOUCH_ERR] %s : read touchdata failed.\n", __func__);
+		printk("[Focal][Touch] %s : read touchdata failed.\n", __func__);
 		return ret;
 	}
 
@@ -623,7 +624,7 @@ static int fts_read_Gestruedata(struct ftxxxx_ts_data *data)
 			ret = ftxxxx_i2c_Read(data->client, buf, 0, buf+255, (pointnum * 4 + 8) - 255);
 		}
 		if (ret < 0) {
-			printk("[Focal][TOUCH_ERR] %s read touchdata failed.\n", __func__);
+			printk("[Focal][Touch] %s read touchdata failed.\n", __func__);
 			return ret;
 		}
 	check_gesture(data, gestrue_id);
@@ -732,7 +733,7 @@ static int ftxxxx_read_Touchdata(struct ftxxxx_ts_data *data)
 
 	ret = ftxxxx_i2c_Read(data->client, buf, 1, buf, POINT_READ_BUF);
 	if (ret < 0) {
-		dev_err(&data->client->dev, "[Focal][TOUCH_ERR] %s : read touchdata failed.\n", __func__);
+		dev_err(&data->client->dev, "[Focal][Touch] %s : read touchdata failed.\n", __func__);
 		return ret;
 	}
 
@@ -762,7 +763,7 @@ static int ftxxxx_read_Touchdata(struct ftxxxx_ts_data *data)
 			(buf[FT_TOUCH_XY_POS + FT_TOUCH_STEP * i]);
 		event->area[i] =
 			(buf[FT_TOUCH_MISC + FT_TOUCH_STEP * i]) >> 4;
-		focal_debug(DEBUG_VERBOSE, "id=%d event=%d x=%d y=%d pressure=%d area=%d\n", event->au8_finger_id[i],
+		focal_debug(DEBUG_VERBOSE, "[Focal][Touch] id=%d event=%d x=%d y=%d pressure=%d area=%d\n", event->au8_finger_id[i],
 			event->au8_touch_event[i], event->au16_x[i], event->au16_y[i], event->pressure[i], event->area[i]);
 		if((event->au8_touch_event[i]==0||event->au8_touch_event[i]==2)&&(event->Cur_touchpoint==0))
 			return 1;
@@ -853,11 +854,11 @@ static irqreturn_t ftxxxx_ts_interrupt(int irq, void *dev_id)
 #endif
 	if(selftestflag==1)
 	{
-		printk(KERN_WARNING "in selftest mode\n");
+		printk(KERN_WARNING "[Focal][Touch] in selftest mode\n");
 		return IRQ_HANDLED;
 	}
 	if (suspend_resume_process == true) {
-		printk("[Focal][Interrupt] suspend_resume in process skip !\n");
+		printk("[Focal][Touch] interrupt suspend_resume in process skip !\n");
 		return IRQ_HANDLED;
 	}
 	
@@ -870,7 +871,10 @@ static irqreturn_t ftxxxx_ts_interrupt(int irq, void *dev_id)
 		
 #ifdef FTS_GESTRUE/*zax 20140922*/
 						i2c_smbus_read_i2c_block_data(ftxxxx_ts->client, 0xd0, 1, &state);
-						//printk("%s: tpd fts_read_Gestruedata state=%d\n",__func__, state);
+						if(Gesture_flag==1)
+						{
+							printk("[Focal][Touch] %s: tpd fts_read_Gestruedata state=%d\n",__func__, state);
+						}
 						if (state == 1) {
 							fts_read_Gestruedata(ftxxxx_ts);
 							/*continue;*/
@@ -887,7 +891,7 @@ static irqreturn_t ftxxxx_ts_interrupt(int irq, void *dev_id)
 	}
 	else
 	{
-		printk(KERN_EMERG"newcode---disable touch\n");		
+		printk(KERN_EMERG"[Focal][Touch] newcode---disable touch\n");		
 	}
 	mutex_unlock(&ftxxxx_ts->g_device_mutex);
 
@@ -983,19 +987,51 @@ int focal_get_HW_ID(void)
 	return Focal_hw_id;
 }
 
+void asus_check_touch_mode(void)
+{
+	uint8_t buf[2]={0};
+	int err = 0;
+	if(ftxxxx_ts->init_success == 1)
+	{
+		if(ftxxxx_ts->usb_status==1)
+		{
+			buf[0]=0x8B;
+			buf[1]=1;
+			err=ftxxxx_write_reg(ftxxxx_ts->client,buf[0],buf[1]);
+			if(err<0)
+				printk("[Focal][Touch] %s : switch to usb mode failed\n",__func__);
+			else
+				printk("[Focal][Touch] %s : switch to usb mode \n",__func__);
+		}
+		else
+		{
+			buf[0]=0x8B;
+			buf[1]=0;
+			err=ftxxxx_write_reg(ftxxxx_ts->client,buf[0],buf[1]);
+			if(err<0)
+				printk("[Focal][Touch] %s : leave  usb mode failed\n",__func__);
+			else
+				printk("[Focal][Touch] %s : leave  usb mode\n",__func__);
+		}
+	}
+}
+
 void focal_usb_detection(bool plugin)
 {
 	if (ftxxxx_ts == NULL) {
-		printk("[Focal][TOUCH_ERR] %s : ftxxxx_ts is null, skip \n", __func__);
+		printk("[Focal][Touch] %s : ftxxxx_ts is null, skip \n", __func__);
 		return;
 	}
-
+	printk("[Focal][Touchh] plugin=%d\n",plugin);
 	if (ftxxxx_ts->init_success == 1) {
+		wake_lock(&ftxxxx_ts->wake_lock);
+		mutex_lock(&ftxxxx_ts->g_device_mutex);
 		if (plugin)
 			ftxxxx_ts->usb_status = 1; /*AC plug in*/
 		else
 			ftxxxx_ts->usb_status = 0;	/*no AC */
-
+		mutex_unlock(&ftxxxx_ts->g_device_mutex);
+		wake_unlock(&ftxxxx_ts->wake_lock);
 		queue_work(ftxxxx_ts->usb_wq, &ftxxxx_ts->usb_detect_work);
 	}
 }
@@ -1009,7 +1045,7 @@ static void focal_cable_status(struct work_struct *work)
 
 	mutex_lock(&ftxxxx_ts->g_device_mutex);
 
-	printk("[Focal][Touch] cable_status=%d, init_success=%d.\n", status, ftxxxx_ts->init_success);
+	printk("[Focal][Touchh] cable_status=%d, init_success=%d.\n", status, ftxxxx_ts->init_success);
 
 	if (ftxxxx_ts->init_success == 1) {
 		if (status == 0) {	/*no AC */
@@ -1022,7 +1058,8 @@ static void focal_cable_status(struct work_struct *work)
 			ftxxxx_write_reg(ftxxxx_ts->client, buf[0], buf[1]);
 		}
 	}
-
+	ftxxxx_read_reg(ftxxxx_ts->client, buf[0], &buf[1]);
+	printk("[Focal][Touch] buf[1]=%d\n",buf[1]);
 	mutex_unlock(&ftxxxx_ts->g_device_mutex);
 
 	wake_unlock(&ftxxxx_ts->wake_lock);
@@ -1038,7 +1075,7 @@ void focal_glove_switch(bool plugin)
 	int err = 0;
 
 	if (ftxxxx_ts == NULL) {
-		printk("[Focal][TOUCH_ERR] %s : ftxxxx_ts is null, skip \n", __func__);
+		printk("[Focal][Touch] %s : ftxxxx_ts is null, skip \n", __func__);
 		return;
 	}
 
@@ -1056,7 +1093,7 @@ void focal_glove_switch(bool plugin)
 			err = ftxxxx_write_reg(ftxxxx_ts->client, buf[0], buf[1]);
 
 			if (err < 0)
-				printk("[Focal][TOUCH_ERR] %s : glove mode enable fail ! \n", __func__);
+				printk("[Focal][Touch] %s : glove mode enable fail ! \n", __func__);
 			else
 				printk("[Focal][Touch] %s : glove mode enable ! \n", __func__);
 
@@ -1071,7 +1108,7 @@ void focal_glove_switch(bool plugin)
 			err = ftxxxx_write_reg(ftxxxx_ts->client, buf[0], buf[1]);
 
 			if (err < 0)
-				printk("[Focal][TOUCH_ERR] %s : glove mode disable fail ! \n", __func__);
+				printk("[Focal][Touch] %s : glove mode disable fail ! \n", __func__);
 			else
 				printk("[Focal][Touch] %s : glove mode disable ! \n", __func__);
 
@@ -1115,6 +1152,111 @@ static void focal_reset_ic_work(struct work_struct *work)
 
 }
 #ifdef FTS_PM
+static void focal_suspend_work(struct work_struct *work)
+{
+	
+	uint8_t buf[2] = {0};
+	int i;
+	
+	struct ftxxxx_ts_data *ts = ftxxxx_ts;
+	
+	suspend_resume_process = true;
+	
+//	printk(KERN_EMERG "[Focal][Touch] %s : Touch suspend +++ ++\n", __func__);
+
+	//wake_lock(&ftxxxx_ts->wake_lock);
+
+	mutex_lock(&ftxxxx_ts->g_device_mutex);
+
+	if (ftxxxx_ts->suspend_flag) {
+
+		focal_debug(DEBUG_VERBOSE, "[Focal][Touch]--->[Focal][Touch] IC in suspend !! \n");
+
+		mutex_unlock(&ftxxxx_ts->g_device_mutex);
+
+		//wake_unlock(&ftxxxx_ts->wake_lock);
+
+		suspend_resume_process = false;
+
+		return;
+	}
+#ifdef FTS_GESTRUE/*zax 20140922*/
+	dclick_flags=true;
+	if ((ftxxxx_ts->dclick_mode_eable == true) || (ftxxxx_ts->gesture_mode_eable == true)) {
+			printk(KERN_EMERG "[Focal][Touch] %s : Touch gesture mode \n", __func__);
+			enable_irq_wake(ftxxxx_ts->client->irq);
+			ftxxxx_write_reg(ts->client, 0xd0, 0x01);
+
+			if (ftxxxx_ts->dclick_mode_eable == true) {
+				printk(KERN_EMERG "[Focal][Touch] %s : open dclick mode \n", __func__);
+				ftxxxx_write_reg(ts->client, 0xd1, 0x10);
+			}
+
+			if (ftxxxx_ts->gesture_mode_eable == true) {
+				if (ftxxxx_ts->dclick_mode_eable == true)
+					ftxxxx_write_reg(ts->client, 0xd1, 0x30);
+				else
+					ftxxxx_write_reg(ts->client, 0xd1, 0x20);
+				
+				ftxxxx_write_reg(ts->client, 0xd2, FTS_gesture_register_d2);
+				ftxxxx_write_reg(ts->client, 0xd5, FTS_gesture_register_d5);
+				ftxxxx_write_reg(ts->client, 0xd6, FTS_gesture_register_d6);
+				ftxxxx_write_reg(ts->client, 0xd7, FTS_gesture_register_d7); //<asus-Jeffery20150427+>
+			}
+			Gesture_flag=1;
+			{
+				u8 FTS_gesture_register_d1;
+				u8 FTS_gesture_register_d0;
+				ftxxxx_read_reg(ts->client, 0xd1, &FTS_gesture_register_d1);
+				ftxxxx_read_reg(ts->client, 0xd0, &FTS_gesture_register_d0);
+				printk("[Focal][Touch]suspend FTS_gesture_register_d0=0x%x\n",FTS_gesture_register_d0);
+				printk("[Focal][Touch]suspend FTS_gesture_register_d1=0x%x\n",FTS_gesture_register_d1);
+			}
+	} else {
+		
+		ftxxxx_irq_disable(ts->client);
+		printk(KERN_EMERG "1[Focal][Touch] %s : Touch suspend and  disable touch\n", __func__);
+		buf[0] = 0xA5;
+		buf[1] = 0x03;
+		ftxxxx_write_reg(ftxxxx_ts->client, buf[0], buf[1]);
+	}
+#else
+	printk(KERN_EMERG "2[Focal][Touch] %s : Touch suspend and  disable touch\n", __func__);
+	ftxxxx_irq_disable(ts->client);
+	buf[0] = 0xA5;
+	buf[1] = 0x03;
+	ftxxxx_write_reg(ftxxxx_ts->client, buf[0], buf[1]);
+#endif
+	//release all touch points
+	for(i=0;i<CFG_MAX_TOUCH_POINTS;i++)
+	{
+		input_mt_slot(ftxxxx_ts->input_dev, i);
+		input_mt_report_slot_state(ftxxxx_ts->input_dev, MT_TOOL_FINGER, 0);
+	}
+	input_mt_report_pointer_emulation(ftxxxx_ts->input_dev, false);
+	input_sync(ftxxxx_ts->input_dev);
+	/* +++ asus jacob add for print touch location +++ */
+	//memset(report_touch_locatoin_count, 0, sizeof(report_touch_locatoin_count));
+	/* --- asus jacob add for print touch location --- */
+
+//	input_report_key(ftxxxx_ts->input_dev, BTN_TOUCH, 0);
+//	input_mt_sync(ftxxxx_ts->input_dev);
+//	input_sync(ftxxxx_ts->input_dev);
+
+	ftxxxx_ts->suspend_flag = 1;
+
+	mutex_unlock(&ftxxxx_ts->g_device_mutex);
+
+	//wake_unlock(&ftxxxx_ts->wake_lock);
+
+	suspend_resume_process = false;
+
+	printk(KERN_EMERG "[Focal][Touch] %s : Touch suspend --- \n", __func__);
+
+	return;
+}	
+
+	
 static void focal_resume_work(struct work_struct *work)
 {
 	uint8_t buf[2] = {0};
@@ -1158,15 +1300,7 @@ static void focal_resume_work(struct work_struct *work)
 
 			msleep(80);
 
-			if (ts->usb_status == 1) {
-
-				buf[0] = 0x8B;
-
-				buf[1] = 0x01;
-
-				ftxxxx_write_reg(ftxxxx_ts->client, buf[0], buf[1]);
-
-			}
+			asus_check_touch_mode();
 
 			if (ts->glove_mode_eable == true) {
 
@@ -1190,7 +1324,15 @@ static void focal_resume_work(struct work_struct *work)
 			printk("[Focal][Touch] %s : ftxxxx_ts->reset_pin_status set to 0 ! skip reset IC \n", __func__);
 
 		}
-
+		Gesture_flag=0;
+		{
+			u8 FTS_gesture_register_d1;
+			u8 FTS_gesture_register_d0;
+			ftxxxx_read_reg(ts->client, 0xd1, &FTS_gesture_register_d1);
+			ftxxxx_read_reg(ts->client, 0xd0, &FTS_gesture_register_d0);
+			printk("[Focal][Touch] resume FTS_gesture_register_d0=0x%x\n",FTS_gesture_register_d0);
+			printk("[Focal][Touch] resume FTS_gesture_register_d1=0x%x\n",FTS_gesture_register_d1);
+		}
 		ftxxxx_irq_enable(ts->client);
 	} else {
 
@@ -1206,15 +1348,7 @@ static void focal_resume_work(struct work_struct *work)
 
 			msleep(80);
 
-			if (ts->usb_status == 1) {
-
-				buf[0] = 0x8B;
-
-				buf[1] = 0x01;
-
-				ftxxxx_write_reg(ftxxxx_ts->client, buf[0], buf[1]);
-
-			}
+			asus_check_touch_mode();
 
 			if (ts->glove_mode_eable == true) {
 
@@ -1254,15 +1388,7 @@ static void focal_resume_work(struct work_struct *work)
 
 		msleep(80);
 
-		if (ts->usb_status == 1) {
-
-			buf[0] = 0x8B;
-
-			buf[1] = 0x01;
-
-			ftxxxx_write_reg(ftxxxx_ts->client, buf[0], buf[1]);
-
-		}
+		asus_check_touch_mode();
 
 		if (ts->glove_mode_eable == true) {
 
@@ -1315,14 +1441,14 @@ static int fts_power_on(struct ftxxxx_ts_data *data, bool on)
 	rc = regulator_enable(data->pdata->vdd);
 	if (rc) {
 		dev_err(&data->client->dev,
-			"Regulator vdd enable failed rc=%d\n", rc);
+			"[Focal][Touch] Regulator vdd enable failed rc=%d\n", rc);
 		return rc;
 	}
 
 	rc = regulator_enable(data->pdata->vcc);
 	if (rc) {
 		dev_err(&data->client->dev,
-			"Regulator vcc_i2c enable failed rc=%d\n", rc);
+			"[Focal][Touch] Regulator vcc_i2c enable failed rc=%d\n", rc);
 		regulator_disable(data->pdata->vdd);
 	}
 
@@ -1332,18 +1458,18 @@ power_off:
 	rc = regulator_disable(data->pdata->vdd);
 	if (rc) {
 		dev_err(&data->client->dev,
-			"Regulator vdd disable failed rc=%d\n", rc);
+			"[Focal][Touch] Regulator vdd disable failed rc=%d\n", rc);
 		return rc;
 	}
 
 	rc = regulator_disable(data->pdata->vcc);
 	if (rc) {
 		dev_err(&data->client->dev,
-			"Regulator vcc_i2c disable failed rc=%d\n", rc);
+			"[Focal][Touch] Regulator vcc_i2c disable failed rc=%d\n", rc);
 		rc = regulator_enable(data->pdata->vdd);
 		if (rc) {
 			dev_err(&data->client->dev,
-				"Regulator vdd enable failed rc=%d\n", rc);
+				"[Focal][Touch] Regulator vdd enable failed rc=%d\n", rc);
 		}
 	}
 
@@ -1361,7 +1487,7 @@ static int fts_power_init(struct device *dev,
 	pdata->vdd = devm_regulator_get(dev, "vdd");
 	if (IS_ERR( pdata->vdd)) {
 		rc = PTR_ERR(pdata->vdd);
-		printk("Regulator get touch vdd failed rc=%d\n", rc);
+		printk("[Focal][Touch] Regulator get touch vdd failed rc=%d\n", rc);
 		return rc;
 		}
 
@@ -1369,7 +1495,7 @@ static int fts_power_init(struct device *dev,
 		rc = regulator_set_voltage(pdata->vdd, FT_VDD_MIN_UV,
 					   FT_VDD_MAX_UV);
 		if (rc) {
-			printk("Regulator set_vdd failed vdd rc=%d\n", rc);
+			printk("[Focal][Touch] Regulator set_vdd failed vdd rc=%d\n", rc);
 			goto reg_vdd_put;
 		}
 	}
@@ -1377,7 +1503,7 @@ static int fts_power_init(struct device *dev,
 	pdata->vcc = devm_regulator_get(dev, "vcc_i2c");
 	if (IS_ERR( pdata->vcc)) {
 		rc = PTR_ERR(pdata->vcc);
-		printk("Regulator get vcc_i2c failed rc=%d\n", rc);
+		printk("[Focal][Touch] Regulator get vcc_i2c failed rc=%d\n", rc);
 		goto reg_vdd_set_vtg;
 		}
 
@@ -1385,7 +1511,7 @@ static int fts_power_init(struct device *dev,
 		rc = regulator_set_voltage(pdata->vcc, FT_I2C_VCC_MIN_UV,
 					   FT_I2C_VCC_MAX_UV);
 		if (rc) {
-			printk("Regulator set_vcc failed vdd rc=%d\n", rc);
+			printk("[Focal][Touch] Regulator set_vcc failed vdd rc=%d\n", rc);
 			goto reg_vcc_i2c_put;
 		}
 	}
@@ -1419,14 +1545,14 @@ static int fts_init_gpio_hw(struct ftxxxx_ts_data *ftxxxx_ts)
 
 	ret = gpio_request(ftxxxx_ts->pdata->rst_gpio, FTXXXX_RESET_PIN_NAME);
 	if (ret) {
-		printk("[Focal][TOUCH_ERR] %s: request GPIO %s for reset failed, ret = %d\n",
+		printk("[Focal][Touch] %s: request GPIO %s for reset failed, ret = %d\n",
 			__func__, FTXXXX_RESET_PIN_NAME, ret);
 		return ret;
 	}
 	
 	ret = gpio_direction_output(ftxxxx_ts->pdata->rst_gpio, 1);	/*asus change reset set output high*/
 	if (ret) {
-		printk("[Focal][TOUCH_ERR] %s: set %s gpio to out put high failed, ret = %d\n",
+		printk("[Focal][Touch] %s: set %s gpio to out put high failed, ret = %d\n",
 			__func__, FTXXXX_RESET_PIN_NAME, ret);
 		return ret;
 		}
@@ -1456,13 +1582,13 @@ static int ft5x46_get_dt_coords(struct device *dev, char *name,
 
 	coords_size = prop->length / sizeof(u32);
 	if (coords_size != FT_COORDS_ARR_SIZE) {
-		dev_err(dev, "invalid %s\n", name);
+		dev_err(dev, "[Focal][Touch] invalid %s\n", name);
 		return -EINVAL;
 	}
 
 	rc = of_property_read_u32_array(np, name, coords, coords_size);
 	if (rc && (rc != -EINVAL)) {
-		dev_err(dev, "Unable to read %s\n", name);
+		dev_err(dev, "[Focal][Touch] Unable to read %s\n", name);
 		return rc;
 	}
 
@@ -1477,7 +1603,7 @@ static int ft5x46_get_dt_coords(struct device *dev, char *name,
 		pdata->abs_x_max = coords[2];
 		pdata->abs_y_max = coords[3];
 	} else {
-		dev_err(dev, "unsupported property %s\n", name);
+		dev_err(dev, "[Focal][Touch] unsupported property %s\n", name);
 		return -EINVAL;
 	}
 
@@ -1805,20 +1931,20 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 		ftxxxx_ts = kzalloc(sizeof(struct ftxxxx_ts_data), GFP_KERNEL);
 		if (!ftxxxx_ts) {
 			err = -ENOMEM;
-			printk("[Focal][TOUCH_ERR] %s: alloc ftxxxx_ts_data failed !! \n", __func__);
+			printk("[Focal][Touch] %s: alloc ftxxxx_ts_data failed !! \n", __func__);
 			goto exit_alloc_data_failed;
 		}
 		pdata = kzalloc(sizeof(struct focal_i2c_platform_data), GFP_KERNEL);
 		if (!pdata) {
 			err = -ENOMEM;
-			printk("[Focal][TOUCH_ERR] %s: alloc focal_i2c_platform_data failed !! \n", __func__);
+			printk("[Focal][Touch] %s: alloc focal_i2c_platform_data failed !! \n", __func__);
 			goto exit_alloc_data_failed;
 		}
 	}
 
 	err = ft5x46_parse_dt(&client->dev, pdata);
 	if (err) {
-		dev_err(&client->dev, "DT parsing failed\n");
+		dev_err(&client->dev, "[Focal][Touch] DT parsing failed\n");
 		return err;
 	}
 
@@ -1833,6 +1959,7 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 	ftxxxx_ts->gesture_mode_eable = true;
 	ftxxxx_ts->gesture_mode_type = 0;
 	ftxxxx_ts->pdata = pdata;
+	Gesture_flag=0;
 	switch (asus_PRJ_ID)
 	{
 		case 1: //<asus-Jeffery20150408+>
@@ -1909,20 +2036,20 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 		goto exit_power_init;
 
 	if (gpio_request(ftxxxx_ts->irq, FTXXXX_INT_PIN_NAME)) {
-		printk("[Focal][TOUCH_ERR] %s: gpio %d request for interrupt fail.\n", __func__, ftxxxx_ts->irq);
+		printk("[Focal][Touch] %s: gpio %d request for interrupt fail.\n", __func__, ftxxxx_ts->irq);
 		goto exit_irq_request_failed;
 	}
 	gpio_direction_input(ftxxxx_ts->irq);
 	/*add by jinpeng_He for get the id pin begin*/
 	if(gpio_request(ftxxxx_ts->tp_id_gpio1,"tpiidpin1"))
 	{
-		printk(" %s: gpio %d request for id pin 1 fail.\n", __func__, ftxxxx_ts->tp_id_gpio1);
+		printk(" [Focal][Touch] %s: gpio %d request for id pin 1 fail.\n", __func__, ftxxxx_ts->tp_id_gpio1);
 		goto exit_tp_id_gpio1_request_failed;
 	}
 	gpio_direction_input(ftxxxx_ts->tp_id_gpio1);
 	if(gpio_request(ftxxxx_ts->tp_id_gpio2,"tpiidpin2"))
 	{
-		printk(" %s: gpio %d request for id pin 2 fail.\n", __func__, ftxxxx_ts->tp_id_gpio2);
+		printk("[Focal][Touch]  %s: gpio %d request for id pin 2 fail.\n", __func__, ftxxxx_ts->tp_id_gpio2);
 		goto exit_tp_id_gpio2_request_failed;
 	}
 	gpio_direction_input(ftxxxx_ts->tp_id_gpio2);
@@ -1933,7 +2060,7 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 		ftxxxx_ts);
 	//enable_irq_wake(ftxxxx_ts->irq);
 	if (ftxxxx_ts->client->irq < 0) {
-		dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: request irq fail. \n", __func__);
+		dev_err(&client->dev, "[[Focal][Touch] %s: request irq fail. \n", __func__);
 		goto exit_irq_request_failed;
 	}
 
@@ -1944,7 +2071,7 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 	input_dev = input_allocate_device();
 	if (!input_dev) {
 		err = -ENOMEM;
-		dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: failed to allocate input device\n", __func__);
+		dev_err(&client->dev, "[Focal][Touch] %s: failed to allocate input device\n", __func__);
 		goto exit_input_dev_alloc_failed;
 	}
 	
@@ -1971,7 +2098,7 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 	input_dev->name = Focal_input_dev_name;
 	err = input_register_device(input_dev);
 	if (err) {
-		dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: failed to register input device: %s\n", __func__, dev_name(&client->dev));
+		dev_err(&client->dev, "[Focal][Touch] %s: failed to register input device: %s\n", __func__, dev_name(&client->dev));
 		goto exit_input_register_device_failed;
 	}
 	/*make sure CTP already finish startup process */
@@ -1987,31 +2114,32 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 
 	ftxxxx_ts->usb_wq = create_singlethread_workqueue("focal_usb_wq");
 	if (!ftxxxx_ts->usb_wq) {
-		printk("[Focal][TOUCH_ERR] %s: create usb workqueue failed\n", __func__);
+		printk("[Focal][Touch] %s: create usb workqueue failed\n", __func__);
 		goto err_create_wq_failed;
 	}
 	INIT_WORK(&ftxxxx_ts->usb_detect_work, focal_cable_status);
 #ifdef FTS_PM
-	ftxxxx_ts->resume_wq = create_singlethread_workqueue("focal_resume_wq");
-	if (!ftxxxx_ts->resume_wq) {
-		printk("[Focal][TOUCH_ERR] %s: create resume workqueue failed\n", __func__);
+	ftxxxx_ts->suspend_resume_wq = create_singlethread_workqueue("focal_suspend_resume_wq");
+	if (!ftxxxx_ts->suspend_resume_wq) {
+		printk("[Focal][Touch] %s: create resume workqueue failed\n", __func__);
 		goto err_create_wq_failed;
 	}
+	INIT_WORK(&ftxxxx_ts->suspend_work, focal_suspend_work);
 	INIT_WORK(&ftxxxx_ts->resume_work, focal_resume_work);
 #endif
 
 
 
-#if defined(CONFIG_FB)
-tp_fb_notif.notifier_call = asus_otg_fb_notifier_callback;
-	err = fb_register_client(&tp_fb_notif);
-	if (err)
-		printk( "Unable to register fb_notifier: %d\n", err);
-#endif
+//#if defined(CONFIG_FB)
+//tp_fb_notif.notifier_call = asus_otg_fb_notifier_callback;
+//	err = fb_register_client(&tp_fb_notif);
+//	if (err)
+//		printk( "[Focal][Touch]Unable to register fb_notifier: %d\n", err);
+//#endif
 
 	ftxxxx_ts->reset_wq = create_singlethread_workqueue("focal_reset_ic_wq");
 	if (!ftxxxx_ts->reset_wq) {
-		printk("[Focal][TOUCH_ERR] %s: create reset ic workqueue failed\n", __func__);
+		printk("[Focal][Touch] %s: create reset ic workqueue failed\n", __func__);
 		goto err_create_wq_failed;
 	}
 	INIT_WORK(&ftxxxx_ts->reset_ic_work, focal_reset_ic_work);
@@ -2021,7 +2149,7 @@ tp_fb_notif.notifier_call = asus_otg_fb_notifier_callback;
 
 	if (switch_dev_register(&ftxxxx_ts->touch_sdev) < 0)
 	{
-		printk("[Focal][TOUCH_ERR] %s: failed to register switch_dev \n", __func__);
+		printk("[Focal][Touch] %s: failed to register switch_dev \n", __func__);
 		goto exit_err_sdev_register_fail;
 	} 
 
@@ -2035,7 +2163,7 @@ tp_fb_notif.notifier_call = asus_otg_fb_notifier_callback;
 
 	if (!focal_virtual_key_properties_kobj || err)
 
-		printk("[Focal][TOUCH_ERR] %s : failed to create novaTP virtual key map! \n", __func__);
+		printk("[Focal][Touch] %s : failed to create novaTP virtual key map! \n", __func__);
 	#endif
 
 	/*ASUS_BSP Jacob: add for creating virtual_key_maps ---*/
@@ -2043,13 +2171,13 @@ tp_fb_notif.notifier_call = asus_otg_fb_notifier_callback;
 /*********************add by jinpeng_He for get the touch status and disable or enable touch**********/
 	err = device_create_file(&client->dev, &dev_attr_touch_status);
 	if (err) {
-		dev_err(&client->dev, "sys file creation failed\n");
+		dev_err(&client->dev, "[Focal][Touch] sys file creation failed\n");
 		goto free_touch_status_sys;
 	}
 /*end jinpeng_He*/
 #ifdef FTS_CTL_IIC
 	if (ft_rw_iic_drv_init(client) < 0)
-		dev_err(&client->dev, "[Focal][TOUCH_ERR] %s : create fts control iic driver failed\n", __func__);
+		dev_err(&client->dev, "[Focal][Touch] %s : create fts control iic driver failed\n", __func__);
 #endif
 #ifdef FTS_APK_DEBUG
 	ftxxxx_create_apk_debug_channel(client);
@@ -2058,7 +2186,7 @@ tp_fb_notif.notifier_call = asus_otg_fb_notifier_callback;
  	err = create_asusproc_touchsensor_status_entry();
 	if(err<0)
 	{
-		printk("create proc fialed\n");
+		printk("[Focal][Touch]create proc fialed\n");
 	}
 	/*get some register information */
 	uc_reg_addr = FTXXXX_REG_FW_VER;
@@ -2132,12 +2260,12 @@ tp_fb_notif.notifier_call = asus_otg_fb_notifier_callback;
 	/*add by jinpeng_He for get the id pin state begin*/
 	ftxxxx_ts->tp_id_value1=gpio_get_value(ftxxxx_ts->tp_id_gpio1);
 	ftxxxx_ts->tp_id_value2=gpio_get_value(ftxxxx_ts->tp_id_gpio2);
-	printk(KERN_WARNING "id_value1=%d,id_value2=%d\n",ftxxxx_ts->tp_id_value1,ftxxxx_ts->tp_id_value2);
+	printk(KERN_WARNING "[Focal][Touch]id_value1=%d,id_value2=%d\n",ftxxxx_ts->tp_id_value1,ftxxxx_ts->tp_id_value2);
 	/*add by jinpeng_He for get the id pin state end*/
 	ftxxxx_ts->update_fw_wq=create_singlethread_workqueue("focal_fw_wq");
 	if(!ftxxxx_ts->update_fw_wq)
 	{
-		printk("hjptest--->%s:create update firmware woqkqueue failed\n",__func__);
+		printk("[Focal][Touch]--->%s:create update firmware woqkqueue failed\n",__func__);
 		goto err_create_update_fw_wq_failed;
 	}
 	INIT_WORK(&ftxxxx_ts->update_fw_work,update_fw_in_wq);
@@ -2168,15 +2296,15 @@ exit_request_reset:
 #endif
 
 err_create_wq_failed:
-#if defined(CONFIG_FB)
-	fb_unregister_client(&tp_fb_notif);
-#endif
+//#if defined(CONFIG_FB)
+//	fb_unregister_client(&tp_fb_notif);
+//#endif
 	if (ftxxxx_ts->reset_wq) {
 		destroy_workqueue(ftxxxx_ts->reset_wq);
 	}
 #ifdef FTS_PM
-	if (ftxxxx_ts->resume_wq) {
-		destroy_workqueue(ftxxxx_ts->resume_wq);
+	if (ftxxxx_ts->suspend_resume_wq) {
+		destroy_workqueue(ftxxxx_ts->suspend_resume_wq);
 	}
 #endif
 	if (ftxxxx_ts->usb_wq) {
@@ -2199,150 +2327,71 @@ exit_alloc_data_failed:
 exit_check_functionality_failed:
 	return err;
 }
-static int ftxxxx_suspend(void)
+
+//#if defined(CONFIG_FB)
+//static void ftxxxx_ts_early_suspend(void)
+//{
+//	ftxxxx_suspend();
+//}
+
+
+//static void ftxxxx_ts_late_resume(void)
+//{
+//	
+//	queue_work(ftxxxx_ts->resume_wq, &ftxxxx_ts->resume_work);
+//}
+//static int asus_otg_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
+//{
+//	struct fb_event *evdata = data;
+//	static int blank_old = 0;
+//	int *blank;
+
+//	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
+//		blank = evdata->data;
+//		if (*blank == FB_BLANK_UNBLANK) {
+//			if (blank_old == FB_BLANK_POWERDOWN) {
+//				blank_old = FB_BLANK_UNBLANK;
+//				ftxxxx_ts_late_resume();
+//			}
+//		} else if (*blank == FB_BLANK_POWERDOWN) {
+//			if (blank_old == 0 || blank_old == FB_BLANK_UNBLANK) {
+//				blank_old = FB_BLANK_POWERDOWN;
+//				ftxxxx_ts_early_suspend();
+//			}
+//		}
+//	}
+//	return 0;
+//}
+//#else
+//static int ftxxxx_ts_suspend(struct device *dev)
+//{
+//	ftxxxx_suspend();
+//	return 0;
+//}
+//static int ftxxxx_ts_resume(struct device *dev);
+//{
+//	queue_work(ftxxxx_ts->resume_wq, &ftxxxx_ts->resume_work);
+//	return 0;
+//}
+//static const struct dev_pm_ops ftxxxx_ts_pm_ops = {
+//	.suspend = ftxxxx_ts_suspend,
+//	.resume = ftxxxx_ts_resume,
+//};
+
+//#endif
+#ifdef FTS_PM
+void ftxxxx_ts_suspend(void)
 {
-	
-	uint8_t buf[2] = {0};
-	int i;
-	
-	struct ftxxxx_ts_data *ts = ftxxxx_ts;
-	
-	suspend_resume_process = true;
-	
-//	printk(KERN_EMERG "[Focal][Touch] %s : Touch suspend +++ ++\n", __func__);
-
-	//wake_lock(&ftxxxx_ts->wake_lock);
-
-	mutex_lock(&ftxxxx_ts->g_device_mutex);
-
-	if (ftxxxx_ts->suspend_flag) {
-
-		focal_debug(DEBUG_VERBOSE, "hjptest--->[Focal][Touch] IC in suspend !! \n");
-
-		mutex_unlock(&ftxxxx_ts->g_device_mutex);
-
-		//wake_unlock(&ftxxxx_ts->wake_lock);
-
-		suspend_resume_process = false;
-
-		return 0;
-	}
-#ifdef FTS_GESTRUE/*zax 20140922*/
-	dclick_flags=true;
-	if ((ftxxxx_ts->dclick_mode_eable == true) || (ftxxxx_ts->gesture_mode_eable == true)) {
-			printk(KERN_EMERG "[Focal][Touch] %s : Touch gesture mode \n", __func__);
-			enable_irq_wake(ftxxxx_ts->client->irq);
-			ftxxxx_write_reg(ts->client, 0xd0, 0x01);
-
-			if (ftxxxx_ts->dclick_mode_eable == true) {
-				printk(KERN_EMERG "[Focal][Touch] %s : open dclick mode \n", __func__);
-				ftxxxx_write_reg(ts->client, 0xd1, 0x10);
-			}
-
-			if (ftxxxx_ts->gesture_mode_eable == true) {
-				if (ftxxxx_ts->dclick_mode_eable == true)
-					ftxxxx_write_reg(ts->client, 0xd1, 0x30);
-				else
-					ftxxxx_write_reg(ts->client, 0xd1, 0x20);
-				
-				ftxxxx_write_reg(ts->client, 0xd2, FTS_gesture_register_d2);
-				ftxxxx_write_reg(ts->client, 0xd5, FTS_gesture_register_d5);
-				ftxxxx_write_reg(ts->client, 0xd6, FTS_gesture_register_d6);
-				ftxxxx_write_reg(ts->client, 0xd7, FTS_gesture_register_d7); //<asus-Jeffery20150427+>
-			}
-	} else {
-		
-		ftxxxx_irq_disable(ts->client);
-		printk(KERN_EMERG "1[Focal][Touch] %s : Touch suspend and  disable touch\n", __func__);
-		buf[0] = 0xA5;
-		buf[1] = 0x03;
-		ftxxxx_write_reg(ftxxxx_ts->client, buf[0], buf[1]);
-	}
-#else
-	printk(KERN_EMERG "2[Focal][Touch] %s : Touch suspend and  disable touch\n", __func__);
-	ftxxxx_irq_disable(ts->client);
-	buf[0] = 0xA5;
-	buf[1] = 0x03;
-	ftxxxx_write_reg(ftxxxx_ts->client, buf[0], buf[1]);
-#endif
-	//release all touch points
-	for(i=0;i<CFG_MAX_TOUCH_POINTS;i++)
-	{
-		input_mt_slot(ftxxxx_ts->input_dev, i);
-		input_mt_report_slot_state(ftxxxx_ts->input_dev, MT_TOOL_FINGER, 0);
-	}
-	input_mt_report_pointer_emulation(ftxxxx_ts->input_dev, false);
-	input_sync(ftxxxx_ts->input_dev);
-	/* +++ asus jacob add for print touch location +++ */
-	//memset(report_touch_locatoin_count, 0, sizeof(report_touch_locatoin_count));
-	/* --- asus jacob add for print touch location --- */
-
-//	input_report_key(ftxxxx_ts->input_dev, BTN_TOUCH, 0);
-//	input_mt_sync(ftxxxx_ts->input_dev);
-//	input_sync(ftxxxx_ts->input_dev);
-
-	ftxxxx_ts->suspend_flag = 1;
-
-	mutex_unlock(&ftxxxx_ts->g_device_mutex);
-
-	//wake_unlock(&ftxxxx_ts->wake_lock);
-
-	suspend_resume_process = false;
-
-	printk(KERN_EMERG "[Focal][Touch] %s : Touch suspend --- \n", __func__);
-
-	return 0;
-}	
-#if defined(CONFIG_FB)
-static void ftxxxx_ts_early_suspend(void)
-{
-	ftxxxx_suspend();
+	queue_work(ftxxxx_ts->suspend_resume_wq,&ftxxxx_ts->suspend_work);
+	return;
 }
-
-
-static void ftxxxx_ts_late_resume(void)
+EXPORT_SYMBOL(ftxxxx_ts_suspend);
+void ftxxxx_ts_resume(void)
 {
-	
-	queue_work(ftxxxx_ts->resume_wq, &ftxxxx_ts->resume_work);
+	queue_work(ftxxxx_ts->suspend_resume_wq,&ftxxxx_ts->resume_work);
+	return;
 }
-static int asus_otg_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
-{
-	struct fb_event *evdata = data;
-	static int blank_old = 0;
-	int *blank;
-
-	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
-		blank = evdata->data;
-		if (*blank == FB_BLANK_UNBLANK) {
-			if (blank_old == FB_BLANK_POWERDOWN) {
-				blank_old = FB_BLANK_UNBLANK;
-				ftxxxx_ts_late_resume();
-			}
-		} else if (*blank == FB_BLANK_POWERDOWN) {
-			if (blank_old == 0 || blank_old == FB_BLANK_UNBLANK) {
-				blank_old = FB_BLANK_POWERDOWN;
-				ftxxxx_ts_early_suspend();
-			}
-		}
-	}
-	return 0;
-}
-#else
-static int ftxxxx_ts_suspend(struct device *dev)
-{
-	ftxxxx_suspend();
-	return 0;
-}
-static int ftxxxx_ts_resume(struct device *dev);
-{
-	queue_work(ftxxxx_ts->resume_wq, &ftxxxx_ts->resume_work);
-	return 0;
-}
-static const struct dev_pm_ops ftxxxx_ts_pm_ops = {
-	.suspend = ftxxxx_ts_suspend,
-	.resume = ftxxxx_ts_resume,
-};
-
+EXPORT_SYMBOL(ftxxxx_ts_resume);
 #endif
 static int ftxxxx_ts_remove(struct i2c_client *client)
 {
@@ -2400,10 +2449,10 @@ static struct i2c_driver ftxxxx_ts_driver = {
 		.name = FTXXXX_NAME,
 		.owner = THIS_MODULE,
 		.of_match_table = ft5x46_match_table,
-		#ifdef CONFIG_FB
-		#else
-		   .pm = &ftxxxx_ts_pm_ops,
-		#endif
+	//	#ifdef CONFIG_FB
+	//	#else
+	//	   .pm = &ftxxxx_ts_pm_ops,
+	//	#endif
 	},
 };
 
@@ -2413,7 +2462,7 @@ static int __init ftxxxx_ts_init(void)
 	printk("[Focal][Touch] %s : ftxxxx_ts_init !\n", __func__);
 	ret = i2c_add_driver(&ftxxxx_ts_driver);
 	if (ret) {
-		printk(KERN_WARNING " [Focal][TOUCH_ERR] Adding ftxxxx driver failed "
+		printk(KERN_WARNING " [Focal][Touch] Adding ftxxxx driver failed "
 			"(errno = %d)\n", ret);
 	} else {
 		printk("[Focal][Touch] %s : Successfully added driver %s\n", __func__,

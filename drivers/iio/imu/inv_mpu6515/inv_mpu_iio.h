@@ -199,7 +199,9 @@
 #define MPU3050_FOOTER_SIZE      2
 #define FIFO_COUNT_BYTE          2
 #define FIFO_THRESHOLD           800
-#define FIFO_SIZE                992
+//<ASUS-invensense20150714>>>>>>>>>+
+#define FIFO_SIZE                800 //992
+//<ASUS-invensense20150714<<<<<<<<<+
 #define HARDWARE_FIFO_SIZE       1024
 #define MAX_READ_SIZE            64
 #define POWER_UP_TIME            100

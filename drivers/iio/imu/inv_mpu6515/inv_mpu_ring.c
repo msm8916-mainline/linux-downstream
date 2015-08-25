@@ -1676,6 +1676,10 @@ irqreturn_t inv_read_fifo(int irq, void *dev_id)
 	}
 
 	if (st->chip_config.dmp_on) {
+//<ASUS-invensense20150714>>>>>>>>>+
+        if (fifo_count == HARDWARE_FIFO_SIZE)
+            goto flush_fifo;
+//<ASUS-invensense20150714<<<<<<<<<+
 		result = inv_process_batchmode(st);
 	} else {
 		if (fifo_count >  FIFO_THRESHOLD)

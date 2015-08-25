@@ -2753,7 +2753,7 @@ static int qpnp_lbc_probe(struct spmi_device *spmi)
 			get_prop_battery_voltage_now(chip),
 			get_prop_capacity(chip),
 			get_prop_batt_therm_present(chip));
-
+	g_lbc_chip = chip;
 	return 0;
 
 unregister_batt:

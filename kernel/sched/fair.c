@@ -1568,7 +1568,7 @@ static void boost_kick_cpus(void)
 	}
 }
 
-static inline int sched_boost(void)
+int sched_boost(void)
 {
 	return boost_refcount > 0;
 }
@@ -2432,11 +2432,6 @@ void check_for_migration(struct rq *rq, struct task_struct *p)
 					&rq->active_balance_work);
 }
 
-static inline int capacity(struct rq *rq)
-{
-	return rq->capacity;
-}
-
 static inline int nr_big_tasks(struct rq *rq)
 {
 	return rq->nr_big_tasks;
@@ -2495,11 +2490,6 @@ static inline int is_big_task(struct task_struct *p)
 static inline int nr_big_tasks(struct rq *rq)
 {
 	return 0;
-}
-
-static inline int capacity(struct rq *rq)
-{
-	return SCHED_LOAD_SCALE;
 }
 
 #endif	/* CONFIG_SCHED_HMP */
@@ -5289,6 +5279,7 @@ static unsigned long __read_mostly max_load_balance_interval = HZ/10;
 #define LBF_IGNORE_SMALL_TASKS 0x08
 #define LBF_PWR_ACTIVE_BALANCE 0x10
 #define LBF_SCHED_BOOST 0x20
+#define LBF_IGNORE_BIG_TASKS 0x40
 
 struct lb_env {
 	struct sched_domain	*sd;
@@ -5371,6 +5362,7 @@ static
 int can_migrate_task(struct task_struct *p, struct lb_env *env)
 {
 	int tsk_cache_hot = 0;
+	int twf;
 	/*
 	 * We do not migrate tasks that are:
 	 * 1) throttled_lb_pair, or
@@ -5389,8 +5381,22 @@ int can_migrate_task(struct task_struct *p, struct lb_env *env)
 	if (env->flags & LBF_IGNORE_SMALL_TASKS && is_small_task(p))
 		return 0;
 
-	if (!task_will_fit(p, env->dst_cpu) &&
-			env->busiest_nr_running <= env->busiest_grp_capacity)
+	twf = task_will_fit(p, env->dst_cpu);
+
+	/*
+	 * Attempt to not pull tasks that don't fit. We may get lucky and find
+	 * one that actually fits.
+	 */
+	if (env->flags & LBF_IGNORE_BIG_TASKS && !twf)
+		return 0;
+
+	/*
+	 * Group imbalance can sometimes cause work to be pulled across groups
+	 * even though the group could have managed the imbalance on its own.
+	 * Prevent inter-cluster migrations for big tasks when the number of
+	 * tasks is lower than the capacity of the group.
+	 */
+	if (!twf && env->busiest_nr_running <= env->busiest_grp_capacity)
 		return 0;
 
 	if (!cpumask_test_cpu(env->dst_cpu, tsk_cpus_allowed(p))) {
@@ -5504,6 +5510,9 @@ static int move_tasks(struct lb_env *env)
 
 	if (capacity(env->dst_rq) > capacity(env->src_rq))
 		env->flags |= LBF_IGNORE_SMALL_TASKS;
+	else if (capacity(env->dst_rq) < capacity(env->src_rq) &&
+							!sched_boost())
+		env->flags |= LBF_IGNORE_BIG_TASKS;
 
 redo:
 	while (!list_empty(tasks)) {
@@ -5559,9 +5568,10 @@ next:
 		list_move_tail(&p->se.group_node, tasks);
 	}
 
-	if (env->flags & LBF_IGNORE_SMALL_TASKS && !pulled) {
+	if (env->flags & (LBF_IGNORE_SMALL_TASKS | LBF_IGNORE_BIG_TASKS)
+							     && !pulled) {
 		tasks = &env->src_rq->cfs_tasks;
-		env->flags &= ~LBF_IGNORE_SMALL_TASKS;
+		env->flags &= ~(LBF_IGNORE_SMALL_TASKS | LBF_IGNORE_BIG_TASKS);
 		env->loop = orig_loop;
 		goto redo;
 	}

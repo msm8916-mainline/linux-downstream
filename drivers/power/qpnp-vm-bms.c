@@ -4048,8 +4048,8 @@ static ssize_t batt_switch_name(struct switch_dev *sdev, char *buf)
 {
 	char bat_type = 'X';
 	const char* bat_date = "0611";
-	const char* bat_s1 = "Z3";
-	const char* bat_s2 = "2 ";
+	const char* bat_s1 = "Z2";
+	const char* bat_s2 = "3 ";
 	const char* bat_s3 = "000";
 	int bat_id = 0;
 
@@ -4058,10 +4058,10 @@ static ssize_t batt_switch_name(struct switch_dev *sdev, char *buf)
 		bat_type = 'S';
 	} else if ( battID <= 1200000 && battID >= 900000) {
 		bat_id = 2;
-		bat_type = 'P';
+		bat_type = 'C';
 	} else if (battID <= 900000 && battID >= 500000) {
 		bat_id = 3;
-		bat_type = 'C';
+		bat_type = 'S';
 	} else if (battID <= 500000 && battID >= 200000) {
 		bat_id = 4;
 		bat_type = 'N';

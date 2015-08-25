@@ -31,7 +31,7 @@
 		i2c4 = &i2c_4;
 		i2c5 = &i2c_5;
 		i2c6 = &i2c_6;
-		spi0 = &spi_0;
+//		spi0 = &spi_0;   // <asus-olaf20150715+>
 		spi5 = &spi_5;
 	};
 
@@ -917,8 +917,8 @@
 		qcom,bam-pipe-idx-prod = <7>;
 		qcom,master-id = <86>;
 	};
-
-	spi_0: spi@78b7000 { /* BLSP1 QUP3 */
+// <asus-olaf20150715+>
+/*	spi_0: spi@78b7000 { // BLSP1 QUP3 
 		compatible = "qcom,spi-qup-v2";
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -941,8 +941,8 @@
 		qcom,bam-consumer-pipe-index = <8>;
 		qcom,bam-producer-pipe-index = <9>;
 		qcom,master-id = <86>;
-		};
-
+		};*/
+// <asus-olaf20150715->
 	i2c_4: i2c@78b8000 { /* BLSP1 QUP4 */
 		compatible = "qcom,i2c-msm-v2";
 		#address-cells = <1>;

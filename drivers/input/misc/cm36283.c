@@ -3100,10 +3100,13 @@ static int control_and_report( struct CM36283_info *lpi, uint8_t mode, uint16_t 
           //  case 0://ASUS_ZE550KL
           //
           //      break;
-  // <asus-jhw20150618+>
+  // <asus-jhw20150629+>
 			case 1://ASUS_ZE600KL
+				if(adc_value<=10){
+					report_lux = 0;
+				}
 				break;
-  // <asus-jhw20150618->
+  // <asus-jhw20150629->
           //  case 2://ASUS_ZX550KL
           //
           //      break;

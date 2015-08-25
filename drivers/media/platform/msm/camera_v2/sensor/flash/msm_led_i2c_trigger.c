@@ -111,7 +111,7 @@ static ssize_t flash_select_proc_write(struct file *filp, const char __user *buf
 		led_direction = REAR_LED;
 	else
 		led_direction = FRONT_LED;
-
+	pr_err("%s:%d called led_direction %d \n", __func__, __LINE__, led_direction);
 /*
 	val = (int)simple_strtol(messages, NULL, 10);
 	if( val < 0 )
@@ -321,6 +321,7 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 	int rc = 0;
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
+
 	CDBG("%s:%d called led_direction %d\n", __func__, __LINE__, led_direction);
 	mutex_lock(&flash_lock);
 
@@ -388,19 +389,13 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 //<asus-leong_un20150401>>>>>>>>>+
 	if( is_ZD550KL() )
 	{
-
-		gpio_set_value_cansleep(
-			power_info->gpio_conf->gpio_num_info->
-			gpio_num[SENSOR_GPIO_FL_1_EN],
-			GPIO_OUT_LOW);
-
-		gpio_set_value_cansleep(
-			power_info->gpio_conf->gpio_num_info->
-			gpio_num[SENSOR_GPIO_FL_EN],
-			GPIO_OUT_LOW);
-
+		pr_err("%s:%d called led_direction %d \n", __func__, __LINE__, led_direction);
 		if( led_direction == FRONT_LED )
 		{
+			gpio_set_value_cansleep(
+				power_info->gpio_conf->gpio_num_info->
+				gpio_num[SENSOR_GPIO_FL_EN],
+				GPIO_OUT_LOW);
 			gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_1_EN],
@@ -412,6 +407,10 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
+			gpio_set_value_cansleep(
+				power_info->gpio_conf->gpio_num_info->
+				gpio_num[SENSOR_GPIO_FL_1_EN],
+				GPIO_OUT_LOW);
 		}
 	}
 	else 
@@ -591,13 +590,11 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 //<asus-leong_un20150401>>>>>>>>>+
 	if( is_ZD550KL() )
 	{
+		pr_err("%s:%d called led_direction %d \n", __func__, __LINE__, led_direction);
+		/**/
 		CDBG("%s  led_direction %d\n", __func__, led_direction);
 		if( led_direction == FRONT_LED )
 		{
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_EN],
-				GPIO_OUT_LOW);
 			gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_1_EN],
@@ -609,10 +606,6 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_1_EN],
-				GPIO_OUT_LOW);
 		}
 	}
 	else 
@@ -661,12 +654,10 @@ int msm_flash_led_low_first(struct msm_led_flash_ctrl_t *fctrl)
 //<asus-leong_un20150401>>>>>>>>>+
 	if( is_ZD550KL() )
 	{
+		pr_err("%s:%d called led_direction %d \n", __func__, __LINE__, led_direction);
 		if( led_direction == FRONT_LED )
 		{
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_EN],
-				GPIO_OUT_LOW);
+
 			gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_1_EN],
@@ -678,10 +669,7 @@ int msm_flash_led_low_first(struct msm_led_flash_ctrl_t *fctrl)
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_1_EN],
-				GPIO_OUT_LOW);
+
 		}
 	}
 	else 
@@ -728,12 +716,9 @@ int msm_flash_led_low_second(struct msm_led_flash_ctrl_t *fctrl)
 //<asus-leong_un20150401>>>>>>>>>+
 	if( is_ZD550KL() )
 	{
+		pr_err("%s:%d called led_direction %d \n", __func__, __LINE__, led_direction);
 		if( led_direction == FRONT_LED )
 		{
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_EN],
-				GPIO_OUT_LOW);
 			gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_1_EN],
@@ -745,10 +730,6 @@ int msm_flash_led_low_second(struct msm_led_flash_ctrl_t *fctrl)
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_1_EN],
-				GPIO_OUT_LOW);
 		}
 	}
 	else 
@@ -782,6 +763,7 @@ int msm_flash_led_low_current_set(struct msm_led_flash_ctrl_t *fctrl, int intens
 	int rc = 0,i = 0;
 	int val[2];
 	int torch_map_offset = 25;
+
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
 	mutex_lock(&flash_lock);
@@ -805,9 +787,9 @@ int msm_flash_led_low_current_set(struct msm_led_flash_ctrl_t *fctrl, int intens
 	}
 	flashdata = fctrl->flashdata;
 	power_info = &flashdata->power_info;
-
 	if( is_ZD550KL() )
 	{
+		pr_err("%s:%d called led_direction %d \n", __func__, __LINE__, led_direction);
 		if( led_direction == FRONT_LED )
 		{
 			gpio_set_value_cansleep(
@@ -843,7 +825,19 @@ int msm_flash_led_low_current_set(struct msm_led_flash_ctrl_t *fctrl, int intens
 		//GPIO_OUT_HIGH);
 		GPIO_OUT_LOW);
 
-	printk("[AsusFlash] Set Dual Torch curent %u \n", ( val[1] << 4 | val[0] ));
+    if( is_ZD550KL() )
+	{
+		if (fctrl->flash_i2c_client && fctrl->reg_setting) {
+			pr_err("%s:%d flash_i2c_client&& fctrl->reg_setting = true  =0x\n", __func__, __LINE__);
+			rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
+				fctrl->flash_i2c_client,
+				fctrl->reg_setting->init_setting);
+			if (rc < 0)
+				pr_err("%s:%d failed\n", __func__, __LINE__);
+		}
+	}
+
+	printk("[AsusFlash] Set Dual Torch current %u \n", ( val[1] << 4 | val[0] ));
 	if (fctrl->flash_i2c_client) {
 		//CDBG("%s:%d flash_i2c_client = true\n", __func__, __LINE__);
 		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write(
@@ -874,6 +868,7 @@ int msm_flash_led_high_current_set(struct msm_led_flash_ctrl_t *fctrl, int inten
 	int flash_current_map_offset = 50, flash_current_base = 250, flash_current_default = 1000;
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
+
 	mutex_lock(&flash_lock);
 	CDBG("%s:%d called\n", __func__, __LINE__);
 	val[0] = intensity1;
@@ -899,6 +894,7 @@ int msm_flash_led_high_current_set(struct msm_led_flash_ctrl_t *fctrl, int inten
 
 	if( is_ZD550KL() )
 	{
+		pr_err("%s:%d called led_direction %d \n", __func__, __LINE__, led_direction);
 		if( led_direction == FRONT_LED )
 		{
 			gpio_set_value_cansleep(
@@ -933,7 +929,19 @@ int msm_flash_led_high_current_set(struct msm_led_flash_ctrl_t *fctrl, int inten
 		gpio_num[SENSOR_GPIO_FL_NOW],
 		//GPIO_OUT_HIGH);
 		GPIO_OUT_LOW);
-
+    
+    if( is_ZD550KL() )
+	{
+		if (fctrl->flash_i2c_client && fctrl->reg_setting) {
+			pr_err("%s:%d flash_i2c_client&& fctrl->reg_setting = true  =0x\n", __func__, __LINE__);
+			rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
+				fctrl->flash_i2c_client,
+				fctrl->reg_setting->init_setting);
+			if (rc < 0)
+				pr_err("%s:%d failed\n", __func__, __LINE__);
+		}
+	}
+    
 	printk("[AsusFlash] Set Dual Flash current %u %u \n", val[0],val[1] );
 	if (fctrl->flash_i2c_client) {
 		//CDBG("%s:%d flash_i2c_client = true\n", __func__, __LINE__);
@@ -952,6 +960,7 @@ int msm_flash_led_high_current_set(struct msm_led_flash_ctrl_t *fctrl, int inten
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
+
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -1040,13 +1049,11 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 //<asus-leong_un20150401>>>>>>>>>+
 	if( is_ZD550KL() )
 	{
-		CDBG("%s led_direction %d\n", __func__, led_direction);
+		/**/
+		pr_err("%s:%d called led_direction %d \n", __func__, __LINE__, led_direction);
 		if( led_direction == FRONT_LED )
 		{
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_EN],
-				GPIO_OUT_LOW);
+
 			gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_1_EN],
@@ -1058,10 +1065,7 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_1_EN],
-				GPIO_OUT_LOW);
+
 		}
 	}
 	else 
@@ -1105,12 +1109,10 @@ int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 //<asus-leong_un20150401>>>>>>>>>+
 	if( is_ZD550KL() )
 	{
+		pr_err("%s:%d called led_direction %d \n", __func__, __LINE__, led_direction);
 		if( led_direction == FRONT_LED )
 		{
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_EN],
-				GPIO_OUT_LOW);
+
 			gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_1_EN],
@@ -1122,10 +1124,7 @@ int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_1_EN],
-				GPIO_OUT_LOW);
+
 		}
 	}
 	else 
@@ -1169,12 +1168,10 @@ int msm_flash_led_high_second(struct msm_led_flash_ctrl_t *fctrl)
 //<asus-leong_un20150401>>>>>>>>>+
 	if( is_ZD550KL() )
 	{
+		pr_err("%s:%d called led_direction %d \n", __func__, __LINE__, led_direction);
 		if( led_direction == FRONT_LED )
 		{
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_EN],
-				GPIO_OUT_LOW);
+
 			gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_1_EN],
@@ -1186,10 +1183,7 @@ int msm_flash_led_high_second(struct msm_led_flash_ctrl_t *fctrl)
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
-			gpio_set_value_cansleep(
-				power_info->gpio_conf->gpio_num_info->
-				gpio_num[SENSOR_GPIO_FL_1_EN],
-				GPIO_OUT_LOW);
+
 		}
 	}
 	else 
@@ -1243,6 +1237,7 @@ static int flash_brightness_proc_open(struct inode *inode, struct  file *file)
 static ssize_t flash_brightness_proc_write(struct file *filp, const char __user *buff, size_t len, loff_t *data)
 {
 	int set_val = -1,now_flash_brightness_value = -1;
+	int MAX_FLASHLIGHT_CURRENT = 100;
 	char messages[8];
         int i =0;
         for(i=0;i<8;i++) messages[i]=0;
@@ -1262,7 +1257,7 @@ static ssize_t flash_brightness_proc_write(struct file *filp, const char __user 
 	}
 */
 	now_flash_brightness_value = (int)simple_strtol(messages, NULL, 10);
-	set_val = now_flash_brightness_value * 50 / 99;
+	set_val = now_flash_brightness_value * MAX_FLASHLIGHT_CURRENT / 99;
 	mutex_lock(&flashlight_lock);
 	pr_info("[AsusFlashBrightness]flash brightness value=%d now_flash_brightness_value=%d\n", set_val,now_flash_brightness_value);
 	if (g_fctrl->led_state == MSM_CAMERA_LED_INIT) {
@@ -1282,8 +1277,8 @@ static ssize_t flash_brightness_proc_write(struct file *filp, const char __user 
 
 	last_flash_brightness_value = now_flash_brightness_value;
 
-	if (set_val > 50) {
-		msm_flash_led_low_current_set(g_fctrl, SKY81296_TORCH_CURRENT_50MA,SKY81296_TORCH_CURRENT_50MA);
+	if (set_val > MAX_FLASHLIGHT_CURRENT) {
+		msm_flash_led_low_current_set(g_fctrl, MAX_FLASHLIGHT_CURRENT,MAX_FLASHLIGHT_CURRENT);
 		//msm_flash_led_low(g_fctrl);
 		 msm_flash_led_low_first(g_fctrl);
 		//map_num = SKY81296_TORCH_CURRENT_200MA;
@@ -1296,8 +1291,8 @@ static ssize_t flash_brightness_proc_write(struct file *filp, const char __user 
 		msm_flash_led_off(g_fctrl);
 		msm_flash_led_release(g_fctrl);
 		g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
-	} else if (0 < set_val && set_val < 51) {
-		printk(KERN_INFO "[AsusFlashBrightness] current now in 1~50");
+	} else if (0 < set_val && set_val < MAX_FLASHLIGHT_CURRENT + 1) {
+		printk(KERN_INFO "[AsusFlashBrightness] current now in 1~%d",MAX_FLASHLIGHT_CURRENT);
 		msm_flash_led_low_current_set(g_fctrl, set_val,set_val);
 		//msm_flash_led_low(g_fctrl);
 		msm_flash_led_low_first(g_fctrl);

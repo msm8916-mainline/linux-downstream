@@ -470,6 +470,7 @@
 
 		#include "ASUS-ZE550KL-3000mah-NVT+ATL.dtsi"
 		#include "ASUS-ZE550KL-3000mah-SMT+COS.dtsi"
+		#include "ASUS-ZE550KL-3000mah-SONY.dtsi"
 	};
 };
 

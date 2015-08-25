@@ -1674,7 +1674,7 @@
 		qcom,reg-presets = <0xE0020 0x05555556>,
 			<0xE0024 0x05555556>,
 			<0x80124 0x00000003>;
-		qcom,max-hw-load = <489600> ; /* <352800> 720p @ 30 + 1080p @ 30 */
+		qcom,max-hw-load = <352800> ; /* <352800> 720p @ 30 + 1080p @ 30 */
 		qcom,enable-idle-indicator;
 		qcom,vidc-iommu-domains {
 			qcom,domain-ns {

@@ -278,6 +278,15 @@
 	};
 	// ASUS_BSP --- srHuang HALL sensor
 
+// <asus-olaf20150715+>
+        Project_ID_Pin {
+		compatible = "qcom,Project_ID_Pin";
+		pinctrl-names = "Project_ID_Pin_active","Project_ID_Pin_suspend";
+		pinctrl-0 = <&Project_ID_Pin_active>;
+		pinctrl-1 = <&Project_ID_Pin_suspend>;
+	};
+// <asus-olaf20150715->
+
 	sound {
 		compatible = "qcom,msm8x16-audio-codec";
 		qcom,model = "msm8939-snd-card-mtp";
@@ -480,7 +489,9 @@
 		qcom,rpull-up-kohm = <100>;
 		qcom,vref-batt-therm = <1800000>;
 
-		#include "ASUS_ZE550KL_1949572_3000mAh_3p4COV_VBMS_Final.dtsi"
+		#include "ASUS_ZE550KL_1949572_3000mAh_3p4COV_VBMS_Final.dtsi"	/*<asus-guc20150707+> 143k	battery id == 2*/
+		#include "Asus_C11P1501_2024958_3000mAh_3p4COV_VBMS_Final.dtsi"	/*<asus-guc20150707+> 64.9k	battery id == 3*/
+		#include "ASUS_ZE550KL_1936167_3000mAh_3p4COV_VBMS_Final.dtsi"	/*<asus-guc20150707+> 23.2k	battery id == 4*/
 	};
 };
 
@@ -517,6 +528,7 @@
 #include "dsi-panel-ivo-nt35521s-720p-video.dtsi"
 #include "dsi-panel-cpt-ili9881c-720p-video.dtsi"
 #include "dsi-panel-auo-otm1901a-1080p-video.dtsi"
+#include "dsi-panel-tm-otm1901a-1080p-video.dtsi"
 /*<asus-Jeffery20150320->*/
 
 &mdss_mdp {
@@ -543,6 +555,7 @@
         qcom,dsi-pref-prim-pan = <&dsi_ivo_nt35521s_720p_video>;
         qcom,dsi-pref-prim-pan = <&dsi_cpt_ili9881c_720p_video>;
 	qcom,dsi-pref-prim-pan = <&dsi_auo_otm1901a_1080p_video>;
+	qcom,dsi-pref-prim-pan = <&dsi_tm_otm1901a_1080p_video>;
         /*<asus-Jeffery20150320->*/
 /*	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
@@ -578,6 +591,10 @@
 
 &dsi_auo_otm1901a_1080p_video{
        qcom,cont-splash-enabled;
+};
+
+&dsi_tm_otm1901a_1080p_video{
+	qcom,cont-splash-enabled;
 };
 /*<asus-Jeffery20150320->*/
 

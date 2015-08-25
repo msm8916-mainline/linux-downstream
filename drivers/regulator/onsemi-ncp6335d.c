@@ -26,7 +26,7 @@
 #include <linux/debugfs.h>
 #include <linux/regulator/onsemi-ncp6335d.h>
 #include <linux/string.h>
-
+#include <soc/qcom/socinfo.h>
 /* registers */
 #define REG_NCP6335D_PID		0x03
 #define REG_NCP6335D_PROGVSEL1		0x10
@@ -207,8 +207,18 @@ static int ncp6335d_set_voltage(struct regulator_dev *rdev,
 {
 	int rc, set_val, new_uV;
 	struct ncp6335d_info *dd = rdev_get_drvdata(rdev);
+	//<oliver 20150716>++ modify ncp output voltage for stability
+	static enum msm_cpu cur_cpu; //static variable constraint to this file
 
 	set_val = DIV_ROUND_UP(min_uV - dd->min_voltage, dd->step_size);
+	cur_cpu = socinfo_get_msm_cpu();
+	if ((MSM_CPU_8939 == cur_cpu)&&(asus_PRJ_ID == ASUS_ZE550KL)) {
+		if (set_val < 75)
+			set_val = set_val + 5;
+		else if (set_val < 80)
+			set_val = 80;
+	}
+	//<oliver 20150716>--
 	new_uV = (set_val * dd->step_size) + dd->min_voltage;
 	if (new_uV > max_uV) {
 		dev_err(dd->dev, "Unable to set volatge (%d %d)\n",

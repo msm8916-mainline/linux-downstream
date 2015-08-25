@@ -470,7 +470,11 @@
 		qcom,rpull-up-kohm = <100>;
 		qcom,vref-batt-therm = <1800000>;
 
-		#include "ASUS_ZE550KL_1949572_3000mAh_3p4COV_VBMS_Final.dtsi"
+        	#include "ASUS_ZE550KL_1949572_3000mAh_3p4COV_VBMS_Final.dtsi"	/*  143k	battery id == 2*/
+		#include "Asus_C11P1501_2024958_3000mAh_3p4COV_VBMS_Final.dtsi"	/* 64.9k	battery id == 3*/
+		#include "ASUS_ZE550KL_1936167_3000mAh_3p4COV_VBMS_Final.dtsi"	/* 23.2k	battery id == 4*/
+
+
 	};
 };
 

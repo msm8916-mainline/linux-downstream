@@ -31,32 +31,32 @@
 
 #ifdef ZE550KL_HD
 static unsigned char CTPM_FW_ZE550KL_GIS_TM[] = {
-	#include "ASUS_ZE550KL_5446_0x61_0xA2_20150609_app.cfg"
+	#include "ASUS_ZE550KL_5446_0x61_0xA7_20150709_app.cfg"
 };
 static unsigned char CTPM_FW_ZE550KL_GIS_CPT[] = {
-	#include "ASUS_ZE550KL_5446_0x62_0xA1_20150609_app.cfg"
+	#include "ASUS_ZE550KL_5446_0x62_0xA5_20150709_app.cfg"
 };
 
 static unsigned char CTPM_FW_ZE550KL_TPK_TM[] = {
-	#include "ASUS_ZE550KL_5446_0x51_0xA2_20150609_app.cfg"
+	#include "ASUS_ZE550KL_5446_0x51_0xA7_20150709_app.cfg"
 };
 static unsigned char CTPM_FW_ZE550KL_TPK_CPT[] = {
-	#include "ASUS_ZE550KL_5446_0x52_0xA1_20150609_app.cfg"
+	#include "ASUS_ZE550KL_5446_0x52_0xA5_20150709_app.cfg"
 };
 #endif
 #ifdef ZE551KL_FHD
 static unsigned char CTPM_FW_ZE551KL_GIS_TM[] = {
-	#include "ASUS_ZE551KL_5446_0x61_0x44_20150626_app.cfg"
+	#include "ASUS_ZE551KL_5446_0x61_0x4C_20150722_app.cfg"
 };
 static unsigned char CTPM_FW_ZE551KL_GIS_AUO[] = {
-	#include "ASUS_ZE551KL_5446_0x63_0x43_20150626_app.cfg"
+	#include "ASUS_ZE551KL_5446_0x63_0x4B_20150722_app.cfg"
 };
 
 static unsigned char CTPM_FW_ZE551KL_TPK_TM[] = {
-	#include "ASUS_ZE551KL_5446_0x51_0x46_20150626_app.cfg"
+	#include "ASUS_ZE551KL_5446_0x51_0x4E_20150722_app.cfg"
 };
 static unsigned char CTPM_FW_ZE551KL_TPK_AUO[] = {
-	#include "ASUS_ZE551KL_5446_0x53_0x45_20150626_app.cfg"
+	#include "ASUS_ZE551KL_5446_0x53_0x4D_20150722_app.cfg"
 };
 #endif
 
@@ -67,25 +67,25 @@ static unsigned char CTPM_FW_ZX550KL[] = {
 };
 //asus_jeffery_hsu+++
 static unsigned char CTPM_FW_ZD550KL_GIS_TM[] = {
-	#include "ASUS_ZD551KL_5446_0x61_0xA2_20150623_app.i"
+	#include "ASUS_ZD551KL_5446_0x61_0xA5_20150702_app.i"
 };
 static unsigned char CTPM_FW_ZD550KL_GIS_AUO[] = {
-	#include "ASUS_ZD551KL_5446_0x63_0xA1_20150623_app.i"
+	#include "ASUS_ZD551KL_5446_0x63_0xA4_20150702_app.i"
 };
 static unsigned char CTPM_FW_ZD550KL_Jtouch_TM[] = {
-	#include "ASUS_ZD551KL_5446_0x81_0xA2_20150623_app.i"
+	#include "ASUS_ZD551KL_5446_0x81_0xA5_20150702_app.i"
 };
 static unsigned char CTPM_FW_ZD550KL_Jtouch_AUO[] = {
-	#include "ASUS_ZD551KL_5446_0x83_0xA1_20150623_app.i"
+	#include "ASUS_ZD551KL_5446_0x83_0xA4_20150702_app.i"
 };
 //asus_jeffery_hsu---
 //<asus-Jeffery20150323+>
 #ifdef ZE600KL_HD
 static unsigned char CTPM_FW_ZE600KL_CPT_TPK[] = {
-	#include "ASUS_ZE600KL_5446_0x52_0x23_20150617_app.cfg"
+	#include "ASUS_ZE600KL_5446_0x52_0x25_20150709_app.cfg"
 };
 static unsigned char CTPM_FW_ZE600KL_CPT_JTOUCH[] = {
-	#include "ASUS_ZE600KL_5446_0x82_0x23_20150617_app.cfg"
+	#include "ASUS_ZE600KL_5446_0x82_0x25_20150709_app.cfg"
 };
 static unsigned char CTPM_FW_ZE600KL_IVO_TPK[] = {
 	#include "ASUS_ZE600KL_5446_0x57_0x04_20150525_app.cfg"
@@ -96,11 +96,18 @@ static unsigned char CTPM_FW_ZE600KL_IVO_JTOUCH[] = {
 #endif
 #ifdef ZE601KL_FHD
 static unsigned char CTPM_FW_ZE601KL_TPK[] = {
-	#include "ASUS_ZE601KL_5446_0x53_0x23_20150617_app.cfg"
+	#include "ASUS_ZE601KL_5446_0x53_0x25_20150709_app.cfg"
 };
 static unsigned char CTPM_FW_ZE601KL_JTOUCH[] = {
-	#include "ASUS_ZE601KL_5446_0x83_0x23_20150617_app.cfg"
+	#include "ASUS_ZE601KL_5446_0x83_0x25_20150709_app.cfg"
 };
+static unsigned char CTPM_FW_ZE601KL_TM_TPK[] = {
+	#include "ASUS_ZE601KL_5446_0x51_0x26_20150713_app.cfg"
+};
+static unsigned char CTPM_FW_ZE601KL_TM_JTOUCH[] = {
+	#include "ASUS_ZE601KL_5446_0x81_0x26_20150713_app.cfg"
+};
+
 #endif
 //<asus-Jeffery20150323->
 static unsigned char *CTPM_FW = NULL;
@@ -139,9 +146,11 @@ static int fw_update_total_count = 100;
 //--ZE600KL regonize LCM & TP <asus-Jeffery20150604+>
 static int LCM_TP_Vendor=0; 
 enum{
+	TM_TPK=51,
 	CPT_TPK=52,
 	AUO_TPK=53,
 	IVO_TPK=57,
+	TM_Jtouch=81,
 	CPT_Jtouch=82,
 	AUO_Jtouch=83,
 	IVO_Jtouch=87
@@ -350,14 +359,26 @@ int fts_ctpm_fw_upgrade_with_i_file(struct i2c_client *client)
 			#endif
 			#ifdef ZE601KL_FHD
 			if(ftxxxx_ts->tp_id_value2==0){	//gpio74
-				CTPM_FW = CTPM_FW_ZE601KL_TPK;
-				CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_TPK);
-				LCM_TP_Vendor = AUO_TPK;
+				if(ftxxxx_ts->lcd_vendor == LCD_VENDOR_AUO_FHD_ZE600KL){ //AUO
+					CTPM_FW = CTPM_FW_ZE601KL_TPK;
+					CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_TPK);
+					LCM_TP_Vendor = AUO_TPK;
+				}else{		//TM
+					CTPM_FW = CTPM_FW_ZE601KL_TM_TPK;
+					CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_TM_TPK);
+					LCM_TP_Vendor = TM_TPK;
+				}
 			}
 			else{
-				CTPM_FW = CTPM_FW_ZE601KL_JTOUCH;
-				CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_JTOUCH);
-				LCM_TP_Vendor = AUO_Jtouch;
+				if(ftxxxx_ts->lcd_vendor == LCD_VENDOR_AUO_FHD_ZE600KL){ //AUO
+					CTPM_FW = CTPM_FW_ZE601KL_JTOUCH;
+					CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_JTOUCH);
+					LCM_TP_Vendor = AUO_Jtouch;
+				}else{
+					CTPM_FW = CTPM_FW_ZE601KL_TM_JTOUCH;
+					CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_TM_JTOUCH);
+					LCM_TP_Vendor = TM_Jtouch;
+				}
 			}
 			printk(KERN_WARNING"[Focal] current proj is ZE601KL\n");
 			#endif
@@ -562,14 +583,26 @@ int fts_ctpm_auto_upgrade(struct i2c_client *client)
 			#ifdef ZE601KL_FHD
 			uc_host_project_id = ZE601KL;
 			if(ftxxxx_ts->tp_id_value2==0){	//gpio74
-				CTPM_FW = CTPM_FW_ZE601KL_TPK;
-				CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_TPK);
-				LCM_TP_Vendor = AUO_TPK;
+				if(ftxxxx_ts->lcd_vendor == LCD_VENDOR_AUO_FHD_ZE600KL){ //AUO
+					CTPM_FW = CTPM_FW_ZE601KL_TPK;
+					CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_TPK);
+					LCM_TP_Vendor = AUO_TPK;
+				}else{		//TM
+					CTPM_FW = CTPM_FW_ZE601KL_TM_TPK;
+					CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_TM_TPK);
+					LCM_TP_Vendor = TM_TPK;
+				}
 			}
 			else{
-				CTPM_FW = CTPM_FW_ZE601KL_JTOUCH;
-				CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_JTOUCH);
-				LCM_TP_Vendor = AUO_Jtouch;
+				if(ftxxxx_ts->lcd_vendor == LCD_VENDOR_AUO_FHD_ZE600KL){ //AUO
+					CTPM_FW = CTPM_FW_ZE601KL_JTOUCH;
+					CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_JTOUCH);
+					LCM_TP_Vendor = AUO_Jtouch;
+				}else{
+					CTPM_FW = CTPM_FW_ZE601KL_TM_JTOUCH;
+					CTPM_FW_length = sizeof(CTPM_FW_ZE601KL_TM_JTOUCH);
+					LCM_TP_Vendor = TM_Jtouch;
+				}
 			}
 			printk(KERN_WARNING"[Focal][Touch] current proj is ZE601KL\n");
 			#endif

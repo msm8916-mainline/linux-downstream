@@ -1394,6 +1394,7 @@ int dpm_prepare(pm_message_t state)
 			list_move_tail(&dev->power.entry, &dpm_prepared_list);
 		put_device(dev);
 	}
+	pm_pwrcs_ret = 1;//[Power]Add for wakeup debug 
 	mutex_unlock(&dpm_list_mtx);
 	return error;
 }

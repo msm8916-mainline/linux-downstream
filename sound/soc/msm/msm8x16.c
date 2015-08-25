@@ -1097,7 +1097,9 @@ static int msm_quat_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *card = rtd->card;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct snd_soc_codec *codec = rtd->codec;
+	//<asus-yusheng20150626+> Qualcomm suggest remove MCLK enable setting from case:02066608
+	//struct snd_soc_codec *codec = rtd->codec;
+	//<asus-yusheng20150626-> Qualcomm suggest remove MCLK enable setting from case:02066608
 	struct msm8916_asoc_mach_data *pdata =
 			snd_soc_card_get_drvdata(card);
 	int ret = 0;
@@ -1118,11 +1120,16 @@ static int msm_quat_mi2s_snd_startup(struct snd_pcm_substream *substream)
 							__func__);
 			return ret;
 		}
-		ret = msm8x16_enable_codec_ext_clk(codec, 1, true);
-		if (ret < 0) {
-			pr_err("failed to enable mclk\n");
-			return ret;
-		}
+		
+		//<asus-yusheng20150626+> Qualcomm suggest remove MCLK enable setting from case:02066608
+		//Because ZE600KL use the GPIO 116 to be Camera power pin , the mclk enable could remove
+		//ret = msm8x16_enable_codec_ext_clk(codec, 1, true);
+		//if (ret < 0) {
+			//pr_err("failed to enable mclk\n");
+			//return ret;
+		//}
+		//<asus-yusheng20150626-> Qualcomm suggest remove MCLK enable setting from case:02066608
+		
 		ret = quat_mi2s_sclk_ctl(substream, true);
 		if (ret < 0) {
 			pr_err("failed to enable sclk\n");
@@ -1153,9 +1160,12 @@ err1:
 	if (ret < 0)
 		pr_err("failed to disable sclk\n");
 err:
-	ret = msm8x16_enable_codec_ext_clk(codec, 0, true);
-	if (ret < 0)
-		pr_err("failed to disable mclk\n");
+	//<asus-yusheng20150626+> Qualcomm suggest remove MCLK enable setting from case:02066608
+	//Because ZE600KL use the GPIO 116 to be Camera power pin , the mclk enable could remove
+	//ret = msm8x16_enable_codec_ext_clk(codec, 0, true);
+	//if (ret < 0)
+		//pr_err("failed to disable mclk\n");
+	//<asus-yusheng20150626-> Qualcomm suggest remove MCLK enable setting from case:02066608
 		
 	//<asus-yusheng20150519+>
 	quat_mi2s_status = 0;
@@ -1169,7 +1179,11 @@ static void msm_quat_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 	int ret;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_card *card = rtd->card;
-	struct snd_soc_codec *codec = rtd->codec;
+	
+	//<asus-yusheng20150626+> Qualcomm suggest remove MCLK enable setting from case:02066608
+	//struct snd_soc_codec *codec = rtd->codec;
+	//<asus-yusheng20150626-> Qualcomm suggest remove MCLK enable setting from case:02066608
+	
 	struct msm8916_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 	
 	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
@@ -1187,25 +1201,38 @@ static void msm_quat_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		}
 		//<asus-yusheng20150519->
 		
-		if (atomic_read(&pdata->mclk_rsc_ref) > 0) {
-			atomic_dec(&pdata->mclk_rsc_ref);
-			pr_debug("%s: decrementing mclk_res_ref %d\n",
-						__func__,
-					atomic_read(&pdata->mclk_rsc_ref));
-		}
+		//<asus-yusheng20150626+> Qualcomm suggest remove MCLK enable setting from case:02066608
+	        //Because ZE600KL use the GPIO 116 to be Camera power pin , the mclk enable could remove
+		//if (atomic_read(&pdata->mclk_rsc_ref) > 0) {
+			//atomic_dec(&pdata->mclk_rsc_ref);
+			//pr_debug("%s: decrementing mclk_res_ref %d\n",
+				//		__func__,
+				//	atomic_read(&pdata->mclk_rsc_ref));
+		//}
+		//<asus-yusheng20150626-> Qualcomm suggest remove MCLK enable setting from case:02066608
 		
 	//<asus yusheng from patch case:01942332>
         if (atomic_read(&quat_mi2s_clk_ref) > 0)
                atomic_dec(&quat_mi2s_clk_ref);
        
-		if ((atomic_read(&quat_mi2s_clk_ref) == 0) &&
-			(atomic_read(&pdata->mclk_rsc_ref) == 0)) {
-				msm8x16_enable_codec_ext_clk(codec, 0, true);
-				ret = pinctrl_select_state(pinctrl_info.pinctrl,pinctrl_info.quat_cdc_lines_sus);
-				if (ret < 0)
-				pr_err("%s: error at pinctrl state select\n",__func__);
-	
+	        //<asus-yusheng20150626+> Qualcomm suggest remove MCLK enable setting from case:02066608
+	   	//Because ZE600KL use the GPIO 116 to be Camera power pin , the mclk enable could remove
+		if ((atomic_read(&quat_mi2s_clk_ref) == 0)) {
+			ret = pinctrl_select_state(pinctrl_info.pinctrl,pinctrl_info.quat_cdc_lines_sus);
+			if (ret < 0)
+			pr_err("%s: error at pinctrl state select\n",__func__);
 		}
+
+		//if ((atomic_read(&quat_mi2s_clk_ref) == 0) &&
+		//	(atomic_read(&pdata->mclk_rsc_ref) == 0)) {
+		//		msm8x16_enable_codec_ext_clk(codec, 0, true);
+		//		ret = pinctrl_select_state(pinctrl_info.pinctrl,pinctrl_info.quat_cdc_lines_sus);
+		//		if (ret < 0)
+		//		pr_err("%s: error at pinctrl state select\n",__func__);
+		//}
+		//<asus-yusheng20150626-> Qualcomm suggest remove MCLK enable setting from case:02066608
+		
+		
 	//<asus yusheng from patch case:01942332>
  	}
  }

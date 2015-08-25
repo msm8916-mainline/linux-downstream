@@ -5,7 +5,7 @@
 	qcom,max-voltage-uv = <4400000>;
 	qcom,v-cutoff-uv = <3400000>;
 	qcom,chg-term-ua = <100000>;
-	qcom,batt-id-kohm = <23>;
+	qcom,batt-id-kohm = <143>;
 	qcom,battery-type = "palladium_3000mah";
 
 	qcom,ibat-acc-lut {

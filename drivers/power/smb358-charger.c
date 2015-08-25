@@ -98,6 +98,8 @@
 #define AUTOMATIC_INPUT_CURR_LIMIT_BIT            BIT(4)
 #define CFG_PIN_EN_CTRL_MASK            0x60
 #define CFG_PIN_EN_CTRL_ACTIVE_LOW        0x60
+#define CFG_PIN_EN_ENABLE				0x20
+#define CFG_PIN_EN_DISABLE				0x00
 #define CFG_VARIOUS_FUNCS_OPTICHARGE_TOGGLE    BIT(4)
 #define CFG_CURRENT_LIMIT_SMB358_MASK   0xf0
 #define CFG_CURRENT_LIMIT_SMB358_VALUE_1000 0x30
@@ -1338,6 +1340,7 @@ extern int64_t get_battery_id(void);
 
 struct delayed_work Set_vch_val;
 void SET_VCH_VALUE(struct work_struct *dat){
+		int ret;
         BAT_DBG("BattID: %lld\n", battID);
         if (battID == SMB358_BATTID_INITIAL){
                 schedule_delayed_work(&Set_vch_val,1*HZ);
@@ -1350,6 +1353,13 @@ void SET_VCH_VALUE(struct work_struct *dat){
 		cfg_current_limit = CFG_CURRENT_LIMIT_SMB358_VALUE_2000;
 		BAT_DBG("ER BAT_ID=BAT4, VCH=4.38V\n");
 		Batt_ID_ERROR = false;
+		// Enable charger if BattID == 4, e.g. 06h[6:5] = "01"
+		ret = smb358_masked_write(smb358_dev, CHG_PIN_EN_CTRL_REG, CFG_PIN_EN_CTRL_MASK,
+						CFG_PIN_EN_ENABLE);
+		if (ret){
+			BAT_DBG("Failed to enable charger's pin control\n");
+			return;
+		}
 	}else{
 		if(battID < 900000 && battID >= 500000){//SMP+Sony
 			VCH_VALUE = SMB358_FLOAT_VOLTAGE_VALUE_4380mV;
@@ -1357,19 +1367,55 @@ void SET_VCH_VALUE(struct work_struct *dat){
 			cfg_current_limit = CFG_CURRENT_LIMIT_SMB358_VALUE_2000;
 			BAT_DBG("ER BAT_ID=BAT3, VCH=4.38V\n");
 			Batt_ID_ERROR = false;
+			// Enable charger's pin control if BattID == 3, e.g. 06h[6:5] = "01"
+			ret = smb358_masked_write(smb358_dev, CHG_PIN_EN_CTRL_REG, CFG_PIN_EN_CTRL_MASK,
+							CFG_PIN_EN_ENABLE);
+			if (ret){
+				BAT_DBG("Failed to enable charger's pin control\n");
+				return;
+			}
 		}else{
-			if(battID < 1200000 && battID >= 900000){//SMP+Cos & Cos+Cos
+			if(battID < 1200000 && battID >= 900000){//SMP+Cos
 				VCH_VALUE = SMB358_FLOAT_VOLTAGE_VALUE_4380mV;
 				//g_Iqc = SMB358_FAST_CHG_CURRENT_VALUE_2000mA;
 				cfg_current_limit = CFG_CURRENT_LIMIT_SMB358_VALUE_2000;
-				BAT_DBG("ER BAT_ID=BAT2/1, VCH=4.38V\n");
+				BAT_DBG("ER BAT_ID=BAT2, VCH=4.38V\n");
 				Batt_ID_ERROR = false;
-			}else{//other cell
-				VCH_VALUE=SMB358_FLOAT_VOLTAGE_VALUE_4340mV;
-				//g_Iqc = SMB358_FAST_CHG_CURRENT_VALUE_1300mA;
-				cfg_current_limit = CFG_CURRENT_LIMIT_SMB358_VALUE_1200;
-				BAT_DBG("Other battery cell fail\n");
-				Batt_ID_ERROR=true;
+				// Enable charger's pin control if BattID == 2, e.g. 06h[6:5] = "01"
+				ret = smb358_masked_write(smb358_dev, CHG_PIN_EN_CTRL_REG, CFG_PIN_EN_CTRL_MASK,
+								CFG_PIN_EN_ENABLE);
+				if (ret){
+					BAT_DBG("Failed to enable charger's pin control\n");
+					return;
+				}
+			}else{
+				if(battID < 1500000 && battID >= 1200000){//Cos+Cos
+					VCH_VALUE = SMB358_FLOAT_VOLTAGE_VALUE_4380mV;
+					//g_Iqc = SMB358_FAST_CHG_CURRENT_VALUE_2000mA;
+					cfg_current_limit = CFG_CURRENT_LIMIT_SMB358_VALUE_2000;
+					BAT_DBG("ER BAT_ID=BAT1, VCH=4.38V\n");
+					Batt_ID_ERROR = true;
+					// Disable charger's pin control if BattID == 1, e.g. 06h[6:5] = "00"
+					ret = smb358_masked_write(smb358_dev, CHG_PIN_EN_CTRL_REG, CFG_PIN_EN_CTRL_MASK,
+									CFG_PIN_EN_DISABLE);
+					if (ret){
+						BAT_DBG("Failed to disable charger's pin control\n");
+						return;
+					}
+				}else{//other cell
+					VCH_VALUE=SMB358_FLOAT_VOLTAGE_VALUE_4380mV;
+					//g_Iqc = SMB358_FAST_CHG_CURRENT_VALUE_1300mA;
+					cfg_current_limit = CFG_CURRENT_LIMIT_SMB358_VALUE_1200;
+					BAT_DBG("Other battery cell fail\n");
+					Batt_ID_ERROR=true;
+					// Disable charger's pin control if BattID belongs to none of above, e.g. 06h[6:5] = "00"
+					ret = smb358_masked_write(smb358_dev, CHG_PIN_EN_CTRL_REG, CFG_PIN_EN_CTRL_MASK,
+									CFG_PIN_EN_DISABLE);
+					if (ret){
+						BAT_DBG("Failed to disable charger's pin control\n");
+						return;
+					}
+				}
 			}
 		}
 	}	
@@ -3110,6 +3156,16 @@ static int asus_print_all(void)
 		battInfo,
 		chargerReg);
 	BAT_DBG("%s", battInfo);
+	ASUSEvtlog("[BAT][Ser]report Capacity:%d,%d,%d,%d,%d,%s%d.%d,%d==>%d\n", batt_info.capacity,
+		batt_info.fcc,
+		batt_info.Rsoc,
+		batt_info.voltage_now,
+		batt_info.current_now,
+		batt_info.temperature_negative_sign,
+		batt_info.temperature10,
+		batt_info.temperature,
+		batt_info.cable_status,
+		batt_info.capacity);
 	//BAT_DBG("[BATT][CHARGER]Thermal_Level %d\n",Thermal_Level);
 	g_last_print_time = current_kernel_time();
 	return 0;
@@ -3609,7 +3665,8 @@ int setSMB358Charger(int usb_state)
 				smb358_config_max_current(g_usb_state);
 				mutex_unlock(&g_usb_state_lock);
 				/*BSP david : do JEITA*/
-				smb358_update_aicl_work(5);				
+				smb358_update_aicl_work(5);
+				focal_usb_detection(true);
 			}else{
 				/* BSP Clay: AC debounce policy +++*/
 				if ( AC_IN_EVER ){
@@ -3643,6 +3700,8 @@ int setSMB358Charger(int usb_state)
 	case UNKNOWN_IN:
 	case SE1_IN:
 		if(asus_PRJ_ID==ASUS_ZE550KL){
+			if(usb_state==USB_IN)
+				focal_usb_detection(true);
 		}else{	
 			/* BSP Clay: AC debounce policy */
 			if(AC_IN_EVER == true){
@@ -3672,6 +3731,7 @@ int setSMB358Charger(int usb_state)
 				wake_unlock(&UsbCable_Lock);	
 			if(asus_PRJ_ID==ASUS_ZE550KL){
 				schedule_delayed_work(&AC_unstable_det, 0);
+				focal_usb_detection(false);
 			}else{
 				/* BSP_Clay: AC debounce policy */
 				if ( AC_IN_EVER ){

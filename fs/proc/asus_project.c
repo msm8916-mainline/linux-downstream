@@ -3,6 +3,7 @@
 #include <linux/seq_file.h>
 #include <linux/fs.h>
 #include <linux/init.h>
+#include <linux/platform_device.h>   // <asus-olaf20150715+>
 
 static struct proc_dir_entry *project_id_proc_file;
 static int project_id_proc_read(struct seq_file *buf, void *v)
@@ -186,7 +187,74 @@ static void create_project_hd_proc_file(void)
     }
 }
 
+// <asus-olaf20150715+>
+int ZE600KL_Project_ID_Pin_Pinctrl_Configure(struct platform_device *pdev, bool active)
+{
+	struct pinctrl_state *set_state;
+	int retval = 0;
+	if (active) {
+		set_state =	pinctrl_lookup_state(devm_pinctrl_get(&pdev->dev), "Project_ID_Pin_active");
+		if (IS_ERR(set_state)) {
+			printk("cannot get project id pin pinctrl active state\n");
+			return PTR_ERR(set_state);
+		}
+	} else {
+		set_state = pinctrl_lookup_state(devm_pinctrl_get(&pdev->dev), "Project_ID_Pin_suspend");
+		if (IS_ERR(set_state)) {
+			printk("cannot get project id pin pinctrl sleep state\n");
+			return PTR_ERR(set_state);
+		}
+	}
+	retval = pinctrl_select_state(devm_pinctrl_get(&pdev->dev), set_state);
+	if (retval) {
+		printk("cannot set project id pin pinctrl active state\n");
+		return retval;
+	}
+	return retval;
+}
 
+static int Project_ID_Pin_Probe(struct platform_device *pdev)
+{
+	int error = 0;
+	switch (asus_PRJ_ID) {
+		//case 0: // ASUS_ZE550KL
+		//	break;
+		case 1: // ASUS_ZE600KL     config project gpio ID pin to "Input Pull Up 2mA"
+			error = ZE600KL_Project_ID_Pin_Pinctrl_Configure(pdev, true);
+			if (error) {
+				printk("cannot set ZE600KL project id pin pinctrl active state\n");
+			}
+			break;
+		//case 2: // ASUS_ZX550KL
+		//	break;
+		//case 3: // ASUS_ZD550KL
+		//	break;
+		default:
+			break;
+	}
+	return error;
+}
+#define DRIVER_NAME "Project_ID_Pin"
+
+static const struct platform_device_id Project_ID_Pin_table[] = {
+        {DRIVER_NAME, 1},
+};
+
+static struct of_device_id Project_ID_Pin_match_table[] = {
+	{ .compatible = "qcom,Project_ID_Pin",},
+	{},
+};
+
+static struct platform_driver Project_ID_Pin_Init = {
+    .driver = {
+        .name = DRIVER_NAME,
+        .owner = THIS_MODULE,
+        .of_match_table = Project_ID_Pin_match_table,
+    },
+    .probe    = Project_ID_Pin_Probe,	
+    .id_table = Project_ID_Pin_table,
+};
+// <asus-olaf20150715->
 
 static int __init proc_asusPRJ_init(void)
 {
@@ -196,6 +264,7 @@ static int __init proc_asusPRJ_init(void)
 	create_project_stage_proc_file();
 	create_project_mem_proc_file();
 	create_project_hd_proc_file();
+	platform_driver_register(&Project_ID_Pin_Init);   // <asus-olaf20150715+>
 	return 0;
 }
 module_init(proc_asusPRJ_init);
