@@ -260,6 +260,23 @@ static int get_prj_RFsku(char *str)
 __setup("PRJ_RF=", get_prj_RFsku);
 //--- ASUS_BSP :  Add for asus_project_RFsku
 
+//+++ ASUS_BSP :  Add for asus_project_ADAPTER_ID @Ben
+int asus_project_ADAPTER_ID = 0;
+EXPORT_SYMBOL(asus_project_ADAPTER_ID);
+
+static int get_prj_ADAPTERid(char *str)
+{
+	printk("asus_project_ADAPTER_ID = %s\n ", str);
+
+	if( strcmp("1", str) == 0 )
+	        asus_project_ADAPTER_ID	= 1;
+        else
+                asus_project_ADAPTER_ID = 0;
+    return 0;
+}
+__setup("PRJ_ADAPTER=", get_prj_ADAPTERid);
+//--- ASUS_BSP :  Add for asus_project_ADAPTER_ID_
+
 //+++ ASUS_BSP :  Add for asus_project_lte @wigman_sun
 char asus_project_lte[2] = {0};
 EXPORT_SYMBOL(asus_project_lte);

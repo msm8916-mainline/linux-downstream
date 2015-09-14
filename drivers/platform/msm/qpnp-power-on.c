@@ -802,6 +802,11 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 
 	switch (cfg->pon_type) {
 	case PON_KPDPWR:
+		if (is_holding_power_key())
+			dev_err(&pon->spmi->dev, "Power key down\n");
+		else
+			dev_err(&pon->spmi->dev, "Power key on\n");
+
 		pon_rt_bit = QPNP_PON_KPDPWR_N_SET;
 		/* for phone hang debug */
 		pon_for_powerkey = pon;
@@ -1805,12 +1810,14 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 		dev_info(&pon->spmi->dev,
 			"PMIC@SID%d Power-on reason: Unknown and '%s' boot\n",
 			pon->spmi->sid, cold_boot ? "cold" : "warm");
+		ASUSEvtlog("Bootup Reason: Unknown and '%s' boot\n", cold_boot ? "cold" : "warm");
 	} else {
 		pon->pon_trigger_reason = index;
 		dev_info(&pon->spmi->dev,
 			"PMIC@SID%d Power-on reason: %s and '%s' boot\n",
 			pon->spmi->sid, qpnp_pon_reason[index],
 			cold_boot ? "cold" : "warm");
+		ASUSEvtlog("Bootup Reason: %s and '%s' boot\n", qpnp_pon_reason[index], cold_boot ? "cold" : "warm");
 	}
 
 	/* POFF reason */

@@ -78,9 +78,9 @@ bool Laser_Forcus_sysfs_write_offset(int calvalue)
 
 	sprintf(buf, "%d", calvalue);
 
-	fp = filp_open(LASERFOCUS_SENSOR_OFFSET_CALIBRATION_FILE, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+	fp = filp_open(SHIPPING_LASERFOCUS_SENSOR_OFFSET_CALIBRATION_FILE, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
 	if (IS_ERR_OR_NULL(fp)) {
-		pr_err("[LF][vl6180x] Offset Calibration file open (%s) fail\n", LASERFOCUS_SENSOR_OFFSET_CALIBRATION_FILE);
+		pr_err("[LF][vl6180x] Offset Calibration file open (%s) fail\n", SHIPPING_LASERFOCUS_SENSOR_OFFSET_CALIBRATION_FILE);
 		return false;
 	}
 
@@ -102,6 +102,41 @@ bool Laser_Forcus_sysfs_write_offset(int calvalue)
 
 	return true;
 }
+
+bool Laser_Forcus_sysfs_write_offset_to_persist(int calvalue)
+{
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	loff_t pos_lsts = 0;
+	char buf[8];	
+
+	sprintf(buf, "%d", calvalue);
+
+	fp = filp_open(LASERFOCUS_SENSOR_OFFSET_CALIBRATION_FILE_CCI, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+	if (IS_ERR_OR_NULL(fp)) {
+		pr_err("[LF][vl6180x] Offset Calibration file persist open (%s) fail\n", LASERFOCUS_SENSOR_OFFSET_CALIBRATION_FILE_CCI);
+		return false;
+	}
+
+	/*For purpose that can use read/write system call*/
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	if (fp->f_op != NULL && fp->f_op->write != NULL) {
+		pos_lsts = 0;
+		fp->f_op->write(fp, buf, strlen(buf), &fp->f_pos);				
+	} else {
+		pr_err("[LF][vl6180x] Offset Calibration file persist strlen: f_op=NULL or op->write=NULL\n");
+		return false;
+	}
+	set_fs(old_fs);
+	filp_close(fp, NULL);
+
+	printk("[LF][vl6180x] write Offset persist Calibration value : %s\n", buf);
+
+	return true;
+}
+
 
 int Laser_Forcus_sysfs_read_cross_talk_offset(bool Factory_folder_file)
 {
@@ -164,9 +199,9 @@ bool Laser_Forcus_sysfs_write_cross_talk_offset(int calvalue)
 
 	sprintf(buf, "%d", calvalue);
 
-	fp = filp_open(LASERFOCUS_SENSOR_CROSS_TALK_CALIBRATION_FILE, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+	fp = filp_open(SHIPPING_LASERFOCUS_SENSOR_CROSS_TALK_CALIBRATION_FILE, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
 	if (IS_ERR_OR_NULL(fp)) {
-		pr_err("[LF][vl6180x] Cross-talk Offset Calibration file open (%s) fail\n", LASERFOCUS_SENSOR_CROSS_TALK_CALIBRATION_FILE);
+		pr_err("[LF][vl6180x] Cross-talk Offset Calibration file open (%s) fail\n", SHIPPING_LASERFOCUS_SENSOR_CROSS_TALK_CALIBRATION_FILE);
 		return false;
 	}
 
@@ -185,6 +220,40 @@ bool Laser_Forcus_sysfs_write_cross_talk_offset(int calvalue)
 	filp_close(fp, NULL);
 
 	printk("[LF][vl6180x] write Cross-talk Offset Calibration value : %s\n", buf);
+
+	return true;
+}
+
+bool Laser_Forcus_sysfs_write_cross_talk_offset_to_persist(int calvalue)
+{
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	loff_t pos_lsts = 0;
+	char buf[8];	
+
+	sprintf(buf, "%d", calvalue);
+
+	fp = filp_open(LASERFOCUS_SENSOR_CROSS_TALK_CALIBRATION_FILE_CCI, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+	if (IS_ERR_OR_NULL(fp)) {
+		pr_err("[LF][vl6180x] Cross-talk Offset Calibration file persist open (%s) fail\n", LASERFOCUS_SENSOR_CROSS_TALK_CALIBRATION_FILE_CCI);
+		return false;
+	}
+
+	/*For purpose that can use read/write system call*/
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	if (fp->f_op != NULL && fp->f_op->write != NULL) {
+		pos_lsts = 0;
+		fp->f_op->write(fp, buf, strlen(buf), &fp->f_pos);				
+	} else {
+		pr_err("[LF][vl6180x] Cross-talk Offset Calibration file persist strlen: f_op=NULL or op->write=NULL\n");
+		return false;
+	}
+	set_fs(old_fs);
+	filp_close(fp, NULL);
+
+	printk("[LF][vl6180x] write Cross-talk Offset persist Calibration value : %s\n", buf);
 
 	return true;
 }

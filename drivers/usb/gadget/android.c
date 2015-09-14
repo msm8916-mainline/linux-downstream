@@ -84,6 +84,8 @@ MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
 
 static const char longname[] = "Gadget Android";
+extern struct completion gadget_init;
+extern bool g_Charger_mode;
 
 /* Default vendor and product IDs, overridden by userspace */
 #define VENDOR_ID		0x18D1
@@ -493,6 +495,10 @@ static int android_enable(struct android_dev *dev)
 			}
 		}
 		usb_gadget_connect(cdev->gadget);
+                if(g_Charger_mode && !gadget_init.done){
+                        gadget_init.done=1;
+                        complete(&gadget_init);
+                }
 	}
 
 	return err;

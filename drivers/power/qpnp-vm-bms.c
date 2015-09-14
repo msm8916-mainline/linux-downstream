@@ -126,6 +126,8 @@
 
 #define QPNP_VM_BMS_DEV_NAME		"qcom,qpnp-vm-bms"
 
+static int boot_completed = 0;
+extern bool g_Charger_mode;
 extern void smb358_update_aicl_work(int);
 bool thermal_abnormal = false;
 /* indicates the state of BMS */
@@ -281,6 +283,7 @@ struct qpnp_bms_chip {
 static int g_bms_fcc = 3000;
 static struct qpnp_bms_chip *the_chip;
 struct switch_dev batt_dev;
+
 
 int get_driver_soc(void){
 	int rc= -10;
@@ -954,6 +957,16 @@ static int adjust_uuc(struct qpnp_bms_chip *chip, int soc_uuc)
 	pr_debug("soc_uuc=%d new_soc_uuc=%d\n", soc_uuc, chip->prev_soc_uuc);
 
 	return chip->prev_soc_uuc;
+}
+//calculate RUC
+int get_remaining_usable_capacity(struct qpnp_bms_chip *chip)
+{
+        int rc;
+        int soc = chip->last_soc;
+
+        rc = (soc*g_bms_fcc)/100;
+        
+        return rc;
 }
 int get_vm_bms_fcc(void)
 {
@@ -1644,6 +1657,7 @@ int g_mapping_state = 0;
 extern bool smb358_get_full_status(void);
 extern bool smb358_is_charging(int usb_state);
 extern int get_charger_type(void);
+extern void smb358_polling_battery_data_work(int time);
 static int mapping_for_full_status(int last_soc)
 {
 	static int result;
@@ -1653,6 +1667,13 @@ static int mapping_for_full_status(int last_soc)
 	static bool once = false;	
 	int old_shift = cur_shift;
 	int old_state = g_mapping_state;
+	int batt_voltage;
+	static bool batLow;
+	int rc;
+
+	rc=get_battery_voltage(the_chip,&batt_voltage);
+	if(rc)
+		pr_err("error get battery voltage when do mapping\n");
 
 	switch (g_mapping_state) {
 		case BMS_NORMAL:
@@ -1742,6 +1763,23 @@ static int mapping_for_full_status(int last_soc)
 		result = 100;
 	}
 	repot_full_status(result);
+	//add by bsp kerwin_chen 
+	if((result == 0)&&(batt_voltage >3400000)){
+		result=1;
+		BAT_DBG("%s: cap = %d but voltage = %d, keep cap 1!\n", __FUNCTION__, result, batt_voltage);
+		}
+	if (!batLow) {
+		if (result == 0) {
+			ASUSEvtlog("[BAT] Low Voltage\n");
+			printk("[BAT] Low Voltage\n");
+			smb358_polling_battery_data_work(0);
+			batLow = true;
+			 }
+	} else{
+		if (result != 0) {
+			batLow = false;
+			}
+		}
 	return result;
 }
 
@@ -1883,7 +1921,7 @@ static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 			check_recharge_condition(chip);
 	}
 
-	printk("last_soc=%d calculated_soc=%d soc=%d time_since_last_change=%d\n",
+	pr_debug("last_soc=%d calculated_soc=%d soc=%d time_since_last_change=%d\n",
 			chip->last_soc, chip->calculated_soc,
 			soc, time_since_last_change_sec);
 
@@ -1912,7 +1950,12 @@ static int report_state_of_charge(struct qpnp_bms_chip *chip)
 		soc = report_voltage_based_soc(chip);
 	else
 		soc = report_vm_bms_soc(chip);
-
+        //BSP Ben 0% shutdown mechanism
+        if(soc < 1 && boot_completed==0 && (!g_Charger_mode))
+        {
+                soc = 1;
+                printk("boot_completed no yet, don't report batt level = 0\n");
+        }
 	mutex_unlock(&chip->last_soc_mutex);
 
 	return soc;
@@ -2201,7 +2244,10 @@ static void monitor_soc_work(struct work_struct *work)
 			} else if (chip->last_soc != chip->calculated_soc) {
 				pr_debug("update bms_psy\n");
 				power_supply_changed(&chip->bms_psy);
-			} else {
+			} else if(chip->last_soc==0){
+				pr_debug("update bms_psy\n");
+				power_supply_changed(&chip->bms_psy);
+			}else {
 				report_vm_bms_soc(chip);
 			}
 		}
@@ -2236,7 +2282,6 @@ static void voltage_soc_timeout_work(struct work_struct *work)
 	}
 	mutex_unlock(&chip->bms_device_mutex);
 }
-
 static int get_prop_bms_capacity(struct qpnp_bms_chip *chip)
 {
 	return report_state_of_charge(chip);
@@ -2279,6 +2324,8 @@ static int get_prop_bms_current_now(struct qpnp_bms_chip *chip)
 }
 
 static enum power_supply_property bms_power_props[] = {
+	POWER_SUPPLY_PROP_CHARGE_NOW,
+	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_RESISTANCE,
@@ -2320,6 +2367,12 @@ static int qpnp_vm_bms_power_get_property(struct power_supply *psy,
 	val->intval = 0;
 
 	switch (psp) {
+	case POWER_SUPPLY_PROP_CHARGE_NOW:
+		val->intval = get_remaining_usable_capacity(chip);
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		val->intval = get_vm_bms_fcc();
+		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		val->intval = get_prop_bms_capacity(chip);
 		break;
@@ -2920,11 +2973,12 @@ numbers are addible
 */
 #define	reboot_or_not		1
 #define	reboot_no_cable		1
+#define	reboot_rtc		4
 #define	chgm_by_ac			16
 #define	reboot_with_cable	17
 #define 	pwr_on_no_cable		128
 #define 	reboot_from_chgm	145
-
+#define   reboot_smpl			2
 extern bool inok_status(void);
 
 static void compare_and_choose(struct qpnp_bms_chip *chip,int ocv, int soc,int thd){
@@ -2943,7 +2997,8 @@ static void compare_and_choose(struct qpnp_bms_chip *chip,int ocv, int soc,int t
 		chip->calculated_soc = soc;
 		return;
 	}
-	else if(reg==reboot_no_cable || reg==pwr_on_no_cable){
+	else if(reg==reboot_no_cable || reg==pwr_on_no_cable || reg==reboot_smpl ||
+                reg==reboot_rtc){
 		printk("hw ocv is better\n");
 		return;
 	}
@@ -3594,11 +3649,19 @@ extern int64_t battID;
 static int set_battery_data(struct qpnp_bms_chip *chip)
 {
 	int64_t battery_id;
-	int rc = 0;
+	int rc = 0,i=0;
 	struct bms_battery_data *batt_data;
 	struct device_node *node;
 
-	battery_id = read_battery_id(chip);
+	for(i = 0; i < 3; i++) {
+		battery_id = read_battery_id(chip);
+		if (battery_id >= 200000 && battery_id <= 1500000) {
+			break;
+		}else{
+		BAT_DBG("%s: wrong id, debounce with count = %d!\n", __func__, i);
+		}
+		mdelay(20);
+	}
 	if (battery_id < 0) {
 		pr_err("cannot read battery id err = %lld\n", battery_id);
 		return battery_id;
@@ -3974,6 +4037,66 @@ void static create_battery_status_proc_file(void)
 }
 /*ASUS_BSP kerwin add iic test interface*/
 
+/*ASUS_BSP Ben add system property "sys.boot_completed" interface*/
+#define boot_completed_PROC_FILE	"boot_completed_prop"
+static struct proc_dir_entry *boot_completed_proc_file;
+static int boot_completed_proc_read(struct seq_file *buf, void *v)
+{
+        seq_printf(buf, "boot_completed:<%d>\n", boot_completed);
+
+	return 0;
+}
+
+static int boot_completed_proc_open(struct inode *inode, struct  file *file)
+{
+	return single_open(file, boot_completed_proc_read, NULL);
+}
+static ssize_t boot_completed_proc_write(struct file *filp, const char __user *buff,
+		size_t len, loff_t *data)
+{
+	int val;
+
+	char messages[256];
+
+	if (len > 256) {
+		len = 256;
+	}
+
+	if (copy_from_user(messages, buff, len)) {
+		return -EFAULT;
+	}
+
+	val = (int)simple_strtol(messages, NULL, 10);
+
+	printk("[BAT][Proc][Prop]boot_completed_prop: %d\n", val);
+        if(val ==1 ){
+	        printk("[BAT][Proc][Prop]set boot_completed to 1 \n");
+                boot_completed = 1;
+	        if (the_chip->bms_psy_registered)
+		        power_supply_changed(&the_chip->bms_psy);
+        }
+	return len;
+}
+
+static const struct file_operations boot_completed_fops = {
+	.owner = THIS_MODULE,
+	.open = boot_completed_proc_open,
+	.write = boot_completed_proc_write,
+	.read = seq_read,
+	.release = single_release,
+};
+void static create_boot_completed_proc_file(void)
+{
+	boot_completed_proc_file = proc_create(boot_completed_PROC_FILE, 0644, NULL, &boot_completed_fops);
+
+	if (boot_completed_proc_file) {
+		printk("[BAT][Proc][Prop]boot_completed_prop create sucessed!\n");
+	} else{
+		printk("[BAT][Proc][Prop]boot_completed_prop file create failed!\n");
+	}
+}
+/*ASUS_BSP Ben add system property "sys.boot_completed" interface*/
+
 /*+++ASUS_BSP David BMMI Adb Interface+++*/
 #define	gaugeIC_status_PROC_FILE	"gaugeIC_status"
 #define gauge_version	"0.0.1"
@@ -4180,6 +4303,7 @@ static int qpnp_vm_bms_probe(struct spmi_device *spmi)
 
 	if (is_battery_present(chip)) {
 		create_battery_status_proc_file();
+                create_boot_completed_proc_file();
 		rc = setup_vbat_monitoring(chip);
 		if (rc) {
 			pr_err("fail to configure vbat monitoring rc=%d\n",

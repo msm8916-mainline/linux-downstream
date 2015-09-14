@@ -73,6 +73,7 @@
 #define HARD_LIMIT_HOT_CELL_TEMP_MASK            SMB358_MASK(5, 4)
 #define SOFT_LIMIT_COLD_CELL_TEMP_MASK            SMB358_MASK(3, 2)
 #define SMB358_FAST_CHG_CURRENT_VALUE_600mA    BIT(6)
+#define SMB358_FAST_CHG_CURRENT_VALUE_900mA    (BIT(6)|BIT(5))
 #define SMB358_FAST_CHG_CURRENT_VALUE_1300mA    BIT(7)
 #define SMB358_FAST_CHG_CURRENT_VALUE_2000mA    (BIT(7)|BIT(6)|BIT(5))
 
@@ -134,7 +135,6 @@
 #define SMB358_TERMINATION_CURRENT_MASK         SMB358_MASK(2, 0)
 #define SMB358_TERMINATION_CURRENT_VALUE_100mA    BIT(2)
 #define SMB358_TERMINATION_CURRENT_VALUE_80mA    (BIT(0)|BIT(1))
-#define SMB358_FAST_CHG_CURRENT_VALUE_900mA    (BIT(5)|BIT(6))
 #define SMB358_FAST_CHG_CURRENT_VALUE_1300mA    BIT(7)
 /* This is to select if use external pin EN to control CHG */
 #define CHG_PIN_CTRL_CHG_EN_LOW_PIN_BIT		SMB358_MASK(6, 5)
@@ -255,6 +255,10 @@ static int Thermal_Level_old=0;
 bool Batt_ID_reday = false;
 bool Batt_ID_ERROR=false;
 extern bool thermal_abnormal;
+//BSP Ben add adapter_id for 5w (BZ sku) porting
+//adapter_id:   0 = 5w
+//              1 = 10w
+extern int asus_project_ADAPTER_ID;
 
 enum {
 	USER	= BIT(0),
@@ -284,7 +288,12 @@ int charger_limit_setting;
  *  smb358_soc_detect_batt_tempr_zd550_ze600(int usb_state)
  *  smb358_set_recharge_voltage_zd550_ze600(void)
  *
- * 
+ *
+ ************5W BZ sku porting*****************
+ *  smb358_pre_config_5wBZsku_zd550(void)
+ *  smb3xx_config_max_current_5wBZsku_zd550(int usb_state)
+ *  smb358_soc_detect_batt_tempr_5wBZsku_zd550(int usb_state)
+ *
  */
 
 /*****************************************
@@ -767,6 +776,8 @@ extern int get_charger_type(void)
 	return ret;
 }
 struct delayed_work LED_ChargerMode;
+struct delayed_work USB_3s_retry_kicker_work;
+struct delayed_work USB_3s_retry_work;
 extern void led_set_charger_mode(uint8_t led_type); //ASUS BSP Austin_T : LED charger mode +++
 extern void focal_usb_detection(bool plugin);          //ASUS BSP Jacob_kung : notify touch cable in +++
 /* write 06h[6:5]="00" or "11" */
@@ -1335,6 +1346,87 @@ fail:
 	return ret;
 }
 
+static int smb358_pre_config_5wBZsku_zd550(void)
+{
+	int ret;
+	//u8 reg;
+
+	 /* set fast charge current: 900mA set 20150729 by BSP Ben*/
+	ret = smb358_masked_write(smb358_dev,
+			CHG_CURRENT_CTRL_REG,
+			SMB358_FAST_CHG_CURRENT_MASK,
+			SMB358_FAST_CHG_CURRENT_VALUE_900mA);
+	if (ret < 0) {
+		BAT_DBG_E("%s: fail to set fast charge current, ret = %d\n", __FUNCTION__, ret);
+		goto fail;
+	}
+
+	/* set termination current: 80mA */
+	ret = smb358_masked_write(smb358_dev,
+			CHG_CURRENT_CTRL_REG,
+			SMB358_TERMINATION_CURRENT_MASK,
+			SMB358_TERMINATION_CURRENT_VALUE_80mA);
+	if (ret < 0) {
+		BAT_DBG_E("%s: fail to set termination current, ret = %d\n", __FUNCTION__, ret);
+		goto fail;
+	}
+
+	/* set cold soft limit current: 600mA */
+	ret = smb358_masked_write(smb358_dev,
+			OTG_TLIM_THERM_CNTRL_REG,
+			CHARGE_CURRENT_COMPENSATION,
+			SMB358_COLD_SOFT_LIMIT_CURRENT_VALUE_600mA);
+	if (ret < 0) {
+		BAT_DBG_E("%s: fail to set cold soft limit current, ret = %d\n", __FUNCTION__, ret);
+		goto fail;
+	}
+	/*disable charger*/
+	ret = smb358_charging_toggle_zd550_ze600(JEITA, false);
+	if (ret < 0) {
+		BAT_DBG_E("%s: fail to stop charging, ret = %d\n", __FUNCTION__, ret);
+		goto fail;
+	}
+	/*set float voltage*/
+	ret = smb358_masked_write(smb358_dev,
+		VFLOAT_REG,
+		FLOAT_VOLTAGE_MASK,
+		VCH_VALUE);
+	if (ret < 0) {
+		BAT_DBG_E("%s: fail to set charger voltage, ret = %d\n", __FUNCTION__, ret);
+		goto fail;
+	}
+	/*enable charger*/
+	ret = smb358_charging_toggle_zd550_ze600(JEITA, true);
+	if (ret < 0) {
+		BAT_DBG_E("%s: fail to start charging, ret = %d\n", __FUNCTION__, ret);
+		goto fail;
+	}
+	/*wait aicl complete*/
+	//do{
+		/*
+		 * ZD550KL BSP Ben:ZD550KL don't wait for AICL result complete bit 3fH[5]
+		 * Because fast plug in and out might hang
+                 * <asus-guc20150512> ZE600KL to dodge the same issue. 
+                 */
+		BAT_DBG_E(" %s: [ZD550KL][SMB358][5wBZsku]don't wait for aicl result OK!\n", __FUNCTION__);
+		/*check if AICL completed here, already delay in config input current phase*/
+		/*ret = smb358_read_reg(smb358_dev, STATUS_E_REG, &reg);
+		if (ret < 0) {
+			BAT_DBG_E(" %s: fail to read STATUS_E_REG reg\n", __FUNCTION__);
+		} else{
+			reg = reg & AUTOMATIC_INPUT_CURR_LIMIT_BIT;
+			if (reg > 0) {
+				reg = 1;
+			} else{
+				reg = 0;
+			}
+		}*/
+	//}while(reg == 0);
+fail:
+	return ret;
+}
+
+
 
 extern int64_t get_battery_id(void);
 
@@ -1466,6 +1558,90 @@ void LED_ChargerMode_Set(struct work_struct *dat){
 		
 }
 //--0623 charger mode led--
+
+static inline struct power_supply *get_psy_usb(void)
+{
+	struct class_dev_iter iter;
+	struct device *dev;
+	static struct power_supply *pst;
+
+	class_dev_iter_init(&iter, power_supply_class, NULL, NULL);
+	while ((dev = class_dev_iter_next(&iter))) {
+		pst = (struct power_supply *)dev_get_drvdata(dev);
+		if (!strncmp(pst->name,"usb",3)) {
+			class_dev_iter_exit(&iter);
+			return pst;
+		}
+	}
+	class_dev_iter_exit(&iter);
+        BAT_DBG("%s: Can't get usb psy!\n", __FUNCTION__);
+
+	return NULL;
+}
+static inline int get_usb_charger_type(int *usb_state)
+{
+	struct power_supply *psy;
+	union power_supply_propval val;
+	int ret;
+
+	psy = get_psy_usb();
+	if (!psy)
+		return -EINVAL;
+
+	ret = psy->get_property(psy, POWER_SUPPLY_PROP_TYPE, &val);
+	if (!ret){
+		switch(val.intval){
+                        case POWER_SUPPLY_TYPE_USB:
+                                *usb_state = USB_IN;
+                                BAT_DBG("[SMB358]%s: detect USB plugging\n", __FUNCTION__);
+                                break;
+                        case POWER_SUPPLY_TYPE_USB_DCP:
+                                *usb_state = AC_IN;
+                                BAT_DBG("[SMB358]%s: detect USB plugging\n", __FUNCTION__);
+                                break;
+                        case POWER_SUPPLY_TYPE_USB_CDP:
+                                *usb_state = AC_IN;
+                                BAT_DBG("[SMB358]%s: detect USB plugging\n", __FUNCTION__);
+                                break;
+                        default:
+                                BAT_DBG("[SMB358]%s: detect Unknown plugging\n", __FUNCTION__);
+                                *usb_state = UNKNOWN_IN;
+                                break;
+                }
+        }
+	return ret;
+}
+//BSP Ben USB_SDP 3s retry
+void USB_3s_retry_kicker(struct work_struct *dat){
+
+        BAT_DBG("[SMB358]%s: +++\n", __FUNCTION__);
+        cancel_delayed_work_sync(&USB_3s_retry_work);
+	schedule_delayed_work(&USB_3s_retry_work, 3*HZ);
+        BAT_DBG("[SMB358]%s: ---\n", __FUNCTION__);
+
+}
+
+void USB_3s_retry_set(struct work_struct *dat){
+	int chg_type;
+        int ret;
+        extern int ASUSEvtlog_Power(int);
+        BAT_DBG("[SMB358]%s: +++\n", __FUNCTION__);
+        ret = get_usb_charger_type(&chg_type);
+                if(ret){
+                        BAT_DBG("[SMB358]%s: get_usb_charger_type fail!\n", __FUNCTION__);
+                        return;
+                }
+        BAT_DBG("[SMB358]%s: chg_type = %d\n", __FUNCTION__,chg_type);
+        if(chg_type == AC_IN){
+                BAT_DBG("[SMB358]%s:chg_type= %d ,3s retry sucessed, set charger to AC_IN porting\n", __FUNCTION__,chg_type);
+                setSMB358Charger(AC_IN);
+                ASUSEvtlog_Power(chg_type);
+        }
+
+        BAT_DBG("[SMB358]%s: ---\n", __FUNCTION__);
+
+}
+
 
 /*+++BSP David proc battID_read Interface+++*/
 static int battID_read_proc_read(struct seq_file *buf, void *v)
@@ -1773,6 +1949,72 @@ static void smb3xx_config_max_current_zd550_ze600(int usb_state)
 	}
 }
 
+static void smb3xx_config_max_current_5wBZsku_zd550(int usb_state)
+{
+	int aicl_result;
+
+	BAT_DBG("%s: usb_state = %d\n", __FUNCTION__, usb_state);
+	/* USB Mode Detection (by SOC) */
+	if (usb_state == AC_IN) {
+		/*BSP david: if AICL result is already 1000 mA, don't config
+					to prevent low battery capacity shutdown when booting*/
+		/*get AICL result*/
+		aicl_result = get_aicl_results();
+		BAT_DBG(" %s: AICL result = %d\n", __FUNCTION__, aicl_result);
+		if (aicl_result >= 1000) {
+			BAT_DBG(" %s: AICL result is already 1000 mA, don't config USB_IN!\n", __FUNCTION__);
+			return;
+		}
+		/* Disable AICL - Write 02h[4]="0" */
+		if (smb358_OptiCharge_Toggle(false) < 0) {
+			dev_err(&smb358_dev->client->dev,
+				"%s: fail to disable AICL\n", __FUNCTION__);
+			return;
+		}
+
+		/* Set I_USB_IN=1000mA - Write 01h[7:4]="0011" */
+		if (smb358_set_current_limits(SE1_IN, false) < 0) {
+			dev_err(&smb358_dev->client->dev,
+				"%s: fail to set max current limits for USB_IN\n",
+				__FUNCTION__);
+			return;
+		}
+
+		/* Enable AICL - Write 02h[4]="1" */
+		if (smb358_OptiCharge_Toggle(true) < 0) {
+			dev_err(&smb358_dev->client->dev,
+				"%s: fail to enable AICL\n", __FUNCTION__);
+			return;
+		}
+	} else if (usb_state == USB_IN) {
+		/*do nothing when USB_IN, using default setting 500mA*/
+	} else if (usb_state == UNKNOWN_IN) {
+		/*do nothing when UNKNOWN_IN, using default setting 500mA*/
+	} else if (usb_state == SE1_IN) {
+		/*do nothing when SE1_IN, using setting 1000mA*/
+		/* Disable AICL - Write 02h[4]="0" */
+		if (smb358_OptiCharge_Toggle(false) < 0) {
+			dev_err(&smb358_dev->client->dev,
+				"%s: fail to disable AICL\n", __FUNCTION__);
+			return;
+		}
+
+		/* Set I_USB_IN=1000mA - Write 01h[7:4]="0011" */
+		if (smb358_set_current_limits(SE1_IN, false) < 0) {
+			dev_err(&smb358_dev->client->dev,
+				"%s: fail to set max current limits for USB_IN\n",
+				__FUNCTION__);
+			return;
+		}
+
+		/* Enable AICL - Write 02h[4]="1" */
+		if (smb358_OptiCharge_Toggle(true) < 0) {
+			dev_err(&smb358_dev->client->dev,
+				"%s: fail to enable AICL\n", __FUNCTION__);
+			return;
+		}
+	}
+}
 
 bool smb358_is_charging(int usb_state)
 {	
@@ -1803,9 +2045,16 @@ static void smb358_config_max_current(int usb_state)
         //ZD550KL & ZE600KL Porting
         if(asus_PRJ_ID==ASUS_ZD550KL||asus_PRJ_ID==ASUS_ZE600KL)
         {
-	        BAT_DBG("%s: use ZD550KL & ZE600KL charger porting!\n", __FUNCTION__);
-                smb358_pre_config_zd550_ze600();
-	        smb3xx_config_max_current_zd550_ze600(usb_state);
+                if(asus_project_ADAPTER_ID)
+                {
+	                BAT_DBG("%s: use ZD550KL & ZE600KL charger porting!\n", __FUNCTION__);
+                        smb358_pre_config_zd550_ze600();
+                        smb3xx_config_max_current_zd550_ze600(usb_state);
+                }else{
+	                BAT_DBG("%s:[5wBZsku] use ZD550KL & ZE600KL charger porting!\n", __FUNCTION__);
+                        smb358_pre_config_5wBZsku_zd550();
+                        smb3xx_config_max_current_5wBZsku_zd550(usb_state);
+                }
         //ZE550KL & ZE551KL( porting)
         }else if(asus_PRJ_ID==ASUS_ZE550KL){
         	//if((asus_lcd_id[0]=='0') ||(asus_lcd_id[0]=='1')){
@@ -2969,6 +3218,245 @@ finish:
 	return aicl_time;
 }
 
+static int smb358_soc_detect_batt_tempr_5wBZsku_zd550(int usb_state)
+{
+	int ret;
+	u8 reg;
+	static int state = JEITA_STATE_INITIAL;
+	int fast_chg_reg_value = 0;/*set fast chg reg value*/
+	int Vchg_reg_value = 0;/*set Vchg reg value*/
+	bool charging_enable = false;
+	bool recharge_enable = false;
+	int batt_tempr = 250;/* unit: C  */
+	int batt_volt = 4000;/* unit: mV */
+	int chg_volt_reg = 0;/*read reg value*/
+	bool Vrech = false; /* recharge set */
+	int raw_cap=0; //add by kerwin for fast chager JEITA_flag
+	int aicl_time=60;//schedule time
+	int thermal_policy_ic=0;
+	struct power_supply *psy;
+	if (!smb358_is_charging(usb_state))
+		return aicl_time;
+	/*BSP david: do soc control jeita setting*/
+	smb358_soc_control_jeita();
+	
+	/* acquire battery temperature here */
+	ret = get_battery_temperature(&batt_tempr);
+	if (ret) {
+		BAT_DBG_E(" %s: fail to get battery temperature\n", __FUNCTION__);
+		return aicl_time;
+	} else{
+	}
+
+	/*acquire battery capability here 20150507*/
+	ret = get_bms_calculated_soc(&raw_cap);
+	if (ret < 0) {
+		BAT_DBG_E("%s: can't get raw bms soc, ret = %d\n", __FUNCTION__, ret);
+		return aicl_time;
+	}
+
+	/* acquire battery voltage here */
+	ret = get_battery_voltage(&batt_volt);
+	if (ret) {
+		BAT_DBG_E(" %s: fail to get battery voltage\n", __FUNCTION__);
+		return aicl_time;
+	} else{
+	}
+	
+	/* Vchg here */
+	ret = smb358_read_reg(smb358_dev, VFLOAT_REG, &reg);
+	if (ret < 0) {
+		BAT_DBG_E("%s: fail to read charger voltage reg\n", __FUNCTION__);
+		return aicl_time;
+	}
+
+	chg_volt_reg = reg & FLOAT_VOLTAGE_MASK;
+	BAT_DBG("%s: battery temperature: %d, battery voltage: %d, Vchg: %x,raw=%d\n", __FUNCTION__, batt_tempr, batt_volt, chg_volt_reg,raw_cap);
+
+	/*BSP david: judge current jeita state, do 3 degree hysteresis*/
+	state = smb358_JEITA_judge_state(state, batt_tempr);
+
+	/*decide value to set each reg (Vchg, Charging enable, Fast charge current)*/
+	switch (state) {
+	case JEITA_STATE_RANGE_01:
+		charging_enable = false;
+		fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_900mA;  
+                Vchg_reg_value = VCH_VALUE;
+		BAT_DBG("%s: temperature < %d\n", __FUNCTION__, charger_factor->batt_tempr_00);
+		break;
+	case JEITA_STATE_RANGE_02:
+		charging_enable = true;
+		fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_600mA;
+		Vchg_reg_value = VCH_VALUE;
+		BAT_DBG("%s: %d <= temperature < %d\n", __FUNCTION__, charger_factor->batt_tempr_00, charger_factor->batt_tempr_01);
+	        recharge_enable = true;
+		break;
+	case JEITA_STATE_RANGE_03:
+		charging_enable = true;
+		fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_900mA;
+		Vchg_reg_value = VCH_VALUE;
+		BAT_DBG("%s: %d <= temperature < %d\n", __FUNCTION__, charger_factor->batt_tempr_01, charger_factor->batt_tempr_02);
+	        recharge_enable = true;
+		break;
+	case JEITA_STATE_RANGE_04:
+		charging_enable = true;
+		Vchg_reg_value = VCH_VALUE;
+		BAT_DBG("%s: %d <= temperature < %d with fast_chg_flag = %d\n", __FUNCTION__, charger_factor->batt_tempr_02, charger_factor->batt_tempr_03, fast_chg_flag ? 1 : 0);
+		if (fast_chg_flag) {
+			if (batt_volt < 4100) {
+				fast_chg_flag = false;
+				//g_Iqc = SMB358_FAST_CHG_CURRENT_VALUE_2000mA;
+				fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_900mA;				
+			} else{
+				fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_900mA;
+			}
+		} else{
+			if (batt_volt < 4250) {
+				//g_Iqc = SMB358_FAST_CHG_CURRENT_VALUE_2000mA;
+				fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_900mA;				
+				
+			} else{
+				fast_chg_flag = true;
+				fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_900mA;
+			}
+		}
+	        recharge_enable = true;
+		break;
+	case JEITA_STATE_RANGE_05:
+		if (chg_volt_reg == VCH_VALUE && batt_volt >= 4110) {
+			charging_enable = false;
+			fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_900mA;
+			Vchg_reg_value = VCH_VALUE;
+			BAT_DBG("%s: %d <= temperature < %d, Vchg == 4.38 && Vbat >= 4.11\n", __FUNCTION__, charger_factor->batt_tempr_03, charger_factor->batt_tempr_04);
+		} else{
+			charging_enable = true;
+			fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_900mA;
+			BAT_DBG("%s: %d <= temperature < %d, Vchg != 4.38 || Vbat < 4.11\n", __FUNCTION__, charger_factor->batt_tempr_03, charger_factor->batt_tempr_04);
+		}
+		break;
+	case JEITA_STATE_RANGE_06:
+		charging_enable = false;
+		fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_900mA;
+		Vchg_reg_value = charger_factor->VCH_VALUE_RANGE_06;	//<asus-guc20150427> SMB358_FLOAT_VOLTAGE_VALUE_4140mV
+		BAT_DBG("%s: %d <= temperature\n", __FUNCTION__, charger_factor->batt_tempr_04);
+		break;
+	default:
+		charging_enable = true;
+		fast_chg_reg_value = SMB358_FAST_CHG_CURRENT_VALUE_900mA;
+		Vchg_reg_value = VCH_VALUE;
+		BAT_DBG("%s: wrong state!\n", __FUNCTION__);
+		break;
+	}
+	
+#if defined(ASUS_FACTORY_BUILD)
+	/*BSP david: do 5060 when FACTORY BUILD defined*/
+	if (charging_enable) {
+		charging_enable = asus_battery_charging_limit();
+	} else{
+		BAT_DBG_E("%s: charging disabled by JEITA!\n", __FUNCTION__);
+	}
+#endif
+	/*do set reg value after depend on above decision*/	
+	/*Set Vchg*/
+	ret = smb358_masked_write(smb358_dev, VFLOAT_REG, FLOAT_VOLTAGE_MASK,
+						Vchg_reg_value);
+	if (ret) {
+		pr_err("fail to set Vchg ret=%d\n", ret);
+		goto finish;
+	}
+	/*Set Fast charge current*/
+	ret = smb358_masked_write(smb358_dev, CHG_CURRENT_CTRL_REG, SMB358_FAST_CHG_CURRENT_MASK,
+						fast_chg_reg_value);
+	if (ret) {
+		pr_err("fail to set FAST_CHG_CURRENT ret=%d\n", ret);
+		goto finish;
+	}
+
+	/*set charger current limit by kerwin*/
+	if(g_usb_state == AC_IN ){
+	    ret = Thermal_Policy(&thermal_policy_ic);
+		if(ret < 0){
+			BAT_DBG_E(" %s: fail to set current according to Thermal Policy\n", __FUNCTION__);
+		}
+		ret = smb358_read_reg(smb358_dev, CHG_OTH_CURRENT_CTRL_REG, &reg);
+		if (ret < 0) {
+			BAT_DBG_E("%s: fail to read charger voltage reg\n", __FUNCTION__);
+			return aicl_time;
+		}
+		reg = reg & CFG_CURRENT_LIMIT_SMB358_MASK;
+		BAT_DBG("%s: Thermal_Level=%d, TP_IC=%d, CURRENT_LIMIT_READ=%d, fast_chg_flag=%d\n",
+					__FUNCTION__, Thermal_Level, thermal_policy_ic, reg, fast_chg_flag);
+
+        if(reg != thermal_policy_ic){
+	        if(Thermal_Level !=3){	 //avoid Thermal_Level !=3	to set usb_in limit=0mA
+			if(thermal_policy_ic!=0){
+				if(reg < thermal_policy_ic){ /* from small to big_Input_Currt */
+					smb358_OptiCharge_Toggle(false);
+					ret = smb358_masked_write(smb358_dev,CHG_OTH_CURRENT_CTRL_REG,
+                                                                        CFG_CURRENT_LIMIT_SMB358_MASK,thermal_policy_ic);
+					if(ret){
+					        pr_err("fail to set current limit ret=%d\n", ret);
+						goto finish;
+					}
+						smb358_OptiCharge_Toggle(true);
+					}else{
+					        ret = smb358_masked_write(smb358_dev,CHG_OTH_CURRENT_CTRL_REG,CFG_CURRENT_LIMIT_SMB358_MASK,
+												thermal_policy_ic);
+					        if(ret){
+						        pr_err("fail to set current limit ret=%d\n", ret);
+					                goto finish;
+						}
+					}
+				}
+			}else{
+			        if(reg != thermal_policy_ic){
+					smb358_OptiCharge_Toggle(false);
+					ret=smb358_masked_write(smb358_dev, CHG_OTH_CURRENT_CTRL_REG,CFG_CURRENT_LIMIT_SMB358_MASK,
+							 	thermal_policy_ic);
+					if (ret) {
+					        pr_err("fail to set current limit ret=%d\n", ret);
+						goto finish;
+					}
+					aicl_time=60;
+					smb358_OptiCharge_Toggle(true);
+				}
+			}
+		}
+	}
+	
+	/*set enable charging reg*/
+	ret = smb358_charging_toggle_zd550_ze600(JEITA, charging_enable);
+	if (ret) {
+		pr_err("fail to set charging enable ret=%d\n", ret);
+		goto finish;
+	}
+	/*Set Vrech=Vflt-100mv*/
+	if (Vrech){
+		ret = smb358_masked_write(smb358_dev, CHG_OTH_CURRENT_CTRL_REG, RECHARGE_VOLTAGE_MASK,
+						SMB358_RECHARGE_VRECH_VOLTAGE);
+		if (ret) {
+			pr_err("fail to set Vrech ret=%d\n", ret);
+			goto finish;
+		}
+	}
+        if(recharge_enable){
+		smb358_set_recharge_voltage_zd550_ze600();
+		BAT_DBG("%s: smb358_set_recharge_voltage_zd550_ze600e!\n", __FUNCTION__);
+        }
+	
+finish:
+	psy = get_psy_battery();
+	if (psy) {
+		power_supply_changed(psy);
+	} else{
+		pr_err("%s: fail to request power supply changed\n", __FUNCTION__);		
+	}
+	printk("%s aicl_time=%d\n",__FUNCTION__,aicl_time);
+	return aicl_time;
+}
+
+
+
 
 extern bool get_sw_charging_toggle(void)
 {
@@ -3393,7 +3881,13 @@ void aicl_dete_worker(struct work_struct *dat)
 	}
 	
         if(asus_PRJ_ID==ASUS_ZD550KL||asus_PRJ_ID==ASUS_ZE600KL){
-                aicl_time=smb358_soc_detect_batt_tempr_zd550_ze600(usb_state);
+                if(asus_project_ADAPTER_ID){
+			BAT_DBG("%s:use zd550 ze600 JEITA setting.\n", __FUNCTION__);
+                        aicl_time = smb358_soc_detect_batt_tempr_zd550_ze600(usb_state);
+                }else{
+			BAT_DBG("%s:[5wBZsku] use 5wBZsku zd550 ze600 JEITA setting.\n", __FUNCTION__);
+                        aicl_time = smb358_soc_detect_batt_tempr_5wBZsku_zd550(usb_state);
+                }
         }else if(asus_PRJ_ID==ASUS_ZE550KL){
         		//if((asus_lcd_id[0]=='0') ||(asus_lcd_id[0]=='1')){   //ze550kl
                 	aicl_time=smb358_soc_detect_batt_tempr_ze550(usb_state);
@@ -3579,7 +4073,6 @@ void BatTriggeredSetRTC(struct work_struct *dat)
 	spin_unlock_irqrestore(&bat_alarm_slock, batflags);
 }
 
-
 /* BSP Clay: AC charger debounce policy */
 static struct timespec CABLE_OUT_CHECK;
 static struct timespec MTNOW;
@@ -3622,7 +4115,6 @@ int setSMB358Charger(int usb_state)
 	int ret = 0;
 	struct power_supply *psy;
 	static long time_cal = 0;
-        extern void asus_chg_usb_3s_retry(void);
 	char usb_status_str[8][11] = {
 		"USB_IN",
 		"AC_IN",
@@ -3656,9 +4148,15 @@ int setSMB358Charger(int usb_state)
 	}
 	switch (usb_state) {
 	case AC_IN:
-		if (smb358_dev) {
+		if (smb358_dev) {			
 			if(!wake_lock_active(&UsbCable_Lock))
 				wake_lock(&UsbCable_Lock);
+			if(asus_PRJ_ID == ASUS_ZD550KL) {
+				focal_usb_detection(true);
+			}
+			if(asus_PRJ_ID == ASUS_ZE600KL) {
+				focal_usb_detection(true);
+			}
 			if(asus_PRJ_ID==ASUS_ZE550KL){
 				mutex_lock(&g_usb_state_lock);
 				/*BSP david : do initial setting & config current*/
@@ -3699,6 +4197,14 @@ int setSMB358Charger(int usb_state)
 	case USB_IN:
 	case UNKNOWN_IN:
 	case SE1_IN:
+		if(asus_PRJ_ID == ASUS_ZD550KL) {
+			if(usb_state==USB_IN)
+				focal_usb_detection(true);
+		}
+		if(asus_PRJ_ID == ASUS_ZE600KL) {
+			if(usb_state==USB_IN)
+				focal_usb_detection(true);
+		}
 		if(asus_PRJ_ID==ASUS_ZE550KL){
 			if(usb_state==USB_IN)
 				focal_usb_detection(true);
@@ -3717,18 +4223,21 @@ int setSMB358Charger(int usb_state)
 			smb358_config_max_current(usb_state);
 			mutex_unlock(&g_usb_state_lock);
 			/*BSP david : do JEITA*/
-                         if(usb_state==USB_IN||usb_state==UNKNOWN_IN)
-                         {
-                                 asus_chg_usb_3s_retry();
-                         }
 			smb358_update_aicl_work(0);
 			schedule_delayed_work(&LED_ChargerMode, 0*HZ);
+	                schedule_delayed_work(&USB_3s_retry_kicker_work, 0*HZ);
 		}
 		break; 
 	case CABLE_OUT:
 		if (smb358_dev) {	
 			if(wake_lock_active(&UsbCable_Lock))
-				wake_unlock(&UsbCable_Lock);	
+				wake_unlock(&UsbCable_Lock);
+			if(asus_PRJ_ID == ASUS_ZD550KL) {
+				focal_usb_detection(false);
+			}
+			if(asus_PRJ_ID == ASUS_ZE600KL) {
+				focal_usb_detection(false);
+			}
 			if(asus_PRJ_ID==ASUS_ZE550KL){
 				schedule_delayed_work(&AC_unstable_det, 0);
 				focal_usb_detection(false);
@@ -4277,6 +4786,11 @@ static int smb358_charger_probe(struct i2c_client *client,
 			"fail to initialize INOK gpio: %d\n",
 			ret);
 	}
+//BSP Ben add adapter_id for 5w (BZ sku) porting
+//adapter_id:   0 = 5w
+//              1 = 10w
+        printk("%s:ADAPTER_ID=<%d>\n",__func__,asus_project_ADAPTER_ID);
+
 #if defined(ASUS_FACTORY_BUILD)
 	eng_charging_limit = false;
 	g_charging_toggle_for_charging_limit = true;
@@ -4296,6 +4810,8 @@ static int smb358_charger_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&Set_vch_val, SET_VCH_VALUE);
 	INIT_DELAYED_WORK(&AC_unstable_det, AC_unstable_detect);
 	INIT_DELAYED_WORK(&LED_ChargerMode, LED_ChargerMode_Set);
+	INIT_DELAYED_WORK(&USB_3s_retry_kicker_work, USB_3s_retry_kicker);
+	INIT_DELAYED_WORK(&USB_3s_retry_work, USB_3s_retry_set);
 	schedule_delayed_work(&Set_vch_val, (unsigned long)(charger_factor->SET_VCH_FREQ)* HZ);	//<asus-guc20150427>	3
 	usb_state = g_usb_state;
 	/*BSP david: do JEITA if the usb state has changed*/

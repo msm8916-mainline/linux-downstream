@@ -25,7 +25,7 @@ static struct msm_sensor_ctrl_t t4k35_s_ctrl;
 
 static struct msm_sensor_power_setting t4k35_power_setting[] = {
  {
-    .seq_type = SENSOR_VREG,
+       .seq_type = SENSOR_VREG,
     .seq_val = CAM_VDIG,
     .config_val = 0,
     .delay = 0,
@@ -34,6 +34,18 @@ static struct msm_sensor_power_setting t4k35_power_setting[] = {
     .seq_type = SENSOR_VREG,
     .seq_val = CAM_VANA,
     .config_val = 0,
+    .delay = 0,
+  },
+  {
+    .seq_type = SENSOR_GPIO,
+    .seq_val = SENSOR_GPIO_VANA,
+    .config_val = GPIO_OUT_LOW,
+    .delay = 0,
+  },
+  {
+    .seq_type = SENSOR_GPIO,
+    .seq_val = SENSOR_GPIO_VANA,
+    .config_val = GPIO_OUT_HIGH,
     .delay = 0,
   },
   {
@@ -48,7 +60,7 @@ static struct msm_sensor_power_setting t4k35_power_setting[] = {
     .config_val = 0,
     .delay = 0,
   },  
-  {
+  /*{
     .seq_type = SENSOR_GPIO,
     .seq_val = SENSOR_GPIO_VANA,
     .config_val = GPIO_OUT_LOW,
@@ -59,7 +71,7 @@ static struct msm_sensor_power_setting t4k35_power_setting[] = {
     .seq_val = SENSOR_GPIO_VANA,
     .config_val = GPIO_OUT_HIGH,
     .delay = 0,
-  },
+  },*/
   {
     .seq_type = SENSOR_GPIO,
     .seq_val = SENSOR_GPIO_VDIG,

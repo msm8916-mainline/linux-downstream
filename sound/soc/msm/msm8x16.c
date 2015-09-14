@@ -590,7 +590,14 @@ static int quat_mi2s_sclk_ctl(struct snd_pcm_substream *substream, bool enable)
 	      //msm_q6_enable_mi2s_clocks(1);
          //<asus yusheng patch for sending the clk immediately while the pcm opening>			
 						  
-		} else
+		}else if(substream->stream == SNDRV_PCM_STREAM_CAPTURE){
+		
+			mi2s_tx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_1_P536_MHZ;
+			ret = afe_set_lpass_clock(
+				AFE_PORT_ID_QUATERNARY_MI2S_TX,
+				&mi2s_tx_clk);
+
+		}else
 			pr_err("%s:Not valid substream.\n", __func__);
 
 		if (ret < 0)
@@ -602,7 +609,12 @@ static int quat_mi2s_sclk_ctl(struct snd_pcm_substream *substream, bool enable)
 			mi2s_rx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_DISABLE;
 			ret = afe_set_lpass_clock(AFE_PORT_ID_QUATERNARY_MI2S_RX,
 						  &mi2s_rx_clk);
-		} else
+		}else if(substream->stream == SNDRV_PCM_STREAM_CAPTURE){
+			mi2s_tx_clk.clk_val1 = Q6AFE_LPASS_IBIT_CLK_DISABLE;
+			ret = afe_set_lpass_clock(
+				AFE_PORT_ID_QUATERNARY_MI2S_TX,
+				&mi2s_tx_clk);
+		}else
 			pr_err("%s:Not valid substream.\n", __func__);
 
 		if (ret < 0)
@@ -1107,11 +1119,13 @@ static int msm_quat_mi2s_snd_startup(struct snd_pcm_substream *substream)
 	pr_debug("%s(): substream = %s  stream = %d\n", __func__,
 				substream->name, substream->stream);
 
-	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+	/*if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		pr_info("%s: Quaternary Mi2s does not support capture\n",
 					__func__);
 		return 0;
 	}
+	*/
+	
 	if (!pdata->codec_type &&
 			((pdata->ext_pa & QUAT_MI2S_ID) == QUAT_MI2S_ID)) {
 		ret = conf_int_codec_mux_quat(pdata);

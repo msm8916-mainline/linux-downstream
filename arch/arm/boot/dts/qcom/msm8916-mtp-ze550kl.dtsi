@@ -215,6 +215,11 @@
 			capella,ps_conf1_val = <0x0006>;
 			capella,ps_conf3_val = <0x3010>;
 		};
+		
+		ap3426@1e {
+			compatible = "ap,ap3426";
+			reg = <0x1e>;
+		};
 
 		akm@c {
 			compatible = "ak,ak09911";

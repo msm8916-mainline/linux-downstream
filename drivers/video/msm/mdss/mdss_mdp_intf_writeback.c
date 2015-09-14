@@ -570,7 +570,7 @@ static int mdss_mdp_wb_wait4comp(struct mdss_mdp_ctl *ctl, void *arg)
 		pr_info("mask: 0x%x, isr: 0x%x, status: 0x%x\n", mask, isr, status);
 
 		if (status) {
-			WARN(1, "wb done but irq not triggered\n");
+			pr_debug("wb done but irq not triggered\n");
 			mdss_mdp_irq_clear(ctl->mdata,
 					MDSS_MDP_IRQ_WB_ROT_COMP,
 					ctx->intf_num);

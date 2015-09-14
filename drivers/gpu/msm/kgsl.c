@@ -43,6 +43,11 @@
 #include "adreno.h"
 #include "kgsl_compat.h"
 
+//ASUS Joy_Lin +++
+#include <linux/proc_fs.h>
+#define ASUS_GPU_FILE "ASUS_SB"
+//ASUS Joy_Lin ---
+
 #undef MODULE_PARAM_PREFIX
 #define MODULE_PARAM_PREFIX "kgsl."
 
@@ -4451,6 +4456,56 @@ static irqreturn_t kgsl_irq_handler(int irq, void *data)
 
 }
 
+//ASUS Joy_Lin +++
+unsigned int asus_sb_enable = 0;
+static int readflag = 0;
+
+static ssize_t asus_proc_file_read_file(struct file *filp, char __user *buff, size_t len, loff_t *off)
+{
+	char print_buf[32];
+	unsigned int ret = 0,iret = 0;
+
+	sprintf(print_buf, "asusdebug: %s\n", asus_sb_enable? "on":"off");
+	ret = strlen(print_buf);
+	iret = copy_to_user(buff, print_buf, ret);
+	if (!readflag){
+		readflag = 1;
+		return ret;
+		}
+	else{
+		readflag = 0;
+		return 0;
+		}
+}
+
+static ssize_t asus_proc_file_write_file(struct file *filp, const char __user *buff, size_t len, loff_t *off)
+{
+	char messages[256];
+	memset(messages, 0, 256);
+	if (len > 256)
+		len = 256;
+	if (copy_from_user(messages, buff, len))
+		return -EFAULT;
+	if(strncmp(messages, "1", 1) == 0)
+	{
+		asus_sb_enable = 1;
+	}
+	else if(strncmp(messages, "0", 1) == 0)
+	{   
+		asus_sb_enable = 0;
+	}
+else
+	return 0;
+
+	return len;
+}
+
+static struct file_operations create_asus_proc_file = {
+	.read = asus_proc_file_read_file,
+	.write = asus_proc_file_write_file,
+};
+//ASUS Joy_Lin ---
+
 static const struct file_operations kgsl_fops = {
 	.owner = THIS_MODULE,
 	.release = kgsl_release,
@@ -4843,6 +4898,10 @@ static int __init kgsl_core_init(void)
 	}
 
 	kgsl_memfree_init();
+
+	//ASUS Joy_Lin +++
+	proc_create(ASUS_GPU_FILE, S_IRWXUGO, NULL, &create_asus_proc_file);
+	//ASUS Joy_Lin ---
 
 	return 0;
 

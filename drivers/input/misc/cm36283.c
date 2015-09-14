@@ -72,7 +72,8 @@ static int sensitivity_x = 20;
 static bool newold = 0 ; //20140523 Eve_Wen default = 0 means cm36283
 static int proximity_state = 1; //<asus-wx20150429+>
 static int proximity_int_away = 0; //<asus-wx20150506+>
-
+static int cm36283_probe_fail = 0; //<asus-wx20150805+>
+static int cm36283_is_no_present= 0;
 //<-- ASUS-Bevis_Chen + -->
 
 bool enLSensorConfig_flag =0 ;
@@ -85,6 +86,7 @@ struct proc_dir_entry *lpsensor_entry = NULL;
 struct proc_dir_entry *lightsensor_entry = NULL;
 struct proc_dir_entry *proximitysensor_entry = NULL;
  //<ASUS-annacheng20150129+><<<<<+
+ extern bool proximityap3426_check_status(void);
 //<++++++ward_du+++++++>
 static int lpsensor_proc_show(struct seq_file *m, void *v) {
 	if(!lpsensor_entry)
@@ -202,7 +204,7 @@ struct CM36283_info {
 
 };
 
-struct CM36283_info *lp_info_cm36283;
+static struct CM36283_info *lp_info_cm36283 = NULL;
 //#define DEBUG_VEMMC2
 #ifdef DEBUG_VEMMC2
 #include <linux/regulator/driver.h>
@@ -736,17 +738,35 @@ static void proximity_initial_value_work_routine(struct work_struct *work){
 }
 
 bool proximity_check_status(void){
-    struct CM36283_info *lpi = lp_info_cm36283;
-	uint16_t ps_adc_value_init, data, data1;
+    struct CM36283_info *lpi;
+	uint16_t ps_adc_value_init = 0 , data =0, data1= 0;
     int ret = 0;
+	int p_value; //<asus-wx20150814+>
+
+	pr_err("anna proximity_check_status default \n");
+	if (cm36283_is_no_present) {
+		pr_err("[PS][ap3426]  is ap3426\n"); 
+		return proximityap3426_check_status();		
+	}   				
+//<asus-wx20150805>+>>
+	if (cm36283_probe_fail) {
+		pr_err("proximity_check_status default return FAR\n");
+		goto error_return_far;
+	}
 
 	mutex_lock(&ps_enable_mutex);
 
-	_CM36283_I2C_Read_Word(lpi->slave_addr, PS_CONF1, &data);
+	lpi = lp_info_cm36283;
+	ret = _CM36283_I2C_Read_Word(lpi->slave_addr, PS_CONF1, &data);
+	if (ret < 0) goto error_return_far;
+//<asus-wx20150805>+<<
 
 	if ( data & CM36283_PS_SD ) {
-	         data1 = data & CM36283_PS_SD_MASK; //enable = 0
-	        _CM36283_I2C_Write_Word(lpi->slave_addr, PS_CONF1, data1);   	
+	         data1 = data & CM36283_PS_SD_MASK; //disable = 0
+//<asus-wx20150805>+>>
+	        ret = _CM36283_I2C_Write_Word(lpi->slave_addr, PS_CONF1, data1);   	
+	        if (ret < 0) goto error_return_far;
+//<asus-wx20150805>+<<
 	}
 	
 	msleep(50); //need some delay
@@ -755,20 +775,30 @@ bool proximity_check_status(void){
         if(!ret){	      
              if(ps_adc_value_init > lpi->ps_close_thd_set){
 			       D("[PS][CM36283] proximity initial NEAR\n");
-				ret = 1;
+				p_value = 1; //<asus-wx20150814>
 			 }else{
 			       D("[PS][CM36283] proximity initial FAR\n");  
-				ret = 0;
+				p_value = 0; //<asus-wx20150814>
 			 }
         }
+//<asus-wx20150814>+>>
+	else {
+		goto error_return_far;
+	}
+//<asus-wx20150814>+<<
 
 	if ( data & CM36283_PS_SD) {
-		data1 = data | CM36283_PS_SD; //enable = 1
-	        _CM36283_I2C_Write_Word(lpi->slave_addr, PS_CONF1, data1);   
+		data1 = data | CM36283_PS_SD; //disable = 1
+//<asus-wx20150805>+>>
+	        ret = _CM36283_I2C_Write_Word(lpi->slave_addr, PS_CONF1, data1);   
+	        if (ret < 0) goto error_return_far;
+//<asus-wx20150805>+<<
 	}
 
 	mutex_unlock(&ps_enable_mutex);
-	return ret;
+	return p_value;
+error_return_far: //<asus-wx20150805+>
+	return 0;
 }
 EXPORT_SYMBOL(proximity_check_status);
 	
@@ -779,7 +809,8 @@ static void light_sensor_initial_value_work_routine(struct work_struct *work){
 		 struct CM36283_info *lpi = lp_info_cm36283;
 		  int report_lux=0;
 		 
-//<ASUS-danielchan20150518>>>>>>>>>+
+//<ASUS-danielchan20150730>>>>>>>>>+
+#if 0
         switch (asus_PRJ_ID) {
           //  case 0://ASUS_ZE550KL
           //
@@ -790,13 +821,14 @@ static void light_sensor_initial_value_work_routine(struct work_struct *work){
           //  case 2://ASUS_ZX550KL
           //
           //      break;
-            case 3://ASUS_ZD550KL
-			    msleep(100);
-                break;
+          //  case 3://ASUS_ZD550KL
+		//    msleep(100);//ER workaround report wrong lux
+        //        break;
             default:
                 break;
         }
-//<ASUS-danielchan20150518><<<<<<<<+
+#endif
+//<ASUS-danielchan20150730><<<<<<<<+
 
          get_ls_adc_value(&adc_value, 0);
 
@@ -1022,14 +1054,14 @@ static irqreturn_t CM36283_irq_handler(int irq, void *data)
 
 	struct CM36283_info *lpi = lp_info_cm36283;
 	
-    D("CM36283 --- Enter into CM36283_irq_handler\n");
+   // D("CM36283 --- Enter into CM36283_irq_handler\n");
 
 //<asus-wx20150429->	wake_lock(&(lpi->ps_wake_lock));
     if (proximity_state == 0) wake_lock_timeout(&(lpi->ps_wake_lock), 1 * HZ); //<asus-wx20150429+>
 	disable_irq_nosync(lpi->irq);
 	queue_work(lpi->lp_wq, &sensor_irq_work);
 
-    D("CM36283 --- End of CM36283_irq_handler\n");
+  //  D("CM36283 --- End of CM36283_irq_handler\n");
 	return IRQ_HANDLED;
 }
 
@@ -2478,8 +2510,13 @@ static ssize_t psensor_auto_calibration_write(struct file *dev,const char *buf, 
           //
           //      break;
             case 3://ASUS_ZD550KL
-                close_thd_value= (abs(init_value/3)+25)+init_value;
-                away_thd_value= (abs(init_value/6)+15)+init_value;
+                if(init_value>10) {
+                    close_thd_value= (abs(init_value/3)+25)+init_value;
+                    away_thd_value= (abs(init_value/6)+15)+init_value;
+                }else {
+                    close_thd_value= (init_value+24)+init_value;
+                    away_thd_value= (init_value+13)+init_value;
+                }
                 break;
             default:
 				close_thd_value=init_value+60;
@@ -2499,7 +2536,11 @@ static ssize_t psensor_auto_calibration_write(struct file *dev,const char *buf, 
 		}
 		printk("[PS][CM36686] %s: ps_close_thd_set = (0x%x), ps_away_thd_set = (0x%x)\n", __func__, lpi->ps_close_thd_set , lpi->ps_away_thd_set);
 	} else if(send_buff==2) { //save calibration
-	    CalidataX=init_value-5;
+        if(init_value>10) {
+            CalidataX=init_value-4;
+        } else {
+            CalidataX=init_value;
+        }
 		CalidataL=lpi->ps_away_thd_set;
 		CalidataH=lpi->ps_close_thd_set;
 		filp = filp_open("/factory/PSensor_Calibration.ini", O_RDWR | O_CREAT,0660);
@@ -2587,6 +2628,7 @@ static int CM36283_probe (struct i2c_client *client,
     	status = i2c_smbus_read_word_data(client, ID_REG);
 	if (status < 0) {
 		pr_err("[PS_ERR][CM36283 error]%s: CM36283 is not present!\n", __func__);
+		cm36283_is_no_present=1;
 		ret = -ENODEV;
 		goto err_platform_data_null;
 	}
@@ -2936,11 +2978,11 @@ err_lightsensor_setup:
 
 err_platform_data_null:
 	kfree(lpi);
-
+	cm36283_probe_fail = 1; //<asus-wx20150805+>
 
 	return ret;
 }
-
+	static int debug_log_count=0;
 static int control_and_report( struct CM36283_info *lpi, uint8_t mode, uint16_t param ) {
      int ret=0;
 	 uint16_t adc_value = 0;
@@ -3054,12 +3096,19 @@ static int control_and_report( struct CM36283_info *lpi, uint8_t mode, uint16_t 
 /////////////////////end modified ///////////////
            lpi->ls_cmd |= CM36283_ALS_INT_EN;
            ret = _CM36283_I2C_Write_Word(lpi->slave_addr, ALS_CONF, lpi->ls_cmd);  
-	  
+
+	 if (debug_log_count > 10){
+		debug_log_count = 0;
+		
            if ((i == 0) || (adc_value == 0))
     			D("[LS][CM36283] %s: ADC=0x%03X, Level=%d, l_thd equal 0, h_thd = 0x%x \n", __func__, adc_value, level, *(lpi->cali_table + i));
     		else
     			D("[LS][CM36283] %s: ADC=0x%03X, Level=%d, l_thd = 0x%x, h_thd = 0x%x \n", __func__, adc_value, level, *(lpi->cali_table + (i - 1)) + 1, *(lpi->cali_table + i));
 
+	  }else{
+		
+		debug_log_count++;
+	  }
 
     		lpi->current_level = level;
     		lpi->current_adc = adc_value;    
@@ -3075,7 +3124,7 @@ static int control_and_report( struct CM36283_info *lpi, uint8_t mode, uint16_t 
                           report_lux = calibration_light(LSensor_CALIDATA[1], LSensor_CALIDATA[0], report_lux);
                           //D("CM36283---After calibration, report_lux is %d\n", report_lux);
                           report_lux = report_lux/sensitivity_x;
-			              D("CM36283---After devided by 20, report_lux is %d\n", report_lux);
+			 //             D("CM36283---After devided by 20, report_lux is %d\n", report_lux);
                 	}else{
                           printk("%s:ASUS input LSensor_CALIDATA was invalid .error !!!!!\n",__func__);
 				    }
@@ -3087,7 +3136,7 @@ static int control_and_report( struct CM36283_info *lpi, uint8_t mode, uint16_t 
                   D("CM36283--- NO calibration data, Factory branch , NO default config\n"); 				  
 #endif // end of CONFIG_ASUS_FACTORY_SENSOR_MODE
                   report_lux = report_lux/sensitivity_x*(200/15);
-  		          D("CM36283---After devided by 20, report_lux is %d\n", report_lux);	
+  		  //        D("CM36283---After devided by 20, report_lux is %d\n", report_lux);	
 		//<-- ASUS-Bevis_Chen - -->
              }			
 

@@ -1033,7 +1033,9 @@ int set_inv_enable(struct iio_dev *indio_dev, bool enable)
 			if (result)
 				return result;
 		}
+#if 0
 		inv_push_marker_to_buffer(st, END_MARKER);
+#endif
 		/* disable fifo reading */
 		if (INV_MPU3050 != st->chip_type) {
 			result = inv_i2c_single_write(st, reg->int_enable, 0);
@@ -1251,6 +1253,21 @@ static int inv_get_timestamp(struct inv_mpu_state *st, int count)
 	/* goal of algorithm is to estimate the true frequency of the chip */
 	if (st->chip_config.dmp_on && st->chip_config.dmp_event_int_on)
 		return 0;
+#if 1 //cts verifier 50r3
+	dur = &st->irq_dur_ns;
+	diff = 0;
+	thresh = 0;
+	counter = 0;
+    if (kfifo_len(&st->timestamps) >= count) {
+		result = kfifo_out(&st->timestamps, &ts, 1);
+		if (result != 1)
+			return -EINVAL;
+        if (time_after64(ts, st->last_ts))
+            st->last_ts = ts;
+    } else {
+        st->last_ts += st->irq_dur_ns;
+    }
+#else
 	dur = &st->irq_dur_ns;
 	counter = 1;
 	thresh = min((u32)((*dur) >> 2), (u32)(10 * NSEC_PER_MSEC));
@@ -1279,7 +1296,7 @@ static int inv_get_timestamp(struct inv_mpu_state *st, int count)
 	ts = *dur;
 	ts *= counter;
 	st->last_ts += ts;
-
+#endif
 	return 0;
 }
 
@@ -1676,10 +1693,8 @@ irqreturn_t inv_read_fifo(int irq, void *dev_id)
 	}
 
 	if (st->chip_config.dmp_on) {
-//<ASUS-invensense20150714>>>>>>>>>+
         if (fifo_count == HARDWARE_FIFO_SIZE)
             goto flush_fifo;
-//<ASUS-invensense20150714<<<<<<<<<+
 		result = inv_process_batchmode(st);
 	} else {
 		if (fifo_count >  FIFO_THRESHOLD)

@@ -53,7 +53,6 @@ int set_tcon_cabc(int mode);
 void read_tcon_cabc(char *rbuf);
 static struct mutex cmd_mutex;
 static char ctrl_display[2] = {0x53, 0x24};
-static char ctrl_dimming[2] = {0x53, 0x2C};
 
 #ifndef ASUS_FACTORY_BUILD
 static char cabc_mode[2] = {0x55, Still_MODE};
@@ -66,10 +65,6 @@ static int balance_mode =1;
 static struct dsi_cmd_desc tcon_cabc_cmd[] = {
     { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(ctrl_display)}, ctrl_display},
     { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(cabc_mode)}, cabc_mode},
-};
-
-static struct dsi_cmd_desc tcon_dimming_cmd[] = {
-    { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(ctrl_dimming)}, ctrl_dimming},
 };
 
 static struct dsi_cmd_desc read_cabc_cmd[] = {
@@ -397,7 +392,12 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 	if(level == 0){
 		if ( (asus_lcd_id[0]!='2') && (asus_lcd_id[0]!='3') ){
 			PANEL_DBG("disable backlight enable gpio\n");
+			ASUSEvtlog("[Display]disable backlight\n");
 			gpio_set_value((ctrl->bklt_en_gpio), 0);
+			if(asus_lcd_id[0]=='4'){
+				//pr_err("[Jeffery] delay 90ms\n");
+				mdelay(140);
+			}
 		}
 		bkl_off = 1;
 	}else{
@@ -414,6 +414,7 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 			mdelay(20);
 
 			PANEL_DBG("enable backlight enable gpio\n");
+			ASUSEvtlog("[Display]enable backlight\n");
 			gpio_set_value((ctrl->bklt_en_gpio), 1);
 			bkl_off = 0;
 		}
@@ -753,7 +754,6 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_dsi_ctrl_pdata *sctrl = NULL;
-	struct dcs_cmd_req cmdreq;
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
 		return;
@@ -807,15 +807,6 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 			__func__);
 		break;
 	}
-	if( (asus_lcd_id[0] == '2') || (asus_lcd_id[0] == '3') ){	//re-open dimming after backlight enable
-				memset(&cmdreq, 0, sizeof(cmdreq));
-				cmdreq.cmds = tcon_dimming_cmd;
-				cmdreq.cmds_cnt = 1;
-				cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
-				cmdreq.rlen = 0;
-				cmdreq.cb = NULL;
-				mdss_dsi_cmdlist_put(ctrl_pdata, &cmdreq);
-		}
 }
 
 static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
@@ -828,6 +819,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		return -EINVAL;
 	}
 	PANEL_FUNC;
+	ASUSEvtlog("[Display]mdss_dsi_panel_on\n");
 
 	pinfo = &pdata->panel_info;
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
@@ -870,6 +862,7 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 		return -EINVAL;
 	}
 	PANEL_FUNC;
+	ASUSEvtlog("[Display]mdss_dsi_panel_off\n");
 
 	pinfo = &pdata->panel_info;
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
@@ -964,6 +957,7 @@ int set_tcon_cabc(int mode)
 	cabc_mode[1] |= (mode & PANEL_CABC_MASK);
     if (g_mdss_pdata->panel_info.panel_power_state == MDSS_PANEL_POWER_ON) {
         PANEL_DBG("write cabc mode = 0x%x\n", cabc_mode[1]);
+		ASUSEvtlog("[Display]write cabc mode = 0x%x\n", cabc_mode[1]);
 
         memset(&cmdreq, 0, sizeof(cmdreq));
         cmdreq.cmds = tcon_cabc_cmd;
@@ -975,6 +969,7 @@ int set_tcon_cabc(int mode)
 		ret = 0;
     } else {
         PANEL_DBG("CABC Set Fail: mode=%d\n", mode);
+		ASUSEvtlog("[Display]CABC Set Fail: mode=%d\n", mode);
 		ret = 1;
     }
 	

@@ -373,18 +373,18 @@ static ssize_t focalTP_virtual_keys_register(struct kobject *kobj, struct kobj_a
 		case ASUS_ZE550KL:
 		default:
 			#ifdef ZE550KL_HD
-			virtual_keys = 	__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_BACK) ":130:1330:160:104" "\n" \
+			virtual_keys = 	__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_BACK) ":140:1341:180:100" "\n" \
 
-						__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_HOME) ":360:1330:170:104" "\n" \
+						__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_HOME) ":360:1341:170:100" "\n" \
 
-						__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_MENU)   ":590:1330:160:104" "\n" ;
+						__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_MENU)   ":580:1341:180:100" "\n" ;
 			#endif
 			#ifdef ZE551KL_FHD
-			virtual_keys= 	__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_BACK) ":215:2045:260:250" "\n" \
+			virtual_keys= 	__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_BACK) ":215:2061:260:250" "\n" \
 
-						__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_HOME) ":540:2045:260:250" "\n" \
+						__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_HOME) ":540:2061:260:250" "\n" \
 
-						__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_MENU)   ":865:2045:260:250" "\n" ;
+						__stringify(EV_KEY) ":" __stringify(FT5x06_KEY_MENU)   ":865:2061:260:250" "\n" ;
 			#endif
 			break;
 	}

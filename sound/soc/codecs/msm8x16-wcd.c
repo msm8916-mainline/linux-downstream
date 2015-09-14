@@ -104,7 +104,7 @@ enum {
 #define SPK_PMD 2
 #define SPK_PMU 3
 
-#define MICBIAS_DEFAULT_VAL 1800000
+#define MICBIAS_DEFAULT_VAL 2800000
 #define MICBIAS_MIN_VAL 1600000
 #define MICBIAS_STEP_SIZE 50000
 
@@ -665,9 +665,16 @@ static void msm8x16_wcd_boost_on(struct snd_soc_codec *codec)
 	snd_soc_update_bits(codec,
 		MSM8X16_WCD_A_ANALOG_SPKR_DAC_CTL,
 		0x03, 0x03);
-	snd_soc_update_bits(codec,
-		MSM8X16_WCD_A_ANALOG_SPKR_OCP_CTL,
-		0xE1, 0xE1);
+	if (asus_PRJ_ID == ASUS_ZD550KL){
+		snd_soc_update_bits(codec,
+			MSM8X16_WCD_A_ANALOG_SPKR_OCP_CTL,
+			0xF1, 0xF1);
+
+	}else {
+		snd_soc_update_bits(codec,
+			MSM8X16_WCD_A_ANALOG_SPKR_OCP_CTL,
+			0xE1, 0xE1);
+	}
 	snd_soc_update_bits(codec,
 		MSM8X16_WCD_A_DIGITAL_CDC_DIG_CLK_CTL,
 		0x20, 0x20);
@@ -4755,7 +4762,7 @@ static int msm8x16_wcd_spmi_probe(struct spmi_device *spmi)
 
 	modem_state = apr_get_modem_state();
 	if (modem_state != APR_SUBSYS_LOADED) {
-		dev_dbg(&spmi->dev, "Modem is not loaded yet %d\n",
+		dev_err(&spmi->dev, "Modem is not loaded yet %d\n",
 				modem_state);
 		return -EPROBE_DEFER;
 	}

@@ -60,6 +60,8 @@ struct timeval timer, timer2;
 bool camera_on_flag = false;
 int vl6180x_check_status = 0;
 
+static int DMax = 0;
+static int errorStatus = 16;
 struct mutex vl6180x_mutex;
 
 /*For LaserFocus STATUS Controll+++*/
@@ -71,6 +73,7 @@ struct mutex vl6180x_mutex;
 #define	DEVICE_SET_CALIBRATION			"driver/LaserFocus_CalStart"
 #define	DEVICE_DUMP_REGISTER_VALUE	"driver/LaserFocus_regiser_dump"
 #define	DEVICE_SET_REGISTER_VALUE	"driver/LaserFocus_regiser_set"
+#define DEVICE_DUMP_DEBUG_REGISTER_VALUE        "driver/LaserFocus_debug_dump"
 static struct proc_dir_entry *status_proc_file;
 static struct proc_dir_entry *device_trun_on_file;
 static struct proc_dir_entry *device_get_value_file;
@@ -78,6 +81,7 @@ static struct proc_dir_entry *device_get_more_value_file;
 static struct proc_dir_entry *device_set_calibration_file;
 static struct proc_dir_entry *dump_laser_focus_register_file;
 static struct proc_dir_entry *set_laser_focus_register_file;
+static struct proc_dir_entry *dump_laser_focus_debug_file;
 static int ATD_status;
 
 int ASUS_VL6180x_WrByte(uint32_t register_addr, uint16_t i2c_write_data)
@@ -287,7 +291,70 @@ int ASUS_VL6180x_UpdateByte(uint32_t register_addr, uint8_t AndData, uint8_t OrD
 
 	return status;
 }
+#if 0
+static bool sysfs_write(char *filename, int calvalue)
+{
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	loff_t pos_lsts = 0;
+	char buf[8];	
 
+	sprintf(buf, "%d", calvalue);
+
+	fp = filp_open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+	if (IS_ERR_OR_NULL(fp)) {
+		pr_err(" File open (%s) fail\n", filename);
+		return false;
+	}
+
+	/*For purpose that can use read/write system call*/
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	if (fp->f_op != NULL && fp->f_op->write != NULL) {
+		pos_lsts = 0;
+		fp->f_op->write(fp, buf, strlen(buf), &fp->f_pos);				
+	} else {
+		pr_err(" File strlen: f_op=NULL or op->write=NULL\n");
+		return false;
+	}
+	set_fs(old_fs);
+	filp_close(fp, NULL);
+
+	//printk(" write value %s to %s\n", buf, filename);
+
+	return true;
+}
+
+
+static void debug_read_range(VL6180x_RangeData_t *pRangeData){
+
+	uint16_t reg_data = 0;
+	
+	ASUS_VL6180x_RdWord(SYSRANGE_CROSSTALK_COMPENSATION_RATE, &reg_data);
+	//printk(" register(0x%x) : 0x%x\n", SYSRANGE_CROSSTALK_COMPENSATION_RATE, reg_data);
+	sysfs_write("/factory/LaserFocus_0x1e.txt",reg_data);
+	ASUS_VL6180x_RdByte(SYSRANGE_PART_TO_PART_RANGE_OFFSET, &reg_data);
+	//printk(" register(0x%x) : 0x%x\n", SYSRANGE_PART_TO_PART_RANGE_OFFSET, reg_data);
+	sysfs_write("/factory/LaserFocus_0x24.txt",reg_data);
+	ASUS_VL6180x_RdByte(RESULT_RANGE_STATUS, &reg_data);
+	//printk(" register(0x%x) : 0x%x\n", RESULT_RANGE_STATUS, reg_data);
+	sysfs_write("/factory/LaserFocus_0x4d.txt",reg_data);
+	ASUS_VL6180x_RdByte(RESULT_RANGE_VAL, &reg_data);
+	//printk(" register(0x%x) : 0x%x\n", RESULT_RANGE_VAL, reg_data);
+	sysfs_write("/factory/LaserFocus_0x62.txt",reg_data);
+	ASUS_VL6180x_RdByte(RESULT_RANGE_RAW, &reg_data);
+	//printk(" register(0x%x) : 0x%x\n", RESULT_RANGE_RAW, reg_data);
+	sysfs_write("/factory/LaserFocus_0x64.txt",reg_data);
+	ASUS_VL6180x_RdWord(RESULT_RANGE_SIGNAL_RATE, &reg_data);
+	//printk(" register(0x%x) : 0x%x\n", RESULT_RANGE_SIGNAL_RATE, reg_data);
+	sysfs_write("/factory/LaserFocus_0x66.txt",reg_data);
+	//printk(" DMax : %d0\n", pRangeData->DMax);
+	sysfs_write("/factory/LaserFocus_DMax.txt",pRangeData->DMax);
+	//printk(" errorCode : %d\n", pRangeData->errorStatus);
+	sysfs_write("/factory/LaserFocus_errorStatus.txt",pRangeData->errorStatus);
+}
+#endif
 static int VL6180x_device_Load_Calibration_Value(void){
 	int status = 0;
 	bool Factory_folder_file;
@@ -709,6 +776,9 @@ static int ATD_VL6180x_device_get_range_read(struct seq_file *buf, void *v)
 		RawRange = 0;
 	}
 
+	DMax = RangeData.DMax;
+	errorStatus = RangeData.errorStatus;
+
 	seq_printf(buf, "%d\n", RawRange);
 	
 	
@@ -748,6 +818,11 @@ static int ATD_VL6180x_device_get_range_read(struct seq_file *buf, void *v)
 		if (Laser_Forcus_sysfs_write_DMax(test_DMax) == false)
 			return -ENOENT;
 	}
+#if 0
+	if(camera_on_flag == false){
+		debug_read_range(&RangeData);
+	}
+#endif	
 
 	mutex_unlock(&vl6180x_mutex);
 
@@ -801,8 +876,10 @@ static int ATD_VL6180x_device_get_more_value_read(struct seq_file *buf, void *v)
 		RawRange = 0;
 	}
 
-	seq_printf(buf, "%d#%d#%d\n", RawRange,RangeData.DMax,RangeData.errorStatus);
-	
+	DMax = RangeData.DMax;
+	errorStatus = RangeData.errorStatus;
+
+	seq_printf(buf, "%d#%d#%d\n", RawRange, RangeData.DMax, RangeData.errorStatus);
 	//create reg file
 	
 	if (vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_APPLY_CALIBRATION ||
@@ -839,7 +916,11 @@ static int ATD_VL6180x_device_get_more_value_read(struct seq_file *buf, void *v)
 		if (Laser_Forcus_sysfs_write_DMax(test_DMax) == false)
 			return -ENOENT;
 	}
-
+#if 0
+	if(camera_on_flag == false){
+		debug_read_range(&RangeData);
+	}
+#endif	
 	mutex_unlock(&vl6180x_mutex);
 
 	return 0;
@@ -928,6 +1009,11 @@ static int ATD_VL6180x_device_clibration_offset(void)
 		mutex_unlock(&vl6180x_mutex);
 		return -ENOENT;
 	}
+	/*
+	if (Laser_Forcus_sysfs_write_offset_to_persist(offset) == false){
+		mutex_unlock(&vl6180x_mutex);
+		return -ENOENT;
+	}*/	
 
 	DBG_LOG("The measure distance is %d mm; The offset value is %d\n", distance, offset);
 
@@ -940,7 +1026,8 @@ error:
 
 	/* Write calibration file */
 	vl6180x_t->laser_focus_offset_value = 0;
-	Laser_Forcus_sysfs_write_offset(0);
+	Laser_Forcus_sysfs_write_offset(-1);
+	Laser_Forcus_sysfs_write_offset_to_persist(-1);
 
 	mutex_unlock(&vl6180x_mutex);
 	
@@ -956,6 +1043,7 @@ static int ATD_VL6180x_device_clibration_crosstalkoffset(void)
 	uint16_t Data_value = 0;
 	VL6180x_RangeData_t RangeData;
 	int errorCount = 0;
+	uint16_t temp = 0;
 
 	mutex_lock(&vl6180x_mutex);
 
@@ -997,37 +1085,83 @@ static int ATD_VL6180x_device_clibration_crosstalkoffset(void)
 
 		//msleep(30);
 	}
-	printk("Crosstalk compensation rate is %d\n", xtalk_sum);
+	printk("Crosstalk compensation rate(sum) is %d\n", xtalk_sum);
 	
 	//XtalkCompRate = (uint16_t)((rtnRate/STMVL6180_RUNTIMES_OFFSET_CAL)/128) * (1000-((xtalk_sum/STMVL6180_RUNTIMES_OFFSET_CAL)*3000/VL6180_CROSSTALK_CAL_RANGE));
 	//XtalkCompRate = XtalkCompRate*128;
 
-	XtalkCompRate = (uint16_t)(xrtn_sum/STMVL6180_RUNTIMES_OFFSET_CAL) * (1000-((xtalk_sum/STMVL6180_RUNTIMES_OFFSET_CAL)*1000/VL6180_CROSSTALK_CAL_RANGE));
-
-	XtalkCompRate = XtalkCompRate/1000;
-
-	ASUS_VL6180x_RdByte(0x21,&Data_value);
-
-	if(Data_value==20)
+	//Sean_Lu ++++ 0812 for factory test
+	if((1000-((xtalk_sum/STMVL6180_RUNTIMES_OFFSET_CAL)*1000/VL6180_CROSSTALK_CAL_RANGE) < 0))
 	{
-		ASUS_VL6180x_WrByte(0x21,0x6);
-	}
-	
-	printk("Crosstalk compensation rate is %d\n", XtalkCompRate);
+		printk("Crosstalk  is negative value !\n");
+		ASUS_VL6180x_RdByte(0x21,&Data_value);
 
-	//ASUS_VL6180x_WrWord(SYSRANGE_CROSSTALK_COMPENSATION_RATE, XtalkCompRate);
-	VL6180x_SetXTalkCompensationRate(0, XtalkCompRate);
+		if(Data_value==20)
+		{
+			ASUS_VL6180x_WrByte(0x21,0x6);
+		}
+
+		mutex_unlock(&vl6180x_mutex);
+
+		goto negative;
+	}
+	else
+	{
+	
+		XtalkCompRate = (uint16_t)(xrtn_sum/STMVL6180_RUNTIMES_OFFSET_CAL) * (1000-((xtalk_sum/STMVL6180_RUNTIMES_OFFSET_CAL)*1000/VL6180_CROSSTALK_CAL_RANGE));
+		temp = XtalkCompRate;
+		
+		printk("Crosstalk compensation rate(after arithmetic) is %d\n", XtalkCompRate);
+
+		if( asus_PRJ_ID == 3 )  // 3 is ZD550KL
+		{
+			printk("Crosstalk compensation rate is %d( *1000 )\n", XtalkCompRate);
+			if( XtalkCompRate > 500  && XtalkCompRate < 1000 ) 
+				XtalkCompRate = 1000;
+		}
+		XtalkCompRate = XtalkCompRate/1000;
+
+		ASUS_VL6180x_RdByte(0x21,&Data_value);
+
+		if(Data_value==20)
+		{
+			ASUS_VL6180x_WrByte(0x21,0x6);
+		}
+
+		printk("Crosstalk compensation rate(after/1000) is %d\n", XtalkCompRate);
+
+		//ASUS_VL6180x_WrWord(SYSRANGE_CROSSTALK_COMPENSATION_RATE, XtalkCompRate);
+		VL6180x_SetXTalkCompensationRate(0, XtalkCompRate);
+
+		/* Write calibration file */
+		vl6180x_t->laser_focus_cross_talk_offset_value = XtalkCompRate;
+		if (Laser_Forcus_sysfs_write_cross_talk_offset(XtalkCompRate) == false){
+			mutex_unlock(&vl6180x_mutex);
+			return -ENOENT;
+		}
+	/*
+		if (Laser_Forcus_sysfs_write_cross_talk_offset_to_persist(XtalkCompRate) == false){
+			mutex_unlock(&vl6180x_mutex);
+			return -ENOENT;
+		}
+*/
+		DBG_LOG("Crosstalk compensation rate is %d\n", XtalkCompRate);
+
+		mutex_unlock(&vl6180x_mutex);
+		return 0;
+	}
+
+negative:
+
+	VL6180x_SetXTalkCompensationRate(0, 0);
 
 	/* Write calibration file */
-	vl6180x_t->laser_focus_cross_talk_offset_value = XtalkCompRate;
-	if (Laser_Forcus_sysfs_write_cross_talk_offset(XtalkCompRate) == false){
-		mutex_unlock(&vl6180x_mutex);
-		return -ENOENT;
-	}
-
-	DBG_LOG("Crosstalk compensation rate is %d\n", XtalkCompRate);
+	vl6180x_t->laser_focus_cross_talk_offset_value = 0;
+	Laser_Forcus_sysfs_write_cross_talk_offset(0);
+	Laser_Forcus_sysfs_write_cross_talk_offset_to_persist(0);
 
 	mutex_unlock(&vl6180x_mutex);
+
 	return 0;
 	
 error:
@@ -1036,7 +1170,8 @@ error:
 
 	/* Write calibration file */
 	vl6180x_t->laser_focus_cross_talk_offset_value = 0;
-	Laser_Forcus_sysfs_write_cross_talk_offset(0);
+	Laser_Forcus_sysfs_write_cross_talk_offset(-1);
+	Laser_Forcus_sysfs_write_cross_talk_offset_to_persist(-1); 
 
 	mutex_unlock(&vl6180x_mutex);
 	
@@ -1100,6 +1235,11 @@ static int ATD_VL6180x_I2C_status_check(struct msm_laser_focus_ctrl_t *s_ctrl){
 	if (rc < 0) {
 		//kfree(vl6180x_t);
 		pr_err("%s VL6180x_init failed %d\n", __func__, __LINE__);
+		rc = VL6180x_power_down(vl6180x_t);
+		if (rc < 0)
+			pr_err("%s VL6180x_power_down failed %d\n", __func__, __LINE__);
+		else
+			pr_err("%s VL6180x_power_down Success %d\n", __func__, __LINE__);
 		return 0;
 	}
 	
@@ -1107,6 +1247,17 @@ static int ATD_VL6180x_I2C_status_check(struct msm_laser_focus_ctrl_t *s_ctrl){
 	if (rc < 0) {
 		//kfree(vl6180x_t);
 		pr_err("%s VL6180x_match_id failed %d\n", __func__, __LINE__);
+		rc = VL6180x_deinit(vl6180x_t);
+		if (rc < 0)
+			pr_err("%s VL6180x_deinit failed %d\n", __func__, __LINE__);
+		else
+			pr_err("%s VL6180x_deinit Success %d\n", __func__, __LINE__);
+
+		rc = VL6180x_power_down(vl6180x_t);
+		if (rc < 0) 
+			pr_err("%s VL6180x_power_down failed %d\n", __func__, __LINE__);
+		else
+			pr_err("%s VL6180x_power_down Success %d\n", __func__, __LINE__);
 		return 0;
 	}
 	rc = VL6180x_deinit(vl6180x_t);
@@ -1204,6 +1355,43 @@ static const struct file_operations dump_laser_focus_register_fops = {
 	.release = single_release,
 };
 
+static int dump_VL6180x_debug_register_read(struct seq_file *buf, void *v)
+{
+	uint16_t reg_data = 0;
+	
+	if (vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_OFF ||
+		vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_DEINIT_CCI) {
+		pr_err("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
+		return -EBUSY;
+	}
+	
+	ASUS_VL6180x_RdWord(SYSRANGE_CROSSTALK_COMPENSATION_RATE, &reg_data);
+	seq_printf(buf, "register(0x%x) : 0x%x\n", SYSRANGE_CROSSTALK_COMPENSATION_RATE, reg_data);
+	ASUS_VL6180x_RdByte(SYSRANGE_PART_TO_PART_RANGE_OFFSET, &reg_data);
+	seq_printf(buf, "register(0x%x) : 0x%x\n", SYSRANGE_PART_TO_PART_RANGE_OFFSET, reg_data);
+	ASUS_VL6180x_RdByte(RESULT_RANGE_STATUS, &reg_data);
+	seq_printf(buf, "register(0x%x) : 0x%x\n", RESULT_RANGE_STATUS, reg_data);
+	ASUS_VL6180x_RdWord(RESULT_RANGE_SIGNAL_RATE, &reg_data);
+	seq_printf(buf, "register(0x%x) : 0x%x\n", RESULT_RANGE_SIGNAL_RATE, reg_data);
+	seq_printf(buf, "DMax : %d\n", DMax);
+	seq_printf(buf, "errorStatus : %d\n", errorStatus);
+	return 0;
+}
+
+static int dump_VL6180x_laser_focus_debug_register_open(struct inode *inode, struct  file *file)
+{
+	return single_open(file, dump_VL6180x_debug_register_read, NULL);
+}
+
+static const struct file_operations dump_laser_focus_debug_register_fops = {
+	.owner = THIS_MODULE,
+	.open = dump_VL6180x_laser_focus_debug_register_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+
 static ssize_t set_VL6180x_laser_focus_register_write(struct file *dev, const char *buff, size_t count, loff_t *loff)
 {
 	uint32_t reg_addr;
@@ -1293,6 +1481,13 @@ static void VL6180x_create_proc_file(void)
 		printk("%s dump_laser_focus_register_file sucessed!\n", __func__);
 	} else {
 		printk("%s dump_laser_focus_register_file failed!\n", __func__);
+	}
+
+	dump_laser_focus_debug_file = proc_create(DEVICE_DUMP_DEBUG_REGISTER_VALUE, 0664, NULL, &dump_laser_focus_debug_register_fops);
+	if (dump_laser_focus_debug_file) {
+		printk("%s dump_laser_focus_debug_register_file sucessed!\n", __func__);
+	} else {
+		printk("%s dump_laser_focus_debug_register_file failed!\n", __func__);
 	}
 	
 	set_laser_focus_register_file = proc_create(DEVICE_SET_REGISTER_VALUE, 0776, NULL, &set_laser_focus_register_fops);

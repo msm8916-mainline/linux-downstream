@@ -236,7 +236,11 @@ int ak09911_read(struct inv_ak09911_state_s *st, short rawfixed[3])
 	if (status)
 		pr_err("%s, line=%d, status=%d\n", __func__, __LINE__, status);
 
+#if 0
 	return status;
+#else
+    return 0;
+#endif
 }
 
 /**
