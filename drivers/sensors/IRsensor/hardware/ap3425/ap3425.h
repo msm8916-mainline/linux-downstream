@@ -18,8 +18,10 @@
 #ifndef __LINUX_AP3425_H
 #define __LINUX_AP3425_H
 
-#define AP3425_PROXIMITY_THDL_DEFAULT  (50)
-#define AP3425_PROXIMITY_THDH_DEFAULT  (100)
+#define AP3425_PROXIMITY_THDL_DEFAULT  (75)
+#define AP3425_PROXIMITY_THDH_DEFAULT  (175)
+#define AP3425_LIGHT_200LUX_DEFAULT		(260)
+#define AP3425_LIGHT_1000LUX_DEFAULT		(1300)
 #define AP3425_LIGHT_MAX_THRESHOLD		(65535)
 
 /*****************/
@@ -112,6 +114,7 @@
 /* PS Persistence */
 #define AP3425_PS_PERSIS_MAX			(63)
 #define AP3425_PS_PERSIS_0				0x00 	/*0x00~0x3f*/
+#define AP3425_PS_PERSIS_1				0x01
 
 /* PS MEAN */
 #define AP3425_PS_MEAN_0         		0x00	/* 5ms @2T*/

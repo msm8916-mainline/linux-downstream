@@ -56,6 +56,8 @@ typedef struct IRsensor_hw {
 	int proximity_max_integration;
 	
 	int light_max_threshold;
+	int light_200lux_default;	
+	int light_1000lux_default;
 	int light_max_persistence;
 	int light_max_integration;
 	

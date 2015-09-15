@@ -95,7 +95,7 @@
 	ois1: qcom,ois@4C {
                 cell-index = <0>;
                 reg = <0x4C>;
-                qcom,slave-id = <0x98 0x0328 0xAD>;
+                qcom,slave-id = <0x98 0x0328 0x1AD>;
                 compatible = "qcom,ois1";
                 label = "tof";
 		gpios = <&msm_gpio 116 0>;

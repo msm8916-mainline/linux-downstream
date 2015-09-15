@@ -614,6 +614,8 @@ static struct IRsensor_hw IRsensor_hw_cm36686 = {
 	.proximity_max_integration = CM36686_PS_IT_MAX,
 	
 	.light_max_threshold = CM36686_LIGHT_MAX_THRESHOLD,
+	.light_200lux_default = CM36686_LIGHT_200LUX_DEFAULT,
+	.light_1000lux_default = CM36686_LIGHT_1000LUX_DEFAULT,
 	.light_max_persistence = CM36686_ALS_PERS_MAX,
 	.light_max_integration = CM36686_ALS_IT_MAX,
 	

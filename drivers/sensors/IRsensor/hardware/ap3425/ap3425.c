@@ -105,8 +105,9 @@ static int ap3425_proximity_hw_set_config(void)
 		ret = ap3425_proximity_hw_set_mean(AP3425_PS_MEAN_1);
 	}
 
-	/* ZE500KG */
-	if(g_ASUS_hwID >= ZE500KG_PREMP){
+	/* ZE500KG/KL */
+	if((ZE500KL_EVB==(g_ASUS_hwID&0xF0)&&g_ASUS_hwID >= ZE500KL_PREMP) ||
+		(ZE500KG_EVB==(g_ASUS_hwID&0xF0)&&g_ASUS_hwID >= ZE500KG_PREMP)){
 		ret = ap3425_proximity_hw_set_mean(AP3425_PS_MEAN_2);
 		if (ret < 0)		
 			return ret;
@@ -115,7 +116,7 @@ static int ap3425_proximity_hw_set_config(void)
 		if (ret < 0)		
 			return ret;
 
-		ret = ap3425_proximity_hw_set_persistence(AP3425_PS_PERSIS_0);
+		ret = ap3425_proximity_hw_set_persistence(AP3425_PS_PERSIS_1);
 		if (ret < 0)		
 			return ret;
 	}
@@ -136,8 +137,9 @@ static int ap3425_light_hw_set_config(void)
 			return ret;
 	}
 
-	/* ZE500KG */
-	if(g_ASUS_hwID >= ZE500KG_PREMP){
+	/* ZE500KG/KL */
+	if((ZE500KL_EVB==(g_ASUS_hwID&0xF0)&&g_ASUS_hwID >= ZE500KL_PREMP) ||
+		(ZE500KG_EVB==(g_ASUS_hwID&0xF0)&&g_ASUS_hwID >= ZE500KG_PREMP)){
 		ret = ap3425_light_hw_set_integration(AP3425_ALS_GAIN_8576);
 		if (ret < 0)		
 			return ret;
@@ -723,6 +725,8 @@ static struct IRsensor_hw IRsensor_hw_ap3425 = {
 	.proximity_max_integration = AP3425_PS_INTEG_MAX,
 	
 	.light_max_threshold = AP3425_LIGHT_MAX_THRESHOLD,
+	.light_200lux_default = AP3425_LIGHT_200LUX_DEFAULT,
+	.light_1000lux_default = AP3425_LIGHT_1000LUX_DEFAULT,
 	.light_max_persistence = AP3425_ALS_PERSIS_MAX,
 	.light_max_integration = AP3425_ALS_GAIN_MAX,
 	

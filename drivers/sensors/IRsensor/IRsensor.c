@@ -931,7 +931,7 @@ ssize_t  light_store_switch_onoff(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	bool bOn;
-	int first_lux = 50;
+	//int first_lux = 50;
 	
 	/*check input character*/
 	if (0 == strncmp(buf, "off", 3))
@@ -952,8 +952,8 @@ ssize_t  light_store_switch_onoff(struct device *dev,
 			/*The framework of Android 5 will accomplish the Turn ON proccedure 
 			 * until receiving the first report.
 			 */
-			light_report_lux(first_lux);	
-			log("Light Sensor Report First lux : %d \n", first_lux);
+			//light_report_lux(first_lux);	
+			//log("Light Sensor Report First lux : %d \n", first_lux);
 			
 			/*light sensor polling the first real event after delayed time. */
 			queue_delayed_work(IRsensor_delay_workqueue, &light_polling_lux_work, msecs_to_jiffies(LIGHT_TURNON_DELAY_TIME));
@@ -1343,8 +1343,8 @@ static int init_data(void)
 	g_als_data->Device_switch_on = false;
 	g_als_data->HAL_switch_on = false;	
 	
-	g_als_data->g_als_calvalue_200lux = LIGHT_CALVALUE_200LUX_DEFAULT;
-	g_als_data->g_als_calvalue_1000lux = LIGHT_CALVALUE_1000LUX_DEFAULT;	
+	g_als_data->g_als_calvalue_200lux = IRsensor_hw_client->light_200lux_default;
+	g_als_data->g_als_calvalue_1000lux = IRsensor_hw_client->light_1000lux_default;	
 	g_als_data->g_als_calvalue_shift = LIGHT_CALVALUE_SHIFT_DEFAULT;
 	g_als_data->g_als_change_sensitivity = IRSENSOR_DEFAULT_VALUE;
 	g_als_data->g_als_persistence = IRSENSOR_DEFAULT_VALUE; 

@@ -368,6 +368,26 @@ __setup("FM_ID=", set_fm_id);
 EXPORT_SYMBOL(g_ASUS_fmID);
 //--- ASUS_BSP : Add for FM ID
 
+//+++ ASUS_BSP : Add for LASER ID
+int g_ASUS_laserID = 1;
+
+static int set_laser_id(char *str)
+{
+    if ( strcmp("1", str) == 0 )
+    {
+        g_ASUS_laserID = 1;
+    }
+    else
+    {
+        g_ASUS_laserID = 0;
+    }
+    printk("Kernel LASER ID = %d\n", g_ASUS_laserID);
+    return 0;
+}
+__setup("LASER_ID=", set_laser_id);
+EXPORT_SYMBOL(g_ASUS_laserID);
+//--- ASUS_BSP : Add for LASER ID
+
 //+++ ASUS_BSP : miniporting : Add for audio dbg mode
 int g_user_dbg_mode = 1;
 EXPORT_SYMBOL(g_user_dbg_mode);
