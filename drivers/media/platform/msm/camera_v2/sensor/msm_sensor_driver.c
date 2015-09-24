@@ -157,6 +157,7 @@ static ssize_t front_otp_proc_show_asus(struct device *dev,
 static DEVICE_ATTR(rear_otp, S_IRUGO|S_IWUSR, rear_otp_proc_show_asus,NULL);
 static DEVICE_ATTR(front_otp, S_IRUGO|S_IWUSR, front_otp_proc_show_asus,NULL);
 static int read_rear_otp_asus(void);
+static int mn34150_otp_read(void);
 static int read_front_otp_asus(void);
 static int read_front_otp_asus2(void);
 
@@ -1059,6 +1060,8 @@ int32_t msm_sensor_driver_probe(void *setting,
 		if(slave_info->sensor_id_info.sensor_id==0x1c21
 			||slave_info->sensor_id_info.sensor_id==0x1481)
 			read_rear_otp_asus();
+		if(slave_info->sensor_id_info.sensor_id==0x0001)
+			mn34150_otp_read();
 	}else if(CAMERA_1 == slave_info->camera_id){
 		if( camera_otp_kobj != NULL)  otp_ret = sysfs_create_file(camera_otp_kobj, &dev_attr_front_otp.attr);
 		if (otp_ret == 0)	pr_err("Create_front_camera_otp_file\n");
@@ -1750,6 +1753,107 @@ static int read_rear_otp_asus(void){
 	return 0;
 }
 
+// Clark_Liu add for mn34150 ++
+static u16 PLLsetting1[9][2]={
+	{ 0x300A, 0x09 },
+	{ 0x300B, 0x03 },
+	{ 0x0304, 0x00 },
+	{ 0x0305, 0x02 },
+	{ 0x0306, 0x00 },
+	{ 0x0307, 0x9C },
+	{ 0x3004, 0x01 },
+	{ 0x3005, 0xDF },
+	{ 0x3000, 0x03 },
+};
+
+static u16 PLLsetting2[3][2]={
+	{ 0x3007, 0x40 },
+	{ 0x3000, 0x43 },
+	{ 0x300A, 0x08 },
+};
+
+static int mn34150_otp_read(void)
+{
+	//should be called after powerup
+	struct msm_sensor_ctrl_t *s_ctrl = g_sctrl[0];
+	struct msm_camera_i2c_client *sensor_i2c_client;
+	const char *sensor_name;
+	int rc = 0,i,j;
+	//int flag = 3;	//find the otp data index
+	u16 reg_val = 0;
+	u16 mFind=0;
+	u16 mFlag=0;
+	u8 read_value[OTP_DATA_LEN_BYTE];
+	sensor_i2c_client = s_ctrl->sensor_i2c_client;
+	sensor_name = s_ctrl->sensordata->sensor_name;
+
+	//PLL setting 1
+	for (j=0;j<sizeof(PLLsetting1)/(2*sizeof(u16));j++) {
+		 rc = sensor_i2c_client->i2c_func_tbl->i2c_write(sensor_i2c_client, PLLsetting1[j][0], PLLsetting1[j][1],MSM_CAMERA_I2C_BYTE_DATA);
+		if (rc<0) {
+			pr_err("%s: failed to write 0x%x = 0x%x\n",
+				 __func__,PLLsetting1[j][0], PLLsetting1[j][1]);
+			//return ret;
+		}
+	}
+	usleep(85);
+	//PLL setting 2
+	for (j=0;j<sizeof(PLLsetting2)/(2*sizeof(u16));j++) {
+		 rc = sensor_i2c_client->i2c_func_tbl->i2c_write(sensor_i2c_client, PLLsetting2[j][0], PLLsetting2[j][1],MSM_CAMERA_I2C_BYTE_DATA);
+		if (rc<0) {
+			pr_err("%s: failed to write 0x%x = 0x%x\n",
+				 __func__,PLLsetting2[j][0], PLLsetting2[j][1]);
+			//return ret;
+		}
+	}
+	usleep(1005);
+
+	for(j=2; j>=0; j--){
+
+		for (i = 0; i < OTP_DATA_LEN_BYTE; i++) {
+			reg_val=0;
+			rc = sensor_i2c_client->i2c_func_tbl->i2c_read(sensor_i2c_client, 0x3481+i+j*OTP_DATA_LEN_BYTE,&reg_val,MSM_CAMERA_I2C_BYTE_DATA);
+			if(rc<0)
+			pr_err( "failed to read OTP data j:%d,i:%d\n",j,i);
+			read_value[i]=reg_val&0xff;
+			pr_err("i= %d, rear val = 0x%02x\n", i,reg_val);
+			if(reg_val!= 0)
+			{
+				if(mFind==0)
+				{	
+					mFind = 1;
+					mFlag=j;
+				}	
+			}
+			
+		}
+
+		if(j==0)
+		memcpy(rear_otp_data_bank1, read_value, OTP_DATA_LEN_BYTE);
+		else if(j==1)
+		memcpy(rear_otp_data_bank2, read_value, OTP_DATA_LEN_BYTE);
+		else 
+		memcpy(rear_otp_data_bank3, read_value, OTP_DATA_LEN_BYTE);
+
+	}
+
+	if(mFlag==2)
+		memcpy(rear_otp_data,rear_otp_data_bank3, OTP_DATA_LEN_BYTE);
+	else if(mFlag==1)
+		memcpy(rear_otp_data,rear_otp_data_bank2, OTP_DATA_LEN_BYTE);
+	else
+		memcpy(rear_otp_data,rear_otp_data_bank1, OTP_DATA_LEN_BYTE);
+
+	pr_err("data ok and copy to rear_otp_data\n");
+
+	if (rc != 0) return -1;
+	return 0;
+
+
+}
+
+// Clark_Liu add for mn34150 --
+
 static int read_front_otp_asus2(void){
 	//should be called after powerup
 	struct msm_sensor_ctrl_t *s_ctrl = g_sctrl[0];
@@ -2337,6 +2441,8 @@ static int rear_module_proc_read(struct seq_file *buf, void *v)
 	return seq_printf(buf,"T4K37\n");
 	if(sensorid0==0x1481)
 	return seq_printf(buf,"T4K35\n");
+	if(sensorid0==0x0001)
+	return seq_printf(buf,"MN34150\n");
 	return 0;
 }
 
@@ -2465,7 +2571,7 @@ static void remove_resolution_file(void)
 static ssize_t rear_resolution_read(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	if(sensorid0==0x1c21)
+	if(sensorid0==0x1c21||sensorid0==0x0001)
 	return sprintf(buf,"13M\n");
 	else
 	return sprintf(buf,"8M\n");

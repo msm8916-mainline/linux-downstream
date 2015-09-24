@@ -240,9 +240,25 @@
 			capella,ps_conf3_val = <0x3010>;
 		};
 		
+
 		ap3426@1e {
 			compatible = "ap,ap3426";
 			reg = <0x1e>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <113 0x2>;
+			vdd-supply = <&pm8916_l8>;
+			vio-supply = <&pm8916_l6>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&ap3426_default>;
+			ap,use-polling;
+			ap,interrupt-gpio = <&msm_gpio 113 0x2>;
+			//ap,levels = <0x0A 0xA0 0xE1 0x140 0x280 0x500 0xA28 0x16A8 0x1F40
+			//	0x2800>;
+			//ap,ps_close_thd_set = <0x200>;
+			//ap,ps_away_thd_set = <0x100>;
+			//ap,ls_cmd = <0x44>; /* ALS_IT=160ms, INT_PERS=2*/
+			//ap,ps_conf1_val = <0x0006>;
+			//ap,ps_conf3_val = <0x3010>;
 		};
 
 
@@ -314,7 +330,7 @@
 		pinctrl-1 = <&cdc_pdm_lines_sus>;
 		pinctrl-2 = <&cross_conn_det_act>;
 		pinctrl-3 = <&cross_conn_det_sus>;
-		qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;
+		/*qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;*/
 		asoc-platform = <&pcm0>, <&pcm1>, <&voip>, <&voice>,
 				<&loopback>, <&compress>, <&hostless>,
 				<&afe>, <&lsm>, <&routing>, <&lpa>;

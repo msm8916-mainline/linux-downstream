@@ -254,7 +254,7 @@
 						&cdc_ext_pa_ws_sus>;
 		pinctrl-4 = <&cross_conn_det_act>;
 		pinctrl-5 = <&cross_conn_det_sus>;
-		qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;
+		/*qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;*/
 		asoc-platform = <&pcm0>, <&pcm1>, <&voip>, <&voice>,
 				<&loopback>, <&compress>, <&hostless>,
 				<&afe>, <&lsm>, <&routing>, <&lpa>;

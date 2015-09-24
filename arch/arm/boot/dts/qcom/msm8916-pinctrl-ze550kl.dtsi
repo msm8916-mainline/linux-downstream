@@ -1420,6 +1420,16 @@
                        };
                };
 
+		 ap3426_irq_pin {
+                       qcom,pins = <&gp 113>;
+                       qcom,pin-func = <0>;
+                       qcom,num-grp-pins = <1>;
+                       label = "ap3426_irq_pin";
+                       ap3426_default: ap3426_default {
+                               drive-strength = <16>;
+                               bias-pull-up;
+                       };
+               };
 
                kxtj9_irq_pin {
                        qcom,pins = <&gp 36>;

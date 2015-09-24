@@ -27,6 +27,10 @@
 #include <linux/regulator/onsemi-ncp6335d.h>
 #include <linux/string.h>
 #include <soc/qcom/socinfo.h>
+//<OLIVER>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
+//<oliver>
 /* registers */
 #define REG_NCP6335D_PID		0x03
 #define REG_NCP6335D_PROGVSEL1		0x10
@@ -209,14 +213,30 @@ static int ncp6335d_set_voltage(struct regulator_dev *rdev,
 	struct ncp6335d_info *dd = rdev_get_drvdata(rdev);
 	//<oliver 20150716>++ modify ncp output voltage for stability
 	static enum msm_cpu cur_cpu; //static variable constraint to this file
+	static char* buf = "0.0";
 
-	set_val = DIV_ROUND_UP(min_uV - dd->min_voltage, dd->step_size);
 	cur_cpu = socinfo_get_msm_cpu();
-	if ((MSM_CPU_8939 == cur_cpu)&&(asus_PRJ_ID == ASUS_ZE550KL)) {
-		if (set_val < 75)
-			set_val = set_val + 5;
-		else if (set_val < 80)
-			set_val = 80;
+	buf = OLIVER_socinfo_get_msm_cpu_revision();
+	set_val = DIV_ROUND_UP(min_uV - dd->min_voltage, dd->step_size);
+	if (!strncmp("3.0",buf,3)) {
+		//printk("OLIVER 3.0 found\n");
+	} else if ((MSM_CPU_8939 == cur_cpu)&&(asus_PRJ_ID == ASUS_ZE550KL)){
+		if (!strncmp("3",asus_project_stage,2)||!strncmp("1",asus_project_stage,2)) {
+			if (set_val < 80)
+				set_val = set_val + 5;
+			else if (set_val < 120) {
+				set_val = set_val + 4;
+				if (set_val > 120)
+					set_val = 120;
+			}
+
+		}else {
+			if (set_val < 80) {
+				set_val = set_val + 4;
+				if (set_val > 80)
+					set_val = 80;
+			}
+		}
 	}
 	//<oliver 20150716>--
 	new_uV = (set_val * dd->step_size) + dd->min_voltage;

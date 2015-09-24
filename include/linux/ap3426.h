@@ -50,6 +50,7 @@
 
 
 #define AP3426_NUM_CACHABLE_REGS	28
+#define AP3426_SYS_RST_ENABLE 0x4
 
 /* ap3426 control registers */
 /*============================================================================*/
@@ -57,8 +58,15 @@
 #define AP3426_REG_SYS_CONF_SHIFT	(0)
 #define AP3426_REG_SYS_CONF_MASK	0x07
 
+#define AP3426_REG_SYS_INT_PS_MASK	0x02
+#define AP3426_REG_SYS_INT_PS_SHIFT	(1)
+#define AP3426_REG_SYS_INT_AL_MASK	0x01
+#define AP3426_REG_SYS_INT_AL_SHIFT	(0)
+ 
 #define AP3426_REG_SYS_INTSTATUS   0x01
 #define AP3426_REG_SYS_INT_SHIFT	(0)
+#define AP3426_REG_SYS_INT_PS_SHIFT	(1)
+#define AP3426_REG_SYS_INT_LS_SHIFT	(0)
 #define AP3426_REG_SYS_INT_MASK		0x03
 #define AP3426_REG_SYS_INT_PMASK		0x02
 #define AP3426_REG_SYS_INT_AMASK		0x01
@@ -129,8 +137,11 @@
 
 #define AP3426_REG_PS_SMARTINT     0x24 /* PS Smart INT for low power */
 #define AP3426_REG_PS_INTEGR       0x25
+#define AP3426_REG_PS_INTEGR_SHIFT         (0)
+#define AP3426_REG_PS_INTEGR_MASK         0x3F
 #define AP3426_REG_PS_PERSIS       0x26
-
+#define AP3426_REG_PS_PERSIS_SHIFT       (0)
+#define AP3426_REG_PS_PERSIS_MASK       0x3F
 #define AP3426_REG_PS_CAL_L        0x28
 #define AP3426_REG_PS_CAL_L_SHIFT	(0)
 #define AP3426_REG_PS_CAL_L_MASK		0xFF
@@ -214,6 +225,16 @@
 /*============================================================================*/
 
 
+/*----------------------------------------------------------------------------*/
+//PS Engineering Registers
+#define AP3426_REG_PS_DC_1         0x30 /*Only in Engineering chip, couldn't find in datasheet*/
+#define AP3426_REG_PS_DC_1_SHIFT         (0) 
+#define AP3426_REG_PS_DC_1_MASK         0xFF 
+#define AP3426_REG_PS_DC_2         0x32 /*Only in Engineering chip, couldn't find in datasheet*/
+#define AP3426_REG_PS_DC_2_SHIFT         (0) 
+#define AP3426_REG_PS_DC_2_MASK         0xFF 
+
+/*----------------------------------------------------------------------------*/
 #define PROXIMITYSENSOR_IOCTL_MAGIC 'c'
 #define PROXIMITYSENSOR_IOCTL_GET_ENABLED \
 		_IOR(PROXIMITYSENSOR_IOCTL_MAGIC, 1, int *)

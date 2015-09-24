@@ -624,6 +624,42 @@ static const struct file_operations proc_sleep_send = {
 
 //<ASUS-danielchan20150528<<<<<<<<<<+
 
+//add hall sensor proc node--->
+static int hallsensor_proc_read(struct seq_file *buf, void *v)
+{
+	if (hall_sensor_dev->status) {
+		seq_printf(buf, "%d\n",hall_sensor_dev->status);
+	} else{
+		seq_printf(buf, "%d\n",hall_sensor_dev->status);
+	}
+	return 0;
+}
+
+static int hallsensor_proc_open(struct inode *inode, struct  file *file)
+{
+    return single_open(file, hallsensor_proc_read, NULL);
+}
+
+static const struct file_operations hallsensor_fops = {
+	.owner = THIS_MODULE,
+	.open =  hallsensor_proc_open,
+	.read = seq_read,
+	.release = single_release,
+};
+
+static void create_hallsensor_proc_file(void)
+{
+	struct proc_dir_entry *create_hallsensor_proc_file = proc_create("driver/hallsensorstate", 0666, NULL, &hallsensor_fops);
+
+	if (create_hallsensor_proc_file) {
+		printk("create_hallsensor_proc_file create ok!\n");
+	} else{
+		printk("create_hallsensor_proc_file create failed!\n");
+	}
+	return;
+}
+//add hall sensor proc node---<
+
 static int hall_sensor_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -645,7 +681,7 @@ static int hall_sensor_probe(struct platform_device *pdev)
 #endif
 //<ASUS-danielchan20150603<<<<<<<<<<+
 //<ASUS-danielchan20150528<<<<<<<<<<+
-
+create_hallsensor_proc_file();
 log("Probe +++\n");
 
 	/* Initialization Data */

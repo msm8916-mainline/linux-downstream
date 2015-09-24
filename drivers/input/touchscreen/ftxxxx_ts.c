@@ -1869,6 +1869,7 @@ struct proc_dir_entry *touchsensor_entry = NULL;
 static ssize_t amax_disable_touch_write(struct file *filp, const char __user *buff, size_t len, loff_t *off)
 {
 	char msg[64];
+	int i;
 	memset(msg, 0, sizeof(msg));
 	if(len > 64)
 		len = 64;
@@ -1884,8 +1885,14 @@ static ssize_t amax_disable_touch_write(struct file *filp, const char __user *bu
 	} else if(strncmp(msg, "1", 1) == 0){
 
 		disable_tp_flag = 1;
-
-		printk("[Focal][Touch] %s : disable touch !\n", __func__);
+		
+		for(i=0;i<CFG_MAX_TOUCH_POINTS;i++)
+        {
+               input_mt_slot(ftxxxx_ts->input_dev, i);
+               input_mt_report_slot_state(ftxxxx_ts->input_dev, MT_TOOL_FINGER, 0);
+        }
+		input_sync(ftxxxx_ts->input_dev);
+		printk("[Focal][Touch] %s : disable touch & release pointer !\n", __func__);
 
 	} else {
 

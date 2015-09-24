@@ -329,7 +329,7 @@
 		pinctrl-3 = <&cross_conn_det_sus>;
         pinctrl-4 = <&cdc_pdm_lines_act &ext_cdc_tlmm_lines_act>;// ASUS_BSP yusheng20150420 add for dual-speaker path
         pinctrl-5 = <&cdc_pdm_lines_sus &ext_cdc_tlmm_lines_sus>;// ASUS_BSP yusheng20150420 add for dual-speaker path
-		qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;
+		//qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;// ASUS_BSP yusheng20150901 disable OMTP headset support
 		asoc-platform = <&pcm0>, <&pcm1>, <&voip>, <&voice>,
 				<&loopback>, <&compress>, <&hostless>,
 				<&afe>, <&lsm>, <&routing>, <&lpa>;

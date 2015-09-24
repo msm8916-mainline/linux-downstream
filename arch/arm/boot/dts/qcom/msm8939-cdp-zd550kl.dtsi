@@ -308,7 +308,10 @@
 		pinctrl-1 = <&cdc_pdm_lines_sus>;
 		pinctrl-2 = <&cross_conn_det_act>;
 		pinctrl-3 = <&cross_conn_det_sus>;
-		qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;
+		//ASUS_BSP +++ JefferyHsu
+		//disable OMTP headset support
+		//qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;  
+		//ASUS_BSP --- JefferyHsu
 		asoc-platform = <&pcm0>, <&pcm1>, <&voip>, <&voice>,
 				<&loopback>, <&compress>, <&hostless>,
 				<&afe>, <&lsm>, <&routing>, <&lpa>;

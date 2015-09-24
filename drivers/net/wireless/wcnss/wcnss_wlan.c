@@ -268,6 +268,8 @@ static char *kernel_nvbin_ptr = NULL;
 #define WCNSS_ZD550KL_CUCC_WLAN_NV_FILE          "wlan/prima/WCNSS_qcom_wlan_nv_cucc_zd550kl.bin"
 #define WCNSS_ZD550KL_CMCC_WLAN_NV_FILE           "wlan/prima/WCNSS_qcom_wlan_nv_cmcc_zd550kl.bin"
 #define WCNSS_ZE550KG_WLAN_NV_FILE		     "wlan/prima/WCNSS_qcom_wlan_nv_ze550kg.bin"
+#define WCNSS_ZE551KL_WLAN_NV_FILE               "wlan/prima/WCNSS_qcom_wlan_nv_ze551kl.bin"
+
 #define NVBIN_FILE              kernel_nvbin_ptr 
 
 /* On SMD channel 4K of maximum data can be transferred, including message
@@ -2266,11 +2268,14 @@ static void wcnss_nvbin_dnld(void)
 
 	/* ze550kl and ze550kg have the same project id, but ze550kg only have 3G sku, and others belongs to ze550kl */
 	if( ASUS_ZE550KL == asus_PRJ_ID ){
-		/* RF SKU 3G:3 TW:4 WW:5 CUCC:6 CMCC:7 */
+		/* RF SKU US:2 3G:3 TW:4 WW:5 CUCC:6 CMCC:7 */
 		if( 0 == strncmp(asus_project_RFsku, "3", 2))
 			NVBIN_FILE = WCNSS_ZE550KG_WLAN_NV_FILE;
 		else if( 0 == strncmp(asus_project_RFsku, "7", 2))
 			NVBIN_FILE = WCNSS_ZE550KL_CMCC_WLAN_NV_FILE;
+		/*ze551kl_US is LTE and FHD*/
+		else if((0 == strncmp(asus_project_lte, "1", 2))&&(0 == strncmp(asus_project_hd, "0", 2))&&( 0 == strncmp(asus_project_RFsku, "2", 2)))
+			NVBIN_FILE = WCNSS_ZE551KL_WLAN_NV_FILE;
 		else
 		 	NVBIN_FILE = WCNSS_ZE550KL_WLAN_NV_FILE;
 	}

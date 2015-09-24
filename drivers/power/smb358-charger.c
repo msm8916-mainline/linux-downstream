@@ -4145,6 +4145,12 @@ int setSMB358Charger(int usb_state)
 	}
 	if (smb358_dev) {
 		power_supply_changed(&smb358_power_supplies[0]);
+		//under 02h[7]=0,  prevent cable_plug & reboot when suspend adapter
+		ret=__smb358_path_suspend(smb358_dev,0);
+		if (ret){
+                BAT_DBG_E("%s: Set adapter to normal mode fail!\n",__FUNCTION__);
+				return -1;
+        }
 	}
 	switch (usb_state) {
 	case AC_IN:
@@ -4817,6 +4823,12 @@ static int smb358_charger_probe(struct i2c_client *client,
 	/*BSP david: do JEITA if the usb state has changed*/
 	if (smb358_is_charging(usb_state)) {
 		mutex_lock(&g_usb_state_lock);
+		//under 02h[7]=0,  prevent cable_plug & reboot when suspend adapter
+		ret=__smb358_path_suspend(smb358_dev,0);
+		if (ret){
+                BAT_DBG_E("%s: Set adapter to normal mode fail!\n",__FUNCTION__);
+				return -1;
+        }
 		smb358_config_max_current(g_usb_state);
 		mutex_unlock(&g_usb_state_lock);
 		if (usb_state == AC_IN) {

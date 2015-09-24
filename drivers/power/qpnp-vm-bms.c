@@ -1767,12 +1767,13 @@ static int mapping_for_full_status(int last_soc)
 	if((result == 0)&&(batt_voltage >3400000)){
 		result=1;
 		BAT_DBG("%s: cap = %d but voltage = %d, keep cap 1!\n", __FUNCTION__, result, batt_voltage);
-		}
+	}
 	if (!batLow) {
 		if (result == 0) {
 			ASUSEvtlog("[BAT] Low Voltage\n");
 			printk("[BAT] Low Voltage\n");
-			smb358_polling_battery_data_work(0);
+			pr_debug("update bms_psy cap=0\n");
+			power_supply_changed(&the_chip->bms_psy);
 			batLow = true;
 			 }
 	} else{
@@ -3103,7 +3104,9 @@ static int calculate_initial_soc(struct qpnp_bms_chip *chip)
 	est_soc = lookup_soc_ocv(chip, est_ocv, batt_temp);
 
 	compare_and_choose(chip,est_ocv, est_soc,  HW_and_est_thd);
-
+	
+	spmi_ext_register_readl(chip->spmi->ctrl, chip->spmi->sid,
+		0x00000808, &reg, 1);
 	if(!chip->shutdown_soc_invalid){		
 		if((reg& reboot_or_not) || chip->warm_reset){
 			using_shutdown_data(chip, batt_temp);
@@ -4054,9 +4057,9 @@ static int boot_completed_proc_open(struct inode *inode, struct  file *file)
 static ssize_t boot_completed_proc_write(struct file *filp, const char __user *buff,
 		size_t len, loff_t *data)
 {
-	int val;
+	int val = 0;
 
-	char messages[256];
+	char messages[256] = { '\0' };
 
 	if (len > 256) {
 		len = 256;
@@ -4069,7 +4072,7 @@ static ssize_t boot_completed_proc_write(struct file *filp, const char __user *b
 	val = (int)simple_strtol(messages, NULL, 10);
 
 	printk("[BAT][Proc][Prop]boot_completed_prop: %d\n", val);
-        if(val ==1 ){
+        if(val){
 	        printk("[BAT][Proc][Prop]set boot_completed to 1 \n");
                 boot_completed = 1;
 	        if (the_chip->bms_psy_registered)

@@ -485,6 +485,8 @@ extern char asus_project_RFsku[2];
 extern char asus_project_lte[2];
 extern char asus_project_stage[2];
 extern char asus_project_mem[2];
+extern char asus_project_hd[2];
+
 
 enum project_pcbid {
 	ASUS_ZE550KL,
