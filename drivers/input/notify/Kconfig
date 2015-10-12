@@ -1,0 +1,15 @@
+config CHARGER_NOTIFY
+	bool "enable charger plug in notify"
+	help
+	  Say Y here if you want to enable charger plug in notify.
+	  
+config HALL_NOTIFY
+	bool "enable hall sensor notify"
+	help
+	  Say Y here if you want to enable hall sensor notify.
+	  
+config PROX_NOTIFY
+	bool "enable prox sensor notify"
+	help
+	  Say Y here if you want to enable prox sensor notify.
+

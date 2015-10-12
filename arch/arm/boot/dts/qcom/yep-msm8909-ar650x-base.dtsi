@@ -1,0 +1,259 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*  Date            Author          Why
+    2015-05-18      yuquan          creat     
+*/  
+ 
+#include "yep-msm8909-ar650x.dtsi"
+#include "yep-msm8909-ar650x-camera.dtsi"
+#include "yep-msm8909-ar650x-lcd-panels.dtsi"
+#include "yep-msm8909-ar650x-lcd-panel-settings.dtsi"
+#include "yep-msm8909-ar650x-tp.dtsi"
+#include "yep-msm8909-ar650x-sensors.dtsi"
+#include "yep-msm8909-ar650x-pinctrl.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. MSM8909 QRD SKUC";
+	compatible = "qcom,msm8909-qrd", "qcom,msm8909", "qcom,qrd";
+};
+
+&soc {
+
+	sound {
+		compatible = "qcom,msm8x16-audio-codec";
+		qcom,model = "msm8909-skuc-snd-card";
+		qcom,msm-snd-card-id = <0>;
+		qcom,msm-codec-type = "internal";
+		qcom,msm-ext-pa = "primary";
+		qcom,msm-mclk-freq = <9600000>;
+		qcom,msm-mbhc-hphl-swh = <1>;
+		qcom,msm-mbhc-gnd-swh = <0>;
+		qcom,msm-hs-micbias-type = "internal";
+		//Modified by chaofubang to disable ext cap SW00154668 20150825 start
+		//qcom,msm-micbias1-ext-cap;
+		//qcom,msm-micbias2-ext-cap;
+		//Modified by chaofubang to disable ext cap SW00154668 20150825 end
+		qcom,audio-routing =
+			"RX_BIAS", "MCLK",
+			"SPK_RX_BIAS", "MCLK",
+			"INT_LDO_H", "MCLK",
+			"MIC BIAS Internal1", "Handset Mic",
+			"MIC BIAS Internal2", "Headset Mic",
+			"MIC BIAS Internal3", "Secondary Mic",
+			"AMIC1", "MIC BIAS Internal1",
+			"AMIC2", "MIC BIAS Internal2",
+			"AMIC3", "MIC BIAS Internal3";
+		pinctrl-names = "cdc_lines_act",
+				"cdc_lines_sus",
+				"cross_conn_det_act",
+				"cross_conn_det_sus";
+		pinctrl-0 = <&cdc_pdm_lines_act>;
+		pinctrl-1 = <&cdc_pdm_lines_sus>;
+		pinctrl-2 = <&cross_conn_det_act &cdc_pdm_lines_act>;
+		pinctrl-3 = <&cross_conn_det_sus &cdc_pdm_lines_sus>;
+		qcom,cdc-us-euro-gpios = <&msm_gpio 16 0>;
+		asoc-platform = <&pcm0>, <&pcm1>, <&voip>, <&voice>,
+				<&loopback>, <&compress>, <&hostless>,
+				<&afe>, <&lsm>, <&routing>, <&lpa>,
+				<&voice_svc>;
+		asoc-platform-names = "msm-pcm-dsp.0", "msm-pcm-dsp.1",
+				"msm-voip-dsp", "msm-pcm-voice", "msm-pcm-loopback",
+				"msm-compress-dsp", "msm-pcm-hostless", "msm-pcm-afe",
+				"msm-lsm-client", "msm-pcm-routing", "msm-pcm-lpa",
+				"msm-voice-svc";
+		asoc-cpu = <&dai_pri_auxpcm>, <&dai_hdmi>,
+				<&dai_mi2s0>, <&dai_mi2s1>, <&dai_mi2s2>, <&dai_mi2s3>,
+				<&sb_0_rx>, <&sb_0_tx>, <&sb_1_rx>, <&sb_1_tx>,
+				<&sb_3_rx>, <&sb_3_tx>, <&sb_4_rx>, <&sb_4_tx>,
+				<&bt_sco_rx>, <&bt_sco_tx>, <&int_fm_rx>, <&int_fm_tx>,
+				<&afe_pcm_rx>, <&afe_pcm_tx>, <&afe_proxy_rx>, <&afe_proxy_tx>,
+				<&incall_record_rx>, <&incall_record_tx>, <&incall_music_rx>,
+				<&incall_music_2_rx>;
+		asoc-cpu-names = "msm-dai-q6-auxpcm.1", "msm-dai-q6-hdmi.8",
+				"msm-dai-q6-mi2s.0", "msm-dai-q6-mi2s.1",
+				"msm-dai-q6-mi2s.2", "msm-dai-q6-mi2s.3",
+				"msm-dai-q6-dev.16384", "msm-dai-q6-dev.16385",
+				"msm-dai-q6-dev.16386", "msm-dai-q6-dev.16387",
+				"msm-dai-q6-dev.16390", "msm-dai-q6-dev.16391",
+				"msm-dai-q6-dev.16392", "msm-dai-q6-dev.16393",
+				"msm-dai-q6-dev.12288", "msm-dai-q6-dev.12289",
+				"msm-dai-q6-dev.12292", "msm-dai-q6-dev.12293",
+				"msm-dai-q6-dev.224", "msm-dai-q6-dev.225",
+				"msm-dai-q6-dev.241", "msm-dai-q6-dev.240",
+				"msm-dai-q6-dev.32771", "msm-dai-q6-dev.32772",
+				"msm-dai-q6-dev.32773", "msm-dai-q6-dev.32770";
+		asoc-codec = <&stub_codec>, <&pm8916_tombak_dig>;
+		asoc-codec-names = "msm-stub-codec.1", "tombak_codec";
+		qcom,ext-spk-left-amp-gpio = <&msm_gpio 97 0>;/* modified by chaofubang for ext_spk pa control (8909) SW00000000 2015/05/28 */
+		qcom,ext-spk-right-amp-gpio = <&msm_gpio 20 0>;/* Added by chaofubang for ext_spk pa control (8909) SW00000000 2015/05/28 */
+	};
+	hall-sensor {
+		compatible = "qcom,hall-sensor";
+		label = "Hall-AHXXX";
+		pinctrl-names = "default";
+		pinctrl-0 = <&hall_default>;
+		vdd-supply = <&pm8916_l6>;
+		qcom,wake-key = <250>;
+		qcom,sleep-key = <251>;
+		qcom,irq-gpio = <&msm_gpio 21 0x00>;
+		qcom,debounce = <500>;
+	};
+};
+/* Modify by lichuangchuang for smb358 debug (8909) SW00000000 20150727 start*/
+&i2c_4 {
+	smb358_otg_vreg: smb358-charger@57 {
+		compatible = "qcom,smb358-charger";
+		reg = <0x57>;
+		vdd-supply = <&pm8916_l5>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <58 8>;
+		qcom,irq-gpio = <&msm_gpio 58 0x2008>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&smb_int_default>;
+		qcom,chg-vadc = <&pm8916_vadc>;
+
+		qcom,chg-inhibit-disabled;
+		qcom,float-voltage-mv = <4350>;
+		qcom,iterm-ma = <200>;
+		qcom,recharge-thresh-mv = <100>;
+		qcom,thermal-mitigation = <1500 700 600 0>;
+		qcom,fg-auto-recharge-soc = <98>;
+		regulator-name = "smb358_otg_vreg";
+		
+		qcom,cold-bat-decidegc = <0>;
+		qcom,cool-bat-decidegc = <150>;
+		qcom,warm-bat-decidegc = <450>;
+		qcom,hot-bat-decidegc = <500>;
+		qcom,bat-present-decidegc = <400>;
+		qcom,cool-bat-ma  = <1300>;
+		qcom,warm-bat-ma  = <1300>;
+		qcom,fastchg-current-max-ma  = <2000>;
+		qcom,recharge-mv = <100>;
+		qcom,cool-bat-mv = <4350>;
+		qcom,warm-bat-mv = <4100>;
+		qcom,soc-delay-worker-time = <15000>;
+	};
+};
+/* Modify by lichuangchuang for smb358 debug (8909) SW00000000 20150727 end*/
+/*zwt modify for gpio 8 conflict setting 2015-6-1*/
+&spi_0{ 
+       status = "disabled";  
+};
+
+&pm8916_chg {
+	status = "okay";
+	qcom,use-external-charger;
+};
+
+/ {
+	qrd_batterydata: qcom,battery-data {
+		qcom,rpull-up-kohm = <0>;
+		qcom,vref-batt-therm = <1800000>;
+
+		#include "batterydata-ar650x-4v35-2500mah.dtsi"
+	};
+};
+
+&pm8916_bms {
+	status = "okay";
+	qcom,max-voltage-uv = <4350000>;
+	qcom,v-cutoff-uv = <3450000>;
+	qcom,low-voltage-calculate-soc-ms = <30000>;
+	qcom,low-soc-calculate-soc-ms = <80000>;
+	qcom,low-voltage-threshold = <3550000>;
+	qcom,calculate-soc-ms = <110000>;
+	qcom,shutdown-soc-valid-limit = <30>;
+	qcom,resume-soc = <95>;
+	qcom,use-reported-soc;
+	qcom,force-bms-active-on-charger;
+	qcom,battery-data = <&qrd_batterydata>;
+};
+
+&usb_otg {
+		interrupts = <0 134 0>,<0 140 0>,<0 136 0>;
+		interrupt-names = "core_irq", "async_irq", "phy_irq";
+
+       qcom,hsusb-otg-mode = <3>;
+       vbus_otg-supply = <&smb358_otg_vreg>;
+};
+/* Delete by lichuangchuang for SD card detect(8909) SW00129909 20150429 start*/
+/*
+&sdc2_cd_on {
+	/delete-property/  bias-pull-up;
+	bias-disable;
+};
+
+&sdhc_2 {
+	qcom,no-1p8v;
+	qcom,vdd-always-on;
+	qcom,vdd-lpm-sup;
+
+	qcom,vdd-current-level = <4000 400000>;
+
+	//cd-gpios = <&msm_gpio 38 0x0>;// modify by luohao for sdcard detecting. (8916) SW00000000 20140612 
+};
+*/
+/* Delete by lichuangchuang for SD card detect(8909) SW00129909 20150429 end*/
+/*Add by lichuangchuang for delete sd card holtplug(QL702) SW00105280 2015-05-28 start*/
+/*&sdhc_2 {
+	qcom,nonremovable;
+
+	interrupts = <0 1>;
+	interrupt-map = <0 &intc 0 125 0
+		1 &intc 0 221 0>;
+	interrupt-names = "hc_irq", "pwr_irq";
+	/delete-property/ cd-gpios;
+};*/
+/*Add by lichuangchuang for delete sd card holtplug(QL702) SW00105280 2015-05-28 end*/
+
+&pm8916_mpps {
+	mpp@a000 { /* MPP 1 */
+		/* VDD_PX */
+		status = "disabled";
+	};
+
+	mpp@a100 { /* MPP 2 */
+		status = "disabled";
+	};
+
+	mpp@a200 { /* MPP 3 */
+		/* VREF DAC */
+		status = "disabled";
+	};
+/*zwt modify for backlight mpp vlotage to 1.8v 20150603*/
+	mpp@a300 { /* MPP 4 */
+		 /* Backlight PWM */
+		qcom,mode = <1>;		/* Digital output */
+		qcom,invert = <0>;		/* Disable invert */
+		qcom,src-sel = <4>;		/* DTEST1 */
+		qcom,vin-sel = <3>;		/* VPH_PWR */
+		qcom,master-en = <1>;		/* Enable MPP */
+	};
+};
+&pm8916_vadc {
+	chan@30 {
+		qcom,scale-function = <12>;
+	};
+
+	chan@13 {
+		label = "case_therm";
+		reg = <0x13>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+		qcom,vadc-thermal-node;
+	};
+};

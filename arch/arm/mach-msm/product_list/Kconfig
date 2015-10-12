@@ -1,0 +1,23 @@
+#
+#     date      	author      	why
+#  2015.5.25      yuquan         add ar650x product
+
+#
+# YEP_product_list
+#  
+
+#========================================================
+config PRODUCT_AR650X
+        depends on ARCH_MSM8909
+        bool "ar650x product"
+        help
+          Fix version type as ar650x.
+#========================================================
+
+#========================================================
+config PRODUCT_AR6502
+        depends on ARCH_MSM8909
+        bool "ar6502 product"
+        help
+          Fix version type as ar6502.
+#========================================================

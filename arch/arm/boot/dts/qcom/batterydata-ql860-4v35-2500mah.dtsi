@@ -1,0 +1,123 @@
+/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+/* xiongzuan add battery information capacity and rbatt by 20150518 begin*/
+qcom,qrd-4v35-2500mAh-data {
+	qcom,fcc-mah = <2500>;
+	qcom,default-rbatt-mohm = <138>;
+	qcom,rbatt-capacitive-mohm = <30>;
+	qcom,flat-ocv-threshold-uv = <3800000>;
+	qcom,max-voltage-uv = <4350000>;
+	qcom,v-cutoff-uv = <3400000>;
+	qcom,chg-term-ua = <100000>;
+	qcom,batt-id-kohm = <470>;
+	qcom,battery-type = "qrd_4v35_2500mah";
+
+	qcom,rbatt-sf-lut {
+		qcom,lut-col-legend = <(-20) 0 25 40 60>;
+		qcom,lut-row-legend = <100 95 90 85 80>,
+				<75 70 65 60 55>,
+				<50 45 40 35 30>,
+				<25 20 16 13 11>,
+				<10 9 8 7 6>,
+				<5 4 3 2 1>,
+				<0>;
+		qcom,lut-data = 
+                                <905  231  100  90  90>,  
+						        <905  231  100  90  90>,  
+						        <961  229  100  90  90>, 
+						        <915  227  101  91  91>, 
+						        <863  227  102  92  91>, 
+						        <787  231  106  95  92>,  
+						        <771  208  106  95  93>,  
+						        <758  207  111  97  94>,  
+						        <754  202  113  100  97>,  
+						        <760  198  105  97  95>,  
+						        <768  198  98  90  91>, 
+						        <781  199  98  90  91>,  
+						        <800  201  99  91  91>,  
+						        <825  208  100  93  93>,  
+						        <855  217  101  94  94>,  
+						        <896  227  102  91  91>, 
+						        <948  236  101  91  91>, 
+						        <997  246  102  92  92>,  
+						        <1026  260  100  91  91>,  
+						        <977  259  100  91  91>,  
+						        <1005  265  101  92  92>,  
+						        <1035  275  102  93  93>,  
+						        <1069  287  103  94  94>,  
+						        <1108  300  106  96  95>,  
+						        <1190  312  109  97  96>,  
+						        <1371  323  108  96  94>,  
+						        <1641  339  107  94  93>,  
+						        <2086  371  109  96  95>,  
+						        <3035  421  115  102  99>,  
+						        <15561  627  138  124  112>,  
+						        <21302  697  367  235  160>;
+	};
+
+	qcom,fcc-temp-lut {
+		qcom,lut-col-legend = <(-20) 0 25 40 60>;
+		qcom,lut-data = <2578 2580 2590 2584 2573>;
+	};
+
+	qcom,pc-temp-ocv-lut {
+		qcom,lut-col-legend = <(-20) 0 25 40 60>;
+		qcom,lut-row-legend = <100 95 90 85 80>,
+				<75 70 65 60 55>,
+				<50 45 40 35 30>,
+				<25 20 16 13 11>,
+				<10 9 8 7 6>,
+				<5 4 3 2 1>,
+				<0>;
+		qcom,lut-data = 
+								<4280  4283  4318  4313  4300>,  
+								<4212  4220  4249  4247  4243>,
+								<4140  4184  4191  4189  4186>,
+								<4098  4131  4137  4135  4132>,  
+								<4039  4085  4086  4083  4080>, 
+								<3950  4029  4043  4040  4033>,  
+								<3911  3954  3979  3986  3989>,  
+								<3873  3921  3953  3953  3951>, 
+								<3844  3888  3916  3917  3916>,  
+								<3823  3855  3871  3874  3873>,  
+								<3806  3828  3836  3836  3835>,  
+								<3791  3806  3813  3813  3812>,  
+								<3777  3789  3796  3796  3794>,  
+								<3763  3778  3782  3782  3780>, 
+								<3748  3767  3771  3769  3766>,  
+								<3733  3753  3761  3752  3739>,  
+								<3715  3734  3743  3733  3719>,  
+								<3697  3716  3721  3712  3699>,  
+								<3679  3706  3698  3690  3677>,  
+								<3665  3699  3689  3682  3670>,  
+								<3656  3696  3688  3681  3669>,  
+								<3644  3692  3687  3679  3668>,  
+								<3632  3688  3685  3678  3666>,  
+								<3616  3683  3683  3676  3664>,  
+								<3597  3673  3678  3669  3657>,  
+								<3571  3651  3661  3650  3634>,  
+								<3537  3613  3623  3608  3593>,  
+								<3489  3555  3565  3549  3535>,  
+								<3415  3470  3485  3468  3458>,  
+								<3272  3330  3367  3347  3342>,  
+								<3000  3000  3000  3000  3000>;
+	};
+	qcom,ibat-acc-lut {
+		qcom,lut-col-legend = <(-20) 0 25>;
+		qcom,lut-row-legend = <0 250 500 1000>;
+		qcom,lut-data = <2458 2488 2488>,
+				        <97 2327 2434>,
+				        <141 1798 2406>,
+			         	<191 781 2029>;
+ };
+};
+/* xiongzuan add battery information capacity and rbatt by 20150518 end*/

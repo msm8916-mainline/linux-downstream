@@ -1,0 +1,33 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*  Date            Author          Why
+    2015-05-18      yuquan          creat
+*/  
+ 
+/dts-v1/;
+
+#include "yep-msm8909-ar650x-base.dtsi"
+
+/* Added by yuquan for modem memory.(36M)begin */
+&modem_adsp_mem {
+	reg = <0x0 0x88000000 0x0 0x02400000>;
+};
+&peripheral_mem {
+    reg = <0x0 0x8A400000 0x0 0x0500000>;
+};
+/* Added by yuquan for modem memory.(36M)end */
+
+/ {
+	qcom,board-id=<0x1000b 0x1008>, <0x11000b 0x1008>, <0x21000b 0x1008>, <0x1000b 0x8>, <0x11000b 0x8>, <0x21000b 0x8>;
+};
+
