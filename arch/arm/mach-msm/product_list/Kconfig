@@ -1,0 +1,22 @@
+#
+#     date      	author      	why
+#  2015.01.10     litao2		add y560 product
+#  2015.3.10      liumx         add 860 product
+
+#
+# YEP_product_list
+#  
+#========================================================
+config QW620_BASE
+	depends on ARCH_MSM8909
+	bool "QW620_BASE version"
+	help
+	  Fix version type as QW620_BASE.
+#========================================================
+#========================================================
+config QL620_BASE
+        depends on ARCH_MSM8909
+        bool "QL620_BASE version"
+        help
+          Fix version type as QL620_BASE.
+#========================================================

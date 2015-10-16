@@ -1,0 +1,20 @@
+/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+ /*lcd panel dtsi*/
+
+#include "dsi-panel-hx8379a-fwvga-skua-video.dtsi"
+#include "dsi-panel-ili9806e-fwvga-video.dtsi"
+#include "dsi_panel_hx8379c_txd_b14t45039n_hsd4p5_fwvga_video.dtsi"
+#include "dsi-panel-ili9806e-dijing-90245254976a-hsd4p5inch-fwvga-video.dtsi"
+#include "dsi_panel_ili9806e_tcl_clag045lj_cpt4p5inch_fwvga_video.dtsi"
+#include "dsi-panel-ili9806e-txd-t500ekpa-ivo5pinch-fwvga-video.dtsi"
+#include "dsi_nt35512s_dijing_90250255218b_5inch_fwvga_video_panel.dtsi"

@@ -1,0 +1,190 @@
+/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+&tlmm_pinmux {
+
+	stk3x1x_int_pin {
+		qcom,pins = <&gp 36>;
+		qcom,pin-func = <0>;
+		qcom,num-grp-pins = <1>;
+		label = "stk3x1x-irq";
+		stk3x1x_default: stk3x1x_default {
+		drive-strenghth = <6>;
+		bias-pull-up;
+		};
+		stk3x1x_sleep: stk3x1x_sleep {
+		drive-strength = <2>;
+		bias-pull-down;
+		};
+	};
+	ap3426_int_pin {
+		qcom,pins = <&gp 36>;
+		qcom,pin-func = <0>;
+		qcom,num-grp-pins = <1>;
+		label = "ap3426-irq";
+		ap3426_default: ap3426_default {
+			drive-strength = <6>;
+			bias-pull-up;
+		};
+		ap3426_sleep: ap3426_sleep {
+			drive-strength = <2>;
+			bias-pull-down;
+		};
+	};
+	akm_reset_pin {
+		qcom,pins = <&gp 11>;
+		qcom,pin-func = <0>;
+		qcom,num-grp-pins = <1>;
+		label = "akm_reset_pin";
+		akm_default: akm_default {
+			drive-strength = <6>;
+			bias-pull-up;
+		};
+		akm_sleep: akm_sleep {
+			drive-strength = <2>;
+			bias-pull-down;
+		};
+	};
+	bma2x2_int1_pin {
+		qcom,pins = <&gp 96>;
+		qcom,num-grp-pins = <1>;
+		label = "bma2x2_int1_pin";
+		bma2x2_int1_default: int1_default {
+			drive-strength = <6>;
+			bias-pull-up;
+		};
+	};
+
+	bma2x2_int2_pin {
+		qcom,pins = <&gp 65>;
+		qcom,num-grp-pins = <1>;
+		label = "bma2x2_int2_pin";
+		bma2x2_int2_default: int2_default {
+			drive-strength = <6>;
+			bias-pull-up;
+		};
+	};
+};
+
+&soc {
+
+	i2c@78b5000 { /* BLSP1 QUP1 */
+		di_ap3426@1e {
+			compatible = "di_ap3426";
+			reg = <0x1e>;
+			pinctrl-names = "default","sleep";
+			pinctrl-0 = <&ap3426_default>;
+			pinctrl-1 = <&ap3426_sleep>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <36 0x2002>;
+			vdd-supply = <&pm8909_l17>;
+			vio-supply = <&pm8909_l6>;
+			ap3426,irq-gpio = <&msm_gpio 36 0x2002>;
+		};		
+		bosch@18 { /* Accelerometer sensor */
+			compatible = "bosch,bma2x2";
+			reg = <0x18>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&bma2x2_int1_default &bma2x2_int2_default>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <96 0x2002>;
+			vdd-supply = <&pm8909_l17>;
+			vio-supply = <&pm8909_l6>;
+			bosch,init-interval = <200>;
+			bosch,place = <3>;
+			bosch,gpio-int1 = <&msm_gpio 96 0x2002>;
+			bosch,gpio-int2 = <&msm_gpio 65 0x2002>;
+		};
+		akm@c {
+			compatible = "ak,ak09911";
+			reg = <0x0c>;
+			pinctrl-names = "default","sleep";
+			pinctrl-0 = <&akm_default>;
+			pinctrl-1 = <&akm_sleep>;
+			vdd-supply = <&pm8909_l17>;
+			vio-supply = <&pm8909_l6>;
+			akm,layout = <0x8>;
+			akm,gpio_rstn = <&msm_gpio 11 0x0>;
+			akm,auto-report;
+		};
+		kionix@e{
+			compatible = "kionix,kxtj9";
+			reg = <0x0e>;
+			vdd-supply = <&pm8909_l17>;
+			vio-supply = <&pm8909_l6>;
+			kionix,min-interval = <5>;
+			kionix,init-interval = <200>;
+			kionix,axis-map-x = <1>;
+			kionix,axis-map-y = <0>;
+			kionix,axis-map-z = <2>;
+			kionix,g-range = <2>;
+			kionix,negate-y;
+			kionix,res-12bit;
+		};
+
+		lsm6ds0@0x6B {
+			compatible = "st,lsm6ds0";
+			reg = <0x6B>;
+			rot-matrix = /bits/ 16 <(1) (0) (0)
+						 (0) (1) (0)
+						 (0) (0) (1)>;
+			g-poll-interval = <100>;
+			g-min-interval = <2>;
+			g-fs-range = <0>;
+			x-poll-interval = <100>;
+			x-min-interval = <1>;
+			x-fs-range = <0>;
+			aa-filter-bw = <0>;
+		};
+
+		aw2013@45 {
+			compatible = "awinic,aw2013";
+			reg = <0x45>;
+			vdd-supply = <&pm8909_l17>;
+			vcc-supply = <&pm8909_l6>;
+
+			aw2013,red {
+				aw2013,name = "red";
+				aw2013,id = <0>;
+				aw2013,max-brightness = <255>;
+				aw2013,max-current = <1>;
+				aw2013,rise-time-ms = <2>;
+				aw2013,hold-time-ms = <1>;
+				aw2013,fall-time-ms = <2>;
+				aw2013,off-time-ms = <1>;
+			};
+
+			aw2013,green {
+				aw2013,name = "green";
+				aw2013,id = <1>;
+				aw2013,max-brightness = <255>;
+				aw2013,max-current = <1>;
+				aw2013,rise-time-ms = <2>;
+				aw2013,hold-time-ms = <1>;
+				aw2013,fall-time-ms = <2>;
+				aw2013,off-time-ms = <1>;
+			};
+
+			aw2013,blue {
+				aw2013,name = "blue";
+				aw2013,id = <2>;
+				aw2013,max-brightness = <255>;
+				aw2013,max-current = <1>;
+				aw2013,rise-time-ms = <2>;
+				aw2013,hold-time-ms = <1>;
+				aw2013,fall-time-ms = <2>;
+				aw2013,off-time-ms = <1>;
+			};
+		};
+	};
+};
