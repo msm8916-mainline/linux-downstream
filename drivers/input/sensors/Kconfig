@@ -1,0 +1,21 @@
+#
+# Sensor drivers configuration
+#
+
+config SENSORS_CM36686
+        bool "AL3320A Light Sensor"
+        depends on I2C
+
+
+config SENSORS_BMC156
+        bool "BMC156 G-Sensor & E-compass"
+        depends on I2C
+
+config HALL_SENSOR
+       bool "Hall sensor"
+       default n
+       help
+          Say Y here if you want enable hall sensor driver
+          If unsure, say N.
+
+

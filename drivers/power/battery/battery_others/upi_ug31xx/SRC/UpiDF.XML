@@ -1,0 +1,1834 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="view.xsl"?>
+<?xml-stylesheet type="text/xsl" href="export.xsl"?>
+<UpiDF event="UpiDF" ver="$Revision: 0 $">
+  <class type="1stLevelSafetyClass" name="c1stLevelSafetyClass" pageId="0">
+    <subClass type="Control" name="scControl">
+      <item endian="le" type="U1" name="bCntl" abbrev="CTLALA">
+        <default>0</default>
+        <min>0</min>
+        <max>255</max>
+        <description>Alarm control</description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+    <subClass type="Voltage" name="scVoltage">
+      <item endian="le" type="I2" name="sUvAlarm" abbrev="UVALA">
+        <default>3000</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> uV Alarm </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sUvRelease" abbrev="UVREL">
+        <default>3200</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> uV Release </description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+    <subClass type="Temperature" name="scTemperature">
+      <item endian="le" type="I2" name="sUetAlarm" abbrev="UETVALA">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> under temperature threadshold Alarm </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sUetRelease" abbrev="UETREL">
+        <default>50</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>under temperature threadshold Release </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sOetAlarm" abbrev="OETVALA">
+        <default>500</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> Over temperature threadshold Alarm </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sOetRelease" abbrev="OETREL">
+        <default>450</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>Over temperature threadshold Release </description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+  </class>
+  <class type="ChargeControl" name="cChargeControl" pageId="0">
+    <subClass type="TerminationCfg" name="scTerminationCfg">
+      <item endian="le" type="U2" name="wTPCurrent" abbrev="TPCURR">
+        <default>200</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> TP Current </description>
+        <unit>mA</unit>
+      </item>
+      <item endian="le" type="U2" name="wTPVoltage" abbrev="TPVOLT">
+        <default>4250</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> TP Voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wTPTime" abbrev="TPTIME">
+        <default>60</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> TP Time </description>
+        <unit>Sec</unit>
+      </item>
+      <item endian="le" type="U2" name="wTpBypassCurrent" abbrev="TPBYPSCURR">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> Tp Bypass Current </description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+  </class>
+  <class type="SBSConfiguration" name="cSBSConfiguration" pageId="0">
+    <subClass type="Data" name="scData">
+      <item endian="le" type="S16" name="strCustomer" abbrev="CUST">
+        <default>ASUS</default>
+        <min>X</min>
+        <max>X</max>
+        <description>Customer name defined by uPI</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="S16" name="strProject" abbrev="PROJ">
+        <default>PF400CG</default>
+        <min>X</min>
+        <max>X</max>
+        <description>Project name defined by uPI</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="S16" name="strCustomerSelfDef" abbrev="CUSTNAME">
+        <default>Cd</default>
+        <min>X</min>
+        <max>X</max>
+        <description>Customer name record by customer </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="S16" name="strProjectCustomerSelfDef" abbrev="CUSTPROJ">
+        <default>P008</default>
+        <min>X</min>
+        <max>X</max>
+        <description>Project name record by customer</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wCellTypeCode" abbrev="CELLTYPECODE">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>Cell Type Code</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wILMD" abbrev="ILMD">
+        <default>1200</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>  initial last measured discharge (ILMD) </description>
+        <unit>mAh</unit>
+      </item>
+      <item endian="le" type="U2" name="wCycleCountThrd" abbrev="CYCTHRED">
+        <default>1200</default>
+        <min>0x00</min>
+        <max>0xFFFF</max>
+        <description> CycleCount Threadshold </description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+  </class>
+  <class type="SystemData" name="cSystemData" pageId="0">
+    <subClass type="ManufacturerInfo" name="scManufacturerInfo">
+      <item endian="le" type="U2" name="wTotalSize" abbrev="TSIZE">
+        <default>2048</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>Total struct size</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wFwVersion" abbrev="FWVER">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>CellParameter struct version</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wGGBVersion" abbrev="GGBVER">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>GGB version : 0x0102 = 2.1 Version</description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+  </class>
+  <class type="Configuration" name="cConfiguration" pageId="0">
+    <subClass type="Registers" name="scRegisters">
+      <item endian="le" type="U1" name="bTimeInterval" abbrev="TIMEINT">
+        <default>5</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Time Interval</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U4" name="dwOPCfg" abbrev="OPCFG">
+        <default>0</default>
+        <min>0x00</min>
+        <max>0xFFFFFFFF</max>
+        <description> Nac Lmd Adjust Config </description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+    <subClass type="AFE" name="scAFE">
+      <item endian="le" type="U1" name="bICType" abbrev="ICTYPE">
+        <default>1</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> 000 : uG3100 1-cell, 001 : uG3101 1-cell, 010 : uG3102 2-cell, 100 : uG3103_2 2-cell, 101 : uG3103_3 3-cell </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bGpio1" abbrev="GPIO1">
+        <default>1</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>bit[4] cbc_en32,bit[3] cbc_en21,bit[2] pwm, bit[1] alarm, bit[0] gpio </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bGpio2" abbrev="GPIO2">
+        <default>1</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>bit[4] cbc_en32,bit[3] cbc_en21,bit[2] pwm, bit[1] alarm, bit[0] gpio </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bGpio34" abbrev="GPIO34">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>bit[4] cbc_en32,bit[3] cbc_en21,bit[2] pwm, bit[1] alarm, bit[0] gpio </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bCellNumber" abbrev="CELLNUM">
+        <default>1</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Project used Cell number </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bAssignCellOneTo" abbrev="ASSCELLONE">
+        <default>1</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> AssignCellOneTo </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bAssignCellTwoTo" abbrev="ASSCELLTWO">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> AssignCellTwoTo </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bAssignCellThreeTo" abbrev="ASSCELLTHREE">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> AssignCellThreeTo </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="bI2cSlaveAddress" abbrev="SLAVEADDR">
+        <default>112</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> I2C Address(Hex)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="bI2cClock" abbrev="I2CCLOCK">
+        <default>100</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> I2C colock </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bTenBitAddressMode" abbrev="TENADDRMODE">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Ten Bit Address Mode </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bHighSpeedMode" abbrev="HIGHSPEED">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> High Speed Mode </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bChopCtrl" abbrev="CHOPCTL">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> CHOP control reg(0xC1) </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sOscTuneJ" abbrev="OSCTJ">
+        <default>-164</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> Osc Tune J </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sOscTuneK" abbrev="OSCTK">
+        <default>375</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>Osc Tune K </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bAlarmTimer" abbrev="ALATIME">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Alarm Timer</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bPwmTimer" abbrev="PWMTIME">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>[1:0] 00:32k , 01:16k, 10:8k , 11: 4k</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bClkDivA" abbrev="CLKDIVA">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Clk Div A</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bClkDivB" abbrev="CLKDIVB">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Clk Div B</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bAlarmEnable" abbrev="ALAEN">
+        <default>4</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>[7]:COC,[6]:DOC,[5]:IT,[4]:ET,[3]:VP,[2]:V3,[1]:V2,[0]:V1</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U1" name="bCbcEnable" abbrev="CBCEN">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>[1]:CBC_EN32, [0]:CBC_EN21</description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+  </class>
+  <class type="GasGauging" name="cGasGauging" pageId="0">
+    <subClass type="EDVCfg" name="scEDVCfg">
+      <item endian="le" type="U2" name="wEdv1Voltage" abbrev="EDV1VOLT">
+        <default>3400</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> Edv 1 Voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U1" name="bOffTime" abbrev="OFFTIME">
+        <default>1</default>
+        <min>1</min>
+        <max>255</max>
+        <description>Max power off time for re-looking up table at initial</description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+    <subClass type="CurrentThresholds" name="scCurrentThresholds">
+      <item endian="le" type="U1" name="bRsense" abbrev="RSEN">
+        <default>5</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Current R-sense </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wStandbyCurrent" abbrev="STBYCURR">
+        <default>20</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> Stand by Current </description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+  </class>
+  <class type="Calibration" name="cCalibration" pageId="0">
+    <subClass type="CaliData" name="scCaliData">
+      <item endian="le" type="I2" name="sAdc1Offset" abbrev="ADC1OFF">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> adc1 Offset </description>
+        <unit>code</unit>
+      </item>
+      <item endian="le" type="U2" name="wOffsetR" abbrev="OFFSETR">
+        <default>15</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OffsetR </description>
+        <unit>mOhm</unit>
+      </item>
+      <item endian="le" type="U2" name="wDeltaR" abbrev="DELTAR">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> delta R </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wVbat2Gain" abbrev="V2GAIN">
+        <default>57328</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Vbat2 Gain</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sVbat2Offset" abbrev="V2OFF">
+        <default>26612</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Vbat2 Offset </description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wVbat3Gain" abbrev="V3GAIN">
+        <default>53224</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Vbat3 Gain</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sVbat3Offset" abbrev="V3OFF">
+        <default>7150</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Vbat3 Offset</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sAdc1PGain" abbrev="ADC1PGAIN">
+        <default>1000</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Adc1 P Gain(Current)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sAdc1NGain" abbrev="ADC1NGAIN">
+        <default>1000</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Adc1 N Gain(Current)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sAdc1PosOffset" abbrev="ADC1POSOFF">
+        <default>18</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Adc1 Pos Offset(Current)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sAdc2Gain" abbrev="ADC2GAIN">
+        <default>1000</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Adc 2 Gain (Vbat1)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sAdc2Offset" abbrev="ADC2OFF">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>Adc1 Offset</description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+    <subClass type="Config" name="scConfig">
+      <item endian="le" type="I2" name="sAdcD1" abbrev="ADCD1">
+        <default>30</default>
+        <min>-32767</min>
+        <max>32767</max>
+        <description>adc d1 update for IT25</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sAdcD2" abbrev="ADCD2">
+        <default>1000</default>
+        <min>-32767</min>
+        <max>32767</max>
+        <description>adc d2 update for IT80</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sAdcD3" abbrev="ADCD3">
+        <default>30719</default>
+        <min>-32767</min>
+        <max>32767</max>
+        <description> adc d3 Used for ADC calibration IT code</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sAdcD4" abbrev="ADCD4">
+        <default>0</default>
+        <min>-32767</min>
+        <max>32767</max>
+        <description> adc d4 Used for ADC calibration IT code</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="I2" name="sAdcD5" abbrev="ADCD5">
+        <default>0</default>
+        <min>-32767</min>
+        <max>32767</max>
+        <description> adc d5 Used for ADC calibration IT code</description>
+        <unit>-</unit>
+      </item>
+    </subClass>
+    <subClass type="TempModel" name="scTempModel">
+      <item endian="le" type="U2" name="wR" abbrev="R">
+        <default>10000</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description>R</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable0" abbrev="RTTAB0">
+        <default>44604</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable0 : -10(ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable1" abbrev="RTTAB1">
+        <default>35360</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable1 : -5(ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable2" abbrev="RTTAB2">
+        <default>28234</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable2 : 0 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable3" abbrev="RTTAB3">
+        <default>22699</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable3 : 5 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable4" abbrev="RTTAB4">
+        <default>18370</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable4 : 10 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable5" abbrev="RTTAB5">
+        <default>14960</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable5 : 15 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable6" abbrev="RTTAB6">
+        <default>12257</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable6 : 20 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable7" abbrev="RTTAB7">
+        <default>10100</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable7 : 25 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable8" abbrev="RTTAB8">
+        <default>8400</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable8 : 30 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable9" abbrev="RTTAB9">
+        <default>7022</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable9 : 35 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable10" abbrev="RTTAB10">
+        <default>5900</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable10 : 40 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable11" abbrev="RTTAB11">
+        <default>4981</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable11 : 45 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable12" abbrev="RTTAB12">
+        <default>4224</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable12 : 50 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable13" abbrev="RTTAB13">
+        <default>3598</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable13 : 55 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable14" abbrev="RTTAB14">
+        <default>3078</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable14 : 60 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable15" abbrev="RTTAB15">
+        <default>2644</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable15 : 65 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable16" abbrev="RTTAB16">
+        <default>2280</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable16 : 70 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable17" abbrev="RTTAB17">
+        <default>1973</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable17 : 75 (ET)</description>
+        <unit>-</unit>
+      </item>
+      <item endian="le" type="U2" name="wRtTable18" abbrev="RTTAB18">
+        <default>1714</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description>rtTable18 : 80 (ET)</description>
+        <unit>-</unit>
+      </item>
+   </subClass>
+  </class>
+  <class type="Capacity" name="cCapacity" pageId="0">
+    <subClass type="OcvTableT45" name="scOcvTableT45">
+      <item endian="le" type="U2" name="wOcv100" abbrev="T45OCV100">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 100% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv95" abbrev="T45OCV95">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 95% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv90" abbrev="T45OCV90">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 90% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv85" abbrev="T45OCV85">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 85% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv80" abbrev="T45OCV80">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 80% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv75" abbrev="T45OCV75">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 75% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv70" abbrev="T45OCV70">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 70% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv65" abbrev="T45OCV65">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 65% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv60" abbrev="T45OCV60">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 60% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv55" abbrev="T45OCV55">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 55% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv50" abbrev="T45OCV50">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 50% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv45" abbrev="T45OCV45">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 45% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv40" abbrev="T45OCV40">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 40% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv35" abbrev="T45OCV35">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 35% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv30" abbrev="T45OCV30">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 30% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv25" abbrev="T45OCV25">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 25% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv20" abbrev="T45OCV20">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 20% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv15" abbrev="T45OCV15">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 15% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv10" abbrev="T45OCV10">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 10% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv5" abbrev="T45OCV5">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 5% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv0" abbrev="T45OCV0">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 45oC 0% voltage </description>
+        <unit>mV</unit>
+      </item>
+    </subClass>
+    <subClass type="RTableT45" name="scRTableT45">
+      <item endian="le" type="U1" name="bR100" abbrev="T45R100">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 100% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR95" abbrev="T45R95">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 95% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR90" abbrev="T45R90">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 90% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR85" abbrev="T45R85">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 85% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR80" abbrev="T45R80">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 80% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR75" abbrev="T45R75">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 75% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR70" abbrev="T45R70">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 70% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR65" abbrev="T45R65">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 65% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR60" abbrev="T45R60">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 60% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR55" abbrev="T45R55">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 55% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR50" abbrev="T45R50">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 50% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR45" abbrev="T45R45">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 45% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR40" abbrev="T45R40">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 40% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR35" abbrev="T45R35">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 35% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR30" abbrev="T45R30">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 30% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR25" abbrev="T45R25">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 25% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR20" abbrev="T45R20">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 20% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR15" abbrev="T45R15">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 15% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR10" abbrev="T45R10">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 10% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR5" abbrev="T45R5">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 5% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR0" abbrev="T45R0">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 45oC at 0% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+    </subClass>
+    <subClass type="OcvTableT25" name="scOcvTableT25">
+      <item endian="le" type="U2" name="wOcv100" abbrev="T25OCV100">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 100% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv95" abbrev="T25OCV95">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 95% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv90" abbrev="T25OCV90">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 90% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv85" abbrev="T25OCV85">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 85% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv80" abbrev="T25OCV80">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 80% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv75" abbrev="T25OCV75">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 75% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv70" abbrev="T25OCV70">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 70% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv65" abbrev="T25OCV65">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 65% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv60" abbrev="T25OCV60">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 60% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv55" abbrev="T25OCV55">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 55% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv50" abbrev="T25OCV50">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 50% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv45" abbrev="T25OCV45">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 45% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv40" abbrev="T25OCV40">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 40% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv35" abbrev="T25OCV35">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 35% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv30" abbrev="T25OCV30">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 30% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv25" abbrev="T25OCV25">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 25% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv20" abbrev="T25OCV20">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 20% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv15" abbrev="T25OCV15">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 15% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv10" abbrev="T25OCV10">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 10% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv5" abbrev="T25OCV5">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 5% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv0" abbrev="T25OCV0">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 25oC 0% voltage </description>
+        <unit>mV</unit>
+      </item>
+    </subClass>
+    <subClass type="RTableT25" name="scRTableT25">
+      <item endian="le" type="U1" name="bR100" abbrev="T25R100">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 100% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR95" abbrev="T25R95">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 95% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR90" abbrev="T25R90">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 90% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR85" abbrev="T25R85">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 85% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR80" abbrev="T25R80">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 80% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR75" abbrev="T25R75">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 75% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR70" abbrev="T25R70">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 70% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR65" abbrev="T25R65">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 65% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR60" abbrev="T25R60">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 60% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR55" abbrev="T25R55">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 55% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR50" abbrev="T25R50">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 50% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR45" abbrev="T25R45">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 45% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR40" abbrev="T25R40">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 40% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR35" abbrev="T25R35">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 35% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR30" abbrev="T25R30">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 30% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR25" abbrev="T25R25">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 25% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR20" abbrev="T25R20">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 20% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR15" abbrev="T25R15">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 15% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR10" abbrev="T25R10">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 10% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR5" abbrev="T25R5">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 5% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR0" abbrev="T25R0">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 25oC at 0% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+    </subClass>
+    <subClass type="OcvTableT15" name="scOcvTableT15">
+      <item endian="le" type="U2" name="wOcv100" abbrev="T15OCV100">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 100% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv95" abbrev="T15OCV95">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 95% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv90" abbrev="T15OCV90">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 90% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv85" abbrev="T15OCV85">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 85% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv80" abbrev="T15OCV80">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 80% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv75" abbrev="T15OCV75">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 75% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv70" abbrev="T15OCV70">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 70% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv65" abbrev="T15OCV65">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 65% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv60" abbrev="T15OCV60">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 60% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv55" abbrev="T15OCV55">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 55% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv50" abbrev="T15OCV50">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 50% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv45" abbrev="T15OCV45">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 45% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv40" abbrev="T15OCV40">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 40% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv35" abbrev="T15OCV35">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 35% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv30" abbrev="T15OCV30">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 30% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv25" abbrev="T15OCV25">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 25% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv20" abbrev="T15OCV20">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 20% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv15" abbrev="T15OCV15">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 15% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv10" abbrev="T15OCV10">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 10% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv5" abbrev="T15OCV5">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 5% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv0" abbrev="T15OCV0">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 15oC 0% voltage </description>
+        <unit>mV</unit>
+      </item>
+    </subClass>
+    <subClass type="RTableT15" name="scRTableT15">
+      <item endian="le" type="U1" name="bR100" abbrev="T15R100">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 100% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR95" abbrev="T15R95">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 95% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR90" abbrev="T15R90">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 90% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR85" abbrev="T15R85">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 85% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR80" abbrev="T15R80">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 80% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR75" abbrev="T15R75">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 75% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR70" abbrev="T15R70">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 70% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR65" abbrev="T15R65">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 65% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR60" abbrev="T15R60">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 60% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR55" abbrev="T15R55">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 55% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR50" abbrev="T15R50">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 50% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR45" abbrev="T15R45">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 45% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR40" abbrev="T15R40">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 40% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR35" abbrev="T15R35">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 35% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR30" abbrev="T15R30">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 30% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR25" abbrev="T15R25">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 25% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR20" abbrev="T15R20">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 20% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR15" abbrev="T15R15">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 15% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR10" abbrev="T15R10">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 10% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR5" abbrev="T15R5">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 5% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR0" abbrev="T15R0">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 15oC at 0% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+    </subClass>
+    <subClass type="OcvTableT05" name="scOcvTableT05">
+      <item endian="le" type="U2" name="wOcv100" abbrev="T05OCV100">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 100% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv95" abbrev="T05OCV95">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 95% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv90" abbrev="T05OCV90">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 90% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv85" abbrev="T05OCV85">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 85% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv80" abbrev="T05OCV80">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 80% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv75" abbrev="T05OCV75">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 75% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv70" abbrev="T05OCV70">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 70% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv65" abbrev="T05OCV65">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 65% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv60" abbrev="T05OCV60">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 60% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv55" abbrev="T05OCV55">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 55% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv50" abbrev="T05OCV50">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 50% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv45" abbrev="T05OCV45">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 45% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv40" abbrev="T05OCV40">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 40% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv35" abbrev="T05OCV35">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 35% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv30" abbrev="T05OCV30">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 30% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv25" abbrev="T05OCV25">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 25% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv20" abbrev="T05OCV20">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 20% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv15" abbrev="T05OCV15">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 15% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv10" abbrev="T05OCV10">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 10% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv5" abbrev="T05OCV5">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 5% voltage </description>
+        <unit>mV</unit>
+      </item>
+      <item endian="le" type="U2" name="wOcv0" abbrev="T05OCV0">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFFFF</max>
+        <description> OCV at 5oC 0% voltage </description>
+        <unit>mV</unit>
+      </item>
+    </subClass>
+    <subClass type="RTableT05" name="scRTableT05">
+      <item endian="le" type="U1" name="bR100" abbrev="T05R100">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 100% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR95" abbrev="T05R95">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 95% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR90" abbrev="T05R90">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 90% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR85" abbrev="T05R85">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 85% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR80" abbrev="T05R80">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 80% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR75" abbrev="T05R75">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 75% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR70" abbrev="T05R70">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 70% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR65" abbrev="T05R65">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 65% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR60" abbrev="T05R60">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 60% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR55" abbrev="T05R55">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 55% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR50" abbrev="T05R50">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 50% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR45" abbrev="T05R45">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 45% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR40" abbrev="T05R40">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 40% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR35" abbrev="T05R35">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 35% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR30" abbrev="T05R30">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 30% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR25" abbrev="T05R25">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 25% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR20" abbrev="T05R20">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 20% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR15" abbrev="T05R15">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 15% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR10" abbrev="T05R10">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 10% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR5" abbrev="T05R5">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 5% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+      <item endian="le" type="U1" name="bR0" abbrev="T05R0">
+        <default>0</default>
+        <min>0</min>
+        <max>0xFF</max>
+        <description> Impedence at 5oC at 0% </description>
+        <unit>0.1mOhm</unit>
+      </item>
+    </subClass>
+  </class>
+</UpiDF>

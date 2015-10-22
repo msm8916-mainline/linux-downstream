@@ -1,0 +1,10 @@
+obj-$(CONFIG_DIAG_CHAR) := diagchar.o
+obj-$(CONFIG_DIAGFWD_BRIDGE_CODE) += diagfwd_bridge.o
+obj-$(CONFIG_DIAGFWD_BRIDGE_CODE) += diagfwd_hsic.o
+obj-$(CONFIG_DIAGFWD_BRIDGE_CODE) += diagfwd_smux.o
+obj-$(CONFIG_DIAGFWD_BRIDGE_CODE) += diagfwd_mhi.o
+ifeq ($(TARGET_BUILD_VARIANT),user)
+diagchar-objs := diagchar_core_user.o diagchar_hdlc.o diagfwd.o diag_mux.o diag_memorydevice.o diag_usb.o diagmem.o diagfwd_cntl.o diag_dci.o diag_masks.o diag_debugfs.o
+else
+diagchar-objs := diagchar_core.o diagchar_hdlc.o diagfwd.o diag_mux.o diag_memorydevice.o diag_usb.o diagmem.o diagfwd_cntl.o diag_dci.o diag_masks.o diag_debugfs.o
+endif

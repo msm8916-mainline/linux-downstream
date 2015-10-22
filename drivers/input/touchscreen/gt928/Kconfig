@@ -1,0 +1,16 @@
+#
+# Goodix GT928 Touchscreen driver
+#
+
+config TOUCHSCREEN_GT928
+	boolean "Goodix GT928 touchpanel driver"
+	depends on I2C
+	default n
+	help
+	  This is the main file for touchpanel driver for Goodix GT928
+	  touchscreens.
+
+	  Say Y here if you have a Goodix GT928 touchscreen connected
+	  to your system.
+
+	  If unsure, say N.

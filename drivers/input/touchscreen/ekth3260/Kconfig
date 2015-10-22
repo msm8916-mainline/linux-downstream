@@ -1,0 +1,16 @@
+#
+# ELAN ekth3260 Touchscreen driver
+#
+
+config TOUCHSCREEN_EKTH3260
+	boolean "ELAN ekth3260 touchpanel driver"
+	depends on I2C
+	default n
+	help
+	  This is the main file for touchpanel driver for ELAN ekth3260
+	  touchscreens.
+
+	  Say Y here if you have a ELAN ekth3260 touchscreen connected
+	  to your system.
+
+	  If unsure, say N.
