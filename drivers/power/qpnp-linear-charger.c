@@ -201,6 +201,8 @@ static enum power_supply_property msm_batt_power_props[] = {
 	POWER_SUPPLY_PROP_COOL_TEMP,
 	POWER_SUPPLY_PROP_WARM_TEMP,
 	POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL,
+	POWER_SUPPLY_PROP_CHARGE_NOW,
+	POWER_SUPPLY_PROP_CHARGE_FULL,
 };
 
 static char *pm_batt_supplied_to[] = {
@@ -1594,6 +1596,8 @@ static int qpnp_batt_power_set_property(struct power_supply *psy,
 	return rc;
 }
 
+extern int g_charge_full;
+extern int g_charge_now;
 static int qpnp_batt_power_get_property(struct power_supply *psy,
 				       enum power_supply_property psp,
 				       union power_supply_propval *val)
@@ -1644,6 +1648,12 @@ static int qpnp_batt_power_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL:
 		val->intval = chip->therm_lvl_sel;
 		Thermal_Level = chip->therm_lvl_sel;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_NOW:
+		val->intval = g_charge_now;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		val->intval = g_charge_full;
 		break;
 	default:
 		return -EINVAL;

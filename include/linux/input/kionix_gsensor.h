@@ -23,6 +23,9 @@
 #define KXTJ9_I2C_ADDR		0x0E
 #define KX022_I2C_ADDR		0x1F
 
+#define KX022_INTERRUPT1_GPIO	36
+#define KX022_INTERRUPT2_GPIO	114
+
 #define ASUS_GSENSOR_NAME			"kx022"
 
 #define G_MAX			8000
@@ -102,6 +105,7 @@
 
 /* CONTROL REGISTER 1 BITS */
 #define PC1_OFF			0x7F
+#define PC1_OFF_DRD		0xDF
 #define PC1_ON			(1 << 7)
 /* Data ready funtion enable bit: set during probe if using irq mode */
 #define DRDYE			(1 << 5)
@@ -154,7 +158,6 @@
 #define KXTJ2_CHIP_LOCATION_SR_PF450CL		9	/*	X(1 , 0 , 0 );	Y(0 , 1 , 0);	Z(0 , 0 , 1) */
 #define KXTJ2_CHIP_LOCATION_SR_ZC500CL		10	/*	X(0, -1 , 0 );	Y(1 , 0 , 0);	Z(0 , 0 , 1) */
 #define KX022_CHIP_LOCATION_SR_ZC500KL		11	/*	X(0, 1 , 0 );	Y(1 , 0 , 0);	Z(0 , 0 , 1) */
-int g_ilocation=0;
 
 #define WHOAMI_VALUE_FOR_KXTJ9	0x8
 #define WHOAMI_VALUE_FOR_KXTJ2	0x9
@@ -170,17 +173,6 @@ int g_ilocation=0;
 #define KXTJ9_RES_12BIT	1
 
 #define KX022_RES_16BIT	1
-
-//Added by Eason: event report function
-#define FLICK_TWICE		1
-#define HANDS_UP 		2
-#define HANDS_DOWN		3
-#define FACE_UP 			4
-#define FACE_DOWN 		5
-#define DOUBLE_TAP 		6
-
-#define FUNSTAT_ON  1
-#define FUNSTAT_OFF 0
 
 struct kxtj9_platform_data {
 	unsigned int min_interval;	/* minimum poll interval (in milli-seconds) */

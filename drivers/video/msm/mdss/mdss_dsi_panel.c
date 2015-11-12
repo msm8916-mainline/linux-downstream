@@ -66,11 +66,11 @@ static struct dsi_cmd_desc backlight_cmd[] = {
 };
 
 static struct dsi_cmd_desc panel_dimming_cmd[] = {
-    { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(ctrl_display)}, ctrl_display},	/*short package*/
+    { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(ctrl_display)}, ctrl_display}, /*short package*/
 };
 
 static struct dsi_cmd_desc tcon_cabc_cmd[] = {
-    { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(cabc_mode)}, cabc_mode},	/*short package*/
+    { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(cabc_mode)}, cabc_mode}, /*short package*/
 };
 
 static struct panel_list supp_panels[] = {

@@ -103,7 +103,7 @@ static struct {
 	{ 0x3a40000, "HYNIX_32G_MCP" },
 	{ 0x7480000, "HYNIX_64G_H26M78002BFR_20nm" },
 	{ 0x1d1f000, "SAMSUNG_16G_MCP" },
-	{ 0x1d5a000, "SDIN8DE4-16G-Q" },
+	{ 0x1d5a000, "Micron_16G_MCP" },
 	{ 0x3a3e000, "SDIN8DE4-32G-Q" },
 	{ 0xe68000, "KSI_8G_20nm" },
 	{ 0x1cd0000, "KSI_16G_20nm" },

@@ -282,23 +282,15 @@ static int init_data(void)
 	hall_sensor_dev->enable = 1;
 
 	/*ZE500KL*/
-	if (g_ASUS_hwID <= ZE500KL_ER2){
+	if ((ZE500KL_EVB==(g_ASUS_hwID&0xF0)&&g_ASUS_hwID <= ZE500KL_ER2) ||
+		(ZE500KG_EVB==(g_ASUS_hwID&0xF0)&&g_ASUS_hwID <= ZE500KG_ER2)){
 		hall_sensor_dev->debounce = 500;
-	}else if(g_ASUS_hwID <= ZE500KL_PR){
+	}else if((ZE500KL_EVB==(g_ASUS_hwID&0xF0)&&g_ASUS_hwID <= ZE500KL_PR) ||
+		(ZE500KG_EVB==(g_ASUS_hwID&0xF0)&&g_ASUS_hwID <= ZE500KG_PR)){
 		hall_sensor_dev->debounce = 200;
 	}else{
 		hall_sensor_dev->debounce = 30;
 	}
-
-	/*ZE500KG*/
-	if (g_ASUS_hwID <= ZE500KG_ER2){
-		hall_sensor_dev->debounce = 500;
-	}else if(g_ASUS_hwID <= ZE500KG_PR){
-		hall_sensor_dev->debounce = 200;
-	}else{
-		hall_sensor_dev->debounce = 30;
-	}
-
 
 	return 0;
 init_data_err:

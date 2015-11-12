@@ -230,6 +230,7 @@
 static int VCH_VALUE=(BIT(1)|BIT(3)|BIT(5));
 int64_t battID = SMB358_BATTID_INITIAL;
 int g_Iqc = SMB358_FAST_CHG_CURRENT_VALUE_2000mA;
+extern int g_charge_full;
 
 //ASUS_BSP Clay: Get HW_ID +++
 extern enum DEVICE_HWID g_ASUS_hwID;
@@ -1767,6 +1768,7 @@ static int asus_update_all(void)
 	batt_info.Rsoc = get_driver_soc();
 	return 0;
 }
+
 static struct timespec g_last_print_time;
 static int asus_print_all(void)
 {
@@ -1801,7 +1803,7 @@ static int asus_print_all(void)
 	ChargerRegDump(chargerReg, 128);
 	snprintf(battInfo, sizeof(battInfo), "report Capacity ==>%d, FCC:%dmAh, BMS:%d, V:%dmV, Cur:%dmA, ",
 		batt_info.capacity,
-		batt_info.fcc,
+		g_charge_full,
 		batt_info.capacity,
 		batt_info.voltage_now,
 		batt_info.current_now);

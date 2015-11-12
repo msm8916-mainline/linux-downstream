@@ -90,6 +90,7 @@ static int diag_enable = 0;
 extern int getMACConnect(void);
 extern int resetHostTypeChanged(void);
 extern int getHostTypeChanged(void);
+extern struct completion gadget_init;
 /* Default vendor and product IDs, overridden by userspace */
 #define VENDOR_ID		0x18D1
 #define PRODUCT_ID		0x0001
@@ -504,6 +505,10 @@ static int android_enable(struct android_dev *dev)
 			}
 		}
 		usb_gadget_connect(cdev->gadget);
+		if(!gadget_init.done){
+			gadget_init.done=1;
+			complete(&gadget_init);
+		}
 	}
 
 	return err;

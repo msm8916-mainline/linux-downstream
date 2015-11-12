@@ -604,6 +604,10 @@ static int adreno_of_get_pwrlevels(struct device_node *parent,
 		KGSL_CORE_ERR("Initial power level out of range\n");
 		pdata->init_level = 1;
 	}
+	
+	/* ASUS Joy_Lin Let GPU Clk using MAX level from idle mode +++ */ 
+	pdata->init_level = 0;
+	/* ASUS Joy_Lin Let GPU Clk using MAX level from idle mode --- */ 
 
 	ret = 0;
 done:

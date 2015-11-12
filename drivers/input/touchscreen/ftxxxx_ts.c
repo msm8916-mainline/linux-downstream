@@ -930,7 +930,8 @@ void asus_check_touch_mode(void)
 {
 	uint8_t buf[2] = {0};	
 	int err = 0;
-	if (ftxxxx_ts->init_success == 1) {
+	if (focal_init_success == 1) {
+
 		if (ftxxxx_ts->usb_status == 1) {
 			buf[0] = 0x8B;
 			buf[1] = 0x01;
@@ -1026,7 +1027,7 @@ static void focal_cable_status(struct work_struct *work)
 
 	printk("[Focal][Touch] cable_status=%d, init_success=%d.\n", status, ftxxxx_ts->init_success);
 
-	if (ftxxxx_ts->init_success == 1) {
+	if (focal_init_success == 1) {
 		if (status == 0) {	/*no AC */
 			buf[0] = 0x8B;
 			buf[1] = 0x00;
@@ -1057,7 +1058,7 @@ static void focal_cover_mode_switch_work(struct work_struct *work)
 
 	mutex_lock(&ftxxxx_ts->g_device_mutex);
 
-	if (ftxxxx_ts->init_success == 1) {
+	if (focal_init_success == 1) {
 		if (ftxxxx_ts->cover_mode_eable) {
 
 			buf[0] = 0xC1;
@@ -1137,7 +1138,7 @@ static void focal_glove_mode_switch_work(struct work_struct *work)
 
 	mutex_lock(&ftxxxx_ts->g_device_mutex);
 
-	if (ftxxxx_ts->init_success == 1) {
+	if (focal_init_success == 1) {
 		if (ftxxxx_ts->glove_mode_eable) {
 
 			buf[0] = 0xC0;
@@ -1555,6 +1556,8 @@ static void focal_init_check_ic_work(struct work_struct *work)
 		if (g_ASUS_hwID >= ZE500KL_SR1 )
 			FOCAL_IRQ_DISABLE = false;
 	}
+
+	asus_check_touch_mode();
 
 	ftxxxx_irq_enable(ftxxxx_ts->client);
 
@@ -2128,7 +2131,7 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 	/* ---- touch gesture mode support part in ZE500CL ---- */
 #endif
 
-	queue_delayed_work(ftxxxx_ts->init_check_ic_wq, &ftxxxx_ts->init_check_ic_work, msecs_to_jiffies(200));
+	queue_delayed_work(ftxxxx_ts->init_check_ic_wq, &ftxxxx_ts->init_check_ic_work, msecs_to_jiffies(5000));
 
 	printk("[Focal][Touch][INFO] client name = %s irq = %d\n", client->name, client->irq);
 

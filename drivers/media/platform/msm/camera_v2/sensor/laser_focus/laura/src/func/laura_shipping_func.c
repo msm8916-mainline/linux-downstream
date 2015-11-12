@@ -288,18 +288,13 @@ uint16_t Laura_device_read_range(struct msm_laser_focus_ctrl_t *dev_t)
 #endif
 		}
        	else {
-#if READ_OUTPUT_LIMIT_FLAG
-			if(read_range_log_count >= LOG_SAMPLE_RATE){
-				read_range_log_count = 0;
-	   	  		if((RawRange&0x2000)==0x2000){
-		  			LOG_Handler(LOG_ERR, "%s: The target is near of field of view!!\n", __func__);
-	   	  		}else if((RawRange&0x4000)==0x4000){
-					LOG_Handler(LOG_ERR, "%s: The target is out of field of view!!\n", __func__);
-		  		}else{
-					LOG_Handler(LOG_ERR, "%s: Read range fail!!\n", __func__);
-		  		}
-			}
-#endif
+	   	  	if((RawRange&0x2000)==0x2000){
+		  		LOG_Handler(LOG_ERR, "%s: The target is near of field of view!!\n", __func__);
+	   	  	}else if((RawRange&0x4000)==0x4000){
+				LOG_Handler(LOG_ERR, "%s: The target is out of field of view!!\n", __func__);
+		  	}else{
+				LOG_Handler(LOG_ERR, "%s: Read range fail!!\n", __func__);
+		  	}
 #if READ_RETRY_FLAG == 0
 			return OUT_OF_RANGE;
 #endif

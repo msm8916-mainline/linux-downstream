@@ -31,7 +31,7 @@ static struct mutex 								flash_lock;
 static struct mutex 								flashlight_lock;
 /*#define CONFIG_MSMB_CAMERA_DEBUG*/
 #undef CDBG
-#define CDBG(fmt, args...) pr_info(fmt, ##args)
+#define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
 struct msm_led_flash_ctrl_t *g_fctrl = NULL;
 int msm_flash_led_low_current_set(struct msm_led_flash_ctrl_t *fctrl, int intensity1, int intensity2);
@@ -827,7 +827,7 @@ static int flash_brightness_proc_open(struct inode *inode, struct  file *file)
 
 static ssize_t flash_brightness_proc_write(struct file *filp, const char __user *buff, size_t len, loff_t *data)
 {
-	int set_val = -1,now_flash_brightness_value = -1;
+	int set_val = -1,now_flash_brightness_value = -1,rc;
 	int MAX_FLASHLIGHT_CURRENT = 100;
 	char messages[8];
 	if (len > 8) {
@@ -849,10 +849,17 @@ static ssize_t flash_brightness_proc_write(struct file *filp, const char __user 
 		return len;
 	}
 	if (last_flash_brightness_value == 0&&(now_flash_brightness_value>0&&now_flash_brightness_value<=99)) {
-		msm_flash_led_init(g_fctrl);
+		rc = msm_flash_led_init(g_fctrl);
 		g_fctrl->flashlight_state = MSM_CAMERA_LED_INIT;
-	} else if (last_flash_brightness_value == now_flash_brightness_value||(now_flash_brightness_value<0||now_flash_brightness_value>99)) {
-		printk(KERN_INFO "[AsusFlashBrightness] now_flash_brightness_value = last_flash_brightness_value or now_flash_brightness_value out range so donothing\n");
+		if (rc  < 0) {
+			printk(KERN_INFO "[AsusFlashBrightness] msm_flash_led_init fail\n");
+			msm_flash_led_release(g_fctrl);
+			g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
+			mutex_unlock(&flashlight_lock);
+			return rc;
+		}
+	} else if (last_flash_brightness_value == now_flash_brightness_value||(now_flash_brightness_value<0||now_flash_brightness_value>99) || (g_fctrl->flashlight_state == MSM_CAMERA_LED_RELEASE)) {
+		printk(KERN_INFO "[AsusFlashBrightness] now_flash_brightness_value = last_flash_brightness_value or now_flash_brightness_value out range or flashlight_state invalid so donothing\n");
 		mutex_unlock(&flashlight_lock);
 		return len;
 	}
@@ -884,7 +891,6 @@ static ssize_t flash_brightness_proc_write(struct file *filp, const char __user 
 		}
 		msm_flash_led_off(g_fctrl);
 		msm_flash_led_release(g_fctrl);
-		last_flash_brightness_value = 0;
 		g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
 		mutex_unlock(&flashlight_lock);
 		return -1;

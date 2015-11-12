@@ -122,6 +122,7 @@ void asus_otg_host_mode_cleanup(void);
 //ASUS_BSP--- Landice "[ZE500KL][USBH][Spec] Register early suspend notification for none mode switch"
 
 static DECLARE_COMPLETION(pmic_vbus_init);
+struct completion gadget_init;
 static struct msm_otg *the_msm_otg;
 static bool debug_aca_enabled;
 static bool debug_bus_voting_enabled;
@@ -167,6 +168,8 @@ static bool g_vbus_is_on = false;
 //ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][Spec] Skip set ID events when screen off"
 static bool g_screen_off = false;
 //ASUS_BSP--- Landice "[ZE500KL][USBH][NA][Spec] Skip set ID events when screen off"
+
+static bool g_screenoff_id_ground = false;
 
 //ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][Spec] Enable manual mode switching"
 #include <linux/proc_fs.h>
@@ -218,7 +221,7 @@ enum {
 #endif
 
 /* ASUS_BSP+++ LandiceFu "[ZE500KL][USBH][NA][spec] Add proc file host_charging_mode (ac/unknown) in case the current is not enough for charging" */
-static int g_host_charging_mode = UNKNOWN_IN;
+static int g_host_charging_mode = 0;
 /* ASUS_BSP--- LandiceFu "[ZE500KL][USBH][NA][spec] Add proc file host_charging_mode (ac/unknown) in case the current is not enough for charging" */
 
 static char *charger_event_to_str(int usb_state)
@@ -237,9 +240,6 @@ static char *charger_event_to_str(int usb_state)
 	default:		return "UNKNOWN_EVENT";
 	}
 }
-/* ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][fix] Support host charging for stress test" */
-static int g_skipped_5v;
-/* ASUS_BSP--- Landice "[ZE500KL][USBH][NA][fix] Support host charging for stress test" */
 static void asus_otg_set_charger(int usb_state)
 {
 	struct msm_otg *motg = the_msm_otg;
@@ -254,7 +254,7 @@ static void asus_otg_set_charger(int usb_state)
 /* ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][fix] Support host charging for stress test" */
 #if defined(CONFIG_SMB358_CHARGER)
 	} else if (ENABLE_5V == usb_state) {
-		if (g_skipped_5v) {
+		if (g_host_charging_mode) {
 			printk("[usb_otg] External power source detected - skip ENABLE_5V\n");
 /* ASUS_BSP+++ LandiceFu "[ZE500KL][USBH][NA][spec] Add proc file host_charging_mode (ac/unknown) in case the current is not enough for charging" */
 			g_charger_state = g_host_charging_mode;
@@ -266,10 +266,11 @@ static void asus_otg_set_charger(int usb_state)
 			setSMB358Charger(usb_state);
 		}
 	} else if (DISABLE_5V == usb_state) {
-		if (g_skipped_5v) {
+		if (g_host_charging_mode) {
 			printk("[usb_otg] Send CABLE_OUT for host clear with external power\n");
 			g_charger_state = CABLE_OUT;
 			setSMB358Charger(CABLE_OUT);
+			g_host_charging_mode = 0;
 		} else {
 			printk("[usb_otg] %s\n", charger_event_to_str(usb_state));
 			g_charger_state = usb_state;
@@ -320,9 +321,6 @@ static void asus_otg_host_mode_prepare(void) {
 	g_suspend_delay_work_run = 0;
 	g_keep_power_on = 0;
 	g_host_none_mode = 0;
-/* ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][fix] Support host charging for stress test" */
-	g_skipped_5v=0;
-/* ASUS_BSP--- Landice "[ZE500KL][USBH][NA][fix] Support host charging for stress test" */
 //ASUS_BSP+++ Landice "[ZE500KL][USBH][Spec] Register early suspend notification for none mode switch"
 	cancel_work_sync(&asus_chg_usb_work);
 	cancel_delayed_work_sync(&asus_chg_unknown_delay_work);
@@ -493,8 +491,6 @@ static ssize_t asus_otg_proc_host_charging_mode_write(struct file *file, const c
 	} else if (!strncmp(buf, "unknown", 7)) {
 		g_host_charging_mode = UNKNOWN_IN;
 		printk("[usb_otg] Set host charging mode to UNKNOWN_IN\n");
-	} else if (!strncmp(buf, "skipp5v", 7)) {
-		g_skipped_5v = 1;
 	} else {
 		return -EINVAL;
 	}
@@ -955,7 +951,7 @@ static void asus_otg_fb_late_resume(void)
 		queue_work(system_nrt_wq, &late_resume_work);
 		g_suspend_delay_work_run = 0;
 //ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][Spec] Skip set ID events when screen off"
-	} else if ( !motg->host_mode && !gpio_get_value(motg->pdata->usb_id_gpio)) {
+	} else if (!motg->host_mode && g_screenoff_id_ground) {
 		queue_delayed_work(system_nrt_wq, &motg->id_status_work, 0);
 	}
 //ASUS_BSP--- Landice "[ZE500KL][USBH][NA][Spec] Skip set ID events when screen off"
@@ -3571,12 +3567,19 @@ static void msm_chg_detect_work(struct work_struct *w)
 	static bool dcd;
 	u32 line_state, dm_vlgc;
 	unsigned long delay;
+	int ret;
 
 	dev_dbg(phy->dev, "chg detection work\n");
 
 	if (test_bit(MHL, &motg->inputs)) {
 		dev_dbg(phy->dev, "detected MHL, escape chg detection work\n");
 		return;
+	}
+
+	if (!gadget_init.done) {
+		ret = wait_for_completion_timeout(&gadget_init,msecs_to_jiffies(8000));
+		if (!ret)
+			dev_err(motg->phy.dev, "%s: timeout waiting for gadget driver\n",__func__);
 	}
 
 	switch (motg->chg_state) {
@@ -3750,22 +3753,6 @@ static void msm_otg_init_sm(struct msm_otg *motg)
 			else
 				clear_bit(B_SESS_VLD, &motg->inputs);
 		} else if (pdata->otg_control == OTG_PMIC_CONTROL) {
-			if (pdata->pmic_id_irq) {
-				if (msm_otg_read_pmic_id_state(motg))
-					set_bit(ID, &motg->inputs);
-				else {
-					clear_bit(ID, &motg->inputs);
-				}
-			} else if (motg->ext_id_irq) {
-				if (gpio_get_value(pdata->usb_id_gpio))
-					set_bit(ID, &motg->inputs);
-				else
-					clear_bit(ID, &motg->inputs);
-			}
-			if(g_Charger_mode){
-				printk("[usb_otg]Set ID pin in charger mode\n");
-				set_bit(ID, &motg->inputs);
-			}
 			/*
 			 * VBUS initial state is reported after PMIC
 			 * driver initialization. Wait for it.
@@ -3777,6 +3764,22 @@ static void msm_otg_init_sm(struct msm_otg *motg)
 					__func__);
 				clear_bit(B_SESS_VLD, &motg->inputs);
 				pmic_vbus_init.done = 1;
+			}
+			if (pdata->pmic_id_irq) {
+				if (msm_otg_read_pmic_id_state(motg))
+					set_bit(ID, &motg->inputs);
+				else {
+					clear_bit(ID, &motg->inputs);
+				}
+			} else if (motg->ext_id_irq) {
+				if (gpio_get_value(pdata->usb_id_gpio) || test_bit(B_SESS_VLD, &motg->inputs))
+					set_bit(ID, &motg->inputs);
+				else
+					clear_bit(ID, &motg->inputs);
+			}
+			if(g_Charger_mode){
+				printk("[usb_otg]Set ID pin in charger mode\n");
+				set_bit(ID, &motg->inputs);
 			}
 		}
 		break;
@@ -3971,6 +3974,7 @@ static void msm_otg_sm_work(struct work_struct *w)
 			clear_bit(B_FALSE_SDP, &motg->inputs);
 			clear_bit(A_BUS_REQ, &motg->inputs);
 			cancel_delayed_work_sync(&motg->chg_work);
+			pm_runtime_get_noresume(otg->phy->dev);
 			dcp = (motg->chg_type == USB_DCP_CHARGER);
 			motg->chg_state = USB_CHG_STATE_UNDEFINED;
 			motg->chg_type = USB_INVALID_CHARGER;
@@ -3984,6 +3988,7 @@ static void msm_otg_sm_work(struct work_struct *w)
 			}
 			msm_chg_block_off(motg);
 			msm_otg_reset(otg->phy);
+			pm_runtime_put_noidle(otg->phy->dev);
 			/*
 			 * There is a small window where ID interrupt
 			 * is not monitored during ID detection circuit
@@ -4660,11 +4665,22 @@ static void msm_otg_set_vbus_state(int online)
 	static bool init;
 
 //ASUS_BSP+++ Landice "[ZE500KL][USBH][Spec] Register early suspend notification for none mode switch"
-	if(motg->otg_mode != USB_AUTO || (motg->host_mode && g_host_none_mode)) {
+	if(((motg->otg_mode != USB_AUTO) && (motg->otg_mode != USB_PERIPHERAL)) || (motg->host_mode && g_host_none_mode)) {
 		printk("[usb_otg] Not in auto mode, skip set vbus state, mode%d, none=%d)\n", motg->otg_mode, g_host_none_mode);
 		return;
 	}
 //ASUS_BSP--- Landice "[ZE500KL][USBH][Spec] Register early suspend notification for none mode switch"
+
+	/* do not queue state m/c work if id is grounded */
+	if (!test_bit(ID, &motg->inputs) || g_screenoff_id_ground) {
+		/*
+		 * state machine work waits for initial VBUS
+		 * completion in UNDEFINED state.  Process
+		 * the initial VBUS event in ID_GND state.
+		 */
+		if (init)
+			return;
+	}
 
 	if (online) {
 		printk("[usb_otg] USB plugin");
@@ -4675,17 +4691,6 @@ static void msm_otg_set_vbus_state(int online)
 		printk("[usb_otg] USB plugout");
 		pr_debug("PMIC: BSV clear\n");
 		if (!test_and_clear_bit(B_SESS_VLD, &motg->inputs) && init)
-			return;
-	}
-
-	/* do not queue state m/c work if id is grounded */
-	if (!test_bit(ID, &motg->inputs)) {
-		/*
-		 * state machine work waits for initial VBUS
-		 * completion in UNDEFINED state.  Process
-		 * the initial VBUS event in ID_GND state.
-		 */
-		if (init)
 			return;
 	}
 
@@ -4723,8 +4728,8 @@ static void msm_id_status_w(struct work_struct *w)
 	int work = 0;
 	int id_state = 0;
 
-	if (g_Charger_mode) {
-		printk("[usb_otg] skip %s in charger mode\n", __func__);
+	if (g_Charger_mode || (test_bit(B_SESS_VLD, &motg->inputs) && !g_host_charging_mode)) {
+		printk("[usb_otg] skip %s Charger mode(%d) or vbus valid\n", __func__, g_Charger_mode);
 		return;
 	}
 //ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][Spec] Skip set ID events when screen off"
@@ -4742,8 +4747,10 @@ static void msm_id_status_w(struct work_struct *w)
 	//Ignore host ID in host none mode. Ignore all ID event in manual mode
 	if(motg->otg_mode == USB_AUTO && !(g_screen_off && !id_state)) {
 //ASUS_BSP--- Landice "[ZE500KL][USBH][NA][Spec] Skip set ID events when screen off"
+		g_screenoff_id_ground = false;
 		printk("[usb_otg] %s, otg_mode = %d\n", __func__, motg->otg_mode);
 	} else {
+		g_screenoff_id_ground = true;
 		printk("[usb_otg] %s, otg_mode = %d, skip ID detection (%d)(%d)\n",
 			__func__, motg->otg_mode, id_state, g_screen_off);
 		return;
@@ -6212,6 +6219,7 @@ static int msm_otg_probe(struct platform_device *pdev)
 	/* Ensure that above STOREs are completed before enabling interrupts */
 	mb();
 
+	init_completion(&gadget_init);
 	ret = msm_otg_mhl_register_callback(motg, msm_otg_mhl_notify_online);
 	if (ret)
 		dev_dbg(&pdev->dev, "MHL can not be supported\n");

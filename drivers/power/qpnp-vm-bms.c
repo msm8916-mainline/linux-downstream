@@ -1880,7 +1880,28 @@ static void calculate_catch_up_time(int soc, struct qpnp_bms_chip *chip, bool re
 	printk("CAT%s=%d\n",reduce?"(reduced)":"",chip->catch_up_time_sec);
 }
 
-
+int g_charge_full = 2070;
+int g_charge_now = 1035;
+void judge_charge_now(int soc)
+{
+	int temp_int;
+	temp_int = g_charge_full * soc / 100;
+	g_charge_now = temp_int;
+}
+void judge_charge_full(int batID)
+{
+	if(batID <= 1500000 && batID >= 1200000) {
+		g_charge_full = 2400;
+	} else if (batID <= 1200000 && batID >= 900000) {
+		g_charge_full = 2070;
+	} else if (batID <= 900000 && batID >= 500000) {
+		g_charge_full = 2070;
+	} else if (batID <= 500000 && batID >= 200000) {
+		g_charge_full = 2400;
+	} else{
+		g_charge_full = 2070;
+	}
+}
 static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 {
 	int soc, soc_change, batt_temp, rc, bat_status, result_soc;
@@ -2017,7 +2038,7 @@ static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 	backup_ocv_soc(chip, chip->last_ocv_uv, result_soc);
 
 	pr_debug("Reported SOC=%d\n", chip->last_soc);
-
+	judge_charge_now(result_soc);
 	return result_soc;
 }
 static int report_state_of_charge(struct qpnp_bms_chip *chip)
@@ -2517,6 +2538,8 @@ static enum power_supply_property bms_power_props[] = {
 	POWER_SUPPLY_PROP_BATTERY_TYPE,
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
+	POWER_SUPPLY_PROP_CHARGE_NOW,
+	POWER_SUPPLY_PROP_CHARGE_FULL,
 };
 
 static int
@@ -2588,6 +2611,12 @@ static int qpnp_vm_bms_power_get_property(struct power_supply *psy,
 			val->intval = chip->charge_cycles;
 		else
 			val->intval = -EINVAL;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_NOW:
+		val->intval = g_charge_now;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		val->intval = g_charge_full;
 		break;
 	default:
 		return -EINVAL;
@@ -3974,6 +4003,7 @@ static int set_battery_data(struct qpnp_bms_chip *chip)
 		return battery_id;
 	}
 	battID = battery_id;
+	judge_charge_full(battID);
 	node = of_find_node_by_name(chip->spmi->dev.of_node,
 					"qcom,battery-data");
 	if (!node) {
@@ -4540,7 +4570,7 @@ void static create_gaugeIC_status_proc_file(void)
 static ssize_t batt_switch_name(struct switch_dev *sdev, char *buf)
 {
 	char bat_type = 'X';
-	const char* bat_date = "0615";
+	const char* bat_date = "0828";
 	const char* bat_s1 = "Z2";
 	const char* bat_s2 = "2 ";
 	const char* bat_s3 = "000";

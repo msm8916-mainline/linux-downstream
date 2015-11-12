@@ -101,6 +101,9 @@ static void wcd_configure_cap(struct wcd_mbhc *mbhc, bool micbias2)
 	micbias1 = snd_soc_read(codec, MSM8X16_WCD_A_ANALOG_MICB_1_EN);
 	pr_debug("\n %s: micbias1 %x micbias2 = %d\n", __func__, micbias1,
 			micbias2);
+
+	pr_debug("\n %s: micbias1_cap_mode =%x ,micbias2_cap_mode = %x\n", __func__, mbhc->micbias1_cap_mode,
+			mbhc->micbias2_cap_mode);
 	if ((micbias1 & 0x80) && micbias2) {
 		if ((mbhc->micbias1_cap_mode == MICBIAS_EXT_BYP_CAP) ||
 			(mbhc->micbias2_cap_mode == MICBIAS_EXT_BYP_CAP))
@@ -1943,6 +1946,12 @@ static int wcd_mbhc_initialise(struct wcd_mbhc *mbhc)
 	/* Program Button threshold registers */
 	wcd_program_btn_threshold(mbhc, false);
 
+	/*ASUS_BSP : Force Enable micbias 2.8V on initial*/
+	/*
+	snd_soc_write(codec,
+					MSM8X16_WCD_A_ANALOG_MICB_1_VAL,
+					0xC0);
+	*/
 	INIT_WORK(&mbhc->correct_plug_swch, wcd_correct_swch_plug);
 	/* enable the WCD MBHC IRQ's */
 	wcd9xxx_spmi_enable_irq(mbhc->intr_ids->mbhc_sw_intr);
@@ -2095,8 +2104,8 @@ int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_codec *codec,
 	struct snd_soc_card *card = codec->card;
 	const char *hph_switch = "qcom,msm-mbhc-hphl-swh";
 	const char *gnd_switch = "qcom,msm-mbhc-gnd-swh";
-	const char *ext1_cap = "qcom,msm-micbias1-ext-cap";
-	const char *ext2_cap = "qcom,msm-micbias2-ext-cap";
+	//const char *ext1_cap = "qcom,msm-micbias1-ext-cap";
+	//const char *ext2_cap = "qcom,msm-micbias2-ext-cap";
 
 	pr_debug("%s: enter\n", __func__);
 
@@ -2113,14 +2122,16 @@ int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_codec *codec,
 			"%s: missing %s in dt node\n", __func__, gnd_switch);
 		goto err;
 	}
-	mbhc->micbias1_cap_mode =
+	mbhc->micbias1_cap_mode = MICBIAS_NO_EXT_BYP_CAP;
+	/* +++ASUS_BSP : set no ext cap mode 	
 		(of_property_read_bool(card->dev->of_node, ext1_cap) ?
 		MICBIAS_EXT_BYP_CAP : MICBIAS_NO_EXT_BYP_CAP);
-
-	mbhc->micbias2_cap_mode =
+	*/
+	mbhc->micbias2_cap_mode = MICBIAS_NO_EXT_BYP_CAP;
+	/*+++ASUS_BSP : set no ext cap mode 	
 		(of_property_read_bool(card->dev->of_node, ext2_cap) ?
 		MICBIAS_EXT_BYP_CAP : MICBIAS_NO_EXT_BYP_CAP);
-
+	*/
 	mbhc->in_swch_irq_handler = false;
 	mbhc->current_plug = MBHC_PLUG_TYPE_NONE;
 	mbhc->is_btn_press = false;
