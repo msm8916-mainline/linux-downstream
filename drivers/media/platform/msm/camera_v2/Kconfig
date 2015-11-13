@@ -182,6 +182,21 @@ config OV7695
 		VGA. It does not support auto focus. It supports
 		few special effects like saturation.
 
+config OV2685
+	bool "Sensor OV2685 (YUV 2MP)"
+	depends on MSMB_CAMERA
+	---help---
+		OV2685 is Omnivision YUV sensor. It supports 2 MP preview
+		and snapshot. The preview and snapshot resolution shall be
+		VGA. It does not support auto focus. It supports
+		few special effects like saturation.
+
+config ALTEK_AF
+	bool "Sensor ALTEK_AF (YUV 2MP)"
+	depends on MSMB_CAMERA
+	---help---
+		ALTEK_AF need to modify kernel af driver in CKT merageplus01a
+
 config SP1628
 	bool "Sensor SP1628 (YUV 720P)"
 	depends on MSMB_CAMERA

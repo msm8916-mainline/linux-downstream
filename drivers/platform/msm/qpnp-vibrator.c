@@ -20,6 +20,8 @@
 #include <linux/spmi.h>
 #include <linux/qpnp/pwm.h>
 #include <linux/err.h>
+#include <linux/time.h>
+#include <linux/delay.h>
 #include "../../staging/android/timed_output.h"
 
 #define QPNP_VIB_VTG_CTL(base)		(base + 0x41)
@@ -66,6 +68,10 @@ struct qpnp_vib {
 	int timeout;
 	struct mutex lock;
 };
+
+/*added by yong.bo on 2015/08/04 for double tap to vibrator when wake up */
+struct timed_output_dev *global_dev;
+/*end*/
 
 static int qpnp_vib_read_u8(struct qpnp_vib *vib, u8 *data, u16 reg)
 {
@@ -180,21 +186,45 @@ static void qpnp_vib_enable(struct timed_output_dev *dev, int value)
 	struct qpnp_vib *vib = container_of(dev, struct qpnp_vib,
 					 timed_dev);
 
+	static struct timespec ts_last;
+	static int wait_ms, value_last;
+	struct timespec ts_now, ts_diff;
+	int ratio, wait_ms_1;
+	int wait_ms_2 = 0;
+	getnstimeofday(&ts_now);
+	ts_diff = timespec_sub(ts_now,ts_last);
+
 	mutex_lock(&vib->lock);
 	hrtimer_cancel(&vib->vib_timer);
-
-	if (value == 0)
+	if (value == 0 || value == 10)
 		vib->state = 0;
 	else {
-		value = (value > vib->timeout ?
-				 vib->timeout : value);
-		vib->state = 1;
-		hrtimer_start(&vib->vib_timer,
-			      ktime_set(value / 1000, (value % 1000) * 1000000),
-			      HRTIMER_MODE_REL);
+		value = (value > vib->timeout ? vib->timeout : value);
+
+		if ( ts_diff.tv_sec == 0 && ts_diff.tv_nsec < wait_ms * 1000000
+				&& ts_diff.tv_nsec > value_last * 1000000){
+			ratio = (ts_diff.tv_nsec - value_last * 1000000)/ 
+					((wait_ms - value_last) * 1100);
+			value = (value * ratio) / 1000;
+
+			wait_ms_2 = wait_ms - (ts_diff.tv_nsec / 1000000);
+		}
+
+		if (value_last < ((ts_diff.tv_nsec/1000000) + value)){
+			hrtimer_cancel(&vib->vib_timer);
+			vib->state = 1;
+			getnstimeofday(&ts_last);
+			hrtimer_start(&vib->vib_timer,
+		      		ktime_set(value / 1000, (value % 1000) * 1000000),
+		      		HRTIMER_MODE_REL);
+			value_last = value;
+
+			wait_ms_1 = value + 160;
+			wait_ms = wait_ms_1 > wait_ms_2 ? wait_ms_1 : wait_ms_2;
+		}
 	}
-	mutex_unlock(&vib->lock);
 	schedule_work(&vib->work);
+	mutex_unlock(&vib->lock);
 }
 
 static void qpnp_vib_update(struct work_struct *work)
@@ -324,7 +354,12 @@ static int qpnp_vib_parse_dt(struct qpnp_vib *vib)
 
 	return 0;
 }
-
+/*added by yong.bo on 2015/08/04 for double tap to vibrator when wake up */
+void qpnp_vib_vibrator( int value)
+{
+	qpnp_vib_enable(global_dev, value);
+}
+/*end*/
 static int qpnp_vibrator_probe(struct spmi_device *spmi)
 {
 	struct qpnp_vib *vib;
@@ -367,7 +402,9 @@ static int qpnp_vibrator_probe(struct spmi_device *spmi)
 	vib->timed_dev.enable = qpnp_vib_enable;
 
 	dev_set_drvdata(&spmi->dev, vib);
-
+	/*added by yong.bo on 2015/08/04 for double tap to vibrator when wake up */
+	global_dev = &vib->timed_dev;
+	/*end*/
 	rc = timed_output_dev_register(&vib->timed_dev);
 	if (rc < 0)
 		return rc;

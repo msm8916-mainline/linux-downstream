@@ -1408,6 +1408,41 @@ end:
 	return dsi_pan_node;
 }
 
+static const char *buf_lcd_info;
+static struct class *lcd_class;
+
+static ssize_t lcd_info_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	if (buf_lcd_info)
+		return snprintf(buf, strlen(buf_lcd_info) + 2, "%s\n", buf_lcd_info);
+
+	return 0;
+}
+
+static CLASS_ATTR(lcd_info, S_IRUSR, lcd_info_show, NULL);
+
+static int create_lcd_info(struct platform_device *pdev, struct device_node *node)
+{
+	int rc = 0;
+
+	lcd_class = class_create(THIS_MODULE, "lcd");
+	if (IS_ERR_OR_NULL(lcd_class))
+		return PTR_ERR(lcd_class);
+
+	rc = class_create_file(lcd_class, &class_attr_lcd_info);
+	if (rc < 0) {
+		pr_err("%s: class_crate_file error!\n", __func__);
+		class_destroy(lcd_class);
+		return rc;
+	}
+
+	if (node)
+		buf_lcd_info = of_get_property(node, "qcom,mdss-dsi-panel-name", NULL);
+
+	return rc;
+}
+
 static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 {
 	int rc = 0, i = 0;
@@ -1553,6 +1588,11 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 		}
 		disable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
 	}
+
+	rc = create_lcd_info(pdev, dsi_pan_node);
+	if (rc < 0)
+		pr_err("%s error!\n", __func__);
+
 	pr_debug("%s: Dsi Ctrl->%d initialized\n", __func__, index);
 	return 0;
 

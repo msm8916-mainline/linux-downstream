@@ -2540,7 +2540,14 @@ static void sdhci_msm_check_power_status(struct sdhci_host *host, u32 req_type)
 				msecs_to_jiffies(MSM_PWR_IRQ_TIMEOUT_MS)))
 		__WARN_printf("%s: request(%d) timed out waiting for pwr_irq\n",
 					mmc_hostname(host->mmc), req_type);
-
+#ifdef CONFIG_SMS_SDIO_DRV
+	
+#define POWER_DELAY 100
+	if(host->mmc->index == 1 && (req_type & (REQ_BUS_ON | REQ_IO_HIGH | REQ_IO_LOW))) {
+		pr_info("%s: %s: delay %dms!\n", mmc_hostname(host->mmc), __func__, POWER_DELAY);
+		msleep(POWER_DELAY);//even 50ms not stable for msm8916, why need delay even H/W said ready????
+	} 
+#endif
 	pr_debug("%s: %s: request %d done\n", mmc_hostname(host->mmc),
 			__func__, req_type);
 }
@@ -3178,7 +3185,18 @@ static void sdhci_set_default_hw_caps(struct sdhci_msm_host *msm_host,
 	caps &= ~CORE_SYS_BUS_SUPPORT_64_BIT;
 	writel_relaxed(caps, host->ioaddr + CORE_VENDOR_SPEC_CAPABILITIES0);
 }
+//add,by ck-changjun.li
+#ifdef CONFIG_SMS_SDIO_DRV
+typedef void (*pm_callback_t)(unsigned int on, void *data);
+extern void sms_sdio_register_plug_cb(pm_callback_t pm_cb, void *data);
 
+static void sdhci_msm_detect(unsigned int on, void *data)
+{
+	struct sdhci_msm_host *msm_host = (struct sdhci_msm_host *)data;
+	mmc_detect_change(msm_host->mmc, 0);
+}
+#endif
+//end,ck-changjun.li
 static int sdhci_msm_probe(struct platform_device *pdev)
 {
 	struct sdhci_host *host;
@@ -3389,6 +3407,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	host->quirks2 |= SDHCI_QUIRK2_IGNORE_DATATOUT_FOR_R1BCMD;
 	host->quirks2 |= SDHCI_QUIRK2_BROKEN_PRESET_VALUE;
 	host->quirks2 |= SDHCI_QUIRK2_USE_RESERVED_MAX_TIMEOUT;
+//add,by ck-changjun.li
+#ifdef CONFIG_SMS_SDIO_DRV	
+	host->quirks |= SDHCI_QUIRK_DELAY_AFTER_POWER;
+#endif
+//end,ck-changjun.li
 	host->quirks2 |= SDHCI_QUIRK2_BROKEN_LED_CONTROL;
 
 	if (host->quirks2 & SDHCI_QUIRK2_ALWAYS_USE_BASE_CLOCK)
@@ -3573,7 +3596,12 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 			msm_host->pdata->mpm_sdiowakeup_int = -1;
 		}
 	}
-
+//add,by ck-changjun.li
+#ifdef CONFIG_SMS_SDIO_DRV
+	if (1 == msm_host->mmc->index)
+		sms_sdio_register_plug_cb(sdhci_msm_detect, (void*)msm_host);
+#endif
+//end,ck-changjun.li
 	device_enable_async_suspend(&pdev->dev);
 	/* Successful initialization */
 	goto out;

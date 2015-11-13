@@ -21,6 +21,8 @@
 
 #define HANDLE_TO_IDX(handle) (handle & 0xFF)
 
+#define ISP_SOF_DEBUG_COUNT 5
+
 int msm_isp_axi_create_stream(
 	struct msm_vfe_axi_shared_data *axi_data,
 	struct msm_vfe_axi_stream_request_cmd *stream_cfg_cmd)
@@ -505,11 +507,8 @@ void msm_isp_sof_notify(struct vfe_device *vfe_dev,
 	struct msm_isp_event_data sof_event;
 	switch (frame_src) {
 	case VFE_PIX_0:
-		if (vfe_dev->isp_sof_debug < 5)
+		if (vfe_dev->isp_sof_debug < ISP_SOF_DEBUG_COUNT)
 			pr_err("%s: PIX0 frame id: %u\n", __func__,
-				vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id);
-		else
-			ISP_DBG("%s: PIX0 frame id: %u\n", __func__,
 				vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id);
 		vfe_dev->isp_sof_debug++;
 		vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id++;
@@ -517,14 +516,31 @@ void msm_isp_sof_notify(struct vfe_device *vfe_dev,
 			vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id = 1;
 		break;
 	case VFE_RAW_0:
+		if (vfe_dev->isp_raw0_debug < ISP_SOF_DEBUG_COUNT)
+			pr_err("%s: RAW_0 frame id: %u\n", __func__,
+				vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id);
+		 vfe_dev->isp_raw0_debug++;
+		 vfe_dev->axi_data.src_info[frame_src].frame_id++;  
+         if (vfe_dev->axi_data.src_info[frame_src].frame_id == 0) 
+         vfe_dev->axi_data.src_info[frame_src].frame_id = 1;
+		break;
 	case VFE_RAW_1:
+		if (vfe_dev->isp_raw1_debug < ISP_SOF_DEBUG_COUNT)
+			pr_err("%s: RAW_1 frame id: %u\n", __func__,
+				vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id);
+		 vfe_dev->isp_raw1_debug++;
+		 vfe_dev->axi_data.src_info[frame_src].frame_id++;  
+         if (vfe_dev->axi_data.src_info[frame_src].frame_id == 0) 
+         vfe_dev->axi_data.src_info[frame_src].frame_id = 1;
+		break;
 	case VFE_RAW_2:
-		ISP_DBG("%s: RDI%d frame id: %u\n",
-			__func__, frame_src - VFE_RAW_0,
-			vfe_dev->axi_data.src_info[frame_src].frame_id);
-		vfe_dev->axi_data.src_info[frame_src].frame_id++;
-		if (vfe_dev->axi_data.src_info[frame_src].frame_id == 0)
-			vfe_dev->axi_data.src_info[frame_src].frame_id = 1;
+		if (vfe_dev->isp_raw2_debug < ISP_SOF_DEBUG_COUNT)
+			pr_err("%s: RAW_2 frame id: %u\n", __func__,
+				vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id);
+		vfe_dev->isp_raw2_debug++;
+		vfe_dev->axi_data.src_info[frame_src].frame_id++;  
+        if (vfe_dev->axi_data.src_info[frame_src].frame_id == 0) 
+        vfe_dev->axi_data.src_info[frame_src].frame_id = 1;
 		break;
 	default:
 		pr_err("%s: invalid frame src %d received\n",

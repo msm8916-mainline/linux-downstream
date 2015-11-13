@@ -235,6 +235,8 @@ static int usb_diag_update_pid_and_serial_num(uint32_t pid, const char *snum);
 #define STRING_MANUFACTURER_IDX		0
 #define STRING_PRODUCT_IDX		1
 #define STRING_SERIAL_IDX		2
+//[YangTao feature.76808]modify ADB DEVICES show @17/03/15
+#define ADB_DEVICES_NAME "CKT_MIRAGE"
 
 static char manufacturer_string[256];
 static char product_string[256];
@@ -244,6 +246,7 @@ static char serial_string[256];
 static struct usb_string strings_dev[] = {
 	[STRING_MANUFACTURER_IDX].s = manufacturer_string,
 	[STRING_PRODUCT_IDX].s = product_string,
+//[YangTao feature.76808]modify ADB DEVICES show @17/03/15
 	[STRING_SERIAL_IDX].s = serial_string,
 	{  }			/* end of list */
 };
@@ -2620,9 +2623,50 @@ static DEVICE_ATTR(luns, S_IRUGO | S_IWUSR,
 				mass_storage_lun_info_show,
 				mass_storage_lun_info_store);
 
+#ifdef CONFIG_UMS_BICR
+static ssize_t mass_storage_bicr_show(struct device *dev,
+                               struct device_attribute *attr, char *buf)
+{
+       struct android_usb_function *f = dev_get_drvdata(dev);
+       struct mass_storage_function_config *config = f->config;
+       return sprintf(buf, "%d\n", config->common->bicr);
+}
+
+static ssize_t mass_storage_bicr_store(struct device *dev,
+               struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct mass_storage_function_config *config = f->config;
+	if (size >= sizeof(config->common->bicr))
+		return -EINVAL;
+	if (sscanf(buf, "%d", &config->common->bicr) != 1)
+		return -EINVAL;
+
+	/* Set Lun[0] is a CDROM when enable bicr.*/
+	if (!strcmp(buf, "1"))
+		config->common->luns[0].cdrom = 1;
+	else {
+		/*Reset the value. Clean the cdrom's parameters*/
+		config->common->luns[0].cdrom = 0;
+		config->common->luns[0].blkbits = 0;
+		config->common->luns[0].blksize = 0;
+		config->common->luns[0].num_sectors = 0;
+	}
+
+	return size;
+}
+
+static DEVICE_ATTR(bicr, S_IRUGO | S_IWUSR,
+                                       mass_storage_bicr_show,
+                                       mass_storage_bicr_store);
+#endif
+
 static struct device_attribute *mass_storage_function_attributes[] = {
 	&dev_attr_inquiry_string,
 	&dev_attr_luns,
+#ifdef CONFIG_UMS_BICR
+	&dev_attr_bicr,
+#endif
 	NULL
 };
 
@@ -3044,6 +3088,12 @@ static ssize_t remote_wakeup_store(struct device *pdev,
 	return size;
 }
 
+/*static ssize_t adb_name_show(struct device *pdev,
+			   struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%s\n", strings_dev[STRING_SERIAL_IDX].s);
+}*/
+
 static ssize_t
 functions_show(struct device *pdev, struct device_attribute *attr, char *buf)
 {
@@ -3381,6 +3431,8 @@ DESCRIPTOR_STRING_ATTR(iManufacturer, manufacturer_string)
 DESCRIPTOR_STRING_ATTR(iProduct, product_string)
 DESCRIPTOR_STRING_ATTR(iSerial, serial_string)
 
+//static DEVICE_ATTR(adb_display_name, S_IRUGO | S_IWUSR, adb_name_show, NULL);
+
 static DEVICE_ATTR(functions, S_IRUGO | S_IWUSR, functions_show,
 						 functions_store);
 static DEVICE_ATTR(enable, S_IRUGO | S_IWUSR, enable_show, enable_store);
@@ -3407,6 +3459,7 @@ static struct device_attribute *android_usb_attributes[] = {
 	&dev_attr_iManufacturer,
 	&dev_attr_iProduct,
 	&dev_attr_iSerial,
+//	&dev_attr_adb_display_name,
 	&dev_attr_functions,
 	&dev_attr_enable,
 	&dev_attr_pm_qos,
@@ -3487,9 +3540,9 @@ static int android_bind(struct usb_composite_dev *cdev)
 	device_desc.iProduct = id;
 
 	/* Default strings - should be updated by userspace */
-	strlcpy(manufacturer_string, "Android",
+	strlcpy(manufacturer_string, "BQ",
 		sizeof(manufacturer_string) - 1);
-	strlcpy(product_string, "Android", sizeof(product_string) - 1);
+	strlcpy(product_string, "Aquaris M5.5", sizeof(product_string) - 1);
 	strlcpy(serial_string, "0123456789ABCDEF", sizeof(serial_string) - 1);
 
 	id = usb_string_id(cdev);
@@ -3769,6 +3822,7 @@ static int android_probe(struct platform_device *pdev)
 	struct android_usb_platform_data *pdata;
 	struct android_dev *android_dev;
 	struct resource *res;
+	//const char *adb_name;
 	int ret = 0, i, len = 0, prop_len = 0;
 	u32 usb_core_id = 0;
 
@@ -3830,6 +3884,9 @@ static int android_probe(struct platform_device *pdev)
 		ret = of_property_read_u8(pdev->dev.of_node,
 				"qcom,android-usb-uicc-nluns",
 				&pdata->uicc_nluns);
+
+		//ret = of_property_read_string(pdev->dev.of_node, "adb_diaplay_name", &adb_name);
+		//strings_dev[STRING_SERIAL_IDX].s = adb_name;
 	} else {
 		pdata = pdev->dev.platform_data;
 	}

@@ -690,6 +690,24 @@
 				bias-disable; /* No PULL */
 			};
 		};
+		/*wuboadd start*/
+		red_led_gpio20{
+			qcom,pins = <&gp 20>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "red_led_gpio";
+
+			redled_gpio20_active: redled_gpio20_active {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+
+			redled_gpio20_suspend: suspend {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+		};
+		/*wubo add end*/
 
 		pmx_rd_nfc_int{
 			qcom,pins = <&gp 21>;
@@ -709,7 +727,7 @@
 		};
 
 		pmx_nfc_reset{
-			qcom,pins = <&gp 20>;
+			qcom,pins = <&gp 21>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
 			label = "pmx_nfc_disable";
@@ -1441,6 +1459,21 @@
 				bias-pull-up;
 			};
 			ak8963_sleep: ak8963_sleep {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+
+		ltr553_int_pin {
+			qcom,pins = <&gp 113>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "ltr553-irq";
+			ltr553_default: ltr553_default {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+			ltr553_sleep: ltr553_sleep {
 				drive-strength = <2>;
 				bias-pull-down;
 			};

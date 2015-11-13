@@ -782,10 +782,13 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 		break;
 
 	case CFG_SET_DEFAULT_FOCUS:
-		rc = a_ctrl->func_tbl->actuator_set_default_focus(a_ctrl,
-			&cdata->cfg.move);
-		if (rc < 0)
-			pr_err("move focus failed %d\n", rc);
+		if(a_ctrl&&a_ctrl->func_tbl){
+			rc = a_ctrl->func_tbl->actuator_set_default_focus(a_ctrl,
+				&cdata->cfg.move);
+			if (rc < 0)
+				pr_err("move focus failed %d\n", rc);
+		} else
+			pr_err("%s:CFG_SET_DEFAULT_FOCUS failed!\n",__func__);
 		break;
 
 	case CFG_MOVE_FOCUS:
@@ -795,16 +798,23 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 			pr_err("move focus failed %d\n", rc);
 		break;
 	case CFG_ACTUATOR_POWERDOWN:
-		rc = msm_actuator_power_down(a_ctrl);
-		if (rc < 0)
-			pr_err("msm_actuator_power_down failed %d\n", rc);
+		if(a_ctrl&&a_ctrl->func_tbl){
+			rc = a_ctrl->func_tbl->actuator_move_focus(a_ctrl,
+				&cdata->cfg.move);
+			if (rc < 0)
+				pr_err("move focus failed %d\n", rc);
+		}else
+			pr_err("%s:CFG_MOVE_FOCUS failed!\n",__func__);
 		break;
 
 	case CFG_SET_POSITION:
-		rc = a_ctrl->func_tbl->actuator_set_position(a_ctrl,
-			&cdata->cfg.setpos);
-		if (rc < 0)
-			pr_err("actuator_set_position failed %d\n", rc);
+		if(a_ctrl&&a_ctrl->func_tbl){
+			rc = a_ctrl->func_tbl->actuator_set_position(a_ctrl,
+				&cdata->cfg.setpos);
+			if (rc < 0)
+				pr_err("actuator_set_position failed %d\n", rc);
+		}else
+			pr_err("%s:CFG_SET_POSITION failed!\n",__func__);
 		break;
 
 	case CFG_ACTUATOR_POWERUP:

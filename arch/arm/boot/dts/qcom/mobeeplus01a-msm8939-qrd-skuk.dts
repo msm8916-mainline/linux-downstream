@@ -1,0 +1,149 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "msm8939.dtsi"
+#include "./mobeeplus01a-msm8939-qrd-skuk/mobeeplus01a-msm8939-qrd-skuk.dtsi"
+#include "dsi-panel-mirageplus-goworld-1080p-video.dtsi"
+#include "./mobeeplus01a-msm8939-qrd-skuk/mobeeplus01a-msm8939-camera-sensor-qrd.dtsi"
+
+/ {
+	qcom,board-id = <0x1000b 13>, <0x2000b 5>;
+};
+
+&soc{
+	gen-vkeys {
+		compatible = "qcom,gen-vkeys";
+		label = "ft5x06_ts";
+		qcom,disp-maxx = <1080>;
+		qcom,disp-maxy = <1920>;
+		qcom,panel-maxx = <1080>;
+		qcom,panel-maxy = <2098>;
+		qcom,key-codes = <139 172 158>;
+		qcom,y-offset = <0>;
+	};
+
+	android_usb: android_usb@086000c8 {
+		compatible = "qcom,android-usb";
+		reg = <0x086000c8 0xc8>;
+		qcom,pm-qos-latency = <2 1001 12701>;
+		qcom,streaming-func = "rndis","mtp";
+		qcom,android-usb-uicc-nluns = /bits/ 8 <0>;
+		adb_diaplay_name = "CKT_MIRAGEPLUS";
+	};
+};
+
+&i2c_4 {
+	smb1360_otg_supply: smb1360-chg-fg@14 {
+		compatible = "qcom,smb1360-chg-fg";
+		reg = <0x14>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <62 2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&smb_int_default>;
+		qcom,stat-pulsed-irq;
+		qcom,chg-inhibit-disabled;
+		/*battery capacity*/
+		qcom,fg-batt-capacity-mah = <3500>;
+		qcom,fg-cc-soc-coeff = <0x80AE>;
+		qcom,float-voltage-mv = <4350>;
+		qcom,fg-cc-to-cv-mv = <4330>;
+		qcom,fg-voltage-min-mv = <3200>;
+		qcom,fg-voltage-empty-mv = <3200>;
+		qcom,fg-suspend-voltage-empty-mv = <3400>;
+		qcom,fg-cutoff-voltage-mv = <3400>;
+		//qcom,fg-auto-recharge-soc = <99>;
+		qcom,fg-delta-soc = <1>;
+		qcom,thermistor-c1-coeff = <0x86C2>;
+		qcom,iterm-ma = <200>;
+		qcom,recharge-thresh-mv = <100>;
+		qcom,charging-timeout = <1536>;
+		qcom,otg-batt-curr-limit = <1500>;
+		qcom,thermal-mitigation = <1500 700 600 0>;
+		//qcom,empty-soc-disabled;
+		regulator-name = "smb1360_otg_vreg";
+		qcom,fg-reset-at-pon;
+		qcom,fg-reset-thresold-mv = <250>;
+		/*OTG config*/
+		qcom,otg-fet-present;
+		qcom,otg-fet-enable-gpio = <&msm_gpio 52 0>;
+
+		qcom,batt-id-disabled;
+		/*battery-profile selection properties */
+		qcom,batt-profile-select;
+		qcom,smb1360-vadc = <&pm8916_vadc>;
+		qcom,batt-id-vref-uv = <1800000>;
+		qcom,batt-id-rpullup-kohm = <100>;
+		qcom,profile-a-rid-kohm = <33>;
+		qcom,profile-b-rid-kohm = <91>;
+		qcom,shdn-after-pwroff;
+		qcom,config-hard-thresholds;
+		qcom,hot-bat-decidegc = <590>;
+		qcom,cold-bat-decidegc = <(-200)>;
+		qcom,hot-bat-mv = <4100>;
+	};
+};
+
+&i2c_6 {
+	focaltech@38 {
+		compatible = "focaltech,5x06";
+		reg = <0x38>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2008>;
+		vdd-supply = <&pm8916_l17>;
+		vcc_i2c-supply = <&pm8916_l6>;
+		/* pins used by touchscreen */
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend","pmx_ts_release";
+		pinctrl-0 = <&ts_int_active &ts_reset_active>;
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+		pinctrl-2 = <&ts_release>;
+		focaltech,name = "ft5446";
+		focaltech,family-id = <0x54>;
+		focaltech,reset-gpio = <&msm_gpio 12 0x0>;
+		focaltech,irq-gpio = <&msm_gpio 13 0x2008>;
+		focaltech,display-coords = <0 0 1080 1920>;
+		focaltech,panel-coords = <0 0 1080 2098>;
+		focaltech,button-map= <139 102 158>;
+		focaltech,no-force-update;
+		focaltech,i2c-pull-up;
+		focaltech,group-id = <1>;
+		focaltech,hard-reset-delay-ms = <2>;
+		focaltech,soft-reset-delay-ms = <20>;
+		focaltech,num-max-touches = <5>;
+		focaltech,fw-name = "ft5x46/ft5446_fw.bin";
+		focaltech,fw-delay-aa-ms = <30>;
+		focaltech,fw-delay-55-ms = <30>;
+		focaltech,fw-upgrade-id1 = <0x54>;
+		focaltech,fw-upgrade-id2 = <0x2C>;
+		focaltech,fw-delay-readid-ms = <10>;
+		focaltech,fw-delay-era-flsh-ms = <2000>;
+		focaltech,fw-auto-cal;
+		focaltech,ignore-id-check;
+		focaltech,fw-vkey-support;
+	};
+};
+
+&pm8916_chg {
+	status = "ok";
+	qcom,use-external-charger;
+};
+
+&pm8916_bms {
+	status = "ok";
+	qcom,disable-bms;
+};
+
+&dsi_mirageplus_goworld_1080p_video {
+	qcom,cont-splash-enabled;
+	qcom,esd-check-enabled;
+};

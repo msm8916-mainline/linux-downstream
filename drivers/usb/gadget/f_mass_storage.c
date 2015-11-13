@@ -315,6 +315,9 @@ struct fsg_common {
 	char inquiry_string[8 + 16 + 4 + 1];
 
 	struct kref		ref;
+#ifdef CONFIG_UMS_BICR
+	int  bicr;
+#endif
 };
 
 struct fsg_config {
@@ -554,7 +557,15 @@ static int fsg_setup(struct usb_function *f,
 				w_length != 1)
 			return -EDOM;
 		VDBG(fsg, "get max LUN\n");
+#ifdef CONFIG_UMS_BICR
+		if(fsg->common->bicr){
+			*(u8 *)req->buf = 0;
+		}else{
+			*(u8 *)req->buf = fsg->common->nluns - 1;
+		}
+#else
 		*(u8 *)req->buf = fsg->common->nluns - 1;
+#endif
 
 		/* Respond with data/status */
 		req->length = min((u16)1, w_length);
@@ -2915,6 +2926,9 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 	common->ep0req = cdev->req;
 	common->cdev = cdev;
 
+#ifdef CONFIG_UMS_BICR
+	common->bicr = 0;
+#endif
 	/*
 	 * Create the LUNs, open their backing files, and register the
 	 * LUN devices in sysfs.

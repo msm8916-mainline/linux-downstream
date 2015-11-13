@@ -1,3 +1,5 @@
+EXTRA_CFLAGS += -DNAMEK_PWM_LOW
+
 ccflags-y += -I$(src)
 
 mdss-mdp3-objs = mdp3.o mdp3_dma.o mdp3_ctrl.o dsi_status_v2.o

@@ -1713,6 +1713,9 @@ config MODULE_SRCVERSION_ALL
 config MODULE_SIG
 	bool "Module signature verification"
 	depends on MODULES
+#added by tinypi for disable signed kernel module support
+	default n
+#added by tinypi for disable signed kernel module support end
 	select KEYS
 	select CRYPTO
 	select ASYMMETRIC_KEY_TYPE

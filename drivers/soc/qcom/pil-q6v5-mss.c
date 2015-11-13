@@ -139,7 +139,16 @@ static int modem_powerup(const struct subsys_desc *subsys)
 	INIT_COMPLETION(drv->stop_ack);
 	drv->subsys_desc.ramdump_disable = 0;
 	drv->ignore_errors = false;
+	
 	return pil_boot(&drv->q6->desc);
+}
+
+static int modem_free_mem(const struct subsys_desc *subsys)
+{
+	struct modem_data *drv = subsys_to_drv(subsys);
+
+	pil_free(&drv->q6->desc);
+	return 0;
 }
 
 static void modem_crash_shutdown(const struct subsys_desc *subsys)
@@ -207,6 +216,7 @@ static int pil_subsys_init(struct modem_data *drv,
 	drv->subsys_desc.owner = THIS_MODULE;
 	drv->subsys_desc.shutdown = modem_shutdown;
 	drv->subsys_desc.powerup = modem_powerup;
+	drv->subsys_desc.freeup = modem_free_mem;
 	drv->subsys_desc.ramdump = modem_ramdump;
 	drv->subsys_desc.crash_shutdown = modem_crash_shutdown;
 	drv->subsys_desc.err_fatal_handler = modem_err_fatal_intr_handler;
@@ -330,7 +340,8 @@ static int pil_mss_loadable_init(struct modem_data *drv,
 	if (of_property_match_string(pdev->dev.of_node,
 			"qcom,active-clock-names", "gpll0_mss_clk") >= 0)
 		q6->gpll0_mss_clk = devm_clk_get(&pdev->dev, "gpll0_mss_clk");
-
+	q6->mba_region = of_property_read_bool(pdev->dev.of_node,
+						"qcom,pil-mba-region");
 	ret = pil_desc_init(q6_desc);
 
 	return ret;

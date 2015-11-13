@@ -38,14 +38,34 @@
 			clocks = <&clock_rpm clk_bb_clk2_pin>;
 			clock-names = "ref_clk";
 		};
+                //added by leibo
+               synaptics@20 {
+                        compatible = "synaptics,dsx";
+                        reg = <0x20>;
+                        interrupt-parent = <&msm_gpio>;
+                        interrupts = <13 0x2008>;
+                        avdd-supply = <&pm8916_l17>;
+                        vdd-supply = <&pm8916_l6>;
+                        pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+                        pinctrl-0 = <&ts_int_active &ts_reset_active>;
+                        pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+                        synaptics,irq-gpio = <&msm_gpio 13 0x2008>;
+                        synaptics,reset-gpio = <&msm_gpio 12 0x0>;
+                        synaptics,disable-gpios;
+                        synaptics,button-map = <139 102 158>;
+                        synaptics,display-coords = <0 0 719 1279>;
+                        synaptics,panel-coords = <0 0 719 1279>;
+               };
+                //added end
+
 	};
 
 
 };
 
-&android_usb {
-	qcom,android-usb-cdrom;
-};
+//&android_usb {
+// qcom,android-usb-cdrom;
+//};
 
 &blsp1_uart2 {
 	status = "ok";
@@ -73,6 +93,15 @@
 			linux,code = <115>;
 			gpio-key,wakeup;
 			debounce-interval = <15>;
+		};
+
+		switch_lid {
+			label = "switch_lid";
+			gpios = <&msm_gpio 114 0x1>;
+			linux,input-type = <5>; /* EV_SW */
+			linux,code = <0>; /* SW_LID */
+			debounce-interval = <1>;
+			gpio-key,wakeup;
 		};
 	};
 };

@@ -589,6 +589,9 @@ struct vfe_device {
 	struct msm_isp_ub_info *ub_info;
 	uint32_t vfe_ub_policy;
 	uint32_t isp_sof_debug;
+        uint32_t isp_raw0_debug;
+        uint32_t isp_raw1_debug;
+        uint32_t isp_raw2_debug;
 	uint8_t reset_pending;
 	uint32_t bus_util_factor;
 };

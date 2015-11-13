@@ -1051,6 +1051,12 @@ config USB_CSW_HACK
 	 This csw hack feature is for increasing the performance of the mass
 	 storage
 
+config UMS_BICR
+	boolean "USB Mass storage cd rom support"
+	default y
+	help
+	 this for USB mass storage cd-rom function
+
 config USB_MSC_PROFILING
 	bool "USB MSC performance profiling"
 	help

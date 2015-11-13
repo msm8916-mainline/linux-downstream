@@ -40,6 +40,7 @@
 #define MAX_BUTTONS 4
 #define GOODIX_MAX_CFG_GROUP	6
 #define GTP_FW_NAME_MAXSIZE	50
+#define GTP_INFO_MAX_SIZE	128
 
 struct goodix_ts_platform_data {
 	int irq_gpio;
@@ -59,7 +60,7 @@ struct goodix_ts_platform_data {
 	bool force_update;
 	bool i2c_pull_up;
 	bool enable_power_off;
-	size_t config_data_len[GOODIX_MAX_CFG_GROUP];
+	int config_data_len[GOODIX_MAX_CFG_GROUP];
 	u8 *config_data[GOODIX_MAX_CFG_GROUP];
 	u32 button_map[MAX_BUTTONS];
 	u8 num_button;
@@ -104,6 +105,9 @@ struct goodix_ts_data {
 	struct regulator *avdd;
 	struct regulator *vdd;
 	struct regulator *vcc_i2c;
+	struct pinctrl *ts_pinctrl;
+	struct pinctrl_state *pinctrl_state_active;
+	struct pinctrl_state *pinctrl_state_suspend;
 #if defined(CONFIG_FB)
 	struct notifier_block fb_notif;
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
@@ -117,7 +121,7 @@ extern u16 total_len;
 
 /***************************PART1:ON/OFF define*******************************/
 #define GTP_CUSTOM_CFG			0
-#define GTP_ESD_PROTECT			0
+#define GTP_ESD_PROTECT			1
 
 #define GTP_IRQ_TAB            {\
 				IRQ_TYPE_EDGE_RISING,\

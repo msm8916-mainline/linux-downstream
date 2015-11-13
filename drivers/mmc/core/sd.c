@@ -33,6 +33,10 @@
 #define UHS_SDR25_MIN_DTR	(25 * 1000 * 1000)
 #define UHS_SDR12_MIN_DTR	(12.5 * 1000 * 1000)
 
+#ifdef CONFIG_SMS_SDIO_DRV
+extern int sms_switch_flag;
+#endif
+
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -1165,6 +1169,11 @@ static void mmc_sd_detect(struct mmc_host *host)
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	while(retries) {
 		err = mmc_send_status(host->card, NULL);
+		
+		#ifdef CONFIG_SMS_SDIO_DRV
+		if(sms_switch_flag)	break;
+		#endif
+		
 		if (err) {
 			retries--;
 			udelay(5);
@@ -1252,6 +1261,11 @@ static int mmc_sd_resume(struct mmc_host *host)
 			       mmc_hostname(host), err, retries);
 			retries--;
 			mmc_power_off(host);
+			
+			#ifdef CONFIG_SMS_SDIO_DRV
+			if(sms_switch_flag)	break;
+			#endif
+
 			usleep_range(5000, 5500);
 			mmc_power_up(host);
 			mmc_select_voltage(host, host->ocr);

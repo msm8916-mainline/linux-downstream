@@ -11,7 +11,7 @@
  */
 
 #include "msm8916-qrd.dtsi"
-#include "dsi-panel-otm8019a-fwvga-video.dtsi"
+#include "dsi-panel-hx8394d-720p-video.dtsi"
 #include "msm8916-camera-sensor-qrd-skui.dtsi"
 
 &soc {
@@ -105,7 +105,7 @@
 };
 
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_otm8019a_fwvga_video>;
+	qcom,dsi-pref-prim-pan = <&dsi_hx8394d_720_vid>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active>;
 	pinctrl-1 = <&mdss_dsi_suspend>;
@@ -113,8 +113,8 @@
 	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
 };
 
-&dsi_otm8019a_fwvga_video {
-       qcom,cont-splash-enabled;
+&dsi_hx8394d_720_vid{
+	qcom,cont-splash-enabled;
 };
 
 &tlmm_pinmux {
@@ -184,7 +184,7 @@
 		memsic,dir = "obverse-x-axis-forward";
 		memsic,auto-report;
 	};
-
+	
 	mpu6050@68 {
 		compatible = "invn,mpu6050";
 		reg = <0x68>;
@@ -199,6 +199,33 @@
 		invn,gpio-int = <&msm_gpio 115 0x2>;
 		invn,place = "Portrait Up Back Side";
 	};
+
+	iteon@23 {/*sunqidong ALSP LTR533 in i2c_0*/
+		compatible = "liteon,ltr553";
+		reg = <0x23>;
+		pinctrl-names = "default","sleep";
+		pinctrl-0 = <&ltr553_default>;
+		pinctrl-1 = <&ltr553_sleep>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <113 0x2>;
+		vdd-supply = <&pm8916_l17>;
+		vio-supply = <&pm8916_l6>;
+		liteon,intr = <&msm_gpio 113 0x2>;
+		liteon,highthr = <800>;
+		liteon,lowthr = <300>;
+	};
+	/*wubo add start */
+	/*awrgb@45 {
+		compatible = "aw,aw2013-rgb-leds";
+		reg = <0x45>;
+		pinctrl-names = "dtv-ldoen-gpio","redled_gpio";		
+		pinctrl-1 =  <&redled_gpio22_active>;
+		dtvldoen,gpio20 = <&msm_gpio 20 0>;
+		aw2013,red_gpio22 = <&msm_gpio 22 0>;
+		aw2013,maxbrightness = <255>;
+		aw2013,Imax = <3>;
+	};*/
+	/*wubo add end */
 };
 
 &sdc2_cd_on {

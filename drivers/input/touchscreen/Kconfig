@@ -13,6 +13,16 @@ if INPUT_TOUCHSCREEN
 
 source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
 
+config TOUCHSCREEN_ELAN_EKTF3XXX
+	bool "Elan TouchScreen"
+	depends on I2C
+	help
+	  Say Y here to enable Elan Touch support in the elan ektf3xxx
+	  driver.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here: the
+	  module will be called EKTF3XXX-ts.
+
 config TOUCHSCREEN_88PM860X
 	tristate "Marvell 88PM860x touchscreen"
 	depends on MFD_88PM860X
@@ -1028,6 +1038,17 @@ config SECURE_TOUCH
 
 	  If unsure, say N.
 
+config TOUCHSCREEN_CYPRESS_CYTTSP4
+	tristate "Cypress TMA463 touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a Cypress TMA463  touchscreen.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called synaptics_dsx_fw_update.
+
 config TOUCHSCREEN_GT9XX
 	bool "Goodix touchpanel GT9xx series"
 	depends on I2C
@@ -1039,6 +1060,19 @@ config TOUCHSCREEN_GT9XX
           If unsure, say N.
 
 source "drivers/input/touchscreen/gt9xx/Kconfig"
+source "drivers/input/touchscreen/cypress/Kconfig"
+source "drivers/input/touchscreen/atmel/Kconfig"
+config TOUCHSCREEN_GT9157
+	bool "Goodix touchpanel GT9xx series"
+	depends on I2C
+	help
+	  Say Y here if you have a Goodix GT9xx touchscreen.
+	  Gt9xx controllers are multi touch controllers which can
+	  report 5 touches at a time.
+
+          If unsure, say N.
+
+source "drivers/input/touchscreen/gt9157/Kconfig"
 
 config TOUCHSCREEN_BU21150
 	tristate "JDI AFE BU21150"
@@ -1051,6 +1085,8 @@ config TOUCHSCREEN_BU21150
 	  your system.
 
 	  If unsure, say N.
+
+source "drivers/input/touchscreen/melfas_mip4/Kconfig"
 
 config INPUT_MT_WRAPPER
 	tristate "Input Multitouch Wrapper"

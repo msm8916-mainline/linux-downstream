@@ -1496,8 +1496,9 @@ static int sdhci_set_power(struct sdhci_host *host, unsigned short power)
 	 * Some controllers need an extra 10ms delay of 10ms before they
 	 * can apply clock after applying power
 	 */
-	if (host->quirks & SDHCI_QUIRK_DELAY_AFTER_POWER)
+	if (host->quirks & SDHCI_QUIRK_DELAY_AFTER_POWER) {
 		mdelay(10);
+	}
 
 	return power;
 }
@@ -2250,7 +2251,14 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 {
 	u16 ctrl;
 	int ret;
-
+//add,by ck-changjun.li
+#ifdef CONFIG_SMS_SDIO_DRV
+//#define FORCE_SIGNAL_VOLTAGE_180 //if sms device using MMC_SIGNAL_VOLTAGE_180
+#ifdef FORCE_SIGNAL_VOLTAGE_180
+	unsigned char	signal_voltage;
+#endif
+#endif
+//end,ck-changjun.li
 	/*
 	 * Signal Voltage Switching is only applicable for Host Controllers
 	 * v3.00 and above.
@@ -2259,8 +2267,29 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 		return 0;
 
 	ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
-
+//add,by ck-changjun.li
+#ifdef CONFIG_SMS_SDIO_DRV
+#ifdef 	FORCE_SIGNAL_VOLTAGE_180
+	
+	if(host->mmc->index == 1)
+		signal_voltage = MMC_SIGNAL_VOLTAGE_180;
+	else
+		signal_voltage = ios->signal_voltage;
+		
+	if(host->mmc->index == 1)
+		pr_info("%s: %s: force: signal_voltage:%d\n",
+			 mmc_hostname(host->mmc), __func__, signal_voltage);
+	
+	switch (signal_voltage) {
+#else
 	switch (ios->signal_voltage) {
+
+#endif
+
+#else
+	switch (ios->signal_voltage) {
+#endif
+//end,ck-changjun.li
 	case MMC_SIGNAL_VOLTAGE_330:
 		/* Set 1.8V Signal Enable in the Host Control2 register to 0 */
 		ctrl &= ~SDHCI_CTRL_VDD_180;
@@ -3743,6 +3772,11 @@ int sdhci_add_host(struct sdhci_host *host)
 	    !(host->mmc->caps & MMC_CAP_NONREMOVABLE) &&
 	    (mmc_gpio_get_cd(host->mmc) < 0) &&
 	    !(host->mmc->caps2 & MMC_CAP2_NONHOTPLUG))
+//add,by ck-changjun.li
+#ifdef CONFIG_SMS_SDIO_DRV
+		if (1 != host->mmc->index)
+#endif
+//end,ck-changjun.li
 		mmc->caps |= MMC_CAP_NEEDS_POLL;
 	/* If vqmmc regulator and no 1.8V signalling, then there's no UHS */
 	host->vqmmc = regulator_get(mmc_dev(mmc), "vqmmc");

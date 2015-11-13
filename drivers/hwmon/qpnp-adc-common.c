@@ -712,6 +712,41 @@ static const struct qpnp_vadc_map_pt adcmap_ncp03wf683[] = {
 	{30,	125}
 };
 
+/* Voltage to temperature */
+static const struct qpnp_vadc_map_pt voltage_map_ext_therm[] = {
+	{1661, -30},
+	{1623, -25},
+	{1578, -20},
+	{1526, -15},
+	{1465, -10},
+	{1398, -5 },
+	{1324, 0  },
+	{1244, 5  },
+	{1160, 10 },
+	{1074, 15 },
+	{986 , 20 },
+	{900 , 25 },
+	{816 , 30 },
+	{736 , 35 },
+	{661 , 40 },
+	{590 , 45 },
+	{526 , 50 },
+	{468 , 55 },
+	{415 , 60 },
+	{368 , 65 },
+	{326 , 70 },
+	{319 , 71 },
+	{289 , 75 },
+	{256 , 80 },
+	{201 , 90 },
+	{178 , 95 },
+	{159 , 100},
+	{141 , 105},
+	{127 , 110},
+	{113 , 115},
+	{102 , 120},
+};
+
 static int32_t qpnp_adc_map_voltage_temp(const struct qpnp_vadc_map_pt *pts,
 		uint32_t tablesize, int32_t input, int64_t *output)
 {
@@ -1113,6 +1148,69 @@ int32_t qpnp_adc_scale_qrd_skul_batt_therm(struct qpnp_vadc_chip *chip,
 			&adc_chan_result->physical);
 }
 EXPORT_SYMBOL(qpnp_adc_scale_qrd_skul_batt_therm);
+
+int32_t qpnp_adc_scale_ext_therm(struct qpnp_vadc_chip *vadc,
+		int32_t adc_code,
+		const struct qpnp_adc_properties *adc_properties,
+		const struct qpnp_vadc_chan_properties *chan_properties,
+		struct qpnp_vadc_result *adc_chan_result)
+{
+	bool negative_rawfromoffset = 0, negative_offset = 0;
+	int64_t scale_voltage = 0;
+	int ext_therm_voltage = 0;    /*voltage in millivolt*/
+
+	if (!chan_properties || !chan_properties->offset_gain_numerator ||
+		!chan_properties->offset_gain_denominator || !adc_properties
+		|| !adc_chan_result)
+		return -EINVAL;
+
+	scale_voltage = (adc_code -
+		chan_properties->adc_graph[chan_properties->calib_type].adc_gnd)
+		* chan_properties->adc_graph[chan_properties->calib_type].dx;
+	if (scale_voltage < 0) {
+		negative_offset = 1;
+		scale_voltage = -scale_voltage;
+	}
+	do_div(scale_voltage,
+		chan_properties->adc_graph[chan_properties->calib_type].dy);
+	if (negative_offset)
+		scale_voltage = -scale_voltage;
+
+	if (chan_properties->calib_type == CALIB_ABSOLUTE)
+		scale_voltage +=
+		chan_properties->adc_graph[chan_properties->calib_type].dx;
+	else
+		scale_voltage *= 1000;
+
+	if (scale_voltage < 0) {
+		if (adc_properties->bipolar) {
+			scale_voltage = -scale_voltage;
+			negative_rawfromoffset = 1;
+		} else {
+			scale_voltage = 0;
+		}
+	}
+
+	adc_chan_result->measurement = scale_voltage *
+				chan_properties->offset_gain_denominator;
+
+	/* do_div only perform positive integer division! */
+	do_div(adc_chan_result->measurement,
+				chan_properties->offset_gain_numerator);
+
+	if (negative_rawfromoffset)
+		adc_chan_result->measurement = -adc_chan_result->measurement;
+
+	ext_therm_voltage = (int)(adc_chan_result->measurement) / (int)1000;
+	return qpnp_adc_map_voltage_temp(
+                adcmap_100k_104ef_104fb,
+                ARRAY_SIZE(adcmap_100k_104ef_104fb),
+		ext_therm_voltage,
+		&adc_chan_result->physical);
+
+	return 0;
+}
+EXPORT_SYMBOL(qpnp_adc_scale_ext_therm);
 
 int32_t qpnp_adc_scale_smb_batt_therm(struct qpnp_vadc_chip *chip,
 		int32_t adc_code,

@@ -27,6 +27,9 @@
  * from the panel. The function sends the PANEL_ALIVE=0 status to HAL
  * layer.
  */
+extern void mdss_dsi_err_intr_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, u32 mask,
+					int enable);
+					
 static void mdss_report_panel_dead(struct dsi_status_data *pstatus_data)
 {
 	char *envp[2] = {"PANEL_ALIVE=0", NULL};
@@ -180,16 +183,26 @@ void mdss_check_dsi_ctrl_status(struct work_struct *work, uint32_t interval)
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 	ret = ctrl_pdata->check_status(ctrl_pdata);
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
-
 	if (mipi->mode == DSI_CMD_MODE)
 		mutex_unlock(&mdp5_data->ov_lock);
 	mutex_unlock(&ctl->offlock);
 
 	if ((pstatus_data->mfd->panel_power_state == MDSS_PANEL_POWER_ON)) {
 		if (ret > 0)
+			{
 			schedule_delayed_work(&pstatus_data->check_status,
 				msecs_to_jiffies(interval));
+				mdss_dsi_clk_ctrl(ctrl_pdata, DSI_ALL_CLKS, 1);
+				mdss_dsi_err_intr_ctrl(ctrl_pdata, DSI_INTR_ERROR_MASK, 1);
+				mdss_dsi_clk_ctrl(ctrl_pdata, DSI_ALL_CLKS, 0);
+			}
 		else
+			{
 			mdss_report_panel_dead(pstatus_data);
+			mdss_dsi_clk_ctrl(ctrl_pdata, DSI_ALL_CLKS, 1);
+			mdss_dsi_err_intr_ctrl(ctrl_pdata, DSI_INTR_ERROR_MASK, 0);
+			mdss_dsi_clk_ctrl(ctrl_pdata, DSI_ALL_CLKS, 0);
+			//pr_err("sunqidong %s debug mark4222",__func__);
+		 }
 	}
 }

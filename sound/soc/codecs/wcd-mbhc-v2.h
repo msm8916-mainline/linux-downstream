@@ -17,7 +17,7 @@
 
 #define TOMBAK_MBHC_NC	0
 #define TOMBAK_MBHC_NO	1
-#define WCD_MBHC_DEF_BUTTONS 5
+#define WCD_MBHC_DEF_BUTTONS 4
 
 enum wcd_mbhc_plug_type {
 	MBHC_PLUG_TYPE_INVALID = -1,

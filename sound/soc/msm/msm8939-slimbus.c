@@ -59,7 +59,9 @@
 #define I2S_PCM_SEL           1
 #define I2S_PCM_SEL_OFFSET    1
 
-#define WCD9XXX_MBHC_DEF_BUTTONS    8
+//changed by chunyu.xie
+//#define WCD9XXX_MBHC_DEF_BUTTONS    8
+#define WCD9XXX_MBHC_DEF_BUTTONS    3
 #define WCD9XXX_MBHC_DEF_RLOADS     5
 #define CODEC_EXT_CLK_RATE         9600000
 
@@ -174,21 +176,24 @@ static void *def_codec_mbhc_cal(void)
 	btn_high = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg,
 					       MBHC_BTN_DET_V_BTN_HIGH);
 	btn_low[0] = -50;
-	btn_high[0] = 20;
-	btn_low[1] = 21;
-	btn_high[1] = 61;
-	btn_low[2] = 62;
-	btn_high[2] = 104;
-	btn_low[3] = 105;
-	btn_high[3] = 148;
-	btn_low[4] = 149;
-	btn_high[4] = 189;
-	btn_low[5] = 190;
+	btn_high[0] = 120;
+	btn_low[1] = 121;
+	btn_high[1] = 320;
+	btn_low[2] = 321;
+	btn_high[2] = 700;
+	/*
+	delete this by chunyu.xie
+	btn_low[3] = 212;
+	btn_high[3] = 217;
+	btn_low[4] = 218;
+	btn_high[4] = 223;
+	btn_low[5] = 224;
 	btn_high[5] = 228;
 	btn_low[6] = 229;
-	btn_high[6] = 269;
-	btn_low[7] = 270;
-	btn_high[7] = 500;
+	btn_high[6] = 349;
+	btn_low[7] = 350;
+	btn_high[7] = 600;
+	*/
 	n_ready = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg, MBHC_BTN_DET_N_READY);
 	n_ready[0] = 80;
 	n_ready[1] = 12;
@@ -2441,6 +2446,7 @@ enum codecs {
 static struct snd_soc_card snd_soc_card_msm[MAX_CODECS];
 static struct snd_soc_card snd_card_msm;
 
+#if 0
 static bool msm8939_swap_gnd_mic(struct snd_soc_codec *codec)
 {
 	struct snd_soc_card *card = codec->card;
@@ -2457,6 +2463,7 @@ static bool msm8939_swap_gnd_mic(struct snd_soc_codec *codec)
 	gpio_set_value_cansleep(pdata->us_euro_gpio, !value);
 	return true;
 }
+#endif
 
 static int cdc_slim_get_pinctrl(struct platform_device *pdev,
 			struct msm8939_asoc_mach_data *pdata)
@@ -2740,6 +2747,8 @@ static int msm8939_asoc_machine_probe(struct platform_device *pdev)
 		pr_err("failed to get the pdm gpios\n");
 		goto err;
 	}
+	
+	#if 0
 	/* Parse US-Euro gpio info from DT. Report no error if us-euro
 	 * entry is not found in DT file as some targets do not support
 	 * US-Euro detection
@@ -2755,7 +2764,8 @@ static int msm8939_asoc_machine_probe(struct platform_device *pdev)
 			"qcom,us-euro-gpios", pdata->us_euro_gpio);
 		wcd9xxx_mbhc_cfg.swap_gnd_mic = msm8939_swap_gnd_mic;
 	}
-
+      #endif
+	  
 	return 0;
 err:
 	cancel_delayed_work_sync(&pdata->hs_detect_dwork);

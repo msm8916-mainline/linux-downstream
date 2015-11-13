@@ -10,6 +10,9 @@
  * GNU General Public License for more details.
  */
 
+/* #define DEBUG 1 */
+#define pr_fmt(fmt)	KBUILD_MODNAME ": " fmt
+
 #include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/of.h>
@@ -1535,6 +1538,11 @@ static int mdss_panel_parse_dt(struct device_node *np,
 		else if (!strcmp(data, "rgb_swap_gbr"))
 			pinfo->mipi.rgb_swap = DSI_RGB_SWAP_GBR;
 	}
+
+	/* force clk lane high speed for mobee */
+	pinfo->mipi.force_clk_lane_hs = of_property_read_bool(np,
+		"qcom,mdss-dsi-clk-lane-hs");
+
 	pinfo->mipi.data_lane0 = of_property_read_bool(np,
 		"qcom,mdss-dsi-lane-0-state");
 	pinfo->mipi.data_lane1 = of_property_read_bool(np,

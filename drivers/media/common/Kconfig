@@ -22,4 +22,5 @@ config CYPRESS_FIRMWARE
 
 source "drivers/media/common/b2c2/Kconfig"
 source "drivers/media/common/saa7146/Kconfig"
-source "drivers/media/common/siano/Kconfig"
+#delete, by ck-changjun.li
+#source "drivers/media/common/siano/Kconfig"

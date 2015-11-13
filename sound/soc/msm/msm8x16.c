@@ -1360,16 +1360,23 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 	 * 210-290 == Button 2
 	 * 360-680 == Button 3
 	 */
+#ifdef MIRAGEPLUS
+	btn_low[0] = 100;
+	btn_high[0] = 100;
+	btn_low[1] = 101;
+	btn_high[1] = 101;
+#else
 	btn_low[0] = 75;
 	btn_high[0] = 75;
-	btn_low[1] = 150;
-	btn_high[1] = 150;
-	btn_low[2] = 237;
-	btn_high[2] = 237;
-	btn_low[3] = 450;
-	btn_high[3] = 450;
-	btn_low[4] = 500;
-	btn_high[4] = 500;
+	btn_low[1] = 100;
+	btn_high[1] = 100;
+#endif
+	btn_low[2] = 240;
+	btn_high[2] = 240;
+	btn_low[3] = 500;
+	btn_high[3] = 500;
+	btn_low[4] = 137;
+	btn_high[4] = 137;
 
 	return msm8x16_wcd_cal;
 }

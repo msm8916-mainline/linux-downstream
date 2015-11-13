@@ -123,6 +123,15 @@ enum {
 	RX_MIX1_INP_SEL_RX3,
 };
 
+enum{
+	MODE_1 = 0,
+	MODE_2,
+	MODE_3,
+	MODE_4,
+};
+
+static int mobee_spk_pa_mode = 0;
+
 static const DECLARE_TLV_DB_SCALE(digital_gain, 0, 1, 0);
 static const DECLARE_TLV_DB_SCALE(analog_gain, 0, 25, 1);
 static struct snd_soc_dai_driver msm8x16_wcd_i2s_dai[];
@@ -210,6 +219,7 @@ static void msm8x16_wcd_set_auto_zeroing(struct snd_soc_codec *codec,
 static void msm8x16_wcd_configure_cap(struct snd_soc_codec *codec,
 		bool micbias1, bool micbias2);
 static void msm8x16_skip_imped_detect(struct snd_soc_codec *codec);
+extern void smb1360_set_usb_current_call(int current_limit_enable);
 
 struct msm8x16_wcd_spmi msm8x16_wcd_modules[MAX_MSM8X16_WCD_DEVICE];
 
@@ -1264,6 +1274,58 @@ static int msm8x16_wcd_pa_gain_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int mobee_spk_pa_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+
+	if (mobee_spk_pa_mode == MODE_1) {
+		ucontrol->value.integer.value[0] = 0;
+	} else if (mobee_spk_pa_mode == MODE_2) {
+		ucontrol->value.integer.value[0] = 1;
+	} else if (mobee_spk_pa_mode == MODE_3) {
+		ucontrol->value.integer.value[0] = 2;
+	} else if (mobee_spk_pa_mode == MODE_4) {
+		ucontrol->value.integer.value[0] = 3;
+	} else  {
+		dev_err(codec->dev, "%s: ERROR: Unsupported Boost option= %d\n",
+			__func__, mobee_spk_pa_mode);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int mobee_spk_pa_set(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+
+	dev_dbg(codec->dev, "%s: ucontrol->value.integer.value[0] = %ld\n",
+		__func__, ucontrol->value.integer.value[0]);
+
+	switch (ucontrol->value.integer.value[0]) {
+	case 0:
+		mobee_spk_pa_mode = MODE_1;
+		break;
+	case 1:
+		mobee_spk_pa_mode = MODE_2;
+		break;
+	case 2:
+		mobee_spk_pa_mode = MODE_3;
+		break;
+	case 3:
+		mobee_spk_pa_mode = MODE_4;
+		break;
+	default:
+		pr_err("%s: mobee_spk_pa_mode: %d\n", __func__,
+					mobee_spk_pa_mode);
+		return -EINVAL;
+	}
+	dev_dbg(codec->dev, "%s: mobee_spk_pa_mode = %d\n",
+		__func__, mobee_spk_pa_mode);
+	return 0;
+}
 
 static int msm8x16_wcd_boost_option_get(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
@@ -1635,6 +1697,13 @@ static const struct soc_enum msm8x16_wcd_spk_boost_ctl_enum[] = {
 		SOC_ENUM_SINGLE_EXT(2, msm8x16_wcd_spk_boost_ctrl_text),
 };
 
+static const char * const mobee_spk_pa_ctrl_text[] = {
+		"MODE_1", "MODE_2", "MODE_3",
+		"MODE_4"};
+static const struct soc_enum mobee_spk_pa_ctl_enum[] = {
+		SOC_ENUM_SINGLE_EXT(4, mobee_spk_pa_ctrl_text),
+};
+
 static const char * const msm8x16_wcd_ext_spk_boost_ctrl_text[] = {
 		"DISABLE", "ENABLE"};
 static const struct soc_enum msm8x16_wcd_ext_spk_boost_ctl_enum[] = {
@@ -1662,6 +1731,9 @@ static const struct soc_enum cf_rxmix3_enum =
 	SOC_ENUM_SINGLE(MSM8X16_WCD_A_CDC_RX3_B4_CTL, 0, 3, cf_text);
 
 static const struct snd_kcontrol_new msm8x16_wcd_snd_controls[] = {
+
+	SOC_ENUM_EXT("Mobee Spk PA Mode", mobee_spk_pa_ctl_enum[0],
+		mobee_spk_pa_get, mobee_spk_pa_set),
 
 	SOC_ENUM_EXT("Boost Option", msm8x16_wcd_boost_option_ctl_enum[0],
 		msm8x16_wcd_boost_option_get, msm8x16_wcd_boost_option_set),
@@ -2553,12 +2625,17 @@ static int msm8x16_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		if (strnstr(w->name, internal1_text, 30)) {
+#ifdef MIRAGEPLUS
 			snd_soc_update_bits(codec, micb_int_reg, 0x80, 0x80);
+#endif
+			smb1360_set_usb_current_call(1);
 		} else if (strnstr(w->name, internal2_text, 30)) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x10, 0x10);
 			snd_soc_update_bits(codec, w->reg, 0x60, 0x00);
 		} else if (strnstr(w->name, internal3_text, 30)) {
+#ifdef MIRAGEPLUS
 			snd_soc_update_bits(codec, micb_int_reg, 0x2, 0x2);
+#endif
 		}
 		if (!strnstr(w->name, external_text, 30))
 			snd_soc_update_bits(codec,
@@ -2585,6 +2662,7 @@ static int msm8x16_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMD:
 		if (strnstr(w->name, internal1_text, 30)) {
 			snd_soc_update_bits(codec, micb_int_reg, 0xC0, 0x40);
+			smb1360_set_usb_current_call(0);
 		} else if (strnstr(w->name, internal2_text, 30)) {
 			msm8x16_notifier_call(codec,
 					WCD_EVENT_PRE_MICBIAS_2_OFF);
@@ -3267,10 +3345,12 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"IIR2 INP1 MUX", "DEC2", "DEC2 MUX"},
 	{"MIC BIAS Internal1", NULL, "INT_LDO_H"},
 	{"MIC BIAS Internal2", NULL, "INT_LDO_H"},
+	{"MIC BIAS Internal3", NULL, "INT_LDO_H"},
 	{"MIC BIAS External", NULL, "INT_LDO_H"},
 	{"MIC BIAS External2", NULL, "INT_LDO_H"},
 	{"MIC BIAS Internal1", NULL, "MICBIAS_REGULATOR"},
 	{"MIC BIAS Internal2", NULL, "MICBIAS_REGULATOR"},
+	{"MIC BIAS Internal3", NULL, "MICBIAS_REGULATOR"},
 	{"MIC BIAS External", NULL, "MICBIAS_REGULATOR"},
 	{"MIC BIAS External2", NULL, "MICBIAS_REGULATOR"},
 };
@@ -3596,13 +3676,20 @@ static int msm8x16_wcd_codec_enable_spk_ext_pa(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_codec *codec = w->codec;
 	struct msm8x16_wcd_priv *msm8x16_wcd = snd_soc_codec_get_drvdata(codec);
-
+	int i=0;
 	dev_dbg(codec->dev, "%s: %s event = %d\n", __func__, w->name, event);
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		dev_dbg(w->codec->dev,
 			"%s: enable external speaker PA\n", __func__);
+                pr_err("~~~~~~~~~~~~~~~mobe spk pa mode:%d\n",mobee_spk_pa_mode);
 		if (msm8x16_wcd->codec_spk_ext_pa_cb)
+			for(i = 0;i<mobee_spk_pa_mode;i++){
+				msm8x16_wcd->codec_spk_ext_pa_cb(codec, 1);
+				udelay(2);
+				msm8x16_wcd->codec_spk_ext_pa_cb(codec, 0);
+				udelay(2);
+			}
 			msm8x16_wcd->codec_spk_ext_pa_cb(codec, 1);
 		break;
 	case SND_SOC_DAPM_PRE_PMD:

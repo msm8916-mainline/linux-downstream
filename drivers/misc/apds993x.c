@@ -2579,19 +2579,6 @@ static int apds993x_probe(struct i2c_client *client,
 	data->client = client;
 	apds993x_i2c_client = client;
 
-	/* initialize pinctrl */
-	err = apds993x_pinctrl_init(data);
-	if (err) {
-		dev_err(&client->dev, "Can't initialize pinctrl\n");
-			goto exit_kfree;
-	}
-	err = pinctrl_select_state(data->pinctrl, data->pin_default);
-	if (err) {
-		dev_err(&client->dev,
-			"Can't select pinctrl default state\n");
-		goto exit_kfree;
-	}
-
 	/* h/w initialization */
 	if (pdata->init)
 		err = pdata->init();
@@ -2640,6 +2627,22 @@ static int apds993x_probe(struct i2c_client *client,
 		err = -ENODEV;
 		goto exit_uninit;
 	}
+
+	/* initialize pinctrl */
+	err = apds993x_pinctrl_init(data);
+	if (err) {
+		dev_err(&client->dev, "Can't initialize pinctrl\n");
+			goto exit_uninit;
+	}
+
+	/* set the pin state */
+	err = pinctrl_select_state(data->pinctrl, data->pin_default);
+	if (err) {
+		dev_err(&client->dev,
+			"Can't select pinctrl default state\n");
+		goto exit_uninit;
+	}
+
 	/* Initialize the APDS993X chip */
 	err = apds993x_init_device(client);
 	if (err) {
@@ -2776,7 +2779,6 @@ exit_uninit:
 		pdata->power_on(false);
 	if (pdata->exit)
 		pdata->exit();
-exit_kfree:
 	kfree(data);
 	pdev_data = NULL;
 exit:

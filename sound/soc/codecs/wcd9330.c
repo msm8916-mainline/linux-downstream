@@ -68,6 +68,21 @@ enum {
 #define HPH_PA_ENABLE true
 #define HPH_PA_DISABLE false
 
+#if 0
+#ifdef pr_fmt 
+#undef pr_fmt
+#define pr_fmt(fmt) "<audio log> %s, %d :" fmt, __func__,__LINE__
+#else
+#define pr_fmt(fmt) "<audio log> %s, %d :" fmt, __func__,__LINE__
+#endif
+#ifdef  pr_debug
+#undef pr_debug
+#define pr_debug(fmt,...)  printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__) 
+#else
+#define pr_debug(fmt,...)  printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__) 
+#endif
+#endif
+
 static int cpe_debug_mode;
 module_param(cpe_debug_mode, int,
 	     S_IRUGO | S_IWUSR | S_IWGRP);
@@ -75,7 +90,7 @@ MODULE_PARM_DESC(cpe_debug_mode, "boot cpe in debug mode");
 
 static atomic_t kp_tomtom_priv;
 
-static int high_perf_mode;
+static int high_perf_mode=1;
 module_param(high_perf_mode, int,
 			S_IRUGO | S_IWUSR | S_IWGRP);
 MODULE_PARM_DESC(high_perf_mode, "enable/disable class AB config for hph");
@@ -3436,6 +3451,7 @@ static int tomtom_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 		e_post_on = WCD9XXX_EVENT_POST_MICBIAS_1_ON;
 		e_post_off = WCD9XXX_EVENT_POST_MICBIAS_1_OFF;
 	} else if (strnstr(w->name, "MIC BIAS2", sizeof("MIC BIAS2"))) {
+	       pr_debug("*********************** \n");
 		micb_ctl_reg = TOMTOM_A_MICB_2_CTL;
 		micb_int_reg = TOMTOM_A_MICB_2_INT_RBIAS;
 		cfilt_sel_val = tomtom->resmgr.pdata->micbias.bias2_cfilt_sel;
@@ -3502,6 +3518,7 @@ static int tomtom_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, micb_ctl_reg, 1 << w->shift,
 					    1 << w->shift);
 		}
+		pr_debug("********read micb_ctl_reg = 0x%x\n********\n",snd_soc_read(codec,micb_ctl_reg));
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		usleep_range(20000, 20100);
@@ -3555,7 +3572,8 @@ static int tomtom_enable_mbhc_micbias(struct snd_soc_codec *codec, bool enable,
 				enum wcd9xxx_micbias_num micb_num)
 {
 	int rc;
-
+      
+      pr_debug(" **** enable  = %d***\n",enable);
 	if (micb_num != MBHC_MICBIAS2) {
 		dev_err(codec->dev, "%s: Unsupported micbias, micb_num=%d\n",
 			__func__, micb_num);
@@ -4099,12 +4117,31 @@ err:
 	return ret;
 }
 
+static unsigned int tomtom_hph_get_gain(int imped)
+{
+    unsigned int value = 0;
+	
+    if(imped <=36000)
+	   value = 0;
+	else if((imped > 36000)&&(imped <= 60000))
+	   value = 2;
+	else if((imped > 60000)&&(imped <= 200000))
+	   value = 5;
+	else if(imped > 200000)
+	   value = 5;
+
+	pr_debug("imped = %d ,  value = %d \n",imped,value);
+
+    return value;
+}
+
+
 static int tomtom_hphl_dac_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
 	struct snd_soc_codec *codec = w->codec;
 	struct tomtom_priv *tomtom_p = snd_soc_codec_get_drvdata(codec);
-	uint32_t impedl, impedr;
+	uint32_t impedl, impedr,lgain=0;
 	int ret = 0;
 
 	pr_debug("%s %s %d\n", __func__, w->name, event);
@@ -4127,10 +4164,16 @@ static int tomtom_hphl_dac_event(struct snd_soc_dapm_widget *w,
 						WCD9XXX_CLSAB_STATE_HPHL,
 						WCD9XXX_CLSAB_REQ_ENABLE);
 		}
+		// set hphl digtal volume and class H pa gain base on impedance
 		ret = wcd9xxx_mbhc_get_impedance(&tomtom_p->mbhc,
 					&impedl, &impedr);
-		if (!ret)
+		if (!ret){
 			wcd9xxx_clsh_imped_config(codec, impedl);
+			lgain=tomtom_hph_get_gain(impedl);
+		    if(lgain){
+		       snd_soc_write(codec,TOMTOM_A_CDC_RX1_VOL_CTL_B2_CTL,lgain);
+		    }
+		}
 		else
 			dev_dbg(codec->dev, "%s: Failed to get mbhc impedance %d\n",
 						__func__, ret);
@@ -4155,6 +4198,8 @@ static int tomtom_hphl_dac_event(struct snd_soc_dapm_widget *w,
 						WCD9XXX_CLSAB_STATE_HPHL,
 						WCD9XXX_CLSAB_REQ_DISABLE);
 		}
+		//set digtal volume gain to 0 dB
+		snd_soc_write(codec,TOMTOM_A_CDC_RX1_VOL_CTL_B2_CTL,0);
 		break;
 	}
 	return 0;
@@ -4165,6 +4210,8 @@ static int tomtom_hphr_dac_event(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_codec *codec = w->codec;
 	struct tomtom_priv *tomtom_p = snd_soc_codec_get_drvdata(codec);
+	uint32_t impedl, impedr,rgain=0;
+	int ret = 0;
 
 	pr_debug("%s %s %d\n", __func__, w->name, event);
 
@@ -4187,6 +4234,19 @@ static int tomtom_hphr_dac_event(struct snd_soc_dapm_widget *w,
 						WCD9XXX_CLSAB_STATE_HPHR,
 						WCD9XXX_CLSAB_REQ_ENABLE);
 		}
+
+		//set hphr digtal volume gain base on impedance
+		ret = wcd9xxx_mbhc_get_impedance(&tomtom_p->mbhc,
+					&impedl, &impedr);
+		if (!ret){
+			rgain=tomtom_hph_get_gain(impedr);
+		    if(rgain){
+		       snd_soc_write(codec,TOMTOM_A_CDC_RX2_VOL_CTL_B2_CTL,rgain);
+		    }
+		}
+		else
+			dev_dbg(codec->dev, "%s: Failed to get mbhc impedance %d\n",
+						__func__, ret);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		snd_soc_update_bits(codec, TOMTOM_A_CDC_RX2_B3_CTL, 0xBC, 0x94);
@@ -4209,6 +4269,8 @@ static int tomtom_hphr_dac_event(struct snd_soc_dapm_widget *w,
 						WCD9XXX_CLSAB_STATE_HPHR,
 						WCD9XXX_CLSAB_REQ_DISABLE);
 		}
+		//set hphr digtal volume to 0db
+		snd_soc_write(codec,TOMTOM_A_CDC_RX2_VOL_CTL_B2_CTL,0);
 		break;
 	}
 	return 0;

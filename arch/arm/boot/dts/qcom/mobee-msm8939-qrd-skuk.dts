@@ -1,0 +1,233 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "mobee-msm8939.dtsi"
+#include "./mobee-msm8939-qrd-skuk/mobee-msm8939-qrd-skuk.dtsi"
+#include "dsi-panel-nt35596-1080p-skuk-video.dtsi"
+#include "dsi-panel-tdi-1080p-video.dtsi"
+#include "dsi-panel-hx8394d-720p-video.dtsi"
+#include "./mobee-msm8939-qrd-skuk/mobee-msm8939-camera-sensor-qrd.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. MSM8939 QRD SKUK";
+	compatible = "qcom,msm8939-qrd-skuk", "qcom,msm8939-qrd", "qcom,msm8939", "qcom,qrd";
+	qcom,board-id = <0x1000b 12>, <0x2000b 5>;
+};
+
+
+&i2c_4 {
+	smb1360_otg_supply: smb1360-chg-fg@14 {
+		compatible = "qcom,smb1360-chg-fg";
+		reg = <0x14>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <62 2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&smb_int_default>;
+		qcom,stat-pulsed-irq;
+		qcom,chg-inhibit-disabled;
+		/*battery capacity*/
+		qcom,float-voltage-mv = <4350>;
+		qcom,fg-cc-to-cv-mv = <4330>;
+		qcom,fg-cutoff-voltage-mv = <3400>;
+		qcom,fg-voltage-min-mv = <3200>;
+		qcom,fg-voltage-empty-mv = <3200>;
+		qcom,fg-suspend-voltage-empty-mv = <3400>;
+		qcom,fg-ibatt-standby-ma = <200>;
+		qcom,fg-soc-max = <90>;
+		qcom,fg-soc-min = <15>;
+		qcom,fg-batt-capacity-mah = <2610>;
+		qcom,fg-cc-soc-coeff = <0x8247>;
+		qcom,thermistor-c1-coeff = <0x86C2>;
+		qcom,iterm-ma = <200>;
+		qcom,charging-timeout = <768>;
+		qcom,otg-batt-curr-limit = <1500>;
+		qcom,recharge-thresh-mv = <100>;
+		qcom,thermal-mitigation = <1500 1200 900 0>;
+	//	qcom,fg-auto-recharge-soc = <99>;
+                qcom,fg-delta-soc = <1>;
+	//	qcom,empty-soc-disabled;
+		regulator-name = "smb1360_otg_vreg";
+		qcom,rsense-10mhom;
+
+		/*battery-profile selection properties*/
+		qcom,batt-profile-select;
+		qcom,smb1360-vadc = <&pm8916_vadc>;
+		qcom,batt-id-vref-uv = <1800000>;
+		qcom,batt-id-rpullup-kohm = <100>;
+		qcom,profile-a-rid-kohm = <33>;
+		qcom,profile-b-rid-kohm = <91>;
+		qcom,shdn-after-pwroff;
+		qcom,config-hard-thresholds;
+		qcom,hot-bat-decidegc = <600>;
+		qcom,cold-bat-decidegc = <(-200)>;
+		qcom,hot-bat-mv = <4200>;
+		qcom,fg-reset-at-pon;
+		qcom,charger-mobee;
+        qcom,fg-reset-thresold-mv = <260>;
+	};
+};
+
+&pm8916_chg {
+	status = "ok";
+	qcom,use-external-charger;
+};
+
+&pm8916_bms {
+	status = "ok";
+	qcom,disable-bms;
+};
+&usb_otg {
+	qcom,hsusb-otg-mode = <3>;
+	qcom,usbid-gpio = <&msm_gpio 110 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usbid_default>;
+	vbus_otg-supply = <&smb1360_otg_supply>;
+	qcom,usbin-vadc = <&pm8916_vadc>;
+};
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&dsi_nt35596_1080p_skuk_video>;
+};
+
+&dsi_nt35596_1080p_skuk_video {
+	qcom,cont-splash-enabled;
+	qcom,esd-check-enabled;
+	qcom,mdss-dsi-pan-enable-dynamic-fps;
+	qcom,mdss-dsi-pan-fps-update = "dfps_immediate_porch_mode";
+};
+
+
+&dsi_tdi_1080p_video {
+	qcom,cont-splash-enabled;
+};
+
+&dsi_hx8394d_720_vid {
+	qcom,cont-splash-enabled;
+	qcom,esd-check-enabled;
+};
+
+&tlmm_pinmux{
+		red_led_gpio20{
+			qcom,pins = <&gp 20>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "red_led_gpio";
+
+			redled_gpio20_active: redled_gpio20_active {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+
+			redled_gpio20_suspend: suspend {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+		};
+};
+
+&i2c_0{          /* BLSP1 QUP2 */
+        awrgb@45 {
+		compatible = "aw,aw2013-rgb-leds";
+                reg = <0x45>;
+                pinctrl-names = "redled_gpio";
+                pinctrl-0 =  <&redled_gpio20_active>;
+                aw2013,red_gpio20 = <&msm_gpio 20 0>;
+                aw2013,maxbrightness = <150>;
+                aw2013,Imax = <1>;
+	};
+};
+
+&soc {
+	android_usb: android_usb@086000c8 {
+		compatible = "qcom,android-usb";
+		reg = <0x086000c8 0xc8>;
+		qcom,pm-qos-latency = <2 1001 12701>;
+		qcom,streaming-func = "rndis","mtp";
+		qcom,android-usb-uicc-nluns = /bits/ 8 <0>;
+		adb_diaplay_name = "CKTMIRAGE01A";
+	};
+};
+
+&i2c_6 {
+	goodix@5d {
+		compatible = "goodix,gt9xx";
+		reg = <0x5d>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2008>;
+		vdd-supply = <&pm8916_l17>;
+		vcc-i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+		pinctrl-0 = <&ts_int_active &ts_reset_active>;
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+		reset-gpios = <&msm_gpio 12 0x00>;
+		interrupt-gpios = <&msm_gpio 13 0x00>;
+		goodix,button-map = <139 102 158>;
+		goodix,panel-coords = <0 0 1080 1920>;
+		goodix,display-coords = <0 0 1080 1920>;
+		goodix,product-id = "917D";
+		goodix,fw_name = "gtp_fw.bin";
+		goodix,i2c-pull-up;
+		goodix,enable-power-off;
+		goodix,driver-send-cfg;
+		goodix,cfg-data0 = [
+			43 38 04 80 07 0A 35 00 22 0A 32
+			0F 4B 3C 03 30 00 00 00 00 00 00
+			08 16 1B 1E 14 0E 0D 0F 0A 00 15
+			34 A0 0F 00 02 47 19 00 00 64 05
+			05 00 00 00 00 00 03 0A 19 54 D5
+			02 07 00 00 04 80 0B 00 6D 0D 00
+			5F 0F 00 4D 13 00 44 16 00 44 00
+			00 00 00 85 60 35 FF FF 19 00 02
+			01 02 00 00 00 00 00 02 00 14 00
+			00 00 00 00 00 00 00 23 64 5A 00
+			00 2D 1C 1A 18 16 14 12 10 0E 0C
+			0A 08 06 04 02 00 FF FF FF FF FF
+			FF FF FF FF FF FF FF FF FF FF 29
+			FF FF FF FF FF FF FF FF FF FF FF
+			FF FF FF FF FF 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 00 00 00 0F 14
+			03 07 00 00 28 00 08 09 28 00 00
+			03 00 06 0A 00 00 00 00 01 11 00
+			00 00 00 00 00 00 00 00 00 00 00
+			00 00 00 00 00 00 77 01];
+	};
+
+	synaptics@2c {
+		compatible = "synaptics,dsx";
+		reg = <0x20>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2008>;
+		avdd-supply = <&pm8916_l17>;
+		vdd-supply = <&pm8916_l6>;
+		pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+		pinctrl-0 = <&ts_int_active &ts_reset_active>;
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+		synaptics,irq-gpio = <&msm_gpio 13 0x2008>;
+		synaptics,reset-gpio = <&msm_gpio 12 0x0>;
+		synaptics,disable-gpios;
+		synaptics,button-map = <139 102 158>;
+		synaptics,display-coords = <0 0 719 1279>;
+		synaptics,panel-coords = <0 0 719 1279>;
+	};
+};
+
+
+&usb_otg {
+       qcom,hsusb-otg-mode = <3>;
+       qcom,usbid-gpio = <&msm_gpio 110 0>;
+       pinctrl-names = "default";
+       pinctrl-0 = <&usbid_default>;
+       vbus_otg-supply = <&smb1360_otg_supply>;
+};
+

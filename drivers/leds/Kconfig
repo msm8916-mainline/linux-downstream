@@ -318,14 +318,14 @@ config LEDS_QPNP_WLED
 	  be called leds-qpnp-wled.
 
 config LEDS_MSM_GPIO_FLASH
-	tristate "Support for GPIO Flash LEDs"
+	tristate "Support for GPIO Flash LEDs"	
 	help
 	  This driver supports the leds functionality of GPIO Flash LED. It
 	  includes flash mode and torch mode.
 
 	  To compile this driver as a module, choose M here: the module will
-	  be called leds-gpio-flash.
-
+	  be called leds-gpio-flash. 
+	  
 config LEDS_WM831X_STATUS
 	tristate "LED support for status LEDs on WM831x PMICs"
 	depends on LEDS_CLASS
@@ -509,7 +509,15 @@ config LEDS_OT200
 	help
 	  This option enables support for the LEDs on the Bachmann OT200.
 	  Say Y to enable LEDs on the Bachmann OT200.
-
+	  
+config LEDS_aw2013rgb
+tristate "LED support for the BlinkM I2C RGB LED"
+	depends on LEDS_CLASS
+	depends on I2C
+	help
+	  This option enables support for the BlinkM RGB LED connected
+	  through I2C. Say Y to enable support for the BlinkM LED.
+	  
 config LEDS_BLINKM
 	tristate "LED support for the BlinkM I2C RGB LED"
 	depends on LEDS_CLASS
@@ -524,6 +532,13 @@ config LEDS_AW2013
 	help
 	  This option enables support for the AW2013 RGB LED connected
 	  through I2C. Say Y to enable support for the AW2013 LED.
+config LEDS_KTD20XX
+       tristate "LED support for the KTD20xx I2C RGBW LED"
+       depends on I2C
+       default y
+       help
+         This option enables support for the KTD20xx RGBW LED connected
+         through I2C. Say Y to enable support for the KTD20xx LED.
 
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"

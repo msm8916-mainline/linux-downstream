@@ -524,11 +524,19 @@ static void gpio_keys_report_state(struct gpio_keys_drvdata *ddata)
 {
 	struct input_dev *input = ddata->input;
 	int i;
+	int hall_enable;
 
 	for (i = 0; i < ddata->pdata->nbuttons; i++) {
 		struct gpio_button_data *bdata = &ddata->data[i];
-		if (gpio_is_valid(bdata->button->gpio))
-			gpio_keys_gpio_report_event(bdata);
+		if (gpio_is_valid(bdata->button->gpio)){
+			if(EV_KEY == bdata->button->type)
+				gpio_keys_gpio_report_event(bdata);
+			else if(EV_SW == bdata->button->type){
+				hall_enable = (gpio_get_value_cansleep(bdata->button->gpio) ? 1 : 0) ^ bdata->button->active_low;
+				if(0 == hall_enable)
+					gpio_keys_gpio_report_event(bdata);			
+			}
+		}
 	}
 	input_sync(input);
 }

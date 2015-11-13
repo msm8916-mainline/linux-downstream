@@ -1863,6 +1863,20 @@ static struct notifier_block msm_thermal_panic_notifier = {
 	.notifier_call = msm_thermal_panic_callback,
 };
 
+long get_msm_thermal_cpu_temperature(uint32_t id)
+{
+    int ret = 0;
+	long temperature;
+	ret = therm_get_temp(id,THERM_TSENS_ID, &temperature);
+	if (ret) {
+			pr_err("Unable to read TSENS sensor:%d. err:%d\n",
+					id, ret);
+			return ret;
+		}
+	return temperature;
+}
+EXPORT_SYMBOL(get_msm_thermal_cpu_temperature);
+
 int sensor_mgr_set_threshold(uint32_t zone_id,
 	struct sensor_threshold *threshold)
 {

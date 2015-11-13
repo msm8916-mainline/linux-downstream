@@ -212,7 +212,7 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq,
 	 * increase frequency.  Otherwise run the normal algorithm.
 	 */
 	if (priv->bin.busy_time > CEILING) {
-		val = -1 * level;
+		val = -1;
 	} else {
 
 		scm_data[0] = level;

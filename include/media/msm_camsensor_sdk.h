@@ -164,6 +164,7 @@ enum actuator_type {
 	ACTUATOR_VCM,
 	ACTUATOR_PIEZO,
 	ACTUATOR_HVCM,
+        ACTUATOR_CLOSE_LOOP,
 };
 
 enum msm_flash_driver_type {

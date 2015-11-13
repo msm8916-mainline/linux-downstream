@@ -28,6 +28,11 @@ obj-y += rc/
 # Finally, merge the drivers that require the core
 #
 
-obj-y += common/ platform/ pci/ usb/ mmc/ firewire/ parport/
+#delete,ck-changjun.li
+#obj-y += common/ platform/ pci/ usb/ mmc/ firewire/ parport/
+obj-y += common/ platform/ pci/ usb/ firewire/ parport/
 obj-$(CONFIG_VIDEO_DEV) += radio/
+#sms4470,ck-li
+obj-$(CONFIG_SMS_SDIO_DRV)  += mmc/
+obj-$(CONFIG_SMS_POWER_CUSTOMER)  += mmc/
 

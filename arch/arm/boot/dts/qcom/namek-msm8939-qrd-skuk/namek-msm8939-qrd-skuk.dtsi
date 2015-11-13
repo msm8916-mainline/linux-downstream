@@ -1,0 +1,156 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "namek-msm8939-qrd.dtsi"
+#include "namek-msm8939-touchpanel-qrd-skui.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. MSM8939 NAMEK QRD SKUK";
+	compatible = "qcom,msm8939-qrd-skuk", "qcom,msm8939-qrd", "qcom,msm8939", "qcom,qrd";
+};
+
+&i2c_0 { /* BLSP1 QUP2 */
+	//add by zhou
+	lsm6ds3@6B {
+		compatible = "st,lsm6ds3";
+		reg = <0x6B>;
+		pinctrl-names = "default","sleep";
+		pinctrl-0 = <&lsm6ds3_default>;
+		pinctrl-1 = <&lsm6ds3_sleep>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <115 0x2>;
+		vdd-supply = <&pm8916_l17>;
+		vio-supply = <&pm8916_l6>;
+		rot-matrix = /bits/ 16 <(1) (0) (0)
+					(0) (1) (0)
+					(0) (0) (1)>;
+		 g-poll-interval = <5>;
+		 g-min-interval = <1>;
+		 g-fs-range = <0x0C>;
+		 x-poll-interval = <5>;
+		 x-min-interval = <1>;
+		 x-fs-range = <0>;
+		 aa-filter-bw = <0>;
+		 st,drdy-int-pin = <1>;
+		 st,intr1 = <&msm_gpio 115 0x2>;
+	};
+
+	liteon@23 { //Add p-sensor and l-sensor
+		compatible = "liteon,ltr559";
+        reg = <0x23>;
+        pinctrl-names = "default","sleep";
+        pinctrl-0 = <&ltr559_default>;
+        pinctrl-1 = <&ltr559_sleep>;
+        interrupt-parent = <&msm_gpio>;
+        interrupts = <113 0x2002>;
+        vdd-supply = <&pm8916_l17>;
+        vio-supply = <&pm8916_l6>;
+        liteon,intr = <&msm_gpio 113 0x2002>;
+        liteon,highthr = <170>;
+        liteon,lowthr = <170>;
+	};
+
+	akm@d {
+		compatible = "ak,ak09911";
+		reg = <0xd>;
+		pinctrl-names = "default","sleep";
+		pinctrl-0 = <&akm_default>;
+		pinctrl-1 = <&akm_sleep>;
+		vdd-supply = <&pm8916_l17>;
+		vio-supply = <&pm8916_l6>;
+		akm,layout = <0x8>;
+		akm,gpio_rstn = <&msm_gpio 3 0x2002>;
+		akm,auto-report;
+		akm,use-hrtimer;
+	};
+
+   ktd20xx@30 {
+	   compatible = "ktd,ktd20xx";
+	   reg = <0x30>;
+	   ktd,gpio = <&msm_gpio 9 0x2002>;
+   };
+};
+
+/*&sdc2_cd_on {
+	/delete-property/ bias-pull-up;
+	bias-pull-down;
+};
+
+&sdc2_cd_off {
+	/delete-property/ bias-disable;
+	bias-pull-down;
+};*/
+
+/*&sdhc_2 {
+	qcom,nonhotplug;
+	interrupts = <0 1>;
+	interrupt-map = <0 &intc 0 125 0
+		1 &intc 0 221 0>;
+	interrupt-names = "hc_irq", "pwr_irq";
+	/delete-property/ cd-gpios;
+};*/
+
+&usb_otg {
+       qcom,hsusb-otg-mode = <3>;
+       qcom,usbid-gpio = <&msm_gpio 110 0>;
+       pinctrl-names = "default";
+       pinctrl-0 = <&usbid_default>;
+       vbus_otg-supply = <&smb1360_otg_supply>;
+       qcom,usbin-vadc = <&pm8916_vadc>;
+};
+
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+};
+
+&pmx_mdss {
+	qcom,num-grp-pins = <2>;
+	qcom,pins = <&gp 1>, <&gp 25>;
+};
+
+&pmx_mdss_te {
+	qcom,num-grp-pins = <1>;
+	qcom,pins = <&gp 24>;
+};
+
+&mdss_dsi0 {
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
+
+	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+};
+
+&pm8916_mpps {
+       mpp@a100 { /* MPP2 */
+               /* external thermisto adc*/
+               qcom,mode = <4>;
+               qcom,src-sel = <0>;
+               qcom,ain-route = <1>;
+               qcom,master-en = <1>;
+               qcom,invert = <1>;
+       };
+};
+
+&pm8916_vadc {
+       /* external thermisto */
+       chan@11{
+               label = "pcba_therm";
+               reg = <0x11>;
+               qcom,decimation = <0>;
+               qcom,pre-div-channel-scaling = <0>;
+               qcom,calibration-type = "absolute";
+               qcom,scale-function = <15>;
+               qcom,hw-settle-time = <2>;
+               qcom,fast-avg-setup = <0>;
+       };
+};

@@ -1,2 +1,4 @@
 comment "Supported MMC/SDIO adapters"
-source "drivers/media/mmc/siano/Kconfig"
+#delete, by ck-changjun.li
+#source "drivers/media/mmc/siano/Kconfig"
+source "drivers/media/mmc/sms4470/Kconfig"

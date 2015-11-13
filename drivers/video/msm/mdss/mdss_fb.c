@@ -244,6 +244,16 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
 
+#ifdef NAMEK_PWM_LOW      //lower pwm to 5.6% for NameK project by yong.bo on 2015/08/10
+	 #define GAP_VALUE 5
+	 if(value >= 10) {
+		value +=  GAP_VALUE - (value*GAP_VALUE)/mfd->panel_info->brightness_max;
+	 }
+	 else if(value > 0){
+		value = (value*(10 + GAP_VALUE))/10;
+	 }
+#endif
+
 	/* This maps android backlight level 0 to 255 into
 	   driver backlight level 0 to bl_max with rounding */
 	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
@@ -2217,8 +2227,8 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 
 	if (!wait_event_timeout(mfd->ioctl_q,
 		!atomic_read(&mfd->ioctl_ref_cnt) || !release_all,
-		msecs_to_jiffies(1000)))
-		pr_warn("fb%d ioctl could not finish. waited 1 sec.\n",
+		msecs_to_jiffies(4000))) //modified by leibo for bug-89302
+		pr_warn("fb%d ioctl could not finish. waited 4 sec.\n",
 			mfd->index);
 
 	mdss_fb_pan_idle(mfd);

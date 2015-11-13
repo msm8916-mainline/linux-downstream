@@ -278,6 +278,7 @@ struct synaptics_rmi4_fwu_handle {
 	const unsigned char *firmware_data;
 	const unsigned char *config_data;
 	const unsigned char *lockdown_data;
+	struct workqueue_struct *fwu_workqueue;
 	struct delayed_work fwu_work;
 	struct synaptics_rmi4_fn_desc f34_fd;
 	struct synaptics_rmi4_data *rmi4_data;
@@ -1620,6 +1621,26 @@ exit:
 	return retval;
 }
 
+static void fwu_startup_fw_update_work(struct work_struct *work)
+{
+	int retval;
+	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
+
+	retval = synaptics_dsx_fw_updater(fwu->ext_data_source);
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s:Failed to do reflash\n",
+				__func__);
+		goto exit;
+	}
+
+exit:
+	kfree(fwu->ext_data_source);
+	fwu->ext_data_source = NULL;
+	fwu->force_update = FORCE_UPDATE;
+	fwu->do_lockdown = DO_LOCKDOWN;
+}
+
 static ssize_t fwu_sysfs_write_config_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -1914,6 +1935,10 @@ static int synaptics_rmi4_fwu_init(struct synaptics_rmi4_data *rmi4_data)
 		}
 	}
 
+	fwu->fwu_workqueue = create_singlethread_workqueue("fwu_workqueue");
+	INIT_DELAYED_WORK(&fwu->fwu_work, fwu_startup_fw_update_work);
+	queue_delayed_work(fwu->fwu_workqueue, &fwu->fwu_work, 0);
+
 	return 0;
 
 exit_remove_attrs:
@@ -1938,6 +1963,10 @@ static void synaptics_rmi4_fwu_remove(struct synaptics_rmi4_data *rmi4_data)
 
 	if (!fwu)
 		goto exit;
+
+	cancel_delayed_work_sync(&fwu->fwu_work);
+	flush_workqueue(fwu->fwu_workqueue);
+	destroy_workqueue(fwu->fwu_workqueue);
 
 	for (attr_count = 0; attr_count < ARRAY_SIZE(attrs); attr_count++) {
 		sysfs_remove_file(&rmi4_data->input_dev->dev.kobj,

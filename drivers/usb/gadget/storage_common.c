@@ -717,6 +717,15 @@ static ssize_t fsg_store_file(struct device *dev, struct device_attribute *attr,
 	}
 #endif
 
+#ifdef CONFIG_UMS_BICR
+	/*
+	* WORKAROUND:VOLD would clean the file path after switching to bicr.
+	* So when the lun is being a CD-ROM a.k.a. BICR. Dont clean the file path to empty.
+	*/
+	if (curlun->cdrom == 1 && count == 1){
+		return count;
+	}
+#endif
 	/* Remove a trailing newline */
 	if (count > 0 && buf[count-1] == '\n')
 		((char *) buf)[count-1] = 0;		/* Ugh! */

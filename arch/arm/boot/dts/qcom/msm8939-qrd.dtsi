@@ -22,28 +22,6 @@
 	pinctrl-0 = <&uart_console_sleep>;
 };
 
-&soc {
-	i2c@78ba000 { /* BLSP1 QUP6 */
-		nfc-nci@e {
-			compatible = "qcom,nfc-nci";
-			reg = <0x0e>;
-			qcom,irq-gpio = <&msm_gpio 21 0x00>;
-			qcom,dis-gpio = <&msm_gpio 20 0x00>;
-			qcom,clk-src = "BBCLK2";
-			qcom,clk-en-gpio = <&msm_gpio 0 0x00>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <21 0>;
-			interrupt-names = "nfc_irq";
-			pinctrl-names = "nfc_active","nfc_suspend";
-			pinctrl-0 = <&nfc_int_active &nfc_disable_active>;
-			pinctrl-1 = <&nfc_int_suspend &nfc_disable_suspend>;
-			qcom,clk-gpio = <&pm8916_gpios 2 0>;
-			clocks = <&clock_rpm clk_bb_clk2_pin>;
-			clock-names = "ref_clk";
-		};
-	};
-};
-
 &spmi_bus {
 	qcom,pm8916@1 {
 		qcom,vibrator@c000 {
@@ -112,6 +90,15 @@
 			gpio-key,wakeup;
 			debounce-interval = <15>;
 		};
+
+		switch_lid {
+			label = "switch_lid";
+			gpios = <&msm_gpio 114 0x1>;
+			linux,input-type = <5>; /* EV_SW */
+			linux,code = <0>; /* SW_LID */
+			debounce-interval = <1>;
+			gpio-key,wakeup;
+		};
 	};
 };
 
@@ -155,9 +142,9 @@
 	interrupt-map-mask = <0xffffffff>;
 	interrupt-map = <0 &intc 0 125 0
 			1 &intc 0 221 0
-			2 &msm_gpio 38 0>;
+			2 &msm_gpio 108 0>;
 	interrupt-names = "hc_irq", "pwr_irq", "status_irq";
-	cd-gpios = <&msm_gpio 38 0x0>;
+	cd-gpios = <&msm_gpio 108 0x0>;
 
 	status = "ok";
 };
@@ -182,9 +169,9 @@
 	status = "okay";
 };
 
-&android_usb {
-	qcom,android-usb-cdrom;
-};
+//&android_usb {
+//	qcom,android-usb-cdrom;
+//};
 
 &apc_vreg_corner {
 	vdd-apc-supply = <&fan53555>;

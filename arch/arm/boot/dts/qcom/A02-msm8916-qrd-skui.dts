@@ -1,0 +1,152 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "./A02-msm8916/A02-msm8916-qrd-skui.dtsi"
+#include "msm8916-memory.dtsi"
+
+/ {
+	model = "MirageLite Qualcomm Technologies, Inc. MSM 8916 QRD SKUI";
+	compatible = "qcom,msm8916-qrd-skui", "qcom,msm8916-qrd", "qcom,msm8916", "qcom,qrd";
+	qcom,board-id = <0x1000b 11> , <0x1010b 5> , <0x3010b 5>;
+};
+
+&soc {
+	i2c@78b8000 {
+		smb1360_otg_supply: smb1360-chg-fg@14 {
+			compatible = "qcom,smb1360-chg-fg";
+			reg = <0x14>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <62 8>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&smb_int_default>;
+			qcom,chg-inhibit-disabled;
+			/*battery capacity*/
+			qcom,fg-batt-capacity-mah = <2500>;
+			qcom,fg-cc-soc-coeff = <0x828E>;
+			qcom,float-voltage-mv = <4350>;
+			qcom,fg-cc-to-cv-mv = <4330>;				
+			qcom,fg-voltage-min-mv = <3200>;
+			qcom,fg-voltage-empty-mv = <3200>;
+			qcom,fg-auto-recharge-soc = <99>;
+			qcom,fg-delta-soc = <1>;
+			qcom,thermistor-c1-coeff = <0x86C2>;		
+			qcom,iterm-ma = <100>;
+			qcom,recharge-thresh-mv = <100>;
+			qcom,charging-timeout = <384>;
+			qcom,otg-batt-curr-limit = <1500>;		
+			qcom,thermal-mitigation = <900 600 300 0>;		
+			qcom,empty-soc-disabled;
+			regulator-name = "smb1360_otg_vreg";
+
+			/*battery-profile selection properties */
+			qcom,batt-profile-select;
+			qcom,smb1360-vadc = <&pm8916_vadc>;
+			qcom,batt-id-vref-uv = <1800000>;
+			qcom,batt-id-rpullup-kohm = <100>;
+			qcom,profile-a-rid-kohm = <78>;
+			qcom,profile-b-rid-kohm = <200>;		
+	
+		};
+	};
+
+	i2c@78b9000 { /* BLSP1 QUP5 */
+		/*jinhai.sun add for tp in A02*/
+		 goodix@5d {
+		 compatible = "goodix,gt9157";
+	     reg = <0x14>;
+	     interrupt-parent = <&msm_gpio>;
+	     interrupts = <13 0x2008>;
+	     reset-gpios = <&msm_gpio 12 0x00>;
+	     interrupt-gpios = <&msm_gpio 13 0x00>;
+	     vdd-supply = <&pm8916_l17>;
+	     vcc-i2c-supply = <&pm8916_l6>;
+	     goodix,button-map = <139 102 158>;
+	     goodix,panel-coords = <0 0 720 1400>;
+	     goodix,display-coords = <0 0 720 1280>;
+	     goodix,product-id = "9157";
+	     goodix,num_max_touches = <5>;
+	    /*goodix,soft_rst_dly = <20>;*/
+	     goodix,fw_name = "gtp_fw.bin";
+	     goodix,fw-vkey-support;
+	     goodix,i2c-pull-up;
+	     goodix,force-update;
+	   };
+
+		/*sunqidong add for M-sensor st480*/
+		/*st480@0c {
+		compatible = "senodia,st480";
+	    reg = <0x0c>;
+	    vdd-supply = <&pm8916_l17>;
+	    vio-supply = <&pm8916_l6>;
+	    senodia,axis-map-x = <1>;
+	    senodia,axis-map-y = <0>;
+	    senodia,axis-map-z = <2>;
+		  senodia,negate-x;
+	  };*/
+	  /*sunqidong add for M-sensor st480*/
+	 lsm6ds0@6b {
+		compatible = "st,lsm6dx0";
+		 reg = <0x6b>;
+		 rot-matrix = /bits/ 16 <(0) (1) (0)
+					(-1) (0) (0)
+					(0) (0) (1)>;
+		 g-poll-interval = <100>;
+		 g-min-interval = <2>;
+		 g-fs-range = <0>;
+		 x-poll-interval = <100>;
+		 x-min-interval = <1>;
+		 x-fs-range = <0>;
+		 aa-filter-bw = <0>;
+	  };
+		/*awrgb@45 {
+			compatible = "aw,aw2013-rgb-leds";
+			reg = <0x45>;
+			pinctrl-names = "redled_gpio";
+			pinctrl-1 =  <&redled_gpio20_active>;
+			aw2013,red_gpio20 = <&msm_gpio 20 0>;
+			aw2013,maxbrightness = <255>;
+			aw2013,Imax = <3>;
+		};*/
+	};
+
+	gen-vkeys {
+		compatible = "qcom,gen-vkeys";
+		label = "synaptics_dsx";
+		qcom,disp-maxx = <719>;
+		qcom,disp-maxy = <1279>;
+		qcom,panel-maxx = <719>;
+		qcom,panel-maxy = <1405>;
+		qcom,key-codes = <158 139 172 217>;
+		qcom,y-offset = <0>;
+	};
+
+};
+
+&pm8916_chg {
+	status = "ok";
+	qcom,use-external-charger;
+};
+
+&pm8916_bms {
+	status = "ok";
+	qcom,disable-bms;
+};
+
+&usb_otg {
+	qcom,hsusb-otg-mode = <3>;
+	qcom,usbid-gpio = <&msm_gpio 110 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usbid_default>;
+	vbus_otg-supply = <&smb1360_otg_supply>;
+};

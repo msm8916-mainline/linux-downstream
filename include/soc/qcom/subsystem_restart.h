@@ -56,6 +56,7 @@ struct subsys_desc {
 
 	int (*shutdown)(const struct subsys_desc *desc, bool force_stop);
 	int (*powerup)(const struct subsys_desc *desc);
+	int (*freeup)(const struct subsys_desc *desc);
 	void (*crash_shutdown)(const struct subsys_desc *desc);
 	int (*ramdump)(int, const struct subsys_desc *desc);
 	irqreturn_t (*err_fatal_handler) (int irq, void *dev_id);

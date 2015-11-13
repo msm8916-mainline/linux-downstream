@@ -1,4 +1,7 @@
 # MSM CPU/CODEC DAI Support
+ifeq ($(TARGET_PRODUCT),mirageplus01a_msm8916_64)
+EXTRA_CFLAGS += -D MIRAGEPLUS
+endif
 
 
 # MSM Platform Support

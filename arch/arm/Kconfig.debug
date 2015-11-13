@@ -87,7 +87,7 @@ config FORCE_PAGES
 
 config FREE_PAGES_RDONLY
 	bool "Set pages as read only while on the buddy list"
-	select FORCE_PAGES
+	#select FORCE_PAGES
 	select DEBUG_PAGEALLOC
 	help
           Pages are always mapped in the kernel. This means that anyone

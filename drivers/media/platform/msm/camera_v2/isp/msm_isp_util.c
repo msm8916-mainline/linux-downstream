@@ -782,6 +782,9 @@ static long msm_isp_ioctl_unlocked(struct v4l2_subdev *sd,
 		break;
 	case MSM_SD_NOTIFY_FREEZE:
 		vfe_dev->isp_sof_debug = 0;
+		vfe_dev->isp_raw0_debug = 0;
+		vfe_dev->isp_raw1_debug = 0;
+		vfe_dev->isp_raw2_debug = 0;
 		break;
 	case VIDIOC_MSM_ISP_BUF_DONE:
 		mutex_lock(&vfe_dev->core_mutex);
@@ -1789,6 +1792,9 @@ int msm_isp_open_node(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 
 	vfe_dev->reset_pending = 0;
 	vfe_dev->isp_sof_debug = 0;
+	vfe_dev->isp_raw0_debug = 0;
+	vfe_dev->isp_raw1_debug = 0;
+	vfe_dev->isp_raw2_debug = 0;
 
 	if (vfe_dev->hw_info->vfe_ops.core_ops.init_hw(vfe_dev) < 0) {
 		pr_err("%s: init hardware failed\n", __func__);

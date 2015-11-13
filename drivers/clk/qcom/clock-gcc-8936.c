@@ -1503,6 +1503,7 @@ static struct rcg_clk pdm2_clk_src = {
 static struct clk_freq_tbl ftbl_gcc_sdcc1_2_apps_clk[] = {
 	F(  144000,	gcc_xo,	16,	3,	25),
 	F(    400000,	      gcc_xo,       12,	  1,	4),
+	F(  16000000,      gpll0_out_main,  10,	  1,	5),
 	F(  20000000,	   gpll0_out_main,  10,	  1,	4),
 	F(  25000000,	   gpll0_out_main,  16,	  1,	2),
 	F(  50000000,	   gpll0_out_main,  16,	  0,	0),

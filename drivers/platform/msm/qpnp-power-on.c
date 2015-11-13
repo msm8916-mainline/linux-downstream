@@ -210,6 +210,10 @@ static const char * const qpnp_poff_reason[] = {
  */
 static int warm_boot;
 module_param(warm_boot, int, 0);
+extern char* saved_command_line;
+static u8 is_ffbm_mode = 0;
+//#define POWER_KEYRESET_ENABLE 0
+#define KPDPWR_RESIN_ENABLE   0
 
 static int
 qpnp_pon_masked_write(struct qpnp_pon *pon, u16 addr, u8 mask, u8 val)
@@ -842,6 +846,27 @@ qpnp_config_reset(struct qpnp_pon *pon, struct qpnp_pon_config *cfg)
 	default:
 		return -EINVAL;
 	}
+	rc = qpnp_pon_masked_write(pon, cfg->s2_cntl2_addr,
+				QPNP_PON_S2_CNTL_EN, 0);
+	if (rc) {
+		dev_err(&pon->spmi->dev, "Unable to configure S2 enable\n");
+		return rc;
+	}
+	#if KPDPWR_RESIN_ENABLE
+	rc = qpnp_pon_masked_write(pon, QPNP_PON_KPDPWR_S2_CNTL2(pon->base),
+				QPNP_PON_S2_CNTL_EN, 0);//disable powerkey reset, victory do it
+	if (rc) {
+		dev_err(&pon->spmi->dev, "Unable to disable powerkey reset\n");
+		return rc;
+	}
+	#else
+	rc = qpnp_pon_masked_write(pon, QPNP_PON_KPDPWR_RESIN_S2_CNTL2(pon->base),
+		        QPNP_PON_S2_CNTL_EN, 0);//disable powerkey + resetkey reset, victory do it
+	if (rc) {
+		dev_err(&pon->spmi->dev, "Unable to disable powerkey + resetkey reset\n");
+		return rc;
+	}
+	#endif
 	/* disable S2 reset */
 	rc = qpnp_pon_masked_write(pon, cfg->s2_cntl2_addr,
 				QPNP_PON_S2_CNTL_EN, 0);
@@ -1047,15 +1072,25 @@ static int qpnp_pon_config_init(struct qpnp_pon *pon)
 					"Unable to get kpdpwr irq\n");
 				return cfg->state_irq;
 			}
+            if(is_ffbm_mode){
+		        cfg->support_reset = 0;
 
-			rc = of_property_read_u32(pp, "qcom,support-reset",
+			    rc = qpnp_pon_masked_write(pon, QPNP_PON_KPDPWR_S2_CNTL2(pon->base),
+							QPNP_PON_S2_CNTL_EN, 0);//disable powerkey reset, victory do it
+				if (rc) {
+					dev_err(&pon->spmi->dev, "Unable to disable powerkey reset\n");
+					return rc;
+				}
+
+			}else{
+			    rc = of_property_read_u32(pp, "qcom,support-reset",
 							&cfg->support_reset);
-			if (rc && rc != -EINVAL) {
-				dev_err(&pon->spmi->dev,
-					"Unable to read 'support-reset'\n");
+			    if (rc && rc != -EINVAL) {
+				    dev_err(&pon->spmi->dev,
+					    "Unable to read 'support-reset'\n");
 				return rc;
+			    }
 			}
-
 			cfg->use_bark = of_property_read_bool(pp,
 							"qcom,use-bark");
 			if (cfg->use_bark) {
@@ -1072,6 +1107,7 @@ static int qpnp_pon_config_init(struct qpnp_pon *pon)
 			   then there is a single register to control s2 reset.
 			   Otherwise there are separate registers for s2 reset
 			   type and s2 reset enable */
+			#if !KPDPWR_RESIN_ENABLE
 			if (pon_ver == PON_REV2_VALUE) {
 				cfg->s2_cntl_addr = cfg->s2_cntl2_addr =
 					QPNP_PON_KPDPWR_S2_CNTL(pon->base);
@@ -1081,7 +1117,17 @@ static int qpnp_pon_config_init(struct qpnp_pon *pon)
 				cfg->s2_cntl2_addr =
 					QPNP_PON_KPDPWR_S2_CNTL2(pon->base);
 			}
-
+			#else //KPDPWR_RESIN
+            if (pon_ver == PON_REV2_VALUE) {
+				cfg->s2_cntl_addr = cfg->s2_cntl2_addr =
+				QPNP_PON_KPDPWR_RESIN_S2_CNTL(pon->base);
+			} else {
+				cfg->s2_cntl_addr =
+				QPNP_PON_KPDPWR_RESIN_S2_CNTL(pon->base);
+				cfg->s2_cntl2_addr =
+				QPNP_PON_KPDPWR_RESIN_S2_CNTL2(pon->base);
+			}
+			#endif
 			break;
 		case PON_RESIN:
 			cfg->state_irq = spmi_get_irq_byname(pon->spmi,
@@ -1484,14 +1530,19 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 	u16 poff_sts = 0;
 	const char *s3_src;
 	u8 s3_src_reg;
-
+    char* is_ffbm_mode_string = NULL;
 	pon = devm_kzalloc(&spmi->dev, sizeof(struct qpnp_pon),
 							GFP_KERNEL);
 	if (!pon) {
 		dev_err(&spmi->dev, "Can't allocate qpnp_pon\n");
 		return -ENOMEM;
 	}
-
+    is_ffbm_mode_string = strstr(saved_command_line,"androidboot.mode=ffbm-01");
+	if(!is_ffbm_mode_string){
+		is_ffbm_mode = 0; //not ffbm mode
+	}else{
+		is_ffbm_mode = 1; //ffmb mode
+	}
 	sys_reset = of_property_read_bool(spmi->dev.of_node,
 						"qcom,system-reset");
 	if (sys_reset && sys_reset_dev) {
@@ -1539,8 +1590,6 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 		return rc;
 	}
 
-	boot_reason = ffs(pon_sts);
-
 	index = ffs(pon_sts) - 1;
 	cold_boot = !qpnp_pon_is_warm_reset();
 	if (index >= ARRAY_SIZE(qpnp_pon_reason) || index < 0) {
@@ -1553,6 +1602,15 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 			"PMIC@SID%d Power-on reason: %s and '%s' boot\n",
 			pon->spmi->sid, qpnp_pon_reason[index],
 			cold_boot ? "cold" : "warm");
+	}
+
+	if(cold_boot)
+	{
+		boot_reason = ffs(pon_sts);
+	}
+	else
+	{
+		boot_reason = 0x08;
 	}
 
 	/* POFF reason */

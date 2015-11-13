@@ -1,3 +1,12 @@
+ifeq ($(TARGET_PRODUCT),spirit_msm8916_64)
+EXTRA_CFLAGS += -D SPIRIT
+endif
+
+
+ifeq ($(TARGET_PRODUCT),mirageplus01a_msm8916_64)
+EXTRA_CFLAGS += -D MIRAGEPLUS
+endif
+
 snd-soc-88pm860x-objs := 88pm860x-codec.o
 snd-soc-ab8500-codec-objs := ab8500-codec.o
 snd-soc-ac97-objs := ac97.o

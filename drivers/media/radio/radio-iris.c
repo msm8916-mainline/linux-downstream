@@ -37,6 +37,7 @@
 #include <media/v4l2-ioctl.h>
 #include <media/radio-iris.h>
 #include <asm/unaligned.h>
+#include <linux/of_gpio.h>
 
 static unsigned int rds_buf = 100;
 static int oda_agt;
@@ -50,6 +51,11 @@ static char utf_8_flag;
 static char rt_ert_flag;
 static char formatting_dir;
 static unsigned char sig_blend = CTRL_ON;
+/* BEGIN: Added by TinyPi for DTV FM switch 2015/3/24 */
+#ifdef CONFIG_DTV_FM_SW
+static int dtv_fm_switch;
+#endif
+/* END:   Added by TinyPi for DTV FM switch 2015/3/24   PN: */
 static DEFINE_MUTEX(iris_fm);
 
 module_param(rds_buf, uint, 0);
@@ -3978,6 +3984,19 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 				radio->mode = FM_RECV;
 				iris_q_event(radio, IRIS_EVT_RADIO_READY);
 			}
+			/* BEGIN: Added by TinyPi for DTV FM switch 2015/3/24 */
+#ifdef CONFIG_DTV_FM_SW
+			retval = gpio_direction_output(dtv_fm_switch, 0);
+			if (retval) {
+				pr_err( "set_direction for fm_switch gpio failed\n");
+				goto END;
+			}
+			gpio_set_value(dtv_fm_switch, 1);
+			msleep(10);
+
+			gpio_free(dtv_fm_switch);
+#endif
+			/* END:   Added by TinyPi for DTV FM switch 2015/3/24   PN: */
 			break;
 		case FM_TRANS:
 			if (is_enable_tx_possible(radio) != 0) {
@@ -4037,6 +4056,20 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 			default:
 				retval = -EINVAL;
 			}
+                            /* BEGIN: Added by TinyPi for DTV FM switch 2015/3/24 */
+#ifdef CONFIG_DTV_FM_SW
+      retval = gpio_direction_output(dtv_fm_switch, 0);
+      if (retval) {
+      pr_err( "set_direction for fm_switch gpio failed\n");
+      goto END;
+     }
+     gpio_set_value(dtv_fm_switch, 0);
+     msleep(10);
+
+		gpio_free(dtv_fm_switch);
+
+#endif
+                            /* END:   Added by TinyPi for DTV FM switch 2015/3/24   PN: */
 			break;
 		default:
 			retval = -EINVAL;
@@ -5367,6 +5400,11 @@ static struct video_device *video_get_dev(void)
 static int __init iris_probe(struct platform_device *pdev)
 {
 	struct iris_device *radio;
+ /* BEGIN: Added by TinyPi for DTV FM switch 2015/3/24 */
+#ifdef CONFIG_DTV_FM_SW
+	struct device_node *node = pdev->dev.of_node;
+#endif
+ /* END:   Added by TinyPi for DTV FM switch 2015/3/24   PN: */
 	int retval;
 	int radio_nr = -1;
 	int i;
@@ -5455,6 +5493,27 @@ static int __init iris_probe(struct platform_device *pdev)
 			kfree(radio);
 		}
 	}
+
+	/* BEGIN: Added by TinyPi for DTV FM switch 2015/3/24 */
+#ifdef CONFIG_DTV_FM_SW
+		dtv_fm_switch = of_get_named_gpio(node, "mdtv,dtv_fm_sw", 0);
+		if (dtv_fm_switch < 0) {
+			dev_err(&pdev->dev,
+				"Looking up %s property in node %s failed. rc =  %d\n",
+				"dtv-fm-sw-pin", node->full_name, dtv_fm_switch);
+			return dtv_fm_switch;
+		}
+
+		if (gpio_is_valid(dtv_fm_switch)) {
+			retval = gpio_request(dtv_fm_switch, "DTV_FM_SW");
+		if (retval) {
+				pr_err("%s: Failed to request gpio %d,rc = %d\n",
+				__func__, dtv_fm_switch, retval);
+				return retval;
+			}
+		}
+#endif
+	/* END:   Added by TinyPi for DTV FM switch 2015/3/24	PN: */
 	return 0;
 }
 

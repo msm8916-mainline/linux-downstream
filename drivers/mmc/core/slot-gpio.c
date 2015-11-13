@@ -17,6 +17,10 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 
+#ifdef CONFIG_SMS_SDIO_DRV
+extern int sms_switch_flag;
+#endif
+
 struct mmc_gpio {
 	int ro_gpio;
 	int cd_gpio;
@@ -68,7 +72,12 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 				(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
 				"HIGH" : "LOW");
 		ctx->status = status;
-
+//when use dtv,insert sd card result in kernel panic,ck-changjun.li
+#ifdef CONFIG_SMS_SDIO_DRV
+if(sms_switch_flag)
+	goto out;
+#endif
+//end ck-li
 		/* Schedule a card detection after a debounce timeout */
 		mmc_detect_change(host, msecs_to_jiffies(200));
 	}
@@ -126,7 +135,11 @@ int mmc_gpio_get_cd(struct mmc_host *host)
 
 	if (!ctx || !gpio_is_valid(ctx->cd_gpio))
 		return -ENOSYS;
-
+#ifdef CONFIG_SMS_SDIO_DRV
+if(sms_switch_flag)
+    return 1;
+else
+#endif
 	return !gpio_get_value_cansleep(ctx->cd_gpio) ^
 		!!(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH);
 }

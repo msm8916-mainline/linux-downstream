@@ -1502,6 +1502,26 @@ static int diagfwd_mux_read_done(unsigned char *buf, int len, int ctxt)
 	return 0;
 }
 
+struct flush_workqueue_t {
+	struct diag_smd_info *smd_info;
+	struct delayed_work f_work;
+};
+struct flush_workqueue_t *flush_w;
+static void do_flush_wq_by_work_fn(struct work_struct *w)
+{
+	struct flush_workqueue_t *flush_w = container_of(w,
+			struct flush_workqueue_t,f_work.work);
+	flush_workqueue(flush_w->smd_info->wq);
+}
+
+static void  call_flush_workqueue_by_work(struct diag_smd_info *sm)
+{
+	if (!sm && !flush_w)
+		return ;
+	flush_w->smd_info = sm;
+	schedule_delayed_work(&flush_w->f_work, 0);
+}
+
 static int diagfwd_mux_write_done(unsigned char *buf, int len, int buf_ctxt,
 				  int ctxt)
 {
@@ -1530,7 +1550,8 @@ static int diagfwd_mux_write_done(unsigned char *buf, int len, int buf_ctxt,
 			 */
 			if (driver->logging_mode == MEMORY_DEVICE_MODE &&
 					ctxt == DIAG_MEMORY_DEVICE_MODE) {
-				flush_workqueue(smd_info->wq);
+//				flush_workqueue(smd_info->wq);
+				call_flush_workqueue_by_work(smd_info);
 				wake_up(&driver->smd_wait_q);
 			}
 		} else if (peripheral == APPS_DATA) {
@@ -2149,6 +2170,9 @@ int diagfwd_init(void)
 		pr_err("diag: Unable to register with USB, err: %d\n", ret);
 		goto err;
 	}
+	flush_w = kzalloc(sizeof(struct flush_workqueue_t),GFP_KERNEL);
+	if (!flush_w)
+		INIT_DEFERRABLE_WORK(&flush_w->f_work, do_flush_wq_by_work_fn);
 	platform_driver_register(&msm_smd_ch1_driver);
 	platform_driver_register(&diag_smd_lite_driver);
 
@@ -2206,5 +2230,7 @@ void diagfwd_exit(void)
 	kfree(driver->dci_pkt_buf);
 	kfree(driver->apps_rsp_buf);
 	kfree(driver->user_space_data_buf);
+	cancel_delayed_work_sync(&flush_w->f_work);
+	kfree(flush_w);
 	destroy_workqueue(driver->diag_wq);
 }
