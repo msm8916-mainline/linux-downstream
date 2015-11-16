@@ -240,7 +240,7 @@
   * calling while the automatic backlight is on.
   * the default value is 1.
   */
-#define SUPPORT_AUTO_BACKLIGHT 0
+//#define SUPPORT_AUTO_BACKLIGHT 0
 
 /* POWER SUPPLY VOLTAGE RANGE */
 #define ltr559_VDD_MIN_UV	2000000
@@ -279,6 +279,7 @@ struct ltr559_data {
 	struct workqueue_struct *workqueue;
 	struct wake_lock ps_wake_lock;
 	struct mutex bus_lock;
+    struct mutex enable_lock;
 	struct sensors_classdev als_cdev;
 	struct sensors_classdev ps_cdev;
 
@@ -633,6 +634,7 @@ static int8_t I2C_Read(uint8_t *rxData, uint8_t length)
 		},
 	};
 
+    mutex_lock(&pdev_data->bus_lock);
 	for (index = 0; index < I2C_RETRY; index++) {
 		if (i2c_transfer(sensor_info->i2c_client->adapter, data, 2) > 0)
 			break;
@@ -642,9 +644,11 @@ static int8_t I2C_Read(uint8_t *rxData, uint8_t length)
 
 	if (index >= I2C_RETRY) {
 		pr_alert("%s I2C Read Fail !!!!\n", __func__);
+        mutex_unlock(&pdev_data->bus_lock);
 		return -EIO;
 	}
-
+    
+    mutex_unlock(&pdev_data->bus_lock);
 	return 0;
 }
 
@@ -662,6 +666,7 @@ static int8_t I2C_Write(uint8_t *txData, uint8_t length)
 		},
 	};
 
+    mutex_lock(&pdev_data->bus_lock);
 	for (index = 0; index < I2C_RETRY; index++) {
 		if (i2c_transfer(sensor_info->i2c_client->adapter, data, 1) > 0)
 			break;
@@ -671,9 +676,11 @@ static int8_t I2C_Write(uint8_t *txData, uint8_t length)
 
 	if (index >= I2C_RETRY) {
 		pr_alert("%s I2C Write Fail !!!!\n", __func__);
+        mutex_unlock(&pdev_data->bus_lock);
 		return -EIO;
 	}
 
+    mutex_unlock(&pdev_data->bus_lock);
 	return 0;
 }
 
@@ -1343,7 +1350,7 @@ static int8_t ps_mode_setup(uint8_t psMode_set_reset,
 				struct ltr559_data *ltr559)
 {
 	int8_t ret = 0;
-
+  
 	ret = _ltr559_set_bit(ltr559->i2c_client, psMode_set_reset,
 					ltr559_PS_CONTR, PS_MODE_ACTIVE);
 	if (ret < 0) {
@@ -1353,8 +1360,8 @@ static int8_t ps_mode_setup(uint8_t psMode_set_reset,
 	}
 
 	/* default state is far-away */
-	input_report_abs(ltr559->ps_input_dev, ABS_DISTANCE, FAR_VAL);
-	input_sync(ltr559->ps_input_dev);
+//	input_report_abs(ltr559->ps_input_dev, ABS_DISTANCE, FAR_VAL);
+//	input_sync(ltr559->ps_input_dev);
 
 	return ret;
 }
@@ -2670,7 +2677,8 @@ static irqreturn_t ltr559_irq_handler(int irq, void *data)
 	/* disable an irq without waiting */
 	disable_irq_nosync(ltr559->irq);
 	pm_stay_awake(&ltr559->i2c_client->dev);
-	schedule_work(&irq_workqueue);
+	//schedule_work(&irq_workqueue);
+	queue_work(ltr559->workqueue, &irq_workqueue);
 
 	return IRQ_HANDLED;
 }
@@ -2698,7 +2706,7 @@ static int ltr559_gpio_irq(struct ltr559_data *ltr559)
 	/* Configure an active low trigger interrupt for the device */
 	/*rc = request_irq(ltr559->irq, ltr559_irq_handler,
 				IRQF_TRIGGER_FALLING, DEVICE_NAME, ltr559);*/
-	rc = request_irq(ltr559->irq, ltr559_irq_handler, IRQF_TRIGGER_LOW | IRQF_NO_SUSPEND,
+	rc = request_irq(ltr559->irq, ltr559_irq_handler, IRQF_TRIGGER_LOW | IRQF_NO_THREAD,
 				DEVICE_NAME, ltr559);
 	if (rc < 0) {
 		dev_err(&ltr559->i2c_client->dev,
@@ -5903,14 +5911,16 @@ static int ltr559_enable_als_sensor(struct i2c_client *client, int val)
 		return -EINVAL;
 	}
 
+    mutex_lock(&data->enable_lock);
+
 	if (val == 1) {
 		/* turn on light  sensor */
 		if ((data->enable_als_sensor == 0) &&
 			(data->enable_ps_sensor == 0)) {
-			if (data->irq) {
+		//	if (data->irq) {
 		//		enable_irq(data->irq);
-				irq_set_irq_wake(data->irq, 1);
-			}
+		//		irq_set_irq_wake(data->irq, 1);
+		//	}
 
 			if (pdata->power_on)
 				pdata->power_on(true);
@@ -5918,39 +5928,41 @@ static int ltr559_enable_als_sensor(struct i2c_client *client, int val)
 			rc = ltr559_init_device(data);
 			if (rc) {
 				dev_err(&client->dev, "Failed to setup ltr559\n");
+                mutex_unlock(&data->enable_lock);
 				return rc;
 			}
 		}
 
 		if (data->enable_als_sensor == 0) {
-			data->enable_als_sensor = 1;
 			rc = als_mode_setup((uint8_t)val, data);
 			if (rc) {
 				dev_err(&client->dev, "Failed to setup ltr559\n");
+                mutex_unlock(&data->enable_lock);
 				return rc;
 			}
+			buffer[0] = ltr559_ALS_PS_STATUS;
+			I2C_Read(buffer, 1);
+			data->enable_als_sensor = 1;
 		}
-		buffer[0] = ltr559_ALS_PS_STATUS;
-		I2C_Read(buffer, 1);
-
 	} else {
-
-		data->enable_als_sensor = 0;
 		rc = als_mode_setup((uint8_t)val, data);
 		if (rc) {
 			dev_err(&client->dev, "Failed to setup ltr559\n");
+            mutex_unlock(&data->enable_lock);
 			return rc;
 		}
+		data->enable_als_sensor = 0;
 	}
 
 	/* Vote off  regulators if both light and prox sensor are off */
 	if ((data->enable_als_sensor == 0) &&
 		(data->enable_ps_sensor == 0) &&
 		(pdata->power_on)) {
-			irq_set_irq_wake(data->irq, 0);
+		//	irq_set_irq_wake(data->irq, 0);
 		//	disable_irq(data->irq);
 			pdata->power_on(false);
 		}
+    mutex_unlock(&data->enable_lock);
 
 	return 0;
 }
@@ -5969,14 +5981,16 @@ static int ltr559_enable_ps_sensor(struct i2c_client *client, int val)
 		pr_err("%s: invalid value (val = %d)\n", __func__, val);
 		return -EINVAL;
 	}
+
+    mutex_lock(&data->enable_lock);
 	if (val == 1) {
 		/* turn on p sensor */
 		if ((data->enable_als_sensor == 0) &&
 			(data->enable_ps_sensor == 0)) {
-			if (data->irq) {
+		//	if (data->irq) {
 		//		enable_irq(data->irq);
-				irq_set_irq_wake(data->irq, 1);
-			}
+		//		irq_set_irq_wake(data->irq, 1);
+		//	}
 
 			if (pdata->power_on)
 				pdata->power_on(true);
@@ -5984,41 +5998,43 @@ static int ltr559_enable_ps_sensor(struct i2c_client *client, int val)
 			rc = ltr559_init_device(data);
 			if (rc) {
 				dev_err(&client->dev, "Failed to setup ltr559\n");
+                mutex_unlock(&data->enable_lock);
 				return rc;
 			}
 		}
 
-
-
 		if (data->enable_ps_sensor == 0) {
-			data->enable_ps_sensor = 1;
+            irq_set_irq_wake(data->irq, 1);
 			rc = ps_mode_setup((uint8_t)val, data);
 			if (rc) {
 				dev_err(&client->dev, "Failed to setup ltr559\n");
+                mutex_unlock(&data->enable_lock);
 				return rc;
 			}
-		}
-		buffer[0] = ltr559_ALS_PS_STATUS;
-		I2C_Read(buffer, 1);
-
+			buffer[0] = ltr559_ALS_PS_STATUS;
+			I2C_Read(buffer, 1);
+			data->enable_ps_sensor = 1;
+		}	
 	} else {
-
-		data->enable_ps_sensor = 0;
+        irq_set_irq_wake(data->irq, 0);
 		rc = ps_mode_setup((uint8_t)val, data);
 		if (rc) {
 			dev_err(&client->dev, "Failed to setup ltr559\n");
+            mutex_unlock(&data->enable_lock);
 			return rc;
 		}
+		data->enable_ps_sensor = 0;
 	}
 
 	/* Vote off  regulators if both light and prox sensor are off */
 	if ((data->enable_als_sensor == 0) &&
 		(data->enable_ps_sensor == 0) &&
 		(pdata->power_on)) {
-		irq_set_irq_wake(data->irq, 0);
+	//	irq_set_irq_wake(data->irq, 0);
 	//	disable_irq(data->irq);
 		pdata->power_on(false);
 		}
+    mutex_unlock(&data->enable_lock);
 
 	return 0;
 }
@@ -6029,11 +6045,6 @@ static int ltr559_als_set_enable(struct sensors_classdev *sensors_cdev,
 	struct ltr559_data *data = container_of(sensors_cdev,
 			struct ltr559_data, als_cdev);
 
-	if ((enable != 0) && (enable != 1)) {
-		pr_err("%s: invalid value(%d)\n", __func__, enable);
-		return -EINVAL;
-	}
-
 	return ltr559_enable_als_sensor(data->i2c_client, enable);
 }
 
@@ -6042,11 +6053,6 @@ static int ltr559_ps_set_enable(struct sensors_classdev *sensors_cdev,
 {
 	struct ltr559_data *data = container_of(sensors_cdev,
 			struct ltr559_data, ps_cdev);
-
-	if ((enable != 0) && (enable != 1)) {
-		pr_err("%s: invalid value(%d)\n", __func__, enable);
-		return -EINVAL;
-	}
 
 	return ltr559_enable_ps_sensor(data->i2c_client, enable);
 }
@@ -6090,11 +6096,9 @@ int	ltr559_ps_poll_delay(struct sensors_classdev *sensors_cdev,
 
 static int ltr559_suspend(struct device *dev)
 {
-	/*int ret;*/
+	int ret;
 	struct i2c_client *client = to_i2c_client(dev);
 	struct ltr559_data *data = i2c_get_clientdata(client);
-
-	dev_dbg(&data->i2c_client->dev, "ltr559 suspend ok.\n");
 
 	/*
 	  * Save sensor state and disable them,
@@ -6112,37 +6116,31 @@ static int ltr559_suspend(struct device *dev)
 				__func__, data->irq, ret);
 	}
 */
-#if SUPPORT_AUTO_BACKLIGHT
+
 	if (data->als_enable_state) {
 		ret = ltr559_enable_als_sensor(data->i2c_client, 0);
 		if (ret)
 			dev_err(&data->i2c_client->dev,
 				"Disable light sensor fail! rc=%d\n", ret);
 	}
-#endif
 
+    dev_info(&data->i2c_client->dev, "ltr559 suspend\n");
 	return 0;
 }
 
 static int ltr559_resume(struct device *dev)
 {
-	/*int ret;*/
+	int ret;
 	struct i2c_client *client = to_i2c_client(dev);
 	struct ltr559_data *data = i2c_get_clientdata(client);
 
-	dev_dbg(&data->i2c_client->dev, "ltr559 resume ok\n");
-
-#if SUPPORT_AUTO_BACKLIGHT
-/* Don't disable light at phone calling
-  * while the automatic backlight is on.
-  */
+	
 	if (data->als_enable_state) {
 		ret = ltr559_enable_als_sensor(data->i2c_client, 1);
 		if (ret)
 			dev_err(&data->i2c_client->dev,
 				"Disable light sensor fail! rc=%d\n", ret);
 	}
-#endif
 
 /*	if (data->ps_enable_state) {
 		ret = disable_irq_wake(data->irq);
@@ -6150,7 +6148,7 @@ static int ltr559_resume(struct device *dev)
 			pr_info("%s: disable_irq_wake(%d) failed, err=(%d)\n",
 				__func__, data->irq, ret);
 	}*/
-
+    dev_info(&data->i2c_client->dev, "ltr559 resume\n");
 	return 0;
 }
 
@@ -6251,6 +6249,10 @@ static int ltr559_probe(struct i2c_client *client,
 	ltr559->default_ps_highthresh = platdata->pfd_ps_highthresh;
 	ltr559->enable_als_sensor = 0;
 	ltr559->enable_ps_sensor = 0;
+
+    //init mutex
+    mutex_init(&ltr559->bus_lock);
+    mutex_init(&ltr559->enable_lock);
 
 	ret = _check_part_id(ltr559);
 	if (ret < 0) {

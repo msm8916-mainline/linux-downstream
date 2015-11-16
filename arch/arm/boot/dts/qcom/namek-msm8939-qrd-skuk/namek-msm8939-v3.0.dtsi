@@ -11,16 +11,16 @@
  * GNU General Public License for more details.
  */
 
-#include "skeleton64.dtsi"
+#include "../skeleton64.dtsi"
 #include <dt-bindings/clock/msm-clocks-8936.h>
 #include <dt-bindings/clock/msm-cpu-clocks-8939.h>
-#include "msm8939-common.dtsi"
-#include "msm8939-coresight.dtsi"
-#include "msm8939-cpu.dtsi"
-#include "msm8939-v3.0-pm.dtsi"
-#include "msm8939-smem.dtsi"
-#include "msm8939-smp2p.dtsi"
-#include "msm8939-v3.0-gpu.dtsi"
+#include "namek-msm8939-common.dtsi"
+#include "../msm8939-coresight.dtsi"
+#include "../msm8939-cpu.dtsi"
+#include "../msm8939-v3.0-pm.dtsi"
+#include "../msm8939-smem.dtsi"
+#include "../msm8939-smp2p.dtsi"
+#include "../msm8939-v3.0-gpu.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. MSM8939v3.0";
@@ -28,7 +28,8 @@
 	qcom,msm-id = <239 0x30000>, <241 0x30000>, <263 0x30000>;
 
 	chosen {
-		bootargs = "boot_cpus=0,4,5,6,7 sched_enable_hmp=1";
+		//bootargs = "boot_cpus=0,4,5,6,7 sched_enable_hmp=1";
+		bootargs = "boot_cpus=0,7 androidboot.earlyboot_cpus=2 sched_enable_hmp=1";
 	};
 };
 
@@ -583,7 +584,7 @@
 &bam_dmux {
 	qcom,no-cpu-affinity;
 };
-
+/*
 &mdss_dsi0 {
 	qcom,platform-regulator-settings = [03 08 07 00 20 07 01];
 	/delete-property/ qcom,regulator-ldo-mode;
@@ -593,3 +594,4 @@
 	qcom,platform-regulator-settings = [03 08 07 00 20 07 01];
 	/delete-property/ qcom,regulator-ldo-mode;
 };
+*/

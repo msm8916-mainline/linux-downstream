@@ -14,7 +14,6 @@
 #include "namek-msm8939-touchpanel-qrd-skui.dtsi"
 
 / {
-	model = "Qualcomm Technologies, Inc. MSM8939 NAMEK QRD SKUK";
 	compatible = "qcom,msm8939-qrd-skuk", "qcom,msm8939-qrd", "qcom,msm8939", "qcom,qrd";
 };
 

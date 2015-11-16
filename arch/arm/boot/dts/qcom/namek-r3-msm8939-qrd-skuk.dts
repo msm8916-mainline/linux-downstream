@@ -12,7 +12,7 @@
 
 /dts-v1/;
 
-#include "./namek-msm8939-qrd-skuk/namek-msm8939.dtsi"
+#include "./namek-msm8939-qrd-skuk/namek-msm8939-v3.0.dtsi"
 #include "./namek-msm8939-qrd-skuk/namek-msm8939-qrd-skuk.dtsi"
 #include "./namek-msm8939-qrd-skuk/namek-dsi-panel-goworld-1080p-cmd.dtsi"
 #include "./namek-msm8939-qrd-skuk/namek-msm8939-camera-sensor-qrd.dtsi"
@@ -141,5 +141,5 @@
 
 &dsi_goworld_1080p_cmd {
 	qcom,cont-splash-enabled;
-	//qcom,esd-check-enabled;
+	qcom,esd-check-enabled;
 };

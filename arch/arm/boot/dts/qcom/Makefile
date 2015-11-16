@@ -111,6 +111,7 @@ dtb-$(CONFIG_ARCH_MSM8916) += msm8916-cdp.dtb \
 	mirageplus-msm8939-qrd-skuk.dtb\
 	mirage02a-msm8939-qrd-skuk.dtb \
 	namek-msm8939-qrd-skuk.dtb\
+	namek-r3-msm8939-qrd-skuk.dtb\
 	msm8929-cdp.dtb \
 	msm8929-mtp.dtb \
 	msm8929-mtp-smb1360.dtb \

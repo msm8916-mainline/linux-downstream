@@ -125,6 +125,9 @@
 
 #define QPNP_POFF_REASON_UVLO			13
 
+static struct timer_list buttons_timer;
+static struct qpnp_pon *pon =NULL;
+
 enum pon_type {
 	PON_KPDPWR,
 	PON_RESIN,
@@ -614,14 +617,74 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 	return 0;
 }
 
-static irqreturn_t qpnp_kpdpwr_irq(int irq, void *_pon)
+static void buttons_timer_function(unsigned long data)
 {
 	int rc;
-	struct qpnp_pon *pon = _pon;
+	struct qpnp_pon_config *cfg = NULL;
+	u8 pon_rt_sts = 0, pon_rt_bit = 0;
+	u32 key_status;
+	
+       if(!pon) {
+	   	return ;
+       }
 
-	rc = qpnp_pon_input_dispatch(pon, PON_KPDPWR);
-	if (rc)
-		dev_err(&pon->spmi->dev, "Unable to send input event\n");
+	cfg = qpnp_get_cfg(pon, PON_KPDPWR);
+	if (!cfg)
+		return ;
+
+	/* Check if key reporting is supported */
+	if (!cfg->key_code)
+		return ;
+
+	/* check the RT status to get the current status of the line */
+	rc = spmi_ext_register_readl(pon->spmi->ctrl, pon->spmi->sid,
+				QPNP_PON_RT_STS(pon->base), &pon_rt_sts, 1);
+	if (rc) {
+		dev_err(&pon->spmi->dev, "Unable to read PON RT status\n");
+		return ;
+	}
+	switch (cfg->pon_type) {
+	case PON_KPDPWR:
+		pon_rt_bit = QPNP_PON_KPDPWR_N_SET;
+		break;
+	default:
+		return ;
+	}
+
+	pr_debug("PMIC input: code=%d, sts=0x%hhx\n",
+					cfg->key_code, pon_rt_sts);
+	key_status = pon_rt_sts & pon_rt_bit;
+
+	/* simulate press event in case release event occured
+	 * without a press event
+	 */
+	if (!cfg->old_state && !key_status) {
+		input_report_key(pon->pon_input, cfg->key_code, 1);
+		input_sync(pon->pon_input);
+	}
+
+	input_report_key(pon->pon_input, cfg->key_code, key_status);
+	input_sync(pon->pon_input);
+
+	cfg->old_state = !!key_status;
+
+	return ;
+}
+
+
+static irqreturn_t qpnp_kpdpwr_irq(int irq, void *_pon)
+{
+	//int rc;
+	pon = (struct qpnp_pon *)_pon;
+
+	//rc = qpnp_pon_input_dispatch(pon, PON_KPDPWR);
+	//if (rc)
+	//	dev_err(&pon->spmi->dev, "Unable to send input event\n");
+
+	/* 10ms后启动定时器 */
+	//irq_pd = (struct pin_desc *)dev_id;
+	mod_timer(&buttons_timer, jiffies+10);
+	//return IRQ_RETVAL(IRQ_HANDLED);
 
 	return IRQ_HANDLED;
 }
@@ -1743,6 +1806,12 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 					"qcom,store-hard-reset-reason");
 
 	qpnp_pon_debugfs_init(spmi);
+
+	init_timer(&buttons_timer);
+	buttons_timer.function = buttons_timer_function;
+	//buttons_timer.expires  = 0;
+	add_timer(&buttons_timer); 
+	
 	return rc;
 }
 

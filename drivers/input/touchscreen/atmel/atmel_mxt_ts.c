@@ -531,8 +531,11 @@ struct mxt_data {
 	struct pinctrl_state *gpio_state_suspend;
 };
 
+/* add by yong.bo on 2015/09/08  add tp information for bug id bugzilla 99486  NAMEK-1780*/
 static struct class *touchscreen_class;
 char *ts_info;
+struct mxt_data *g_data;
+/* end */
 
 #if defined(CONFIG_FB_PM)
 static int fb_notifier_callback(struct notifier_block *self,
@@ -5405,13 +5408,22 @@ static ssize_t mxt_devcfg_crc_show(struct device *dev,
 			 data->config_crc,data->cfg_name);	
 }
 
+/* add by yong.bo on 2015/09/08  add tp information for bug id bugzilla 99486  NAMEK-1780*/
 static ssize_t mxt_atmel_ts_info_show(struct class *class,
 		struct class_attribute *attr, char *buf)
 {
+
+	snprintf(ts_info, MXT_INFO_MAX_LEN,
+			"Atmel,devcfg_crc:0x%06X,fw_version:%u.%u.%02X\n",
+			g_data->config_crc, g_data->info->version >> 4,
+			g_data->info->version & 0xf,g_data->info->build);
+
 	return snprintf(buf, MXT_INFO_MAX_LEN, "%s\n", ts_info);
 }
 
 static CLASS_ATTR(ts_info, S_IRUSR, mxt_atmel_ts_info_show, NULL);
+/*end*/
+
 static DEVICE_ATTR(devcfg_crc, S_IRUGO, mxt_devcfg_crc_show, NULL);
 static DEVICE_ATTR(fw_version, S_IRUGO, mxt_fw_version_show, NULL);
 static DEVICE_ATTR(hw_version, S_IRUGO, mxt_hw_version_show, NULL);
@@ -6193,6 +6205,7 @@ static int  mxt_probe(struct i2c_client *client,
 		goto err_remove_sysfs_group;
 	}
 
+/* add by yong.bo on 2015/09/08  add tp information for bug id bugzilla 99486 NAMEK-1780 */
       touchscreen_class = class_create(THIS_MODULE, "touchscreen");
 	if (IS_ERR(touchscreen_class)) {
 		dev_err(&client->dev, "%s: create atmel touchscreen class error!\n", __func__);
@@ -6204,6 +6217,7 @@ static int  mxt_probe(struct i2c_client *client,
 		dev_err(&client->dev, "%s atmel touchscreen class_create_file failed!\n", __func__);
 		goto error_class_create_file;
 	}
+/*end*/
 
 #if defined(CONFIG_MXT_PLUGIN_SUPPORT)
 	mxt_get_suffix_pid_name(&client->dev);
@@ -6236,25 +6250,25 @@ static int  mxt_probe(struct i2c_client *client,
 	register_early_suspend(&data->early_suspend);
 #endif
 
+/* add by yong.bo on 2015/09/08  add tp information for bug id bugzilla 99486 NAMEK-1780*/
 ts_info = devm_kzalloc(&client->dev, MXT_INFO_MAX_LEN, GFP_KERNEL);
-
+g_data = data;
 //snprintf(ts_info, MXT_INFO_MAX_LEN,
 //			"Atmel,firmware version:0x%06Xn",
 //			data->config_crc);
-
-snprintf(ts_info, MXT_INFO_MAX_LEN,
-			"Atmel,devcfg_crc:0x%06X,fw_version:%u.%u.%02X\n",
-			data->config_crc, data->info->version >> 4,
-			data->info->version & 0xf,data->info->build);
+/* end */
 
 	dev_info(&client->dev, "Mxt probe finished\n");
 
 	return 0; // probe successfully end --leibo
 
+/* add by yong.bo on 2015/09/08  add tp information for bug id bugzilla 99486 NAMEK-1780*/
 error_class_create_file:
 	class_remove_file(touchscreen_class, &class_attr_ts_info);
+
 error_class_create:
 	class_destroy(touchscreen_class);
+/*end*/
 
 #if defined(CONFIG_FB_PM)
 err_remove_mem_access_attr:
@@ -6317,8 +6331,11 @@ static int  mxt_remove(struct i2c_client *client)
 	kthread_stop(data->irq_tsk);
 #endif
 
+/* add by yong.bo on 2015/09/08  add tp information for bug id bugzilla 99486 NAMEK-1780*/
 	class_remove_file(touchscreen_class, &class_attr_ts_info);
 	class_destroy(touchscreen_class);
+/*end */
+
 	if (data->mem_access_attr.attr.name)
 		sysfs_remove_bin_file(&client->dev.kobj,
 					  &data->mem_access_attr);
