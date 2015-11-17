@@ -244,13 +244,13 @@ static int fail_count = 0;
 /*The newest firmware, if update must be changed here*/
 static uint8_t file_fw_data_CPT[] =
 {
-#include "fw_data_0x3037_0x5549_CPT.i"
+#include "fw_data_0x3037_0x554c_CPT.i"
 };
 
 // add by leo for AUO panel ++
 static uint8_t file_fw_data_AUO[] =
 {
-#include "fw_data_0x3038_0x5517_AUO.i"
+#include "fw_data_0x3038_0x551f_AUO.i"
 };
 // add by leo for AUO panel --
 
@@ -4973,9 +4973,9 @@ static int elan_ktf_ts_probe(struct i2c_client *client,
 		if(ts->LCM_ID2) // AUO LCM
 		{
 			//if((FW_ID!=0x3038)||(FW_VERSION!=0x5514)||(RECOVERY==0x80))
-			if((FW_ID != 0x3038) || (FW_VERSION < 0x5517))
+			if((FW_ID != 0x3038) || (FW_VERSION < 0x551f))
 			{
-				printk("[elan] %s: Start touch FW update to version 0x3038_0x5517 for AUO LCM...\n", __func__);
+				printk("[elan] %s: Start touch FW update to version 0x3038_0x551f for AUO LCM...\n", __func__);
 				//elan_TWO_WIRE_ICE(ts->client);
 				Update_FW_in_Driver(0);
 
@@ -4994,9 +4994,9 @@ static int elan_ktf_ts_probe(struct i2c_client *client,
 		else // CPT LCM
 		{
 			//if((FW_ID!=0x3037)||(FW_VERSION!=0x5514)||(RECOVERY==0x80))
-			if((FW_ID != 0x3037) || (FW_VERSION < 0x5549))
+			if((FW_ID != 0x3037) || (FW_VERSION < 0x554c))
 			{
-				printk("[elan] %s: Start touch FW update to version 0x3037_0x5549 for CPT LCM...\n", __func__);
+				printk("[elan] %s: Start touch FW update to version 0x3037_0x554c for CPT LCM...\n", __func__);
 				//elan_TWO_WIRE_ICE(ts->client);
 				Update_FW_in_Driver(0);
 

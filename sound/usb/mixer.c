@@ -1322,7 +1322,9 @@ static void build_feature_ctl(struct mixer_build *state, void *raw_desc,
 			// joe_cheng : effect on 120, 120, 100, 100, 120, 120, 120, 120
 			//int s_volume[] = {-3696, -3696, -4656, -4656, -3696, -3696, -3696, -3696, -3696};
 			// joe_cheng : 170, 170, 180, 190, 170, 170, 170, 170
-			int s_volume[] = {-1296, -1296, -816, -336, -1296, -1296, -1296, -1296}; 
+			//int s_volume[] = {-1296, -1296, -816, -336, -1296, -1296, -1296, -1296}; 
+			// joe_cheng : 130, 130, 130, 110, 130, 130, 130, 130
+			int s_volume[] = {-3216, -3216, -3216, -4176, -3216, -3216, -3216, -3216}; 
 			int s_i = 1;
 			while (s_i < 9 ){
 				set_cur_mix_value(cval, s_i, s_i-1, s_volume[s_i-1]);

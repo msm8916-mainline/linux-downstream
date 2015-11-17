@@ -55,6 +55,8 @@
 #include <linux/msm-bus.h>
 #include <linux/HWVersion.h>
 
+static bool cover_battery_power_enough = false;
+static int cover_enum_retry_count=0;
 static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on);
 static enum back_types checkback(bool powerState,bool powerlessState);
 static void updateBack(enum back_types btype);
@@ -345,10 +347,12 @@ int powerless_leave(bool status){
 	int ret = 0;
 	printk("powerless_leave state =%d\n",status);
 	if(status){
+		cover_battery_power_enough = true;
 		atomic_set(&mpowerless_present,0);
 		updateBack(checkback(true,true));
 	}
 	else{
+		cover_battery_power_enough = false;
 		atomic_set(&mpowerless_present,1);
 		updateBack(checkback(false,true));
 		cover_motg->usb_next_session = USB_SESSION_PAD;
@@ -1744,10 +1748,11 @@ phcd_retry:
 	motg->device_bus_suspend = device_bus_suspend;
 
 	if (motg->caps & ALLOW_PHY_RETENTION && !device_bus_suspend && !dcp &&
-		 (!host_bus_suspend || (motg->caps &
+		 ((!host_bus_suspend && motg->usb_current_session == USB_SESSION_PAD) || (motg->caps &
 		ALLOW_BUS_SUSPEND_WITHOUT_REWORK) ||
 		  ((motg->caps & ALLOW_HOST_PHY_RETENTION)
-		&& (pdata->dpdm_pulldown_added || !(portsc & PORTSC_CCS))))) {
+		&& ((pdata->dpdm_pulldown_added || motg->usb_current_session == USB_SESSION_COVER)|| !(portsc & PORTSC_CCS))))) {
+		dev_info(phy->dev, "*** Turing off XO when Cover suspend\n");
 		msm_otg_enable_phy_hv_int(motg);
 		if ((!host_bus_suspend || !(motg->caps &
 			ALLOW_BUS_SUSPEND_WITHOUT_REWORK)) &&
@@ -1794,7 +1799,7 @@ phcd_retry:
 	if (!host_bus_suspend || (motg->caps &
 		ALLOW_BUS_SUSPEND_WITHOUT_REWORK) ||
 		((motg->caps & ALLOW_HOST_PHY_RETENTION) &&
-		(pdata->dpdm_pulldown_added || !(portsc & PORTSC_CCS)))) {
+		((pdata->dpdm_pulldown_added || motg->usb_current_session == USB_SESSION_COVER) || !(portsc & PORTSC_CCS)))) {
 		if (motg->xo_clk) {
 			clk_disable_unprepare(motg->xo_clk);
 			motg->lpm_flags |= XO_SHUTDOWN;
@@ -2502,6 +2507,7 @@ static int msm_otg_usbdev_notify(struct notifier_block *self,
 			//add for audio cover type notify
 			if(motg->usb_current_session==USB_SESSION_COVER){
 				cover_cable_status_notifier_call_chain(COVER_ENUMERATION,motg);
+				cover_enum_retry_count = 0;
 			}
 		}
 		/* fall through */
@@ -4054,8 +4060,23 @@ static void msm_otg_sm_work(struct work_struct *w)
 			 * If TA_WAIT_BCON is infinite, we don;t
 			 * turn off VBUS. Enter low power mode.
 			 */
-			if (TA_WAIT_BCON < 0)
-				pm_runtime_put_sync(otg->phy->dev);
+			if (TA_WAIT_BCON < 0){
+				if (motg->usb_current_session == USB_SESSION_COVER) {
+					usb_switch_parking_to_pad(motg->pdata);
+					set_bit(ID, &motg->inputs);
+					work = true;
+					if (++cover_enum_retry_count > 5){
+						printk("%s: back-cover enum exceed maximum retry count. skipping\n",__func__);
+						motg->ahost_force_disconnect = true;
+					} else {
+						printk("%s: back-cover enum retrying ... #%d\n",__func__, cover_enum_retry_count);
+						motg->usb_current_session = motg->usb_next_session = USB_SESSION_PAD;
+						msleep(50);
+					}
+				} else {
+					pm_runtime_put_sync(otg->phy->dev);
+				}
+			}
 		} else if (!test_bit(ID, &motg->inputs) &&
                    motg->usb_current_session == USB_SESSION_PAD) {
 			msm_hsusb_vbus_power(motg, 1);
@@ -4088,13 +4109,6 @@ static void msm_otg_sm_work(struct work_struct *w)
 			 * suspended or HNP is in progress.
 			 */
 			dev_dbg(otg->phy->dev,"!a_bus_req\n");
-			if(motg->usb_current_session == USB_SESSION_COVER){
-				usb_switch_parking_to_pad(motg->pdata);
-				dev_dbg(otg->phy->dev, " force disconnect suspend device\n");
-				motg->ahost_force_disconnect = true;
-				set_bit(ID, &motg->inputs);
-				work = true;
-			}else{
 			msm_otg_del_timer(motg);
 			otg->phy->state = OTG_STATE_A_SUSPEND;
 			if (otg->host->b_hnp_enable)
@@ -4102,7 +4116,6 @@ static void msm_otg_sm_work(struct work_struct *w)
 						A_AIDL_BDIS);
 			else
 				pm_runtime_put_sync(otg->phy->dev);
-			}
 		} else if (!test_bit(B_CONN, &motg->inputs) &&
                    motg->usb_current_session == USB_SESSION_PAD) {
 			dev_dbg(otg->phy->dev,"!b_conn\n");
@@ -4386,6 +4399,7 @@ static irqreturn_t msm_otg_irq(int irq, void *data)
 		if (otgsc & OTGSC_BSV) {
 			dev_dbg(otg->phy->dev, "BSV set\n");
 			motg->ahost_force_disconnect = false;
+			cover_enum_retry_count = 0;
 			set_bit(B_SESS_VLD, &motg->inputs);
             if (motg->usb_current_session == USB_SESSION_COVER) {
                 motg->usb_next_session = USB_SESSION_PAD;
@@ -4639,8 +4653,12 @@ static void msm_cover_status_w(struct work_struct *w)
 		}
 		if(mpowerless_cover_present){
 			dev_dbg(motg->phy.dev,"powerless cover in\n");
-			atomic_set(&mpowerless_present,1);
-			mback_present = POWERLESS_COVER;
+			if (cover_battery_power_enough){
+				dev_dbg(motg->phy.dev, " ignore powerless due to contact problem\n");
+			}else{
+				atomic_set(&mpowerless_present,1);
+				mback_present = POWERLESS_COVER;
+			}
 			powerless_cable = cable_type;
 			cover_cable_status_notifier_call_chain(COVER_IN,motg);
 			ignoreFirst =true;
@@ -4691,6 +4709,7 @@ static irqreturn_t msm_id_irq(int irq, void *data)
 	struct msm_otg *motg = data;
 
 	motg->ahost_force_disconnect = false;
+	cover_enum_retry_count = 0;
 	if (test_bit(MHL, &motg->inputs) ||
 			mhl_det_in_progress) {
 		pr_debug("PMIC: Id interrupt ignored in MHL\n");
@@ -4712,6 +4731,7 @@ static irqreturn_t asus_cover_det_irq(int irq, void *data)
 
     pr_debug("cover state change\n");
 	motg->ahost_force_disconnect = false;
+	cover_enum_retry_count = 0;
     /*schedule delayed work for 1000msec for DET line state to settle*/
 	cancel_delayed_work(&motg->cover_det_status_work);
     queue_delayed_work(motg->otg_wq, &motg->cover_det_status_work,
@@ -4726,6 +4746,7 @@ static irqreturn_t asus_cover_det_np_irq(int irq, void *data)
 
     pr_debug("cover_np state change\n");
 	motg->ahost_force_disconnect = false;
+	cover_enum_retry_count = 0;
     /*schedule delayed work for 1000msec for DET line state to settle*/
 	cancel_delayed_work(&motg->cover_det_status_work);
     queue_delayed_work(motg->otg_wq, &motg->cover_det_status_work,
