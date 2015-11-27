@@ -4,7 +4,6 @@
 *	Time:	2015-05
 *
 */
-
 #include "msm_laser_focus.h"
 #include "show_log.h"
 
@@ -256,6 +255,7 @@ int dev_I2C_status_check(struct msm_laser_focus_ctrl_t *dev_t, int chip_id_size)
 		
 		return 0;
 	}
+
 	/* Deinitialize device */
 	rc = dev_deinit(dev_t);
 	if (rc < 0) {

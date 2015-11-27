@@ -24,7 +24,7 @@
 #define SIZE_OF_LAURA_CALIBRATION_DATA 10
 
 /* Calibration */
-int Laura_device_clibration(struct msm_laser_focus_ctrl_t *dev_t, int16_t *cal_input_data);
+int Laura_device_calibration(struct msm_laser_focus_ctrl_t *dev_t, int16_t *cal_input_data);
 /* Laura do calibration */
 uint16_t* calc_calib(int16_t *cal_10, int16_t *cal_40, int16_t *cal_inf);
 /* Laura create calibration data */

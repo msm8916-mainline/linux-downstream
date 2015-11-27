@@ -31,7 +31,7 @@ int16_t cal_data_inf[12] = {-6,-2,6500,-1025,823,12814,
 *	@param ctrl the calibration controller
 *
 */
-int Laura_device_clibration_interface(struct msm_laser_focus_ctrl_t *dev_t, bool load_cal, bool *calibration_flag, int ctrl){
+int Laura_device_calibration_interface(struct msm_laser_focus_ctrl_t *dev_t, bool load_cal, bool *calibration_flag, int ctrl){
 	int status = 0;
 
 	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
@@ -50,7 +50,7 @@ int Laura_device_clibration_interface(struct msm_laser_focus_ctrl_t *dev_t, bool
 				return status;
 			}
 			/* Do calibration */
-			status = Laura_device_clibration(dev_t, cal_data_10);
+			status = Laura_device_calibration(dev_t, cal_data_10);
 			if(status < 0){
 				/* Go MCPU to standby mode */
 				Laura_MCPU_Controller(dev_t, MCPU_STANDBY);
@@ -67,7 +67,7 @@ int Laura_device_clibration_interface(struct msm_laser_focus_ctrl_t *dev_t, bool
 				return status;
 			}
 			/* Do calibration */
-			status = Laura_device_clibration(dev_t, cal_data_40);
+			status = Laura_device_calibration(dev_t, cal_data_40);
 			if(status < 0){
 				/* Go MCPU to standby mode */
 				Laura_MCPU_Controller(dev_t, MCPU_STANDBY);
@@ -84,7 +84,7 @@ int Laura_device_clibration_interface(struct msm_laser_focus_ctrl_t *dev_t, bool
 				return status;
 			}
 			/* Do calibration */
-			status = Laura_device_clibration(dev_t, cal_data_inf);
+			status = Laura_device_calibration(dev_t, cal_data_inf);
 			if(status < 0){
 				/* Go MCPU to standby mode */
 				Laura_MCPU_Controller(dev_t, MCPU_STANDBY);
@@ -129,7 +129,45 @@ int Laura_get_calibration_input_data_interface(struct seq_file *buf, void *v){
 	status = Laura_get_calibration_input(buf, v, cal_data_10, cal_data_40, cal_data_inf);
 
 	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
-	return 0;
+	return status;
+}
+
+/** @brief laura read calibration input data from calibration file interface
+*
+*       @param buf
+*       @param v
+*	@param cal_data the calibration data
+*
+*/
+int Laura_read_calibration_data_interface(struct seq_file *buf, void *v, uint16_t *cal_data){
+	int status = 0;
+	
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+
+	/* read calibration data */
+	status = Laura_Read_Calibration_Value_From_File(buf, cal_data);
+
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+
+	return status;
+}
+
+/** @brief laura get module id interface
+*
+*       @param buf
+*       @param v
+*
+*/
+int Laura_get_module_id_interface(struct msm_laser_focus_ctrl_t *dev_t, struct seq_file *buf, void *v){
+        int status = 0;
+
+        LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+
+        /* Get module id */
+        Laura_Get_Module_ID(dev_t,buf);
+
+        LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+        return status;
 }
 
 /** @brief laura read range interface
@@ -139,7 +177,7 @@ int Laura_get_calibration_input_data_interface(struct seq_file *buf, void *v){
 *	@param calibration_flag the calibration flag
 *
 */
-int Laura_device_read_range_interface(struct msm_laser_focus_ctrl_t *dev_t, bool load_cal, bool *calibration_flag){
+int Laura_device_read_range_interface(struct msm_laser_focus_ctrl_t *dev_t, bool load_cal, bool *calibration_flag, int *errorStatus){
 	int status = 0;
 
 	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
@@ -159,9 +197,10 @@ int Laura_device_read_range_interface(struct msm_laser_focus_ctrl_t *dev_t, bool
 		Laura_MCPU_Controller(dev_t, MCPU_STANDBY);
 		return status;
 	}
-	
+
 	/* Read range */
-	status = Laura_device_read_range(dev_t);
+	status = Laura_device_read_range(dev_t, errorStatus);
+	//printk("[LASER_FOCUS]read %d\n", status);
 	if(status < 0){
 		/* Go MCPU to standby mode */
 		Laura_MCPU_Controller(dev_t, MCPU_STANDBY);
@@ -325,10 +364,13 @@ int Laura_device_tof_configuration_interface(struct msm_laser_focus_ctrl_t *dev_
 	int status = 0;
 
 	/* TOF configuratino default value */
-	uint16_t config_r_range[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE002, 0xA041, 0x4580};
-	uint16_t config_cal_10[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE002, 0xAC81, 0x4580};
-	uint16_t config_cal_40[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE002, 0xAC81, 0x4580};
-	uint16_t config_cal_inf[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE000, 0xFC81, 0x4500};
+	uint16_t config_r_range[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE001, 0xA041, 0x4580};
+	//uint16_t config_cal_10[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE001, 0xAC81, 0x4580};
+	//uint16_t config_cal_40[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE001, 0xAC81, 0x4580};
+	//uint16_t config_cal_inf[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE000, 0xFC81, 0x4500};
+	uint16_t config_cal_10[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE001, 0xA141, 0x4580};
+        uint16_t config_cal_40[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE001, 0xA3C1, 0x4580};
+        uint16_t config_cal_inf[LAURA_CONFIG_SIZE] = {0xE100, 0x30FF, 0x07D0, 0xE000, 0xF3C1, 0x4500};
 
 	switch(ctrl){
 		case LAURA_READ_CONFIG:

@@ -49,12 +49,38 @@ struct msm_laser_focus_ctrl_t *get_laura_ctrl(void){
 	return laura_t;
 }
 
+static int Laura_Init_Chip_Status_On_Boot(struct msm_laser_focus_ctrl_t *dev_t){
+	int rc = 0, chip_status = 0;
+	
+	LOG_Handler(LOG_CDBG, "%s: Enter Init Chip Status\n", __func__);
+	
+	mutex_ctrl(laura_t, MUTEX_LOCK);
+	
+	rc = dev_init(laura_t);
+	
+	rc = Laura_device_power_up_init_interface(laura_t, NO_CAL, &calibration_flag, NO_MEASURE);
+	chip_status = Laura_WaitDeviceStandby(dev_t);
+	if (rc < 0 || chip_status < 0){
+		LOG_Handler(LOG_ERR, "%s Device init fail !! (rc,status):(%d,%d)\n", __func__, rc, chip_status);
+	} else	{
+		LOG_Handler(LOG_CDBG, "%s Init init success !! (rc,status):(%d,%d)\n", __func__, rc, chip_status);
+	}
+	
+	rc = dev_deinit(laura_t);
+	
+	mutex_ctrl(laura_t, MUTEX_UNLOCK);
+	
+	LOG_Handler(LOG_CDBG, "%s: Exit Init Chip Status\n", __func__);
+	
+	return rc;
+}
+
 static ssize_t ATD_Laura_device_enable_write(struct file *filp, const char __user *buff, size_t len, loff_t *data)
 {
 	int val, rc = 0;
 	char messages[8];
 
-	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Enter Power On\n", __func__);
 	
 	if (len > 8) {
 		len = 8;
@@ -75,69 +101,78 @@ static ssize_t ATD_Laura_device_enable_write(struct file *filp, const char __use
 			if(camera_on_flag){
               		LOG_Handler(LOG_DBG, "%s: Camera is running, do nothing!!\n ", __func__);
 				mutex_ctrl(laura_t, MUTEX_UNLOCK);
-              		break;
-              	}
+              			break;
+              		}
 			rc = dev_deinit(laura_t);
 			//rc = power_down(laura_t);
 			laura_t->device_state = MSM_LASER_FOCUS_DEVICE_OFF;
+			LOG_Handler(LOG_CDBG, "%s Power Off Device (%d)\n", __func__, laura_t->device_state);
 			load_calibration_data=false;
 			mutex_ctrl(laura_t, MUTEX_UNLOCK);
 			break;
 		case MSM_LASER_FOCUS_DEVICE_APPLY_CALIBRATION:
 			if(camera_on_flag){
-              		LOG_Handler(LOG_DBG, "%s: Camera is running, do nothing!!\n ", __func__);
-              		break;
-             		}
+              			LOG_Handler(LOG_DBG, "%s: Camera is running, do nothing!!\n ", __func__);
+				break;
+            		}
+            		mutex_ctrl(laura_t, MUTEX_LOCK);
 			if (laura_t->device_state != MSM_LASER_FOCUS_DEVICE_OFF)	{
 				rc = dev_deinit(laura_t);
 				//rc = power_down(laura_t);
 				laura_t->device_state = MSM_LASER_FOCUS_DEVICE_OFF;
 			}
-			laura_t->device_state = MSM_LASER_FOCUS_DEVICE_APPLY_CALIBRATION;
+			//laura_t->device_state = MSM_LASER_FOCUS_DEVICE_APPLY_CALIBRATION;
 			//rc = power_up(laura_t);
 			rc = dev_init(laura_t);
 			rc = Laura_device_power_up_init_interface(laura_t, DO_CAL, &calibration_flag, NO_MEASURE);
 			if (rc < 0)	{
 				LOG_Handler(LOG_ERR, "%s Device trun on fail !!\n", __func__);
 				laura_t->device_state = MSM_LASER_FOCUS_DEVICE_OFF;
+				mutex_ctrl(laura_t, MUTEX_UNLOCK);
 				goto DEVICE_TURN_ON_ERROR;
 			} else	{
 				laura_t->device_state = MSM_LASER_FOCUS_DEVICE_APPLY_CALIBRATION;
 				LOG_Handler(LOG_CDBG, "%s Init Device (%d)\n", __func__, laura_t->device_state);
 			}
 			load_calibration_data = true;
+			mutex_ctrl(laura_t, MUTEX_UNLOCK);
 			break;
 		case MSM_LASER_FOCUS_DEVICE_NO_APPLY_CALIBRATION:
 			if(camera_on_flag){
-              		LOG_Handler(LOG_DBG, "%s: Camera is running, do nothing!!\n ", __func__);
-              		break;
-              	}
+            			LOG_Handler(LOG_DBG, "%s: Camera is running, do nothing!!\n ", __func__);
+            			break;
+            		}
+            		mutex_ctrl(laura_t, MUTEX_LOCK);
 			if (laura_t->device_state != MSM_LASER_FOCUS_DEVICE_OFF)	{
 				rc = dev_deinit(laura_t);
 				//rc = power_down(laura_t);
 				laura_t->device_state = MSM_LASER_FOCUS_DEVICE_OFF;
 			}
-			laura_t->device_state = MSM_LASER_FOCUS_DEVICE_NO_APPLY_CALIBRATION;
+			//laura_t->device_state = MSM_LASER_FOCUS_DEVICE_NO_APPLY_CALIBRATION;
 			//rc = power_up(laura_t);
 			rc = dev_init(laura_t);
 			rc = Laura_device_power_up_init_interface(laura_t, NO_CAL, &calibration_flag, NO_MEASURE);
 			if (rc < 0)	{
 				LOG_Handler(LOG_ERR, "%s Device trun on fail !!\n", __func__);
 				laura_t->device_state = MSM_LASER_FOCUS_DEVICE_OFF;
+				mutex_ctrl(laura_t, MUTEX_UNLOCK);
 				goto DEVICE_TURN_ON_ERROR;
 			} else	{
 				laura_t->device_state = MSM_LASER_FOCUS_DEVICE_NO_APPLY_CALIBRATION;
 				LOG_Handler(LOG_CDBG, "%s Init Device (%d)\n", __func__, laura_t->device_state);
 			}
 			load_calibration_data = false;
+			mutex_ctrl(laura_t, MUTEX_UNLOCK);
 			break;
 		case MSM_LASER_FOCUS_DEVICE_INIT_CCI:
+			mutex_ctrl(laura_t, MUTEX_LOCK);
 			laura_t->device_state = MSM_LASER_FOCUS_DEVICE_INIT_CCI;
 			rc = dev_init(laura_t);
 			rc = Laura_device_power_up_init_interface(laura_t, DO_CAL, &calibration_flag, NO_MEASURE);
 			if (rc < 0)	{
 				LOG_Handler(LOG_ERR, "%s Device turn on fail !!\n", __func__);
 				laura_t->device_state = MSM_LASER_FOCUS_DEVICE_OFF;
+				mutex_ctrl(laura_t, MUTEX_UNLOCK);
 				return -EIO;
 			} else	{
 				laura_t->device_state = MSM_LASER_FOCUS_DEVICE_INIT_CCI;
@@ -145,11 +180,13 @@ static ssize_t ATD_Laura_device_enable_write(struct file *filp, const char __use
 			}
 			load_calibration_data = true;
 			camera_on_flag = true;
+			mutex_ctrl(laura_t, MUTEX_UNLOCK);
 			break;
 		case MSM_LASER_FOCUS_DEVICE_DEINIT_CCI:
 			mutex_ctrl(laura_t, MUTEX_LOCK);
 			rc = dev_deinit(laura_t);
 			laura_t->device_state = MSM_LASER_FOCUS_DEVICE_DEINIT_CCI;
+			LOG_Handler(LOG_CDBG, "%s Deinit Device (%d)\n", __func__, laura_t->device_state);
 			load_calibration_data = false;
 			camera_on_flag = false;
 			mutex_ctrl(laura_t, MUTEX_UNLOCK);
@@ -159,7 +196,7 @@ static ssize_t ATD_Laura_device_enable_write(struct file *filp, const char __use
 			break;
 		}
 
-		LOG_Handler(LOG_FUN, "%s: command fail!!");
+		LOG_Handler(LOG_FUN, "%s: Exit Power On(%d)\n", __func__, val);
 	
 		return len;
 	
@@ -210,7 +247,7 @@ static int ATD_Laura_device_get_range_read(struct seq_file *buf, void *v)
 #if 0	
 	struct timeval start, now;
 #endif
-	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_FUN, "%s: Enter Read Range\n", __func__);
 
 	mutex_ctrl(laura_t, MUTEX_LOCK);
 #if 0
@@ -230,12 +267,12 @@ static int ATD_Laura_device_get_range_read(struct seq_file *buf, void *v)
 		return 0;
 	}
 
-	RawRange = (int) Laura_device_read_range_interface(laura_t, load_calibration_data, &calibration_flag);
+	RawRange = (int) Laura_device_read_range_interface(laura_t, load_calibration_data, &calibration_flag, &errorStatus);
 
-	if (RawRange < 0) {
-		LOG_Handler(LOG_ERR, "%s: Read_range(%d) failed\n", __func__, RawRange);
-		RawRange = 0;
-	}
+	if (RawRange >= OUT_OF_RANGE) {
+         RawRange = OUT_OF_RANGE;
+         LOG_Handler(LOG_DBG, "%s: Reset distance from %d to %d", __func__, RawRange, OUT_OF_RANGE);
+    }
 	
 	LOG_Handler(LOG_DBG, "%s : Get range (%d)  Device (%d)\n", __func__, RawRange , laura_t->device_state);
 
@@ -246,7 +283,7 @@ static int ATD_Laura_device_get_range_read(struct seq_file *buf, void *v)
 	now = get_current_time();
 	LOG_Handler(LOG_DBG, "%d ms\n", (int) ((((now.tv_sec*1000000)+now.tv_usec)-((start.tv_sec*1000000)+start.tv_usec))));
 #endif
-	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	LOG_Handler(LOG_FUN, "%s: Exit Read Range\n", __func__);
 	
 	return 0;
 }
@@ -270,7 +307,7 @@ static int ATD_Laura_device_get_range_read_more_info(struct seq_file *buf, void 
 {
 	int RawRange = 0;
 
-	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_FUN, "%s: Enter Read Range More Info\n", __func__);
 
 	mutex_ctrl(laura_t, MUTEX_LOCK);
 
@@ -288,20 +325,22 @@ static int ATD_Laura_device_get_range_read_more_info(struct seq_file *buf, void 
 		return 0;
 	}
 
-	RawRange = (int) Laura_device_read_range_interface(laura_t, load_calibration_data, &calibration_flag);
+	errorStatus = 0;
 
-	if (RawRange < 0) {
-		LOG_Handler(LOG_ERR, "%s: Read_range(%d) failed\n", __func__, RawRange);
-		RawRange = 0;
+	RawRange = (int) Laura_device_read_range_interface(laura_t, load_calibration_data, &calibration_flag, &errorStatus);
+
+	if (RawRange >= OUT_OF_RANGE) {
+		RawRange = OUT_OF_RANGE;
+		LOG_Handler(LOG_DBG, "%s: Reset distance from %d to %d", __func__, RawRange, OUT_OF_RANGE);
 	}
-	
+
 	LOG_Handler(LOG_DBG, "%s : Get range (%d)  Device (%d)\n", __func__, RawRange , laura_t->device_state);
 
 	seq_printf(buf, "%d#%d#%d\n", RawRange, DMax, errorStatus);
 
 	mutex_ctrl(laura_t, MUTEX_UNLOCK);
 
-	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	LOG_Handler(LOG_FUN, "%s: Exit Read Range More Info\n", __func__);
 	
 	return 0;
 }
@@ -326,7 +365,7 @@ static ssize_t ATD_Laura_device_calibration_write(struct file *filp, const char 
 	int val, ret = 0;
 	char messages[8];
 
-	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Enter Calibration\n", __func__);
 
 	if (laura_t->device_state == MSM_LASER_FOCUS_DEVICE_OFF ||
 		laura_t->device_state == MSM_LASER_FOCUS_DEVICE_DEINIT_CCI) {
@@ -349,21 +388,21 @@ static ssize_t ATD_Laura_device_calibration_write(struct file *filp, const char 
 	switch (val) {
 		case MSM_LASER_FOCUS_APPLY_OFFSET_CALIBRATION:
 			mutex_ctrl(laura_t, MUTEX_LOCK);
-			ret = Laura_device_clibration_interface(laura_t, load_calibration_data, &calibration_flag, LAURA_CALIBRATION_10_CONFIG);
+			ret = Laura_device_calibration_interface(laura_t, load_calibration_data, &calibration_flag, LAURA_CALIBRATION_10_CONFIG);
 			mutex_ctrl(laura_t, MUTEX_UNLOCK);
 			if (ret < 0)
 				return ret;
 			break;
 		case MSM_LASER_FOCUS_APPLY_CROSSTALK_CALIBRATION:
 			mutex_ctrl(laura_t, MUTEX_LOCK);
-			ret = Laura_device_clibration_interface(laura_t, load_calibration_data, &calibration_flag, LAURA_CALIBRATION_40_CONFIG);
+			ret = Laura_device_calibration_interface(laura_t, load_calibration_data, &calibration_flag, LAURA_CALIBRATION_40_CONFIG);
 			mutex_ctrl(laura_t, MUTEX_UNLOCK);
 			if (ret < 0)
 				return ret;
 			break;
 		case MSM_LASER_FOCUS_APPLY_INFINITY_CALIBRATION:
 			mutex_ctrl(laura_t, MUTEX_LOCK);
-			ret = Laura_device_clibration_interface(laura_t, load_calibration_data, &calibration_flag, LAURA_CALIBRATION_INF_CONFIG);
+			ret = Laura_device_calibration_interface(laura_t, load_calibration_data, &calibration_flag, LAURA_CALIBRATION_INF_CONFIG);
 			mutex_ctrl(laura_t, MUTEX_UNLOCK);
 			if (ret < 0)
 				return ret;
@@ -374,7 +413,7 @@ static ssize_t ATD_Laura_device_calibration_write(struct file *filp, const char 
 			break;
 	}
 
-	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Exit Calibration(%d)\n", __func__, val);
 	
 	return len;
 }
@@ -405,17 +444,20 @@ static const struct file_operations ATD_Laura_get_calibration_input_data_fops = 
 
 static int ATD_Laura_I2C_status_check_proc_read(struct seq_file *buf, void *v)
 {
-	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Enter Status Check\n", __func__);
 	
 	mutex_ctrl(laura_t, MUTEX_LOCK);
 	ATD_status = dev_I2C_status_check(laura_t, MSM_CAMERA_I2C_WORD_DATA);
 	mutex_ctrl(laura_t, MUTEX_UNLOCK);
 
+	if(ATD_status==1){
+		ATD_status=2;
+	}
+
 	seq_printf(buf, "%d\n", ATD_status);
 
-	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Exit Status Check(%d)\n", __func__, ATD_status);
 	
-	seq_printf(buf, "%d\n", ATD_status);
 	return 0;
 }
 
@@ -436,9 +478,9 @@ static const struct file_operations ATD_I2C_status_check_fops = {
 
 static int ATD_Laura_I2C_status_check_proc_read_for_camera(struct seq_file *buf, void *v)
 {
-	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Enter\n", __func__);
 	seq_printf(buf, "%d\n", ATD_status);
-	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Exit\n", __func__);
 	return 0;
 }
 
@@ -474,13 +516,13 @@ static const struct file_operations dump_laser_focus_register_fops = {
 
 static int dump_Laura_debug_register_read(struct seq_file *buf, void *v)
 {
-	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Enter Debug Dump\n", __func__);
 	
 	//mutex_ctrl(laura_t, MUTEX_LOCK);
-	laura_debug_register_dump(buf, DMax, errorStatus, NON_RECORD_DEBUG_INFO);
+	laura_debug_dump(buf,v);
 	//mutex_ctrl(laura_t, MUTEX_UNLOCK);
 
-	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Exit Debug Dump\n", __func__);
 
 	return 0;
 }
@@ -518,13 +560,13 @@ static ssize_t Laura_laser_focus_enforce_write(struct file *filp, const char __u
 {
 	ssize_t rc;
 
-	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Enter Enforce\n", __func__);
 	
 	mutex_ctrl(laura_t, MUTEX_LOCK);
 	rc = Laser_Focus_enforce(laura_t, buff, len, &laser_focus_enforce_ctrl);
 	mutex_ctrl(laura_t, MUTEX_UNLOCK);
 
-	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Exit Enforce\n", __func__);
 
 	return rc;
 }
@@ -556,13 +598,13 @@ static ssize_t Laura_laser_focus_log_contorl_write(struct file *filp, const char
 {
 	ssize_t rc;
 
-	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Enter Log Controller\n", __func__);
 	
 	mutex_ctrl(laura_t, MUTEX_LOCK);
 	rc = Laser_Focus_log_contorl(buff, len);
 	mutex_ctrl(laura_t, MUTEX_UNLOCK);
 
-	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Exit Log Controller\n", __func__);
 
 	return rc;
 }
@@ -578,7 +620,7 @@ static const struct file_operations laser_focus_log_contorl_fops = {
 
 static void Laura_create_proc_file(void)
 {
-	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Enter Create Proc File\n", __func__);
 
 	create_proc_file(STATUS_PROC_FILE, STATUS_PROC_FILE_MODE, NULL, &ATD_I2C_status_check_fops);
 	create_proc_file(STATUS_PROC_FILE_FOR_CAMERA, STATUS_PROC_FILE_FOR_CAMERA_MODE, NULL, &ATD_I2C_status_check_for_camera_fops);
@@ -592,7 +634,7 @@ static void Laura_create_proc_file(void)
 	create_proc_file(DEVICE_ENFORCE_FILE, DEVICE_ENFORCE_MODE, NULL, &laser_focus_enforce_fops);
 	create_proc_file(DEVICE_LOG_CTRL_FILE, DEVICE_LOG_CTRL_MODE, NULL, &laser_focus_log_contorl_fops);
 
-	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	LOG_Handler(LOG_CDBG, "%s: Exit Create Proc File\n", __func__);
 }
 
 static struct msm_camera_i2c_fn_t msm_sensor_cci_func_tbl = {
@@ -729,13 +771,16 @@ static int32_t Laura_platform_probe(struct platform_device *pdev)
 		goto probe_failure;
 
 	/* Init mutex */
-       mutex_ctrl(laura_t, MUTEX_ALLOCATE);
+	mutex_ctrl(laura_t, MUTEX_ALLOCATE);
 	mutex_ctrl(laura_t, MUTEX_INIT);
 
 	ATD_status = 2;
 	
 	/* Create proc file */
 	Laura_create_proc_file();
+	
+	Laura_Init_Chip_Status_On_Boot(laura_t);
+	
 	LOG_Handler(LOG_CDBG, "%s: Probe Success\n", __func__);
 	return 0;
 probe_failure:

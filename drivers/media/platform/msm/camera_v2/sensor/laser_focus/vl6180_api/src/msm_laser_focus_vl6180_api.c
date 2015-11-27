@@ -50,16 +50,19 @@ struct mutex vl6180x_mutex;
 int errorStatus = 16;
 int DMax = 0;
 
+#if 0
 /*For LaserFocus STATUS Controll+++*/
 #define	STATUS_PROC_FILE				"driver/LaserFocus_Status"
 #define	STATUS_PROC_FILE_FOR_CAMERA	"driver/LaserFocus_Status_For_Camera"
 #define	DEVICE_TURN_ON_FILE			"driver/LaserFocus_on"
 #define	DEVICE_GET_VALUE				"driver/LaserFocus_value"
-#define   DEVICE_GET_VALUE_MORE_INFO	"driver/LaserFocus_value_more_info"
+#define DEVICE_GET_VALUE_MORE_INFO	"driver/LaserFocus_value_more_info"
 #define	DEVICE_SET_CALIBRATION			"driver/LaserFocus_CalStart"
-#define	DEVICE_DUMP_REGISTER_VALUE	"driver/LaserFocus_regiser_dump"
+#define	DEVICE_DUMP_REGISTER_VALUE	"driver/LaserFocus_register_dump"
 #define DEVICE_DUMP_DEBUG_REGISTER_VALUE        "driver/LaserFocus_debug_dump"
 #define	LASER_FOCUS_ENFORCE			"driver/LaserFocus_enforce"
+#endif
+
 static struct proc_dir_entry *status_proc_file;
 static struct proc_dir_entry *device_trun_on_file;
 static struct proc_dir_entry *device_get_value_file;
@@ -1389,11 +1392,11 @@ static void VL6180x_create_proc_file(void)
 		printk("%s dump_laser_focus_register_file failed!\n", __func__);
 	}
 
-	dump_laser_focus_debug_file = proc_create(DEVICE_DUMP_DEBUG_REGISTER_VALUE, 0664, NULL, &dump_laser_focus_debug_register_fops);
+	dump_laser_focus_debug_file = proc_create(DEVICE_DUMP_DEBUG_VALUE, 0664, NULL, &dump_laser_focus_debug_register_fops);
 	if (dump_laser_focus_debug_file) {
-		printk("%s dump_laser_focus_debug_register_file sucessed!\n", __func__);
+		printk("%s dump_laser_focus_debug_file sucessed!\n", __func__);
 	} else {
-		printk("%s dump_laser_focus_debug_register_file failed!\n", __func__);
+		printk("%s dump_laser_focus_debug_file failed!\n", __func__);
 	}
 
 	status_proc_file = proc_create(STATUS_PROC_FILE_FOR_CAMERA, 0664, NULL, &I2C_status_check_fops);
@@ -1403,7 +1406,7 @@ static void VL6180x_create_proc_file(void)
 		printk("%s status_proc_file failed!\n", __func__);
 	}
 
-	status_proc_file = proc_create(LASER_FOCUS_ENFORCE, 0660, NULL, &laser_focus_enforce_fops);
+	status_proc_file = proc_create(DEVICE_ENFORCE_FILE, 0660, NULL, &laser_focus_enforce_fops);
 	if (status_proc_file) {
 		printk("%s status_proc_file sucessed!\n", __func__);
 	} else {

@@ -173,7 +173,7 @@ struct msm_laser_focus {
 #define	DEVICE_GET_VALUE		"driver/LaserFocus_value"	/* Get range value */
 #define	DEVICE_GET_VALUE_MORE_INFO	"driver/LaserFocus_value_more_info"	/* Get range value, DMax and error code*/
 #define	DEVICE_SET_CALIBRATION		"driver/LaserFocus_CalStart" /* Calibration */
-#define	DEVICE_DUMP_REGISTER_VALUE	"driver/LaserFocus_regiser_dump"	/* Dump register value right */
+#define	DEVICE_DUMP_REGISTER_VALUE	"driver/LaserFocus_register_dump"	/* Dump register value right */
 #define	DEVICE_DUMP_DEBUG_VALUE	"driver/LaserFocus_debug_dump"	/* Dump register value for vl6180x debug */
 #define	DEVICE_ENFORCE_FILE	"driver/LaserFocus_enforce"	/* Disable laser focus value */
 #define	DEVICE_LOG_CTRL_FILE	"driver/LaserFocus_log_ctrl"	/* Log contorl */

@@ -61,6 +61,8 @@ extern enum DEVICE_HWID g_ASUS_hwID;
 extern int g_ASUS_laserID;  //ASUS_BSP  Deka "support laser sensor 2nd source"
 // --- ASUS_BSP : add for miniporting
 
+extern int g_soc_id;
+
 //ASUS_BSP: Louis +++
 enum {
 	ZE500KL_LCD_AUO = 0,

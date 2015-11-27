@@ -173,19 +173,35 @@ static void get_speed_bin_b(struct platform_device *pdev, int *bin,
 	*bin = 0;
 	*version = 0;
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "efuse");
-	if (!res) {
-		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
-								"efuse1");
-		if (!res) {
-			dev_info(&pdev->dev,
-				"No speed/PVS binning available. Defaulting to 0!\n");
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "efuse1");
+	if (res) {
+		base = devm_ioremap(&pdev->dev, res->start, resource_size(res));
+		if (base) {
+			pte_efuse = readl_relaxed(base);
+			devm_iounmap(&pdev->dev, base);
+
+			*version = (pte_efuse >> 18) & 0x3;
+			if (!(*version)) {
+				*bin = (pte_efuse >> 23) & 0x3;
+				if (*bin) {
+					dev_info(&pdev->dev, "Speed bin: %d PVS Version: %d\n",
+						      *bin, *version);
+					return;
+				}
+			}
+		} else {
+			dev_warn(&pdev->dev,
+				"Unable to read efuse1 data. Defaulting to 0!\n");
 			return;
 		}
-		shift = 23;
-		mask  = 0x3;
 	}
 
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "efuse");
+	if (!res) {
+		dev_info(&pdev->dev,
+				"No speed/PVS binning available. Defaulting to 0!\n");
+		return;
+	}
 	base = devm_ioremap(&pdev->dev, res->start, resource_size(res));
 	if (!base) {
 		dev_warn(&pdev->dev,
@@ -282,6 +298,9 @@ static int clock_a7_probe(struct platform_device *pdev)
 		get_speed_bin_b(pdev, &speed_bin, &version);
 	else
 		get_speed_bin(pdev, &speed_bin, &version);
+
+	if(g_soc_id == 2)
+		speed_bin = 3;
 
 	snprintf(prop_name, ARRAY_SIZE(prop_name),
 			"qcom,speed%d-bin-v%d", speed_bin, version);

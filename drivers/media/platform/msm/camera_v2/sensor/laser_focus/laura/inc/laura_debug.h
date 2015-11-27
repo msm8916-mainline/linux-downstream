@@ -29,8 +29,8 @@
 #define DUMP_REGISTER_RANGE_MAX 0x100
 #endif
 
-/* laura read range debug */
-int laura_debug_register_dump(struct seq_file *vfile, int DMax, int errorStatus, bool record_in_file);
+/* laura debug */
+int laura_debug_dump(struct seq_file *vfile, void *v);
 /* vl6180x dump register value */
 int dump_laura_register_read(struct seq_file *vfile, void *v);
 

@@ -120,7 +120,7 @@ uint16_t Laura_device_read_range2(struct msm_laser_focus_ctrl_t *dev_t)
 *	@param cal_input_data the calibration input data
 *
 */
-int Laura_device_clibration(struct msm_laser_focus_ctrl_t *dev_t, int16_t *cal_input_data)
+int Laura_device_calibration(struct msm_laser_focus_ctrl_t *dev_t, int16_t *cal_input_data)
 {
 	int status = 0, pass_count = 0, fail_count = 0, i = 0, j = 0;
 	uint16_t distance = 0;
@@ -297,7 +297,7 @@ int Larua_Write_Calibration_Data_Into_File(int16_t *cal_data, uint32_t size){
 
 #ifdef ASUS_FACTORY_BUILD
 	Sysfs_write_word_seq(LAURA_CALIBRATION_FACTORY_FILE, cal_data, size);
-#else
+#else	
 	Sysfs_write_word_seq(LAURA_CALIBRATION_FILE, cal_data, size);
 #endif
 

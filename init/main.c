@@ -348,6 +348,27 @@ EXPORT_SYMBOL(g_ASUS_hwID);
 
 //--- ASUS_BSP : miniporting
 
+//+++ ASUS_BSP : add for parse soc id
+int g_soc_id = 0;
+
+static int set_soc_id(char *str)
+{
+    if(strcmp("0", str) == 0)
+        g_soc_id = 0;
+    else if(strcmp("1", str) == 0)
+        g_soc_id = 1;
+    else if(strcmp("2", str) == 0)
+        g_soc_id = 2;
+    else if(strcmp("3", str) == 0)
+        g_soc_id = 3;
+
+    printk("g_soc_id = %d\n", g_soc_id);
+    return 0;
+}
+__setup("androidboot.id.soc=", set_soc_id);
+EXPORT_SYMBOL(g_soc_id);
+//--- ASUS_BSP : add for parse soc id
+
 //+++ ASUS_BSP : Add for FM ID
 int g_ASUS_fmID = 1;
 
