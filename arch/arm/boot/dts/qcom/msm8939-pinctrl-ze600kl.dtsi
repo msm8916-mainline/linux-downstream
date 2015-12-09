@@ -471,7 +471,7 @@
             };
             Project_ID_Pin_suspend: Project_ID_Pin_suspend {
                 drive-strength = <2>;
-                bias-pull-up;
+                bias-pull-down; // <asus-olaf20150904+>
             };
         };
 // <asus-olaf20150715->
@@ -1050,6 +1050,17 @@
 				bias-disable = <0>; /* No PULL */
 			};
 		};
+		
+		flash_err_pins {
+            qcom,pins = <&gp 105>;
+            qcom,num-grp-pins = <1>;
+            label = "flash_err_flag";
+            flash_err_default: flash_err_default {
+                drive-strength = <2>;
+                bias-disable = <0>;
+            };
+        };
+
 
 		/* CoreSight */
 		tpiu_seta_1 {

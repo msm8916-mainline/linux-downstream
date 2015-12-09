@@ -84,6 +84,27 @@ bool is_ZD550KL( void )
     return false;*/
 }
 
+bool is_ZE600KL_ZE601KL (void) {
+    switch (asus_PRJ_ID) {
+        case 0://ASUS_ZE550KL
+                printk("ASUS_ZE550KL platform_data\n");
+                return false;
+        case 1://ASUS_ZE600KL
+                printk("ASUS_ZE600KL platform_data\n");
+                return true;
+        case 2://ASUS_ZX550KL
+                printk("ASUS_ZX550KL platform_data\n");
+                return false;
+        case 3://ASUS_ZD550KL
+                printk("ASUS_ZD550KL platform_data\n");
+                return false;
+        default:
+                printk("default platform_data\n");
+                return false;
+        }
+}
+
+
 #if ENABLE_FLASH_SELECT_PROC
 static int flash_select_proc_read(struct seq_file *buf, void *v)
 {
@@ -312,6 +333,17 @@ static int msm_flash_pinctrl_init(struct msm_led_flash_ctrl_t *ctrl)
 				__func__, __LINE__);
 		return -EINVAL;
 	}
+	
+	//asus-Andrew
+     if(is_ZE600KL_ZE601KL()) {
+          #define CAM_FLASH_PINCTRL_STATE_INIT "flash_err_default"
+             struct pinctrl_state *init_flash_pin = NULL;
+          init_flash_pin = pinctrl_lookup_state(
+             flash_pctrl->pinctrl,
+             CAM_FLASH_PINCTRL_STATE_INIT);
+          pinctrl_select_state(flash_pctrl->pinctrl, init_flash_pin);
+     }
+	
 	return 0;
 }
 

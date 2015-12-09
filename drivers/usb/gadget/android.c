@@ -495,7 +495,7 @@ static int android_enable(struct android_dev *dev)
 			}
 		}
 		usb_gadget_connect(cdev->gadget);
-                if(g_Charger_mode && !gadget_init.done){
+                if(!gadget_init.done){
                         gadget_init.done=1;
                         complete(&gadget_init);
                 }

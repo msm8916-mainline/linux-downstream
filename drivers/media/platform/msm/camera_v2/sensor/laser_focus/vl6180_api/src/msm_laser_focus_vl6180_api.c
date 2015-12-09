@@ -1224,12 +1224,23 @@ static const struct file_operations ATD_laser_focus_device_calibration_fops = {
 
 static int ATD_VL6180x_I2C_status_check(struct msm_laser_focus_ctrl_t *s_ctrl){
 	int32_t rc;
-
-	rc = VL6180x_power_up(vl6180x_t);
-	if (rc < 0) {
-		//kfree(vl6180x_t);
-		pr_err("%s VL6180x_power_up failed %d\n", __func__, __LINE__);
-		return 0;
+	
+	/* VL6180x only */
+	if(g_ASUS_laserID == 1){
+			rc = VL6180x_power_up(vl6180x_t);
+			if (rc < 0) {
+				//kfree(vl6180x_t);
+				pr_err("%s VL6180x_power_up failed %d\n", __func__, __LINE__);
+				return 0;
+			}
+	}
+	else{
+		rc = VL6180x_power_up(vl6180x_t);
+		if (rc < 0) {
+			//kfree(vl6180x_t);
+			pr_err("%s VL6180x_power_up failed %d\n", __func__, __LINE__);
+			return 0;
+		}
 	}
 	VL6180x_init(vl6180x_t);
 	if (rc < 0) {
@@ -1266,11 +1277,22 @@ static int ATD_VL6180x_I2C_status_check(struct msm_laser_focus_ctrl_t *s_ctrl){
 		pr_err("%s VL6180x_deinit failed %d\n", __func__, __LINE__);
 		return 0;
 	}
-	rc = VL6180x_power_down(vl6180x_t);
-	if (rc < 0) {
-		//kfree(vl6180x_t);
-		pr_err("%s VL6180x_power_down failed %d\n", __func__, __LINE__);
-		return 0;
+	
+	/* VL6180x only */
+	if(g_ASUS_laserID == 1){
+			rc = VL6180x_power_down(vl6180x_t);
+			if (rc < 0) {
+				//kfree(vl6180x_t);
+				pr_err("%s VL6180x_power_down failed %d\n", __func__, __LINE__);
+				return 0;
+			}
+	}else{
+		rc = VL6180x_power_down(vl6180x_t);
+		if (rc < 0) {
+			//kfree(vl6180x_t);
+			pr_err("%s VL6180x_power_down failed %d\n", __func__, __LINE__);
+			return 0;
+		}
 	}
 
 	vl6180x_check_status = 1;
@@ -1783,7 +1805,13 @@ static int32_t VL6180x_platform_probe(struct platform_device *pdev)
 
 	const struct of_device_id *match;
 	struct msm_camera_cci_client *cci_client = NULL;
-
+	
+	/*VL6180x only */
+	if(g_ASUS_laserID == 0){
+				printk("[LASER_FOCUS] It is Laura sensor, do nothing!!\n");
+				return -1;
+	}
+	
 	CDBG("Probe Start\n");
 	ATD_status = 0;
 

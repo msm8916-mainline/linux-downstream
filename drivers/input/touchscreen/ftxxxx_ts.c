@@ -179,6 +179,7 @@ u8 FTS_gesture_register_d7;
 struct ftxxxx_ts_data *ftxxxx_ts;
 //static bool touch_down_up_status;
 
+
 #define TOUCH_MAX_X						720
 #define TOUCH_MAX_Y						1280
 
@@ -777,6 +778,25 @@ static int ftxxxx_read_Touchdata(struct ftxxxx_ts_data *data)
 	return 0;
 }
 
+static int ASUS_check_point_position(u16 x, u16 y){
+
+	if(y > 1920){
+#ifdef ZE600KL_HD		
+		if( x < 50 || (210 <x && x < 275) || (445 < x && x < 510) || x > 670)
+			return 1;
+#endif
+#ifdef ZE601KL_FHD
+		if( x < 85 || (345 < x && x < 410) || (670 < x && x < 735) || x > 995)
+			return 1;
+#endif
+		return 0;
+	}else
+		return 0;
+
+	return 0;
+}
+
+
 /*
 *report the point information
 */
@@ -786,9 +806,24 @@ static void ftxxxx_report_value(struct ftxxxx_ts_data *data)
 	int i;
 	int uppoint = 0;
 	static u8 last_touchpoint; 
-	
+	bool report_point=true;
+	bool input_sync_enable=false;
+	u8 filter_touch_point=0;
 	/*protocol B*/
+	filter_touch_point = event->touch_point;
+	
 	for (i = 0; i < event->touch_point; i++) {
+		report_point=true;
+
+			if(ASUS_check_point_position(event->au16_x[i],event->au16_y[i])){
+						report_point=false;
+						filter_touch_point--;
+			}
+		
+	
+	
+		if(!report_point)
+			continue;
 		input_mt_slot(data->input_dev,event->au8_finger_id[i]);
 		if (event->au8_touch_event[i]== 0 || event->au8_touch_event[i] == 2) {
 			input_mt_report_slot_state(data->input_dev,MT_TOOL_FINGER,true);
@@ -808,7 +843,6 @@ static void ftxxxx_report_value(struct ftxxxx_ts_data *data)
 			/* --- asus jacob add for print touch location --- */
 		//A	input_mt_sync(data->input_dev);
 			input_mt_report_slot_state(data->input_dev,MT_TOOL_FINGER,false);
-			
 		}
 	//	if((event->au16_x[i]<0)||(event->au16_x[i]>720)||(event->au16_y[i]<0)||(event->au16_y[i]>1440))
 	//		printk(KERN_WARNING "id=%d event=%d x=%d y=%d pressure=%d area=%d\n", event->au8_finger_id[i],
@@ -822,22 +856,26 @@ static void ftxxxx_report_value(struct ftxxxx_ts_data *data)
 			input_mt_slot(data->input_dev,i);
 			input_mt_report_slot_state(data->input_dev,MT_TOOL_FINGER,false);
 		}
+		input_sync_enable=true;
 		last_touchpoint=0;
 	}
-	if(event->touch_point == uppoint) {
+	if(filter_touch_point == uppoint) {
+		input_sync_enable=true;
 		input_report_key(data->input_dev, BTN_TOUCH, 0);
 		//touch_down_up_status = 0;
 		/* +++ asus jacob add for print touch location +++ */
 		//memset(report_touch_locatoin_count, 0, sizeof(report_touch_locatoin_count));
 		/* --- asus jacob add for print touch location --- */
 	} else {
+		input_sync_enable=true;
 		input_report_key(data->input_dev, BTN_TOUCH, event->touch_point > 0);
 		//if (touch_down_up_status == 0) {
 		//	touch_down_up_status = 1;
 
 		}
-
-	input_sync(data->input_dev);
+	if(input_sync_enable || (filter_touch_point>0)){
+		input_sync(data->input_dev);
+	}
 	last_touchpoint=event->Cur_touchpoint;
 }
 
@@ -848,7 +886,6 @@ static irqreturn_t ftxxxx_ts_interrupt(int irq, void *dev_id)
 {
 /*	struct ftxxxx_ts_data *ftxxxx_ts = dev_id; ASUS jacob use globle ftxxxx_ts data*/
 	int ret = 0;
-	
 #ifdef FTS_GESTRUE/*zax 20140922*/
 	u8 state;
 #endif
@@ -880,8 +917,7 @@ static irqreturn_t ftxxxx_ts_interrupt(int irq, void *dev_id)
 							/*continue;*/
 						} else {
 #endif
-			ret = ftxxxx_read_Touchdata(ftxxxx_ts);
-
+			ret = ftxxxx_read_Touchdata(ftxxxx_ts);				
 			if ((ret == 0)&&(suspend_resume_process==false)&&(!disable_tp_flag))
 				ftxxxx_report_value(ftxxxx_ts);
 #ifdef FTS_GESTRUE/*zax 20140922*/

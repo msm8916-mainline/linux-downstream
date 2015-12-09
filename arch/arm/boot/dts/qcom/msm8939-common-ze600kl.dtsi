@@ -804,7 +804,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&usbid_default>;
 		qcom,usbid-gpio = <&msm_gpio 110 0>;
-		qcom,hsusb-otg-disable-reset;
+		/*qcom,hsusb-otg-disable-reset;*/
 		qcom,dp-manual-pullup;
 		qcom,hsusb-otg-mpm-dpsehv-int = <49>;
 		qcom,hsusb-otg-mpm-dmsehv-int = <58>;

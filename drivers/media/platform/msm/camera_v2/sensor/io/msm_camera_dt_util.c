@@ -1345,6 +1345,12 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 					SENSOR_GPIO_MAX);
 				goto power_up_failed;
 			}
+			//++++ sean_lu@asus.com add "support laser sensor 2nd source"
+			if(g_ASUS_laserID==0 && power_setting->seq_val == CAM_VAF){
+					printk("power up g_ASUS_laserID = %d",g_ASUS_laserID);
+					break;
+			}
+			//---- sean_lu@asus.com add "support laser sensor 2nd source"
 			if (power_setting->seq_val < ctrl->num_vreg)
 				msm_camera_config_single_vreg(ctrl->dev,
 				&ctrl->cam_vreg[power_setting->seq_val],
@@ -1537,6 +1543,12 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
 						pd->seq_type,
 						pd->seq_val);
 			if (ps) {
+				//++++ sean_lu@asus.com add "support laser sensor 2nd source"
+				if(g_ASUS_laserID==0 && ps->seq_val == CAM_VAF){
+							printk(" power down g_ASUS_laserID = %d",g_ASUS_laserID);
+							break;
+				}
+				//---- sean_lu@asus.com add "support laser sensor 2nd source"
 				if (pd->seq_val < ctrl->num_vreg)
 					msm_camera_config_single_vreg(ctrl->dev,
 					&ctrl->cam_vreg[pd->seq_val],

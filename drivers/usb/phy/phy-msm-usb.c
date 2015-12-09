@@ -3529,8 +3529,8 @@ static void msm_chg_detect_work(struct work_struct *w)
 	/* resume the device first if at all it resumes */
 	pm_runtime_resume(phy->dev);
 
-        if (g_Charger_mode && !gadget_init.done) {
-                ret = wait_for_completion_timeout(&gadget_init,msecs_to_jiffies(8000));
+        if (!gadget_init.done) {
+                ret = wait_for_completion_timeout(&gadget_init,msecs_to_jiffies(2000));
                 if (!ret)
                         dev_err(motg->phy.dev, "%so: timeout waiting for gadget driver\n",__func__);
         }

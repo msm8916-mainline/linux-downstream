@@ -36,9 +36,10 @@
 		label = "sky81296";
 		qcom,flash-type = <1>;
 		qcom,enable_pinctrl;
-		pinctrl-names = "cam_flash_default", "cam_flash_suspend";
+		pinctrl-names = "cam_flash_default", "cam_flash_suspend", "flash_err_default";
 		pinctrl-0 = <&cam_sensor_flash_default>;
 		pinctrl-1 = <&cam_sensor_flash_sleep>;
+		pinctrl-2 = <&flash_err_default>;
 		gpios = <&msm_gpio 31 0>,
 			<&msm_gpio 86 0>;
 		qcom,gpio-flash-en = <0>;

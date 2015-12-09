@@ -67,7 +67,10 @@ extern int Read_PROJ_ID(void);
 #define CM36283_VI2C_MAX_UV	1950000
 
 #define CONFIG_ASUS_FACTORY_SENSOR_MODE  1
-
+//<ASUS-danielchan20150921>>>>>>>>>+
+static uint16_t ZD_CLOSE_THD=0x90;
+static uint16_t ZD_AWAY_THD=0x50;
+//<ASUS-danielchan20150921><<<<<<<<+
 static int sensitivity_x = 20;
 static bool newold = 0 ; //20140523 Eve_Wen default = 0 means cm36283
 static int proximity_state = 1; //<asus-wx20150429+>
@@ -1074,6 +1077,32 @@ static int als_power(int enable)
 	return 0;
 }
 
+//<ASUS-danielchan20150921>>>>>>>>>+
+static void psensor_calibration_check(struct CM36283_info *lpi,uint16_t close_thd_value,uint16_t away_thd_value)
+{
+	printk("[PS][CM36283] psensor_calibration_check lpi->ps_away_thd_set:0x%x lpi->ps_close_thd_set:0x%x\n",lpi->ps_away_thd_set,lpi->ps_close_thd_set);
+	if((lpi->ps_away_thd_set == 0x100) &&  (lpi->ps_close_thd_set == 0x200) ) { //without calibration
+		if(newold ==0) {
+		    lpi->ps_away_thd_set = away_thd_value &0xFF;
+		    lpi->ps_close_thd_set = (close_thd_value &0xFF00)>>8;
+		} else {
+			lpi->ps_close_thd_set = close_thd_value;
+	        lpi->ps_away_thd_set = away_thd_value;
+		}
+        printk("[PS][CM36283] without calibration: ps_away_thd_set:0x%x ,ps_close_thd_set:0x%x\n",lpi->ps_away_thd_set,lpi->ps_close_thd_set);
+	} else if(lpi->ps_away_thd_set > lpi->ps_close_thd_set ) {//wrong calibration
+		if(newold ==0) {
+		    lpi->ps_away_thd_set = away_thd_value &0xFF;
+		    lpi->ps_close_thd_set = (close_thd_value &0xFF00)>>8;
+		} else {
+			lpi->ps_close_thd_set = close_thd_value;
+	        lpi->ps_away_thd_set = away_thd_value;
+		}
+		printk("[PS][CM36283] wrong calibration: ps_away_thd_set:0x%x ,ps_close_thd_set:0x%x\n",lpi->ps_away_thd_set,lpi->ps_close_thd_set);
+	}
+}
+//<ASUS-danielchan20150921><<<<<<<<+
+
 static void ls_initial_cmd(struct CM36283_info *lpi)
 {	
 	/*must disable l-sensor interrupt befrore IST create*//*disable ALS func*/
@@ -1091,7 +1120,17 @@ static void psensor_initial_cmd(struct CM36283_info *lpi)
 
 	lpi->ps_conf1_val = 0x3d7;
 	lpi->ps_conf3_val = 0x210;
-	
+
+	//<ASUS-danielchan20150921>>>>>>>>>+
+    switch (asus_PRJ_ID) {
+        case 3://ASUS_ZD550KL
+            psensor_calibration_check(lpi,ZD_CLOSE_THD,ZD_AWAY_THD);
+            break;
+        default:
+            break;
+    }
+	//<ASUS-danielchan20150921><<<<<<<<+
+
 	_CM36283_I2C_Write_Word(lpi->slave_addr, PS_CONF1, lpi->ps_conf1_val);
 	_CM36283_I2C_Write_Word(lpi->slave_addr, PS_CONF3, lpi->ps_conf3_val);
 
@@ -1263,8 +1302,17 @@ static long psensor_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 		}
 		else
 		{
+			//<ASUS-danielchan20150921>>>>>>>>>+
+			switch (asus_PRJ_ID) {
+				case 3://ASUS_ZD550KL
+					psensor_calibration_check(lpi,ZD_CLOSE_THD,ZD_AWAY_THD);
+					break;
+				default:
+					break;
+			}
+			//<ASUS-danielchan20150921><<<<<<<<+
 			_CM36283_I2C_Write_Word(lpi->slave_addr, PS_THDL, lpi->ps_away_thd_set);
-                        _CM36283_I2C_Write_Word(lpi->slave_addr, PS_THDH, lpi->ps_close_thd_set); 
+			_CM36283_I2C_Write_Word(lpi->slave_addr, PS_THDH, lpi->ps_close_thd_set);
 		}
 		break;
 
@@ -1729,6 +1777,15 @@ static ssize_t ps_thd_store(struct device *dev,	struct device_attribute *attr, c
 			
 	        lpi->ps_close_thd_set = code1;  
 	        lpi->ps_away_thd_set = code2;
+			//<ASUS-danielchan20150921>>>>>>>>>+
+			switch (asus_PRJ_ID) {
+				case 3://ASUS_ZD550KL
+					psensor_calibration_check(lpi,ZD_CLOSE_THD,ZD_AWAY_THD);
+					break;
+				default:
+					break;
+			}
+			//<ASUS-danielchan20150921><<<<<<<<+
 	        _CM36283_I2C_Write_Word(lpi->slave_addr, PS_THDH, lpi->ps_close_thd_set );
 	        _CM36283_I2C_Write_Word(lpi->slave_addr, PS_THDL, lpi->ps_away_thd_set );
 	        D("[PS][CM36686]%s: ps_close_thd_set = 0x%04x(%d), ps_away_thd_set = 0x%04x(%d)\n", __func__, lpi->ps_close_thd_set, lpi->ps_close_thd_set, lpi->ps_away_thd_set, lpi->ps_away_thd_set);
@@ -2289,7 +2346,7 @@ static int initial_CM36283(struct CM36283_info *lpi)
                 newold = 1;
         }
                 printk("p-sensor init OK!\n");
-        printk("p-sensor sensitivity = %d", sensitivity_x);
+        printk("p-sensor sensitivity = %d\n", sensitivity_x);
 	return 0;
 }
 

@@ -25,6 +25,7 @@
 #include <linux/slab.h>
 #include <linux/clk.h>
 #include <linux/asusdebug.h>
+#include <soc/qcom/socinfo.h>
 
 static void __iomem *msm_wcnss_base;
 static LIST_HEAD(power_on_lock_list);
@@ -134,6 +135,17 @@ static struct vregs_info iris_vregs_pronto_v2[] = {
 
 /* WCNSS regulators for Pronto v2 hardware */
 static struct vregs_info pronto_vregs_pronto_v2[] = {
+	{"qcom,pronto-vddmx",  VREG_NULL_CONFIG,
+		RPM_REGULATOR_CORNER_SUPER_TURBO,  0,
+		RPM_REGULATOR_CORNER_SUPER_TURBO, 0,    NULL},
+	{"qcom,pronto-vddcx",  VREG_NULL_CONFIG, RPM_REGULATOR_CORNER_NORMAL,
+		RPM_REGULATOR_CORNER_NONE, RPM_REGULATOR_CORNER_SUPER_TURBO,
+		0,             NULL},
+	{"qcom,pronto-vddpx",  VREG_NULL_CONFIG, 1800000, 0,
+		1800000, 0,    NULL},
+};
+
+static struct vregs_info pronto_vregs_pronto_v2_8939[] = {
 	{"qcom,pronto-vddmx",  VREG_NULL_CONFIG, 1287500,  0,
 		1287500, 0,    NULL},
 	{"qcom,pronto-vddcx",  VREG_NULL_CONFIG, RPM_REGULATOR_CORNER_NORMAL,
@@ -142,7 +154,6 @@ static struct vregs_info pronto_vregs_pronto_v2[] = {
 	{"qcom,pronto-vddpx",  VREG_NULL_CONFIG, 1800000, 0,
 		1800000, 0,    NULL},
 };
-
 
 struct host_driver {
 	char name[20];
@@ -569,7 +580,11 @@ static void wcnss_core_vregs_off(enum wcnss_hw_type hw_type,
 		break;
 	case WCNSS_PRONTO_HW:
 		if (is_pronto_vt) {
-			wcnss_vregs_off(pronto_vregs_pronto_v2,
+			if(cpu_is_msm8939())
+				wcnss_vregs_off(pronto_vregs_pronto_v2_8939,
+				ARRAY_SIZE(pronto_vregs_pronto_v2_8939));
+			else
+			    wcnss_vregs_off(pronto_vregs_pronto_v2,
 				ARRAY_SIZE(pronto_vregs_pronto_v2));
 		} else {
 			wcnss_vregs_off(pronto_vregs,
@@ -594,7 +609,11 @@ static int wcnss_core_vregs_on(struct device *dev,
 		break;
 	case WCNSS_PRONTO_HW:
 		if (is_pronto_vt) {
-			ret = wcnss_vregs_on(dev, pronto_vregs_pronto_v2,
+			if(cpu_is_msm8939())
+				ret = wcnss_vregs_on(dev, pronto_vregs_pronto_v2_8939,
+						ARRAY_SIZE(pronto_vregs_pronto_v2_8939));
+			else
+			    ret = wcnss_vregs_on(dev, pronto_vregs_pronto_v2,
 					ARRAY_SIZE(pronto_vregs_pronto_v2));
 		} else {
 			ret = wcnss_vregs_on(dev, pronto_vregs,

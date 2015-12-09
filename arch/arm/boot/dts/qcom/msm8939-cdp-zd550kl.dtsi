@@ -275,6 +275,15 @@
 	};
 	// ASUS_BSP --- srHuang HALL sensor
 
+// <asus-ben20151028+>
+        Project_ID_Pin {
+		compatible = "qcom,Project_ID_Pin";
+		pinctrl-names = "Project_ID_Pin_active","Project_ID_Pin_suspend";
+		pinctrl-0 = <&Project_ID_Pin_active>;
+		pinctrl-1 = <&Project_ID_Pin_suspend>;
+	};
+// <asus-ben20151028->
+
 	sound {
 		compatible = "qcom,msm8x16-audio-codec";
 		qcom,model = "msm8939-snd-card-mtp";

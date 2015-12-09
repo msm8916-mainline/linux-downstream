@@ -94,7 +94,7 @@ static void plsensor_work_handler(struct work_struct *w);
     #endif
 static void pl_timer_callback(unsigned long pl_data);
 #endif
-static int ap3426_probe_fail = 0;
+static int ap3426_probe_fail = 1; // <asus-olaf20151005+>
 struct ap3426_data {
     struct i2c_client *client;
     u8 reg_cache[AP3426_NUM_CACHABLE_REGS];//TO-DO
@@ -2562,6 +2562,7 @@ static int  ap3426_probe(struct i2c_client *client,
 	//enable_irq(data->client->irq);//need change
     	dev_info(&client->dev, "Driver version %s enabled\n", DRIVER_VERSION);
 	//pr_err("anna ap3426_probe end\n");
+	ap3426_probe_fail=0; // <asus-olaf20151005+>
     return 0;
 	
 err_ap3426_power_on:

@@ -230,6 +230,25 @@ static int get_lcd_id(char *str)
 __setup("LCD_ID=", get_lcd_id);
 //--- ASUS_BSP :  Add for get_lcd_id
 
+//++++ sean_lu@asus.com add "support laser sensor 2nd source"
+int g_ASUS_laserID = 1;
+
+static int set_laser_id(char *str)
+{
+    if ( strcmp("1", str) == 0 )
+    {
+        g_ASUS_laserID = 1;
+    }
+    else
+    {
+        g_ASUS_laserID = 0;
+    }
+    printk("Kernel LASER ID = %d\n", g_ASUS_laserID);
+    return 0;
+}
+__setup("LASER_ID=", set_laser_id);
+EXPORT_SYMBOL(g_ASUS_laserID);
+//---- sean_lu@asus.com add "support laser sensor 2nd source"
 
 //+++ ASUS_BSP :  Add for asus_project_stage @wigman_sun
 char asus_project_mem[2] = {0};

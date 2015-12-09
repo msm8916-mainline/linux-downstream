@@ -402,12 +402,14 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 		bkl_off = 1;
 	}else{
 		/*Don't Change CABC state within 2s after resuming*/
-		if (level < 21 && cabc_mode[1]==Still_MODE && balance_mode == 1 && resume2s == 1){	 //Close CABC when level is below 20 in balance mode
-			cabc_mode[1]=OFF_MODE;
-			set_tcon_cabc(cabc_mode[1]);
-		}else if(level >= 21 && cabc_mode[1]==OFF_MODE && balance_mode == 1 && resume2s == 1){ //Open CABC when level is over 20
-			cabc_mode[1]=Still_MODE;
-			set_tcon_cabc(cabc_mode[1]);
+		if((asus_lcd_id[0]!='4') && (asus_lcd_id[0]!='6') && (asus_lcd_id[0]!='7')){
+			if (level < 21 && cabc_mode[1]==Still_MODE && balance_mode == 1 && resume2s == 1){	 //Close CABC when level is below 20 in balance mode
+				cabc_mode[1]=OFF_MODE;
+				set_tcon_cabc(cabc_mode[1]);
+			}else if(level >= 21 && cabc_mode[1]==OFF_MODE && balance_mode == 1 && resume2s == 1){ //Open CABC when level is over 20
+				cabc_mode[1]=Still_MODE;
+				set_tcon_cabc(cabc_mode[1]);
+			}
 		}
 		if(bkl_off){
 			if( (asus_lcd_id[0] == '2') || (asus_lcd_id[0] == '3') )

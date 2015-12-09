@@ -1392,10 +1392,10 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 	 * all btn_low corresponds to threshold for current source
 	 * all bt_high corresponds to threshold for Micbias
 	 */
-	btn_low[0] = 87;
-	btn_high[0] = 100;
-	btn_low[1] = 112;
-	btn_high[1] = 150;
+	btn_low[0] = 75;
+	btn_high[0] = 87;
+	btn_low[1] = 100;
+	btn_high[1] = 125;
 	btn_low[2] = 250;
 	btn_high[2] = 300;
 	btn_low[3] = 462;

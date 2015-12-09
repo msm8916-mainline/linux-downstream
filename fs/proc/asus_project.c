@@ -187,25 +187,25 @@ static void create_project_hd_proc_file(void)
     }
 }
 
-// <asus-olaf20150715+>
-int ZE600KL_Project_ID_Pin_Pinctrl_Configure(struct platform_device *pdev, bool active)
+// <asus-olaf20150904+>
+int ZE600KL_Project_ID_Pin_Pinctrl_Configure(struct device *dev, bool active)
 {
 	struct pinctrl_state *set_state;
 	int retval = 0;
 	if (active) {
-		set_state =	pinctrl_lookup_state(devm_pinctrl_get(&pdev->dev), "Project_ID_Pin_active");
+		set_state =	pinctrl_lookup_state(devm_pinctrl_get(dev), "Project_ID_Pin_active");
 		if (IS_ERR(set_state)) {
 			printk("cannot get project id pin pinctrl active state\n");
 			return PTR_ERR(set_state);
 		}
 	} else {
-		set_state = pinctrl_lookup_state(devm_pinctrl_get(&pdev->dev), "Project_ID_Pin_suspend");
+		set_state = pinctrl_lookup_state(devm_pinctrl_get(dev), "Project_ID_Pin_suspend");
 		if (IS_ERR(set_state)) {
 			printk("cannot get project id pin pinctrl sleep state\n");
 			return PTR_ERR(set_state);
 		}
 	}
-	retval = pinctrl_select_state(devm_pinctrl_get(&pdev->dev), set_state);
+	retval = pinctrl_select_state(devm_pinctrl_get(dev), set_state);
 	if (retval) {
 		printk("cannot set project id pin pinctrl active state\n");
 		return retval;
@@ -213,27 +213,105 @@ int ZE600KL_Project_ID_Pin_Pinctrl_Configure(struct platform_device *pdev, bool 
 	return retval;
 }
 
+int ZD550KL_Project_ID_Pin_Pinctrl_Configure(struct device *dev, bool active)
+{
+	struct pinctrl_state *set_state;
+	int retval = 0;
+	if (active) {
+		set_state =	pinctrl_lookup_state(devm_pinctrl_get(dev), "Project_ID_Pin_active");
+		if (IS_ERR(set_state)) {
+			printk("cannot get project id pin pinctrl active state\n");
+			return PTR_ERR(set_state);
+		}
+	} else {
+		set_state = pinctrl_lookup_state(devm_pinctrl_get(dev), "Project_ID_Pin_suspend");
+		if (IS_ERR(set_state)) {
+			printk("cannot get project id pin pinctrl sleep state\n");
+			return PTR_ERR(set_state);
+		}
+	}
+	retval = pinctrl_select_state(devm_pinctrl_get(dev), set_state);
+	if (retval) {
+		printk("cannot set project id pin pinctrl active state\n");
+		return retval;
+	}
+	return retval;
+}
+
+
 static int Project_ID_Pin_Probe(struct platform_device *pdev)
 {
 	int error = 0;
+	struct device *dev = &pdev->dev;
 	switch (asus_PRJ_ID) {
-		//case 0: // ASUS_ZE550KL
-		//	break;
 		case 1: // ASUS_ZE600KL     config project gpio ID pin to "Input Pull Up 2mA"
-			error = ZE600KL_Project_ID_Pin_Pinctrl_Configure(pdev, true);
+			printk("Set ZE600KL Project ID Pin Input Pull Up 2mA\n");
+			error = ZE600KL_Project_ID_Pin_Pinctrl_Configure(dev, true);
 			if (error) {
 				printk("cannot set ZE600KL project id pin pinctrl active state\n");
 			}
 			break;
-		//case 2: // ASUS_ZX550KL
-		//	break;
-		//case 3: // ASUS_ZD550KL
-		//	break;
+		case 3: // ASUS_ZD550KL     config project gpio ID pin to "Input Pull Up 2mA"
+			printk("Set ZD550KL Project ID Pin Input Pull Up 2mA\n");
+			error = ZD550KL_Project_ID_Pin_Pinctrl_Configure(dev, true);
+			if (error) {
+				printk("cannot set ZD550KL project id pin pinctrl active state\n");
+			}
+			break;
 		default:
 			break;
 	}
 	return error;
 }
+
+static int Project_ID_Pin_Suspend(struct device *dev)
+{
+	int error = 0;
+	switch (asus_PRJ_ID) {
+		case 1: // ASUS_ZE600KL     set project gpio ID pin to "Input Pull Down 2mA" in Suspend state
+			error = ZE600KL_Project_ID_Pin_Pinctrl_Configure(dev, false);
+			if (error) {
+				printk("failed to pull down ID pin in suspend state\n");
+			}
+			printk("pull ID pin down in suspend state success\n");
+			break;
+		case 3: // ASUS_ZD550KL     set project gpio ID pin to "Input Pull Down 2mA" in Suspend state
+			error = ZD550KL_Project_ID_Pin_Pinctrl_Configure(dev, false);
+			if (error) {
+				printk("failed to pull down ID pin in suspend state\n");
+			}
+			printk("pull ID pin down in suspend state success\n");
+			break;
+		default:
+			break;
+	}
+	return error;
+}
+
+static int Project_ID_Pin_Resume(struct device *dev)
+{
+	int error = 0;
+	switch (asus_PRJ_ID) {
+		case 1: // ASUS_ZE600KL     set project gpio ID pin to "Input Pull Up 2mA" in Resume state
+			error = ZE600KL_Project_ID_Pin_Pinctrl_Configure(dev, true);
+			if (error) {
+				printk("failed to pull up ID pin in resume state\n");
+			}
+			printk("pull ID pin up in resume state success\n");
+			break;
+		case 3: // ASUS_ZD550KL     set project gpio ID pin to "Input Pull Up 2mA" in Resume state
+			error = ZD550KL_Project_ID_Pin_Pinctrl_Configure(dev, true);
+			if (error) {
+				printk("failed to pull up ID pin in resume state\n");
+			}
+			printk("pull ID pin up in resume state success\n");
+			break;
+		default:
+			break;
+	}
+	return error;
+}
+
 #define DRIVER_NAME "Project_ID_Pin"
 
 static const struct platform_device_id Project_ID_Pin_table[] = {
@@ -245,16 +323,19 @@ static struct of_device_id Project_ID_Pin_match_table[] = {
 	{},
 };
 
+static SIMPLE_DEV_PM_OPS(Project_ID_Pin_PM_ops, Project_ID_Pin_Suspend, Project_ID_Pin_Resume);
+
 static struct platform_driver Project_ID_Pin_Init = {
     .driver = {
         .name = DRIVER_NAME,
         .owner = THIS_MODULE,
+		.pm	= &Project_ID_Pin_PM_ops,
         .of_match_table = Project_ID_Pin_match_table,
     },
     .probe    = Project_ID_Pin_Probe,	
     .id_table = Project_ID_Pin_table,
 };
-// <asus-olaf20150715->
+// <asus-olaf20150904->
 
 static int __init proc_asusPRJ_init(void)
 {

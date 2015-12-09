@@ -581,7 +581,12 @@ static int32_t msm_actuator_vreg_control(struct msm_actuator_ctrl_t *a_ctrl,
 		pr_err("%s failed %d cnt %d\n", __func__, __LINE__, cnt);
 		return -EINVAL;
 	}
-
+	//++++ sean_lu@asus.com add "support laser sensor 2nd source"
+	if(g_ASUS_laserID==0){
+			printk("power vcm g_ASUS_laserID = %d",g_ASUS_laserID);
+			return 0;
+	}
+	//---- sean_lu@asus.com add "support laser sensor 2nd source"
 	for (i = 0; i < cnt; i++) {
 		rc = msm_camera_config_single_vreg(&(a_ctrl->pdev->dev),
 			&vreg_cfg->cam_vreg[i],

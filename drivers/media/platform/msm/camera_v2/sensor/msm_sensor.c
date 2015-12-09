@@ -1059,7 +1059,9 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 		break;
 	}
-
+	case CFG_SET_STOP_STREAM:
+		usleep(49000);
+		break;
 	default:
 		rc = -EFAULT;
 		break;
@@ -1442,6 +1444,9 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 		}
 		break;
 	}
+	case CFG_SET_STOP_STREAM:
+		usleep(49000);
+		break;
 	default:
 		rc = -EFAULT;
 		break;
