@@ -1602,6 +1602,7 @@ static int __init msm_sensor_driver_init(void)
 	int32_t rc = 0;
 
 	CDBG("Enter");
+	msm_sensor_create_workqueue();
 	rc = platform_driver_probe(&msm_sensor_platform_driver,
 		msm_sensor_driver_platform_probe);
 	if (!rc) {
@@ -1619,6 +1620,7 @@ static int __init msm_sensor_driver_init(void)
 static void __exit msm_sensor_driver_exit(void)
 {
 	CDBG("Enter");
+	msm_sensor_destroy_workqueue();
 	platform_driver_unregister(&msm_sensor_platform_driver);
 	i2c_del_driver(&msm_sensor_driver_i2c);
 	return;

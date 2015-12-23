@@ -289,6 +289,7 @@
 			qcom,force-s3-on-suspend;
 			qcom,force-s2-in-charging;
 			qcom,report-charger-eoc;
+			qcom,batt-aging-comp;
 
 			qcom,batt-pres-status@1208 {
 				reg = <0x1208 0x1>;

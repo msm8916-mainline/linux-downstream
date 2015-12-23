@@ -1884,9 +1884,7 @@ int g_charge_full = 2070;
 int g_charge_now = 1035;
 void judge_charge_now(int soc)
 {
-	int temp_int;
-	temp_int = g_charge_full * soc / 100;
-	g_charge_now = temp_int;
+	g_charge_now = get_vm_bms_fcc() * soc / 100;
 }
 void judge_charge_full(int batID)
 {
@@ -2559,6 +2557,7 @@ qpnp_vm_bms_property_is_writeable(struct power_supply *psy,
 	return 0;
 }
 
+
 static int qpnp_vm_bms_power_get_property(struct power_supply *psy,
 					enum power_supply_property psp,
 					union power_supply_propval *val)
@@ -2616,7 +2615,7 @@ static int qpnp_vm_bms_power_get_property(struct power_supply *psy,
 		val->intval = g_charge_now;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
-		val->intval = g_charge_full;
+		val->intval = g_bms_fcc;
 		break;
 	default:
 		return -EINVAL;
@@ -2800,9 +2799,6 @@ static void bms_new_battery_setup(struct qpnp_bms_chip *chip)
 }
 
 /* bsp weiyu ++*/
-
-extern int asus_battery_update_status(bool chg_done);
-
 static void more_insertion_check(struct qpnp_bms_chip *chip, int* pres){
 
 	if(*pres){
@@ -4309,8 +4305,71 @@ unregister_chrdev:
 	return rc;
 }
 
-//++
 
+
+//bsp weiyu: SOH info for CSC +++
+#define batt_soh_FILE_PROC "driver/battery_soh"
+static struct proc_dir_entry * batt_soh_file_proc;
+
+static int batt_soh_read_proc(struct seq_file *buf, void *v){
+
+	//DC: design capacity
+	int temp,battery_volt,cycle_count;
+	int rc = 0;
+
+	if(!(the_chip && the_chip->dt.cfg_battery_aging_comp)){
+		seq_printf(buf,"FAIL\n");
+		return 0;
+	}
+	
+	rc = get_batt_therm(the_chip,&temp);
+	rc = get_battery_voltage(the_chip, &battery_volt);	
+	cycle_count = the_chip->charge_cycles;	
+
+	judge_charge_now(mapping_for_full_status(the_chip->last_soc));
+	
+	if(rc < 0){
+		seq_printf(buf,"FAIL\n");
+		return 0;
+	}
+	else{
+		seq_printf(buf,"FCC=%d(mah),DC=%d(mah),RM=%d(mah),TEMP=%d(C),VOLT=%d(mV),CUR=%d(mA),CC=%d\n", 
+			g_bms_fcc,
+			g_charge_full,
+			g_charge_now,
+			temp/10,
+			battery_volt/1000,
+			the_chip->current_now/1000,
+			cycle_count);
+
+		return 0;
+	}
+}
+
+static int batt_soh_open_proc(struct inode *inode, struct file *file){
+	return single_open(file, batt_soh_read_proc, NULL);
+}
+
+static ssize_t batt_soh_write_proc(struct file *filp, const char __user *buff, 
+	size_t len, loff_t *data ){
+	return len;
+}	
+
+static const struct file_operations batt_soh_fops = {
+	.owner = THIS_MODULE,
+	.open = batt_soh_open_proc,
+	.write = batt_soh_write_proc,
+	.read = seq_read,
+};
+void static create_batt_soh_file_proc(void){
+	batt_soh_file_proc =  proc_create(batt_soh_FILE_PROC, 0644, NULL, &batt_soh_fops);
+	if(batt_soh_file_proc)
+		printk("batt_soh_proc_valid\n");
+	else
+		printk("batt_soh_proc_invalid\n");
+}
+
+//bsp weiyu: SOH info for CSC ---
 
 #define tmp_div 1
 #define tmp_pa 1000
@@ -4746,7 +4805,7 @@ static int qpnp_vm_bms_probe(struct spmi_device *spmi)
 	// weiyu enable charging+++
 	smb358_charging_toggle(FLAGS, true, true);
 
-				
+	create_batt_soh_file_proc();			
 	create_batt_pres_file_proc();
 	create_gaugeIC_status_proc_file();
 	create_bat_voltage_proc_file();

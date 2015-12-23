@@ -29,6 +29,13 @@
 #include <linux/syscore_ops.h>
 #include <linux/tick.h>
 #include <trace/events/power.h>
+//ASUS Joy_Lin +++
+#include <asm/uaccess.h>
+#include <linux/proc_fs.h>
+#include <linux/cpufreq.h>
+#include <linux/timer.h>
+#define ASUS_CB_FREQ_FILE "ASUS_CB_freq"
+//ASUS Joy_Lin ---
 
 /**
  * The "cpufreq driver" - the arch- or hardware-dependent low
@@ -1968,10 +1975,80 @@ EXPORT_SYMBOL(cpufreq_get_policy);
  * policy : current policy.
  * new_policy: policy to be set.
  */
+//ASUS Joy_Lin +++
+unsigned int asus_boost_freq = 0;
+static int readflag = 0;
+static DEFINE_MUTEX(boost_freq_control_mutex);
+
+static ssize_t asus_proc_file_read_file(struct file *filp, char __user *buff, size_t len, loff_t *off)
+{
+	char print_buf[32];
+	unsigned int ret = 0,iret = 0;
+	sprintf(print_buf, "asusdebug: %s\n", asus_boost_freq? "on":"off");
+
+	ret = strlen(print_buf);
+	iret = copy_to_user(buff, print_buf, ret);
+	if (!readflag){
+		readflag = 1;
+		return ret;
+	}
+	else{
+		readflag = 0;
+		return 0;
+	}
+}
+
+static ssize_t __ref asus_proc_file_write_file(struct file *filp, const char __user *buff, size_t len, loff_t *off)
+{
+	char messages[32];
+	int i;
+
+	memset(messages, 0, 32);
+	if (len > 32)
+		len = 32;
+	if (copy_from_user(messages, buff, len))
+		return -EFAULT;
+	messages[1]='\0';
+	printk("[POWER_HINT_CAM] CPUfeq boost:%s\n",messages);
+	mutex_lock(&boost_freq_control_mutex);
+	if(strncmp(messages, "1", 1) == 0)
+	{
+		asus_boost_freq = 1;
+		for(i=0; i<4; i++){
+			cpufreq_update_policy(i);
+		}
+	}
+	else if(strncmp(messages, "0", 1) == 0)
+	{
+		asus_boost_freq = 0;
+		for(i=0; i<4; i++){
+			cpufreq_update_policy(i);
+		}
+	}
+	else
+		return 0;
+	mutex_unlock(&boost_freq_control_mutex);
+	return len;
+	}
+
+static struct file_operations create_asus_proc_file = {
+	.read = asus_proc_file_read_file,
+	.write = asus_proc_file_write_file,
+};
+
+static int __init camera_boost_init(void)
+{
+	proc_create(ASUS_CB_FREQ_FILE, S_IRWXUGO, NULL, &create_asus_proc_file);
+	return 0;
+}
+module_init(camera_boost_init);
+//ASUS Joy_Lin ---
+
 static int cpufreq_set_policy(struct cpufreq_policy *policy,
 				struct cpufreq_policy *new_policy)
 {
 	int ret = 0, failed = 1;
+	int cpuinfo_max = 0;
 
 	pr_debug("setting new policy for CPU %u: %u - %u kHz\n", new_policy->cpu,
 		new_policy->min, new_policy->max);
@@ -2009,8 +2086,17 @@ static int cpufreq_set_policy(struct cpufreq_policy *policy,
 	blocking_notifier_call_chain(&cpufreq_policy_notifier_list,
 			CPUFREQ_NOTIFY, new_policy);
 
-	policy->min = new_policy->min;
-	policy->max = new_policy->max;
+	//ASUS Joy_Lin +++
+	cpuinfo_max = policy->cpuinfo.max_freq;
+	if( asus_boost_freq == 1 && policy->max > 800000 ){
+		policy->max = cpuinfo_max;
+		policy->min = policy->max;
+	}
+	else{
+		policy->min = new_policy->min;
+		policy->max = new_policy->max;
+	}
+	//ASUS Joy_Lin ---
 
 	pr_debug("new min and max freqs are %u - %u kHz\n",
 					policy->min, policy->max);

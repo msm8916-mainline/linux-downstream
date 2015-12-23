@@ -177,6 +177,12 @@ struct msm_laser_focus {
 #define	DEVICE_DUMP_DEBUG_VALUE	"driver/LaserFocus_debug_dump"	/* Dump register value for vl6180x debug */
 #define	DEVICE_ENFORCE_FILE	"driver/LaserFocus_enforce"	/* Disable laser focus value */
 #define	DEVICE_LOG_CTRL_FILE	"driver/LaserFocus_log_ctrl"	/* Log contorl */
+#define DEVICE_DEBUG_VALUE1	"driver/LaserFocus_log_value1" /* Debug value for CE collect data */
+#define DEVICE_DEBUG_VALUE2	"driver/LaserFocus_log_value2" /* Debug value for CE collect data */
+#define DEVICE_DEBUG_VALUE3	"driver/LaserFocus_log_value3" /* Debug value for CE collect data */
+#define DEVICE_DEBUG_VALUE4	"driver/LaserFocus_log_value4" /* Debug value for CE collect data */
+#define DEVICE_DEBUG_VALUE5	"driver/LaserFocus_log_value5" /* Debug value for CE collect data */
+#define DEVICE_DEBUG_VALUE6 "driver/LaserFocus_log_value6" /* Debug value for CE collect data */
 
 /* Right of laser focus control file*/
 #ifdef ASUS_FACTORY_BUILD
@@ -190,6 +196,7 @@ struct msm_laser_focus {
 #define	DEVICE_DUMP_DEBUG_VALUE_MODE 0777	/* Dump register value right for vl6180x debug */
 #define	DEVICE_ENFORCE_MODE	0777	/* Laser focus disable right */
 #define	DEVICE_LOG_CTRL_MODE	0777	/* Log contorl right */
+#define DEVICE_DEBUG_VALUE_MODE	0777	/* Debug node righe */
 #else
 #define	STATUS_PROC_FILE_MODE 0660	/* Status right */
 #define	STATUS_PROC_FILE_FOR_CAMERA_MODE 0660	/* Status (check on prob only) right */
@@ -201,6 +208,7 @@ struct msm_laser_focus {
 #define	DEVICE_DUMP_DEBUG_VALUE_MODE 0660	/* Dump register value right for vl6180x debug */
 #define	DEVICE_ENFORCE_MODE	0660	/* Laser focus disable right */
 #define	DEVICE_LOG_CTRL_MODE	0660	/* Log contorl right */
+#define DEVICE_DEBUG_VALUE_MODE 0664	/* Debug node right */
 #endif
 
 /* Delay time */

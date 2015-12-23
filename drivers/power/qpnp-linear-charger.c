@@ -203,6 +203,7 @@ static enum power_supply_property msm_batt_power_props[] = {
 	POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL,
 	POWER_SUPPLY_PROP_CHARGE_NOW,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_TECHNOLOGY,
 };
 
 static char *pm_batt_supplied_to[] = {
@@ -1598,6 +1599,7 @@ static int qpnp_batt_power_set_property(struct power_supply *psy,
 
 extern int g_charge_full;
 extern int g_charge_now;
+extern int asus_battery_update_status(void);
 static int qpnp_batt_power_get_property(struct power_supply *psy,
 				       enum power_supply_property psp,
 				       union power_supply_propval *val)
@@ -1655,6 +1657,12 @@ static int qpnp_batt_power_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		val->intval = g_charge_full;
 		break;
+	case POWER_SUPPLY_PROP_TECHNOLOGY:
+		if(asus_battery_update_status()==0)
+			val->intval = POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
+		else
+			val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
+		break;				
 	default:
 		return -EINVAL;
 	}

@@ -118,4 +118,6 @@ long msm_sensor_subdev_fops_ioctl(struct file *file,
 	unsigned int cmd,
 	unsigned long arg);
 #endif
+void msm_sensor_create_workqueue(void);
+void  msm_sensor_destroy_workqueue(void);
 #endif

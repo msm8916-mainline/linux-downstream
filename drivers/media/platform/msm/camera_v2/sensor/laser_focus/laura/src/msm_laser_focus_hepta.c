@@ -618,6 +618,200 @@ static const struct file_operations laser_focus_log_contorl_fops = {
 	.release = single_release,
 };
 
+/*++++++++++CSC Debug++++++++++*/
+static int dump_Laura_debug_value1_read(struct seq_file *buf, void *v)
+{
+	int16_t cal_data[SIZE_OF_LAURA_CALIBRATION_DATA];
+
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	
+	Laura_Read_Calibration_Value_From_File(NULL, cal_data);
+
+	seq_printf(buf,"%d",cal_data[3]);	
+	
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+
+	return 0;
+}
+
+static int dump_Laura_laser_focus_debug_value1_open(struct inode *inode, struct  file *file)
+{
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	return single_open(file, dump_Laura_debug_value1_read, NULL);
+}
+
+static const struct file_operations dump_laser_focus_debug_value1_fops = {
+	.owner = THIS_MODULE,
+	.open = dump_Laura_laser_focus_debug_value1_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int dump_Laura_debug_value2_read(struct seq_file *buf, void *v)
+{
+	int16_t cal_data[SIZE_OF_LAURA_CALIBRATION_DATA];
+
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	
+	Laura_Read_Calibration_Value_From_File(NULL, cal_data);
+
+    seq_printf(buf,"%d",cal_data[4]);
+
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+
+	return 0;
+}
+
+static int dump_Laura_laser_focus_debug_value2_open(struct inode *inode, struct  file *file)
+{
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	return single_open(file, dump_Laura_debug_value2_read, NULL);
+}
+
+static const struct file_operations dump_laser_focus_debug_value2_fops = {
+	.owner = THIS_MODULE,
+	.open = dump_Laura_laser_focus_debug_value2_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int dump_Laura_debug_value3_read(struct seq_file *buf, void *v)
+{
+	int16_t cal_data[SIZE_OF_LAURA_CALIBRATION_DATA];
+
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	
+	Laura_Read_Calibration_Value_From_File(NULL, cal_data);
+
+    seq_printf(buf,"%d",cal_data[6]);
+
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+
+	return 0;
+}
+
+static int dump_Laura_laser_focus_debug_value3_open(struct inode *inode, struct  file *file)
+{
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	return single_open(file, dump_Laura_debug_value3_read, NULL);
+}
+
+static const struct file_operations dump_laser_focus_debug_value3_fops = {
+	.owner = THIS_MODULE,
+	.open = dump_Laura_laser_focus_debug_value3_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int dump_Laura_debug_value4_read(struct seq_file *buf, void *v)
+{
+	int16_t cal_data[SIZE_OF_LAURA_CALIBRATION_DATA];
+
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	
+	Laura_Read_Calibration_Value_From_File(NULL, cal_data);
+
+    seq_printf(buf,"%d",cal_data[7]);
+
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+
+	return 0;
+}
+
+static int dump_Laura_laser_focus_debug_value4_open(struct inode *inode, struct  file *file)
+{
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	return single_open(file, dump_Laura_debug_value4_read, NULL);
+}
+
+static const struct file_operations dump_laser_focus_debug_value4_fops = {
+	.owner = THIS_MODULE,
+	.open = dump_Laura_laser_focus_debug_value4_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int dump_Laura_debug_value5_read(struct seq_file *buf, void *v)
+{
+	int16_t cal_data[SIZE_OF_LAURA_CALIBRATION_DATA];
+
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	
+	Laura_Read_Calibration_Value_From_File(NULL, cal_data);
+
+    seq_printf(buf,"%d",cal_data[8]);
+
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+
+	return 0;
+}
+
+static int dump_Laura_laser_focus_debug_value5_open(struct inode *inode, struct  file *file)
+{
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	return single_open(file, dump_Laura_debug_value5_read, NULL);
+}
+
+static const struct file_operations dump_laser_focus_debug_value5_fops = {
+	.owner = THIS_MODULE,
+	.open = dump_Laura_laser_focus_debug_value5_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int dump_Laura_debug_value6_read(struct seq_file *buf, void *v)
+{
+	int16_t rc = 0, RawConfidence = 0, confidence_level = 0;;
+	
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+
+	if (laura_t->device_state == MSM_LASER_FOCUS_DEVICE_OFF ||
+		laura_t->device_state == MSM_LASER_FOCUS_DEVICE_DEINIT_CCI) {
+		LOG_Handler(LOG_ERR, "%s: Device without turn on: (%d) \n", __func__, laura_t->device_state);
+		return -EBUSY;
+	}
+
+	/* Read result confidence level */
+	rc = CCI_I2C_RdWord(laura_t, 0x0A, &RawConfidence);
+	if (rc < 0){
+		return rc;
+	}
+	RawConfidence = swap_data(RawConfidence);
+	confidence_level = (RawConfidence&0x7fff)>>4;
+	
+	seq_printf(buf,"%d",confidence_level);
+
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+
+	return 0;
+}
+
+static int dump_Laura_laser_focus_debug_value6_open(struct inode *inode, struct  file *file)
+{
+	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
+	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
+	return single_open(file, dump_Laura_debug_value6_read, NULL);
+}
+
+static const struct file_operations dump_laser_focus_debug_value6_fops = {
+	.owner = THIS_MODULE,
+	.open = dump_Laura_laser_focus_debug_value6_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+/*----------CSC Debug----------*/
+
 static void Laura_create_proc_file(void)
 {
 	LOG_Handler(LOG_CDBG, "%s: Enter Create Proc File\n", __func__);
@@ -633,6 +827,14 @@ static void Laura_create_proc_file(void)
 	create_proc_file(DEVICE_DUMP_DEBUG_VALUE, DEVICE_DUMP_DEBUG_VALUE_MODE, NULL, &dump_laser_focus_debug_register_fops);
 	create_proc_file(DEVICE_ENFORCE_FILE, DEVICE_ENFORCE_MODE, NULL, &laser_focus_enforce_fops);
 	create_proc_file(DEVICE_LOG_CTRL_FILE, DEVICE_LOG_CTRL_MODE, NULL, &laser_focus_log_contorl_fops);
+	/*++++++++++CSC Debug++++++++++*/
+	create_proc_file(DEVICE_DEBUG_VALUE1, DEVICE_DEBUG_VALUE_MODE, NULL, &dump_laser_focus_debug_value1_fops);
+	create_proc_file(DEVICE_DEBUG_VALUE2, DEVICE_DEBUG_VALUE_MODE, NULL, &dump_laser_focus_debug_value2_fops);
+	create_proc_file(DEVICE_DEBUG_VALUE3, DEVICE_DEBUG_VALUE_MODE, NULL, &dump_laser_focus_debug_value3_fops);
+	create_proc_file(DEVICE_DEBUG_VALUE4, DEVICE_DEBUG_VALUE_MODE, NULL, &dump_laser_focus_debug_value4_fops);
+	create_proc_file(DEVICE_DEBUG_VALUE5, DEVICE_DEBUG_VALUE_MODE, NULL, &dump_laser_focus_debug_value5_fops);
+	create_proc_file(DEVICE_DEBUG_VALUE6, DEVICE_DEBUG_VALUE_MODE, NULL, &dump_laser_focus_debug_value6_fops);
+	/*----------CSC Debug----------*/
 
 	LOG_Handler(LOG_CDBG, "%s: Exit Create Proc File\n", __func__);
 }
