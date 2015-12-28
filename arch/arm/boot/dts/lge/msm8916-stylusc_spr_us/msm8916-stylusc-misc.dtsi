@@ -1,0 +1,81 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	hall-s5717 {
+		compatible = "seiko,hall-s5717";
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <117 0x0>;
+		hallic-pouch-irq-gpio = <&msm_gpio 117 0x00>;
+		status = "ok";
+	};
+};
+
+&spmi_bus {
+	qcom,pm8916@1 {
+		qcom,vibrator@c000 {
+			status = "ok";
+			qcom,vib-timeout-ms = <15000>;
+			qcom,vib-vtg-level-mV = <3100>;
+		};
+
+		qcom,pwm@bc00 {
+			status = "okay";
+			compatible = "qcom,qpnp-pwm";
+			reg = <0xbc00 0x100>;
+			reg-names = "qpnp-lpg-channel-base";
+			qcom,channel-id = <0>;
+			qcom,supported-sizes = <6>, <9>;
+			qcom,period = <6000000>;
+			qcom,mode-select = <0>;
+			qcom,lpg-dtest-line = <1>;
+			qcom,dtest-output = <1>;
+			qcom,pwm {
+				qcom,duty = <4000000>;
+				label = "pwm";
+			};
+		};
+	};
+};
+/* Merged to msm8916-e2-camera.dtsi (for flash led driver)
+&i2c_4 {
+	rt8542@39 {
+		compatible = "backlight,rt8542";
+		status = "ok";
+		reg = <0x39>;
+		rt8542,lcd_bl_en = <&msm_gpio 98 0x00>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bklight_en_active>;
+		pinctrl-1 = <&bklight_en_suspend>;
+		rt8542,max_current = <0x14>;
+		rt8542,min_brightness = <0x04>;
+		rt8542,default_brightness = <0x66>;
+		rt8542,max_brightness = <0x7D>;
+		rt8542,enable_pwm = <0>;
+		rt8542,blmap_size = <127>;
+		rt8542,blmap = <
+			5 5 5 5 5 5 5 5 5 5             //9
+			5 5 5 6 6 6 6 6 6 6             //19
+			6 6 6 6 6 6 7 7 7 7             //29
+			7 7 7 8 8 8 8 9 9 9             //39
+			10 10 10 11 11 11 12 12 12 12   //49
+			13 13 14 14 14 14 15 15 15 16   //59
+			17 18 19 20 20 21 22 23 23 24   //69
+			24 25 25 25 26 26 26 27 27 27   //79
+			27 28 29 30 31 32 33 34 35 36   //89
+			37 38 38 39 40 41 42 43 44 45   //99
+			46 47 48 49 50 52 53 54 55 56   //109
+			57 58 59 60 61 63 64 65 67 68   //119
+			70 71 73 75 77 79 80>;
+	};
+};
+*/

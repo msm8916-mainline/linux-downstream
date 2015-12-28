@@ -1,0 +1,16 @@
+#
+# Synaptics TD4191 touchscreen driver configuration
+#
+config TOUCHSCREEN_LGE_SYNAPTICS_TD4191
+	tristate "Synaptics TD4191 I2C Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have Synaprics I2C touchscreen,
+	  such as TD4191, connected to your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called synaptics_TD4191.
+
+source "drivers/input/touchscreen/TD4191/synaptics_dsx/Kconfig"

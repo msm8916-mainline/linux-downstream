@@ -1,0 +1,145 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_0{
+	 /* BLSP1 QUP2, LGP-s19 sensor devices */
+
+	/* Acceleration sensor */
+	bosch_bma2x2_rev_a@10 {
+		revision = "...rev_a";
+		compatible = "bosch,bma2x2";
+		status = "ok";
+		reg = <0x10>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <115 0x2>;
+		Bosch,vdd_ana-supply = <&pm8916_l17_sns>;
+		Bosch,vddio_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bma2x2_int_active>;
+		pinctrl-1 = <&bma2x2_int_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 115 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <2850000>;
+		Bosch,vdd_ana_supply_max = <3300000>;
+		Bosch,vdd_ana_load_ua = <15000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <5>;
+	};
+
+	/* Acceleration sensor */
+	bosch_bma2x2_rev_b@10 {
+		revision = "rev_b...";
+		compatible = "bosch,bma2x2";
+		status = "ok";
+		reg = <0x10>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <115 0x2>;
+		Bosch,vdd_ana-supply = <&pm8916_l6>;
+		Bosch,vddio_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bma2x2_int_active>;
+		pinctrl-1 = <&bma2x2_int_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 115 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <1800000>;
+		Bosch,vdd_ana_supply_max = <1800000>;
+		Bosch,vdd_ana_load_ua = <10000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <5>;
+	};
+
+	/* Magnetic Sensor Driver */
+	bosch_bmm050_rev_a@12 {
+		revision = "...rev_a";
+		compatible = "bosch,bmm050";
+		status = "ok";
+		reg = <0x12>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <69 0x2>;
+		Bosch,vdd_ana-supply = <&pm8916_l17_sns>;
+		Bosch,vddio_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bmm_drdy_active>;
+		pinctrl-1 = <&bmm_drdy_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 69 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <2850000>;
+		Bosch,vdd_ana_supply_max = <3300000>;
+		Bosch,vdd_ana_load_ua = <15000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <5>;
+	};
+
+	/* Magnetic Sensor Driver */
+	bosch_bmm050_rev_b@12 {
+		revision = "rev_b...";
+		compatible = "bosch,bmm050";
+		status = "ok";
+		reg = <0x12>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <69 0x2>;
+		Bosch,vdd_ana-supply = <&pm8916_l6>;
+		Bosch,vddio_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bmm_drdy_active>;
+		pinctrl-1 = <&bmm_drdy_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 69 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <1800000>;
+		Bosch,vdd_ana_supply_max = <1800000>;
+		Bosch,vdd_ana_load_ua = <10000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <5>;
+	};
+};
+
+&i2c_6{
+	qcom,clk-freq-out = <100000>;
+	adsemicon_atmf04@5a {
+		compatible = "adsemicon,atmf04";
+		status = "ok";
+		reg = <0x5a>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <112 0x2>;
+		Adsemicon,vdd_ana-supply = <&pm8916_l16>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&atmf04_int_active>;
+		pinctrl-1 = <&atmf04_int_suspend>;
+		Adsemicon,irq-gpio = <&msm_gpio 112 0x00>;
+		Adsemicon,vdd_ana_supply_min = <1800000>;
+		Adsemicon,vdd_ana_supply_max = <1800000>;
+		Adsemicon,vdd_ana_load_ua = <15000>;
+		Adsemicon,chip_enable = <&msm_gpio 62 0x00>;
+		Adsemicon,InputPinsNum = <1>;
+		Adsemicon,fw_name = "atmf04/atmf04_T7_1_00.fw";
+	};
+};

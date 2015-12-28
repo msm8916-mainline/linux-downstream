@@ -1,0 +1,55 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&spmi_bus {
+	qcom,pm8916@1 {
+		qcom,vibrator@c000 {
+			status = "ok";
+			qcom,vib-timeout-ms = <15000>;
+			qcom,vib-vtg-level-mV = <3100>;
+		};
+	};
+};
+/* Merged to msm8916-c30-camera.dtsi (for flash led driver)*/
+/*
+&i2c_4 {
+	rt8542@39 {
+		compatible = "backlight,rt8542";
+		status = "ok";
+		reg = <0x39>;
+		rt8542,lcd_bl_en = <&msm_gpio 98 0x00>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bklight_en_active>;
+		pinctrl-1 = <&bklight_en_suspend>;
+		rt8542,max_current = <0x0C>;
+		rt8542,min_brightness = <0x04>;
+		rt8542,default_brightness = <0x66>;
+		rt8542,max_brightness = <0x7D>;
+		rt8542,enable_pwm = <0>;
+		rt8542,blmap_size = <127>;
+		rt8542,blmap = <
+			10 10 12 12 12 14 14 16 16 18
+				18 19 19 20 20 22 22 22 24 24
+				26 26 28 28 29 29 30 30 32 32
+				32 34 34 36 36 38 38 39 39 40
+				40 42 42 42 44 44 46 46 48 48
+				49 49 50 50 52 52 52 54 54 56
+				56 58 58 59 59 60 60 62 62 62
+				64 64 66 66 68 68 69 69 70 70
+				72 72 72 74 74 76 76 78 78 79
+				79 80 80 82 82 82 84 84 86 86
+				88 88 89 89 90 90 92 92 92 94
+				94 96 96 96 98 98 99 99 100 100
+				102 102 104 104 105 105 105>;
+	};
+};
+*/

@@ -1,0 +1,50 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_5 {
+	qcom,clk-freq-out = <400000>;
+
+	synaptics_td4191_dsx@20 {
+		status = "disable";
+	};
+
+	synaptics_td4191@20 {
+		revision = "...rev_f";
+		status = "ok";
+		fw_image = "synaptics/lions/PLG463-V1.06-PR1860017-DS5.8.0.0.1135_50057086.img";
+		recovery_fw_image = "synaptics/lions/PLG463-V1.06-PR1860017-DS5.8.0.0.1135_50057086.bin";
+		panel_spec = "synaptics/lions/lions_limit.txt";
+	};
+
+	synaptics_td4191_rev_10@20 {
+		revision = "rev_10...";
+		status = "ok";
+		fw_image = "synaptics/lions/PLG516-V1.10-PR1896364-DS5.8.0.0.1135_5005708A.img";
+		recovery_fw_image = "synaptics/lions/PLG516-V1.10-PR1896364-DS5.8.0.0.1135_5005708A.bin";
+		panel_spec = "synaptics/lions/lions_limit.txt";
+		use_debug_reason = <0>;
+		use_security_mode = <1>;
+		use_security_all = <0>;
+	};
+};
+
+&soc {
+	gpio_keys {
+		vol_up {
+			gpios = <&msm_gpio 107 0x1>;
+		};
+
+		vol_down {
+			gpios = <&msm_gpio 108 0x1>;
+		};
+	};
+};

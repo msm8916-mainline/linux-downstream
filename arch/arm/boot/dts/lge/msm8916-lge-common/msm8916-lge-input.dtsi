@@ -1,0 +1,462 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_5 {
+
+	rmi_s3320@20 {
+		compatible = "rmi,s3320";
+		status = "disable";
+		reg = <0x20>;                              // check!!
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <17 0x2>;                   //check!!
+		/*vdd_ana-supply = <&pm8226_l28>;*/
+		/*vcc_i2c-supply = <&pm8226_l6>;*/
+		#rmi4,x_flip;
+		#rmi4,y_flip;
+		rmi4,regulator_en;
+		rmi4,reset_gpio = <&msm_gpio 16 0x00>;
+		rmi4,irq_gpio = <&msm_gpio 17 0x00>;
+		rmi4,irq_flags = <0x00000002>;     //check!!
+		rmi4,panel_x = <720>;
+		rmi4,panel_y = <1280>;
+		};
+
+	synaptics_s3320@20 {
+		compatible = "synaptics,s3320";
+		status = "disable";
+		reg = <0x20>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2>;
+		vdd_ana-supply = <&pm8916_l16>;
+		vcc_i2c-supply = <&pm8916_l6>;
+		reset-gpio = <&msm_gpio 12 0x00>;
+		irq-gpio = <&msm_gpio 13 0x00>;
+
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend";		/*Touch GPIO pin name setting*/
+		pinctrl-0 = <&ts_int_active &ts_reset_active>;			/*Touch GPIO pin active setting*/
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;		/*Touch GPIO pin suspend setting*/
+
+		/*Caps*/
+		button_support = <0>;
+		number_of_button = <1>;
+		button_name = [66];
+		max_x = <720>;
+		max_y = <1280>;
+		max_pressure = <0xff>;
+		max_width = <15>;
+		max_orientation = <1>;
+		max_id = <10>;
+		/*role*/
+		protocol_type = <1>;
+		report_mode = <0>;
+		delta_pos_threshold = <0>;
+		report_period = <10000000>;
+		booting_delay = <150>;
+		reset_delay = <10>;
+		wake_up_by_touch = <1>;
+		use_sleep_mode = <1>;
+		irqflags = <0x00000002>;
+		/*pwr*/
+		use_regulator = <1>;
+		vdd = "vdd_ana";
+		vdd_voltage = <3100000>;
+		vio = "vcc_i2c";
+		vio_voltage = <1800000>;
+		/*firmware*/
+		need_upgrade = <0>;	
+	};
+
+	lu201x@0e {
+		compatible = "leadingUI,lu201x";
+		reg = <0x0e>;
+		status = "disable";
+
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2>;
+
+		lu201x,reset-gpio = <&msm_gpio 12 0x00>;
+		lu201x,irq-gpio = <&msm_gpio 13 0x00>;
+		lu201x,sda-gpio = <&msm_gpio 18 0x00>;
+		lu201x,scl-gpio = <&msm_gpio 19 0x00>;
+		lu201x,ldo_vdd_en = <&msm_gpio 8 0x00>;
+		vdd_io-supply = <&pm8916_l16>;
+
+		/*lu201x,ldo_vdd_en = <&msm_gpio 9 0x00>;*/
+		/*lu201x,ldo_vio_en = <&msm_gpio 8 0x00>;*/
+
+		lu201x,key_map = <158 172 139 249>;
+		lu201x,fw_name = "lu201x/xxx.fw";
+		lu201x,num_touch = <2>;
+		lu201x,max_x = <480>;
+		lu201x,max_y = <800>;
+	};
+
+	lu202x@0e {
+		compatible = "unified_driver,ver2";
+		reg = <0x0e>;
+		status = "disable";
+
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2>;
+
+		lu202x,reset-gpio = <&msm_gpio 12 0x00>;
+		lu202x,irq-gpio = <&msm_gpio 13 0x00>;
+		lu202x,sda-gpio = <&msm_gpio 18 0x00>;
+		lu202x,scl-gpio = <&msm_gpio 19 0x00>;
+		/*lu202x,ldo_vdd_en = <&msm_gpio 9 0x00>;*/
+		/*vdd_io-supply = <&pm8916_l16>;*/
+
+		/*lu201x,ldo_vdd_en = <&msm_gpio 9 0x00>;*/
+		/*lu201x,ldo_vio_en = <&msm_gpio 8 0x00>;*/
+
+		lu202x,key_map = <158 172 139 249>;
+		lu202x,fw_name = "lu201x/xxx.fw";
+		lu202x,global_access_pixel = <10>;
+		lu202x,num_touch = <2>;
+		lu202x,max_x = <480>;
+		lu202x,max_y = <800>;
+	};
+
+	synaptics_td4191_dsx@20 {
+		compatible = "synaptics,dsx";
+		reg = <0x20>;
+		status = "disable";
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2>;
+		/*vdd_ana-supply = <&pm8941_l12>;*/
+		/*vcc_i2c-supply = <&pm8941_l6>;*/
+		/*synaptics,pwr-reg-name = "vdd_ana";*/
+		/*synaptics,bus-reg-name = "vcc_i2c";*/
+		synaptics,power-gpio = <&msm_gpio 34 0x00>;
+		synaptics,irq-gpio = <&msm_gpio 13 0x00>;
+		synaptics,irq-on-state = <0>;
+		synaptics,irq-flags = <0x2002>; /* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+		synaptics,power-delay-ms = <160>;
+		synaptics,reset-delay-ms = <100>;
+		/*synaptics,max-y-for-2d = <800>;  remove if no virtual buttons */
+		/*synaptics,vir-button-codes = <102 100 900 100 60 158 300 900 100 60>;*/
+	};
+
+	synaptics_td4191@20 {
+		compatible = "synaptics,td4191";
+		status = "disable";
+		reg = <0x20>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2002>;
+		vdd_ana-supply = <0>;
+		vcc_i2c-supply = <0>;
+		reset-gpio = <&msm_gpio 25 0x00>;
+		irq-gpio = <&msm_gpio 13 0x2002>;
+
+		/*F35 Only*/
+		ub_i2c_addr = <0x2c>;
+
+		//pinctrl-names = "pmx_ts_int_active","pmx_ts_int_suspend";	/* Touch GPIO pin name setting */
+		pinctrl-names = "default","sleep";     				/* Touch GPIO pin name setting */
+		pinctrl-0 = <&ts_int_active>;					/* Touch GPIO pin active setting */
+		pinctrl-1 = <&ts_int_suspend>;					/* Touch GPIO pin suspend setting */
+
+		/*Caps*/
+		button_support = <0>;
+		number_of_button = <0>;
+		button_name = [];
+		max_x = <720>;
+		max_y = <1280>;
+		max_pressure = <0xff>;
+		max_width = <15>;
+		max_orientation = <1>;
+		max_id = <10>;
+		/*role*/
+		protocol_type = <1>;
+		report_mode = <0>;
+		delta_pos_threshold = <0>;
+		report_period = <10000000>;
+		booting_delay = <150>;
+		reset_delay = <10>;
+		wake_up_by_touch = <1>;
+		use_sleep_mode = <1>;
+		thermal_check = <1>;
+		palm_ctrl_mode = <0>;
+		mini_os_finger_amplitude = <41>;
+		irqflags = <0x2002>; /* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+		bouncing.enable = <0>;
+		grip.enable = <0>;
+		grip.edge_region = <5>;
+		grip.max_delta = <10>;
+		grip.width_ratio = <2>;
+		accuracy.enable = <0>;
+		accuracy.min_delta = <3>;
+		accuracy.curr_ratio = <5>;
+		accuracy.min_pressure = <50>;
+		jitter.enable = <0>;
+		jitter.curr_ratio = <115>;
+		quickcover.enable = <1>;
+		quickcover.X1 = <94>;
+		quickcover.X2 = <625>;
+		quickcover.Y1 = <0>;
+		quickcover.Y2 = <531>;
+		crack.enable = <0>;
+		crack.min.cap = <300>;
+		/*ghost_detection -S*/
+		ghost_detection_enable = <0>;
+		ghost_detection_chk_cnt = <3>;
+		jitter_value = <20>;
+		ta_noise_chk = <0>;
+		incoming_call_chk = <0>;
+		first_finger_chk = <1>;
+		first_finger_time = <200>;
+		pressure_zero_chk = <1>;
+		ta_debouncing_chk = <0>;
+		ta_debouncing_cnt = <2>;
+		ta_debouncing_finger_num = <2>;
+		press_interval_chk = <1>;
+		press_interval = <29>;
+		diff_fingers_chk = <1>;
+		diff_finger_num = <5>;
+		subtraction_finger_chk = <0>;
+		subtraction_time = <11>;
+		subtraction_finger_cnt = <5>;
+		long_press_chk = <1>;
+		long_press_chk_time = <10>;
+		long_press_cnt = <700>;
+		button_chk = <0>;
+		button_int_num = <6>;
+		button_duration = <100>;
+		rebase_repetition_chk = <1>;
+		rebase_since_init = <3>;
+		rebase_since_rebase = <5>;
+		use_lpwg_all = <1>;
+		use_debug_reason = <1>;
+		use_security_mode = <0>;
+		use_security_all = <0>;
+		use_hover_finger = <0>;
+		use_rmi_dev = <1>;
+		/*ghost_detection -E*/
+
+		/* power */
+		/* type 0: none(default) */
+		/*      1: gpio */
+		/*      2: regulator */
+		/* name if type == 1, gpio active condition "low" or "high" */
+		/*      if type == 2, sypply name for regulator */
+		/* value if type == 1, gpio pin no. */
+		/*       if type == 2, regulator voltage */
+		vdd_type0 = <1>;
+		vdd_name0 = "high";
+		vdd_value0 = <&msm_gpio 34 0x00>;
+		vdd-supply = <0>;
+
+		vdd_type1 = <1>;
+		vdd_name1 = "high";
+		vdd_value1 = <&msm_gpio 33 0x00>;
+		vio_i2c-supply = <0>;
+
+		vdd_type2 = <0>;
+		vdd_name2 = "NULL";
+		vdd_value2 = <0>;
+		vio_int-supply = <0>;
+
+		/*firmware*/
+		need_upgrade = <0>;
+	};
+
+	synaptics_td4191_rev_10@20 {
+		compatible = "synaptics,td4191";
+		status = "disable";
+		reg = <0x20>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2002>;
+		vdd_ana-supply = <0>;
+		vcc_i2c-supply = <0>;
+		reset-gpio = <&msm_gpio 25 0x00>;
+		irq-gpio = <&msm_gpio 13 0x2002>;
+
+		/*F35 Only*/
+		ub_i2c_addr = <0x2c>;
+
+		//pinctrl-names = "pmx_ts_int_active","pmx_ts_int_suspend";	/* Touch GPIO pin name setting */
+		pinctrl-names = "default","sleep";     				/* Touch GPIO pin name setting */
+		pinctrl-0 = <&ts_int_active>;					/* Touch GPIO pin active setting */
+		pinctrl-1 = <&ts_int_suspend>;					/* Touch GPIO pin suspend setting */
+
+		/*Caps*/
+		button_support = <0>;
+		number_of_button = <0>;
+		button_name = [];
+		max_x = <720>;
+		max_y = <1280>;
+		max_pressure = <0xff>;
+		max_width = <15>;
+		max_orientation = <1>;
+		max_id = <10>;
+		/*role*/
+		protocol_type = <1>;
+		report_mode = <0>;
+		delta_pos_threshold = <0>;
+		report_period = <10000000>;
+		booting_delay = <150>;
+		reset_delay = <10>;
+		wake_up_by_touch = <1>;
+		use_sleep_mode = <1>;
+		thermal_check = <1>;
+		palm_ctrl_mode = <0>;
+		mini_os_finger_amplitude = <41>;
+		irqflags = <0x2002>; /* IRQF_ONESHOT | IRQF_TRIGGER_FALLING */
+		bouncing.enable = <0>;
+		grip.enable = <0>;
+		grip.edge_region = <5>;
+		grip.max_delta = <10>;
+		grip.width_ratio = <2>;
+		accuracy.enable = <0>;
+		accuracy.min_delta = <3>;
+		accuracy.curr_ratio = <5>;
+		accuracy.min_pressure = <50>;
+		jitter.enable = <0>;
+		jitter.curr_ratio = <115>;
+		quickcover.enable = <1>;
+		quickcover.X1 = <94>;
+		quickcover.X2 = <625>;
+		quickcover.Y1 = <0>;
+		quickcover.Y2 = <531>;
+		crack.enable = <0>;
+		crack.min.cap = <300>;
+		/*ghost_detection -S*/
+		ghost_detection_enable = <0>;
+		ghost_detection_chk_cnt = <3>;
+		jitter_value = <20>;
+		ta_noise_chk = <0>;
+		incoming_call_chk = <0>;
+		first_finger_chk = <1>;
+		first_finger_time = <200>;
+		pressure_zero_chk = <1>;
+		ta_debouncing_chk = <0>;
+		ta_debouncing_cnt = <2>;
+		ta_debouncing_finger_num = <2>;
+		press_interval_chk = <1>;
+		press_interval = <29>;
+		diff_fingers_chk = <1>;
+		diff_finger_num = <5>;
+		subtraction_finger_chk = <0>;
+		subtraction_time = <11>;
+		subtraction_finger_cnt = <5>;
+		long_press_chk = <1>;
+		long_press_chk_time = <10>;
+		long_press_cnt = <700>;
+		button_chk = <0>;
+		button_int_num = <6>;
+		button_duration = <100>;
+		rebase_repetition_chk = <1>;
+		rebase_since_init = <3>;
+		rebase_since_rebase = <5>;
+		use_lpwg_all = <1>;
+		use_debug_reason = <1>;
+		use_security_mode = <0>;
+		use_security_all = <0>;
+		use_hover_finger = <0>;
+		use_rmi_dev = <1>;
+		/*ghost_detection -E*/
+
+		/* power */
+		/* type 0: none(default) */
+		/*      1: gpio */
+		/*      2: regulator */
+		/* name if type == 1, gpio active condition "low" or "high" */
+		/*      if type == 2, sypply name for regulator */
+		/* value if type == 1, gpio pin no. */
+		/*       if type == 2, regulator voltage */
+		vdd_type0 = <1>;
+		vdd_name0 = "high";
+		vdd_value0 = <&msm_gpio 34 0x00>;
+		vdd-supply = <0>;
+
+		vdd_type1 = <1>;
+		vdd_name1 = "high";
+		vdd_value1 = <&msm_gpio 33 0x00>;
+		vio_i2c-supply = <0>;
+
+		vdd_type2 = <0>;
+		vdd_name2 = "NULL";
+		vdd_value2 = <0>;
+		vio_int-supply = <0>;
+
+		/*firmware*/
+		need_upgrade = <0>;
+	};
+
+	atmel_t641@4a {                                 /*touch ic I2C bus adddress*/
+		revision = "rev_a...";                      /*board version */
+		compatible ="atmel,t641";
+		status = "disable";                              /*OK-used*/
+		reg = <0x4a>;                               /*touch ic I2C bus adddress 0x4a -> @4a*/
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2>;                      /*interrupt pin number*/
+		vdd_ana-supply = <0>;
+		vcc_i2c-supply = <&pm8916_l6>;
+		vcc_dig-supply = <0>;                       /*because of  GPIO use*/
+		atmel,ldo3-gpio = <&msm_gpio 34 0x00>;       //GPIO[034] TOUCH_LDO3_EN
+		atmel,ldo2-gpio = <&msm_gpio 32 0x00>;       //GPIO[032] TOUCH_LDO2_EN
+		atmel,ldo1-gpio = <&msm_gpio 36 0x00>;       //GPIO[036] TOUCH_LDO1_EN
+		atmel,reset-gpio = <&msm_gpio 12 0x00>;
+		atmel,irq-gpio = <&msm_gpio 13 0x00>;
+		atmel,numtouch = <10>;                      /*multi-touch count*/
+		atmel,irqflags = <0x00000002>;              /*interrup flag type*/
+		atmel,t15_num_keys = <0>;
+		atmel,fw_name = "atmel/E7_1_01_06.fw";
+		atmel,panel_check = <0>;
+		atmel,extra_fw_name = "atmel/E7_1_01_06.fw";
+		atmel,accuracy_filter_enable = <0>;
+		atmel,knock_on_type = <1>;
+		atmel,auto_fw_update = <0>;
+		// atmel,t15_extra_key_state = <0 0>;
+		atmel,global_access_pixel = <0>;
+		atmel,use_mfts = <1>; // Enable for CoF type only
+		atmel,lcd_x = <4095>;
+		atmel,lcd_y = <4095>;
+		atmel,butt_check_enable = <0>;
+		atmel,ghost_detection_enable = <0>;
+		atmel,ghost_detection_value = <10 10 100 25 250 10>;
+		/*pinctrl-names = "ts_int_active","ts_int_suspend";*/
+		/*pinctrl-0 = <&ts_int_active &ts_reset_active &ts_ldo_active>;*/
+		/*pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_ldo_suspend>;*/
+
+
+	};
+
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
+		pinctrl-0 = <&gpio_key_active>;
+		pinctrl-1 = <&gpio_key_suspend>;
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&msm_gpio 108 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+
+		vol_down {
+			label = "volume_down";
+			gpios = <&msm_gpio 107 0x1>;
+			linux,input-type = <1>;
+			linux,code = <114>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+	};
+};

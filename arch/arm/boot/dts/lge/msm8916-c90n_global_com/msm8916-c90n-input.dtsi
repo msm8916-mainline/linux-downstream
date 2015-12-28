@@ -1,0 +1,36 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_5 {
+	qcom,clk-freq-out = <400000>;
+
+	synaptics_s3320@20 {
+		compatible = "unified_driver,ver2";
+		status = "ok";
+		revision = "rev_a...";
+
+		fw_image = "synaptics/c70/PLG455-V1.03-PR1778363-DS5.2.12.0.1013_40047183.img";
+		panel_spec = "synaptics/c70/limit.txt";
+	};
+};
+
+&soc {
+	gpio_keys {
+		vol_up {
+			gpios = <&msm_gpio 108 0x1>;
+		};
+
+		vol_down {
+			gpios = <&msm_gpio 107 0x1>;
+		};
+	};
+};
