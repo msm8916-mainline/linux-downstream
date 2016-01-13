@@ -270,13 +270,13 @@
 			label = "pmx_i2c_0";
 
 			i2c_0_active: i2c_0_active {
-				drive-strength = <2>; /* 2 MA */
-				bias-disable;         /* No PULL */
+				drive-strength = <4>; /* 4 MA */
+				bias-disable = <0>; /* No PULL */
 			};
 
 			i2c_0_sleep: i2c_0_sleep {
-				drive-strength = <2>; /* 2 MA */
-				bias-disable;	      /* No PULL */
+				drive-strength = <4>; /* 4 MA */
+				bias-disable = <0>; /* No PULL */
 			};
 		};
 
@@ -1408,26 +1408,6 @@
 				drive-strength = <4>; /* 4 MA */
 				bias-pull-down; /* PULL DOWN */
 				output-low;
-			};
-		};
-
-		cam_sensor_eeprom {
-			/* RESET, STANDBY */
-			qcom,pins =  <&gp 6>, <&gp 7>;
-			qcom,num-grp-pins = <2>;
-			qcom,pin-func = <0>;
-			label = "cam-eeprom-i2c";
-			/* active state */
-			cam_sensor_eeprom_default: default {
-				drive-strength = <4>; /* 4 MA */
-				bias-disable = <0>; /* No PULL */
-				input-low;
-			};
-			/*suspended state */
-			cam_sensor_eeprom_sleep: sleep {
-				drive-strength = <4>; /* 4 MA */
-				bias-disable = <0>; /* No PULL */
-				input-low;
 			};
 		};
 

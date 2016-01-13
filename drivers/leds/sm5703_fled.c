@@ -318,19 +318,19 @@ int32_t sm5703_boost_notification(struct sm_fled_info *fled_info, int32_t on)
 		if (mode == FLASHLIGHT_MODE_TORCH )
 		{
 			sm5703_assign_bits(info->i2c_client,SM5703_OTGCURRENTCNTL, SM5703_OTGCURRENT_MASK,SM5703_OTGCURRENT_0P9A);
-			sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+			sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 			sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
 		}
 		else if (mode == FLASHLIGHT_MODE_FLASH )
 		{
 			sm5703_assign_bits(info->i2c_client,SM5703_OTGCURRENTCNTL, SM5703_OTGCURRENT_MASK,SM5703_OTGCURRENT_0P9A);
-			sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+			sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 			sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
 		}
 		else
         {
 			sm5703_assign_bits(info->i2c_client,SM5703_OTGCURRENTCNTL, SM5703_OTGCURRENT_MASK,SM5703_OTGCURRENT_0P9A);
-            sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+            sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 			sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
         }
 	} else if(on == 0) {
@@ -378,7 +378,7 @@ int32_t sm5703_powersharing_notification(struct sm_fled_info *fled_info, int32_t
 		if (mode == FLASHLIGHT_MODE_TORCH )
 		{
 			sm5703_assign_bits(info->i2c_client,SM5703_OTGCURRENTCNTL, SM5703_OTGCURRENT_MASK,SM5703_OTGCURRENT_0P5A);
-            sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+            sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 			sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
         }
 		else if (mode == FLASHLIGHT_MODE_FLASH )
@@ -390,7 +390,7 @@ int32_t sm5703_powersharing_notification(struct sm_fled_info *fled_info, int32_t
 		else
         {
 			sm5703_assign_bits(info->i2c_client,SM5703_OTGCURRENTCNTL, SM5703_OTGCURRENT_MASK,SM5703_OTGCURRENT_0P5A);
-            sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+            sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 			sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
         }
 	} else if(on == 0) {
@@ -459,26 +459,26 @@ int32_t sm5703_fled_notification(struct sm_fled_info *fled_info)
 			if (mode == FLASHLIGHT_MODE_TORCH )
             {
 			sm5703_assign_bits(info->i2c_client,SM5703_OTGCURRENTCNTL, SM5703_OTGCURRENT_MASK,SM5703_OTGCURRENT_0P9A);
-                sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+                sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 				sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
             }
 			else if (mode == FLASHLIGHT_MODE_FLASH )
             {
 			sm5703_assign_bits(info->i2c_client,SM5703_OTGCURRENTCNTL, SM5703_OTGCURRENT_MASK,SM5703_OTGCURRENT_0P9A);
-			sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+			sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 			sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
 		}
 		else
 		{
 			sm5703_assign_bits(info->i2c_client,SM5703_OTGCURRENTCNTL, SM5703_OTGCURRENT_MASK,SM5703_OTGCURRENT_0P9A);
-			sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+			sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 			sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
 		}
 	} else if (info->powersharing){
 		if (mode == FLASHLIGHT_MODE_TORCH )
 		{
 			sm5703_assign_bits(info->i2c_client,SM5703_OTGCURRENTCNTL, SM5703_OTGCURRENT_MASK,SM5703_OTGCURRENT_0P5A);
-                sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+                sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 				sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
             }
 		else if (mode == FLASHLIGHT_MODE_FLASH )
@@ -490,7 +490,7 @@ int32_t sm5703_fled_notification(struct sm_fled_info *fled_info)
 			else
             {
 			sm5703_assign_bits(info->i2c_client,SM5703_OTGCURRENTCNTL, SM5703_OTGCURRENT_MASK,SM5703_OTGCURRENT_0P5A);
-                sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P1);
+                sm5703_assign_bits(info->i2c_client,SM5703_FLEDCNTL6, SM5703_BSTOUT_MASK,SM5703_BSTOUT_5P0);
 			sm5703_assign_bits(info->i2c_client,SM5703_CNTL,SM5703_OPERATION_MODE_MASK, SM5703_OPERATION_MODE_USB_OTG_MODE);
             }
 		} else {

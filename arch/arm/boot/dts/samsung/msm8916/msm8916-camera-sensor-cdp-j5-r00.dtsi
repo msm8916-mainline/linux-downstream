@@ -13,13 +13,8 @@
 
 
 &soc {
-	i2c_21: i2c@21 {
-		cell-index = <21>;
-		compatible = "i2c-gpio";
-	    i2c-gpio-scl = <&msm_gpio 7 0x00>;
-        i2c-gpio-sda = <&msm_gpio 6 0x00>;
-		 i2c-gpio,delay-us = <5>;
-
+  i2c@78b6000 { /* BLSP1 QUP2 */
+		status = "ok";
 		actuator0: qcom,actuator@18 {
 			compatible = "qcom,actuator";
 			cell-index = <0>;
@@ -38,10 +33,7 @@
 	       qcom,cam-vreg-min-voltage = <1800000 2800000>;
 	       qcom,cam-vreg-max-voltage = <1800000 2800000>;
 	       qcom,cam-vreg-op-mode = <1800000 100000>;
-		pinctrl-names = "eeprom_default", "eeprom_suspend";
-		pinctrl-0 = <&cam_sensor_eeprom_default>;
-		pinctrl-1 = <&cam_sensor_eeprom_sleep>;
-		qcom,sensor-position = <0>;
+	       qcom,sensor-position = <0>;
 	       qcom,cam-power-seq-type = "sensor_vreg", "sensor_vreg";
 	       qcom,cam-power-seq-val = "cam_vio", "cam_vaf";
 	       qcom,cam-power-seq-cfg-val = <1 1>;
@@ -199,8 +191,8 @@
 		qcom,cam-vreg-max-voltage = <0 1800000 0 2800000>;
 		qcom,cam-vreg-op-mode = <200000 0 80000 100000>;
 		pinctrl-names = "cam_default", "cam_suspend";
-		pinctrl-0 = <&cam_sensor_mclk0_default &setb_10_default &cam_sensor_rear_default &cam_sensor_eeprom_default>;
-		pinctrl-1 = <&cam_sensor_mclk0_sleep &setb_10_sleep &cam_sensor_rear_sleep &cam_sensor_eeprom_sleep &cam_eepwp_sleep>;
+		pinctrl-0 = <&cam_sensor_mclk0_default &setb_10_default &cam_sensor_rear_default>;
+		pinctrl-1 = <&cam_sensor_mclk0_sleep &setb_10_sleep &cam_sensor_rear_sleep &cam_eepwp_sleep>;
 		gpios = <&msm_gpio 26 0>,
 				<&msm_gpio 33 0>,
 				<&msm_gpio 35 0>;

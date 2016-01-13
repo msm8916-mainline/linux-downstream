@@ -140,7 +140,7 @@ extern int system_rev;
 #define DEV_AV_VBUS         (1 << 4)
 #define DEV_U200_CHARGER    (1 << 6)
 
-#define DEV_T3_CHARGER_MASK (DEV_U200_CHARGER | DEV_NON_STANDARD)
+#define DEV_T3_CHARGER_MASK DEV_U200_CHARGER
 
 /* vbusin valid */
 #define DEV_VBUSIN_VALID    (1 << 1)
@@ -1114,7 +1114,8 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 			(check_sm5703_muic_jig_state() ? "ON" : "OFF"), val5);
 
 	/* USB */
-	if (val1 & DEV_USB || val2 & DEV_T2_USB_MASK) {
+	if ((val1 & DEV_USB) || (val2 & DEV_T2_USB_MASK)
+			|| (val3 & DEV_NON_STANDARD)) {
 		if (vbus & DEV_VBUSIN_VALID) {
 			pr_info("[SM5703_MUIC MUIC] USB Connected\n");
 			pdata->callback(CABLE_TYPE_USB, SM5703_MUIC_ATTACHED);
@@ -1379,7 +1380,8 @@ static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw)
 	}
 #endif
 	/* USB */
-	if ((usbsw->dev1 & DEV_USB) || (usbsw->dev2 & DEV_T2_USB_MASK)) {
+	if ((usbsw->dev1 & DEV_USB) || (usbsw->dev2 & DEV_T2_USB_MASK)
+			|| (usbsw->dev3 & DEV_NON_STANDARD)) {
 		pr_info("[MUIC] USB Disonnected\n");
 		pdata->callback(CABLE_TYPE_USB, SM5703_MUIC_DETACHED);
 	} else if (usbsw->dev1 & DEV_USB_CHG) {

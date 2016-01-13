@@ -362,6 +362,15 @@ config SEC_FACTORY
 	help
 	  It will support a sec factory mode
 
+config USER_RESET_DEBUG
+	bool "KOR reset reason debug feature in user version"
+	default n
+	help
+	  This option enables debugging log for B10 project.
+	  This option provides reset history log in user version.
+	  This option enable proc/reset_reason support
+	  It's only support KOR Model
+
 config SEC_ROSSA_PROJECT
 	depends on ARCH_MSM8916
 	default n
