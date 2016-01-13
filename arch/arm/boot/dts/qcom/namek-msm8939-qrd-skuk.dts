@@ -129,7 +129,7 @@
 	status = "ok";
 	qcom,vddmax-mv = <4350>;
 	qcom,vddsafe-mv = <4350>;
-	qcom,vinmin-mv = <4400>;
+	qcom,vinmin-mv = <4450>;  //NAMEK-2384
 	qcom,use-external-charger;
 	qcom,parallel-charger;
 };
