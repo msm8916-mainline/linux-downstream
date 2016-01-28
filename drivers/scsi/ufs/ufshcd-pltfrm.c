@@ -37,7 +37,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/of.h>
 
-#include "ufshcd.h"
+#include <linux/scsi/ufs/ufshcd.h>
 
 static const struct of_device_id ufs_of_match[];
 static struct ufs_hba_variant_ops *get_variant_ops(struct device *dev)
@@ -236,6 +236,19 @@ out:
 	return err;
 }
 
+static void ufshcd_parse_pm_levels(struct ufs_hba *hba)
+{
+	struct device *dev = hba->dev;
+	struct device_node *np = dev->of_node;
+
+	if (np) {
+		if (of_property_read_u32(np, "rpm-level", &hba->rpm_lvl))
+			hba->rpm_lvl = -1;
+		if (of_property_read_u32(np, "spm-level", &hba->spm_lvl))
+			hba->spm_lvl = -1;
+	}
+}
+
 #ifdef CONFIG_PM
 /**
  * ufshcd_pltfrm_suspend - suspend power management function
@@ -338,6 +351,7 @@ static int ufshcd_pltfrm_probe(struct platform_device *pdev)
 		goto dealloc_host;
 	}
 
+	ufshcd_parse_pm_levels(hba);
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
@@ -381,7 +395,7 @@ static int ufshcd_pltfrm_remove(struct platform_device *pdev)
 
 static const struct of_device_id ufs_of_match[] = {
 	{ .compatible = "jedec,ufs-1.1"},
-	{ .compatible = "qcom,ufshc", .data = (void *)&ufs_hba_msm_vops, },
+	{ .compatible = "qcom,ufshc", .data = (void *)&ufs_hba_qcom_vops, },
 	{},
 };
 

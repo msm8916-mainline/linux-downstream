@@ -41,6 +41,7 @@
 		compatible = "qcom,android-usb";
 		reg = <0xfe8050c8 0xc8>;
 		qcom,pm-qos-latency = <2 1001 30001>;
+		qcom,android-usb-uicc-nluns = /bits/ 8 <1>;
 	};
 
 	qcom,msm-imem@fe805000 {
@@ -176,9 +177,6 @@
 		<0x80124 0x3>,
 		<0xE0020 0x5555556>,
 		<0xE0024 0x0>;
-	qcom,buffer-type-tz-usage-table = <0x241 0x1>,
-					<0x106 0x2>,
-					<0x480 0x3>;
 	qcom,vidc-iommu-domains {
 		qcom,domain-ns {
 			qcom,vidc-domain-phandle = <&venus_domain_ns>;

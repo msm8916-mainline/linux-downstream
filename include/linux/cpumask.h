@@ -284,21 +284,9 @@ extern int is_boot_complete(void);
 /*To enable the mask only for little cluster cores*/
 #ifdef CONFIG_ARCH_MSM8939
 
-static inline int __get_low_pwr_cpu(void)
-{
-	int cpu;
-	int ret_val = NR_CPUS; /* WORK_CPU_UNBOUND = NR_CPUS */
-	for_each_cpu(cpu, cpu_online_mask){
-		/* CPU4 is always online so dont check */
-		if( cpu >= 5 && cpu <= 7 ){
-			ret_val = cpu;
-			break;
-		}
-	}
-	return ret_val;
-}
+#define get_low_pwr_cpu1() 5
 
-#define get_low_pwr_cpu() __get_low_pwr_cpu()
+#define get_low_pwr_cpu2() 6
 
 static inline void cpumask_little(struct cpumask *dstp)
 {
@@ -312,7 +300,9 @@ static inline void cpumask_little(struct cpumask *dstp)
 	cpumask_little(dstp)
 #else
 
-#define get_low_pwr_cpu() ( WORK_CPU_UNBOUND )
+#define get_low_pwr_cpu1() ( WORK_CPU_UNBOUND )
+
+#define get_low_pwr_cpu2() ( WORK_CPU_UNBOUND )
 
 #endif
 /**

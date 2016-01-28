@@ -71,6 +71,8 @@ struct reg_info {
  * @ramdump_dev: ramdump device pointer
  * @pas_id: the PAS id for tz
  * @bus_client: bus client id
+ * @enable_bus_scaling: set to true if PIL needs to vote for
+ *			bus bandwidth
  * @stop_ack: state of completion of stop ack
  * @desc: PIL descriptor
  * @subsys: subsystem device pointer
@@ -89,6 +91,7 @@ struct pil_tz_data {
 	void *ramdump_dev;
 	u32 pas_id;
 	u32 bus_client;
+	bool enable_bus_scaling;
 	struct completion stop_ack;
 	struct pil_desc desc;
 	struct subsys_device *subsys;
@@ -116,23 +119,6 @@ enum pas_id {
 	PAS_VPU,
 	PAS_BCSS,
 };
-
-enum scm_clock_ids {
-	BUS_CLK = 0,
-	CORE_CLK,
-	IFACE_CLK,
-	CORE_CLK_SRC,
-	NUM_CLKS
-};
-
-static const char * const scm_clock_names[NUM_CLKS] = {
-	[BUS_CLK]      = "bus_clk",
-	[CORE_CLK]     = "core_clk",
-	[IFACE_CLK]    = "iface_clk",
-	[CORE_CLK_SRC] = "core_clk_src",
-};
-
-static struct clk *scm_clocks[NUM_CLKS];
 
 static struct msm_bus_paths scm_pas_bw_tbl[] = {
 	{
@@ -169,7 +155,7 @@ static DEFINE_MUTEX(scm_pas_bw_mutex);
 
 static int scm_pas_enable_bw(void)
 {
-	int ret = 0, i;
+	int ret = 0;
 
 	if (!scm_perf_client)
 		return -EINVAL;
@@ -181,17 +167,9 @@ static int scm_pas_enable_bw(void)
 			goto err_bus;
 		scm_pas_bw_count++;
 	}
-	for (i = 0; i < NUM_CLKS; i++)
-		if (clk_prepare_enable(scm_clocks[i]))
-			goto err_clk;
 
 	mutex_unlock(&scm_pas_bw_mutex);
 	return ret;
-
-err_clk:
-	pr_err("scm-pas: clk prepare_enable failed (%s)\n", scm_clock_names[i]);
-	for (i--; i >= 0; i--)
-		clk_disable_unprepare(scm_clocks[i]);
 
 err_bus:
 	pr_err("scm-pas; Bandwidth request failed (%d)\n", ret);
@@ -203,38 +181,21 @@ err_bus:
 
 static void scm_pas_disable_bw(void)
 {
-	int i;
 	mutex_lock(&scm_pas_bw_mutex);
 	if (scm_pas_bw_count-- == 1)
 		msm_bus_scale_client_update_request(scm_perf_client, 0);
-
-	for (i = NUM_CLKS - 1; i >= 0; i--)
-		clk_disable_unprepare(scm_clocks[i]);
 	mutex_unlock(&scm_pas_bw_mutex);
 }
 
 static void scm_pas_init(int id)
 {
-	int i, rate;
 	static int is_inited;
 
 	if (is_inited)
 		return;
 
-	for (i = 0; i < NUM_CLKS; i++) {
-		scm_clocks[i] = clk_get_sys("scm", scm_clock_names[i]);
-		if (IS_ERR(scm_clocks[i]))
-			scm_clocks[i] = NULL;
-	}
-
-	/* Fail silently if this clock is not supported */
-	rate = clk_round_rate(scm_clocks[CORE_CLK_SRC], 1);
-	clk_set_rate(scm_clocks[CORE_CLK_SRC], rate);
-
 	scm_pas_bw_tbl[0].vectors[0].src = id;
 	scm_pas_bw_tbl[1].vectors[0].src = id;
-
-	clk_set_rate(scm_clocks[BUS_CLK], 64000000);
 
 	scm_perf_client = msm_bus_scale_register_client(&scm_pas_bus_pdata);
 	if (!scm_perf_client)
@@ -265,9 +226,21 @@ static int of_read_clocks(struct device *dev, struct clk ***clks_ref,
 
 	for (i = 0; i < clk_count; i++) {
 		const char *clock_name;
+		char clock_freq_name[50];
+		u32 clock_rate = XO_FREQ;
+
 		of_property_read_string_index(dev->of_node,
 					      propname, i,
 					      &clock_name);
+		snprintf(clock_freq_name, ARRAY_SIZE(clock_freq_name),
+						"qcom,%s-freq", clock_name);
+		if (of_find_property(dev->of_node, clock_freq_name, &len))
+			if (of_property_read_u32(dev->of_node, clock_freq_name,
+								&clock_rate)) {
+				dev_err(dev, "Failed to read %s clock's freq\n",
+							clock_freq_name);
+				return -EINVAL;
+			}
 
 		clks[i] = devm_clk_get(dev, clock_name);
 		if (IS_ERR(clks[i])) {
@@ -281,7 +254,7 @@ static int of_read_clocks(struct device *dev, struct clk ***clks_ref,
 		/* Make sure rate-settable clocks' rates are set */
 		if (clk_get_rate(clks[i]) == 0)
 			clk_set_rate(clks[i], clk_round_rate(clks[i],
-								XO_FREQ));
+								clock_rate));
 	}
 
 	*clks_ref = clks;
@@ -375,7 +348,7 @@ static int of_read_bus_pdata(struct platform_device *pdev,
 
 	d->bus_client = msm_bus_scale_register_client(pdata);
 	if (!d->bus_client)
-		return -EINVAL;
+		pr_warn("%s: Unable to register bus client\n", __func__);
 
 	return 0;
 }
@@ -414,6 +387,7 @@ static int piltz_resc_init(struct platform_device *pdev, struct pil_tz_data *d)
 	d->proxy_reg_count = count;
 
 	if (of_find_property(dev->of_node, "qcom,msm-bus,name", &len)) {
+		d->enable_bus_scaling = true;
 		rc = of_read_bus_pdata(pdev, d);
 		if (rc) {
 			dev_err(dev, "Failed to setup bus scaling client.\n");
@@ -528,6 +502,9 @@ static int pil_make_proxy_vote(struct pil_desc *pil)
 	struct pil_tz_data *d = desc_to_data(pil);
 	int rc;
 
+	if (d->subsys_desc.no_auth)
+		return 0;
+
 	rc = enable_regulators(pil->dev, d->proxy_regs, d->proxy_reg_count);
 	if (rc)
 		return rc;
@@ -543,7 +520,9 @@ static int pil_make_proxy_vote(struct pil_desc *pil)
 			dev_err(pil->dev, "bandwidth request failed\n");
 			goto err_bw;
 		}
-	}
+	} else
+		WARN(d->enable_bus_scaling, "Bus scaling not set up for %s!\n",
+					d->subsys_desc.name);
 
 	return 0;
 err_bw:
@@ -558,8 +537,14 @@ static void pil_remove_proxy_vote(struct pil_desc *pil)
 {
 	struct pil_tz_data *d = desc_to_data(pil);
 
+	if (d->subsys_desc.no_auth)
+		return;
+
 	if (d->bus_client)
 		msm_bus_scale_client_update_request(d->bus_client, 0);
+	else
+		WARN(d->enable_bus_scaling, "Bus scaling not set up for %s!\n",
+					d->subsys_desc.name);
 
 	disable_unprepare_clocks(d->proxy_clks, d->proxy_clk_count);
 
@@ -580,6 +565,10 @@ static int pil_init_image_trusted(struct pil_desc *pil,
 	int ret;
 	DEFINE_DMA_ATTRS(attrs);
 	struct device dev = {0};
+	struct scm_desc desc = {0};
+
+	if (d->subsys_desc.no_auth)
+		return 0;
 
 	ret = scm_pas_enable_bw();
 	if (ret)
@@ -597,11 +586,18 @@ static int pil_init_image_trusted(struct pil_desc *pil,
 
 	memcpy(mdata_buf, metadata, size);
 
-	request.proc = d->pas_id;
-	request.image_addr = mdata_phys;
+	desc.args[0] = request.proc = d->pas_id;
+	desc.args[1] = request.image_addr = mdata_phys;
+	desc.arginfo = SCM_ARGS(2, SCM_VAL, SCM_RW);
 
-	ret = scm_call(SCM_SVC_PIL, PAS_INIT_IMAGE_CMD, &request,
-			sizeof(request), &scm_ret, sizeof(scm_ret));
+	if (!is_scm_armv8()) {
+		ret = scm_call(SCM_SVC_PIL, PAS_INIT_IMAGE_CMD, &request,
+				sizeof(request), &scm_ret, sizeof(scm_ret));
+	} else {
+		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_PIL, PAS_INIT_IMAGE_CMD),
+				&desc);
+		scm_ret = desc.ret[0];
+	}
 
 	dma_free_attrs(&dev, size, mdata_buf, mdata_phys, &attrs);
 	scm_pas_disable_bw();
@@ -621,13 +617,24 @@ static int pil_mem_setup_trusted(struct pil_desc *pil, phys_addr_t addr,
 	} request;
 	u32 scm_ret = 0;
 	int ret;
+	struct scm_desc desc = {0};
 
-	request.proc = d->pas_id;
-	request.start_addr = addr;
-	request.len = size;
+	if (d->subsys_desc.no_auth)
+		return 0;
 
-	ret = scm_call(SCM_SVC_PIL, PAS_MEM_SETUP_CMD, &request,
-			sizeof(request), &scm_ret, sizeof(scm_ret));
+	desc.args[0] = request.proc = d->pas_id;
+	desc.args[1] = request.start_addr = addr;
+	desc.args[2] = request.len = size;
+	desc.arginfo = SCM_ARGS(3);
+
+	if (!is_scm_armv8()) {
+		ret = scm_call(SCM_SVC_PIL, PAS_MEM_SETUP_CMD, &request,
+				sizeof(request), &scm_ret, sizeof(scm_ret));
+	} else {
+		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_PIL, PAS_MEM_SETUP_CMD),
+				&desc);
+		scm_ret = desc.ret[0];
+	}
 	if (ret)
 		return ret;
 	return scm_ret;
@@ -637,7 +644,14 @@ static int pil_auth_and_reset(struct pil_desc *pil)
 {
 	struct pil_tz_data *d = desc_to_data(pil);
 	int rc;
-	u32 proc = d->pas_id, scm_ret = 0;
+	u32 proc, scm_ret = 0;
+	struct scm_desc desc = {0};
+
+	if (d->subsys_desc.no_auth)
+		return 0;
+
+	desc.args[0] = proc = d->pas_id;
+	desc.arginfo = SCM_ARGS(1);
 
 	rc = enable_regulators(pil->dev, d->regs, d->reg_count);
 	if (rc)
@@ -651,8 +665,14 @@ static int pil_auth_and_reset(struct pil_desc *pil)
 	if (rc)
 		goto err_reset;
 
-	rc = scm_call(SCM_SVC_PIL, PAS_AUTH_AND_RESET_CMD, &proc,
-			sizeof(proc), &scm_ret, sizeof(scm_ret));
+	if (!is_scm_armv8()) {
+		rc = scm_call(SCM_SVC_PIL, PAS_AUTH_AND_RESET_CMD, &proc,
+				sizeof(proc), &scm_ret, sizeof(scm_ret));
+	} else {
+		rc = scm_call2(SCM_SIP_FNID(SCM_SVC_PIL,
+			       PAS_AUTH_AND_RESET_CMD), &desc);
+		scm_ret = desc.ret[0];
+	}
 	scm_pas_disable_bw();
 	if (rc)
 		goto err_reset;
@@ -669,8 +689,15 @@ err_clks:
 static int pil_shutdown_trusted(struct pil_desc *pil)
 {
 	struct pil_tz_data *d = desc_to_data(pil);
-	u32 proc = d->pas_id, scm_ret = 0;
+	u32 proc, scm_ret = 0;
 	int rc;
+	struct scm_desc desc = {0};
+
+	if (d->subsys_desc.no_auth)
+		return 0;
+
+	desc.args[0] = proc = d->pas_id;
+	desc.arginfo = SCM_ARGS(1);
 
 	rc = enable_regulators(pil->dev, d->proxy_regs, d->proxy_reg_count);
 	if (rc)
@@ -681,8 +708,14 @@ static int pil_shutdown_trusted(struct pil_desc *pil)
 	if (rc)
 		goto err_clks;
 
-	rc = scm_call(SCM_SVC_PIL, PAS_SHUTDOWN_CMD, &proc, sizeof(proc),
-			&scm_ret, sizeof(scm_ret));
+	if (!is_scm_armv8()) {
+		rc = scm_call(SCM_SVC_PIL, PAS_SHUTDOWN_CMD, &proc,
+			      sizeof(proc), &scm_ret, sizeof(scm_ret));
+	} else {
+		rc = scm_call2(SCM_SIP_FNID(SCM_SVC_PIL, PAS_SHUTDOWN_CMD),
+			       &desc);
+		scm_ret = desc.ret[0];
+	}
 
 	disable_unprepare_clocks(d->proxy_clks, d->proxy_clk_count);
 	disable_regulators(d->proxy_regs, d->proxy_reg_count);
@@ -843,15 +876,8 @@ static int pil_tz_driver_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	platform_set_drvdata(pdev, d);
 
-	rc = piltz_resc_init(pdev, d);
-	if (rc)
-		return -ENOENT;
-
-	rc = of_property_read_u32(pdev->dev.of_node, "qcom,pas-id", &d->pas_id);
-	if (rc) {
-		dev_err(&pdev->dev, "Failed to find the pas_id.\n");
-		return rc;
-	}
+	if (of_property_read_bool(pdev->dev.of_node, "qcom,pil-no-auth"))
+		d->subsys_desc.no_auth = true;
 
 	rc = of_property_read_string(pdev->dev.of_node, "qcom,firmware-name",
 				      &d->desc.name);
@@ -881,7 +907,19 @@ static int pil_tz_driver_probe(struct platform_device *pdev)
 	if (!rc)
 		d->desc.proxy_timeout = proxy_timeout;
 
-	scm_pas_init(MSM_BUS_MASTER_CRYPTO_CORE0);
+	if (!d->subsys_desc.no_auth) {
+		rc = piltz_resc_init(pdev, d);
+		if (rc)
+			return -ENOENT;
+
+		rc = of_property_read_u32(pdev->dev.of_node, "qcom,pas-id",
+								&d->pas_id);
+		if (rc) {
+			dev_err(&pdev->dev, "Failed to find the pas_id.\n");
+			return rc;
+		}
+		scm_pas_init(MSM_BUS_MASTER_CRYPTO_CORE0);
+	}
 
 	rc = pil_desc_init(&d->desc);
 	if (rc)

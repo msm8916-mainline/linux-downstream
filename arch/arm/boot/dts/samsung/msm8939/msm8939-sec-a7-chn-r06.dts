@@ -13,6 +13,7 @@
 /dts-v1/;
 
 #include "msm8939.dtsi"
+#include "msm8939-audio-internal_codec.dtsi"
 #include "msm8939-sec-a7-chn-r06.dtsi"
 
 / {
@@ -21,6 +22,6 @@
         /*QCOM BOARD REV TYPE...*/
         /*qcom,board-id = <8 1>;*/
         /*SEC BOARD REV TYPE...*/
-        qcom,board-id = <0x0EF08FF1 6>;/*EXTEND_PLATFORM_ID*/
+        qcom,board-id = <0x0EF08FF1 6>; /*EXTEND_PLATFORM_ID*/
         /*parm1)[31:20]platform_id [19:12]qc_hw_id [11:4]national code [3:0] operator, param2)SEC hw-rev*/
 };

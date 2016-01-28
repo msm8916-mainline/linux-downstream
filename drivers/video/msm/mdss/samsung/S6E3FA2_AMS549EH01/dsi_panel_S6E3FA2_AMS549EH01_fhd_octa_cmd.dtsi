@@ -165,8 +165,8 @@
 		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
 
-		qcom,mdss-pan-physical-width-dimension = <65>;
-		qcom,mdss-pan-physical-height-dimension = <115>;
+		qcom,mdss-pan-physical-width-dimension = <69>;
+		qcom,mdss-pan-physical-height-dimension = <122>;
 
 		qcom,mdss-dsi-panel-mode-gpio-state = "invalid";
 
@@ -177,6 +177,7 @@
 
 		qcom,mdss-dsi-lp11-init;
 		qcom,mdss-dsi-init-delay-us = <1000>;
+		qcom,mdss-dsi-additional-delay-us = <5000>;
 
 		qcom,mdss-dsi-rx-eot-ignore;
 		qcom,mdss-dsi-tx-eot-append;
@@ -202,6 +203,10 @@
  */
 		samsung,dsi-lp11-init;
 		samsung,osc-te-fitting-enable;
+
+		/* To support HBM_CE_TEXT_MODE */
+		samsung,hbm_ce_text_mode_support;
+
 		/*
 		 * Index of te fitting command from
 		 * "qcom,mdss-dsi-on-command" and

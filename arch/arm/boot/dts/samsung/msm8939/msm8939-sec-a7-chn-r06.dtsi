@@ -14,8 +14,8 @@
 #include "msm8939-pinctrl-sec-a7-chn-r06.dtsi"
 #include "msm8939-camera.dtsi"
 #include "msm8939-camera-sensor-cdp-a7-r05.dtsi"
-#include "../../../../../../drivers/video/msm/mdss/samsung/S6E3FA2_AMS549EH01/dsi_panel_S6E3FA2_AMS549EH01_fhd_octa_cmd.dtsi"
 #include "msm8939-sec-a7-eur-battery-r00.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6E3FA2_AMS549EH01/dsi_panel_S6E3FA2_AMS549EH01_fhd_octa_cmd.dtsi"
 
 &soc {
 	samsung,vibrator {
@@ -169,8 +169,10 @@
 		status = "okay";
 		compatible = "hall";
 		interrupt-parent = <&msm_gpio>;
-		interrupts = <52 0>;
+		interrupts = <52 0>,
+			     <108 0>;
 		hall,gpio_flip_cover = <&msm_gpio 52 0>;
+		hall,gpio_flip_cover_rear = <&msm_gpio 108 0>;
 		pinctrl-names = "pmx_hall_ic_pin";
 		pinctrl-0 = <&hall_ic_pin>;
 
@@ -195,6 +197,7 @@
 			interrupt-parent = <&msm_gpio>;
 			interrupts = <113 0>;
 			reg_vio-supply = <&pm8916_l5>;
+			reg_vdd-supply = <&pm8916_l17>;
 			taos,irq_gpio = <&msm_gpio 113 0x1>;
 			taos,prox_rawdata_trim = <170>;
 			taos,prox_thresh_hi = <480>;
@@ -237,15 +240,9 @@
 	};
 
 	sound {
-		compatible = "qcom,msm8x16-audio-codec";
 		qcom,model = "msm8939-snd-card";
-		qcom,msm-snd-card-id = <0>;
-		qcom,msm-codec-type = "internal";
 		qcom,msm-ext-pa = "quaternary";
 		qcom,msm-mclk-freq = <9600000>;
-		qcom,msm-mbhc-hphl-swh = <0>;
-		qcom,msm-mbhc-gnd-swh = <0>;
-		qcom,msm-hs-micbias-type = "internal";
 		qcom,audio-routing =
 			"RX_BIAS", "MCLK",
 			"SPK_RX_BIAS", "MCLK",
@@ -267,7 +264,6 @@
 		pinctrl-3 = <&cross_conn_det_sus>;
 		pinctrl-4 = <&cdc_pdm_lines_act &ext_cdc_tlmm_lines_act>;
 		pinctrl-5 = <&cdc_pdm_lines_sus &ext_cdc_tlmm_lines_sus>;
-		qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;
 	};
 
 	det_zones: det_zones {
@@ -346,7 +342,7 @@
 
 			rt5033_buck1 {
 				compatible = "richtek,rt5033-dcdc1";
-				regulator-name = "CAM_SENSOR_CORE_1.25V"; /* change name by yourself */
+				regulator-name = "CAM_SENSOR_CORE_1.2V"; /* change name by yourself */
 				regulator-min-microvolt = <1500000>;
 				regulator-max-microvolt = <1500000>; /* max == min then apply_uV = 1 */
 				/* regulator-microvolt-offset = < >; optional*/
@@ -366,7 +362,7 @@
 				strobe_timeout = <544>;
 				torch_current = <75>;
 				lv_protection = <3300>;
-				mid_level = <4400>;
+				mid_level = <4800>;
 				rt5033,led1-gpio = <&msm_gpio 34 0x00>;
 				rt5033,led2-gpio = <&msm_gpio 36 0x00>;
 				pinctrl-names = "fled_default","fled_sleep";
@@ -409,7 +405,7 @@
 
 &usb_otg {
         qcom,hsusb-otg-phy-init-seq =
-                        <0x44 0x80 0x5B 0x81 0x24 0x82 0x13 0x83 0xffffffff>;
+                        <0x44 0x80 0x3B 0x81 0x24 0x82 0x13 0x83 0xffffffff>;
 };
 
 &pm8916_vadc {
@@ -529,7 +525,6 @@
 &qcom_seecom {
 	status = "okay";
 };
-
 
 &mdss_mdp {
 	qcom,mdss-pref-prim-intf = "dsi";

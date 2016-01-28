@@ -1,4 +1,3 @@
-
 #
 # panel object
 # namd : samsung_dsi_panel_"DDI VENDOR"_"DDI NAME"_"PANEL VENDOR"_"PANEL NAME".c

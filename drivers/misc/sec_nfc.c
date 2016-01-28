@@ -661,15 +661,10 @@ static int sec_nfc_parse_dt(struct device *dev,
 #endif
 	struct device_node *np = dev->of_node;
 
-#ifdef CONFIG_GPIO_PCAL6416A
-	pdata->ven = of_get_named_gpio(np, "sec-nfc,ven-gpio", 0);
-	pdata->firm = of_get_named_gpio(np, "sec-nfc,firm-gpio", 0);
-#else
 	pdata->ven = of_get_named_gpio_flags(np, "sec-nfc,ven-gpio",
 		0, &pdata->ven_gpio_flags);
 	pdata->firm = of_get_named_gpio_flags(np, "sec-nfc,firm-gpio",
 		0, &pdata->firm_gpio_flags);
-#endif
 	pdata->wake = pdata->firm;
 #ifdef CONFIG_SEC_NFC_IF_I2C
 	pdata->irq = of_get_named_gpio_flags(np, "sec-nfc,irq-gpio",

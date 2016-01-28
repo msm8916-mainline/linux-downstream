@@ -5,7 +5,6 @@
  *
  * Copyright (C) 2012 Alexandra Chin <alexandra.chin@tw.synaptics.com>
  * Copyright (C) 2012 Scott Lin <scott.lin@tw.synaptics.com>
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -664,6 +663,14 @@ static enum flash_area fwu_go_nogo(struct image_header_data *header)
 
 		strptr += 2;
 		firmware_id = kzalloc(MAX_FIRMWARE_ID_LEN, GFP_KERNEL);
+		if (!firmware_id) {
+			dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for firmware id\n",
+				__func__);
+			flash_area = NONE;
+			goto exit;
+		}
+
 		while (strptr[index] >= '0' && strptr[index] <= '9') {
 			firmware_id[index] = strptr[index];
 			index++;
@@ -1254,6 +1261,13 @@ static int fwu_do_read_config(void)
 
 	kfree(fwu->read_config_buf);
 	fwu->read_config_buf = kzalloc(fwu->config_size, GFP_KERNEL);
+	if (!fwu->read_config_buf) {
+		dev_err(rmi4_data->pdev->dev.parent,
+			"%s: Failed to alloc memory for config buffer\n",
+			__func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
 
 	block_offset[1] |= (fwu->config_area << 5);
 

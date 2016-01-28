@@ -62,7 +62,6 @@ void __weak arch_cpu_idle(void)
 	local_irq_enable();
 }
 
-uint32_t global_counter[NR_CPUS];
 /*
  * Generic idle loop implementation
  */
@@ -101,7 +100,6 @@ static void cpu_idle_loop(void)
 					local_irq_enable();
 				}
 				__current_set_polling();
-				global_counter[smp_processor_id()] = 0;
 			}
 			arch_cpu_idle_exit();
 		}

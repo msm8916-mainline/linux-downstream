@@ -423,7 +423,7 @@ static int ext4_valid_extent_entries(struct inode *inode,
 }
 
 /* for debugging if ext4_extent is not valid */
-	static void
+static void
 ext4_ext_show_eh(struct inode *inode, struct ext4_extent_header *eh)
 {
 	int i;
@@ -444,10 +444,10 @@ ext4_ext_show_eh(struct inode *inode, struct ext4_extent_header *eh)
 
 		for (i = 0; i < 4; i++, ex++) {
 			printk(KERN_ERR "leaf - block : %d / length : [%d]%d /"
-					" pblock : %llu\n",le32_to_cpu(ex->ee_block),
-					ext4_ext_is_uninitialized(ex),
-					ext4_ext_get_actual_len(ex),
-					ext4_ext_pblock(ex));
+				" pblock : %llu\n",le32_to_cpu(ex->ee_block),
+				ext4_ext_is_uninitialized(ex),
+				ext4_ext_get_actual_len(ex),
+				ext4_ext_pblock(ex));
 		}
 	}
 	else {
@@ -463,7 +463,6 @@ ext4_ext_show_eh(struct inode *inode, struct ext4_extent_header *eh)
 		}
 	}
 }
-
 
 static int __ext4_ext_check(const char *function, unsigned int line,
 			    struct inode *inode, struct ext4_extent_header *eh,
@@ -2557,6 +2556,27 @@ ext4_ext_rm_leaf(handle_t *handle, struct inode *inode,
 	ex_ee_block = le32_to_cpu(ex->ee_block);
 	ex_ee_len = ext4_ext_get_actual_len(ex);
 
+	/*
+	 * If we're starting with an extent other than the last one in the
+	 * node, we need to see if it shares a cluster with the extent to
+	 * the right (towards the end of the file). If its leftmost cluster
+	 * is this extent's rightmost cluster and it is not cluster aligned,
+	 * we'll mark it as a partial that is not to be deallocated.
+	 */
+
+	if (ex != EXT_LAST_EXTENT(eh)) {
+		ext4_fsblk_t current_pblk, right_pblk;
+		long long current_cluster, right_cluster;
+
+		current_pblk = ext4_ext_pblock(ex) + ex_ee_len - 1;
+		current_cluster = (long long)EXT4_B2C(sbi, current_pblk);
+		right_pblk = ext4_ext_pblock(ex + 1);
+		right_cluster = (long long)EXT4_B2C(sbi, right_pblk);
+		if (current_cluster == right_cluster &&
+			EXT4_PBLK_COFF(sbi, right_pblk))
+			*partial_cluster = -right_cluster;
+	}
+
 	trace_ext4_ext_rm_leaf(inode, start, ex, *partial_cluster);
 
 	while (ex >= EXT_FIRST_EXTENT(eh) &&
@@ -4078,7 +4098,7 @@ int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
 	struct ext4_extent newex, *ex, *ex2;
 	struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
 	ext4_fsblk_t newblock = 0;
-	int free_on_err = 0, err = 0, depth;
+	int free_on_err = 0, err = 0, depth, ret;
 	unsigned int allocated = 0, offset = 0;
 	unsigned int allocated_clusters = 0;
 	struct ext4_allocation_request ar;
@@ -4139,9 +4159,13 @@ int ext4_ext_map_blocks(handle_t *handle, struct inode *inode,
 			if (!ext4_ext_is_uninitialized(ex))
 				goto out;
 
-			allocated = ext4_ext_handle_uninitialized_extents(
+			ret = ext4_ext_handle_uninitialized_extents(
 				handle, inode, map, path, flags,
 				allocated, newblock);
+			if (ret < 0)
+				err = ret;
+			else
+				allocated = ret;
 			goto out3;
 		}
 	}

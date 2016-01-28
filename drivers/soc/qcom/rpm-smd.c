@@ -1040,7 +1040,6 @@ static void msm_rpm_log_request(struct msm_rpm_request *cdata)
 	pos += scnprintf(buf + pos, buflen - pos, "\n");
 	printk(buf);
 }
-
 static int msm_rpm_send_smd_buffer(char *buf, uint32_t size, bool noirq)
 {
 	unsigned long flags;
@@ -1158,6 +1157,7 @@ static int msm_rpm_send_data(struct msm_rpm_request *cdata,
 	}
 
 	msm_rpm_add_wait_list(cdata->msg_hdr.msg_id);
+
 	ret = msm_rpm_send_smd_buffer(&cdata->buf[0], msg_size, noirq);
 
 	if (ret == msg_size) {
@@ -1200,27 +1200,10 @@ int msm_rpm_send_request_noirq(struct msm_rpm_request *handle)
 }
 EXPORT_SYMBOL(msm_rpm_send_request_noirq);
 
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-static volatile bool masked;
-#endif
 int msm_rpm_wait_for_ack(uint32_t msg_id)
 {
 	struct msm_rpm_wait_data *elem;
 	int rc = 0;
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	int i=5;
-
-	if (masked) {
-		while(i) {
-			udelay(100);
-			i--;
-			if (!masked)
-				break;
-		}
-	}
-	if(!i)
-		BUG_ON(masked);
-#endif
 
 	if (!msg_id) {
 		pr_err("%s(): Invalid msg id\n", __func__);
@@ -1377,10 +1360,6 @@ int msm_rpm_enter_sleep(bool print, const struct cpumask *cpumask)
 		if (ret)
 			smd_mask_receive_interrupt(msm_rpm_data.ch_info,
 							false, NULL);
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-		else
-			masked = true;
-#endif
 	}
 	return ret;
 }
@@ -1396,9 +1375,6 @@ void msm_rpm_exit_sleep(void)
 		return;
 
 	smd_mask_receive_interrupt(msm_rpm_data.ch_info, false, NULL);
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	masked = false;
-#endif
 }
 EXPORT_SYMBOL(msm_rpm_exit_sleep);
 
@@ -1427,8 +1403,10 @@ static int msm_rpm_dev_probe(struct platform_device *pdev)
 
 	key = "rpm-standalone";
 	standalone = of_property_read_bool(pdev->dev.of_node, key);
-	if (standalone)
+	if (standalone) {
+		probe_status = 0;
 		goto skip_smd_init;
+	}
 
 	ret = smd_named_open_on_edge(msm_rpm_data.ch_name,
 				msm_rpm_data.ch_type,
@@ -1461,13 +1439,13 @@ static int msm_rpm_dev_probe(struct platform_device *pdev)
 	}
 	queue_work(msm_rpm_smd_wq, &msm_rpm_data.work);
 
+	probe_status = ret;
 skip_smd_init:
 	of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
 
 	if (standalone)
 		pr_info("%s: RPM running in standalone mode\n", __func__);
 fail:
-	probe_status = ret;
 	return probe_status;
 }
 

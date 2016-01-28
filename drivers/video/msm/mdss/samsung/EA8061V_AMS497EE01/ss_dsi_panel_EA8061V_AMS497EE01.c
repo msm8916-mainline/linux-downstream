@@ -151,8 +151,6 @@ static int mdss_hbm_read(struct mdss_dsi_ctrl_pdata *ctrl)
 		&(vdd->dtsi_data[ctrl->ndx].hbm_rx_cmds[vdd->panel_revision]),
 		hbm_buffer, PANEL_LEVE2_KEY);
 	memcpy(&vdd->dtsi_data[ctrl->ndx].hbm_gamma_tx_cmds[vdd->panel_revision].cmds[0].payload[1], hbm_buffer, 6);
-	/* octa panel Read C8h 40th -> write B6h */
-	memcpy(&vdd->dtsi_data[ctrl->ndx].hbm_etc_tx_cmds[vdd->panel_revision].cmds[3].payload[1], hbm_buffer+6, 1);
 
 	/* Read mtp (C8h 43 ~ 57) for HBM */
 	mdss_samsung_panel_data_read(ctrl,
@@ -160,41 +158,14 @@ static int mdss_hbm_read(struct mdss_dsi_ctrl_pdata *ctrl)
 		hbm_buffer, PANEL_LEVE2_KEY);
 	memcpy(&vdd->dtsi_data[ctrl->ndx].hbm_gamma_tx_cmds[vdd->panel_revision].cmds[0].payload[7], hbm_buffer, 15);
 
-	/* Read mtp (B6h 21th) for elvss*/
+
+	/* octa panel Read C8h 40th -> write B6h */
 	mdss_samsung_panel_data_read(ctrl,
 		&(vdd->dtsi_data[ctrl->ndx].elvss_rx_cmds[vdd->panel_revision]),
 		hbm_buffer, PANEL_LEVE2_KEY);
-	vdd->display_ststus_dsi[ctrl->ndx].elvss_value = hbm_buffer[0];
+	memcpy(&vdd->dtsi_data[ctrl->ndx].hbm_etc_tx_cmds[vdd->panel_revision].cmds[3].payload[1], hbm_buffer, 1);
 
 	return true;
-}
-
-static struct dsi_panel_cmds *mdss_hbm_gamma(struct mdss_dsi_ctrl_pdata *ctrl, int *level_key)
-{
-	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
-
-	if (IS_ERR_OR_NULL(vdd)) {
-		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
-		return NULL;
-	}
-
-	*level_key = PANEL_LEVE2_KEY;
-
-	return &vdd->dtsi_data[ctrl->ndx].hbm_gamma_tx_cmds[vdd->panel_revision];
-}
-
-static struct dsi_panel_cmds *mdss_hbm_etc(struct mdss_dsi_ctrl_pdata *ctrl, int *level_key)
-{
-	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
-
-	if (IS_ERR_OR_NULL(vdd)) {
-		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
-		return NULL;
-	}
-
-	*level_key = PANEL_LEVE2_KEY;
-
-	return &vdd->dtsi_data[ctrl->ndx].hbm_etc_tx_cmds[vdd->panel_revision];
 }
 
 #define COORDINATE_DATA_SIZE 6
@@ -479,7 +450,7 @@ static struct dsi_panel_cmds * mdss_elvss_temperature1(struct mdss_dsi_ctrl_pdat
 	/* TSET , CAPS */
 	vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[0].payload[1] = vdd->temperature;
 
-	if (vdd->bl_level > 18 ) {
+	if (vdd->candela_level > 19 ) {
 		if (vdd->acl_status == ACL_OFF) {
 			vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[1].payload[1] = 0x5C;
 			vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[2].payload[1] = 0x21;
@@ -488,7 +459,7 @@ static struct dsi_panel_cmds * mdss_elvss_temperature1(struct mdss_dsi_ctrl_pdat
 			vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[2].payload[1] = 0x29;
 		}
 	} else
-		vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[1].payload[1] = 0x4C;
+		vdd->dtsi_data[ctrl->ndx].elvss_lowtemp2_tx_cmds[vdd->panel_revision].cmds[1].payload[1] = 0x4C;
 
 	/* MPS, ELVSS Setting */
 	cd_index = get_cmd_index(vdd, ctrl->ndx);
@@ -502,44 +473,10 @@ static struct dsi_panel_cmds * mdss_elvss_temperature1(struct mdss_dsi_ctrl_pdat
 	vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[1].payload[2] \
 		= vdd->dtsi_data[ctrl->ndx].smart_acl_elvss_tx_cmds[vdd->panel_revision].cmds[cmd_idx].payload[2];
 
-	if (vdd->bl_level > 25 ){
-		vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = vdd->display_ststus_dsi[ctrl->ndx].elvss_value;
-	}else{
-		if(vdd->temperature > 0)
-			vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x0D;
-		else if(vdd->temperature > -20){
-			if (vdd->bl_level == 25 )
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x10;
-			else if (vdd->bl_level == 24 )
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x13;
-			else if (vdd->bl_level == 23 )
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x16;
-			else
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x17;
-		}else if(vdd->temperature < -19){
-			if (vdd->bl_level == 25 )
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x0E;
-			else if (vdd->bl_level == 24 )
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x11;
-			else if (vdd->bl_level == 23 )
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x14;
-			else if (vdd->bl_level == 22 )
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x17;
-			else if (vdd->bl_level == 21 )
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x1A;
-			else if (vdd->bl_level == 20 )
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x1D;
-	else
-				vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1] = 0x1F;
-		}
-
-	}
-
-	pr_debug("%s bl = %d acl : %d temp : %d 0xB8 :0x%x 0xB6[1] = 0x%x, 0xB6[2] = 0x%x, 0xB6[4] = 0x%x \n", __func__, vdd->bl_level,vdd->acl_status, vdd->temperature,
+	pr_debug("%s acl : %d temp : %d 0xB8 :0x%x 0xB6[1] = 0x%x, 0xB6[2] = 0x%x \n", __func__, vdd->acl_status, vdd->temperature,
 		vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[0].payload[1],
 		vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[1].payload[1],
-		vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[1].payload[2],
-		vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[4].payload[1]);
+		vdd->dtsi_data[ctrl->ndx].elvss_lowtemp_tx_cmds[vdd->panel_revision].cmds[1].payload[2]);
 
 	*level_key = PANEL_LEVE2_KEY;
 
@@ -567,10 +504,10 @@ static struct dsi_panel_cmds * mdss_elvss_temperature2(struct mdss_dsi_ctrl_pdat
 		if (vdd->acl_status == ACL_OFF) {
 			vdd->dtsi_data[ctrl->ndx].elvss_lowtemp2_tx_cmds[vdd->panel_revision].cmds[1].payload[1] = 0x5C;
 			vdd->dtsi_data[ctrl->ndx].elvss_lowtemp2_tx_cmds[vdd->panel_revision].cmds[2].payload[1] = 0x21;
-	} else {
+		} else {
 			vdd->dtsi_data[ctrl->ndx].elvss_lowtemp2_tx_cmds[vdd->panel_revision].cmds[1].payload[1] = 0x4C;
 			vdd->dtsi_data[ctrl->ndx].elvss_lowtemp2_tx_cmds[vdd->panel_revision].cmds[2].payload[1] = 0x29;
-	}
+		}
 	} else
 		vdd->dtsi_data[ctrl->ndx].elvss_lowtemp2_tx_cmds[vdd->panel_revision].cmds[1].payload[1] = 0x4C;
 
@@ -626,6 +563,33 @@ static struct dsi_panel_cmds * mdss_gamma(struct mdss_dsi_ctrl_pdata *ctrl, int 
 
 		return &vdd->dtsi_data[ctrl->ndx].gamma_tx_cmds[vdd->panel_revision];
 	}
+}
+static struct dsi_panel_cmds *mdss_hbm_gamma(struct mdss_dsi_ctrl_pdata *ctrl, int *level_key)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return NULL;
+	}
+
+	*level_key = PANEL_LEVE2_KEY;
+
+	return &vdd->dtsi_data[ctrl->ndx].hbm_gamma_tx_cmds[vdd->panel_revision];
+}
+
+static struct dsi_panel_cmds *mdss_hbm_etc(struct mdss_dsi_ctrl_pdata *ctrl, int *level_key)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return NULL;
+	}
+
+	*level_key = PANEL_LEVE2_KEY;
+
+	return &vdd->dtsi_data[ctrl->ndx].hbm_etc_tx_cmds[vdd->panel_revision];
 }
 
 static void dsi_update_mdnie_data(void)
@@ -742,13 +706,15 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	pr_info("%s\n", __func__);
 
 	vdd->support_mdnie_lite = true;
-
+	vdd->support_panel_max = EA8061V_AMS497EE01_SUPPORT_PANEL_COUNT;
 	vdd->mdnie_tune_size1 = 5;
 	vdd->mdnie_tune_size2 = 92;
 
 	/* ON/OFF */
 	vdd->panel_func.samsung_panel_on_pre = mdss_panel_on_pre;
 	vdd->panel_func.samsung_panel_on_post = NULL;
+	
+	vdd->manufacture_id_dsi[vdd->support_panel_max - 1]=get_lcd_attached("GET");
 
 	/* DDI RX */
 	vdd->panel_func.samsung_panel_revision = mdss_panel_revision;
@@ -777,8 +743,6 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_brightness_gamma = mdss_gamma;
 	vdd->brightness[0].brightness_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;
 	vdd->bl_level=255;
-
-	vdd->panel_func.samsung_brightness_elvss_temperature2 = NULL;
 
 	/* Event */
 

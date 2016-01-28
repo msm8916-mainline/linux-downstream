@@ -29,7 +29,6 @@
 #include <linux/smp.h>
 #include <linux/remote_spinlock.h>
 #include <linux/msm_remote_spinlock.h>
-#include <linux/math64.h>
 #include <linux/dma-mapping.h>
 #include <linux/coresight-cti.h>
 #include <linux/moduleparam.h>
@@ -43,23 +42,22 @@
 #include <asm/arch_timer.h>
 #include <asm/cacheflush.h>
 #include "lpm-levels.h"
-#include "idle_utility.h"
+#ifdef CONFIG_CX_VOTE_TURBO
+#include "lpm-workarounds.h"
+#endif
+#include <trace/events/power.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pinctrl/sec-pinmux.h>
 #include <linux/qpnp/pin.h>
 #ifdef CONFIG_SEC_GPIO_DVS
 #include <linux/secgpio_dvs.h>
 #endif
-#include <trace/events/power.h>
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/trace_msm_low_power.h>
-#ifdef CONFIG_CX_VOTE_TURBO
-#include <linux/regulator/consumer.h>
-#endif
 #define SCLK_HZ (32768)
 #define SCM_HANDOFF_LOCK_ID "S:7"
 static remote_spinlock_t scm_handoff_lock;
-extern uint32_t global_counter[NR_CPUS];
 
 enum {
 	MSM_LPM_LVL_DBG_SUSPEND_LIMITS = BIT(0),
@@ -83,37 +81,15 @@ struct lpm_debug {
 	uint32_t arg3;
 	uint32_t arg4;
 };
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-struct lpm_pm_debug {
-        cycle_t time;
-        uint32_t evt;
-        int cpu;
-        uint32_t arg1;
-        uint32_t arg2;
-        uint32_t arg3;
-        uint32_t arg4;
-};
-#endif
+
 struct lpm_cluster *lpm_root_node;
 
 static DEFINE_PER_CPU(struct lpm_cluster*, cpu_cluster);
-static DEFINE_PER_CPU(struct idle_prediction, idle_pred);
 static bool suspend_in_progress;
 static struct hrtimer lpm_hrtimer;
 static struct lpm_debug *lpm_debug;
 static phys_addr_t lpm_debug_phys;
 static const int num_dbg_elements = 0x100;
-#ifdef CONFIG_CX_VOTE_TURBO
-struct regulator *lpmcx_reg;
-struct work_struct dummy_vote_work;
-static struct workqueue_struct *msm_lpm_wq;
-#endif
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-static struct lpm_pm_debug *lpm_pm_debug;
-static phys_addr_t lpm_pm_debug_phys;
-static const int num_pm_dbg_elements = 0x1000;
-uint32_t rpm_smd_int_sts = 0xf;
-#endif
 
 static int lpm_cpu_callback(struct notifier_block *cpu_nb,
 				unsigned long action, void *hcpu);
@@ -149,36 +125,6 @@ static bool sleep_disabled;
 module_param_named(sleep_disabled,
 	sleep_disabled, bool, S_IRUGO | S_IWUSR | S_IWGRP);
 
-static bool ignore_iowait;
-module_param_named(
-	ignore_iowait, ignore_iowait, bool, S_IRUGO | S_IWUSR | S_IWGRP
-);
-
-static bool ignore_pred;
-module_param_named(
-	ignore_pred, ignore_pred, bool, S_IRUGO | S_IWUSR | S_IWGRP
-);
-
-static uint32_t resolution = 1024;
-module_param_named(
-	resolution, resolution, uint, S_IRUGO | S_IWUSR | S_IWGRP
-);
-
-#ifdef CONFIG_CX_VOTE_TURBO
-static void send_dummy_cx_vote(struct work_struct *w)
-{
-        if (lpmcx_reg) {
-                regulator_set_voltage(lpmcx_reg, 7, 7);
-                regulator_set_voltage(lpmcx_reg, 1, 7);
-        }
-}
-#endif
-
-static uint32_t decay = 8;
-module_param_named(
-	decay, decay, uint, S_IRUGO | S_IWUSR | S_IWGRP
-);
-
 s32 msm_cpuidle_get_deep_idle_latency(void)
 {
 	return 10;
@@ -208,33 +154,6 @@ static void update_debug_pc_event(enum debug_event event, uint32_t arg1,
 	dbg->arg4 = arg4;
 	spin_unlock(&debug_lock);
 }
-
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-static void update_debug_pm_event(uint32_t event, uint32_t arg1,
-		uint32_t arg2, uint32_t arg3, uint32_t arg4)
-{
-	struct lpm_pm_debug *dbg;
-	int idx;
-	static DEFINE_SPINLOCK(debug_pm_lock);
-	static int event_index;
-
-	if (!lpm_pm_debug)
-		return;
-
-	spin_lock(&debug_pm_lock);
-	idx = event_index++;
-	dbg = &lpm_pm_debug[idx & (num_pm_dbg_elements - 1)];
-
-	dbg->evt = event;
-	dbg->time = arch_counter_get_cntpct();
-	dbg->cpu = raw_smp_processor_id();
-	dbg->arg1 = arg1;
-	dbg->arg2 = arg2;
-	dbg->arg3 = arg3;
-	dbg->arg4 = arg4;
-	spin_unlock(&debug_pm_lock);
-}
-#endif
 
 static void setup_broadcast_timer(void *arg)
 {
@@ -285,33 +204,38 @@ int set_l2_mode(struct low_power_ops *ops, int mode, bool notify_rpm)
 {
 	int lpm = mode;
 	int rc = 0;
-	static bool coresight_saved;
 
-	ops->tz_flag = MSM_SCM_L2_ON;
+	if (ops->tz_flag == MSM_SCM_L2_OFF ||
+			ops->tz_flag == MSM_SCM_L2_GDHS)
+		coresight_cti_ctx_restore();
+
 
 	switch (mode) {
 	case MSM_SPM_MODE_POWER_COLLAPSE:
 		ops->tz_flag = MSM_SCM_L2_OFF;
 		coresight_cti_ctx_save();
-		coresight_saved = true;
 		break;
 	case MSM_SPM_MODE_GDHS:
 		ops->tz_flag = MSM_SCM_L2_GDHS;
 		coresight_cti_ctx_save();
-		coresight_saved = true;
 		break;
 	case MSM_SPM_MODE_RETENTION:
 	case MSM_SPM_MODE_DISABLED:
-		if (coresight_saved) {
-			coresight_cti_ctx_restore();
-			coresight_saved = false;
-		}
+		ops->tz_flag = MSM_SCM_L2_ON;
 		break;
 	default:
+		ops->tz_flag = MSM_SCM_L2_ON;
 		lpm = MSM_SPM_MODE_DISABLED;
 		break;
 	}
-	rc = msm_spm_config_low_power_mode(ops->spm, lpm, true);
+	
+	/* Do not program L2 SPM enable bit. This will be set by TZ */
+	if (lpm_wa_get_skip_l2_spm())
+		rc = msm_spm_config_low_power_mode_addr(ops->spm, lpm,
+							true);
+	else
+		rc = msm_spm_config_low_power_mode(ops->spm, lpm, true);
+ 
 
 	if (rc)
 		pr_err("%s: Failed to set L2 low power mode %d, ERR %d",
@@ -330,10 +254,10 @@ static int cpu_power_select(struct cpuidle_device *dev,
 {
 	int best_level = -1;
 	uint32_t best_level_pwr = ~0U;
-	struct idle_prediction *cpu_pred = &per_cpu(idle_pred, dev->cpu);
 	uint32_t latency_us = pm_qos_request_for_cpu(PM_QOS_CPU_DMA_LATENCY,
 							dev->cpu);
-	uint32_t sleep_us = (uint32_t)ktime_to_us(tick_nohz_get_sleep_length());
+	uint32_t sleep_us =
+		(uint32_t)(ktime_to_us(tick_nohz_get_sleep_length()));
 	uint32_t modified_time_us = 0;
 	uint32_t next_event_us = 0;
 	uint32_t pwr;
@@ -341,7 +265,6 @@ static int cpu_power_select(struct cpuidle_device *dev,
 	uint32_t lvl_latency_us = 0;
 	uint32_t lvl_overhead_us = 0;
 	uint32_t lvl_overhead_energy = 0;
-	int multiplier = performance_multiplier();
 
 	if (!cpu)
 		return -EINVAL;
@@ -349,12 +272,6 @@ static int cpu_power_select(struct cpuidle_device *dev,
 	if (sleep_disabled)
 		return 0;
 
-	cpu_pred->bucket = which_bucket(sleep_us);
-	if (!cpu_pred->correction_factor[cpu_pred->bucket])
-		cpu_pred->correction_factor[cpu_pred->bucket] = resolution * decay;
-
-	cpu_pred->expected_us = sleep_us;
-	cpu_pred->latency_us = latency_us;
 	/*
 	 * TODO:
 	 * Assumes event happens always on Core0. Need to check for validity
@@ -369,13 +286,6 @@ static int cpu_power_select(struct cpuidle_device *dev,
 		uint32_t next_wakeup_us = sleep_us;
 		enum msm_pm_sleep_mode mode = level->mode;
 		bool allow;
-
-		unsigned int round_val = resolution * decay / 2;
-
-		cpu_pred->predicted_us = div_u64((sleep_us *
-				cpu_pred->correction_factor[cpu_pred->bucket])
-				+  round_val,
-				resolution * decay);
 
 		allow = lpm_cpu_mode_allow(dev->cpu, mode, true);
 
@@ -401,12 +311,6 @@ static int cpu_power_select(struct cpuidle_device *dev,
 		}
 
 		if (next_wakeup_us <= pwr_params->time_overhead_us)
-			continue;
-
-		if (!ignore_iowait && !ignore_pred &&
-			(lvl_latency_us * multiplier > cpu_pred->predicted_us))
-				continue;
-		else if (!ignore_pred && lvl_latency_us > cpu_pred->predicted_us)
 			continue;
 
 		/*
@@ -501,6 +405,17 @@ static int cluster_select(struct lpm_cluster *cluster, bool from_idle)
 		latency_us = pm_qos_request_for_cpumask(PM_QOS_CPU_DMA_LATENCY,
 							&mask);
 
+	/*
+	 * If atleast one of the core in the cluster is online, the cluster
+	 * low power modes should be determined by the idle characteristics
+	 * even if the last core enters the low power mode as a part of
+	 * hotplug.
+	 */
+
+	if (!from_idle && num_online_cpus() > 1 &&
+		cpumask_intersects(&cluster->child_cpus, cpu_online_mask))
+		from_idle = true;
+
 	for (i = 0; i < cluster->nlevels; i++) {
 		struct lpm_cluster_level *level = &cluster->levels[i];
 		struct power_params *pwr_params = &level->pwr;
@@ -559,10 +474,7 @@ static int cluster_configure(struct lpm_cluster *cluster, int idx,
 		spin_unlock(&cluster->sync_lock);
 		return -EPERM;
 	}
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if (rpm_smd_int_sts == 1)
-		update_debug_pm_event(0x00020001, idx, from_idle, 0xcafebabe, 0xcafebabe);
-#endif
+
 	if (idx != cluster->default_level) {
 		update_debug_pc_event(CLUSTER_ENTER, idx,
 			cluster->num_childs_in_sync.bits[0],
@@ -580,26 +492,18 @@ static int cluster_configure(struct lpm_cluster *cluster, int idx,
 		if (ret)
 			goto failed_set_mode;
 	}
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if (rpm_smd_int_sts == 1)
-		update_debug_pm_event(0x00020002, idx, from_idle, level->notify_rpm, 0xcafebabe);
-#endif
 	if (level->notify_rpm) {
 		struct cpumask nextcpu;
 		uint32_t us;
 
 		us = get_cluster_sleep_time(cluster, &nextcpu, from_idle);
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-		update_debug_pm_event(0x00020003, idx, from_idle, level->notify_rpm, 0xcafebabe);
-#endif
+
 		ret = msm_rpm_enter_sleep(0, &nextcpu);
 		if (ret) {
 			pr_info("Failed msm_rpm_enter_sleep() rc = %d\n", ret);
 			goto failed_set_mode;
 		}
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-		rpm_smd_int_sts = 0x3;
-#endif
+
 		do_div(us, USEC_PER_SEC/SCLK_HZ);
 		msm_mpm_enter_sleep((uint32_t)us, from_idle, &nextcpu);
 	}
@@ -608,9 +512,6 @@ static int cluster_configure(struct lpm_cluster *cluster, int idx,
 	return 0;
 
 failed_set_mode:
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	update_debug_pm_event(0x00020004, 0xcafebabe, 0xcafebabe, 0xcafebabe, 0xcafebabe);
-#endif
 	for (i = 0; i < cluster->ndevices; i++) {
 		int rc = 0;
 		level = &cluster->levels[cluster->default_level];
@@ -659,11 +560,7 @@ static void cluster_prepare(struct lpm_cluster *cluster,
 		return;
 	}
 	spin_unlock(&cluster->sync_lock);
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if(rpm_smd_int_sts == 0x1)
-		update_debug_pm_event(0x00010001, from_idle, 0xcafebabe,
-						0xcafebabe, 0xcafebabe);
-#endif
+
 	i = cluster_select(cluster, from_idle);
 
 	if (i < 0)
@@ -682,40 +579,17 @@ static void cluster_unprepare(struct lpm_cluster *cluster,
 	struct lpm_cluster_level *level;
 	bool first_cpu;
 	int last_level, i, ret;
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	struct cpumask bmsk;
-	cpumask_setall(&bmsk);
-#endif
 
 	if (!cluster)
 		return;
-
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if (child_idx == NR_LPM_LEVELS)
-		update_debug_pm_event(0x00040001, from_idle, cluster->min_child_level,
-						child_idx, 0xcafebabe);
-
-	if (rpm_smd_int_sts == 0x03)
-		update_debug_pm_event(0x00030001, from_idle, cluster->min_child_level,
-						child_idx, 0xcafebabe);
-#endif
 
 	if (cluster->min_child_level > child_idx)
 		return;
 
 	spin_lock(&cluster->sync_lock);
-
 	last_level = cluster->default_level;
 	first_cpu = cpumask_equal(&cluster->num_childs_in_sync,
 				&cluster->child_cpus);
-
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if (rpm_smd_int_sts == 0x3 && cpumask_equal(&bmsk, &cluster->child_cpus)) {
-		update_debug_pm_event(0x00030002, first_cpu, 0xcafebabe, 0xcafebabe, 0xcafebabe);
-		rpm_smd_int_sts = 0x1;
-	}
-#endif
-
 	cpumask_andnot(&cluster->num_childs_in_sync,
 			&cluster->num_childs_in_sync, cpu);
 
@@ -727,50 +601,24 @@ static void cluster_unprepare(struct lpm_cluster *cluster,
 					&lvl->num_cpu_votes, cpu);
 	}
 
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if (rpm_smd_int_sts == 0x01)
-		update_debug_pm_event(0x00030003, first_cpu, last_level,
-					cluster->last_level, cluster->default_level);
-	if (child_idx == NR_LPM_LEVELS)
-		update_debug_pm_event(0x00040002, first_cpu, last_level,
-					cluster->last_level, cluster->default_level);
-#endif
-
 	if (!first_cpu || cluster->last_level == cluster->default_level)
 		goto unlock_return;
 
 	lpm_stats_cluster_exit(cluster->stats, cluster->last_level, true);
 
 	level = &cluster->levels[cluster->last_level];
-
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if (rpm_smd_int_sts == 0x01)
-		update_debug_pm_event(0x00030004, level->notify_rpm, 0xcafebabe,
-					0xcafebabe, 0xcafebabe);
-#endif
-
 	if (level->notify_rpm) {
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-		if (rpm_smd_int_sts == 0x01)
-			update_debug_pm_event(0x00030005, 0xcafebabe, 0xcafebabe,
-					0xcafebabe, 0xcafebabe);
-#endif
-
 		msm_rpm_exit_sleep();
 #ifdef CONFIG_CX_VOTE_TURBO
-		queue_work(msm_lpm_wq, &dummy_vote_work);
-#endif
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-		rpm_smd_int_sts = 0x2;
+		/* If RPM bumps up CX to turbo, unvote CX turbo vote
+		 * during exit of rpm assisted power collapse to
+		 * reduce the power impact
+		 */
+
+		lpm_wa_cx_unvote_send();
 #endif
 		msm_mpm_exit_sleep(from_idle);
 	}
-
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if (rpm_smd_int_sts == 0x01)
-		update_debug_pm_event(0x00030006, first_cpu, last_level,
-					0xcafebabe, 0xcafebabe);
-#endif
 
 	update_debug_pc_event(CLUSTER_EXIT, cluster->last_level,
 			cluster->num_childs_in_sync.bits[0],
@@ -790,12 +638,6 @@ static void cluster_unprepare(struct lpm_cluster *cluster,
 		BUG_ON(ret);
 	}
 unlock_return:
-
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if (rpm_smd_int_sts == 0x01)
-		rpm_smd_int_sts = 0x0;
-#endif
-
 	spin_unlock(&cluster->sync_lock);
 	cluster_unprepare(cluster->parent, &cluster->child_cpus,
 			last_level, from_idle);
@@ -833,31 +675,13 @@ static inline void cpu_unprepare(struct lpm_cluster *cluster, int cpu_index,
 		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
 }
 
-static int cpu_menu_select(struct cpuidle_device *dev, struct lpm_cpu *cpu,
-		int *index)
-{
-	for (; *index >= 0; (*index)--) {
-		int mode = cpu->levels[*index].mode;
-		bool allow = false;
-
-		allow = lpm_cpu_mode_allow(dev->cpu, mode, true);
-
-		if (!allow)
-			continue;
-
-		return *index;
-	}
-	return -EPERM;
-}
-
 static int lpm_cpuidle_enter(struct cpuidle_device *dev,
 		struct cpuidle_driver *drv, int index)
 {
 	struct lpm_cluster *cluster = per_cpu(cpu_cluster, dev->cpu);
 	int64_t time = ktime_to_ns(ktime_get());
 	bool success = true;
-	int idx = menu_select? cpu_menu_select(dev, cluster->cpu, &index):
-		cpu_power_select(dev, cluster->cpu, &index);
+	int idx = cpu_power_select(dev, cluster->cpu, &index);
 	const struct cpumask *cpumask = get_cpu_mask(dev->cpu);
 	struct power_params *pwr_params;
 
@@ -879,12 +703,6 @@ static int lpm_cpuidle_enter(struct cpuidle_device *dev,
 
 	cpu_prepare(cluster, idx, true);
 
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if(rpm_smd_int_sts == 0x1)
-		update_debug_pm_event(0x00000001, idx, 0xcafebabe,
-					0xcafebabe, 0xcafebabe);
-#endif
-
 	cluster_prepare(cluster, cpumask, idx, true);
 	trace_cpu_idle_enter(idx);
 	lpm_stats_cpu_enter(idx);
@@ -894,19 +712,11 @@ static int lpm_cpuidle_enter(struct cpuidle_device *dev,
 	cluster_unprepare(cluster, cpumask, idx, true);
 	cpu_unprepare(cluster, idx, true);
 
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if(rpm_smd_int_sts == 0x1) {
-		update_debug_pm_event(0x00000002, idx, 0xcafebabe,
-					0xcafebabe, 0xcafebabe);
-	}
-#endif
 	sched_set_cpu_cstate(smp_processor_id(), 0, 0, 0);
 
 	time = ktime_to_ns(ktime_get()) - time;
 	do_div(time, 1000);
 	dev->last_residency = (int)time;
-	update_correction_factor(dev->last_residency,
-			&per_cpu(idle_pred, dev->cpu), resolution, decay, idx);
 
 exit:
 	local_irq_enable();
@@ -984,7 +794,7 @@ static int cluster_cpuidle_register(struct lpm_cluster *cl)
 		struct lpm_cpu_level *cpu_level = &cl->cpu->levels[i];
 		snprintf(st->name, CPUIDLE_NAME_LEN, "C%u\n", i);
 		snprintf(st->desc, CPUIDLE_DESC_LEN, cpu_level->name);
-		st->flags = 1;
+		st->flags = 0;
 		st->exit_latency = cpu_level->pwr.latency_us;
 		st->power_usage = cpu_level->pwr.ss_power;
 		st->target_residency = 0;
@@ -1136,23 +946,8 @@ static int lpm_suspend_enter(suspend_state_t state)
 	cpu_prepare(cluster, idx, false);
 	cluster_prepare(cluster, cpumask, idx, false);
 	msm_cpu_pm_enter_sleep(cluster->cpu->levels[idx].mode, false);
-
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if (idx > 0)
-		update_debug_pc_event(CPU_EXIT, idx, 0xdeadbeef,
-				0xdeadbeef, 0xdeadbeef);
-#endif
-
 	cluster_unprepare(cluster, cpumask, idx, false);
 	cpu_unprepare(cluster, idx, false);
-
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if(rpm_smd_int_sts == 0x1) {
-		update_debug_pm_event(0x00050001, idx, 0xcafebabe,
-					0xcafebabe, 0xcafebabe);
-	}
-#endif
-
 	return 0;
 }
 
@@ -1169,17 +964,6 @@ static int lpm_probe(struct platform_device *pdev)
 	int size;
 	struct kobject *module_kobj = NULL;
 
-#ifdef CONFIG_CX_VOTE_TURBO
-	lpmcx_reg = regulator_get(&pdev->dev, "lpmcx");
-	if (IS_ERR(lpmcx_reg)) {
-        	ret = PTR_ERR(lpmcx_reg);
-	        if (ret != -EPROBE_DEFER)
-			pr_err("Not able to get the regulator, failed\n");
-	        else
-			return ret;
-	}
-	INIT_WORK(&dummy_vote_work, send_dummy_cx_vote);
-#endif
 	lpm_root_node = lpm_of_parse_cluster(pdev);
 
 	if (IS_ERR_OR_NULL(lpm_root_node)) {
@@ -1213,12 +997,6 @@ static int lpm_probe(struct platform_device *pdev)
 	size = num_dbg_elements * sizeof(struct lpm_debug);
 	lpm_debug = dma_alloc_coherent(&pdev->dev, size,
 			&lpm_debug_phys, GFP_KERNEL);
-
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	size = num_pm_dbg_elements * sizeof(struct lpm_pm_debug);
-	lpm_pm_debug = dma_alloc_coherent(&pdev->dev, size,
-			&lpm_pm_debug_phys, GFP_KERNEL);
-#endif
 	register_cluster_lpm_stats(lpm_root_node, NULL);
 
 	ret = cluster_cpuidle_register(lpm_root_node);
@@ -1242,10 +1020,6 @@ static int lpm_probe(struct platform_device *pdev)
 				__func__);
 		goto failed;
 	}
-#ifdef CONFIG_CX_VOTE_TURBO
-	msm_lpm_wq = alloc_workqueue("lpm-level",
-			WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_HIGHPRI, 1);
-#endif
 	return 0;
 failed:
 	free_cluster_node(lpm_root_node);
@@ -1288,9 +1062,14 @@ enum msm_pm_l2_scm_flag lpm_cpu_pre_pc_cb(unsigned int cpu)
 
 	/*
 	 * No need to acquire the lock if probe isn't completed yet
+	 * In the event of the hotplug happening before lpm probe, we want to
+	 * flush the cache to make sure that L2 is flushed. In particular, this
+	 * could cause incoherencies for a cluster architecture. This wouldn't
+	 * affect the idle case as the idle driver wouldn't be registered
+	 * before the probe function
 	 */
 	if (!cluster)
-		return retflag;
+		return MSM_SCM_L2_OFF;
 
 	/*
 	 * Assumes L2 only. What/How parameters gets passed into TZ will

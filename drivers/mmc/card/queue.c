@@ -61,6 +61,10 @@ static int mmc_queue_thread(void *d)
 
 	current->flags |= PF_MEMALLOC;
 
+#if defined(CONFIG_ARCH_MSM8939)|| defined (CONFIG_ARCH_MSM8929)
+	set_cpus_allowed_ptr(current, cpumask_of(4));
+#endif
+
 	down(&mq->thread_sem);
 	do {
 		struct request *req = NULL;

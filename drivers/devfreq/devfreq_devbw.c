@@ -45,7 +45,7 @@ struct dev_data {
 	int cur_ab;
 	int cur_ib;
 	long gov_ab;
-	unsigned int *freq_ab_table;
+	unsigned int ab_percent;
 	struct devfreq *df;
 	struct devfreq_dev_profile dp;
 };
@@ -79,21 +79,9 @@ static int set_bw(struct device *dev, int new_ib, int new_ab)
 	return ret;
 }
 
-static unsigned int find_ab(struct dev_data *d, struct devfreq_dev_profile *p,
-					unsigned long *freq)
+static unsigned int find_ab(struct dev_data *d, unsigned long *freq)
 {
-	int i;
-	unsigned long  f;
-
-	if (d->freq_ab_table == NULL)
-		return 0;
-
-	for (i = 0; i < p->max_state; i++) {
-		f = p->freq_table[i];
-		if (f == *freq)
-			break;
-	}
-	return d->freq_ab_table[i];
+	return (d->ab_percent * (*freq)) / 100;
 }
 
 static void find_freq(struct devfreq_dev_profile *p, unsigned long *freq,
@@ -125,7 +113,7 @@ static int devbw_target(struct device *dev, unsigned long *freq, u32 flags)
 	find_freq(&d->dp, freq, flags);
 
 	if (!d->gov_ab)
-		return set_bw(dev, *freq, find_ab(d, &d->dp, freq));
+		return set_bw(dev, *freq, find_ab(d, freq));
 	else
 		return set_bw(dev, *freq, d->gov_ab);
 }
@@ -141,7 +129,7 @@ static int devbw_get_dev_status(struct device *dev,
 
 #define PROP_PORTS "qcom,src-dst-ports"
 #define PROP_TBL "qcom,bw-tbl"
-#define PROP_AB_TBL "qcom,ab-tbl"
+#define PROP_AB_PER "qcom,ab-percent"
 #define PROP_ACTIVE "qcom,active-only"
 
 int devfreq_add_devbw(struct device *dev)
@@ -219,25 +207,13 @@ int devfreq_add_devbw(struct device *dev)
 		p->max_state = len;
 	}
 
-	if (of_find_property(dev->of_node, PROP_AB_TBL, &len)) {
-		len /= sizeof(*data);
-		data = devm_kzalloc(dev, len * sizeof(*data), GFP_KERNEL);
-		if (!data)
-			return -ENOMEM;
-
-		d->freq_ab_table = devm_kzalloc(dev,
-					     len * sizeof(*d->freq_ab_table),
-					     GFP_KERNEL);
-		if (!d->freq_ab_table)
-			return -ENOMEM;
-
-		ret = of_property_read_u32_array(dev->of_node, PROP_AB_TBL,
-						 data, len);
+	if (of_find_property(dev->of_node, PROP_AB_PER, &len)) {
+		ret = of_property_read_u32(dev->of_node, PROP_AB_PER,
+							&d->ab_percent);
 		if (ret)
 			return ret;
 
-		for (i = 0; i < len; i++)
-			d->freq_ab_table[i] = data[i];
+		dev_dbg(dev, "ab-percent used %u\n", d->ab_percent);
 	}
 
 	d->bus_client = msm_bus_scale_register_client(&d->bw_data);

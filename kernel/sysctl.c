@@ -148,8 +148,11 @@ static int min_percpu_pagelist_fract = 8;
 
 static int ngroups_max = NGROUPS_MAX;
 static const int cap_last_cap = CAP_LAST_CAP;
-
 unsigned int sysctl_sched_boot_complete_pct = 0;
+/*this is needed for proc_doulongvec_minmax of sysctl_hung_task_timeout_secs */
+#ifdef CONFIG_DETECT_HUNG_TASK
+static unsigned long hung_task_timeout_max = (LONG_MAX/HZ);
+#endif
 
 #ifdef CONFIG_INOTIFY_USER
 #include <linux/inotify.h>
@@ -338,6 +341,13 @@ static struct ctl_table kern_table[] = {
 		.proc_handler   = sched_hmp_proc_update_handler,
 	},
 #endif
+	{
+		.procname		= "sched_boot_complete",
+		.data			= &sysctl_sched_boot_complete_pct,
+		.maxlen			= sizeof(int),
+		.mode			= 0644,
+		.proc_handler	= proc_dointvec
+	},
 #ifdef CONFIG_SCHED_HMP
 	{
 		.procname       = "sched_account_wait_time",
@@ -359,13 +369,6 @@ static struct ctl_table kern_table[] = {
 		.maxlen         = sizeof(unsigned int),
 		.mode           = 0644,
 		.proc_handler   = sched_window_update_handler,
-	},
-	{
-		.procname		= "sched_boot_complete",
-		.data			= &sysctl_sched_boot_complete_pct,
-		.maxlen			= sizeof(int),
-		.mode			= 0644,
-		.proc_handler	= proc_dointvec
 	},
 	{
 		.procname	= "sched_small_task",
@@ -1124,6 +1127,7 @@ static struct ctl_table kern_table[] = {
 		.maxlen		= sizeof(unsigned long),
 		.mode		= 0644,
 		.proc_handler	= proc_dohung_task_timeout_secs,
+		.extra2		= &hung_task_timeout_max,
 	},
 	{
 		.procname	= "hung_task_warnings",
@@ -1201,6 +1205,16 @@ static struct ctl_table kern_table[] = {
 		.maxlen		= sizeof(sysctl_perf_event_sample_rate),
 		.mode		= 0644,
 		.proc_handler	= perf_proc_update_handler,
+		.extra1		= &one,
+	},
+	{
+		.procname	= "perf_cpu_time_max_percent",
+		.data		= &sysctl_perf_cpu_time_max_percent,
+		.maxlen		= sizeof(sysctl_perf_cpu_time_max_percent),
+		.mode		= 0644,
+		.proc_handler	= perf_cpu_time_max_percent_handler,
+		.extra1		= &zero,
+		.extra2		= &one_hundred,
 	},
 #endif
 #ifdef CONFIG_KMEMCHECK
@@ -1426,7 +1440,7 @@ static struct ctl_table vm_table[] = {
 		.procname	= "compact_memory",
 		.data		= &sysctl_compact_memory,
 		.maxlen		= sizeof(int),
-		.mode		= 0200,
+		.mode		= 0644,
 		.proc_handler	= sysctl_compaction_handler,
 	},
 	{
@@ -2783,6 +2797,11 @@ int proc_do_large_bitmap(struct ctl_table *table, int write,
 }
 
 #else /* CONFIG_PROC_SYSCTL */
+int is_boot_complete(void)
+{
+	return sysctl_sched_boot_complete_pct;
+}
+EXPORT_SYMBOL(is_boot_complete);
 
 int proc_dostring(struct ctl_table *table, int write,
 		  void __user *buffer, size_t *lenp, loff_t *ppos)
@@ -2835,12 +2854,6 @@ int proc_doulongvec_ms_jiffies_minmax(struct ctl_table *table, int write,
 
 
 #endif /* CONFIG_PROC_SYSCTL */
-
-int is_boot_complete(void)
-{
-	return sysctl_sched_boot_complete_pct;
-}
-EXPORT_SYMBOL(is_boot_complete);
 
 /*
  * No sense putting this after each symbol definition, twice,

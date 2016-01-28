@@ -3888,11 +3888,19 @@ static void call_atten_cb(struct cyttsp5_core_data *cd,
 	list_for_each_entry_safe(atten, atten_n,
 			&cd->atten_list[type], node) {
 		if (!mode || atten->mode & mode) {
+		if (atten->dev == NULL)
+		{
+		dev_info(cd->dev, "%s: atten is null ", __func__ );
+		spin_unlock(&cd->spinlock);
+		return;
+		}
+		else{
 			spin_unlock(&cd->spinlock);
 			dev_vdbg(cd->dev, "%s: attention for '%s'", __func__,
 				dev_name(atten->dev));
 			atten->func(atten->dev);
 			spin_lock(&cd->spinlock);
+			}
 		}
 	}
 	spin_unlock(&cd->spinlock);
@@ -5914,6 +5922,13 @@ EXPORT_SYMBOL(cyttsp5_probe);
 int cyttsp5_release(struct cyttsp5_core_data *cd)
 {
 	struct device *dev = cd->dev;
+
+	mutex_lock(&cd->system_lock);
+	if (cd->irq_enabled) {
+		disable_irq_nosync(cd->irq);
+		cd->irq_enabled = false;
+	}
+	mutex_unlock(&cd->system_lock);
 
 	cyttsp5_debug_release(dev);
 	cyttsp5_device_access_release(dev);

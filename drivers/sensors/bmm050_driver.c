@@ -24,7 +24,7 @@
 #include <linux/mutex.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
-#include "sensors_core.h"
+#include <linux/sensor/sensors_core.h>
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
@@ -38,14 +38,15 @@
 #endif
 #include <linux/regulator/consumer.h>
 #include <linux/of_gpio.h>
-#include "sensors_core.h"
+#include <linux/sensor/sensors_core.h>
 
+#if defined(CONFIG_CHARGER_NOTIFY_SENSOR)
+#include <linux/power_supply.h>
+#endif
 
 #include "bmm050.h"
 //#include "bs_log.h"
-#if 0//def CONFIG_MACH_A5_CHN_OPEN
-extern int system_rev;
-#endif
+
 /* sensor specific */
 #define SENSOR_NAME	"magnetic_sensor"
 #define CHIP_VENDOR	"BOSCH"
@@ -81,44 +82,10 @@ extern int system_rev;
 
 #define BMM_OP_MODE_UNKNOWN (-1)
 
-#define CONFIG_BMM_USE_PLATFORM_DATA
 #define BMM_USE_BASIC_I2C_FUNC
 
-/*! Bosch sensor unknown place*/
-#define BOSCH_SENSOR_PLACE_UNKNOWN (-1)
 /*! Bosch sensor remapping table size P0~P7*/
 #define MAX_AXIS_REMAP_TAB_SZ 8
-
-#ifdef CONFIG_BMM_USE_PLATFORM_DATA
-struct bosch_sensor_specific {
-//	char *name;
-	/* 0 to 7 */
-	int place;
-//	int irq;
-//	int (*irq_gpio_cfg)(void);
-};
-#endif
-
-/*!
- * we use a typedef to hide the detail,
- * because this type might be changed
- */
-struct bosch_sensor_axis_remap {
-	/* src means which source will be mapped to target x, y, z axis */
-	/* if an target OS axis is remapped from (-)x,
-	 * src is 0, sign_* is (-)1 */
-	/* if an target OS axis is remapped from (-)y,
-	 * src is 1, sign_* is (-)1 */
-	/* if an target OS axis is remapped from (-)z,
-	 * src is 2, sign_* is (-)1 */
-	int src_x:3;
-	int src_y:3;
-	int src_z:3;
-
-	int sign_x:2;
-	int sign_y:2;
-	int sign_z:2;
-};
 
 struct bosch_sensor_data {
 	union {
@@ -146,7 +113,6 @@ struct bmm_client_data {
 	struct i2c_client *client;
 	struct input_dev *input;
 	struct delayed_work work;
-	struct workqueue_struct *wq;
 
 
 	atomic_t delay;
@@ -173,15 +139,56 @@ struct bmm_client_data {
 	struct mutex mutex_rept_z;
 
 	struct mutex mutex_value;
-#ifdef CONFIG_BMM_USE_PLATFORM_DATA
-	struct bosch_sensor_specific *bst_pd;
-#endif
-	struct regulator *reg_vdd;
+
 	struct regulator *reg_vio;
+	struct regulator *reg_vdd;
 	int place;
+	u64 old_timestamp;
+#if defined(CONFIG_CHARGER_NOTIFY_SENSOR)
+	int offset_ta_x;
+	int offset_ta_y;
+	int offset_ta_z;
+	int offset_usb_x;
+	int offset_usb_y;
+	int offset_usb_z;
+#endif
 };
 
 static struct i2c_client *bmm_client;
+
+#if defined(CONFIG_CHARGER_NOTIFY_SENSOR)
+#define CHARGER_STATE_TA_CHARGING	1
+#define CHARGER_STATE_USB_CHARGING	2
+static struct power_supply *batt_psy = 0;
+static int check_charger_state(void)
+{
+	union power_supply_propval ret = {0,};
+
+	if (!batt_psy) {
+		batt_psy = power_supply_get_by_name("battery");
+		if (!batt_psy)
+			pr_info( "BMM %s Can not get the battery power_supply. \n",__func__);
+			return 0;
+	}
+
+	batt_psy->get_property(batt_psy,POWER_SUPPLY_PROP_STATUS, &ret);
+	if(ret.intval == POWER_SUPPLY_STATUS_CHARGING) { //Charging
+		batt_psy->get_property(batt_psy,POWER_SUPPLY_PROP_VOLTAGE_NOW, &ret);
+		if(ret.intval < 4300000) { //CC charging
+			//pr_info( "BMM %s Charger CC Charging . \n",__func__);
+			batt_psy->get_property(batt_psy,POWER_SUPPLY_PROP_ONLINE, &ret);
+			if( ret.intval == POWER_SUPPLY_TYPE_MAINS)  //TA Connect-ing
+				return CHARGER_STATE_TA_CHARGING; // TA Charging
+			else if (ret.intval == POWER_SUPPLY_TYPE_USB) //USB Connect-ing
+				return CHARGER_STATE_USB_CHARGING; // USB Charging
+		}
+	}
+
+	//pr_info( "BMM %s No Charger connect 0. \n",__func__);
+	return 0;
+}
+#endif
+
 /* i2c operation for API */
 static void bmm_delay(u32 msec);
 static int bmm_i2c_read(struct i2c_client *client, u8 reg_addr,
@@ -199,65 +206,21 @@ static int bmm_post_resume(struct i2c_client *client);
 
 static int bmm_restore_hw_cfg(struct i2c_client *client);
 
-static const struct bosch_sensor_axis_remap
-bst_axis_remap_tab_dft[MAX_AXIS_REMAP_TAB_SZ] = {
-	/* src_x src_y src_z  sign_x  sign_y  sign_z */
-	{  0,    1,    2,     1,      1,      1 }, /* P0 */
-	{  1,    0,    2,     1,     -1,      1 }, /* P1 */
-	{  0,    1,    2,    -1,     -1,      1 }, /* P2 */
-	{  1,    0,    2,    -1,      1,      1 }, /* P3 */
-
-	{  0,    1,    2,    -1,      1,     -1 }, /* P4 */
-	{  1,    0,    2,    -1,     -1,     -1 }, /* P5 */
-	{  0,    1,    2,     1,     -1,     -1 }, /* P6 */
-	{  1,    0,    2,     1,      1,     -1 }, /* P7 */
-};
-
-static void bst_remap_sensor_data(struct bosch_sensor_data *data,
-		const struct bosch_sensor_axis_remap *remap)
-{
-	struct bosch_sensor_data tmp;
-
-	tmp.x = data->v[remap->src_x] * remap->sign_x;
-	tmp.y = data->v[remap->src_y] * remap->sign_y;
-	tmp.z = data->v[remap->src_z] * remap->sign_z;
-
-	memcpy(data, &tmp, sizeof(*data));
-}
-
-static void bst_remap_sensor_data_dft_tab(struct bosch_sensor_data *data,
-		int place)
-{
-	/* sensor with place 0 needs not to be remapped */
-	if ((place <= 0) || (place >= MAX_AXIS_REMAP_TAB_SZ))
-		return;
-
-	bst_remap_sensor_data(data, &bst_axis_remap_tab_dft[place]);
-}
-
 static void bmm_remap_sensor_data(struct bmm050_mdata_s32 *val,
 		struct bmm_client_data *client_data)
 {
-#ifdef CONFIG_BMM_USE_PLATFORM_DATA
 	struct bosch_sensor_data bsd;
 
-	if (NULL == client_data->bst_pd)
-		return;
 
 	bsd.x = val->datax;
 	bsd.y = val->datay;
 	bsd.z = val->dataz;
 
-	bst_remap_sensor_data_dft_tab(&bsd,
-			client_data->bst_pd->place);
+	remap_sensor_data(bsd.v, client_data->place);
 
 	val->datax = bsd.x;
 	val->datay = bsd.y;
 	val->dataz = bsd.z;
-#else
-	(void)val;
-	(void)client_data;
-#endif
 }
 
 static int bmm_check_chip_id(struct i2c_client *client)
@@ -516,6 +479,11 @@ static void bmm_work_func(struct work_struct *work)
 	unsigned long delay =
 		msecs_to_jiffies(atomic_read(&client_data->delay));
 	struct bmm050_mdata_s32 value = {0,0,0,0,0};
+	struct timespec ts;
+	u64 timestamp_new;
+	u64 timestamp ;
+	int time_hi, time_lo;
+
 	int i = 0;
 	mutex_lock(&client_data->mutex_value);
 	while ( i++ < 3)
@@ -523,6 +491,20 @@ static void bmm_work_func(struct work_struct *work)
 		BMM_CALL_API(read_mdataXYZ_s32)(&value);
 		if (value.drdy)
 		{
+#if defined(CONFIG_CHARGER_NOTIFY_SENSOR)
+			if(check_charger_state() == CHARGER_STATE_TA_CHARGING)
+			{
+				value.datax+=client_data->offset_ta_x;
+				value.datay+=client_data->offset_ta_y;
+				value.dataz+=client_data->offset_ta_z;
+			}
+			else if(check_charger_state() == CHARGER_STATE_USB_CHARGING)
+			{
+				value.datax+=client_data->offset_usb_x;
+				value.datay+=client_data->offset_usb_y;
+				value.dataz+=client_data->offset_usb_z;
+			}
+#endif
 			bmm_remap_sensor_data(&value, client_data);
 			client_data->value = value;
 			break;
@@ -538,14 +520,40 @@ static void bmm_work_func(struct work_struct *work)
 
 	mutex_unlock(&client_data->mutex_op_mode);
 
+	ts = ktime_to_timespec(ktime_get_boottime());
+	timestamp_new = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	if ((timestamp_new - client_data->old_timestamp) > atomic_read(&client_data->delay)* 1800000LL\
+		&& (client_data->old_timestamp != 0))
+	{
+		timestamp = (timestamp_new + client_data->old_timestamp) >>  1;
+
+		time_hi = (int)((timestamp & TIME_HI_MASK) >> TIME_HI_SHIFT);
+		time_lo = (int)(timestamp & TIME_LO_MASK);
+
 	input_report_rel(client_data->input, REL_X, client_data->value.datax);
 	input_report_rel(client_data->input, REL_Y, client_data->value.datay);
 	input_report_rel(client_data->input, REL_Z, client_data->value.dataz);
+		input_report_rel(client_data->input, REL_RX, time_hi);
+		input_report_rel(client_data->input, REL_RY, time_lo);
+		input_sync(client_data->input);
+	}
+
+	time_hi = (int)((timestamp_new & TIME_HI_MASK) >> TIME_HI_SHIFT);
+	time_lo = (int)(timestamp_new & TIME_LO_MASK);
+
+	input_report_rel(client_data->input, REL_X, client_data->value.datax);
+	input_report_rel(client_data->input, REL_Y, client_data->value.datay);
+	input_report_rel(client_data->input, REL_Z, client_data->value.dataz);
+	input_report_rel(client_data->input, REL_RX, time_hi);
+	input_report_rel(client_data->input, REL_RY, time_lo);
+	input_sync(client_data->input);
+
+	client_data->old_timestamp = timestamp_new;
 
 	mutex_unlock(&client_data->mutex_value);
 
-	input_sync(client_data->input);
-	queue_delayed_work_on(get_low_pwr_cpu(), client_data->wq, &client_data->work, delay);
+
+	schedule_delayed_work(&client_data->work, delay);
 }
 
 
@@ -981,6 +989,20 @@ static ssize_t bmm_show_raw_data(struct device *dev,
 	if( (value.datax == 0) && (value.datay == 0) )
 		return 0;
 
+#if defined(CONFIG_CHARGER_NOTIFY_SENSOR)
+	if(check_charger_state() == CHARGER_STATE_TA_CHARGING)
+	{
+		value.datax+=client_data->offset_ta_x;
+		value.datay+=client_data->offset_ta_y;
+		value.dataz+=client_data->offset_ta_z;
+	}
+	else if(check_charger_state() == CHARGER_STATE_USB_CHARGING)
+	{
+		value.datax+=client_data->offset_usb_x;
+		value.datay+=client_data->offset_usb_y;
+		value.dataz+=client_data->offset_usb_z;
+	}
+#endif
 
 	if (value.datax == BMM050_OVERFLOW_OUTPUT_S32)
 		value.datax = BMM050_OVERFLOW_OUTPUT_S32_XY;
@@ -1077,13 +1099,13 @@ static ssize_t bmm_store_enable(struct device *dev,
 	mutex_lock(&client_data->mutex_enable);
 	if (data != client_data->enable) {
 		if (data) {
-			queue_delayed_work_on(get_low_pwr_cpu(), client_data->wq,
-				&client_data->work,
+			client_data->old_timestamp = 0LL;
+			schedule_delayed_work(
+					&client_data->work,
 					msecs_to_jiffies(atomic_read(
-						&client_data->delay)));
+							&client_data->delay)));
 		} else {
 			cancel_delayed_work_sync(&client_data->work);
-			flush_workqueue(client_data->wq);
 		}
 
 		client_data->enable = data;
@@ -1122,8 +1144,11 @@ static ssize_t bmm_store_delay(struct device *dev,
 	}
 
 	data = data / 1000000L;
+	pr_info("%s [%d]\n", __func__, (int)data);
 
-	if (data < BMM_DELAY_MIN)
+	if (data > BMM_DELAY_DEFAULT)
+		data = BMM_DELAY_DEFAULT;
+	else if (data < BMM_DELAY_MIN)
 		data = BMM_DELAY_MIN;
 	pr_info("%s [%d]\n", __func__, (int)data);
 	atomic_set(&client_data->delay, data);
@@ -1303,16 +1328,11 @@ static ssize_t bmm_show_reg(struct device *dev,
 static ssize_t bmm_show_place(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-#ifdef CONFIG_BMM_USE_PLATFORM_DATA
 	struct input_dev *input = to_input_dev(dev);
 	struct bmm_client_data *client_data = input_get_drvdata(input);
-#endif
-	int place = BOSCH_SENSOR_PLACE_UNKNOWN;
 
-#ifdef CONFIG_BMM_USE_PLATFORM_DATA
-	if (NULL != client_data->bst_pd)
-		place = client_data->bst_pd->place;
-#endif
+	int place = client_data->place;
+
 	return sprintf(buf, "%d\n", place);
 }
 
@@ -1443,6 +1463,8 @@ static int bmm_input_init(struct bmm_client_data *client_data)
 	input_set_capability(dev, EV_REL, REL_X);
 	input_set_capability(dev, EV_REL, REL_Y);
 	input_set_capability(dev, EV_REL, REL_Z);
+	input_set_capability(dev, EV_REL, REL_RX);
+	input_set_capability(dev, EV_REL, REL_RY);
 
 	input_set_capability(dev, EV_ABS, ABS_MISC);
 	input_set_abs_params(dev, ABS_X, MAG_VALUE_MIN, MAG_VALUE_MAX, 0, 0);
@@ -1546,6 +1568,41 @@ static int bmm050_parse_dt(struct bmm_client_data *data, struct device *dev)
 		goto error;
 	}
 
+#if defined(CONFIG_CHARGER_NOTIFY_SENSOR)
+	ret = of_property_read_u32(np, "bmm050,offset_ta_x", &data->offset_ta_x);
+	if (unlikely(ret)) {
+		dev_err(dev, "error reading property offset_ta_x from device node %d\n", data->offset_ta_x);
+		goto error;
+	}
+	ret = of_property_read_u32(np, "bmm050,offset_ta_y", &data->offset_ta_y);
+	if (unlikely(ret)) {
+		dev_err(dev, "error reading property offset_ta_y from device node %d\n", data->offset_ta_y);
+		goto error;
+	}
+	ret = of_property_read_u32(np, "bmm050,offset_ta_z", &data->offset_ta_z);
+	if (unlikely(ret)) {
+		dev_err(dev, "error reading property offset_ta_z from device node %d\n", data->offset_ta_z);
+		goto error;
+	}
+	ret = of_property_read_u32(np, "bmm050,offset_usb_x", &data->offset_usb_x);
+	if (unlikely(ret)) {
+		dev_err(dev, "error reading property offset_usb_x from device node %d\n", data->offset_usb_x);
+		goto error;
+	}
+	ret = of_property_read_u32(np, "bmm050,offset_usb_y", &data->offset_usb_y);
+	if (unlikely(ret)) {
+		dev_err(dev, "error reading property offset_usb_y from device node %d\n", data->offset_usb_y);
+		goto error;
+	}
+	ret = of_property_read_u32(np, "bmm050,offset_usb_z", &data->offset_usb_z);
+	if (unlikely(ret)) {
+		dev_err(dev, "error reading property offset_usb_z from device node %d\n", data->offset_usb_z);
+		goto error;
+	}
+	pr_info("%s offset_ta_x >> %d,offset_ta_y >> %d,offset_ta_z >> %d offset_usb_x >> %d offset_usb_y >> %d offset_usb_z >> %d\n",
+		__func__,data->offset_ta_x,data->offset_ta_y,data->offset_ta_z,data->offset_usb_x,data->offset_usb_y,data->offset_usb_z);
+#endif
+
 	return 0;
 error:
 	return ret;
@@ -1557,16 +1614,7 @@ static int bmm050_mag_power_onoff(struct bmm_client_data *data, bool onoff)
 
 	pr_info("%s :%d\n", __func__, onoff);
 
-	data->reg_vdd = devm_regulator_get(&data->client->dev, " bmm050,vdd");
-	if (IS_ERR(data->reg_vdd)) {
-		pr_err("could not get vdd, %ld\n", PTR_ERR(data->reg_vdd));
-		ret = -ENOMEM;
-		goto err_vdd;
-	} else if (!regulator_get_voltage(data->reg_vdd)) {
-		ret = regulator_set_voltage(data->reg_vdd, 2850000, 2850000);
-	}
-
-	data->reg_vio = devm_regulator_get(&data->client->dev, " bmm050,vio");
+	data->reg_vio = devm_regulator_get(&data->client->dev, "bmm050,vio");
 	if (IS_ERR(data->reg_vio)) {
 		pr_err("could not get vio, %ld\n", PTR_ERR(data->reg_vio));
 		ret = -ENOMEM;
@@ -1575,31 +1623,42 @@ static int bmm050_mag_power_onoff(struct bmm_client_data *data, bool onoff)
 		ret = regulator_set_voltage(data->reg_vio, 1800000, 1800000);
 	}
 
+	data->reg_vdd = devm_regulator_get(&data->client->dev, "bmm050,vdd");
+	if (IS_ERR(data->reg_vdd)) {
+		pr_err("could not get vdd, %ld\n", PTR_ERR(data->reg_vdd));
+		ret = -ENOMEM;
+		goto err_vdd;
+	} else if (!regulator_get_voltage(data->reg_vdd)) {
+		ret = regulator_set_voltage(data->reg_vdd, 2850000, 2850000);
+	}
+
 	if (onoff) {
-		ret = regulator_enable(data->reg_vdd);
-		if (ret) {
-			pr_err("%s: Failed to enable vdd.\n", __func__);
-		}
 		ret = regulator_enable(data->reg_vio);
 		if (ret) {
 			pr_err("%s: Failed to enable vio.\n", __func__);
 		}
-		msleep(30);
-	} else {
-		ret = regulator_disable(data->reg_vdd);
+		ret = regulator_enable(data->reg_vdd);
 		if (ret) {
-			pr_err("%s: Failed to disable vdd.\n", __func__);
+			pr_err("%s: Failed to enable vdd.\n", __func__);
 		}
+	} else {
 		ret = regulator_disable(data->reg_vio);
 		if (ret) {
 			pr_err("%s: Failed to disable vio.\n", __func__);
 		}
+		ret = regulator_disable(data->reg_vdd);
+		if (ret) {
+			pr_err("%s: Failed to disable vdd.\n", __func__);
+		}
 	}
+	pr_info("%s success:%d\n", __func__, onoff);
+	msleep(20);
+	return ret;
 
+err_vdd:
 	devm_regulator_put(data->reg_vio);
 err_vio:
-	devm_regulator_put(data->reg_vdd);
-err_vdd:
+
 	return ret;
 }
 
@@ -1609,11 +1668,6 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	int err = 0;
 	struct bmm_client_data *client_data = NULL;
 	int dummy;
-
-#if 0//def CONFIG_MACH_A5_CHN_OPEN
-		if(system_rev < 6)
-			return -1;
-#endif
 
 	pr_info("%s-function entrance\n",__func__);
 
@@ -1629,6 +1683,29 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		pr_err("%s -this driver does not support multiple clients\n",__func__);
 		err = -EBUSY;
 		return err;
+	}
+
+	client_data = kzalloc(sizeof(struct bmm_client_data), GFP_KERNEL);
+	if (NULL == client_data) {
+		pr_err("%s- no memory available\n",__func__);
+		err = -ENOMEM;
+		goto exit_err_clean;
+	}
+
+	i2c_set_clientdata(client, client_data);
+	client_data->client = client;
+
+	err = bmm050_parse_dt(client_data, &client->dev);
+	if (err < 0) {
+		pr_err("%s Error getting platform data from device node\n", __func__);
+		goto exit_err_clean;
+	}
+
+	err = bmm050_mag_power_onoff(client_data, true);
+
+	if (err) {
+		pr_err("%s - No regulator\n", __func__);
+		goto exit_err_clean;
 	}
 
 	/* wake up the chip */
@@ -1654,29 +1731,6 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto exit_err_clean;
 	}
 
-	client_data = kzalloc(sizeof(struct bmm_client_data), GFP_KERNEL);
-	if (NULL == client_data) {
-		pr_err("%s- no memory available\n",__func__);
-		err = -ENOMEM;
-		goto exit_err_clean;
-	}
-
-	i2c_set_clientdata(client, client_data);
-	client_data->client = client;
-
-	err = bmm050_parse_dt(client_data, &client->dev);
-	if (err < 0) {
-		pr_err("%s Error getting platform data from device node\n", __func__);
-		goto exit_err_clean;
-	}
-
-	err = bmm050_mag_power_onoff(client_data, true);
-/*
-	if (err < 0) {
-		pr_err("%s - No regulator\n", __func__);
-		goto exit_err_clean;
-	}
-*/
 	mutex_init(&client_data->mutex_power_mode);
 	mutex_init(&client_data->mutex_op_mode);
 	mutex_init(&client_data->mutex_enable);
@@ -1704,24 +1758,6 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (err < 0)
 		goto exit_err_sysfs;
 
-#ifdef CONFIG_BMM_USE_PLATFORM_DATA
-//	if (NULL != client->dev.platform_data) {
-		client_data->bst_pd = kzalloc(sizeof(*client_data->bst_pd),
-				GFP_KERNEL);
-/*
-		if (NULL != client_data->bst_pd) {
-			memcpy(client_data->bst_pd, client->dev.platform_data,
-					sizeof(*client_data->bst_pd));
-
-			pr_info(" bmm place: %d",client_data->bst_pd->place);
-
-		}
-	}*/
-#endif
-	client_data->bst_pd->place = client_data->place;
-	pr_info("%s -bmm050  sensor driver set place: p%d\n",__func__,
-		/*client_data->bst_pd->name,*/ client_data->bst_pd->place);
-
 	err = sensors_register(magnetic_device, client_data,
 		bmm_attributes_sensors, "magnetic_sensor");
 	if (err < 0) {
@@ -1730,12 +1766,6 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	/* workqueue init */
-	client_data->wq = create_singlethread_workqueue("bmm_work_func_wq");
-	if (!client_data->wq) {
-		err = -ENOMEM;
-		pr_err("%s: could not create workqueue\n", __func__);
-		goto exit_workqueue;
-	}
 	INIT_DELAYED_WORK(&client_data->work, bmm_work_func);
 	atomic_set(&client_data->delay, BMM_DELAY_DEFAULT);
 
@@ -1796,8 +1826,6 @@ exit_bmm_sensors_register:
 	sysfs_remove_group(&client_data->input->dev.kobj,
 		&bmm_attribute_group);
 exit_err_sysfs:
-	destroy_workqueue(client_data->wq);
-exit_workqueue:
 	if (err)
 		bmm_input_destroy(client_data);
 sensors_remove_symlink(&client_data->input->dev.kobj, client_data->input->name);
@@ -1805,12 +1833,6 @@ err_sensors_create_symlink:
 exit_err_clean:
 	if (err) {
 		if (client_data != NULL) {
-#ifdef CONFIG_BMM_USE_PLATFORM_DATA
-			if (NULL != client_data->bst_pd) {
-				kfree(client_data->bst_pd);
-				client_data->bst_pd = NULL;
-			}
-#endif
 			kfree(client_data);
 			client_data = NULL;
 		}
@@ -1831,7 +1853,6 @@ static int bmm_pre_suspend(struct i2c_client *client)
 	mutex_lock(&client_data->mutex_enable);
 	if (client_data->enable) {
 		cancel_delayed_work_sync(&client_data->work);
-		flush_workqueue(client_data->wq);
 		pr_info("%s -cancel work\n",__func__);
 	}
 	mutex_unlock(&client_data->mutex_enable);
@@ -1847,9 +1868,9 @@ static int bmm_post_resume(struct i2c_client *client)
 
 	mutex_lock(&client_data->mutex_enable);
 	if (client_data->enable) {
-		queue_delayed_work_on(get_low_pwr_cpu(), client_data->wq, &client_data->work,
-			msecs_to_jiffies(
-				atomic_read(&client_data->delay)));
+		schedule_delayed_work(&client_data->work,
+				msecs_to_jiffies(
+					atomic_read(&client_data->delay)));
 	}
 	mutex_unlock(&client_data->mutex_enable);
 
@@ -1917,7 +1938,6 @@ static int bmm_remove(struct i2c_client *client)
 		mutex_lock(&client_data->mutex_op_mode);
 		if (BMM_VAL_NAME(NORMAL_MODE) == client_data->op_mode) {
 			cancel_delayed_work_sync(&client_data->work);
-			flush_workqueue(client_data->wq);
 			pr_info("%s -cancel work\n",__func__);
 
 		}
@@ -1929,13 +1949,8 @@ static int bmm_remove(struct i2c_client *client)
 		sysfs_remove_group(&client_data->input->dev.kobj,
 				&bmm_attribute_group);
 		bmm_input_destroy(client_data);
-
-#ifdef CONFIG_BMM_USE_PLATFORM_DATA
-			if (NULL != client_data->bst_pd) {
-				kfree(client_data->bst_pd);
-				client_data->bst_pd = NULL;
-			}
-#endif
+		devm_regulator_put(client_data->reg_vio);
+		devm_regulator_put(client_data->reg_vdd);
 		kfree(client_data);
 
 		bmm_client = NULL;

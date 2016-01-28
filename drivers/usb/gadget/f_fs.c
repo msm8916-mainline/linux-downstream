@@ -456,7 +456,6 @@ static ssize_t ffs_ep0_write(struct file *file, const char __user *buf,
 			ffs->state = FFS_READ_STRINGS;
 			ret = len;
 		} else {
-			dump_stack();
 			pr_info("read strings\n");
 			ret = __ffs_data_got_strings(ffs, data, len);
 			if (unlikely(ret < 0))
@@ -700,6 +699,9 @@ static int ffs_ep0_open(struct inode *inode, struct file *file)
 	if (unlikely(ffs->state == FFS_CLOSING))
 		return -EBUSY;
 
+	if (atomic_read(&ffs->opened))
+		return -EBUSY;
+
 	file->private_data = ffs;
 	ffs_data_opened(ffs);
 
@@ -763,6 +765,7 @@ static void ffs_epfile_io_complete(struct usb_ep *_ep, struct usb_request *req)
 	}
 }
 
+#define MAX_BUF_LEN	4096
 static ssize_t ffs_epfile_io(struct file *file,
 			     char __user *buf, size_t len, int read)
 {
@@ -912,10 +915,19 @@ first_try:
 				ret = -ENODEV;
 			spin_unlock_irq(&epfile->ffs->eps_lock);
 			if (read && ret > 0) {
-				if (ret > len)
+				if (len != MAX_BUF_LEN && ret < len)
+					pr_err("less data(%zd) recieved than intended length(%zu)\n",
+								ret, len);
+				if (ret > len) {
 					ret = -EOVERFLOW;
-				else if (unlikely(copy_to_user(buf, data, ret)))
+					pr_err("More data(%zd) recieved than intended length(%zu)\n",
+								ret, len);
+				} else if (unlikely(copy_to_user(
+							buf, data, ret))) {
+					pr_err("Fail to copy to user len:%zd\n",
+									ret);
 					ret = -EFAULT;
+				}
 			}
 		}
 	}
@@ -923,6 +935,8 @@ first_try:
 	mutex_unlock(&epfile->mutex);
 error:
 	kfree(data);
+	if (ret < 0)
+		pr_err("Error: returning %zd value\n", ret);
 	return ret;
 }
 
@@ -1395,9 +1409,15 @@ static void ffs_data_clear(struct ffs_data *ffs)
 {
 	ENTER();
 
+	pr_debug("%s: ffs->gadget= %p, ffs->flags= %lu\n", __func__,
+						ffs->gadget, ffs->flags);
 	if (test_and_clear_bit(FFS_FL_CALL_CLOSED_CALLBACK, &ffs->flags))
 		functionfs_closed_callback(ffs);
 
+	/* Dump ffs->gadget and ffs->flags */
+	if (ffs->gadget)
+		pr_err("%s: ffs->gadget= %p, ffs->flags= %lu\n", __func__,
+						ffs->gadget, ffs->flags);
 	BUG_ON(ffs->gadget);
 
 	if (ffs->epfiles)
@@ -1476,11 +1496,13 @@ static int functionfs_bind(struct ffs_data *ffs, struct usb_composite_dev *cdev)
 		printk("%s :  string tab is NULL! \n",__func__);
 	else	
 #else
-	for (lang = ffs->stringtabs; *lang; ++lang) {
-		struct usb_string *str = (*lang)->strings;
-		int id = ffs->first_id;
-		for (; str->s; ++id, ++str)
-			str->id = id;
+	if (lang) {
+		for (; *lang; ++lang) {
+			struct usb_string *str = (*lang)->strings;
+			int id = ffs->first_id;
+			for (; str->s; ++id, ++str)
+				str->id = id;
+		}
 	}
 #endif
 	ffs->gadget = cdev->gadget;

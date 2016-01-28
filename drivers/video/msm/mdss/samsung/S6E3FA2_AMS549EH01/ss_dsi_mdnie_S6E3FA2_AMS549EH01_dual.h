@@ -682,6 +682,164 @@ static char DSI0_HBM_CE_MDNIE_2[] = {
 	//end
 };
 
+static char DSI0_HBM_CE_TEXT_MDNIE_1[] = {
+	//start
+	0xEB,
+	0x01, //mdnie_en
+	0x00, //data_width mask 00 0000
+	0x03, //ascr_roi 1 ascr 00 1 0
+	0x33, //algo_roi 1 algo lce_roi 1 lce 00 1 0 00 1 0
+	0x00, //roi_ctrl 00
+	0x00, //roi0_x_start 12
+	0x00,
+	0x00, //roi0_x_end
+	0x00,
+	0x00, //roi0_y_start
+	0x00,
+	0x00, //roi0_y_end
+	0x00,
+	0x00, //roi1_x_strat
+	0x00,
+	0x00, //roi1_x_end
+	0x00,
+	0x00, //roi1_y_start
+	0x00,
+	0x00, //roi1_y_end
+	0x00,
+};
+
+static char DSI0_HBM_CE_TEXT_MDNIE_2[] = {
+	0xEC,
+	0x86, //lce_gain 00 0000
+	0x30, //lce_color_gain 00 0000
+	0x00, //lce_scene_change_on scene_trans 0 0000
+	0x14, //lce_min_diff
+	0x90, //lce_illum_gain
+	0x01, //lce_ref_offset 9
+	0xbf,
+	0x00, //lce_ref_gain 9
+	0xb0,
+	0x77, //lce_block_size h v 0000 0000
+	0xfa, //lce_bright_th
+	0x7f, //lce_bin_size_ratio
+	0x00, //lce_dark_th 000
+	0x40, //lce_min_ref_offset
+	0x06, //nr sharp cs gamma 0000
+	0xff, //nr_mask_th
+	0x00, //sharpen_weight 10
+	0x40,
+	0x00, //sharpen_maxplus 11
+	0xa0,
+	0x00, //sharpen_maxminus 11
+	0xa0,
+	0x01, //cs_gain 10
+	0x40,
+	0x00, //curve_1_b
+	0x6b, //curve_1_a
+	0x03, //curve_2_b
+	0x48, //curve_2_a
+	0x08, //curve_3_b
+	0x32, //curve_3_a
+	0x08, //curve_4_b
+	0x32, //curve_4_a
+	0x08, //curve_5_b
+	0x32, //curve_5_a
+	0x08, //curve_6_b
+	0x32, //curve_6_a
+	0x08, //curve_7_b
+	0x32, //curve_7_a
+	0x10, //curve_8_b
+	0x28, //curve_8_a
+	0x10, //curve_9_b
+	0x28, //curve_9_a
+	0x10, //curve10_b
+	0x28, //curve10_a
+	0x10, //curve11_b
+	0x28, //curve11_a
+	0x10, //curve12_b
+	0x28, //curve12_a
+	0x19, //curve13_b
+	0x22, //curve13_a
+	0x03, //curve14_b
+	0xb3, //curve14_a
+	0x03, //curve15_b
+	0xb3, //curve15_a
+	0x03, //curve16_b
+	0xb3, //curve16_a
+	0x03, //curve17_b
+	0xb3, //curve17_a
+	0x27, //curve18_b
+	0x21, //curve18_a
+	0x34, //curve19_b
+	0x1c, //curve19_a
+	0x40, //curve20_b
+	0x19, //curve20_a
+	0x45, //curve21_b
+	0x18, //curve21_a
+	0x58, //curve22_b
+	0x15, //curve22_a
+	0x58, //curve23_b
+	0x15, //curve23_a
+	0x00, //curve24_b
+	0xFF, //curve24_a
+	0x30, //ascr_skin_on strength 0 00000
+	0x67, //ascr_skin_cb
+	0xa9, //ascr_skin_cr
+	0x56, //ascr_dist_up
+	0x29, //ascr_dist_down
+	0x19, //ascr_dist_right
+	0x67, //ascr_dist_left
+	0x00, //ascr_div_up 20
+	0x17,
+	0xd0,
+	0x00, //ascr_div_down
+	0x31,
+	0xf4,
+	0x00, //ascr_div_right
+	0x51,
+	0xec,
+	0x00, //ascr_div_left
+	0x13,
+	0xe2,
+	0xff, //ascr_skin_Rr
+	0xa0, //ascr_skin_Rg
+	0xa0, //ascr_skin_Rb
+	0xff, //ascr_skin_Yr
+	0x90, //ascr_skin_Yg
+	0x00, //ascr_skin_Yb
+	0xff, //ascr_skin_Mr
+	0x00, //ascr_skin_Mg
+	0xff, //ascr_skin_Mb
+	0xff, //ascr_skin_Wr
+	0xff, //ascr_skin_Wg
+	0xff, //ascr_skin_Wb
+	0x00, //ascr_Cr
+	0xff, //ascr_Rr
+	0xff, //ascr_Cg
+	0x00, //ascr_Rg
+	0xff, //ascr_Cb
+	0x00, //ascr_Rb
+	0xff, //ascr_Mr
+	0x00, //ascr_Gr
+	0x00, //ascr_Mg
+	0xff, //ascr_Gg
+	0xff, //ascr_Mb
+	0x00, //ascr_Gb
+	0xff, //ascr_Yr
+	0x00, //ascr_Br
+	0xff, //ascr_Yg
+	0x00, //ascr_Bg
+	0x00, //ascr_Yb
+	0xff, //ascr_Bb
+	0xff, //ascr_Wr
+	0x00, //ascr_Kr
+	0xff, //ascr_Wg
+	0x00, //ascr_Kg
+	0xff, //ascr_Wb
+	0x00, //ascr_Kb
+	//end
+};
+
 static char DSI0_RGB_SENSOR_MDNIE_1[] = {
 	//start
 	0xEB,
@@ -9842,6 +10000,13 @@ static struct dsi_cmd_desc DSI0_HBM_CE_MDNIE[] = {
 	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(level_1_key_off)}, level_1_key_off},
 };
 
+static struct dsi_cmd_desc DSI0_HBM_CE_TEXT_MDNIE[] = {
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(level_1_key_on)}, level_1_key_on},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_HBM_CE_TEXT_MDNIE_1)}, DSI0_HBM_CE_TEXT_MDNIE_1},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_HBM_CE_TEXT_MDNIE_2)}, DSI0_HBM_CE_TEXT_MDNIE_2},
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(level_1_key_off)}, level_1_key_off},
+};
+
 static struct dsi_cmd_desc DSI0_RGB_SENSOR_MDNIE[] = {
 	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(level_1_key_on)}, level_1_key_on},
 	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_RGB_SENSOR_MDNIE_1)}, DSI0_RGB_SENSOR_MDNIE_1},
@@ -10384,6 +10549,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			NATURAL_MODE
 			MOVIE_MODE
 			AUTO_MODE
+			READING_MODE
 		*/
 		// UI_APP
 		{
@@ -10392,6 +10558,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI0_UI_NATURAL_MDNIE,	NULL},
 			{DSI0_UI_MOVIE_MDNIE,	NULL},
 			{DSI1_UI_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// VIDEO_APP
 		{
@@ -10400,6 +10567,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI0_VIDEO_NATURAL_MDNIE,	DSI0_VIDEO_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_MOVIE_MDNIE,	DSI0_VIDEO_OUTDOOR_MDNIE},
 			{DSI1_VIDEO_AUTO_MDNIE,	DSI0_VIDEO_OUTDOOR_MDNIE},
+			{DSI0_EBOOK_AUTO_MDNIE,	DSI0_VIDEO_OUTDOOR_MDNIE},
 		},
 		// VIDEO_WARM_APP
 		{
@@ -10408,6 +10576,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI0_VIDEO_WARM_MDNIE,	DSI0_VIDEO_WARM_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_WARM_MDNIE,	DSI0_VIDEO_WARM_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_WARM_MDNIE,	DSI0_VIDEO_WARM_OUTDOOR_MDNIE},
+			{DSI0_EBOOK_AUTO_MDNIE,	DSI0_VIDEO_WARM_OUTDOOR_MDNIE},
 		},
 		// VIDEO_COLD_APP
 		{
@@ -10416,6 +10585,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI0_VIDEO_COLD_MDNIE,	DSI0_VIDEO_COLD_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_COLD_MDNIE,	DSI0_VIDEO_COLD_OUTDOOR_MDNIE},
 			{DSI0_VIDEO_COLD_MDNIE,	DSI0_VIDEO_COLD_OUTDOOR_MDNIE},
+			{DSI0_EBOOK_AUTO_MDNIE,	DSI0_VIDEO_COLD_OUTDOOR_MDNIE},
 		},
 		// CAMERA_APP
 		{
@@ -10424,9 +10594,11 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI1_CAMERA_MDNIE,	DSI0_CAMERA_OUTDOOR_MDNIE},
 			{DSI1_CAMERA_MDNIE,	DSI0_CAMERA_OUTDOOR_MDNIE},
 			{DSI1_CAMERA_AUTO_MDNIE,	DSI0_CAMERA_OUTDOOR_MDNIE},
+			{DSI0_EBOOK_AUTO_MDNIE,	DSI0_CAMERA_OUTDOOR_MDNIE},
 		},
 		// NAVI_APP
 		{
+			{NULL,	NULL},
 			{NULL,	NULL},
 			{NULL,	NULL},
 			{NULL,	NULL},
@@ -10440,6 +10612,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI0_GALLERY_NATURAL_MDNIE,	NULL},
 			{DSI0_GALLERY_MOVIE_MDNIE,	NULL},
 			{DSI1_GALLERY_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// VT_APP
 		{
@@ -10448,6 +10621,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI0_VT_NATURAL_MDNIE,	NULL},
 			{DSI0_VT_MOVIE_MDNIE,	NULL},
 			{DSI1_VT_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// BROWSER_APP
 		{
@@ -10456,6 +10630,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI0_BROWSER_NATURAL_MDNIE,	NULL},
 			{DSI0_BROWSER_MOVIE_MDNIE,	NULL},
 			{DSI1_BROWSER_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// eBOOK_APP
 		{
@@ -10463,6 +10638,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI1_EBOOK_STANDARD_MDNIE,NULL},
 			{DSI0_EBOOK_NATURAL_MDNIE,	NULL},
 			{DSI0_EBOOK_MOVIE_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// EMAIL_APP
@@ -10472,6 +10648,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI0_EMAIL_AUTO_MDNIE,	NULL},
 			{DSI0_EMAIL_AUTO_MDNIE,	NULL},
 			{DSI0_EMAIL_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 		// TDMB_APP
 		{
@@ -10480,6 +10657,7 @@ struct dsi_cmd_desc *mdnie_tune_value_dsi1[MAX_APP_MODE][MAX_MODE][MAX_OUTDOOR_M
 			{DSI0_UI_NATURAL_MDNIE,	NULL},
 			{DSI0_UI_MOVIE_MDNIE,	NULL},
 			{DSI1_UI_AUTO_MDNIE,	NULL},
+			{DSI0_EBOOK_AUTO_MDNIE,	NULL},
 		},
 };
 

@@ -55,14 +55,15 @@ struct otg_notify {
 	int is_wakelock;
 	int unsupport_host;
 	int smsc_ovc_poll_sec;
+	int auto_drive_vbus;
 	const char *muic_name;
 	int (*pre_gpio) (int gpio, int use);
 	int (*post_gpio) (int gpio, int use);
 	int (*vbus_drive) (bool);
-	int (*set_host) (int);
-	int (*set_peripheral)(int);
-	int (*set_charger)(int);
-	int (*post_vbus_detect)(int);
+	int (*set_host) (bool);
+	int (*set_peripheral)(bool);
+	int (*set_charger)(bool);
+	int (*post_vbus_detect)(bool);
 	int (*set_lanhubta)(int);
 	int (*set_battcall)(int, int);
 	void *o_data;
@@ -103,3 +104,4 @@ static inline void put_otg_notify(struct otg_notify *n) {}
 #endif
 
 #endif /* __LINUX_USB_NOTIFY_H__ */
+

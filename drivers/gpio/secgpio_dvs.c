@@ -400,12 +400,14 @@ static ssize_t secgpio_checked_sleepgpio_read(
 
 void gpio_dvs_check_initgpio(void)
 {
+	pr_info("%s\n",__func__);
 	if (gdvs_info && gdvs_info->check_gpio_status)
 		gdvs_info->check_gpio_status(PHONE_INIT);
 }
 
 void gpio_dvs_check_sleepgpio(void)
 {
+	pr_info("%s\n",__func__);
 	if (unlikely(!gdvs_info->check_sleep)) {
 		gdvs_info->check_gpio_status(PHONE_SLEEP);
 		gdvs_info->check_sleep = true;

@@ -67,6 +67,7 @@ char mdnie_mode_name[][NAME_STRING_MAX] = {
 #endif
 	"MOVIE_MODE",
 	"AUTO_MODE",
+	"READING_MODE",
 };
 
 char outdoor_name[][NAME_STRING_MAX] = {
@@ -80,6 +81,8 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct dsi_cmd_desc *tune_data_dsi0 = NULL;
 	struct dsi_cmd_desc *tune_data_dsi1 = NULL;
+
+	if (!vdd->support_mdnie_lite) return 0;
 
 	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
 		/*
@@ -104,7 +107,10 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 		else if (mdnie_tune_state->mdnie_accessibility == GRAYSCALE_NEGATIVE)
 			tune_data_dsi1 = tune_data_dsi0  = mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE;
 		else if (mdnie_tune_state->hbm_enable == true)
-			tune_data_dsi1 = tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_MDNIE;
+			if ((mdnie_tune_state->mdnie_app == BROWSER_APP) || (mdnie_tune_state->mdnie_app == eBOOK_APP))
+				tune_data_dsi1 = tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_TEXT_MDNIE;
+			else
+				tune_data_dsi1 = tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_MDNIE;
 		else if (mdnie_tune_state->hmt_color_temperature)
 			tune_data_dsi0 = mdnie_data.hmt_color_temperature_tune_value_dsi0[mdnie_tune_state->hmt_color_temperature];
 		else {
@@ -150,6 +156,8 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
 	struct dsi_cmd_desc *tune_data_dsi0 = NULL;
 
+	if (vdd == NULL || !vdd->support_mdnie_lite) return 0;
+
 	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
 		/*
 		*	Checking HBM mode first.
@@ -176,10 +184,24 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 		else if (mdnie_tune_state->mdnie_accessibility == GRAYSCALE_NEGATIVE)
 			tune_data_dsi0  = mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE;
 		else if (mdnie_tune_state->hbm_enable == true)
-			tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_MDNIE;
+			if (vdd->dtsi_data[vdd->support_panel_max - 1].hbm_ce_text_mode_support && \
+				((mdnie_tune_state->mdnie_app == BROWSER_APP) || (mdnie_tune_state->mdnie_app == eBOOK_APP)))
+				tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_TEXT_MDNIE;
+			else
+				tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_MDNIE;
 		else if (mdnie_tune_state->hmt_color_temperature)
 			tune_data_dsi0 = mdnie_data.hmt_color_temperature_tune_value_dsi0[mdnie_tune_state->hmt_color_temperature];
-		else
+		else if (mdnie_tune_state->mdnie_app == EMAIL_APP) {
+			/* 
+				Some kind of panel doesn't suooprt EMAIL_APP mode, but SSRM module use same control logic.
+				It means SSRM doesn't consider panel unique character.
+				To support this issue eBOOK_APP used insted of EMAIL_APP under EMAIL_APP doesn't exist status..
+			*/
+			tune_data_dsi0 = mdnie_data.mdnie_tune_value_dsi0[mdnie_tune_state->mdnie_app][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
+
+			if(!tune_data_dsi0)
+				tune_data_dsi0 = mdnie_data.mdnie_tune_value_dsi0[eBOOK_APP][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
+		} else
 			tune_data_dsi0 = mdnie_data.mdnie_tune_value_dsi0[mdnie_tune_state->mdnie_app][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
 
 		if (!tune_data_dsi0 && !mdnie_tune_state->index) {
@@ -207,7 +229,7 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
                         vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
                         vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
                         mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
-	}
+                }
         } else
 		DPRINT("Command Tx Fail,  tune_data_dsi0=%p, vdd=%p, mdnie_tune_state=%p \n", tune_data_dsi0, vdd, mdnie_tune_state);
 	return 0;
@@ -249,6 +271,8 @@ static ssize_t mode_store(struct device *dev,
 	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
 		if (!vdd)
 			vdd = mdnie_tune_state->vdd;
+		if (vdd->dtsi_data[0].tft_common_support && value >= NATURAL_MODE)
+			value++;
 
 		mdnie_tune_state->mdnie_mode = value;
 	}
@@ -615,7 +639,7 @@ static ssize_t sensorRGB_store(struct device *dev,
 			vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
 			vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
 			mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
-	}
+                }
 	} else
 		DPRINT("Command Tx Fail,  tune_data_dsi0=%p, vdd=%p, mdnie_tune_state=%p \n", tune_data_dsi0, vdd, mdnie_tune_state);
 #endif
@@ -772,9 +796,9 @@ void create_tcon_mdnie_node(void)
 			dev_attr_hmt_color_temperature.attr.name);
 
 	if(vdd->support_cabc)
-		/* CABC ON/OFF */
-		if (device_create_file(tune_mdnie_dev, &dev_attr_cabc) < 0)
-			pr_err("Failed to create device file(%s)!\n", dev_attr_cabc.attr.name);
+	/* CABC ON/OFF */
+	if (device_create_file(tune_mdnie_dev, &dev_attr_cabc) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_cabc.attr.name);
 }
 
 struct mdnie_lite_tun_type* init_dsi_tcon_mdnie_class(int index, struct samsung_display_driver_data *vdd_data)
@@ -805,7 +829,7 @@ struct mdnie_lite_tun_type* init_dsi_tcon_mdnie_class(int index, struct samsung_
 		mdnie_tune_state->index = index;
 		mdnie_tune_state->mdnie_bypass = BYPASS_DISABLE;
 		if(mdnie_tune_state->vdd->support_cabc)
-			mdnie_tune_state->cabc_bypass = BYPASS_DISABLE;
+		mdnie_tune_state->cabc_bypass = BYPASS_DISABLE;
 		mdnie_tune_state->hbm_enable = false;
 
 		mdnie_tune_state->mdnie_app = UI_APP;

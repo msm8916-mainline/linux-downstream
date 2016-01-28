@@ -29,7 +29,6 @@
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <asm/irq.h>
-#include <asm/mach/irq.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of_gpio.h>
 #include <linux/sensors.h>
@@ -61,7 +60,7 @@
 #define ISR_INFO(dev, fmt, arg...)
 #endif
 
-#define SENSOR_NAME                 "accelerometer"
+#define SENSOR_NAME                 "bma2x2-accel"
 #define ABSMIN                      -512
 #define ABSMAX                      512
 #define SLOPE_THRESHOLD_VALUE       32

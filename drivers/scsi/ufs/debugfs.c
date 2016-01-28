@@ -19,6 +19,8 @@
 
 #include <linux/random.h>
 #include "debugfs.h"
+#include <linux/scsi/ufs/unipro.h>
+#include "ufshci.h"
 
 enum field_width {
 	BYTE	= 1,
@@ -30,6 +32,17 @@ struct desc_field_offset {
 	int offset;
 	enum field_width width_byte;
 };
+
+#define UFS_ERR_STATS_PRINT(file, error_index, string, error_seen)	\
+	do {								\
+		if (err_stats[error_index]) {				\
+			seq_printf(file, string,			\
+					err_stats[error_index]);	\
+			error_seen = true;				\
+		}							\
+	} while (0)
+
+#define DOORBELL_CLR_TOUT_US	(1000 * 1000) /* 1 sec */
 
 #ifdef CONFIG_UFS_FAULT_INJECTION
 
@@ -288,7 +301,111 @@ static const struct file_operations ufsdbg_tag_stats_fops = {
 	.write		= ufsdbg_tag_stats_write,
 };
 
-static int ufshcd_init_tag_statistics(struct ufs_hba *hba)
+static int ufsdbg_err_stats_show(struct seq_file *file, void *data)
+{
+	struct ufs_hba *hba = (struct ufs_hba *)file->private;
+	int *err_stats;
+	unsigned long flags;
+	bool error_seen = false;
+
+	if (!hba)
+		goto exit;
+
+	err_stats = hba->ufs_stats.err_stats;
+
+	spin_lock_irqsave(hba->host->host_lock, flags);
+
+	seq_puts(file, "\n==UFS errors that caused controller reset==\n");
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_HIBERN8_EXIT,
+			"controller reset due to hibern8 exit error:\t %d\n",
+			error_seen);
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_VOPS_SUSPEND,
+			"controller reset due to vops suspend error:\t\t %d\n",
+			error_seen);
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_EH,
+			"controller reset due to error handling:\t\t %d\n",
+			error_seen);
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_CLEAR_PEND_XFER_TM,
+			"controller reset due to clear xfer/tm regs:\t\t %d\n",
+			error_seen);
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_INT_FATAL_ERRORS,
+			"controller reset due to fatal interrupt:\t %d\n",
+			error_seen);
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_INT_UIC_ERROR,
+			"controller reset due to uic interrupt error:\t %d\n",
+			error_seen);
+
+	if (error_seen)
+		error_seen = false;
+	else
+		seq_puts(file,
+			"so far, no errors that caused controller reset\n\n");
+
+	seq_puts(file, "\n\n==UFS other errors==\n");
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_HIBERN8_ENTER,
+			"hibern8 enter:\t\t %d\n", error_seen);
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_RESUME,
+			"resume error:\t\t %d\n", error_seen);
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_SUSPEND,
+			"suspend error:\t\t %d\n", error_seen);
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_LINKSTARTUP,
+			"linkstartup error:\t\t %d\n", error_seen);
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_POWER_MODE_CHANGE,
+			"power change error:\t %d\n", error_seen);
+
+	UFS_ERR_STATS_PRINT(file, UFS_ERR_TASK_ABORT,
+			"abort callback:\t\t %d\n\n", error_seen);
+
+	if (!error_seen)
+		seq_puts(file,
+		"so far, no other UFS related errors\n\n");
+
+	spin_unlock_irqrestore(hba->host->host_lock, flags);
+exit:
+	return 0;
+}
+
+static int ufsdbg_err_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ufsdbg_err_stats_show, inode->i_private);
+}
+
+static ssize_t ufsdbg_err_stats_write(struct file *filp,
+				      const char __user *ubuf, size_t cnt,
+				       loff_t *ppos)
+{
+	struct ufs_hba *hba = filp->f_mapping->host->i_private;
+	struct ufs_stats *ufs_stats;
+	unsigned long flags;
+
+	ufs_stats = &hba->ufs_stats;
+	spin_lock_irqsave(hba->host->host_lock, flags);
+
+	pr_debug("%s: Resetting UFS error statistics", __func__);
+	memset(ufs_stats->err_stats, 0, sizeof(hba->ufs_stats.err_stats));
+
+	spin_unlock_irqrestore(hba->host->host_lock, flags);
+	return cnt;
+}
+
+static const struct file_operations ufsdbg_err_stats_fops = {
+	.open		= ufsdbg_err_stats_open,
+	.read		= seq_read,
+	.write		= ufsdbg_err_stats_write,
+};
+
+static int ufshcd_init_statistics(struct ufs_hba *hba)
 {
 	struct ufs_stats *stats = &hba->ufs_stats;
 	int ret = 0;
@@ -307,6 +424,8 @@ static int ufshcd_init_tag_statistics(struct ufs_hba *hba)
 
 	for (i = 1; i < hba->nutrs; i++)
 		stats->tag_stats[i] = &stats->tag_stats[0][i * TS_NUM_STATS];
+
+	memset(stats->err_stats, 0, sizeof(hba->ufs_stats.err_stats));
 
 	goto exit;
 
@@ -484,11 +603,325 @@ static const struct file_operations ufsdbg_dump_device_desc = {
 	.read		= seq_read,
 };
 
+static int ufsdbg_power_mode_show(struct seq_file *file, void *data)
+{
+	struct ufs_hba *hba = (struct ufs_hba *)file->private;
+	char *names[] = {
+		"INVALID MODE",
+		"FAST MODE",
+		"SLOW MODE",
+		"INVALID MODE",
+		"FASTAUTO MODE",
+		"SLOWAUTO MODE",
+		"INVALID MODE",
+	};
+
+	/* Print current status */
+	seq_puts(file, "UFS current power mode [RX, TX]:");
+	seq_printf(file, "gear=[%d,%d], lane=[%d,%d], pwr=[%s,%s], rate = %c",
+		 hba->pwr_info.gear_rx, hba->pwr_info.gear_tx,
+		 hba->pwr_info.lane_rx, hba->pwr_info.lane_tx,
+		 names[hba->pwr_info.pwr_rx],
+		 names[hba->pwr_info.pwr_tx],
+		 hba->pwr_info.hs_rate == PA_HS_MODE_B ? 'B' : 'A');
+	seq_puts(file, "\n\n");
+
+	/* Print usage */
+	seq_puts(file,
+		"To change power mode write 'GGLLMM' where:\n"
+		"G - selected gear\n"
+		"L - number of lanes\n"
+		"M - power mode:\n"
+		"\t1 = fast mode\n"
+		"\t2 = slow mode\n"
+		"\t4 = fast-auto mode\n"
+		"\t5 = slow-auto mode\n"
+		"first letter is for RX, second letter is for TX.\n\n");
+
+	return 0;
+}
+
+static bool ufsdbg_power_mode_validate(struct ufs_pa_layer_attr *pwr_mode)
+{
+	if (pwr_mode->gear_rx < UFS_PWM_G1 || pwr_mode->gear_rx > UFS_PWM_G7 ||
+	    pwr_mode->gear_tx < UFS_PWM_G1 || pwr_mode->gear_tx > UFS_PWM_G7 ||
+	    pwr_mode->lane_rx < 1 || pwr_mode->lane_rx > 2 ||
+	    pwr_mode->lane_tx < 1 || pwr_mode->lane_tx > 2 ||
+	    (pwr_mode->pwr_rx != FAST_MODE && pwr_mode->pwr_rx != SLOW_MODE &&
+	     pwr_mode->pwr_rx != FASTAUTO_MODE &&
+	     pwr_mode->pwr_rx != SLOWAUTO_MODE) ||
+	    (pwr_mode->pwr_tx != FAST_MODE && pwr_mode->pwr_tx != SLOW_MODE &&
+	     pwr_mode->pwr_tx != FASTAUTO_MODE &&
+	     pwr_mode->pwr_tx != SLOWAUTO_MODE)) {
+		pr_err("%s: power parameters are not valid\n", __func__);
+		return false;
+	}
+
+	return true;
+}
+
+static int ufsdbg_cfg_pwr_param(struct ufs_hba *hba,
+				struct ufs_pa_layer_attr *new_pwr,
+				struct ufs_pa_layer_attr *final_pwr)
+{
+	int ret = 0;
+	bool is_dev_sup_hs = false;
+	bool is_new_pwr_hs = false;
+	int dev_pwm_max_rx_gear;
+	int dev_pwm_max_tx_gear;
+
+	if (!hba->max_pwr_info.is_valid) {
+		dev_err(hba->dev, "%s: device max power is not valid. can't configure power\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	if (hba->max_pwr_info.info.pwr_rx == FAST_MODE)
+		is_dev_sup_hs = true;
+
+	if (new_pwr->pwr_rx == FAST_MODE || new_pwr->pwr_rx == FASTAUTO_MODE)
+		is_new_pwr_hs = true;
+
+	final_pwr->lane_rx = hba->max_pwr_info.info.lane_rx;
+	final_pwr->lane_tx = hba->max_pwr_info.info.lane_tx;
+
+	/* device doesn't support HS but requested power is HS */
+	if (!is_dev_sup_hs && is_new_pwr_hs) {
+		pr_err("%s: device doesn't support HS. requested power is HS\n",
+			__func__);
+		return -ENOTSUPP;
+	} else if ((is_dev_sup_hs && is_new_pwr_hs) ||
+		   (!is_dev_sup_hs && !is_new_pwr_hs)) {
+		/*
+		 * If device and requested power mode are both HS or both PWM
+		 * then dev_max->gear_xx are the gears to be assign to
+		 * final_pwr->gear_xx
+		 */
+		final_pwr->gear_rx = hba->max_pwr_info.info.gear_rx;
+		final_pwr->gear_tx = hba->max_pwr_info.info.gear_tx;
+	} else if (is_dev_sup_hs && !is_new_pwr_hs) {
+		/*
+		 * If device supports HS but requested power is PWM, then we
+		 * need to find out what is the max gear in PWM the device
+		 * supports
+		 */
+
+		ufshcd_dme_get(hba, UIC_ARG_MIB(PA_MAXRXPWMGEAR),
+			       &dev_pwm_max_rx_gear);
+
+		if (!dev_pwm_max_rx_gear) {
+			pr_err("%s: couldn't get device max pwm rx gear\n",
+				__func__);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		ufshcd_dme_peer_get(hba, UIC_ARG_MIB(PA_MAXRXPWMGEAR),
+				    &dev_pwm_max_tx_gear);
+
+		if (!dev_pwm_max_tx_gear) {
+			pr_err("%s: couldn't get device max pwm tx gear\n",
+				__func__);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		final_pwr->gear_rx = dev_pwm_max_rx_gear;
+		final_pwr->gear_tx = dev_pwm_max_tx_gear;
+	}
+
+	if ((new_pwr->gear_rx > final_pwr->gear_rx) ||
+	    (new_pwr->gear_tx > final_pwr->gear_tx) ||
+	    (new_pwr->lane_rx > final_pwr->lane_rx) ||
+	    (new_pwr->lane_tx > final_pwr->lane_tx)) {
+		pr_err("%s: (RX,TX) GG,LL: in PWM/HS new pwr [%d%d,%d%d] exceeds device limitation [%d%d,%d%d]\n",
+			__func__,
+			new_pwr->gear_rx, new_pwr->gear_tx,
+			new_pwr->lane_rx, new_pwr->lane_tx,
+			final_pwr->gear_rx, final_pwr->gear_tx,
+			final_pwr->lane_rx, final_pwr->lane_tx);
+		return -ENOTSUPP;
+	}
+
+	final_pwr->gear_rx = new_pwr->gear_rx;
+	final_pwr->gear_tx = new_pwr->gear_tx;
+	final_pwr->lane_rx = new_pwr->lane_rx;
+	final_pwr->lane_tx = new_pwr->lane_tx;
+	final_pwr->pwr_rx = new_pwr->pwr_rx;
+	final_pwr->pwr_tx = new_pwr->pwr_tx;
+	final_pwr->hs_rate = new_pwr->hs_rate;
+
+out:
+	return ret;
+}
+
+static int ufsdbg_config_pwr_mode(struct ufs_hba *hba,
+		struct ufs_pa_layer_attr *desired_pwr_mode)
+{
+	int ret;
+
+	pm_runtime_get_sync(hba->dev);
+	scsi_block_requests(hba->host);
+	ret = ufshcd_wait_for_doorbell_clr(hba, DOORBELL_CLR_TOUT_US);
+	if (!ret)
+		ret = ufshcd_change_power_mode(hba, desired_pwr_mode);
+	scsi_unblock_requests(hba->host);
+	pm_runtime_put_sync(hba->dev);
+
+	return ret;
+}
+
+static ssize_t ufsdbg_power_mode_write(struct file *file,
+				const char __user *ubuf, size_t cnt,
+				loff_t *ppos)
+{
+	struct ufs_hba *hba = file->f_mapping->host->i_private;
+	struct ufs_pa_layer_attr pwr_mode;
+	struct ufs_pa_layer_attr final_pwr_mode;
+	char pwr_mode_str[BUFF_LINE_CAPACITY] = {0};
+	loff_t buff_pos = 0;
+	int ret;
+	int idx = 0;
+
+	ret = simple_write_to_buffer(pwr_mode_str, BUFF_LINE_CAPACITY,
+		&buff_pos, ubuf, cnt);
+
+	pwr_mode.gear_rx = pwr_mode_str[idx++] - '0';
+	pwr_mode.gear_tx = pwr_mode_str[idx++] - '0';
+	pwr_mode.lane_rx = pwr_mode_str[idx++] - '0';
+	pwr_mode.lane_tx = pwr_mode_str[idx++] - '0';
+	pwr_mode.pwr_rx = pwr_mode_str[idx++] - '0';
+	pwr_mode.pwr_tx = pwr_mode_str[idx++] - '0';
+
+	/*
+	 * Switching between rates is not currently supported so use the
+	 * current rate.
+	 * TODO: add rate switching if and when it is supported in the future
+	 */
+	pwr_mode.hs_rate = hba->pwr_info.hs_rate;
+
+	/* Validate user input */
+	if (!ufsdbg_power_mode_validate(&pwr_mode))
+		return -EINVAL;
+
+	pr_debug("%s: new power mode requested [RX,TX]: Gear=[%d,%d], Lane=[%d,%d], Mode=[%d,%d]\n",
+		__func__,
+		pwr_mode.gear_rx, pwr_mode.gear_tx, pwr_mode.lane_rx,
+		pwr_mode.lane_tx, pwr_mode.pwr_rx, pwr_mode.pwr_tx);
+
+	ret = ufsdbg_cfg_pwr_param(hba, &pwr_mode, &final_pwr_mode);
+	if (ret) {
+		dev_err(hba->dev,
+			"%s: failed to configure new power parameters, ret = %d\n",
+			__func__, ret);
+		return cnt;
+	}
+
+	ret = ufsdbg_config_pwr_mode(hba, &final_pwr_mode);
+	if (ret == -EBUSY)
+		dev_err(hba->dev,
+			"%s: ufshcd_config_pwr_mode failed: system is busy, try again\n",
+			__func__);
+	else if (ret)
+		dev_err(hba->dev,
+			"%s: ufshcd_config_pwr_mode failed, ret=%d\n",
+			__func__, ret);
+
+	return cnt;
+}
+
+static int ufsdbg_power_mode_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ufsdbg_power_mode_show, inode->i_private);
+}
+
+static const struct file_operations ufsdbg_power_mode_desc = {
+	.open		= ufsdbg_power_mode_open,
+	.read		= seq_read,
+	.write		= ufsdbg_power_mode_write,
+};
+
+static int ufsdbg_dme_read(void *data, u64 *attr_val, bool peer)
+{
+	int ret;
+	struct ufs_hba *hba = data;
+	u32 attr_id, read_val = 0;
+	int (*read_func) (struct ufs_hba *, u32, u32 *);
+
+	if (!hba)
+		return -EINVAL;
+
+	read_func = peer ? ufshcd_dme_peer_get : ufshcd_dme_get;
+	attr_id = peer ? hba->debugfs_files.dme_peer_attr_id :
+			 hba->debugfs_files.dme_local_attr_id;
+	pm_runtime_get_sync(hba->dev);
+	scsi_block_requests(hba->host);
+	ret = ufshcd_wait_for_doorbell_clr(hba, DOORBELL_CLR_TOUT_US);
+	if (!ret)
+		ret = read_func(hba, UIC_ARG_MIB(attr_id), &read_val);
+	scsi_unblock_requests(hba->host);
+	pm_runtime_put_sync(hba->dev);
+
+	if (!ret)
+		*attr_val = (u64)read_val;
+
+	return ret;
+}
+
+static int ufsdbg_dme_local_set_attr_id(void *data, u64 attr_id)
+{
+	struct ufs_hba *hba = data;
+
+	if (!hba)
+		return -EINVAL;
+
+	hba->debugfs_files.dme_local_attr_id = (u32)attr_id;
+
+	return 0;
+}
+
+static int ufsdbg_dme_local_read(void *data, u64 *attr_val)
+{
+	return ufsdbg_dme_read(data, attr_val, false);
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(ufsdbg_dme_local_read_ops,
+			ufsdbg_dme_local_read,
+			ufsdbg_dme_local_set_attr_id,
+			"%llu\n");
+
+static int ufsdbg_dme_peer_read(void *data, u64 *attr_val)
+{
+	struct ufs_hba *hba = data;
+
+	if (!hba)
+		return -EINVAL;
+	else
+		return ufsdbg_dme_read(data, attr_val, true);
+}
+
+static int ufsdbg_dme_peer_set_attr_id(void *data, u64 attr_id)
+{
+	struct ufs_hba *hba = data;
+
+	if (!hba)
+		return -EINVAL;
+
+	hba->debugfs_files.dme_peer_attr_id = (u32)attr_id;
+
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(ufsdbg_dme_peer_read_ops,
+			ufsdbg_dme_peer_read,
+			ufsdbg_dme_peer_set_attr_id,
+			"%llu\n");
+
 void ufsdbg_add_debugfs(struct ufs_hba *hba)
 {
 	if (!hba) {
-		dev_err(hba->dev, "%s: NULL hba, exiting", __func__);
-		goto err_no_root;
+		pr_err("%s: NULL hba, exiting\n", __func__);
+		return;
 	}
 
 	hba->debugfs_files.debugfs_root = debugfs_create_dir("ufs", NULL);
@@ -515,8 +948,18 @@ void ufsdbg_add_debugfs(struct ufs_hba *hba)
 		goto err;
 	}
 
-	if (ufshcd_init_tag_statistics(hba)) {
-		dev_err(hba->dev, "%s: Error initializing tag stats",
+	hba->debugfs_files.err_stats =
+		debugfs_create_file("err_stats", S_IRUSR,
+					   hba->debugfs_files.debugfs_root, hba,
+					   &ufsdbg_err_stats_fops);
+	if (!hba->debugfs_files.err_stats) {
+		dev_err(hba->dev, "%s:  NULL err stats file, exiting",
+			__func__);
+		goto err;
+	}
+
+	if (ufshcd_init_statistics(hba)) {
+		dev_err(hba->dev, "%s: Error initializing statistics",
 			__func__);
 		goto err;
 	}
@@ -544,6 +987,38 @@ void ufsdbg_add_debugfs(struct ufs_hba *hba)
 	if (!hba->debugfs_files.dump_dev_desc) {
 		dev_err(hba->dev,
 			"%s:  NULL dump_device_desc file, exiting", __func__);
+		goto err;
+	}
+
+	hba->debugfs_files.power_mode =
+		debugfs_create_file("power_mode", S_IRUSR | S_IWUSR,
+				    hba->debugfs_files.debugfs_root, hba,
+				    &ufsdbg_power_mode_desc);
+	if (!hba->debugfs_files.power_mode) {
+		dev_err(hba->dev,
+			"%s:  NULL power_mode_desc file, exiting", __func__);
+		goto err;
+	}
+
+	hba->debugfs_files.dme_local_read =
+		debugfs_create_file("dme_local_read", S_IRUSR | S_IWUSR,
+				    hba->debugfs_files.debugfs_root, hba,
+				    &ufsdbg_dme_local_read_ops);
+	if (!hba->debugfs_files.dme_local_read) {
+		dev_err(hba->dev,
+			"%s:  failed create dme_local_read debugfs entry\n",
+			__func__);
+		goto err;
+	}
+
+	hba->debugfs_files.dme_peer_read =
+		debugfs_create_file("dme_peer_read", S_IRUSR | S_IWUSR,
+				    hba->debugfs_files.debugfs_root, hba,
+				    &ufsdbg_dme_peer_read_ops);
+	if (!hba->debugfs_files.dme_peer_read) {
+		dev_err(hba->dev,
+			"%s:  failed create dme_peer_read debugfs entry\n",
+			__func__);
 		goto err;
 	}
 

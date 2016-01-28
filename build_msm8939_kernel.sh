@@ -6,14 +6,20 @@ if [ "$BUILD_COMMAND" == "a7_eur" ]; then
 	PRODUCT_NAME=a7lte;
 	SIGN_MODEL=SM-A700FD_CIS_SER_ROOT0
 elif [ "$BUILD_COMMAND" == "a7_chnopen" ]; then
-	PRODUCT_NAME=a7ltechn;
+	PRODUCT_NAME=a7ltechnopen;
 	SIGN_MODEL=SM-A7000_CHN_CHC_ROOT0
+elif [ "$BUILD_COMMAND" == "a7_chntw" ]; then
+	PRODUCT_NAME=a7ltechntw;
+	SIGN_MODEL=SM-A700YZ_SEA_ZT_ROOT0
+elif [ "$BUILD_COMMAND" == "k5_chnopen" ]; then
+	PRODUCT_NAME=k5ltechn;
+	SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "a8_chnopen" ]; then
+	PRODUCT_NAME=a8ltechn;
+	SIGN_MODEL=
 elif [ "$BUILD_COMMAND" == "a7_chnctc" ]; then
 	PRODUCT_NAME=a7ltectc;
 	SIGN_MODEL=SM-A7009_CHN_CTC_ROOT0
-elif [ "$BUILD_COMMAND" == "a73g_eur" ]; then
-	PRODUCT_NAME=a73g;
-	SIGN_MODEL=SM-A700H_CIS_SER_ROOT0
 else
 #default product
         PRODUCT_NAME=$BUILD_COMMAND;
@@ -28,7 +34,7 @@ PRODUCT_OUT=$BUILD_ROOT_DIR/android/out/target/product/$PRODUCT_NAME
 
 
 SECURE_SCRIPT=$BUILD_ROOT_DIR/buildscript/tools/signclient.jar
-BUILD_CROSS_COMPILE=$BUILD_ROOT_DIR/android/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7/bin/arm-eabi-
+BUILD_CROSS_COMPILE=$BUILD_ROOT_DIR/android/prebuilts/gcc/linux-x86/arm/arm-eabi-4.8/bin/arm-eabi-
 BUILD_JOB_NUMBER=`grep processor /proc/cpuinfo|wc -l`
 
 # Default Python version is 2.7
@@ -40,7 +46,6 @@ KERNEL_DEFCONFIG=msm8939_sec_defconfig
 DEBUG_DEFCONFIG=msm8939_sec_eng_defconfig
 SELINUX_DEFCONFIG=selinux_defconfig
 SELINUX_LOG_DEFCONFIG=selinux_log_defconfig
-TIMA_DEFCONFIG=tima8939_defconfig
 
 while getopts "w:t:" flag; do
 	case $flag in
@@ -184,10 +189,9 @@ FUNC_BUILD_KERNEL()
 	make -C $BUILD_KERNEL_DIR O=$BUILD_KERNEL_OUT_DIR -j$BUILD_JOB_NUMBER ARCH=arm \
 			CROSS_COMPILE=$BUILD_CROSS_COMPILE \
 			VARIANT_DEFCONFIG=$VARIANT_DEFCONFIG \
-			DEBUG_DEFCONFIG=$DEBUG_DEFCONFIG $KERNEL_DEFCONFIG\
+			DEBUG_DEFCONFIG=$DEBUG_DEFCONFIG $KERNEL_DEFCONFIG \
 			SELINUX_DEFCONFIG=$SELINUX_DEFCONFIG \
-			SELINUX_LOG_DEFCONFIG=$SELINUX_LOG_DEFCONFIG \
-			TIMA_DEFCONFIG=$TIMA_DEFCONFIG || exit -1
+			SELINUX_LOG_DEFCONFIG=$SELINUX_LOG_DEFCONFIG || exit -1
 
 	make -C $BUILD_KERNEL_DIR O=$BUILD_KERNEL_OUT_DIR -j$BUILD_JOB_NUMBER ARCH=arm \
 			CROSS_COMPILE=$BUILD_CROSS_COMPILE || exit -1
@@ -294,8 +298,11 @@ SECFUNC_PRINT_HELP()
 	echo "  \$1 : "
 	echo "	for A7LTE_EUR_OPEN use a7_eur"
 	echo "	for A7LTE_CHN_OPEN use a7_chnopen"
+	echo "	for A7LTE_CHN_OPEN use a7_chntw"
+	echo "	for K5LTE_CHN_OPEN use k5_chnopen"
+	echo "	for H7LTE_CHN_OPEN use h7_chnopen"
+	echo "	for A8LTE_CHN_OPEN use a8_chnopen"
 	echo "	for A7LTE_CHN_CTC use a7_chnctc"
-	echo "	for A73G_EUR_OPEN use a73g_eur"
 	echo "  \$2 : "
 	echo "	-B or Nothing  (-B : Secure Binary)"
 	echo "  \$3 : "

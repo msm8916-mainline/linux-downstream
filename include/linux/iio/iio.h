@@ -19,11 +19,6 @@
  * Currently assumes nano seconds.
  */
 
-enum iio_data_type {
-	IIO_RAW,
-	IIO_PROCESSED,
-};
-
 enum iio_chan_info_enum {
 	IIO_CHAN_INFO_RAW = 0,
 	IIO_CHAN_INFO_PROCESSED,
@@ -198,7 +193,6 @@ struct iio_chan_spec {
 	const struct iio_chan_spec_ext_info *ext_info;
 	const char		*extend_name;
 	const char		*datasheet_name;
-	unsigned		processed_val:1;
 	unsigned		modified:1;
 	unsigned		indexed:1;
 	unsigned		output:1;

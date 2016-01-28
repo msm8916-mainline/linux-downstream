@@ -10,6 +10,15 @@ config MFD_CORE
 	select IRQ_DOMAIN
 	default n
 
+config MFD_SM5701
+	tristate "Support for SiliconMitus SM5701 I/F PMIC"
+	depends on I2C
+	select MFD_CORE
+	default n
+	help
+	  If you say yes to this option, support will be included for the
+	  SM5701 I/F PMIC chip.
+
 config MFD_RT5033
 	tristate "Support for Richtek RT5033 I/F PMIC"
 	depends on I2C
@@ -22,9 +31,19 @@ config MFD_RT5033
 config MFD_RT5033_RESET_WA
 	bool "Enable RT5033 reset workaround"
 	depends on MFD_RT5033
-	default n
+	default y
 	help
 	  If you enable this function, it will reset when RT5033 is invalid.
+
+config MFD_RT5033_RESET_GPIO
+	bool "Enable RT5033 GPIO reset"
+	depends on MFD_RT5033_RESET_WA
+	default n
+
+config MFD_RT5033_SLDO_VBUSDET
+	bool "SLDO uses for VBUS detection"
+	depends on MFD_RT5033
+	default n
 
 config MFD_CS5535
 	tristate "AMD CS5535 and CS5536 southbridge core functions"
@@ -318,6 +337,18 @@ config MFD_MAX77693
 	  additional drivers must be enabled in order to use the functionality
 	  of the device.
 
+config MFD_MAX77843
+	bool "Maxim Semiconductor MAX77843 PMIC Support"
+	depends on I2C=y
+	select MFD_CORE
+	help
+	  Say yes here to support for Maxim Semiconductor MAX77843.
+	  This is a companion Power Management IC with Flash, Haptic, Charger,
+	  and MUIC(Micro USB Interface Controller) controls on chip.
+	  This driver provides common support for accessing the device;
+	  additional drivers must be enabled in order to use the functionality
+	  of the device.
+
 config MFD_MAX8907
 	tristate "Maxim Semiconductor MAX8907 PMIC Support"
 	select MFD_CORE
@@ -363,6 +394,17 @@ config MFD_MAX8998
 	  This driver provides common support for accessing the device,
 	  additional drivers must be enabled in order to use the functionality
 	  of the device.
+
+config MFD_MAX77849
+	bool "Maxim Semiconductor MAX77849 PMIC Support"
+	depends on I2C=y
+	select MFD_CORE
+	help
+	  Say yes here to support for Maxim Semiconductor MAX77849.
+	  This is a Power Management IC with RTC, Flash, Fuel Gauge, Haptic,
+	  MUIC controls on chip.
+	  This driver provides common support for accessing the device;
+	  additional drivers
 
 config EZX_PCAP
 	bool "Motorola EZXPCAP Support"
@@ -496,6 +538,16 @@ config MFD_SEC_CORE
 	select MFD_CORE
 	select REGMAP_I2C
 	select REGMAP_IRQ
+	help
+	 Support for the Samsung Electronics MFD series.
+	 This driver provides common support for accessing the device,
+	 additional drivers must be enabled in order to use the functionality
+	 of the device
+
+config MFD_S2MU003
+	bool "SAMSUNG Electronics IF PMIC Series Support"
+	depends on I2C=y
+	select MFD_CORE
 	help
 	 Support for the Samsung Electronics MFD series.
 	 This driver provides common support for accessing the device,
@@ -1052,11 +1104,24 @@ config MFD_WM5102
 	help
 	  Support for Wolfson Microelectronics WM5102 low power audio SoC
 
-config MFD_WM5110
-	bool "Wolfson Microelectronics WM5110"
+config MFD_FLORIDA
+	bool "Wolfson Microelectronics Florida class codecs"
 	depends on MFD_ARIZONA
 	help
-	  Support for Wolfson Microelectronics WM5110 low power audio SoC
+	  Support for Wolfson Microelectronics Florida class low power audio SoC
+	  such as the WM8280
+
+config MFD_WM8998
+	bool "Support Wolfson Microelectronics WM8998"
+	depends on MFD_ARIZONA
+	help
+	  Support for Wolfson Microelectronics WM8998 low power audio SoC
+
+config MFD_WM8997
+	bool "Wolfson Microelectronics WM8997"
+	depends on MFD_ARIZONA
+	help
+	  Support for Wolfson Microelectronics WM8997 low power audio SoC
 
 config MFD_WM8400
 	bool "Wolfson Microelectronics WM8400"

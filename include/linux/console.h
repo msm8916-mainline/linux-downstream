@@ -141,6 +141,9 @@ struct console {
 	for (con = console_drivers; con != NULL; con = con->next)
 
 extern int console_set_on_cmdline;
+#ifdef CONFIG_PANIC_ON_RT_THROTTLING
+extern int console_null_state;
+#endif
 extern struct console *early_console;
 
 extern int add_preferred_console(char *name, int idx, char *options);

@@ -10,7 +10,7 @@
 
 #include "hid-ids.h"
 
-#define MAX_NUM_OF_FINGERS		5
+#define MAX_NUM_OF_FINGERS 		5
 #define FINGER_DATA_SIZE		8
 #define DEFAULT_MAX_ABS_MT_PRESSURE	255
 
@@ -119,7 +119,7 @@ static int hid_synaptics_raw_event(struct hid_device *hdev,
 }
 
 static int hid_synaptics_event(struct hid_device *hdev, struct hid_field *field,
-				struct hid_usage *usage, __s32 value)
+		 		struct hid_usage *usage, __s32 value)
 {
 	if (field->report->id == 9)
 		return 1;
@@ -203,7 +203,10 @@ static int hid_synaptics_probe(struct hid_device *hdev, const struct hid_device_
 	syntp_data->input = input_dev;
 	ret = input_register_device(syntp_data->input);
 	if (ret)
+	{
+		input_free_device(syntp_data->input);
 		goto hid_init_failed;
+	}
 
 	hid_set_drvdata(hdev, syntp_data);
 
@@ -244,8 +247,13 @@ static int samsung_bookcover_input_mapping(struct hid_device *hdev,
 		set_bit(EV_REP, hi->input->evbit);
 		/* Only for UK keyboard */
 		/* key found */
+#ifdef CONFIG_HID_KK_UPGRADE
+		case 0x32: samsung_kbd_mouse_map_key_clear(KEY_KBDILLUMTOGGLE); break;
+		case 0x64: samsung_kbd_mouse_map_key_clear(KEY_BACKSLASH); break;
+#else
 		case 0x32: samsung_kbd_mouse_map_key_clear(KEY_BACKSLASH); break;
 		case 0x64: samsung_kbd_mouse_map_key_clear(KEY_102ND); break;
+#endif
 		/* Only for BR keyboard */
 		case 0x87: samsung_kbd_mouse_map_key_clear(KEY_RO); break;
 		default:
@@ -318,8 +326,8 @@ MODULE_DEVICE_TABLE(hid, hid_synaptics_id);
 static struct hid_driver hid_synaptics_driver = {
 	.name = "hid-synaptics-bt",
 	.driver = {
-		.owner	= THIS_MODULE,
-		.name	= "hid-synaptics-bt",
+		.owner  = THIS_MODULE,
+		.name 	= "hid-synaptics-bt",
 	},
 	.id_table	= hid_synaptics_id,
 	.probe		= hid_synaptics_probe,

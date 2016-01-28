@@ -26,7 +26,6 @@
 #include <linux/regulator/consumer.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
-#include <linux/pinctrl/consumer.h>
 
 #if defined(CONFIG_OF)
 #include <linux/of_device.h>
@@ -45,7 +44,6 @@ struct pcal6416a_chip {
 	struct dentry	*dentry;
 	struct mutex lock;
 	struct pcal6416a_platform_data *pdata;
-	struct pinctrl *pinctrl;
 	unsigned gpio_start;
 
 	uint16_t reg_output;
@@ -66,33 +64,6 @@ struct pcal6416a_chip *g_dev = NULL;
 	 reg: register address
    val: the value read back from the PCAL6416A
 */
-static int pcal6416a_pinctrl_cfg(struct pcal6416a_chip *info, bool active) {
-	struct pinctrl_state *set_state;
-	int retval;
-
-	if (active) {
-		set_state = pinctrl_lookup_state(info->pinctrl, "expander_active");
-		if (IS_ERR(set_state)) {
-			pr_err("%s: cannot get pinctrl active state\n", __func__);
-			return PTR_ERR(set_state);
-		}
-	} else {
-		set_state =
-			pinctrl_lookup_state(info->pinctrl, "expander_suspend");
-		if (IS_ERR(set_state)) {
-			pr_err("%s: cannot get gpiokey pinctrl sleep state\n", __func__);
-			return PTR_ERR(set_state);
-		}
-	}
-	retval = pinctrl_select_state(info->pinctrl, set_state);
-	if (retval) {
-		pr_err("%s: cannot set pinctrl active state\n", __func__);
-		return retval;
-	}
-	printk(KERN_CRIT "%s done\n", __func__);
-	return 0;
-}
-
 static int pcal6416a_read_reg(struct pcal6416a_chip *chip, int reg, uint16_t *val)
 {
 	int ret = i2c_smbus_read_word_data(chip->client, reg);
@@ -352,77 +323,91 @@ static int pcal6416a_gpio_setup(struct pcal6416a_chip *dev)
 	pr_info("[%s] GPIO Expander Init setting\n", __func__);
 
 	dev->reg_outputconfig = 0x0000;
-	ret = pcal6416a_write_reg(dev, PCAL6416A_OUTPUT_CONFIG, dev->reg_outputconfig);		/* push-pull */
+	ret = pcal6416a_write_reg(dev, PCAL6416A_OUTPUT_CONFIG,
+			dev->reg_outputconfig);		/* push-pull */
 	if (ret < 0) {
 		pr_err("failed set output config\n");
 		return ret;
 	}
 
-	ret = pcal6416a_write_reg(dev, PCAL6416A_DAT_OUT, dev->reg_output);		/* 1 : output high, 0 : output low */
+	ret = pcal6416a_write_reg(dev, PCAL6416A_DAT_OUT,
+			dev->reg_output);		/* 1 : output high, 0 : output low */
 	if (ret < 0) {
 		pr_err("failed set data out\n");
 		return ret;
 	}
-	ret = pcal6416a_write_reg(dev, PCAL6416A_CONFIG, dev->reg_config);		/* 1 : input, 0 : output */
+	ret = pcal6416a_write_reg(dev, PCAL6416A_CONFIG,
+			dev->reg_config);		/* 1 : input, 0 : output */
 	if (ret < 0) {
 		pr_err("failed set config\n");
 		return ret;
 	}
 
 	dev->reg_polarity = 0x0000;
-	ret = pcal6416a_write_reg(dev, PCAL6416A_POLARITY, dev->reg_polarity);
+	ret = pcal6416a_write_reg(dev, PCAL6416A_POLARITY,
+			dev->reg_polarity);
 	if (ret < 0) {
 		pr_err("failed set polarity\n");
 		return ret;
 	}
 
 	dev->reg_drive0 = 0x0000;
-	ret = pcal6416a_write_reg(dev, PCAL6416A_DRIVE0, dev->reg_drive0);		/* drive 0.25x */
+	ret = pcal6416a_write_reg(dev, PCAL6416A_DRIVE0,
+			dev->reg_drive0);		/* drive 0.25x */
 	if (ret < 0) {
 		pr_err("failed set drive0\n");
 		return ret;
 	}
 	dev->reg_drive1 = 0x0000;
-	ret = pcal6416a_write_reg(dev, PCAL6416A_DRIVE1, dev->reg_drive1);		/* drive 0.25x */
+	ret = pcal6416a_write_reg(dev, PCAL6416A_DRIVE1,
+			dev->reg_drive1);		/* drive 0.25x */
 	if (ret < 0) {
 		pr_err("failed set drive1\n");
 		return ret;
 	}
 
 	dev->reg_inputlatch = 0x0000;
-	ret = pcal6416a_write_reg(dev, PCAL6416A_INPUT_LATCH, dev->reg_inputlatch);		/* not use latch */
+	ret = pcal6416a_write_reg(dev, PCAL6416A_INPUT_LATCH,
+			dev->reg_inputlatch);		/* not use latch */
 	if (ret < 0) {
 		pr_err("failed set input latch\n");
 		return ret;
 	}
-	ret = pcal6416a_write_reg(dev, PCAL6416A_EN_PULLUPDOWN, dev->reg_enpullupdown);		/* 1 : enable, 0 : disable */
+	ret = pcal6416a_write_reg(dev, PCAL6416A_EN_PULLUPDOWN,
+			dev->reg_enpullupdown);		/* 1 : enable, 0 : disable */
 	if (ret < 0) {
 		pr_err("failed set enable pullupdown\n");
 		return ret;
 	}
-	ret = pcal6416a_write_reg(dev, PCAL6416A_SEL_PULLUPDOWN, dev->reg_selpullupdown);	/* 1 : pull-up, 0 : pull-down */
+	ret = pcal6416a_write_reg(dev, PCAL6416A_SEL_PULLUPDOWN,
+			dev->reg_selpullupdown);	/* 1 : pull-up, 0 : pull-down */
 	if (ret < 0) {
 		pr_err("failed set select pull\n");
 		return ret;
 	}
 	dev->reg_intmask = 0xFFFF;
-	ret = pcal6416a_write_reg(dev, PCAL6416A_INT_MASK, dev->reg_intmask);		/* not use int */
+	ret = pcal6416a_write_reg(dev, PCAL6416A_INT_MASK,
+			dev->reg_intmask);		/* not use int */
 	if (ret < 0) {
 		pr_err("failed set int mask\n");
 		return ret;
 	}
-	ret = pcal6416a_read_reg(dev, PCAL6416A_INT_MASK, &read_val);
+	ret = pcal6416a_read_reg(dev, PCAL6416A_INT_MASK,
+			&read_val);
 	if (ret < 0) {
 		pr_err("failed read int mask\n");
 		return ret;
 	}
+
 	return 0;
 }
 
 #ifdef CONFIG_OF
-static int pcal6416a_parse_dt(struct device *dev, struct pcal6416a_platform_data *pdata)
+static int pcal6416a_parse_dt(struct device *dev,
+		struct pcal6416a_platform_data *pdata)
 {
 	struct device_node *np = dev->of_node;
+	struct pinctrl *reset_pinctrl;
 	int ret, i;
 	u32 pull_reg;
 
@@ -438,8 +423,15 @@ static int pcal6416a_parse_dt(struct device *dev, struct pcal6416a_platform_data
 		return ret;
 	}
 	pdata->reset_gpio = of_get_named_gpio(np, "pcal6416a,reset-gpio", 0);
-	pdata->scl_gpio = of_get_named_gpio(np, "pcal6416a,scl-gpio", 0);
-	pdata->sda_gpio = of_get_named_gpio(np, "pcal6416a,sda-gpio", 0);
+	/* Get pinctrl if target uses pinctrl */
+	reset_pinctrl = devm_pinctrl_get_select(dev, "expander_reset_setting");
+	if (IS_ERR(reset_pinctrl)) {
+		if (PTR_ERR(reset_pinctrl) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+
+		pr_debug("Target does not use pinctrl\n");
+		reset_pinctrl = NULL;
+	}
 
 	ret = of_property_read_u32(np, "pcal6416a,support_initialize", (u32 *)&pdata->support_init);
 	if (ret < 0) {
@@ -447,10 +439,13 @@ static int pcal6416a_parse_dt(struct device *dev, struct pcal6416a_platform_data
 		pdata->support_init = 0;
 	}
 
-	ret = of_property_read_string(np, "pcal6416a,supply-name", &pdata->supply_name);
-	if (ret < 0) {
-		pr_err("[%s]: Unable to read pcal6416a,supply-name\n", __func__);
-		pdata->supply_name = "8916_l15";
+	pdata->vdd = devm_regulator_get(dev, "pcal6416a,vdd");
+	if (IS_ERR(pdata->vdd)) {
+		pr_err("%s: cannot get pcal6416a,vdd\n", __func__);
+		ret = -ENOMEM;
+		return ret;
+	} else if (!regulator_get_voltage(pdata->vdd)) {
+		ret = regulator_set_voltage(pdata->vdd, 1800000, 1800000);
 	}
 
 	if (pdata->support_init) {
@@ -498,9 +493,9 @@ static int pcal6416a_parse_dt(struct device *dev, struct pcal6416a_platform_data
 			pdata->init_config, pdata->init_data_out,
 			pdata->init_en_pull, pdata->init_sel_pull);
 	dev->platform_data = pdata;
-	pr_info("[%s] gpio_start=[%d] ngpio=[%d] reset-gpio=[%d] scl %d, sda %d\n",
-			__func__, pdata->gpio_start, pdata->ngpio, pdata->reset_gpio, pdata->scl_gpio, pdata->sda_gpio);
-	pr_info("[%s] supply-name=[%s]\n", __func__, pdata->supply_name);
+	pr_info("[%s]gpio_start=[%d]ngpio=[%d]reset-gpio=[%d]\n",
+			__func__, pdata->gpio_start, pdata->ngpio,
+			pdata->reset_gpio);
 	return 0;
 }
 #endif
@@ -508,22 +503,7 @@ static int pcal6416a_parse_dt(struct device *dev, struct pcal6416a_platform_data
 static void pcal6416a_power_ctrl(struct pcal6416a_platform_data *pdata, char enable)
 {
 	int ret = 0;
-	static struct regulator *reg_power;
-
-	if (!reg_power) {
-		reg_power = regulator_get(NULL, pdata->supply_name);
-		if (IS_ERR(reg_power)) {
-			pr_err("%s: could not get %s, rc = %ld\n",
-					__func__, pdata->supply_name, PTR_ERR(reg_power));
-			return;
-		}
-		ret = regulator_set_voltage(reg_power, 1800000, 1800000);
-		if (ret) {
-			pr_err("%s: unable to set power regulator voltage to 1.8V\n",
-					__func__);
-			return;
-		}
-	}
+	struct regulator *reg_power = pdata->vdd;
 
 	if (enable) {
 		if (regulator_is_enabled(reg_power))
@@ -535,7 +515,7 @@ static void pcal6416a_power_ctrl(struct pcal6416a_platform_data *pdata, char ena
 					__func__, ret);
 			return;
 		}
-		//pr_info("%s: gpio expander 1.8V on is finished.\n", __func__);
+		pr_info("%s: gpio expander 1.8V on is finished.\n", __func__);
 	} else {
 		if (regulator_is_enabled(reg_power))
 			ret = regulator_disable(reg_power);
@@ -546,8 +526,9 @@ static void pcal6416a_power_ctrl(struct pcal6416a_platform_data *pdata, char ena
 					__func__, ret);
 			return;
 		}
-		//pr_info("%s: gpio expander 1.8V off is finished.\n", __func__);
+		pr_info("%s: gpio expander 1.8V off is finished.\n", __func__);
 	}
+	pr_err("[pcal6416a gpio expander] %s enable(%d)\n", __func__, enable);
 	return;
 }
 
@@ -557,31 +538,27 @@ static int pcal6416a_reset_chip(struct pcal6416a_platform_data *pdata)
 	int reset_gpio = pdata->reset_gpio;
 
 	if (gpio_is_valid(reset_gpio)) {
-		retval = gpio_request(reset_gpio, "pcal6416a_reset_gpio");
+		retval = gpio_request(reset_gpio,
+				"pcal6416a_reset_gpio");
 		if (retval) {
-			pr_err("[%s]: unable to request gpio [%d]\n", __func__, reset_gpio);
+			pr_err("[%s]: unable to request gpio [%d]\n",
+					__func__, reset_gpio);
 			return retval;
 		}
 
 		retval = gpio_direction_output(reset_gpio, 1);
 		if (retval) {
-			pr_err("[%s]: unable to set direction for gpio [%d]\n", __func__, reset_gpio);
+			pr_err("[%s]: unable to set direction for gpio [%d]\n",
+					__func__, reset_gpio);
 			gpio_free(reset_gpio);
 			return retval;
 		}
 
-#if !defined(CONFIG_SEC_ATLANTIC_PROJECT) && !defined(CONFIG_MACH_A5LTE_JPN_KDI)
-/* Stop expander reset for KMINI USA & USA devices
- * Reason: Its a work arround patch for KMINI USA/USC HWs only.
- * Because, LCD_ON PIN connected to Expander I/O.
- * Whenever EXPANDER-resets, LCD_ON PIN GO LOW and LCD turns-off.
- */
 		usleep(100);
 		gpio_set_value(reset_gpio, 0);
 		usleep(100);
 		gpio_set_value(reset_gpio, 1);
 		pr_info("[%s]: gpio expander reset.\n", __func__);
-#endif
 
 		gpio_free(reset_gpio);
 		return 0;
@@ -816,7 +793,7 @@ static int expander_show(struct seq_file *s, void *unused)
 			seq_printf(s, " PULL_NONE");
 		if (i > 7)
 			drv_str = (chip_state.reg_drive1>>((i-8)*2)) & 0x3;
-		else 
+		else
 			drv_str = (chip_state.reg_drive0>>(i*2)) & 0x3;
 		switch(drv_str) {
 		case GPIO_CFG_6_25MA:
@@ -834,7 +811,7 @@ static int expander_show(struct seq_file *s, void *unused)
 		}
 		if ((read_input>>i)&0x1)
 			seq_printf(s, " VAL_HIGH\n");
-		else 
+		else
 			seq_printf(s, " VAL_LOW\n");
 	}
 
@@ -909,19 +886,6 @@ static int pcal6416a_gpio_probe(struct i2c_client *client,
 	dev->client = client;
 	dev->pdata = pdata;
 	dev->gpio_start = pdata->gpio_start;
-	dev->pinctrl = devm_pinctrl_get(&client->dev);
-	if (IS_ERR(dev->pinctrl)) {
-		if (PTR_ERR(dev->pinctrl) == -EPROBE_DEFER)
-			goto err;
-		pr_err("%s: Target does not use pinctrl\n", __func__);
-		dev->pinctrl = NULL;
-	}
-
-	if (dev->pinctrl) {
-		ret = pcal6416a_pinctrl_cfg(dev, true);
-		if (ret)
-			pr_err("%s: cannot set ts pinctrl active state\n", __func__);
-	}
 
 	gc = &dev->gpio_chip;
 	gc->direction_input  = pcal6416a_gpio_direction_input;
@@ -963,13 +927,14 @@ static int pcal6416a_gpio_probe(struct i2c_client *client,
 			}
 		}
 		if (retry++ > 5) {
-			dev_err(&client->dev, "Failed to expander retry[%d]\n", retry);
+			dev_err(&client->dev,
+					"Failed to expander retry[%d]\n", retry);
 			WARN_ON(ret);
 			goto err;
 		}
 		usleep_range(100, 200);
 	}
-	printk(KERN_CRIT "%s add gpiochip now\n", __func__);
+
 	ret = gpiochip_add(&dev->gpio_chip);
 	if (ret)
 		goto err;

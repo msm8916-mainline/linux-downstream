@@ -33,8 +33,9 @@
 #include <linux/qpnp/power-on.h>
 #endif
 #if defined(CONFIG_SEC_DEBUG)
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
+#include <linux/pinctrl/consumer.h>
 #include <linux/syscore_ops.h>
 
 struct device *sec_key;
@@ -59,6 +60,7 @@ struct gpio_keys_drvdata {
 	struct mutex disable_lock;
 	struct gpio_button_data data[0];
 };
+
 struct device *global_dev;
 
 /*
@@ -342,7 +344,8 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 	int state =
 		(__gpio_get_value(button->gpio) ? 1 : 0) ^ button->active_low;
 
-	pr_info("[KEY] code:%d, value:%d\n", button->code, !!state);
+        printk(KERN_INFO "%s: %s key is %s\n",
+			__func__, button->desc, state ? "pressed" : "released");
 
 #ifdef CONFIG_SEC_DEBUG
 	sec_debug_check_crash_key(button->code, state);
@@ -804,6 +807,7 @@ out:
 }
 
 static DEVICE_ATTR(wakeup_keys, 0220, NULL, wakeup_enable);
+
 #ifdef CONFIG_PM_SLEEP
 static int gpio_keys_suspend(void)
 {

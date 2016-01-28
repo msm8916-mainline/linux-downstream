@@ -30,6 +30,14 @@
 #define CDBG(fmt, args...) do { } while (0)
 #endif
 
+#ifdef CONFIG_MFD_RT5033_RESET_WA
+#ifdef CONFIG_CAM_USE_EXT_VANA_GPIO
+#define RT5033_RESET_WA_VREG_NAME    ("cam_vdig")
+#else
+#define RT5033_RESET_WA_VREG_NAME    ("cam_vana")
+#endif
+#endif
+
 void msm_camera_io_w(u32 data, void __iomem *addr)
 {
 	CDBG("%s: 0x%p %08x\n", __func__,  (addr), (data));
@@ -105,6 +113,17 @@ void msm_camera_io_memcpy(void __iomem *dest_addr,
 	CDBG("%s: %p %p %d\n", __func__, dest_addr, src_addr, len);
 	msm_camera_io_memcpy_toio(dest_addr, src_addr, len / 4);
 	msm_camera_io_dump(dest_addr, len);
+}
+
+void msm_camera_io_memcpy_mb(void __iomem *dest_addr,
+	void __iomem *src_addr, u32 len)
+{
+	int i;
+	u32 *d = (u32 *) dest_addr;
+	u32 *s = (u32 *) src_addr;
+
+	for (i = 0; i < (len / 4); i++)
+		msm_camera_io_w_mb(*s++, d++);
 }
 
 int msm_cam_clk_sel_src(struct device *dev, struct msm_cam_clk_info *clk_info,
@@ -485,7 +504,7 @@ int msm_camera_config_single_vreg(struct device *dev,
 		}
 		CDBG("%s enable %s\n", __func__, cam_vreg->reg_name);
 		if (!strncmp(cam_vreg->reg_name, "cam_vdig", 8)) {
-			*reg_ptr = regulator_get(dev, "CAM_SENSOR_CORE_1.25V");
+			*reg_ptr = regulator_get(dev, "CAM_SENSOR_CORE_1.2V");
 			if (IS_ERR(*reg_ptr)) {
 				pr_err("%s: %s get failed\n", __func__,
 						cam_vreg->reg_name);
@@ -530,9 +549,9 @@ int msm_camera_config_single_vreg(struct device *dev,
 			}
 		}
 #ifdef CONFIG_MFD_RT5033_RESET_WA
-		if (!strncmp(cam_vreg->reg_name, "cam_vana", 8)){
+		if (!strncmp(cam_vreg->reg_name, RT5033_RESET_WA_VREG_NAME, 8)){
 			rt_rc = regulator_get_status(*reg_ptr);
-			if(rt_rc == 2){
+			if((rt_rc == 2) || (rt_rc == 8)){
 				BUG_ON(1);
 			} else {
 				pr_err("[RT5033] result : 0x%x\n", rt_rc);

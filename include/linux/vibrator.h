@@ -39,6 +39,7 @@ struct vibrator_platform_data {
 	struct pwm_device	*pwm_dev;
 	unsigned int pwm_period_us;
 	unsigned int duty_us;
+	unsigned int gp_clk;
 	void (*power_onoff)(int onoff);
 };
 

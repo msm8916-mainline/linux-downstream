@@ -97,7 +97,11 @@ void    change_tcp_Data(struct sk_buff *skb)
         for (i = 0 ; i < shinfo->nr_frags ; i++)
         {
             int     written = 0;
+#ifdef _SKB_FRAG_STRUCT_CHANGED
+            void    *frag_addr  = page_address(shinfo->frags[i].page) + shinfo->frags[i].page_offset;
+#else
             void    *frag_addr  = page_address(shinfo->frags[i].page.p) + shinfo->frags[i].page_offset;
+#endif
             if (frag_addr != NULL)
             {
                 int dataSize    = shinfo->frags[i].size;

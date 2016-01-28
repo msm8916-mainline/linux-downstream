@@ -25,15 +25,12 @@
 #include <soc/qcom/smem.h>
 #include <soc/qcom/spm.h>
 #include <soc/qcom/pm.h>
-#include <linux/export.h>
-#include <linux/errno.h>
-#include <linux/err.h>
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 #ifdef CONFIG_SEC_THERMISTOR
-#include <mach/sec_thermistor.h>
-#include <mach/msm8916-thermistor.h>
+#include <linux/sec_thermistor.h>
+#include <linux/msm8916-thermistor.h>
 #endif
 #include "board-dt.h"
 #include "platsmp.h"
@@ -41,6 +38,7 @@
 #ifdef CONFIG_PROC_AVC
 #include <linux/proc_avc.h>
 #endif
+
 static void __init msm8916_dt_reserve(void)
 {
 	of_scan_flat_dt(dt_scan_for_memory_reserve, NULL);
@@ -96,8 +94,9 @@ static void __init msm8916_init(void)
 #endif
 
 #ifdef CONFIG_PROC_AVC
-	sec_avc_log_init();
+    	sec_avc_log_init();
 #endif
+
 	/*
 	 * populate devices from DT first so smem probe will get called as part
 	 * of msm_smem_init.  socinfo_init needs smem support so call
@@ -130,6 +129,16 @@ static const char *msm8939_dt_match[] __initconst = {
 	NULL
 };
 
+static const char *msm8929_dt_match[] __initconst = {
+	"qcom,msm8929",
+	NULL
+};
+
+static const char *msmtellurium_dt_match[] __initconst = {
+	"qcom,msmtellurium",
+	NULL
+};
+
 DT_MACHINE_START(MSM8916_DT,
 		"Qualcomm Technologies, Inc. MSM 8916 (Flattened Device Tree)")
 	.map_io = msm8916_map_io,
@@ -153,6 +162,24 @@ DT_MACHINE_START(MSM8936_DT,
 	.map_io = msm8916_map_io,
 	.init_machine = msm8916_init,
 	.dt_compat = msm8936_dt_match,
+	.reserve = msm8916_dt_reserve,
+	.smp = &msm8936_smp_ops,
+MACHINE_END
+
+DT_MACHINE_START(MSM8929_DT,
+	"Qualcomm Technologies, Inc. MSM 8929 (Flattened Device Tree)")
+	.map_io = msm8916_map_io,
+	.init_machine = msm8916_init,
+	.dt_compat = msm8929_dt_match,
+	.reserve = msm8916_dt_reserve,
+	.smp = &msm8936_smp_ops,
+MACHINE_END
+
+DT_MACHINE_START(MSMTellurium_DT,
+	"Qualcomm Technologies, Inc. MSM Tellurium (Flattened Device Tree)")
+	.map_io = msm8916_map_io,
+	.init_machine = msm8916_init,
+	.dt_compat = msmtellurium_dt_match,
 	.reserve = msm8916_dt_reserve,
 	.smp = &msm8936_smp_ops,
 MACHINE_END

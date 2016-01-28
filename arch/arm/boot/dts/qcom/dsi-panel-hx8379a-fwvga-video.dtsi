@@ -96,7 +96,7 @@
 				9C
 			05 01 00 00 96 00 02
 				11 00
-			05 01 00 00 78 00 02
+			05 01 00 00 0A 00 02
 				29 00
 			];
 		qcom,mdss-dsi-off-command = [05 01 00 00 32 00 02 28 00
@@ -118,7 +118,7 @@
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
-		qcom,mdss-dsi-bl-pmic-pwm-frequency = <30>;
+		qcom,mdss-dsi-bl-pmic-pwm-frequency = <100>;
 		qcom,mdss-dsi-bl-pmic-bank-select = <0>;
 		qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 2>, <1 20>;

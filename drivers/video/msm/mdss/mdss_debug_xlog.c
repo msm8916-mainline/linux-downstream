@@ -107,7 +107,7 @@ void mdss_xlog(const char *name, ...)
 	time = ktime_get();
 
 	log = &mdss_dbg_xlog.logs[mdss_dbg_xlog.first];
-	log->tick = ktime_to_us(time);
+	log->tick = local_clock();
 	log->name = name;
 	log->data_cnt = 0;
 
@@ -137,23 +137,21 @@ void mdss_xlog_dump(void)
 	struct mdss_debug_data *mdd = mdata->debug_inf.debug_data;
 	int i, n, d_cnt, off;
 	unsigned long flags;
+	unsigned long rem_nsec;
 	struct tlog *log;
 	char xlog_buf[MDSS_XLOG_BUF_MAX];
 
 	if (!mdd->logd.xlog_enable)
 		return;
 
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-	    /* To block mdss_xlog() function */
-	    mdd->logd.xlog_enable = false;
-#endif
-
 	spin_lock_irqsave(&mdss_dbg_xlog.xlock, flags);
 	i = mdss_dbg_xlog.first;
 	for (n = 0; n < MDSS_XLOG_ENTRY; n++) {
 		log = &mdss_dbg_xlog.logs[i];
-		off = snprintf(xlog_buf, MDSS_XLOG_BUF_MAX, "%-32s => %08llu: ",
-							log->name, log->tick);
+		rem_nsec = do_div(log->tick, 1000000000);
+		off = snprintf(xlog_buf, MDSS_XLOG_BUF_MAX,
+				"%-32s => [%5llu.%06lu]: ", log->name,
+					log->tick, rem_nsec / 1000);
 		for (d_cnt = 0; d_cnt < log->data_cnt;) {
 			off += snprintf((xlog_buf + off),
 					(MDSS_XLOG_BUF_MAX - off),
@@ -166,8 +164,6 @@ void mdss_xlog_dump(void)
 	}
 	spin_unlock_irqrestore(&mdss_dbg_xlog.xlock, flags);
 }
-
-DEFINE_MUTEX(MDSS_XLOG_MUTEX);
 
 void mdss_xlog_tout_handler(const char *name, ...)
 {
@@ -182,20 +178,15 @@ void mdss_xlog_tout_handler(const char *name, ...)
 	char *dsi1_addr = NULL;
 #endif
 
-
 	if (!mdd->logd.xlog_enable)
 		return;
-
-	mutex_lock(&MDSS_XLOG_MUTEX);
 
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 	if (!strcmp(name, "mdss_mdp_video_underrun_intr_done")) {
 		mdss_mdp_underrun_dump_info();
-		mutex_unlock(&MDSS_XLOG_MUTEX);
 		return;
 	}
 #endif
-
 	va_start(args, name);
 	for (i = 0; i < MDSS_XLOG_MAX_DATA; i++) {
 
@@ -242,12 +233,10 @@ void mdss_xlog_tout_handler(const char *name, ...)
 
 	mdss_mdp_underrun_dump_info();
 
-	if(dead)
+	if (dead)
 		panic(name);
 #endif
 
 	if (dead && mdd->logd.panic_on_err)
 		panic(name);
-
-	mutex_unlock(&MDSS_XLOG_MUTEX);
 }

@@ -36,6 +36,7 @@
 #define BIT_BYTE(nr) ((nr) / BITS_PER_BYTE)
 
 static irqreturn_t wcd9xxx_spmi_irq_handler(int linux_irq, void *data);
+
 char *irq_names[MAX_NUM_IRQS] = {
 	"spk_cnp_int",
 	"spk_clip_int",
@@ -207,7 +208,7 @@ static int get_order_irq(int  i)
 static irqreturn_t wcd9xxx_spmi_irq_handler(int linux_irq, void *data)
 {
 	int irq, i, j;
-	u8 status[NUM_IRQ_REGS] = {0};
+	unsigned long status[NUM_IRQ_REGS] = {0};
 
 	if (unlikely(wcd9xxx_spmi_lock_sleep() == false)) {
 		pr_err("Failed to hold suspend\n");
@@ -333,7 +334,8 @@ EXPORT_SYMBOL(wcd9xxx_spmi_resume);
 bool wcd9xxx_spmi_lock_sleep()
 {
 	/*
-	 * wcd9xxx_spmi_{lock/unlock}_sleep will be called by wcd9xxx_spmi_irq_thread
+	 * wcd9xxx_spmi_{lock/unlock}_sleep will be called by
+	 * wcd9xxx_spmi_irq_thread
 	 * and its subroutines only motly.
 	 * but btn0_lpress_fn is not wcd9xxx_spmi_irq_thread's subroutine and
 	 * It can race with wcd9xxx_spmi_irq_thread.

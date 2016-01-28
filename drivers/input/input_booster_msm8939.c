@@ -10,7 +10,7 @@
  */
 
 #include <linux/module.h>
-#include <linux/input/input_booster.h>
+#include <linux/input/input_booster_msm8939.h>
 
 static void input_booster_change_dvfs_tsp_work(struct work_struct *work)
 {
@@ -265,7 +265,7 @@ static void input_booster_set_dvfs_wacom_lock(struct input_booster *booster, int
 
 static int input_booster_set_dvfs_off(struct input_booster *booster)
 {
-	int retval;
+	int retval = 0;
 
 	mutex_lock(&booster->dvfs_lock);
 
@@ -370,7 +370,7 @@ void input_booster_free(struct input_booster *booster)
 		return;
 
 	kfree(booster);
-	booster = NULL;
+	//booster = NULL;
 }
 
 MODULE_DESCRIPTION("Input device[Touch, Touchkey, Hardkey] booster");

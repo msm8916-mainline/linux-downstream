@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,8 +30,9 @@
 
 #include <soc/qcom/scm.h>
 #include <soc/qcom/restart.h>
+#include <soc/qcom/watchdog.h>
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #include <linux/notifier.h>
 #include <linux/ftrace.h>
 #endif
@@ -41,6 +42,7 @@
 #define EMERGENCY_DLOAD_MAGIC3    0x77777777
 
 #define SCM_IO_DISABLE_PMIC_ARBITER	1
+#define SCM_IO_DEASSERT_PS_HOLD		2
 #define SCM_WDOG_DEBUG_BOOT_PART	0x9
 #define SCM_DLOAD_MODE			0X10
 #define SCM_EDLOAD_MODE			0X01
@@ -52,8 +54,10 @@ static int restart_mode;
 void *restart_reason;
 #endif
 static bool scm_pmic_arbiter_disable_supported;
+static bool scm_deassert_ps_hold_supported;
 /* Download mode master kill-switch */
 static void __iomem *msm_ps_hold;
+static phys_addr_t tcsr_boot_misc_detect;
 
 #ifdef CONFIG_MSM_DLOAD_MODE
 #define EDL_MODE_PROP "qcom,msm-imem-emergency_download_mode"
@@ -80,6 +84,29 @@ static struct notifier_block panic_blk = {
 	.notifier_call	= panic_prep_restart,
 };
 
+int scm_set_dload_mode(int arg1, int arg2)
+{
+	struct scm_desc desc = {
+		.args[0] = arg1,
+		.args[1] = arg2,
+		.arginfo = SCM_ARGS(2),
+	};
+
+	if (!scm_dload_supported) {
+		if (tcsr_boot_misc_detect)
+			return scm_io_write(tcsr_boot_misc_detect, arg1);
+
+		return 0;
+	}
+
+	if (!is_scm_armv8())
+		return scm_call_atomic2(SCM_SVC_BOOT, SCM_DLOAD_CMD, arg1,
+					arg2);
+
+	return scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT, SCM_DLOAD_CMD),
+				&desc);
+}
+
 void set_dload_mode(int on)
 {
 	int ret;
@@ -91,12 +118,9 @@ void set_dload_mode(int on)
 		mb();
 	}
 
-	if (scm_dload_supported) {
-		ret = scm_call_atomic2(SCM_SVC_BOOT,
-				SCM_DLOAD_CMD, on ? SCM_DLOAD_MODE : 0, 0);
-		if (ret)
-			pr_err("Failed to set DLOAD mode: %d\n", ret);
-	}
+	ret = scm_set_dload_mode(on ? SCM_DLOAD_MODE : 0, 0);
+	if (ret)
+		pr_err("Failed to set secure DLOAD mode: %d\n", ret);
 
 	dload_mode_enabled = on;
 #ifdef CONFIG_SEC_DEBUG
@@ -132,12 +156,9 @@ static void enable_emergency_dload_mode(void)
 		mb();
 	}
 
-	if (scm_dload_supported) {
-		ret = scm_call_atomic2(SCM_SVC_BOOT,
-				SCM_DLOAD_CMD, SCM_EDLOAD_MODE, 0);
-		if (ret)
-			pr_err("Failed to set EDLOAD mode: %d\n", ret);
-	}
+	ret = scm_set_dload_mode(SCM_EDLOAD_MODE, 0);
+	if (ret)
+		pr_err("Failed to set secure EDLOAD mode: %d\n", ret);
 }
 
 static int dload_set(const char *val, struct kernel_param *kp)
@@ -188,9 +209,19 @@ EXPORT_SYMBOL(msm_set_restart_mode);
  */
 static void halt_spmi_pmic_arbiter(void)
 {
+	struct scm_desc desc = {
+		.args[0] = 0,
+		.arginfo = SCM_ARGS(1),
+	};
+
 	if (scm_pmic_arbiter_disable_supported) {
 		pr_crit("Calling SCM to disable SPMI PMIC arbiter\n");
-		scm_call_atomic1(SCM_SVC_PWR, SCM_IO_DISABLE_PMIC_ARBITER, 0);
+		if (!is_scm_armv8())
+			scm_call_atomic1(SCM_SVC_PWR,
+					 SCM_IO_DISABLE_PMIC_ARBITER, 0);
+		else
+			scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_PWR,
+				  SCM_IO_DISABLE_PMIC_ARBITER), &desc);
 	}
 }
 
@@ -228,6 +259,7 @@ static void msm_restart_prepare(const char *cmd)
 #endif
 	pr_info("preparing for restart now\n");
 	warm_reboot_set = 0;
+
 	if (cmd != NULL) {
 		printk(KERN_NOTICE " Reboot cmd=%s\n",cmd);
 		if (!strncmp(cmd, "bootloader", 10)) {
@@ -251,7 +283,7 @@ static void msm_restart_prepare(const char *cmd)
 #endif
         } else if (!strncmp(cmd, "download", 8)) {
 		    __raw_writel(0x12345671, restart_reason);
-			warm_reboot_set = 1;
+                    warm_reboot_set = 1;
 		} else if (!strncmp(cmd, "nvbackup", 8)) {
 				__raw_writel(0x77665511, restart_reason);
 				warm_reboot_set = 1;
@@ -280,10 +312,15 @@ static void msm_restart_prepare(const char *cmd)
 #endif
 		} else if (!strncmp(cmd, "edl", 3)) {
 			enable_emergency_dload_mode();
-			warm_reboot_set = 1;
+				warm_reboot_set = 1;
 		} else if (strlen(cmd) == 0) {
 		    printk(KERN_NOTICE "%s : value of cmd is NULL.\n", __func__);
 		        __raw_writel(0x12345678, restart_reason);
+#ifdef CONFIG_SEC_PERIPHERAL_SECURE_CHK
+		} else if (!strncmp(cmd, "peripheral_hw_reset", 19)) {
+			__raw_writel(0x77665507, restart_reason);
+			warm_reboot_set = 1;
+#endif
 		} else {
 			__raw_writel(0x77665501, restart_reason);
 		}
@@ -295,16 +332,14 @@ static void msm_restart_prepare(const char *cmd)
 #ifdef CONFIG_SEC_DEBUG
 	else {
 		printk(KERN_NOTICE "%s: clear reset flag\n", __func__);
-
-		__raw_writel(0x12345678, restart_reason);
 		warm_reboot_set = 1;
+		__raw_writel(0x12345678, restart_reason);
 	}
 #endif
 	printk(KERN_NOTICE "%s : restart_reason = 0x%x\n",
 			__func__, __raw_readl(restart_reason));
 	printk(KERN_NOTICE "%s : warm_reboot_set = %d\n",
 			__func__, warm_reboot_set);
-
 #ifdef CONFIG_RESTART_REASON_SEC_PARAM
 	//fixme : Enabling Hard reset
 	/* Memory contents will be lost when when PMIC is configured for HARD RESET */
@@ -319,7 +354,6 @@ static void msm_restart_prepare(const char *cmd)
 #else
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
 #endif
-
 	flush_cache_all();
 
 	/*outer_flush_all is not supported by 64bit kernel*/
@@ -329,30 +363,81 @@ static void msm_restart_prepare(const char *cmd)
 
 }
 
+/*
+ * Deassert PS_HOLD to signal the PMIC that we are ready to power down or reset.
+ * Do this by calling into the secure environment, if available, or by directly
+ * writing to a hardware register.
+ *
+ * This function should never return.
+ */
+static void deassert_ps_hold(void)
+{
+	struct scm_desc desc = {
+		.args[0] = 0,
+		.arginfo = SCM_ARGS(1),
+	};
+
+	if (scm_deassert_ps_hold_supported) {
+		/* This call will be available on ARMv8 only */
+		scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_PWR,
+				 SCM_IO_DEASSERT_PS_HOLD), &desc);
+	}
+
+	/* Fall-through to the direct write in case the scm_call "returns" */
+	__raw_writel(0, msm_ps_hold);
+}
+
+#ifdef CONFIG_SEC_DEBUG
 void do_msm_restart(enum reboot_mode reboot_mode, const char *cmd)
+#else
+static void do_msm_restart(enum reboot_mode reboot_mode, const char *cmd)
+#endif
 {
 	int ret;
+	struct scm_desc desc = {
+		.args[0] = 1,
+		.args[1] = 0,
+		.arginfo = SCM_ARGS(2),
+	};
 
 	pr_notice("Going down for restart now\n");
 
 	msm_restart_prepare(cmd);
 
+#ifdef CONFIG_MSM_DLOAD_MODE
+	/*
+	 * Trigger a watchdog bite here and if this fails,
+	 * device will take the usual restart path.
+	 */
+
+	if (WDOG_BITE_ON_PANIC && in_panic)
+		msm_trigger_wdog_bite();
+#endif
+
 	/* Needed to bypass debug image on some chips */
-	ret = scm_call_atomic2(SCM_SVC_BOOT,
+	if (!is_scm_armv8())
+		ret = scm_call_atomic2(SCM_SVC_BOOT,
 			       SCM_WDOG_DEBUG_BOOT_PART, 1, 0);
+	else
+		ret = scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT,
+			  SCM_WDOG_DEBUG_BOOT_PART), &desc);
 	if (ret)
-		pr_err("Failed to disable wdog debug: %d\n", ret);
+		pr_err("Failed to disable secure wdog debug: %d\n", ret);
 
 	halt_spmi_pmic_arbiter();
-	__raw_writel(0, msm_ps_hold);
+	deassert_ps_hold();
 
 	mdelay(10000);
-	printk(KERN_ERR "Restarting has failed\n");
 }
 
 static void do_msm_poweroff(void)
 {
 	int ret;
+	struct scm_desc desc = {
+		.args[0] = 1,
+		.args[1] = 0,
+		.arginfo = SCM_ARGS(2),
+	};
 
 	pr_notice("Powering off the SoC\n");
 #ifdef CONFIG_MSM_DLOAD_MODE
@@ -360,14 +445,17 @@ static void do_msm_poweroff(void)
 #endif
 	qpnp_pon_system_pwr_off(PON_POWER_OFF_SHUTDOWN);
 	/* Needed to bypass debug image on some chips */
-	ret = scm_call_atomic2(SCM_SVC_BOOT,
+	if (!is_scm_armv8())
+		ret = scm_call_atomic2(SCM_SVC_BOOT,
 			       SCM_WDOG_DEBUG_BOOT_PART, 1, 0);
+	else
+		ret = scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT,
+			  SCM_WDOG_DEBUG_BOOT_PART), &desc);
 	if (ret)
 		pr_err("Failed to disable wdog debug: %d\n", ret);
 
 	halt_spmi_pmic_arbiter();
-	/* MSM initiated power off, lower ps_hold */
-	__raw_writel(0, msm_ps_hold);
+	deassert_ps_hold();
 
 	mdelay(10000);
 	pr_err("Powering off has failed\n");
@@ -419,15 +507,6 @@ static int msm_restart_probe(struct platform_device *pdev)
 		if (!emergency_dload_mode_addr)
 			pr_err("unable to map imem EDLOAD mode offset\n");
 	}
-
-	set_dload_mode(download_mode);
-
-#ifdef CONFIG_SEC_DEBUG_LOW_LOG
-	if (!sec_debug_is_enabled()) {
-		set_dload_mode(0);
-	}
-#endif
-
 #endif
 #ifndef CONFIG_SEC_DEBUG
 	np = of_find_compatible_node(NULL, NULL,
@@ -448,11 +527,26 @@ static int msm_restart_probe(struct platform_device *pdev)
 	if (IS_ERR(msm_ps_hold))
 		return PTR_ERR(msm_ps_hold);
 
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (mem)
+		tcsr_boot_misc_detect = mem->start;
+
 	pm_power_off = do_msm_poweroff;
 	arm_pm_restart = do_msm_restart;
 
 	if (scm_is_call_available(SCM_SVC_PWR, SCM_IO_DISABLE_PMIC_ARBITER) > 0)
 		scm_pmic_arbiter_disable_supported = true;
+
+	if (scm_is_call_available(SCM_SVC_PWR, SCM_IO_DEASSERT_PS_HOLD) > 0)
+		scm_deassert_ps_hold_supported = true;
+
+	set_dload_mode(download_mode);
+
+#ifdef CONFIG_SEC_DEBUG_LOW_LOG
+	if (!sec_debug_is_enabled()) {
+		set_dload_mode(0);
+	}
+#endif
 
 	return 0;
 #ifndef CONFIG_SEC_DEBUG

@@ -36,6 +36,7 @@
 #include <asm/suspend.h>
 #include <asm/cacheflush.h>
 #include <asm/cputype.h>
+#include <asm/system_misc.h>
 #ifdef CONFIG_VFP
 #include <asm/vfp.h>
 #endif
@@ -45,7 +46,7 @@
 #include "../../../arch/arm/mach-msm/clock.h"
 
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 
 #define SCM_CMD_TERMINATE_PC	(0x2)
@@ -92,12 +93,6 @@ static long *msm_pc_debug_counters;
 
 static cpumask_t retention_cpus;
 static DEFINE_SPINLOCK(retention_lock);
-
-static inline void msm_arch_idle(void)
-{
-	mb();
-	wfi();
-}
 
 static bool msm_pm_is_L1_writeback(void)
 {
@@ -189,6 +184,7 @@ static bool msm_pm_pc_hotplug(void)
 {
 	uint32_t cpu = smp_processor_id();
 	enum msm_pm_l2_scm_flag flag;
+	struct scm_desc desc;
 
 	flag = lpm_cpu_pre_pc_cb(cpu);
 
@@ -201,8 +197,16 @@ static bool msm_pm_pc_hotplug(void)
 
 	msm_pc_inc_debug_count(cpu, MSM_PC_ENTRY_COUNTER);
 
-	scm_call_atomic1(SCM_SVC_BOOT, SCM_CMD_TERMINATE_PC,
+	if (is_scm_armv8()) {
+		desc.args[0] = SCM_CMD_CORE_HOTPLUGGED |
+			       (flag & SCM_FLUSH_FLAG_MASK);
+		desc.arginfo = SCM_ARGS(1);
+		scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT,
+				 SCM_CMD_TERMINATE_PC), &desc);
+	} else {
+		scm_call_atomic1(SCM_SVC_BOOT, SCM_CMD_TERMINATE_PC,
 		SCM_CMD_CORE_HOTPLUGGED | (flag & SCM_FLUSH_FLAG_MASK));
+	}
 
 	/* Should not return here */
 	msm_pc_inc_debug_count(cpu, MSM_PC_FALLTHRU_COUNTER);
@@ -213,6 +217,7 @@ int msm_pm_collapse(unsigned long unused)
 {
 	uint32_t cpu = smp_processor_id();
 	enum msm_pm_l2_scm_flag flag;
+	struct scm_desc desc;
 
 	flag = lpm_cpu_pre_pc_cb(cpu);
 
@@ -224,7 +229,14 @@ int msm_pm_collapse(unsigned long unused)
 	}
 	msm_pc_inc_debug_count(cpu, MSM_PC_ENTRY_COUNTER);
 
-	scm_call_atomic1(SCM_SVC_BOOT, SCM_CMD_TERMINATE_PC, flag);
+	if (is_scm_armv8()) {
+		desc.args[0] = flag;
+		desc.arginfo = SCM_ARGS(1);
+		scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT,
+				 SCM_CMD_TERMINATE_PC), &desc);
+	} else {
+		scm_call_atomic1(SCM_SVC_BOOT, SCM_CMD_TERMINATE_PC, flag);
+	}
 
 	msm_pc_inc_debug_count(cpu, MSM_PC_FALLTHRU_COUNTER);
 
@@ -238,11 +250,7 @@ static bool __ref msm_pm_spm_power_collapse(
 	void *entry;
 	bool collapsed = 0;
 	int ret;
-#ifdef CONFIG_ARCH_MSM8939
-	bool save_cpu_regs = ((cpu==4) ? 1:0) || from_idle;
-#else
-	bool save_cpu_regs = !cpu || from_idle;
-#endif
+	bool save_cpu_regs = (cpu_online(cpu) || from_idle);
 
 	if (MSM_PM_DEBUG_POWER_COLLAPSE & msm_pm_debug_mask)
 		pr_info("CPU%u: %s: notify_rpm %d\n",
@@ -476,12 +484,13 @@ int msm_pm_wait_cpu_shutdown(unsigned int cpu)
 
 		udelay(100);
 		/*
-		 * Dump spm registers for debugging
+		 * Dump spm registers for debugging, increase timeout
 		 */
-		if (++timeout == 20) {
+		if (++timeout == 50) {
 			msm_spm_dump_regs(cpu);
-			__WARN_printf("CPU%u didn't collapse in 2ms, sleep status: 0x%x\n",
+			__WARN_printf("CPU%u didn't collapse in 5ms, sleep status: 0x%x\n",
 					cpu, acc_sts);
+			BUG();
 		}
 	}
 
@@ -666,7 +675,7 @@ static struct platform_driver msm_cpu_pm_snoc_client_driver = {
 };
 
 struct msm_pc_debug_counters_buffer {
-	int *reg;
+	long *reg;
 	u32 len;
 	char buf[MAX_BUF_SIZE];
 };
@@ -700,7 +709,7 @@ static int msm_pc_debug_counters_copy(
 
 		data->len += len;
 
-		for (j = 0; j < MSM_PC_NUM_COUNTERS; j++) {
+		for (j = 0; j < MSM_PC_NUM_COUNTERS - 1; j++) {
 			stat = data->reg[offset + j];
 			len = scnprintf(data->buf + data->len,
 					 sizeof(data->buf) - data->len,
@@ -708,7 +717,11 @@ static int msm_pc_debug_counters_copy(
 
 			data->len += len;
 		}
+		len = scnprintf(data->buf + data->len,
+			 sizeof(data->buf) - data->len,
+			"\n");
 
+		data->len += len;
 	}
 
 	return data->len;
@@ -757,7 +770,7 @@ static int msm_pc_debug_counters_file_open(struct inode *inode,
 	}
 
 	buf = file->private_data;
-	buf->reg = (int *)inode->i_private;
+	buf->reg = (long *)inode->i_private;
 
 	return 0;
 }
@@ -793,10 +806,8 @@ static int msm_pm_clk_init(struct platform_device *pdev)
 		if (IS_ERR(clk)) {
 			if (cpu && synced_clocks)
 				return 0;
-			else{
-				pr_info("%s: clk for cpu %d PTR_ERR: (%ld)\n", __func__,  cpu, PTR_ERR(clk));
+			else
 				return PTR_ERR(clk);
-			}
 		}
 		per_cpu(cpu_clks, cpu) = clk;
 	}
@@ -839,7 +850,6 @@ static int msm_cpu_pm_probe(struct platform_device *pdev)
 			goto skip_save_imem;
 		msm_pc_debug_counters_imem = devm_ioremap(&pdev->dev,
 						res->start, resource_size(res));
-		pr_info("%s: msm_pc_debug_counters_imem is allocated as %x \n", __func__, (unsigned int)msm_pc_debug_counters_imem);
 		if (msm_pc_debug_counters_imem) {
 			writel_relaxed(msm_pc_debug_counters_phys,
 					msm_pc_debug_counters_imem);
@@ -859,7 +869,7 @@ skip_save_imem:
 
 		ret = msm_pm_clk_init(pdev);
 		if (ret) {
-			pr_err("msm_pm_clk_init returned error %d \n", ret);
+			pr_info("msm_pm_clk_init returned error\n");
 			return ret;
 		}
 	}
@@ -892,15 +902,25 @@ static int __init msm_pm_drv_init(void)
 
 	rc = platform_driver_register(&msm_cpu_pm_snoc_client_driver);
 
-	if (rc) {
+	if (rc)
 		pr_err("%s(): failed to register driver %s\n", __func__,
 				msm_cpu_pm_snoc_client_driver.driver.name);
-		return rc;
-	}
-
-	return platform_driver_register(&msm_cpu_pm_driver);
+	return rc;
 }
 late_initcall(msm_pm_drv_init);
+
+static int __init msm_pm_debug_counters_init(void)
+{
+	int rc;
+
+	rc = platform_driver_register(&msm_cpu_pm_driver);
+
+	if (rc)
+		pr_err("%s(): failed to register driver %s\n", __func__,
+				msm_cpu_pm_driver.driver.name);
+	return rc;
+}
+fs_initcall(msm_pm_debug_counters_init);
 
 int __init msm_pm_sleep_status_init(void)
 {
@@ -913,3 +933,12 @@ int __init msm_pm_sleep_status_init(void)
 	return platform_driver_register(&msm_cpu_status_driver);
 }
 arch_initcall(msm_pm_sleep_status_init);
+
+#ifdef CONFIG_ARM
+static int idle_initialize(void)
+{
+	arm_pm_idle = arch_idle;
+	return 0;
+}
+early_initcall(idle_initialize);
+#endif

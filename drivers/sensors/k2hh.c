@@ -29,7 +29,7 @@
 #include <linux/regulator/consumer.h>
 #include <mach/gpiomux.h>
 
-#include "sensors_core.h"
+#include <linux/sensor/sensors_core.h>
 
 #define I2C_M_WR                      0 /* for i2c Write */
 #define I2c_M_RD                      1 /* for i2c Read */
@@ -39,7 +39,7 @@
 #define MODEL_NAME                    "K2HH"
 #define MODULE_NAME                   "accelerometer_sensor"
 
-#define CALIBRATION_FILE_PATH         "/efs/accel_calibration_data"
+#define CALIBRATION_FILE_PATH         "/efs/FactoryApp/accel_calibration_data"
 #define CALIBRATION_DATA_AMOUNT       20
 #define MAX_ACCEL_1G                  8192
 
@@ -105,9 +105,10 @@
 #define K2HH_CHIP_ID                  0x41
 
 #define K2HH_ACC_FS_MASK              0x30
-#define K2HH_ACC_BW_MASK              0xC0
 #define K2HH_ACC_ODR_MASK             0x70
+#define K2HH_ACC_BW_MASK              0xC0
 #define K2HH_ACC_AXES_MASK            0x07
+#define K2HH_ACC_BW_SCALE_ODR_MASK    0x08
 
 #define SELF_TEST_2G_MAX_LSB          24576
 #define SELF_TEST_2G_MIN_LSB          1146
@@ -116,9 +117,17 @@
 #define K2HH_ACC_FS_4G                0x20
 #define K2HH_ACC_FS_8G                0x30
 
+#define K2HH_ACC_BW_50                0xC0
+#define K2HH_ACC_BW_100               0x80
+#define K2HH_ACC_BW_200               0x40
+#define K2HH_ACC_BW_400               0x00
+
 #define INT_THSX1_REG                 0x32
 #define INT_THSY1_REG                 0x33
 #define INT_THSZ1_REG                 0x34
+
+#define K2HH_ACC_BW_SCALE_ODR_ENABLE  0x08
+#define K2HH_ACC_BW_SCALE_ODR_DISABLE 0x00
 
 #define DYNAMIC_THRESHOLD             5000
 
@@ -151,6 +160,9 @@ struct k2hh_p {
 	struct workqueue_struct *accel_wq;
 	struct work_struct work;
 	struct regulator *reg_vio;
+#ifdef CONFIG_SENSORS_K2HH_VDD
+	struct regulator *reg_vdd;
+#endif
 	ktime_t poll_delay;
 	atomic_t enable;
 
@@ -193,15 +205,17 @@ struct k2hh_acc_odr {
 #define OUTPUT_ALWAYS_ANTI_ALIASED	/* Anti aliasing filter */
 
 const struct k2hh_acc_odr k2hh_acc_odr_table[] = {
-	{  2, ACC_ODR800},
-	{  3, ACC_ODR400},
-	{  5, ACC_ODR200},
-	{ 10, ACC_ODR100},
+	{  5, ACC_ODR800},
+	{ 10, ACC_ODR400},
 #ifndef OUTPUT_ALWAYS_ANTI_ALIASED
 	{ 20, ACC_ODR50},
 	{100, ACC_ODR10},
 #endif
 };
+
+#ifdef CONFIG_MACH_J1_VZW
+static int k2hh_regulator_onoff(struct k2hh_p *data, bool onoff);
+#endif
 
 static int k2hh_i2c_read(struct k2hh_p *data,
 		unsigned char reg_addr, unsigned char *buf, unsigned int len)
@@ -312,10 +326,8 @@ static int k2hh_set_range(struct k2hh_p *data, unsigned char range)
 	ret = k2hh_i2c_read(data, CTRL4_REG, &temp, 1);
 
 	buf = (mask & new_range) | ((~mask) & temp);
-
 	ret += k2hh_i2c_write(data, CTRL4_REG, buf);
-	pr_info("[SENSOR]: %s - 0x%x (buf - 0x%x)\n",
-		__func__, new_range, buf);
+	pr_info("[SENSOR]: %s - 0x%x\n", __func__, new_range);
 
 	return ret;
 }
@@ -351,6 +363,29 @@ static int k2hh_set_odr(struct k2hh_p *data)
 	return ret;
 }
 
+static int k2hh_set_bw(struct k2hh_p *data)
+{
+	int ret = 0;
+	unsigned char temp, buf, mask, new_range;
+
+#if defined(OUTPUT_ALWAYS_ANTI_ALIASED)
+	new_range = K2HH_ACC_BW_SCALE_ODR_ENABLE;
+	mask = K2HH_ACC_BW_SCALE_ODR_MASK;
+	ret = k2hh_i2c_read(data, CTRL4_REG, &temp, 1);
+
+	buf = (mask & new_range) | ((~mask) & temp);
+	ret += k2hh_i2c_write(data, CTRL4_REG, buf);
+#endif
+	new_range = K2HH_ACC_BW_400;
+	mask = K2HH_ACC_BW_MASK;
+	ret = k2hh_i2c_read(data, CTRL4_REG, &temp, 1);
+
+	buf = (mask & new_range) | ((~mask) & temp);
+	ret += k2hh_i2c_write(data, CTRL4_REG, buf);
+
+	return ret;
+}
+
 static int k2hh_set_hr(struct k2hh_p *data, int set)
 {
 	int ret;
@@ -361,24 +396,31 @@ static int k2hh_set_hr(struct k2hh_p *data, int set)
 	if (set) {
 		data->hr = CTRL1_HR_ENABLE;
 		odr = data->odr;
-		bw = 0xC0;
+		k2hh_set_bw(data);
 	} else {
 		data->hr = CTRL1_HR_DISABLE;
-		odr = ACC_ODR400;
-		bw = 0x00;
+		odr = ACC_ODR800;
+		bw = K2HH_ACC_BW_400;
+		k2hh_i2c_read(data, CTRL4_REG, &buf, 1);
+		buf = (K2HH_ACC_BW_MASK & bw) | ((~K2HH_ACC_BW_MASK) & buf);
+		k2hh_i2c_write(data, CTRL4_REG, buf);
+
+#if defined(OUTPUT_ALWAYS_ANTI_ALIASED)
+		bw = K2HH_ACC_BW_SCALE_ODR_DISABLE;
+		k2hh_i2c_read(data, CTRL4_REG, &buf, 1);
+		buf = (K2HH_ACC_BW_SCALE_ODR_MASK & bw)\
+				| ((~K2HH_ACC_BW_SCALE_ODR_MASK) & buf);
+		k2hh_i2c_write(data, CTRL4_REG, buf);
+#endif
 	}
 
 	ret = k2hh_i2c_read(data, CTRL1_REG, &buf, 1);
 	buf = data->hr | ((~CTRL1_HR_MASK) & buf);
 	ret += k2hh_i2c_write(data, CTRL1_REG, buf);
 
-	ret = k2hh_i2c_read(data, CTRL1_REG, &buf, 1);
+	ret += k2hh_i2c_read(data, CTRL1_REG, &buf, 1);
 	buf = ((K2HH_ACC_ODR_MASK & odr) | ((~K2HH_ACC_ODR_MASK) & buf));
 	ret += k2hh_i2c_write(data, CTRL1_REG, buf);
-
-	ret = k2hh_i2c_read(data, CTRL4_REG, &buf, 1);
-	buf = (K2HH_ACC_BW_MASK & bw) | ((~K2HH_ACC_BW_MASK) & buf);
-	ret += k2hh_i2c_write(data, CTRL4_REG, buf);
 
 	return ret;
 }
@@ -617,8 +659,13 @@ static ssize_t k2hh_enable_store(struct device *dev,
 
 	if (enable) {
 		if (pre_enable == OFF) {
+#ifdef CONFIG_MACH_J1_VZW
+			k2hh_regulator_onoff(data, true);
+#endif
+
 			k2hh_open_calibration(data);
 			k2hh_set_range(data, K2HH_RANGE_4G);
+			k2hh_set_bw(data);
 
 			k2hh_set_mode(data, K2HH_MODE_NORMAL);
 			atomic_set(&data->enable, ON);
@@ -629,6 +676,10 @@ static ssize_t k2hh_enable_store(struct device *dev,
 			atomic_set(&data->enable, OFF);
 			k2hh_set_mode(data, K2HH_MODE_SUSPEND);
 			k2hh_set_enable(data, OFF);
+
+#ifdef CONFIG_MACH_J1_VZW
+			k2hh_regulator_onoff(data, false);
+#endif
 		}
 	}
 
@@ -657,6 +708,10 @@ static ssize_t k2hh_delay_store(struct device *dev,
 		return ret;
 	}
 
+#ifdef CONFIG_MACH_J1_VZW
+	k2hh_regulator_onoff(data, true);
+#endif
+
 	data->poll_delay = ns_to_ktime(delay);
 	k2hh_set_odr(data);
 
@@ -664,6 +719,10 @@ static ssize_t k2hh_delay_store(struct device *dev,
 		k2hh_set_mode(data, K2HH_MODE_SUSPEND);
 		k2hh_set_mode(data, K2HH_MODE_NORMAL);
 	}
+
+#ifdef CONFIG_MACH_J1_VZW
+	k2hh_regulator_onoff(data, false);
+#endif
 
 	pr_info("[SENSOR]: %s - poll_delay = %lld\n", __func__, delay);
 	return size;
@@ -683,7 +742,6 @@ static struct attribute *k2hh_attributes[] = {
 static struct attribute_group k2hh_attribute_group = {
 	.attrs = k2hh_attributes
 };
-
 
 static ssize_t k2hh_vendor_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -823,6 +881,10 @@ static ssize_t k2hh_reactive_alert_store(struct device *dev,
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_MACH_J1_VZW
+	k2hh_regulator_onoff(data, true);
+#endif
+
 	if ((enable == ON) && (data->recog_flag == OFF)) {
 		data->irq_state = 0;
 		data->recog_flag = ON;
@@ -875,6 +937,10 @@ static ssize_t k2hh_reactive_alert_store(struct device *dev,
 			__func__, data->irq_state);
 	}
 
+#ifdef CONFIG_MACH_J1_VZW
+	k2hh_regulator_onoff(data, false);
+#endif
+
 	return size;
 }
 
@@ -888,6 +954,10 @@ static ssize_t k2hh_selftest_show(struct device *dev,
 	ssize_t ret;
 	s32 NO_ST[3] = {0, 0, 0};
 	s32 ST[3] = {0, 0, 0};
+
+#ifdef CONFIG_MACH_J1_VZW
+	k2hh_regulator_onoff(data, true);
+#endif
 
 	k2hh_i2c_read(data, CTRL1_REG, &backup[0], 1);
 	k2hh_i2c_read(data, CTRL4_REG, &backup[1], 1);
@@ -991,6 +1061,10 @@ exit:
 		k2hh_set_mode(data, K2HH_MODE_NORMAL);
 		k2hh_set_enable(data, ON);
 	}
+
+#ifdef CONFIG_MACH_J1_VZW
+	k2hh_regulator_onoff(data, false);
+#endif
 
 	return ret;
 }
@@ -1188,20 +1262,6 @@ static int k2hh_parse_dt(struct k2hh_p *data, struct device *dev)
 	} else
 		data->negate_z = (u8)temp;
 
-	data->reg_vio = devm_regulator_get(dev, "stm,vio");
-	if (IS_ERR(data->reg_vio)) {
-		pr_err("%s, could not get vio, %ld\n",
-			__func__, PTR_ERR(data->reg_vio));
-	} else {
-		ret = regulator_set_voltage(data->reg_vio, 1800000, 1800000);
-		if (ret) {
-			pr_err("%s: set voltage failed on vio, rc=%d\n",
-				__func__, ret);
-			devm_regulator_put(data->reg_vio);
-			return ret;
-		}
-	}
-
 	return 0;
 }
 
@@ -1209,23 +1269,83 @@ static int k2hh_regulator_onoff(struct k2hh_p *data, bool onoff)
 {
 	int ret = 0;
 
-	pr_info("%s\n", __func__);
+	pr_info("%s %s\n", __func__, (onoff) ? "on" : "off");
 
-	if (IS_ERR(data->reg_vio)) {
-		pr_err("%s: Failed to enable regulator.\n", __func__);
-		return -ENODEV;
+#ifdef CONFIG_SENSORS_K2HH_VDD
+#ifdef CONFIG_MACH_J1_VZW
+	if (!data->reg_vdd){
+		pr_info("%s VDD get regulator\n", __func__);
+#endif
+		data->reg_vdd = devm_regulator_get(&data->client->dev, "stm,vdd");
+		if (IS_ERR(data->reg_vdd)) {
+			pr_err("could not get vdd, %ld\n", PTR_ERR(data->reg_vdd));
+			ret = -ENODEV;
+			goto err_vdd;
+		}
+#ifndef CONFIG_MACH_J1_VZW
+		else if (!regulator_get_voltage(data->reg_vdd)) {
+			ret = regulator_set_voltage(data->reg_vdd, 2850000, 2850000);
+		}
+#else
+		regulator_set_voltage(data->reg_vdd, 2850000, 2850000);
 	}
+#endif
+#endif
+
+#ifdef CONFIG_MACH_J1_VZW
+	if (!data->reg_vio){
+		pr_info("%s VIO get regulator\n", __func__);
+#endif
+		data->reg_vio = devm_regulator_get(&data->client->dev, "stm,vio");
+		if (IS_ERR(data->reg_vio)) {
+			pr_err("could not get vio, %ld\n", PTR_ERR(data->reg_vio));
+			ret = -ENODEV;
+			goto err_vio;
+		}
+#ifndef CONFIG_MACH_J1_VZW
+		else if (!regulator_get_voltage(data->reg_vio)) {
+			ret = regulator_set_voltage(data->reg_vio, 1800000, 1800000);
+		}
+#else
+		regulator_set_voltage(data->reg_vio, 1800000, 1800000);
+	}
+#endif
 
 	if (onoff) {
+#ifdef CONFIG_SENSORS_K2HH_VDD
+		ret = regulator_enable(data->reg_vdd);
+		if (ret)
+			pr_err("%s: Failed to enable vdd.\n", __func__);
+#endif
 		ret = regulator_enable(data->reg_vio);
 		if (ret)
 			pr_err("%s: Failed to enable vio.\n", __func__);
 		msleep(30);
 	} else {
+#ifdef CONFIG_SENSORS_K2HH_VDD
+		ret = regulator_disable(data->reg_vdd);
+		if (ret)
+			pr_err("%s: Failed to disable vdd.\n", __func__);
+#endif
 		ret = regulator_disable(data->reg_vio);
 		if (ret)
 			pr_err("%s: Failed to disable vio.\n", __func__);
+		msleep(30);
 	}
+
+#ifndef CONFIG_MACH_J1_VZW
+	pr_info("%s VIO put\n", __func__);
+	devm_regulator_put(data->reg_vio);
+#else
+	return 0;
+#endif
+
+err_vio:
+#ifdef CONFIG_SENSORS_K2HH_VDD
+	pr_info("%s VDD put\n", __func__);
+	devm_regulator_put(data->reg_vdd);
+err_vdd:
+#endif
 
 	return ret;
 }
@@ -1326,11 +1446,16 @@ static int k2hh_probe(struct i2c_client *client,
 	data->time_count = 0;
 	data->irq_state = 0;
 	data->recog_flag = OFF;
+	data->hr = CTRL1_HR_ENABLE;
 
 	k2hh_set_range(data, K2HH_RANGE_4G);
 	k2hh_set_mode(data, K2HH_MODE_SUSPEND);
 
-	pr_info("[SENSOR]: %s - Probe done!\n", __func__);
+#ifdef CONFIG_MACH_J1_VZW
+	k2hh_regulator_onoff(data, false);
+#endif
+
+	ret = pr_info("[SENSOR]: %s - Probe done!\n", __func__);
 
 	return 0;
 
@@ -1365,6 +1490,22 @@ static int k2hh_remove(struct i2c_client *client)
 		k2hh_set_mode(data, K2HH_MODE_SUSPEND);
 		atomic_set(&data->enable, OFF);
 	}
+
+#ifdef CONFIG_MACH_J1_VZW
+#ifdef CONFIG_SENSORS_K2HH_VDD
+	if(data->reg_vdd)
+	{
+		pr_info("%s VDD put\n", __func__);
+		devm_regulator_put(data->reg_vdd);
+	}
+#endif
+
+	if(data->reg_vio)
+	{
+		pr_info("%s VIO put\n", __func__);
+		devm_regulator_put(data->reg_vio);
+	}
+#endif
 
 	sensors_unregister(data->factory_device, sensor_attrs);
 	sensors_remove_symlink(&data->input->dev.kobj, data->input->name);

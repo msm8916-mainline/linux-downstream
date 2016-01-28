@@ -36,7 +36,7 @@
 #include <linux/of_gpio.h>
 #include <linux/regulator/consumer.h>
 #include <linux/i2c/taos_tmd3782.h>
-#include "sensors_core.h"
+#include <linux/sensor/sensors_core.h>
 
 /* Note about power vs enable/disable:
  *  The chip has two functions, proximity and ambient light sensing.
@@ -249,25 +249,51 @@ static void sensor_power_on_vdd(struct taos_data *info, int onoff)
 	if (!info->lvs1_1p8) {
 		info->lvs1_1p8 =
 			regulator_get(&info->i2c_client->dev, "reg_vio");
-		if(!info->lvs1_1p8){
+		if(IS_ERR(info->lvs1_1p8)){
 			pr_err("%s: regulator_get for lvs1_1p8 failed\n",
 				__func__);
-			return ;
+		}
+	}
+	if (!info->vdd_2p85) {
+		info->vdd_2p85 =
+			regulator_get(&info->i2c_client->dev, "reg_vdd");
+		if(IS_ERR(info->vdd_2p85)){
+			pr_err("%s: regulator_get for vdd_2p85 failed\n",
+				__func__);
 		}
 	}
 	if (onoff == 1) {
-		ret = regulator_enable(info->lvs1_1p8);
-		if (ret)
-			pr_err("%s: Failed to enable regulator lvs1_1p8.\n",
-				__func__);
-	} else if (onoff == 0) {
-		if (regulator_is_enabled(info->lvs1_1p8)) {
-			ret = regulator_disable(info->lvs1_1p8);
+		if(!(IS_ERR(info->lvs1_1p8))) {
+			ret = regulator_enable(info->lvs1_1p8);
 			if (ret)
-				pr_err("%s: error lvs1_1p8 disabling regulator\n",
+				pr_err("%s: Failed to enable regulator lvs1_1p8.\n",
 					__func__);
 		}
+		if(!(IS_ERR(info->vdd_2p85))) {
+			ret = regulator_enable(info->vdd_2p85);
+			if (ret)
+				pr_err("%s: Failed to enable regulator vdd_2p85.\n",
+					__func__);
+		}
+	} else if (onoff == 0) {
+		if(!(IS_ERR(info->lvs1_1p8))) {
+			if (regulator_is_enabled(info->lvs1_1p8)) {
+				ret = regulator_disable(info->lvs1_1p8);
+				if (ret)
+					pr_err("%s: error lvs1_1p8 disabling regulator\n",
+						__func__);
+			}
+		}
+		if(!(IS_ERR(info->vdd_2p85))) {
+			if (regulator_is_enabled(info->vdd_2p85)) {
+				ret = regulator_disable(info->vdd_2p85);
+				if (ret)
+					pr_err("%s: error vdd_2p85 disabling regulator\n",
+						__func__);
+			}
+		}
 	}
+
 	msleep(30);
 	return;
 }
@@ -367,13 +393,16 @@ static int taos_chip_on(struct taos_data *taos)
 	u8 temp_val;
 	u8 reg_cntrl;
 
-	/*sensor_power_on_vdd(taos,ON);*/
+#ifndef CONFIG_SENSORS_TMD3782S_VDD_LEDA
 	tmd3782_leden_gpio_onoff(taos, 1);
+#endif
 
 	temp_val = CNTL_PWRON;
 	ret = opt_i2c_write(taos, (CMD_REG|CNTRL), &temp_val);
 	if (ret < 0)
 		gprintk("opt_i2c_write to clr ctrl reg failed\n");
+
+	usleep_range(3000, 3100); // A minimum interval of 2.4ms must pass after PON is enabled.
 
 	temp_val = taos->pdata->als_time;
 	ret = opt_i2c_write(taos, (CMD_REG|ALS_TIME), &temp_val);
@@ -425,9 +454,10 @@ static int taos_chip_off(struct taos_data *taos)
 		return ret;
 	}
 
-	/*sensor_power_on_vdd(taos,OFF);*/
+#ifndef CONFIG_SENSORS_TMD3782S_VDD_LEDA
 	tmd3782_leden_gpio_onoff(taos, OFF);
 	msleep(20);
+#endif
 
 	return ret;
 }
@@ -1766,10 +1796,10 @@ static int taos_i2c_probe(struct i2c_client *client,
 		pr_err("%s: could not setup irq\n", __func__);
 		goto err_setup_irq;
 	}
-	/*sensor_power_on_vdd(taos,0);*/
+#ifndef CONFIG_SENSORS_TMD3782S_VDD_LEDA
 	tmd3782_leden_gpio_onoff(taos, OFF);
 	msleep(20);
-
+#endif
 	goto done;
 	/* error, unwind it all */
 err_devicetree:
@@ -1860,6 +1890,8 @@ static int taos_i2c_remove(struct i2c_client *client)
 			taos_light_disable(taos);
 		taos->pdata->power(false);
 		sensor_power_on_vdd(taos,0);
+		regulator_put(taos->vdd_2p85);
+		regulator_put(taos->lvs1_1p8);
 		tmd3782_leden_gpio_onoff(taos, 0);
 		if (taos->pdata->enable >= 0)
 			gpio_free(taos->pdata->enable);

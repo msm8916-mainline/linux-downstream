@@ -56,6 +56,8 @@ struct msm_bus_fab_device_type {
 	uint32_t base_offset;
 	uint32_t qos_freq;
 	uint32_t qos_off;
+	uint32_t util_fact;
+	uint32_t vrail_comp;
 	struct msm_bus_noc_ops noc_ops;
 	enum msm_bus_hw_sel bus_type;
 	bool bypass_qos_prg;
@@ -72,6 +74,7 @@ struct qos_params_type {
 	unsigned int thmp;
 	unsigned int ws;
 	int cur_mode;
+	u64 bw_buffer;
 };
 
 struct msm_bus_node_info_type {
@@ -84,10 +87,14 @@ struct msm_bus_node_info_type {
 	int *qport;
 	struct qos_params_type qos_params;
 	unsigned int num_connections;
+	unsigned int num_blist;
 	bool is_fab_dev;
 	bool virt_dev;
+	bool is_traversed;
 	unsigned int *connections;
+	unsigned int *black_listed_connections;
 	struct device **dev_connections;
+	struct device **black_connections;
 	unsigned int bus_device_id;
 	struct device *bus_device;
 	unsigned int buswidth;

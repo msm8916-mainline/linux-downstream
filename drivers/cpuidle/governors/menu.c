@@ -179,7 +179,6 @@ static u64 div_round64(u64 dividend, u32 divisor)
 	return div_u64(dividend + (divisor / 2), divisor);
 }
 
-extern uint32_t global_counter[NR_CPUS];
 /*
  * Try detecting repeating patterns by keeping track of the last 8
  * intervals, and checking if the standard deviation of that set
@@ -288,9 +287,6 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 
 	get_typical_interval(data);
 
-	trace_printk("%d: CPU%d: Expected_us %d predicted %llu\n",
-			++global_counter[dev->cpu], dev->cpu,
-			data->expected_us, data->predicted_us);
 	/*
 	 * We want to default to C1 (hlt), not to busy polling
 	 * unless the timer is happening really really soon.
@@ -338,10 +334,6 @@ static void menu_reflect(struct cpuidle_device *dev, int index)
 	data->last_state_idx = index;
 	if (index >= 0)
 		data->needs_update = 1;
-
-	trace_printk("%d:: CPU%d: measured_us %u\n",
-			++global_counter[dev->cpu],dev->cpu,
-			cpuidle_get_last_residency(dev));
 }
 
 /**

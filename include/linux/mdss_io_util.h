@@ -31,6 +31,7 @@
 struct dss_io_data {
 	u32 len;
 	void __iomem *base;
+	resource_size_t physical_base;
 };
 
 void dss_reg_w(struct dss_io_data *io, u32 offset, u32 value, u32 debug);

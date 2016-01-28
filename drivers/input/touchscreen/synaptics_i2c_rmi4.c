@@ -34,7 +34,6 @@
 #if defined(CONFIG_SECURE_TOUCH)
 #include <linux/pm_runtime.h>
 #include <linux/errno.h>
-#include <asm/system.h>
 #endif
 
 #include "synaptics_i2c_rmi4.h"
@@ -1753,6 +1752,32 @@ static int synaptics_rmi4_parse_dt_children(struct device *dev,
 					rmi->package_id);
 
 				continue;
+			} else {
+				/*
+				 * If package id read from DT matches the
+				 * package id value read from touch controller,
+				 * also check if sensor dimensions read from DT
+				 * match those read from controller, before
+				 * moving further. For this first check if touch
+				 * panel coordinates are defined in DT or not.
+				 */
+				if (of_find_property(child,
+					"synaptics,panel-coords", NULL)) {
+					synaptics_rmi4_get_dt_coords(dev,
+						"synaptics,panel-coords",
+						rmi4_pdata, child);
+					dev_info(dev, "Pmax_x Pmax_y = %d:%d\n",
+						rmi4_pdata->panel_maxx,
+						rmi4_pdata->panel_maxy);
+					dev_info(dev, "Smax_x Smax_y = %d:%d\n",
+						rmi4_data->sensor_max_x,
+						rmi4_data->sensor_max_y);
+					if ((rmi4_pdata->panel_maxx !=
+						rmi4_data->sensor_max_x) ||
+						(rmi4_pdata->panel_maxy !=
+						rmi4_data->sensor_max_y))
+						continue;
+				}
 			}
 		}
 
@@ -1760,11 +1785,6 @@ static int synaptics_rmi4_parse_dt_children(struct device *dev,
 				"synaptics,display-coords",
 				rmi4_pdata,
 				child);
-		if (rc && (rc != -EINVAL))
-			return rc;
-
-		rc = synaptics_rmi4_get_dt_coords(dev, "synaptics,panel-coords",
-				rmi4_pdata, child);
 		if (rc && (rc != -EINVAL))
 			return rc;
 
@@ -1786,7 +1806,7 @@ static int synaptics_rmi4_parse_dt_children(struct device *dev,
 		mutex_unlock(&rmi->support_fn_list_mutex);
 
 		if (fhandler != NULL && fhandler->fn_number ==
-						SYNAPTICS_RMI4_F1A) {
+					SYNAPTICS_RMI4_F1A) {
 			rc = synaptics_rmi4_capacitance_button_map(rmi4_data,
 								fhandler);
 			if (rc < 0) {
@@ -2140,16 +2160,23 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 
 	fhandler->fn_number = fd->fn_number;
 	fhandler->num_of_data_sources = fd->intr_src_count;
-	fhandler->extra = kmalloc(sizeof(*extra_data), GFP_KERNEL);
-	extra_data = (struct synaptics_rmi4_f12_extra_data *)fhandler->extra;
 	size_of_2d_data = sizeof(struct synaptics_rmi4_f12_finger_data);
+
+	fhandler->extra = kmalloc(sizeof(*extra_data), GFP_KERNEL);
+	if (!fhandler->extra) {
+		dev_err(&rmi4_data->i2c_client->dev,
+			"%s: Failed to alloc mem for function handler\n",
+			__func__);
+		return -ENOMEM;
+	}
+	extra_data = (struct synaptics_rmi4_f12_extra_data *)fhandler->extra;
 
 	retval = synaptics_rmi4_i2c_read(rmi4_data,
 			fhandler->full_addr.query_base + 5,
 			query_5.data,
 			sizeof(query_5.data));
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	ctrl_8_offset = query_5.ctrl0_is_present +
 			query_5.ctrl1_is_present +
@@ -2189,7 +2216,7 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 			ctrl_23.data,
 			sizeof(ctrl_23.data));
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	/* Maximum number of fingers supported */
 	fhandler->num_of_data_points = min(ctrl_23.max_reported_objects,
@@ -2203,14 +2230,14 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 			&size_of_query8,
 			sizeof(size_of_query8));
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	retval = synaptics_rmi4_i2c_read(rmi4_data,
 			fhandler->full_addr.query_base + 8,
 			query_8.data,
 			size_of_query8);
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	/* Determine the presence of the Data0 register */
 	extra_data->data1_offset = query_8.data0_is_present;
@@ -2247,14 +2274,14 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 	retval = synaptics_rmi4_f12_set_enables(rmi4_data,
 			fhandler->full_addr.ctrl_base + ctrl_28_offset);
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	retval = synaptics_rmi4_i2c_read(rmi4_data,
 			fhandler->full_addr.ctrl_base + ctrl_8_offset,
 			ctrl_8.data,
 			sizeof(ctrl_8.data));
 	if (retval < 0)
-		return retval;
+		goto free_function_handler_mem;
 
 	/* Maximum x */
 	rmi4_data->sensor_max_x =
@@ -2266,7 +2293,8 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 			if (rmi4_data->board->panel_maxx >= F12_MAX_X) {
 				dev_err(&rmi4_data->i2c_client->dev,
 					"F12 max_x value out of bound.");
-				return -EINVAL;
+				retval = -EINVAL;
+				goto free_function_handler_mem;
 			}
 			if (rmi4_data->sensor_max_x !=
 					rmi4_data->board->panel_maxx) {
@@ -2284,7 +2312,7 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 					ctrl_8.data,
 					sizeof(ctrl_8.data));
 				if (retval < 0)
-					return retval;
+					goto free_function_handler_mem;
 			}
 		}
 	}
@@ -2299,7 +2327,8 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 			if (rmi4_data->board->panel_maxy >= F12_MAX_Y) {
 				dev_err(&rmi4_data->i2c_client->dev,
 					"F12 max_y value out of bound.");
-					return -EINVAL;
+				retval = -EINVAL;
+				goto free_function_handler_mem;
 			}
 			if (rmi4_data->sensor_max_y !=
 				rmi4_data->board->panel_maxy) {
@@ -2317,7 +2346,7 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 					ctrl_8.data,
 					sizeof(ctrl_8.data));
 				if (retval < 0)
-					return retval;
+					goto free_function_handler_mem;
 			}
 		}
 	}
@@ -2349,7 +2378,18 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 	/* Allocate memory for finger data storage space */
 	fhandler->data_size = num_of_fingers * size_of_2d_data;
 	fhandler->data = kmalloc(fhandler->data_size, GFP_KERNEL);
+	if (!fhandler->data) {
+		dev_err(&rmi4_data->i2c_client->dev,
+			"%s: Failed to alloc mem for function handler data\n",
+			__func__);
+		retval = -ENOMEM;
+		goto free_function_handler_mem;
+	}
 
+	return retval;
+
+free_function_handler_mem:
+	kfree(fhandler->extra);
 	return retval;
 }
 
@@ -3493,12 +3533,16 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 
 	retval = synaptics_rmi4_pinctrl_init(rmi4_data);
 	if (!retval && rmi4_data->ts_pinctrl) {
-		retval = pinctrl_select_state(rmi4_data->ts_pinctrl,
-					rmi4_data->pinctrl_state_active);
-		if (retval < 0)
-			goto err_pinctrl_select;
-	} else {
-		goto err_pinctrl_init;
+		/*
+		* Pinctrl handle is optional. If pinctrl handle is found
+		* let pins to be configured in active state. If not found
+		* continue further without error
+		*/
+		if (pinctrl_select_state(rmi4_data->ts_pinctrl,
+					rmi4_data->pinctrl_state_active))
+			dev_err(&rmi4_data->i2c_client->dev,
+				"Can not select %s pinstate\n",
+				PINCTRL_STATE_ACTIVE);
 	}
 
 	retval = synaptics_rmi4_gpio_configure(rmi4_data, true);
@@ -3718,7 +3762,6 @@ err_free_gpios:
 	if (gpio_is_valid(rmi4_data->board->irq_gpio))
 		gpio_free(rmi4_data->board->irq_gpio);
 err_gpio_config:
-err_pinctrl_select:
 	if (rmi4_data->ts_pinctrl) {
 		if (IS_ERR_OR_NULL(rmi4_data->pinctrl_state_release)) {
 			devm_pinctrl_put(rmi4_data->ts_pinctrl);
@@ -3730,7 +3773,6 @@ err_pinctrl_select:
 				pr_err("failed to select release pinctrl state\n");
 		}
 	}
-err_pinctrl_init:
 	synaptics_rmi4_power_on(rmi4_data, false);
 err_power_device:
 	synaptics_rmi4_regulator_configure(rmi4_data, false);

@@ -17,7 +17,6 @@
 #include <linux/cpu.h>
 #include <linux/cpuidle.h>
 #include <linux/ktime.h>
-#include <linux/tick.h>
 #include <linux/hrtimer.h>
 #include <linux/module.h>
 
@@ -93,7 +92,7 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 	if (diff > INT_MAX)
 		diff = INT_MAX;
 
-	//dev->last_residency = (int) diff;
+	dev->last_residency = (int) diff;
 
 	if (entered_state >= 0) {
 		/* Update cpuidle counters */
@@ -537,7 +536,14 @@ static void smp_callback(void *v)
 static int cpuidle_latency_notify(struct notifier_block *b,
 		unsigned long l, void *v)
 {
-	smp_call_function(smp_callback, NULL, 1);
+	const struct cpumask *cpus;
+
+	cpus = v ?: cpu_online_mask;
+
+	preempt_disable();
+	smp_call_function_many(cpus, smp_callback, NULL, 1);
+	preempt_enable();
+
 	return NOTIFY_OK;
 }
 

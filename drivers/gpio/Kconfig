@@ -312,13 +312,6 @@ config GPIO_GRGPIO
 
 comment "I2C GPIO expanders:"
 
-config GPIO_PCAL6416A
-	bool "PCAL6416A GPIO expander"
-	default n
-	depends on I2C
-	help
-	    GPIO driver for PCAL6416A I2C-based GPIO expander.
-
 config GPIO_ARIZONA
 	tristate "Wolfson Microelectronics Arizona class devices"
 	depends on MFD_ARIZONA
@@ -528,6 +521,12 @@ config GPIO_ADNP
 	  example: if a controller provides 48 pins, 6 registers will be
 	  enough to represent all pins, but the driver will assume a
 	  register layout for 64 pins (8 registers).
+
+config GPIO_PCAL6416A
+	bool "PCAL6416A GPIO expander"
+	depends on I2C
+	help
+	  GPIO driver for PCAL6416A I2C-based GPIO expander.
 
 comment "PCI GPIO expanders:"
 

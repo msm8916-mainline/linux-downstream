@@ -217,10 +217,6 @@ void fts_fw_init(struct fts_ts_info *info)
 	msleep(50);
 
 	info->fts_command(info, SENSEON);
-
-#ifdef FTS_SUPPORT_TOUCH_KEY
-		info->fts_command(info, FTS_CMD_KEY_SENSE_ON);
-#endif // FTS_SUPPORT_TOUCH_KEY
 }
 
 const int fts_fw_updater(struct fts_ts_info *info, unsigned char *fw_data)

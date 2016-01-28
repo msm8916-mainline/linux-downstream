@@ -147,6 +147,29 @@ void rt5033_unlock_regulator(struct i2c_client *i2c)
 }
 EXPORT_SYMBOL(rt5033_unlock_regulator);
 
+#ifdef CONFIG_REGULATOR_RT5033
+void rt5033_set_regulator_state(struct i2c_client *i2c, int id, bool en)
+{
+	struct rt5033_mfd_chip *chip = i2c_get_clientdata(i2c);
+	chip->regulator_states[id] = en;
+}
+EXPORT_SYMBOL(rt5033_set_regulator_state);
+
+bool rt5033_get_pmic_state(struct i2c_client *i2c)
+{
+	int i;
+	struct rt5033_mfd_chip *chip = i2c_get_clientdata(i2c);
+	bool en = false;
+	for (i = RT5033_ID_LDO1; i < RT5033_MAX_REGULATOR; i++)
+	{
+		en |= chip->regulator_states[i];
+	}
+	return en;
+}
+EXPORT_SYMBOL(rt5033_get_pmic_state);
+
+#endif
+
 inline static int rt5033_read_device(struct i2c_client *i2c,
 		int reg, int bytes, void *dest)
 {
@@ -313,6 +336,59 @@ static int rt5033_reset(struct i2c_client *i2c)
 	return 0;
 }
 
+void rt5033_read_dump(struct i2c_client *i2c)
+{
+	u8 d1,d2,d3;
+
+	d1 = rt5033_reg_read(i2c, 0x47);
+	d2 = rt5033_reg_read(i2c, 0x41) & 0xF0;
+	d3 = rt5033_reg_read(i2c, 0x6b) & 0x01;
+	printk("RT5033# RST:0x%2X, LDO:0x%x, OSC:0x%x\n", d1, d2, d3);
+}
+EXPORT_SYMBOL(rt5033_read_dump);
+
+void rt5033_workaround(rt5033_mfd_chip_t *chip)
+{
+	static int once = 0;
+	struct i2c_client *i2c = chip->i2c_client;
+
+	if ( !once ) {
+		rt5033_read_dump(i2c);
+		rt5033_lock_regulator(i2c);
+		msleep(1);
+		if ( chip->rev_id >= 6) {
+			/* always enable I2C reset */
+			rt5033_set_bits(i2c, 0x47, 0x88);
+			pr_info("RT5033#I2C enable\n");
+
+			/* Force to enable OSC (Reg0x6b[0]) and then make SCL_SDA_LOW reset be workable */
+			rt5033_set_bits(i2c, 0x6b, 0x01);
+			msleep(1);
+			pr_info("RT5033#OSC enable\n");
+
+			/* disable SLDO,LDO,BUCK */
+			rt5033_clr_bits(i2c, 0x41, 0x40);
+			pr_info("RT5033#SLDO disable\n");
+		}
+		else {
+#ifdef CONFIG_MFD_RT5033_SLDO_VBUSDET
+			/* enable SLDO */
+			rt5033_set_bits(i2c, 0x41, 0x40);
+			pr_info("RT5033#SLDO enable\n");
+#else
+			/* disable SLDO */
+			rt5033_clr_bits(i2c, 0x41, 0x40);
+			pr_info("RT5033#SLDO disable\n");
+#endif
+		}
+		msleep(1);
+		rt5033_unlock_regulator(i2c);
+		rt5033_read_dump(i2c);
+	}
+	once++;
+}
+EXPORT_SYMBOL(rt5033_workaround);
+
 static int rt5033_mfd_probe(struct i2c_client *i2c,
 						const struct i2c_device_id *id)
 {
@@ -332,10 +408,10 @@ static int rt5033_mfd_probe(struct i2c_client *i2c,
 		}
 		ret = rt5033mfd_parse_dt(&i2c->dev, pdata);
 		if (ret < 0)
-			goto err_parse_dt;
-	} else {
-		pdata = i2c->dev.platform_data;
-	}
+            goto err_parse_dt;
+    } else {
+        pdata = i2c->dev.platform_data;
+    }
 
 	chip = kzalloc(sizeof(*chip), GFP_KERNEL);
 	if (chip == NULL) {
@@ -403,6 +479,12 @@ static int rt5033_mfd_probe(struct i2c_client *i2c,
 		goto err_init_irq;
 	}
 
+	rt5033_set_bits(i2c, 0x6b, 0x01);
+	usleep(100); /* delay 100 us to wait for normal read (from e-fuse) */
+	chip->rev_id = rt5033_reg_read(i2c, 0x03) & 0x0f;
+	rt5033_clr_bits(i2c, 0x6b, 0x01);
+	pr_info("%s : rev_id = %d\n", __func__, chip->rev_id);
+
 #ifdef CONFIG_REGULATOR_RT5033
 #if (LINUX_VERSION_CODE>=KERNEL_VERSION(3,6,0))
 	ret = mfd_add_devices(chip->dev, 0, &rt5033_regulator_devs[0],
@@ -468,13 +550,12 @@ err_add_regulator_devs:
 #endif /*CONFIG_REGULATOR_RT5033*/
 err_init_irq:
 	wake_lock_destroy(&(chip->irq_wake_lock));
-	mutex_destroy(&chip->suspend_flag_lock);
 	mutex_destroy(&chip->regulator_lock);
 	mutex_destroy(&chip->io_lock);
-irq_base_err:
-err_i2cfunc_not_support:
 	kfree(chip);
+irq_base_err:
 err_mfd_nomem:
+err_i2cfunc_not_support:
 err_parse_dt:
 err_dt_nomem:
 	return ret;

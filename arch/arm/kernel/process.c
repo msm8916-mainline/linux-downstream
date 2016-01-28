@@ -169,8 +169,7 @@ EXPORT_SYMBOL_GPL(arm_pm_restart);
  * This is our default idle handler.
  */
 
-extern void arch_idle(void);
-void (*arm_pm_idle)(void) = arch_idle;
+void (*arm_pm_idle)(void);
 
 static void default_idle(void)
 {
@@ -319,7 +318,6 @@ static void show_data(unsigned long addr, int nbytes, const char *name)
 	int	i, j;
 	int	nlines;
 	u32	*p;
-	bool	is_cma = 0;
 
 	/*
 	 * don't attempt to dump non-kernel addresses or
@@ -349,51 +347,58 @@ static void show_data(unsigned long addr, int nbytes, const char *name)
 			u32	data;
 			/*
 			 * vmalloc addresses may point to
-			 * memory-mapped peripherals. CMA
-			 * addresses may be locked down.
+			 * memory-mapped peripherals
 			 */
-			if (virt_addr_valid(p) &&
-				pfn_valid(__pa(p) >> PAGE_SHIFT)) {
-
-				is_cma = is_cma_pageblock(virt_to_page(p));
-				if (is_cma || probe_kernel_address(p, data)) {
-					printk(" ********");
-				} else {
-					printk(" %08x", data);
-				}
-				++p;
-			}
-			else {
+			if (!virt_addr_valid(p) ||
+			    probe_kernel_address(p, data)) {
 				printk(" ********");
+			} else {
+				printk(KERN_CONT " %08x", data);
 			}
+			++p;
 		}
-		printk("\n");
+		printk(KERN_CONT "\n");
 	}
 }
 
 static void show_extra_register_data(struct pt_regs *regs, int nbytes)
 {
-	mm_segment_t fs;
+	unsigned long is_user;
 
-	fs = get_fs();
-	set_fs(KERNEL_DS);
+	is_user = user_mode(regs);
+
+	if (!is_user || regs->ARM_pc < TASK_SIZE)
 	show_data(regs->ARM_pc - nbytes, nbytes * 2, "PC");
+	if (!is_user || regs->ARM_lr < TASK_SIZE)
 	show_data(regs->ARM_lr - nbytes, nbytes * 2, "LR");
+	if (!is_user || regs->ARM_sp < TASK_SIZE)
 	show_data(regs->ARM_sp - nbytes, nbytes * 2, "SP");
+	if (!is_user || regs->ARM_ip < TASK_SIZE)
 	show_data(regs->ARM_ip - nbytes, nbytes * 2, "IP");
+	if (!is_user || regs->ARM_fp < TASK_SIZE)
 	show_data(regs->ARM_fp - nbytes, nbytes * 2, "FP");
+	if (!is_user || regs->ARM_r0 < TASK_SIZE)
 	show_data(regs->ARM_r0 - nbytes, nbytes * 2, "R0");
+	if (!is_user || regs->ARM_r1 < TASK_SIZE)
 	show_data(regs->ARM_r1 - nbytes, nbytes * 2, "R1");
+	if (!is_user || regs->ARM_r2 < TASK_SIZE)
 	show_data(regs->ARM_r2 - nbytes, nbytes * 2, "R2");
+	if (!is_user || regs->ARM_r3 < TASK_SIZE)
 	show_data(regs->ARM_r3 - nbytes, nbytes * 2, "R3");
+	if (!is_user || regs->ARM_r4 < TASK_SIZE)
 	show_data(regs->ARM_r4 - nbytes, nbytes * 2, "R4");
+	if (!is_user || regs->ARM_r5 < TASK_SIZE)
 	show_data(regs->ARM_r5 - nbytes, nbytes * 2, "R5");
+	if (!is_user || regs->ARM_r6 < TASK_SIZE)
 	show_data(regs->ARM_r6 - nbytes, nbytes * 2, "R6");
+	if (!is_user || regs->ARM_r7 < TASK_SIZE)
 	show_data(regs->ARM_r7 - nbytes, nbytes * 2, "R7");
+	if (!is_user || regs->ARM_r8 < TASK_SIZE)
 	show_data(regs->ARM_r8 - nbytes, nbytes * 2, "R8");
+	if (!is_user || regs->ARM_r9 < TASK_SIZE)
 	show_data(regs->ARM_r9 - nbytes, nbytes * 2, "R9");
+	if (!is_user || regs->ARM_r10 < TASK_SIZE)
 	show_data(regs->ARM_r10 - nbytes, nbytes * 2, "R10");
-	set_fs(fs);
 }
 
 void __show_regs(struct pt_regs *regs)
@@ -452,8 +457,8 @@ void __show_regs(struct pt_regs *regs)
 		printk("Control: %08x%s\n", ctrl, buf);
 	}
 #endif
-
-	show_extra_register_data(regs, 128);
+	if (get_fs() == get_ds())
+		show_extra_register_data(regs, 128);
 }
 
 void show_regs(struct pt_regs * regs)

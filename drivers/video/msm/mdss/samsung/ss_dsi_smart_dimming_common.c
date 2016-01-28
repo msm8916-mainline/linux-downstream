@@ -6096,6 +6096,7 @@ int curve_1p9_350[GAMMA_INDEX_MAX] = {
 1457087618,
 1468006400,
 };
+
 /*
 *index : 0 ~ 255
 *350 is max CANDELA

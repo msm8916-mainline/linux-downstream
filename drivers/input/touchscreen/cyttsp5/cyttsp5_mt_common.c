@@ -156,7 +156,7 @@ static void cyttsp5_final_sync(struct input_dev *input, int max_slots,
 	for (t = 0; t < max_slots; t++) {
 		if (test_bit(t, ids)) {
 			input_mt_slot(input, t);
-			input_report_abs(input, ABS_MT_SUMSIZE, sumsize);
+			/* input_report_abs(input, ABS_MT_SUMSIZE, sumsize); */
 			input_report_abs(input, ABS_MT_PALM, palm);
 			dev_vdbg(input->dev.parent,
 				"%s:t=%d sumsize=%d palm=%d\n", __func__,
@@ -517,6 +517,13 @@ static void inline scale_maj_min(struct cyttsp5_mt_data *md,
 
 	*value *= 17;
 	*value /= 10;
+
+	if (sig == ABS_MT_TOUCH_MAJOR)
+		*value -= ((*value) / 10);
+	else {
+		*value *= 11;
+		*value /= 10;
+	}
 
 	if (*value > 255)
 		*value = 255;
@@ -938,6 +945,8 @@ static void cyttsp5_mt_close(struct input_dev *input)
 
 	/* pm_runtime_put(dev); */
 	cyttsp5_core_suspend(dev);
+
+	cyttsp5_mt_lift_all(md);
 }
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -1057,8 +1066,8 @@ static int cyttsp5_setup_input_device(struct device *dev)
 		min = 0, max = 1, 0, 0);
 	dev_dbg(dev, "%s: register signal=%02X min=%d max=%d\n",
 				__func__, signal, min, max);
-	input_set_abs_params(md->input, signal = ABS_MT_SUMSIZE,
-		min = 0, max = 255, 0, 0);
+	/* input_set_abs_params(md->input, signal = ABS_MT_SUMSIZE,
+		min = 0, max = 255, 0, 0); */
 	dev_dbg(dev, "%s: register signal=%02X min=%d max=%d\n",
 				__func__, signal, min, max);
 #endif

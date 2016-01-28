@@ -46,7 +46,7 @@
 #include <asm/virt.h>
 #include <asm/mach/arch.h>
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 
 /*
@@ -156,11 +156,7 @@ static int platform_cpu_disable(unsigned int cpu)
 	 * since this is special on a lot of platforms, e.g. because
 	 * of clock tick interrupts.
 	 */
-#ifdef CONFIG_ARCH_MSM8939
-	return cpu == 4 ? -EPERM : 0;
-#else
 	return cpu == 0 ? -EPERM : 0;
-#endif
 }
 /*
  * __cpu_disable runs on the processor to be shutdown.
@@ -353,11 +349,11 @@ asmlinkage void __cpuinit secondary_start_kernel(void)
 	if (smp_ops.smp_secondary_init)
 		smp_ops.smp_secondary_init(cpu);
 
+	smp_store_cpu_info(cpu);
+
 	notify_cpu_starting(cpu);
 
 	calibrate_delay();
-
-	smp_store_cpu_info(cpu);
 
 	/*
 	 * OK, now it's safe to let the boot CPU continue.  Wait for
@@ -652,7 +648,7 @@ void smp_send_all_cpu_backtrace(void)
 	}
 
 	clear_bit(0, &backtrace_flag);
-	smp_mb__after_clear_bit();
+	smp_mb__after_atomic();
 }
 
 /*

@@ -96,8 +96,12 @@
 /* Length of a SCSI Command Data Block */
 #define MAX_COMMAND_SIZE	16
 
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+#ifdef _SUPPORT_MAC_
 /* SCSI commands that we recognize */
 #define READ_CD				0xbe
+#endif
+#endif
 
 /* SCSI Sense Key/Additional Sense Code/ASC Qualifier values */
 #define SS_NO_SENSE				0

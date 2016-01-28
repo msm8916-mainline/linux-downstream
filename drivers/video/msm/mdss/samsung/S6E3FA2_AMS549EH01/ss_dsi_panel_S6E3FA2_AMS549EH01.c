@@ -32,7 +32,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #include "ss_dsi_panel_S6E3FA2_AMS549EH01.h"
 #include "ss_dsi_mdnie_S6E3FA2_AMS549EH01.h"
 
-struct te_fitting_lut osc_fctrl_lut[] = {
+static struct te_fitting_lut osc_fctrl_lut[] = {
 	{33333, 0x0 },
 	{22999, 0x32},
 	{22861, 0x33},
@@ -126,7 +126,7 @@ struct te_fitting_lut osc_fctrl_lut[] = {
 	{14286, 0x8B},
 	{00000, 0x8B},
 };
-struct te_fitting_lut osc_offset_lut[] = {
+static struct te_fitting_lut osc_offset_lut[] = {
 	{19654, 0  },
 	{19551, -34},
 	{19448, -33},
@@ -844,6 +844,7 @@ static void dsi_update_mdnie_data(void)
 	mdnie_data.DSI0_NEGATIVE_MDNIE = DSI0_NEGATIVE_MDNIE;
 	mdnie_data.DSI0_COLOR_BLIND_MDNIE = DSI0_COLOR_BLIND_MDNIE;
 	mdnie_data.DSI0_HBM_CE_MDNIE = DSI0_HBM_CE_MDNIE;
+	mdnie_data.DSI0_HBM_CE_TEXT_MDNIE = DSI0_HBM_CE_TEXT_MDNIE;
 	mdnie_data.DSI0_RGB_SENSOR_MDNIE = DSI0_RGB_SENSOR_MDNIE;
 	mdnie_data.DSI0_CURTAIN = DSI0_CURTAIN;
 	mdnie_data.DSI0_UI_DYNAMIC_MDNIE = DSI0_UI_DYNAMIC_MDNIE;
@@ -928,7 +929,6 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_smart_get_conf = smart_get_conf_S6E3FA2_AMS549EH01;
 
 	/* Brightness */
-	vdd->panel_func.samsung_brightness_tft_pwm = NULL;
 	vdd->panel_func.samsung_brightness_hbm_off = NULL;
 	vdd->panel_func.samsung_brightness_aid = mdss_aid;
 	vdd->panel_func.samsung_brightness_acl_on = mdss_acl_on;
@@ -944,7 +944,6 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_hbm_gamma = mdss_hbm_gamma;
 	vdd->panel_func.samsung_hbm_etc = mdss_hbm_etc;
 
-	vdd->bl_level = 255;
 	/* OSC TE Fitting */
 	vdd->panel_func.samsung_osc_te_fitting = samsung_osc_te_fitting;
 	vdd->te_fitting_info.lut[0] = osc_fctrl_lut;

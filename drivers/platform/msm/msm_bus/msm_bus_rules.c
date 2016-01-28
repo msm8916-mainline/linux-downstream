@@ -15,6 +15,7 @@
 #include <linux/msm_bus_rules.h>
 #include <linux/slab.h>
 #include <linux/types.h>
+#include <trace/events/trace_msm_bus.h>
 
 struct node_vote_info {
 	int id;
@@ -89,6 +90,11 @@ static struct rule_node_info *gen_node(u32 id, void *data)
 
 	if (!node_match) {
 		node_match = kzalloc(sizeof(struct rule_node_info), GFP_KERNEL);
+		if (!node_match) {
+			pr_err("%s: Cannot allocate memory", __func__);
+			goto exit_node_match;
+		}
+
 		node_match->id = id;
 		node_match->cur_rule = -1;
 		node_match->num_rules = 0;
@@ -98,6 +104,7 @@ static struct rule_node_info *gen_node(u32 id, void *data)
 		RAW_INIT_NOTIFIER_HEAD(&node_match->rule_notify_list);
 		pr_debug("Added new node %d to list\n", id);
 	}
+exit_node_match:
 	return node_match;
 }
 
@@ -201,41 +208,24 @@ static void match_rule(struct rule_update_path_info *inp_node,
 {
 	struct rules_def *rule;
 	int i;
-	bool match_found = false;
-	bool relevant_trans = false;
 
 	list_for_each_entry(rule, &node->node_rules, link) {
 		for (i = 0; i < rule->num_src; i++) {
 			if (rule->src_info[i].id == inp_node->id) {
-				relevant_trans = true;
 				if (check_rule(rule, inp_node)) {
-					node->cur_rule = rule->rule_id;
+					trace_bus_rules_matches(node->cur_rule,
+						inp_node->id, inp_node->ab,
+						inp_node->ib, inp_node->clk);
 					if (rule->state ==
-						RULE_STATE_NOT_APPLIED) {
-						rule->state =
-							RULE_STATE_APPLIED;
+						RULE_STATE_NOT_APPLIED)
 						rule->state_change = true;
-						match_found = true;
-					}
-					break;
+					rule->state = RULE_STATE_APPLIED;
+				} else {
+					if (rule->state ==
+						RULE_STATE_APPLIED)
+						rule->state_change = true;
+					rule->state = RULE_STATE_NOT_APPLIED;
 				}
-			}
-		}
-		if (match_found)
-			break;
-	}
-
-	if (!relevant_trans)
-		return;
-
-	if (!match_found)
-		node->cur_rule = -1;
-
-	list_for_each_entry(rule, &node->node_rules, link) {
-		if (rule->rule_id != node->cur_rule) {
-			if (rule->state == RULE_STATE_APPLIED) {
-				rule->state = RULE_STATE_NOT_APPLIED;
-				rule->state_change = true;
 			}
 		}
 	}
@@ -246,7 +236,12 @@ static void apply_rule(struct rule_node_info *node,
 {
 	struct rules_def *rule;
 
+	node->cur_rule = -1;
 	list_for_each_entry(rule, &node->node_rules, link) {
+		if ((rule->state == RULE_STATE_APPLIED) &&
+						(node->cur_rule == -1))
+			node->cur_rule = rule->rule_id;
+
 		if (node->id == NB_ID) {
 			if (rule->state_change) {
 				rule->state_change = false;
@@ -254,13 +249,14 @@ static void apply_rule(struct rule_node_info *node,
 					rule->state, (void *)&rule->rule_ops);
 			}
 		} else {
-			rule->state_change = false;
-			if (rule->state == RULE_STATE_APPLIED) {
+			if ((rule->state == RULE_STATE_APPLIED) &&
+				(node->cur_rule == rule->rule_id)) {
 				node->apply.id = rule->rule_ops.dst_node[0];
 				node->apply.throttle = rule->rule_ops.mode;
 				node->apply.lim_bw = rule->rule_ops.dst_bw;
 				list_add_tail(&node->apply.link, output_list);
 			}
+			rule->state_change = false;
 		}
 	}
 
@@ -573,8 +569,10 @@ void msm_rule_unregister(int num_rules, struct bus_rule_type *rule,
 	mutex_lock(&msm_bus_rules_lock);
 	if (nb) {
 		node = get_node(NB_ID, nb);
-		if (!node)
+		if (!node) {
 			pr_err("%s: Can't find node", __func__);
+			goto exit_unregister_rule;
+		}
 
 		list_for_each_entry_safe(node_rule, node_rule_tmp,
 					&node->node_rules, link) {
@@ -614,6 +612,7 @@ void msm_rule_unregister(int num_rules, struct bus_rule_type *rule,
 			kfree(node);
 		}
 	}
+exit_unregister_rule:
 	mutex_unlock(&msm_bus_rules_lock);
 }
 

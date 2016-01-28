@@ -63,12 +63,4 @@ config HID_SENSOR_ALS
 	  Say yes here to build support for the HID SENSOR
 	  Ambient light sensor.
 
-config SENSORS_GP2A030
-	tristate "GP2A030 proximity sensor support"
-	depends on I2C
-	default n
-	help
-	  If you say yes here you get support for sharp Sensortec's
-	  proximity sensors GP2A030.
-
 endmenu

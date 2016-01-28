@@ -774,18 +774,6 @@ static int q6_hfi_session_stop(void *sess)
 		HFI_CMD_SESSION_STOP);
 }
 
-static int q6_hfi_session_suspend(void *sess)
-{
-	return q6_hal_send_session_cmd(sess,
-		HFI_CMD_SESSION_SUSPEND);
-}
-
-static int q6_hfi_session_resume(void *sess)
-{
-	return q6_hal_send_session_cmd(sess,
-		HFI_CMD_SESSION_RESUME);
-}
-
 static int q6_hfi_session_etb(void *sess,
 			struct vidc_frame_data *input_frame)
 {
@@ -1034,6 +1022,11 @@ static int q6_hfi_session_set_property(void *sess,
 		dprintk(VIDC_ERR, "Invalid Params\n");
 		return -EINVAL;
 	}
+	if (ptype == HAL_PARAM_VDEC_CONTINUE_DATA_TRANSFER) {
+		dprintk(VIDC_WARN, "Smoothstreaming is not supported\n");
+		return -ENOTSUPP;
+	}
+
 	dev = session->device;
 	dprintk(VIDC_DBG, "in set_prop,with prop id: 0x%x\n", ptype);
 
@@ -1182,14 +1175,6 @@ static int q6_hfi_session_get_property(void *sess,
 	return 0;
 }
 
-static int q6_hfi_unset_ocmem(void *dev)
-{
-	(void)dev;
-
-	/* Q6 does not support ocmem */
-	return -EINVAL;
-}
-
 static int q6_hfi_iommu_get_domain_partition(void *dev, u32 flags,
 	u32 buffer_type, int *domain, int *partition)
 {
@@ -1278,6 +1263,7 @@ static int q6_hfi_load_fw(void *dev)
 	if (!device)
 		return -EINVAL;
 
+	trace_msm_v4l2_vidc_fw_load_start("msm_v4l2_vidc adsp_fw load start");
 	if (!device->resources.fw.cookie)
 		device->resources.fw.cookie = subsystem_get("adsp");
 
@@ -1307,6 +1293,7 @@ static int q6_hfi_load_fw(void *dev)
 		goto fail_iommu_attach;
 	}
 
+	trace_msm_v4l2_vidc_fw_load_end("msm_v4l2_vidc adsp_fw load end");
 	return rc;
 
 fail_iommu_attach:
@@ -1316,6 +1303,7 @@ fail_apr_register:
 	subsystem_put(device->resources.fw.cookie);
 	device->resources.fw.cookie = NULL;
 fail_subsystem_get:
+	trace_msm_v4l2_vidc_fw_load_end("msm_v4l2_vidc adsp_fw load end");
 	return rc;
 }
 
@@ -1360,8 +1348,6 @@ static void q6_init_hfi_callbacks(struct hfi_device *hdev)
 	hdev->session_release_res = q6_hfi_session_release_res;
 	hdev->session_start = q6_hfi_session_start;
 	hdev->session_stop = q6_hfi_session_stop;
-	hdev->session_suspend = q6_hfi_session_suspend;
-	hdev->session_resume = q6_hfi_session_resume;
 	hdev->session_etb = q6_hfi_session_etb;
 	hdev->session_ftb = q6_hfi_session_ftb;
 	hdev->session_parse_seq_hdr = q6_hfi_session_parse_seq_hdr;
@@ -1370,7 +1356,6 @@ static void q6_init_hfi_callbacks(struct hfi_device *hdev)
 	hdev->session_flush = q6_hfi_session_flush;
 	hdev->session_set_property = q6_hfi_session_set_property;
 	hdev->session_get_property = q6_hfi_session_get_property;
-	hdev->unset_ocmem = q6_hfi_unset_ocmem;
 	hdev->iommu_get_domain_partition = q6_hfi_iommu_get_domain_partition;
 	hdev->load_fw = q6_hfi_load_fw;
 	hdev->unload_fw = q6_hfi_unload_fw;

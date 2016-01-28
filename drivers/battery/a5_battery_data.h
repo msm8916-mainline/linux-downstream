@@ -2,7 +2,9 @@
 #define CAPACITY_MAX_MARGIN     30
 #define CAPACITY_MIN			0
 
-#if defined(CONFIG_MACH_A5_CHN_OPEN) || defined(CONFIG_MACH_A5_CHN_CTC) || defined(CONFIG_MACH_A5_CHN_ZT) || defined(CONFIG_MACH_A5_CHN_ZH)
+#if defined(CONFIG_MACH_A5_CHN_OPEN) || defined(CONFIG_MACH_A5_CHN_CTC) ||\
+		defined(CONFIG_MACH_A5_CHN_ZT) || defined(CONFIG_MACH_A5_CHN_ZH) ||\
+		defined(CONFIG_MACH_A5VE_CHN_OPEN)
 static sec_bat_adc_table_data_t temp_table[] = {
   {25289, 900},
   {25419, 850},
@@ -63,7 +65,9 @@ static sec_bat_adc_table_data_t temp_table[] = {
 #define TEMP_HIGHLIMIT_THRESHOLD_LPM		800
 #define TEMP_HIGHLIMIT_RECOVERY_LPM		750
 
-#if defined(CONFIG_MACH_A5_CHN_OPEN) || defined(CONFIG_MACH_A5_CHN_CTC) || defined(CONFIG_MACH_A5_CHN_ZT) || defined(CONFIG_MACH_A5_CHN_ZH)
+#if defined(CONFIG_MACH_A5_CHN_OPEN) || defined(CONFIG_MACH_A5_CHN_CTC) ||\
+		defined(CONFIG_MACH_A5_CHN_ZT) || defined(CONFIG_MACH_A5_CHN_ZH) ||\
+		defined(CONFIG_MACH_A5VE_CHN_OPEN)
 #define TEMP_HIGH_THRESHOLD_EVENT  600
 #define TEMP_HIGH_RECOVERY_EVENT   460
 #define TEMP_LOW_THRESHOLD_EVENT   (-50)
@@ -77,16 +81,16 @@ static sec_bat_adc_table_data_t temp_table[] = {
 #define TEMP_LOW_THRESHOLD_LPM     (-50)
 #define TEMP_LOW_RECOVERY_LPM      0
 #else
-#define TEMP_HIGH_THRESHOLD_EVENT  600
-#define TEMP_HIGH_RECOVERY_EVENT   490
+#define TEMP_HIGH_THRESHOLD_EVENT  580
+#define TEMP_HIGH_RECOVERY_EVENT   530
 #define TEMP_LOW_THRESHOLD_EVENT   (-50)
 #define TEMP_LOW_RECOVERY_EVENT    1
-#define TEMP_HIGH_THRESHOLD_NORMAL 600
-#define TEMP_HIGH_RECOVERY_NORMAL  490
+#define TEMP_HIGH_THRESHOLD_NORMAL 580
+#define TEMP_HIGH_RECOVERY_NORMAL  530
 #define TEMP_LOW_THRESHOLD_NORMAL  (-50)
 #define TEMP_LOW_RECOVERY_NORMAL   1
-#define TEMP_HIGH_THRESHOLD_LPM    600
-#define TEMP_HIGH_RECOVERY_LPM     490
+#define TEMP_HIGH_THRESHOLD_LPM    580
+#define TEMP_HIGH_RECOVERY_LPM     530
 #define TEMP_LOW_THRESHOLD_LPM     (-50)
 #define TEMP_LOW_RECOVERY_LPM      1
 #endif
@@ -98,4 +102,12 @@ static sec_bat_adc_table_data_t temp_table[] = {
 #define BATT_SWELLING_LOW_TEMP_RECOV		150
 #define BATT_SWELLING_RECHG_VOLTAGE		4150
 #define BATT_SWELLING_BLOCK_TIME	10 * 60 /* 10 min */
+#endif
+
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+#define EARJACK_WR_SYSTEM_REV			0x04
+#define EARJACK_WR_SOC_1ST				75
+#define EARJACK_WR_SOC_2ND				90
+#define EARJACK_WR_INPUT_CURRENT_1ST	500
+#define EARJACK_WR_INPUT_CURRENT_2ND	100
 #endif

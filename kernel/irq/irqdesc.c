@@ -17,7 +17,7 @@
 
 #include "internals.h"
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 
 /*
@@ -277,6 +277,7 @@ struct irq_desc *irq_to_desc(unsigned int irq)
 {
 	return (irq < NR_IRQS) ? irq_desc + irq : NULL;
 }
+EXPORT_SYMBOL(irq_to_desc);
 
 static void free_desc(unsigned int irq)
 {

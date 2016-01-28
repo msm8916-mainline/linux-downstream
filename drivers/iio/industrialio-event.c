@@ -49,6 +49,7 @@ int iio_push_event(struct iio_dev *indio_dev, u64 ev_code, s64 timestamp)
 	struct iio_event_data ev;
 	unsigned long flags;
 	int copied;
+
 	/* Does anyone care? */
 	spin_lock_irqsave(&ev_int->wait.lock, flags);
 	if (test_bit(IIO_BUSY_BIT_POS, &ev_int->flags)) {

@@ -49,7 +49,7 @@
 #include <asm/timex.h>
 #include <asm/io.h>
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 
 #define CREATE_TRACE_POINTS
@@ -628,7 +628,6 @@ static inline void debug_assert_init(struct timer_list *timer)
 static void do_init_timer(struct timer_list *timer, unsigned int flags,
 			  const char *name, struct lock_class_key *key)
 {
-
 	struct tvec_base *base;
 
 #ifdef CONFIG_SMP
@@ -843,7 +842,7 @@ unsigned long apply_slack(struct timer_list *timer, unsigned long expires)
 
 	bit = find_last_bit(&mask, BITS_PER_LONG);
 
-	mask = (1 << bit) - 1;
+	mask = (1UL << bit) - 1;
 
 	expires_limit = expires_limit & ~(mask);
 

@@ -19,7 +19,7 @@
 #include <linux/bitops.h>
 
 #ifdef CONFIG_SEC_DEBUG
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 extern void sec_debug_save_last_ns(unsigned long long last_ns);
 #endif
 

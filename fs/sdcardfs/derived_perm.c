@@ -99,7 +99,7 @@ void get_derived_permission(struct dentry *parent, struct dentry *dentry)
 						|| !strcasecmp(dentry->d_name.name, "Ringtones")) {
 					info->d_gid = AID_SDCARD_AV;
 				}
-			} else if (!strcasecmp(dentry->d_name.name, "knox")) {
+            } else if (!strcasecmp(dentry->d_name.name, "knox")) {
 				info->perm = PERM_ANDROID_KNOX;
 				info->d_gid = AID_SDCARD_R;
 				info->d_mode = 00771;
@@ -116,6 +116,10 @@ void get_derived_permission(struct dentry *parent, struct dentry *dentry)
 				info->d_mode = 00771;
 				// FIXME : this feature will be implemented later.
 				/* Single OBB directory is always shared */
+			} else if (!strcasecmp(dentry->d_name.name, "media")) {
+				/* App-specific directories inside; let anyone traverse */
+				info->perm = PERM_ANDROID_MEDIA;
+				info->d_mode = 00771;
 			} else if (!strcasecmp(dentry->d_name.name, "user")) {
 				/* User directories must only be accessible to system, protected
 				 * by sdcard_all. Zygote will bind mount the appropriate user-
@@ -129,6 +133,7 @@ void get_derived_permission(struct dentry *parent, struct dentry *dentry)
 		 * and PERM_ANDROID_OBB */
 		case PERM_ANDROID_DATA:
 		case PERM_ANDROID_OBB:
+		case PERM_ANDROID_MEDIA:
 			appid = get_appid(sbi->pkgl_id, dentry->d_name.name);
 			if (appid != 0) {
 				info->d_uid = multiuser_get_uid(parent_info->userid, appid);

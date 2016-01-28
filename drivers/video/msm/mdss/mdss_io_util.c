@@ -107,6 +107,9 @@ int msm_dss_ioremap_byname(struct platform_device *pdev,
 		return -ENODEV;
 	}
 
+#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
+	io_data->physical_base = res->start;
+#endif
 	io_data->len = (u32)resource_size(res);
 	io_data->base = ioremap(res->start, io_data->len);
 	if (!io_data->base) {

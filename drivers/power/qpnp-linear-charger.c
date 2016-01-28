@@ -23,6 +23,7 @@
 #include <linux/qpnp/qpnp-adc.h>
 #include <linux/alarmtimer.h>
 #include <linux/bitops.h>
+#include <linux/leds.h>
 
 #define CREATE_MASK(NUM_BITS, POS) \
 	((unsigned char) (((1 << (NUM_BITS)) - 1) << (POS)))
@@ -267,6 +268,7 @@ struct vddtrim_map vddtrim_map[] = {
  * @cfg_charger_detect_eoc:	charger can detect end of charging
  * @cfg_disable_vbatdet_based_recharge:	keep VBATDET comparator overriden to
  *				low and VBATDET irq disabled.
+ * @cfg_chgr_led_support:	support charger led work.
  * @cfg_safe_current:		battery safety current setting
  * @cfg_hot_batt_p:		hot battery threshold setting
  * @cfg_cold_batt_p:		eold battery threshold setting
@@ -276,7 +278,6 @@ struct vddtrim_map vddtrim_map[] = {
  * @cfg_tchg_mins:		maximum allowed software initiated charge time
  * @chg_failed_count:		counter to maintained number of times charging
  *				failed
- * @cfg_disable_follow_on_reset	charger ignore PMIC reset signal
  * @cfg_bpd_detection:		battery present detection mechanism selection
  * @cfg_thermal_levels:		amount of thermal mitigation levels
  * @cfg_thermal_mitigation:	thermal mitigation level values
@@ -318,6 +319,7 @@ struct qpnp_lbc_chip {
 	bool				cfg_use_fake_battery;
 	bool				fastchg_on;
 	bool				cfg_use_external_charger;
+	bool				cfg_chgr_led_support;
 	unsigned int			cfg_warm_bat_chg_ma;
 	unsigned int			cfg_cool_bat_chg_ma;
 	unsigned int			cfg_safe_voltage_mv;
@@ -336,7 +338,6 @@ struct qpnp_lbc_chip {
 	unsigned int			cfg_safe_current;
 	unsigned int			cfg_tchg_mins;
 	unsigned int			chg_failed_count;
-	unsigned int			cfg_disable_follow_on_reset;
 	unsigned int			supported_feature_flag;
 	int				cfg_bpd_detection;
 	int				cfg_warm_bat_decidegc;
@@ -363,6 +364,7 @@ struct qpnp_lbc_chip {
 	struct qpnp_adc_tm_btm_param	adc_param;
 	struct qpnp_vadc_chip		*vadc_dev;
 	struct qpnp_adc_tm_chip		*adc_tm_dev;
+	struct led_classdev		led_cdev;
 };
 
 static void qpnp_lbc_enable_irq(struct qpnp_lbc_chip *chip,
@@ -936,8 +938,6 @@ static int qpnp_lbc_tchg_max_set(struct qpnp_lbc_chip *chip, int minutes)
 	u8 reg_val = 0;
 	int rc;
 
-	minutes = clamp(minutes, QPNP_LBC_TCHG_MIN, QPNP_LBC_TCHG_MAX);
-
 	/* Disable timer */
 	rc = qpnp_lbc_masked_write(chip, chip->chgr_base + CHG_TCHG_MAX_EN_REG,
 						CHG_TCHG_MAX_EN_BIT, 0);
@@ -945,6 +945,14 @@ static int qpnp_lbc_tchg_max_set(struct qpnp_lbc_chip *chip, int minutes)
 		pr_err("Failed to write tchg_max_en rc=%d\n", rc);
 		return rc;
 	}
+
+	/* If minutes is 0, just disable timer */
+	if (!minutes) {
+		pr_debug("Charger safety timer disabled\n");
+		return rc;
+	}
+
+	minutes = clamp(minutes, QPNP_LBC_TCHG_MIN, QPNP_LBC_TCHG_MAX);
 
 	reg_val = (minutes / QPNP_LBC_TCHG_STEP) - 1;
 
@@ -966,6 +974,68 @@ static int qpnp_lbc_tchg_max_set(struct qpnp_lbc_chip *chip, int minutes)
 
 	return rc;
 }
+
+#define LBC_CHGR_LED	0x4D
+#define CHGR_LED_ON	BIT(0)
+#define CHGR_LED_OFF	0x0
+#define CHGR_LED_STAT_MASK	LBC_MASK(1, 0)
+static void qpnp_lbc_chgr_led_brightness_set(struct led_classdev *cdev,
+		enum led_brightness value)
+{
+	struct qpnp_lbc_chip *chip = container_of(cdev, struct qpnp_lbc_chip,
+			led_cdev);
+	u8 reg;
+	int rc;
+
+	if (value > LED_FULL)
+		value = LED_FULL;
+
+	pr_debug("set the charger led brightness to value=%d\n", value);
+	reg = (value > LED_OFF) ? CHGR_LED_ON : CHGR_LED_OFF;
+
+	rc = qpnp_lbc_masked_write(chip, chip->chgr_base + LBC_CHGR_LED,
+				CHGR_LED_STAT_MASK, reg);
+	if (rc)
+		pr_err("Failed to write charger led rc=%d\n", rc);
+}
+
+static enum
+led_brightness qpnp_lbc_chgr_led_brightness_get(struct led_classdev *cdev)
+{
+
+	struct qpnp_lbc_chip *chip = container_of(cdev, struct qpnp_lbc_chip,
+			led_cdev);
+	u8 reg_val, chgr_led_sts;
+	int rc;
+
+	rc = qpnp_lbc_read(chip, chip->chgr_base + LBC_CHGR_LED,
+				&reg_val, 1);
+	if (rc) {
+		pr_err("Failed to read charger led rc=%d\n", rc);
+		return rc;
+	}
+
+	chgr_led_sts = reg_val & CHGR_LED_STAT_MASK;
+	pr_debug("charger led brightness chgr_led_sts=%d\n", chgr_led_sts);
+
+	return (chgr_led_sts == CHGR_LED_ON) ? LED_FULL : LED_OFF;
+}
+
+static int qpnp_lbc_register_chgr_led(struct qpnp_lbc_chip *chip)
+{
+	int rc;
+
+	chip->led_cdev.name = "red";
+	chip->led_cdev.brightness_set = qpnp_lbc_chgr_led_brightness_set;
+	chip->led_cdev.brightness_get = qpnp_lbc_chgr_led_brightness_get;
+
+	rc = led_classdev_register(chip->dev, &chip->led_cdev);
+	if (rc)
+		dev_err(chip->dev, "unable to register charger led, rc=%d\n",
+				rc);
+
+	return rc;
+};
 
 static int qpnp_lbc_vbatdet_override(struct qpnp_lbc_chip *chip, int ovr_val)
 {
@@ -1177,8 +1247,7 @@ static int get_prop_batt_temp(struct qpnp_lbc_chip *chip)
 	int rc = 0;
 	struct qpnp_vadc_result results;
 
-	//Block temp if (chip->cfg_use_fake_battery || !get_prop_batt_present(chip))
-	if ( 1 || chip->cfg_use_fake_battery || !get_prop_batt_present(chip))
+	if (chip->cfg_use_fake_battery || !get_prop_batt_present(chip))
 		return DEFAULT_TEMP;
 
 	rc = qpnp_vadc_read(chip->vadc_dev, LR_MUX1_BATT_THERM, &results);
@@ -1650,7 +1719,7 @@ static int qpnp_lbc_chg_init(struct qpnp_lbc_chip *chip)
 		return rc;
 	}
 
-	if (of_property_read_bool(chip->spmi->dev.of_node, "qcom,tchg-mins")) {
+	if (of_find_property(chip->spmi->dev.of_node, "qcom,tchg-mins", NULL)) {
 		rc = qpnp_lbc_tchg_max_set(chip, chip->cfg_tchg_mins);
 		if (rc) {
 			pr_err("Failed to set tchg_mins rc=%d\n", rc);
@@ -1753,6 +1822,20 @@ static int qpnp_lbc_usb_path_init(struct qpnp_lbc_chip *chip)
 		rc = qpnp_lbc_charger_enable(chip, USER, 0);
 		if (rc)
 			pr_err("Failed to disable charging rc=%d\n", rc);
+
+	/*
+	 * Disable follow-on-reset if charging is explictly disabled,
+	 * this forces the charging to be disabled across reset.
+	 * Note: Explicitly disabling charging is only a debug/test
+	 * configuration
+	 */
+		reg_val = 0x0;
+		rc = __qpnp_lbc_secure_write(chip->spmi, chip->chgr_base,
+				CHG_PERPH_RESET_CTRL3_REG, &reg_val, 1);
+		if (rc)
+			pr_err("Failed to configure PERPH_CTRL3 rc=%d\n", rc);
+		else
+			pr_debug("Charger is not following PMIC reset\n");
 	} else {
 		/*
 		 * Enable charging explictly,
@@ -1910,11 +1993,6 @@ static int qpnp_charger_read_dt_props(struct qpnp_lbc_chip *chip)
 			of_property_read_bool(chip->spmi->dev.of_node,
 					"qcom,use-default-batt-values");
 
-	/* Get peripheral reset configuration property */
-	chip->cfg_disable_follow_on_reset =
-			of_property_read_bool(chip->spmi->dev.of_node,
-					"qcom,disable-follow-on-reset");
-
 	/* Get the float charging property */
 	chip->cfg_float_charge =
 			of_property_read_bool(chip->spmi->dev.of_node,
@@ -1929,6 +2007,12 @@ static int qpnp_charger_read_dt_props(struct qpnp_lbc_chip *chip)
 	chip->cfg_disable_vbatdet_based_recharge =
 			of_property_read_bool(chip->spmi->dev.of_node,
 					"qcom,disable-vbatdet-based-recharge");
+
+	/* Get the charger led support property */
+	chip->cfg_chgr_led_support =
+			of_property_read_bool(chip->spmi->dev.of_node,
+					"qcom,chgr-led-support");
+
 	/* Disable charging when faking battery values */
 	if (chip->cfg_use_fake_battery)
 		chip->cfg_charging_disabled = true;
@@ -2337,9 +2421,6 @@ static int qpnp_lbc_get_irqs(struct qpnp_lbc_chip *chip, u8 subtype,
 /* Get/Set initial state of charger */
 static void determine_initial_status(struct qpnp_lbc_chip *chip)
 {
-	u8 reg_val;
-	int rc;
-
 	chip->usb_present = qpnp_lbc_is_usb_chg_plugged_in(chip);
 	power_supply_set_present(chip->usb_psy, chip->usb_present);
 	/*
@@ -2348,20 +2429,6 @@ static void determine_initial_status(struct qpnp_lbc_chip *chip)
 	 */
 	if (chip->usb_present)
 		power_supply_set_online(chip->usb_psy, 1);
-
-	/*
-	 * Configure peripheral reset control
-	 * This is a workaround only for SLT testing.
-	 */
-	if (chip->cfg_disable_follow_on_reset) {
-		reg_val = 0x0;
-		rc = __qpnp_lbc_secure_write(chip->spmi, chip->chgr_base,
-				CHG_PERPH_RESET_CTRL3_REG, &reg_val, 1);
-		if (rc)
-			pr_err("Failed to configure PERPH_CTRL3 rc=%d\n", rc);
-		else
-			pr_warn("Charger is not following PMIC reset\n");
-	}
 }
 
 #define IBAT_TRIM			-300
@@ -2566,6 +2633,14 @@ static int qpnp_lbc_probe(struct spmi_device *spmi)
 	if (rc) {
 		pr_err("unable to initialize LBC USB path rc=%d\n", rc);
 		return rc;
+	}
+
+	if (chip->cfg_chgr_led_support) {
+		rc = qpnp_lbc_register_chgr_led(chip);
+		if (rc) {
+			pr_err("unable to register charger led rc=%d\n", rc);
+			return rc;
+		}
 	}
 
 	if (chip->bat_if_base) {

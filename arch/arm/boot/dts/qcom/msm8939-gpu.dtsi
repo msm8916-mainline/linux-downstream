@@ -20,11 +20,12 @@
 		qcom,bw-tbl =
 			< 146 >,	/* 9.6 MHz */
 			< 1977 >,	/* 129.6 MHz */
-			< 2545 >,	/* 166.8 MHz */
+			< 2673 >,	/* 175.2 MHz */
 			< 3076 >,	/* 201.6 MHz */
 			< 3955 >,	/* 259.2 MHz */
-			< 5090 >,	/* 333.6 MHz */
-			< 6103 >;	/* 400.0 MHz */
+			< 5346 >,	/* 350.4 MHz */
+			< 5706 >,	/* 374.0 MHz */
+			< 6072 >;	/* 398.4 MHz */
 	};
 
 	qcom,gpu-bwmon@410000 {
@@ -97,7 +98,8 @@
 		coresight-child-ports = <4>;
 
 		/* CPU latency parameter */
-		qcom,pm-qos-latency = <401>;
+		qcom,pm-qos-active-latency = <401>;
+		qcom,pm-qos-wakeup-latency = <401>;
 
 		/* Power levels */
 		qcom,gpu-pwrlevels {
@@ -110,36 +112,30 @@
 				reg = <0>;
 				qcom,gpu-freq = <550000000>;
 				qcom,bus-freq = <4>;
-				qcom,io-fraction = <33>;
 			};
 
 			qcom,gpu-pwrlevel@1 {
 				reg = <1>;
 				qcom,gpu-freq = <465000000>;
 				qcom,bus-freq = <3>;
-				qcom,io-fraction = <66>;
 			};
 
 			qcom,gpu-pwrlevel@2 {
 				reg = <2>;
 				qcom,gpu-freq = <400000000>;
 				qcom,bus-freq = <2>;
-				qcom,io-fraction = <66>;
 			};
-
 
 			qcom,gpu-pwrlevel@3 {
 				reg = <3>;
 				qcom,gpu-freq = <220000000>;
 				qcom,bus-freq = <1>;
-				qcom,io-fraction = <100>;
 			};
 
 			qcom,gpu-pwrlevel@4 {
 				reg = <4>;
 				qcom,gpu-freq = <19200000>;
 				qcom,bus-freq = <0>;
-				qcom,io-fraction = <0>;
 			};
 		};
 

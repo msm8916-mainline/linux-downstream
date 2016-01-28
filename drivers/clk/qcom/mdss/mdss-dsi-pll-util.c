@@ -70,6 +70,9 @@ int get_byte_mux_sel(struct mux_clk *clk)
 	int mux_mode, rc;
 	struct mdss_pll_resources *dsi_pll_res = clk->priv;
 
+	if (is_gdsc_disabled(dsi_pll_res))
+		return 0;
+
 	rc = mdss_pll_resource_enable(dsi_pll_res, true);
 	if (rc) {
 		pr_err("Failed to enable mdss dsi pll resources\n");
@@ -147,6 +150,9 @@ int fixed_4div_get_div(struct div_clk *clk)
 	int div = 0, rc;
 	struct mdss_pll_resources *dsi_pll_res = clk->priv;
 
+	if (is_gdsc_disabled(dsi_pll_res))
+		return 0;
+
 	rc = mdss_pll_resource_enable(dsi_pll_res, true);
 	if (rc) {
 		pr_err("Failed to enable mdss dsi pll resources\n");
@@ -182,6 +188,9 @@ int digital_get_div(struct div_clk *clk)
 {
 	int div = 0, rc;
 	struct mdss_pll_resources *dsi_pll_res = clk->priv;
+
+	if (is_gdsc_disabled(dsi_pll_res))
+		return 0;
 
 	rc = mdss_pll_resource_enable(dsi_pll_res, true);
 	if (rc) {
@@ -219,6 +228,9 @@ int analog_get_div(struct div_clk *clk)
 	int div = 0, rc;
 	struct mdss_pll_resources *dsi_pll_res = clk->priv;
 
+	if (is_gdsc_disabled(dsi_pll_res))
+		return 0;
+
 	rc = mdss_pll_resource_enable(clk->priv, true);
 	if (rc) {
 		pr_err("Failed to enable mdss dsi pll resources\n");
@@ -245,7 +257,7 @@ int dsi_pll_lock_status(struct mdss_pll_resources *dsi_pll_res)
 			((status & BIT(0)) == 1),
 			DSI_PLL_POLL_MAX_READS,
 			DSI_PLL_POLL_TIMEOUT_US)) {
-		pr_info("DSI PLL status=%x failed to Lock\n", status);
+		pr_debug("DSI PLL status=%x failed to Lock\n", status);
 		pll_locked = 0;
 	} else {
 		pll_locked = 1;
@@ -394,6 +406,9 @@ unsigned long vco_get_rate(struct clk *c)
 	int rc;
 	struct mdss_pll_resources *dsi_pll_res = vco->priv;
 
+	if (is_gdsc_disabled(dsi_pll_res))
+		return 0;
+
 	rc = mdss_pll_resource_enable(dsi_pll_res, true);
 	if (rc) {
 		pr_err("Failed to enable mdss dsi pll resources\n");
@@ -510,6 +525,9 @@ enum handoff vco_handoff(struct clk *c)
 	struct dsi_pll_vco_clk *vco = to_vco_clk(c);
 	struct mdss_pll_resources *dsi_pll_res = vco->priv;
 
+	if (is_gdsc_disabled(dsi_pll_res))
+		return HANDOFF_DISABLED_CLK;
+
 	rc = mdss_pll_resource_enable(dsi_pll_res, true);
 	if (rc) {
 		pr_err("Failed to enable mdss dsi pll resources\n");
@@ -521,9 +539,7 @@ enum handoff vco_handoff(struct clk *c)
 		dsi_pll_res->pll_on = true;
 		c->rate = vco_get_rate(c);
 		ret = HANDOFF_ENABLED_CLK;
-		pr_err("PLL debug: DSI PLL handoff successful\n");
 	} else {
-		pr_err("PLL debug: DSI PLL handoff failed\n");
 		mdss_pll_resource_enable(dsi_pll_res, false);
 	}
 

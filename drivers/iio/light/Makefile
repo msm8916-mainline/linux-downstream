@@ -7,4 +7,3 @@ obj-$(CONFIG_SENSORS_LM3533)	+= lm3533-als.o
 obj-$(CONFIG_SENSORS_TSL2563)	+= tsl2563.o
 obj-$(CONFIG_VCNL4000)		+= vcnl4000.o
 obj-$(CONFIG_HID_SENSOR_ALS)	+= hid-sensor-als.o
-obj-$(CONFIG_SENSORS_GP2A030)	+= gp2ap030.o

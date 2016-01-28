@@ -64,6 +64,7 @@
 		compatible = "qcom,android-usb";
 		reg = <0xfe8050c8 0xc8>;
 		qcom,pm-qos-latency = <2 1001 30001>;
+		qcom,android-usb-uicc-nluns = /bits/ 8 <1>;
 	};
 
 	qcom,msm-imem@fe805000 {
@@ -1646,6 +1647,22 @@
 	qcom,mmsscc@fd8c0000 {
 		compatible = "qcom,mmsscc-8974pro";
 	};
+
+	qcom,lpass@fe200000 {
+		linux,contiguous-region = <&alt_peripheral_mem>;
+	};
+
+	qcom,mss@fc880000 {
+		linux,contiguous-region = <&modem_mem>;
+	};
+
+	qcom,venus@fdce0000 {
+		linux,contiguous-region = <&alt_peripheral_mem>;
+	};
+
+	qcom,pronto@fb21b000 {
+		linux,contiguous-region = <&alt_peripheral_mem>;
+	};
 };
 
 /* GPU overrides */
@@ -1674,12 +1691,12 @@
 		<26 512 0 3680000>, <89 604 0 6224000>,
 		/* Nominal / Nominal */
 		<26 512 0 4912000>, <89 604 0 6224000>,
-		/* low Turbo / Nominal */
-		<26 512 0 6400000>, <89 604 0 6224000>,
+		/* Turbo / Nominal */
+		<26 512 0 7464000>, <89 604 0 6224000>,
+		/* low Nominal / low Turbo */
+		<26 512 0 3680000>, <89 604 0 7398000>,
 		/* Nominal / low Turbo */
 		<26 512 0 4912000>, <89 604 0 7398000>,
-		/* low Turbo / low Turbo */
-		<26 512 0 6400000>, <89 604 0 7398000>,
 		/* Turbo / low Turbo */
 		<26 512 0 7464000>, <89 604 0 7398000>,
 		/* Nominal / Turbo */
@@ -1697,42 +1714,36 @@
                        reg = <0>;
                        qcom,gpu-freq = <578000000>;
                        qcom,bus-freq = <13>;
-                       qcom,io-fraction = <33>;
                };
 
                qcom,gpu-pwrlevel@1 {
                        reg = <1>;
                        qcom,gpu-freq = <462400000>;
                        qcom,bus-freq = <10>;
-                       qcom,io-fraction = <66>;
                };
 
                qcom,gpu-pwrlevel@2 {
                        reg = <2>;
                        qcom,gpu-freq = <389000000>;
                        qcom,bus-freq = <7>;
-                       qcom,io-fraction = <66>;
                };
 
                qcom,gpu-pwrlevel@3 {
                        reg = <3>;
                        qcom,gpu-freq = <330000000>;
                        qcom,bus-freq = <4>;
-                       qcom,io-fraction = <100>;
                };
 
                qcom,gpu-pwrlevel@4 {
                        reg = <4>;
                        qcom,gpu-freq = <200000000>;
                        qcom,bus-freq = <1>;
-                       qcom,io-fraction = <100>;
                };
 
                qcom,gpu-pwrlevel@5 {
                        reg = <5>;
                        qcom,gpu-freq = <27000000>;
                        qcom,bus-freq = <0>;
-                       qcom,io-fraction = <0>;
                };
        };
 };
@@ -1762,6 +1773,7 @@
 			    <0x00011948 0x00000058>,
 			    <0x00011D48 0x00000058>,
 			    <0x00012148 0x00000058>;
+	vdd-cx-supply = <&pm8841_s2_corner>;
 };
 
 &mdss_hdmi_tx {
@@ -1787,10 +1799,11 @@
 		<0x80124 0x3>,
 		<0xE0020 0x5555556>,
 		<0xE0024 0x0>;
+	/*
+	 * Performance is guaranteed only upto POR specification. Anything
+	 * above that specification is best effort and might even be rejected.
+	 */
 	qcom,max-hw-load = <1281600>; /* max(4k X 2304 @ 24, 4k X 2160 @ 30) + 1080p @ 30 */
-	qcom,buffer-type-tz-usage-table = <0x241 0x1>,
-					<0x106 0x2>,
-					<0x480 0x3>;
 	qcom,vidc-iommu-domains {
 		qcom,domain-ns {
 			qcom,vidc-domain-phandle = <&venus_domain_ns>;
@@ -1894,4 +1907,10 @@
 
 	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000 192000000 384000000>;
 	qcom,bus-speed-mode = "HS400_1p8v", "HS200_1p8v", "DDR_1p8v";
+};
+
+&usb3 {
+	dwc3@f9200000 {
+		snps,usb3-u1u2-disable;
+	};
 };

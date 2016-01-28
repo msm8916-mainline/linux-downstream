@@ -207,6 +207,9 @@ static void msm_pm_qos_add_request(void)
 static void msm_pm_qos_remove_request(void)
 {
 	pr_err("%s: remove request",__func__);
+	msm_v4l2_pm_qos_request.type = PM_QOS_REQ_AFFINE_CORES;
+	msm_v4l2_pm_qos_request.cpus_affine.bits[0] = 0xF0;
+
 	pm_qos_remove_request(&msm_v4l2_pm_qos_request);
 }
 

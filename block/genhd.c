@@ -1146,8 +1146,8 @@ static int disk_uevent(struct device *dev, struct kobj_uevent_env *env)
 #ifdef CONFIG_USB_STORAGE_DETECT
 	if (disk->interfaces == GENHD_IF_USB) {
 		add_uevent_var(env, "MEDIAPRST=%d", disk->media_present);
-		printk(KERN_INFO "%s %d, disk->media_present=%d, cnt=%d\n",
-				__func__, __LINE__, disk->media_present, cnt);
+		printk(KERN_INFO "%s %d, disk->media_present=%d, cnt=%d, disk->disk_name=%s\n",
+				__func__, __LINE__, disk->media_present, cnt, disk->disk_name);
 	}
 #endif
 	return 0;

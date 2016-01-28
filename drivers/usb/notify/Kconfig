@@ -2,6 +2,7 @@
 # USB notify configuration
 #
 
+comment "USB Notify features"
 config USB_HOST_NOTIFY
 	boolean "USB Host notify Driver"
 	depends on USB_NOTIFY_LAYER
@@ -25,8 +26,3 @@ config USB_NOTIFIER
 	  Added platform driver to call usb notify.
 	  The usb_notifier.c can be fixed for each models.
 
-config USB_DEBUG_DETEAILED_LOG
-	boolean "USB detailed log for debugging"
-	depends on USB
-	help
-	  Add detailed log for debugging.

@@ -308,36 +308,8 @@ static int sm5502_read_reg(struct i2c_client *client, int reg)
 	return ret;
 }
 
-static void sm5502_disable_interrupt(void)
-{
-	struct i2c_client *client = local_usbsw->client;
-	int value, ret;
-
-	value = i2c_smbus_read_byte_data(client, REG_CONTROL);
-	value |= CON_INT_MASK;
-
-	ret = i2c_smbus_write_byte_data(client, REG_CONTROL, value);
-	if (ret < 0)
-		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
-
-}
-
-static void sm5502_enable_interrupt(void)
-{
-	struct i2c_client *client = local_usbsw->client;
-	int value, ret;
-
-	value = i2c_smbus_read_byte_data(client, REG_CONTROL);
-	value &= (~CON_INT_MASK);
-
-	ret = i2c_smbus_write_byte_data(client, REG_CONTROL, value);
-	if (ret < 0)
-		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
-
-}
-
 #if defined(CONFIG_MUIC_SUPPORT_DESKDOCK) || defined(CONFIG_USB_HOST_NOTIFY) ||\
-    defined(CONFIG_MUIC_SUPPORT_SMARTDOCK) || defined(CONFIG_SEC_FACTORY)
+    defined(CONFIG_MUIC_SUPPORT_SMARTDOCK)
 static void sm5502_dock_control(struct sm5502_usbsw *usbsw,
 	int dock_type, int state, int path)
 {
@@ -1165,7 +1137,7 @@ static int sm5502_attach_dev(struct sm5502_usbsw *usbsw)
 				SM5502_ATTACHED, SW_AUDIO);
 #endif
 #if defined(CONFIG_MUIC_SUPPORT_SMARTDOCK)
-	/* Desk Dock */
+	/* Smart Dock */
 	} else if (val2 & DEV_SMARTDOCK) {
 		pr_info("[MUIC] Smartdock Connected\n");
 		usbsw->attached_dev = ATTACHED_DEV_SMARTDOCK_MUIC;
@@ -1181,12 +1153,10 @@ static int sm5502_attach_dev(struct sm5502_usbsw *usbsw)
 	/* MHL */
 	} else if (val3 & DEV_MHL) {
 		pr_info("[MUIC] MHL Connected\n");
-		sm5502_disable_interrupt();
 		if (!poweroff_charging)
 			/* mhl_ret = mhl_onoff_ex(1); support from sii8240 */
 		else
 			pr_info("LPM mode, skip MHL sequence\n");
-		sm5502_enable_interrupt();
 #endif
 	/* Car Dock */
 	} else if (val2 & DEV_JIG_UART_ON) {
@@ -1194,8 +1164,7 @@ static int sm5502_attach_dev(struct sm5502_usbsw *usbsw)
 		muic_update_jig_state(usbsw, val2, vbus);
 #if defined(CONFIG_SEC_FACTORY)
 		local_usbsw->dock_attached = SM5502_ATTACHED;
-		sm5502_dock_control(usbsw, CABLE_TYPE_CARDOCK,
-			SM5502_ATTACHED, SW_AUDIO);
+		pdata->callback(CABLE_TYPE_CARDOCK, SM5502_ATTACHED);
 #elif defined(CONFIG_MUIC_SUPPORT_RUSTPROOF)
 		if (usbsw->is_rustproof) {
 			pr_info("[MUIC] RustProof mode, close UART Path\n");
@@ -1235,7 +1204,15 @@ static int sm5502_attach_dev(struct sm5502_usbsw *usbsw)
 		pdata->callback(CABLE_TYPE_CHARGING_CABLE,
 			SM5502_ATTACHED);
 #endif
-	/* Incompatible */
+#if defined(CONFIG_MUIC_SUPPORT_VZW_INCOMPATIBLE)
+	/* Incompatible Charger */
+	} else if (vbus & DEV_VBUSIN_VALID && adc == ADC_VZW_INCOMPATIBLE) {
+		pr_info("[MUIC] Incompatible Charger Connected\n");
+		usbsw->attached_dev = ATTACHED_DEV_UNKNOWN_MUIC;
+		pdata->callback(CABLE_TYPE_INCOMPATIBLE,
+			SM5502_ATTACHED);
+#endif
+	/* Undefined */
 	} else if (vbus & DEV_VBUSIN_VALID) {
 		pr_info("[MUIC] Undefined Charger Connected\n");
 		usbsw->attached_dev = ATTACHED_DEV_UNKNOWN_MUIC;
@@ -1374,8 +1351,7 @@ static int sm5502_detach_dev(struct sm5502_usbsw *usbsw)
 		pr_info("[MUIC] Cardock Disconnected\n");
 #if defined(CONFIG_SEC_FACTORY)
 		local_usbsw->dock_attached = SM5502_DETACHED;
-		sm5502_dock_control(usbsw, CABLE_TYPE_CARDOCK,
-			SM5502_DETACHED, SW_ALL_OPEN);
+		pdata->callback(CABLE_TYPE_CARDOCK, SM5502_DETACHED);
 #elif defined(CONFIG_MUIC_SUPPORT_RUSTPROOF)
 		if (usbsw->is_rustproof) {
 			pr_info("[MUIC] RustProof mode disconneted Event\n");
@@ -1421,7 +1397,14 @@ static int sm5502_detach_dev(struct sm5502_usbsw *usbsw)
 		pdata->callback(CABLE_TYPE_CHARGING_CABLE,
 			SM5502_DETACHED);
 #endif
-	/* Incompatible */
+#if defined(CONFIG_MUIC_SUPPORT_VZW_INCOMPATIBLE)
+	/* Incompatible Charger */
+	} else if (usbsw->adc == ADC_VZW_INCOMPATIBLE) {
+		pr_info("[MUIC] Incompatible Charger Disconnected\n");
+		pdata->callback(CABLE_TYPE_INCOMPATIBLE,
+			SM5502_DETACHED);
+#endif
+	/* Undefined */
 	} else if (usbsw->undefined_attached) {
 		pr_info("[MUIC] Undefined Charger Disconnected\n");
 		pdata->callback(CABLE_TYPE_UNDEFINED,
@@ -1457,10 +1440,8 @@ static irqreturn_t sm5502_irq_thread(int irq, void *data)
 	pr_info("sm5502_irq_thread is called\n");
 
 	mutex_lock(&usbsw->mutex);
-	sm5502_disable_interrupt();
 	intr1 = i2c_smbus_read_byte_data(client, REG_INT1);
 	intr2 = i2c_smbus_read_byte_data(client, REG_INT2);
-	sm5502_enable_interrupt();
 
 	adc = i2c_smbus_read_byte_data(client, REG_ADC);
 	dev_info(&client->dev, "%s: intr1 : 0x%x,intr2 : 0x%x, adc : 0x%x\n",
@@ -1508,12 +1489,19 @@ static irqreturn_t sm5502_irq_thread(int irq, void *data)
 		pr_info("sm5502: VBUSOUT_ON\n");
 #ifdef CONFIG_USB_HOST_NOTIFY
 		send_otg_notify(n, NOTIFY_EVENT_VBUSPOWER, 1);
-#endif
 		if (((adc != ADC_OPEN) && (adc != ADC_OTG)) &&
 			(get_usb_mode() != NOTIFY_TEST_MODE))
 			sm5502_attach_dev(usbsw);
 		else
 			goto irq_end;
+#else
+		if ((adc != ADC_OPEN) &&
+			(get_usb_mode() != NOTIFY_TEST_MODE)) {
+			sm5502_attach_dev(usbsw);
+		} else {
+			goto irq_end;
+		}
+#endif
 	} else if (intr2 == INT_VBUSOUT_OFF) {
 		pr_info("sm5502: VBUSOUT_OFF\n");
 #ifdef CONFIG_USB_HOST_NOTIFY

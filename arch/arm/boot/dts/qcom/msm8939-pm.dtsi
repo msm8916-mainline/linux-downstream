@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -236,7 +236,7 @@
 		qcom,saw2-pmic-data0 = <0x07030011>;
 		qcom,saw2-pmic-data1 = <0x00030010>;
                 qcom,saw2-spm-cmd-ret = [00 03 00 0f];
-                qcom,saw2-spm-cmd-pc = [00 60 50 11 07 70 01 50
+                qcom,saw2-spm-cmd-pc = [00 60 50 11 07 70 7B 01 50
                                 02 62 72 0f];
 	};
 
@@ -244,8 +244,6 @@
 		compatible = "qcom,lpm-levels";
 		#address-cells = <1>;
 		#size-cells = <0>;
-
-		lpmcx-supply = <&pm8916_s2_corner>;
 
 		qcom,pm-cluster@0 {
 			reg = <0>;
@@ -329,7 +327,6 @@
 						qcom,ss-power = <640>;
 						qcom,energy-overhead = <100000>;
 						qcom,time-overhead = <60>;
-						qcom,default-idle;
 					};
 
 					qcom,pm-cpu-level@1 {
@@ -350,7 +347,6 @@
 						qcom,energy-overhead = <481028>;
 						qcom,time-overhead = <750>;
 						qcom,use-broadcast-timer;
-						qcom,default-suspend;
 					};
 				};
 			};
@@ -396,7 +392,6 @@
 						qcom,ss-power = <710>;
 						qcom,energy-overhead = <180000>;
 						qcom,time-overhead = <20>;
-						qcom,default-idle;
 					};
 
 					qcom,pm-cpu-level@1 {
@@ -417,7 +412,6 @@
 						qcom,energy-overhead = <497400>;
 						qcom,time-overhead = <600>;
 						qcom,use-broadcast-timer;
-						qcom,default-suspend;
 					};
 				};
 			};
@@ -616,8 +610,10 @@
 
 	qcom,rpm-stats@29dba0 {
 		compatible = "qcom,rpm-stats";
-		reg = <0x29dba0 0x1000>;
-		reg-names = "phys_addr_base";
+		reg = <0x200000 0x1000>,
+		      <0x290014 0x4>,
+		      <0x29001c 0x4>;
+		reg-names = "phys_addr_base", "offset_addr", "heap_phys_addrbase";
 		qcom,sleep-stats-version = <2>;
 	};
 

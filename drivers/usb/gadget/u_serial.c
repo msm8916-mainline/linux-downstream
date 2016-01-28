@@ -775,12 +775,6 @@ static int gs_start_io(struct gs_port *port)
 	port->n_read = 0;
 	started = gs_start_rx(port);
 
-	if (!port->port.tty) {
-		printk(KERN_ERR "usb:[%s] port_usb or port_tty is NULL!! started(%d)\n",
-				__func__, started);
-		return -EIO;
-	}
-
 	/* unblock any pending writes into our circular buffer */
 	if (started) {
 		tty_wakeup(port->port.tty);
@@ -885,6 +879,11 @@ static int gs_open(struct tty_struct *tty, struct file *file)
 	/* if connected, start the I/O stream */
 	if (port->port_usb) {
 		struct gserial	*gser = port->port_usb;
+
+		if (gser->flags & ASYNC_LOW_LATENCY) {
+			pr_debug("%s: Setting to low latency", __func__);
+			tty->port->low_latency = 1;
+		}
 
 		pr_debug("gs_open: start ttyGS%d\n", port->port_num);
 		gs_start_io(port);
@@ -1259,18 +1258,8 @@ static ssize_t debug_read_status(struct file *file, char __user *ubuf,
 	int ret;
 	int result = 0;
 
-	if (!ui_dev) {
-		printk(KERN_ERR "usb: ui_dev is NULL !!\n");
-		return -EINVAL;
-	}
-
 	tty = ui_dev->port.tty;
 	gser = ui_dev->port_usb;
-
-	if(!tty || !gser) {
-		printk(KERN_ERR "usb: tty or gser is NULL !!\n");
-		return -EINVAL;
-	}
 
 	buf = kzalloc(sizeof(char) * BUF_SIZE, GFP_KERNEL);
 	if (!buf)
@@ -1521,6 +1510,10 @@ int gserial_connect(struct gserial *gser, u8 port_num)
 	 */
 	if (port->port.count) {
 		pr_debug("gserial_connect: start ttyGS%d\n", port->port_num);
+		if (gser->flags & ASYNC_LOW_LATENCY) {
+			pr_debug("%s: Setting to low latency", __func__);
+			gser->ioport->port.tty->port->low_latency = 1;
+		}
 		gs_start_io(port);
 		if (gser->connect)
 			gser->connect(gser);

@@ -1,9 +1,11 @@
 #ifndef _LINUX_FTS_I2C_H_
 #define _LINUX_FTS_I2C_H_
 
-#include <linux/input/tsp_ta_callback.h>
-
 #define FTS_SUPPORT_NOISE_PARAM
+#if	defined(CONFIG_SEC_LOCALE_KOR_FRESCO)
+#define FTS_SUPPORT_TA_MODE
+#endif
+
 
 #ifdef FTS_SUPPORT_NOISE_PARAM
 #define MAX_NOISE_PARAM 5
@@ -32,6 +34,12 @@ struct fts_touchkey {
 };
 #endif
 
+#ifdef FTS_SUPPORT_TA_MODE
+struct fts_callbacks {
+	void (*inform_charger) (struct fts_callbacks *, int);
+};
+#endif
+
 struct fts_i2c_platform_data {
 	bool factory_flatform;
 	bool recovery_mode;
@@ -45,6 +53,11 @@ struct fts_i2c_platform_data {
 	const char *project_name;
 
 	int (*power) (bool enable);
+	void	(*register_cb)(void *);
+#ifdef FTS_SUPPORT_TA_MODE
+	struct fts_callbacks callbacks;
+	bool charging_mode;
+#endif
 	void (*enable_sync)(bool on);
 
 	unsigned gpio;

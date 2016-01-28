@@ -46,6 +46,7 @@
 
 #define EOC_DEBOUNCE_CNT 2
 #define HEALTH_DEBOUNCE_CNT 3
+#define DEFAULT_CHARGING_CURRENT 500
 
 #define EOC_SLEEP 200
 /* Timeout setting should be larger than wakelock setting
@@ -95,6 +96,10 @@ typedef struct rt5033_charger_data {
 #ifdef CONFIG_FLED_RT5033
 	struct rt_fled_info *fled_info;
 #endif /* CONFIG_FLED_RT5033 */
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+	bool is_aicr_changed;
+	int	aicr;
+#endif
 } rt5033_charger_data_t;
 
 static enum power_supply_property sec_charger_props[] = {
@@ -111,6 +116,8 @@ static enum power_supply_property sec_charger_props[] = {
 
 static void __rt5033_set_fast_charging_current(struct rt5033_charger_data *charger,
 		int charging_current);
+static int rt5033_charger_parse_dualized_dt(struct device *dev,
+                           struct rt5033_charger_platform_data *pdata);
 
 static int rt5033_get_charging_health(
 		struct rt5033_charger_data *charger);
@@ -213,15 +220,6 @@ static void rt5033_enable_charger_switch(struct rt5033_charger_data *charger,
 		charger->full_charged = false;
 		pr_info("%s: turn on charger\n", __func__);
 
-		if (charger->rev_id >= 6) {
-			rt5033_lock_regulator(iic);
-			msleep(1);
-			/* Turn off SafeLDO temporarily */
-			rt5033_clr_bits(iic, RT5033_REGULATOR_REG_OUTPUT_EN,
-					RT5033_REGULATOR_EN_MASK_LDO_SAFE);
-			msleep(1);
-		}
-
 #ifdef CONFIG_FLED_RT5033
 		if (charger->fled_info == NULL)
 			charger->fled_info = rt_fled_get_info_by_name(NULL);
@@ -238,25 +236,13 @@ static void rt5033_enable_charger_switch(struct rt5033_charger_data *charger,
 		rt5033_clr_bits(iic, RT5033_CHG_STAT_CTRL, RT5033_CHGENB_MASK);
 		rt5033_set_bits(iic, RT5033_EOC_CTRL, RT5033_EOC_RESET_MASK);
 		rt5033_clr_bits(iic, RT5033_EOC_CTRL, RT5033_EOC_RESET_MASK);
-
-		/* After enabled the charger, we will disable RESET circuit */
-		if (charger->rev_id >= 6) {
-			rt5033_clr_bits(iic, 0x47, 1 << 3);
-
-			msleep(1);
-			/* Turn on SafeLDO */
-			rt5033_set_bits(iic, RT5033_REGULATOR_REG_OUTPUT_EN,
-					RT5033_REGULATOR_EN_MASK_LDO_SAFE);
-			msleep(1);
-			rt5033_unlock_regulator(iic);
-		}
 	} else if (onoff == 0) {
 		psy_do_property("battery", get,
 				POWER_SUPPLY_PROP_STATUS, val);
 		if (val.intval != POWER_SUPPLY_STATUS_FULL)
 			charger->full_charged = false;
 		pr_info("%s: turn off charger\n", __func__);
-		charger->charging_current = 0;
+		charger->charging_current = DEFAULT_CHARGING_CURRENT;
 		charger->eoc_cnt = 0;
 		/* Disable EOC */
 		rt5033_clr_bits(iic, RT5033_CHG_CTRL4, RT5033_IEOC_MASK);
@@ -266,11 +252,6 @@ static void rt5033_enable_charger_switch(struct rt5033_charger_data *charger,
 		if (charger->fled_info)
 			rt5033_charger_notification(charger->fled_info, 0);
 #endif /* CONFIG_FLED_RT5033 */
-		/* For new revision IC, before disable the charger,
-		 * we need to enable RESET circuit to make I2C RESET function work*/
-		if (charger->rev_id >= 6) {
-			rt5033_set_bits(iic, 0x47, 1 << 3);
-		}
 
 		if ((val.intval == POWER_SUPPLY_STATUS_NOT_CHARGING) || (val.intval == POWER_SUPPLY_STATUS_FULL) || (val.intval == POWER_SUPPLY_STATUS_CHARGING))
 			rt5033_set_bits(iic, RT5033_CHG_STAT_CTRL, RT5033_CHGENB_MASK);
@@ -328,19 +309,25 @@ static void rt5033_set_input_current_limit(struct rt5033_charger_data *charger,
 		data = 0;
 	mutex_lock(&charger->io_lock);
 
-#if defined(CONFIG_SEC_A3_PROJECT)  || defined(CONFIG_SEC_E5_PROJECT) \
-	|| defined(CONFIG_SEC_E7_PROJECT) || defined(CONFIG_SEC_SERRANOVELTE_PROJECT)  || defined(CONFIG_SEC_SERRANOVE_PROJECT)
-	rt5033_assign_bits(i2c, RT5033_CHG_CTRL1, RT5033_AICR_LIMIT_MASK,
-		(data) << RT5033_AICR_LIMIT_SHIFT);
-#else
-	if(charger->cable_type == POWER_SUPPLY_TYPE_USB) {
-		rt5033_assign_bits(i2c, RT5033_CHG_CTRL1, RT5033_AICR_LIMIT_MASK,
-			(data) << RT5033_AICR_LIMIT_SHIFT);
-	} else {
-		/* disable AICR */
-		rt5033_clr_bits(i2c, RT5033_CHG_CTRL1, RT5033_AICR_LIMIT_MASK);
-	}
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+	charger->aicr = current_limit;
 #endif
+	if (charger->pdata->dualized_charging_current && charger->rev_id < 6){
+		if(charger->cable_type == POWER_SUPPLY_TYPE_USB){
+			rt5033_assign_bits(i2c, RT5033_CHG_CTRL1, RT5033_AICR_LIMIT_MASK,
+				(data) << RT5033_AICR_LIMIT_SHIFT);
+		} else {
+			/* disable AICR */
+			pr_info("%s: AICR Disabled", __func__);
+			rt5033_clr_bits(i2c, RT5033_CHG_CTRL1, RT5033_AICR_LIMIT_MASK);
+		}
+	}
+	else{
+		rt5033_assign_bits(i2c, RT5033_CHG_CTRL1, RT5033_AICR_LIMIT_MASK,
+		(data) << RT5033_AICR_LIMIT_SHIFT);
+		pr_info("%s: AICR Enabled", __func__);
+	}
+
 	mutex_unlock(&charger->io_lock);
 }
 
@@ -555,8 +542,14 @@ static void rt5033_configure_charger(struct rt5033_charger_data *charger)
 #endif /*DISABLE_MIVR*/
 	psy_do_property("battery", get,
 			POWER_SUPPLY_PROP_CHARGE_NOW, val);
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+	psy_do_property("battery", get,
+			POWER_SUPPLY_PROP_INPUT_CURRENT_MAX, val);
+	input_current_limit = val.intval;
+#else
 	input_current_limit = charger->pdata->charging_current_table
 		[charger->cable_type].input_current_limit;
+#endif
 	/* Input current limit */
 	pr_info("%s : input current (%dmA)\n",
 		__func__, input_current_limit);
@@ -586,7 +579,7 @@ static void rt5033_configure_charger(struct rt5033_charger_data *charger)
 
 int rt5033_chg_fled_init(struct i2c_client *client)
 {
-	int ret, rev_id;
+	int ret;
 	rt5033_mfd_chip_t *chip = i2c_get_clientdata(client);
 	int is_750k_switching = 0;
 	int is_fixed_switching = 0;
@@ -598,14 +591,7 @@ int rt5033_chg_fled_init(struct i2c_client *client)
 		pr_info("%s rt5033 chg: is_750k_switching = %d, is_fixed_switching = %d\n",
 				__func__, is_750k_switching, is_fixed_switching);
 	}
-	rt5033_set_bits(client, 0x6b, 0x01);
-	msleep(20); /* delay 20 ms to wait for normal read (from e-fuse) */
-	ret = rt5033_reg_read(client, 0x03);
-	rt5033_clr_bits(client, 0x6b, 0x01);
-	if (ret < 0)
-		pr_err("%s : failed to read revision ID\n", __func__);
-	rev_id = ret & 0x0f;
-	charger->rev_id = rev_id;
+	charger->rev_id = chip->rev_id;
 	pr_err("%s : rev_id = %d \n", __func__,charger->rev_id );
 	if (charger->rev_id >= 4) {
 		if (charger) {
@@ -632,6 +618,8 @@ int rt5033_chg_fled_init(struct i2c_client *client)
 		ret = rt5033_set_bits(client, RT5033_CHG_CTRL1,
 				      RT5033_SEL_SWFREQ_MASK);
 	}
+	rt5033_workaround(chip);
+
 rt5033_chg_fled_init_exit:
 	return ret;
 }
@@ -882,14 +870,18 @@ static int sec_chg_set_property(struct power_supply *psy,
 #endif
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
-	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		/* set charging current */
 		/* decrease the charging current according to siop level */
 		charger->siop_level = val->intval;
 		pr_info("%s:SIOP level = %d, chg current = %d\n", __func__,
 				val->intval, charger->charging_current);
-		eoc = rt5033_get_current_eoc_setting(charger);
-		rt5033_set_charging_current(charger, eoc, 0);
+		if(charger->is_charging) {
+			eoc = rt5033_get_current_eoc_setting(charger);
+			rt5033_set_charging_current(charger, eoc, 0);
+		}
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_NOW:
+		/* If slate mode is enable, set the current as 0mA*/
+		__rt5033_set_fast_charging_current(charger, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_POWER_NOW:
 		eoc = rt5033_get_current_eoc_setting(charger);
@@ -901,6 +893,20 @@ static int sec_chg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		pr_info("%s: float voltage(%d)\n", __func__, val->intval);
 		rt5033_set_regulation_voltage(charger, val->intval);
+		break;
+#endif
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_MAX:
+		if (val->intval != charger->aicr) {
+			if (val->intval > charger->aicr) {
+				charger->is_aicr_changed = true;
+			} else {
+				charger->is_aicr_changed = false;
+			}
+			pr_info("%s: input current limit(%d, %d)\n",
+				__func__, val->intval, charger->is_aicr_changed);
+			rt5033_set_input_current_limit(charger, val->intval);
+		}
 		break;
 #endif
 	default:
@@ -1076,11 +1082,17 @@ static irqreturn_t rt5033_chg_vin_ovpr_irq_handler(int irq, void *data)
 	status = rt5033_reg_read(info->rt5033->i2c_client,
 			0x22);
 	if ((status & 0x02) == 0) {
-		info->ovp = false;
-		pr_info("%s: OVP recover triggered\n", __func__);
-		value.intval = POWER_SUPPLY_HEALTH_GOOD;
-		psy_do_property("battery", set,
-				POWER_SUPPLY_PROP_HEALTH, value);
+		status = rt5033_reg_read(info->rt5033->i2c_client,
+			RT5033_CHG_STAT_CTRL);
+		/* Check PowerGood bit */
+		if (status & (0x01 << 2)) {
+			info->unhealth_cnt = 0;
+			info->ovp = false;
+			pr_info("%s: OVP recover triggered\n", __func__);
+			value.intval = POWER_SUPPLY_HEALTH_GOOD;
+			psy_do_property("battery", set,
+					POWER_SUPPLY_PROP_HEALTH, value);
+		}
 	}
 	return IRQ_HANDLED;
 }
@@ -1093,9 +1105,19 @@ static irqreturn_t rt5033_chg_ieoc_irq_handler(int irq, void *data)
 	struct rt5033_charger_data *info = data;
 	struct i2c_client *iic = info->rt5033->i2c_client;
 	int eoc_reg;
+	union power_supply_propval value;
 	cancel_delayed_work(&info->eoc_timeout_work);
 	mutex_lock(&info->io_lock);
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+	if (info->is_aicr_changed) {
+		info->eoc_cnt = 0;
+	} else {
+		info->eoc_cnt++;
+	}
+	info->is_aicr_changed = false;
+#else
 	info->eoc_cnt++;
+#endif
 	mutex_unlock(&info->io_lock);
 	pr_info("%s : EOC CNT = %d / %d\n", __func__,
 		info->eoc_cnt, EOC_DEBOUNCE_CNT);
@@ -1107,6 +1129,9 @@ static irqreturn_t rt5033_chg_ieoc_irq_handler(int irq, void *data)
 		pr_info("%s : Full charged\n", __func__);
 		info->full_charged = true;
 		info->eoc_cnt = 0;
+		value.intval = POWER_SUPPLY_STATUS_FULL;
+		psy_do_property("battery", set,
+				POWER_SUPPLY_PROP_STATUS, value);
 	} else {
 		pr_info("%s : Reset EOC detection\n", __func__);
 		msleep(10);
@@ -1295,7 +1320,32 @@ static int sec_bat_read_u32_index_dt(const struct device_node *np,
 
 	return 0;
 }
+static int rt5033_charger_parse_dualized_dt(struct device *dev,
+                           struct rt5033_charger_platform_data *pdata)
+{
+	struct device_node *np;
+	int ret, i, len;
 
+	np = of_find_node_by_name(NULL, "charger");
+	if (!np) {
+		pr_info("%s : np NULL\n", __func__);
+		return -ENODATA;
+	}
+
+	of_get_property(np, "battery,fast_charging_current_5033a", &len);
+	len = len / sizeof(u32);
+
+	for(i = 0; i < len; i++) {
+		ret = sec_bat_read_u32_index_dt(np,
+			 "battery,input_current_limit_5033a", i,
+			 &pdata->charging_current_table[i].input_current_limit);
+		ret = sec_bat_read_u32_index_dt(np,
+			 "battery,fast_charging_current_5033a", i,
+			 &pdata->charging_current_table[i].fast_charging_current);
+	}
+	pr_info("%s : length of 5033a : %d, AICR = %d\n", __func__, len, pdata->dualized_charging_current);
+	return ret;
+}
 static int rt5033_charger_parse_dt(struct device *dev,
                            struct rt5033_charger_platform_data *pdata)
 {
@@ -1345,6 +1395,10 @@ static int rt5033_charger_parse_dt(struct device *dev,
 				 &pdata->charging_current_table[i].full_check_current_2nd);
 	}
 	dev_info(dev,"rt5033 charger parse dt retval = %d\n", ret);
+
+	/* use for AICR disabled in RT5033 */
+	pdata->dualized_charging_current = of_property_read_bool(np,"battery,dualized_charging_current");
+
 	return ret;
 }
 
@@ -1429,6 +1483,12 @@ static int rt5033_charger_probe(struct platform_device *pdev)
 	charger->siop_level = 100;
 	rt5033_chg_init(charger);
 
+	/* parse for dualized dt */
+	if(charger->pdata->dualized_charging_current && charger->rev_id >= 6){
+		ret = rt5033_charger_parse_dualized_dt(&pdev->dev, charger->pdata);
+		if (ret < 0)
+			goto err_parse_dt;
+	}
 	ret = power_supply_register(&pdev->dev, &charger->psy_chg);
 	if (ret) {
 		pr_err("%s: Failed to Register psy_chg\n", __func__);

@@ -14,7 +14,7 @@
 #define PCAL6416A_SEL_PULLUPDOWN	0x48  /* Port0 Pull-up/Pull-down selection [R/W]    */
 #define PCAL6416A_INT_MASK		0x4A  /* Interrupt mask register [R/W]              */
 #define PCAL6416A_INT_STATUS		0x4C  /* Interrupt status register [RO]             */
-#define PCAL6416A_OUTPUT_CONFIG		0x4F  /* Output port configuration register [R/W]   */ 
+#define PCAL6416A_OUTPUT_CONFIG		0x4F  /* Output port configuration register [R/W]   */
 
 #define NO_PULL				0x00
 #define PULL_DOWN			0x01
@@ -35,15 +35,13 @@ struct pcal6416a_platform_data {
 	int ngpio;
 	int irq_base;
 	int reset_gpio;
-	int scl_gpio;
-	int sda_gpio;
 	int irq_gpio;
 	uint16_t support_init;
 	uint16_t init_config;
 	uint16_t init_data_out;
 	uint16_t init_en_pull;
 	uint16_t init_sel_pull;
-	const char *supply_name;
+	struct regulator *vdd;
 };
 
 #ifdef CONFIG_SEC_PM_DEBUG

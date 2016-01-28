@@ -236,6 +236,7 @@ static const char fsg_string_interface[] = "Mass Storage";
 
 #ifdef CONFIG_USB_CSW_HACK
 static int write_error_after_csw_sent;
+static int must_report_residue;
 static int csw_hack_sent;
 #endif
 /*-------------------------------------------------------------------------*/
@@ -1335,6 +1336,16 @@ write_error:
 			if ((nwritten == amount) && !csw_hack_sent) {
 				if (write_error_after_csw_sent)
 					break;
+
+				/*
+				 * If residue still exists and nothing left to
+				 * write, device must send correct residue to
+				 * host in this case.
+				 */
+				if (!amount_left_to_write && common->residue) {
+					must_report_residue = 1;
+					break;
+				}
 				/*
 				 * Check if any of the buffer is in the
 				 * busy state, if any buffer is in busy state,
@@ -1527,7 +1538,7 @@ static int do_inquiry(struct fsg_common *common, struct fsg_buffhd *bh)
 	buf[5] = 0;		/* No special options */
 	buf[6] = 0;
 	buf[7] = 0;
-	
+
 #if defined(CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE)
 	strncpy(new_product_name, common->product_string, 16);
 	new_product_name[16] = '\0';
@@ -1759,6 +1770,7 @@ static int do_mode_sense(struct fsg_common *common, struct fsg_buffhd *bh)
 		buf += 28;
 	 }
 #endif
+
 	/*
 	 * Check that a valid page was requested and the mode data length
 	 * isn't too long.
@@ -2142,8 +2154,9 @@ static int send_status(struct fsg_common *common)
 	 * writing on to storage media, need to set
 	 * residue to zero,assuming that write will succeed.
 	 */
-	if (write_error_after_csw_sent) {
+	if (write_error_after_csw_sent || must_report_residue) {
 		write_error_after_csw_sent = 0;
+		must_report_residue = 0;
 		csw->Residue = cpu_to_le32(common->residue);
 	} else
 		csw->Residue = 0;

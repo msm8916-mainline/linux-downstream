@@ -321,6 +321,7 @@ static int hall_probe(struct platform_device *pdev)
 	struct pinctrl *hall_pinctrl;
 	int error;
 	int wakeup = 0;
+	printk(KERN_CRIT "%s called", __func__);
 	ddata = kzalloc(sizeof(struct hall_drvdata), GFP_KERNEL);
 	if (!ddata) {
 		dev_err(dev, "failed to allocate state\n");
@@ -402,6 +403,7 @@ static int hall_probe(struct platform_device *pdev)
 
 	device_init_wakeup(&pdev->dev, wakeup);
 
+	printk(KERN_CRIT "%s end", __func__);
 	return 0;
 
  fail1:

@@ -504,6 +504,7 @@ static void dsi_update_mdnie_data(void)
 	mdnie_data.DSI0_NEGATIVE_MDNIE = DSI0_NEGATIVE_MDNIE;
 	mdnie_data.DSI0_COLOR_BLIND_MDNIE = DSI0_COLOR_BLIND_MDNIE;
 	mdnie_data.DSI0_HBM_CE_MDNIE = DSI0_HBM_CE_MDNIE;
+	mdnie_data.DSI0_HBM_CE_TEXT_MDNIE = DSI0_HBM_CE_TEXT_MDNIE;
 	mdnie_data.DSI0_RGB_SENSOR_MDNIE = DSI0_RGB_SENSOR_MDNIE;
 	mdnie_data.DSI0_CURTAIN = DSI0_CURTAIN;
 	mdnie_data.DSI0_UI_DYNAMIC_MDNIE = DSI0_UI_DYNAMIC_MDNIE;
@@ -588,7 +589,6 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_smart_get_conf = smart_get_conf_S6E88A0_AMS452EF01;
 
 	/* Brightness */
-	vdd->panel_func.samsung_brightness_tft_pwm = NULL;
 	vdd->panel_func.samsung_brightness_hbm_off = NULL;
 	vdd->panel_func.samsung_brightness_aid = mdss_aid;
 	vdd->panel_func.samsung_brightness_acl_on = mdss_acl_on;

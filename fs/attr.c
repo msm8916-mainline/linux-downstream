@@ -50,7 +50,7 @@ int inode_change_ok(const struct inode *inode, struct iattr *attr)
 	if ((ia_valid & ATTR_UID) &&
 	    (!uid_eq(current_fsuid(), inode->i_uid) ||
 	     !uid_eq(attr->ia_uid, inode->i_uid)) &&
-	     !capable_wrt_inode_uidgid(inode, CAP_CHOWN))
+	    !capable_wrt_inode_uidgid(inode, CAP_CHOWN))
 		return -EPERM;
 
 	/* Make sure caller can chgrp. */
@@ -180,11 +180,6 @@ int notify_change(struct dentry * dentry, struct iattr * attr)
 	if (ia_valid & (ATTR_MODE | ATTR_UID | ATTR_GID | ATTR_TIMES_SET)) {
 		if (IS_IMMUTABLE(inode) || IS_APPEND(inode))
 			return -EPERM;
-	}
-
-	if ((ia_valid & ATTR_SIZE) && IS_I_VERSION(inode)) {
-		if (attr->ia_size != inode->i_size)
-			inode_inc_iversion(inode);
 	}
 
 	if ((ia_valid & ATTR_MODE)) {

@@ -290,7 +290,7 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case ANDROID_ALARM_SET_ALARM_BOOT:
 		if (copy_from_user(bootalarm_data, (void __user *)arg, 14)) {
 			rv = -EFAULT;
-		return rv;
+			return rv;
 		}
 		rv = alarm_set_alarm(bootalarm_data);
 		break;

@@ -188,7 +188,9 @@ enum sensor_stats_type {
 #define CAMERA_AF_OCR           3
 
 enum flash_type {
+#if !defined(CONFIG_FLED_SM5701)
 	LED_FLASH = 1,
+#endif
 	STROBE_FLASH,
 	GPIO_FLASH
 };
@@ -567,8 +569,9 @@ struct msm_camera_sensor_slave_info {
 };
 
 struct sensorb_cfg_data {
-	int cfgtype;
-	union {
+    int cfgtype;
+    int flicker_type;
+    union {
 		struct msm_sensor_info_t      sensor_info;
 		struct msm_sensor_init_params sensor_init_params;
 		void                         *setting;
@@ -880,6 +883,11 @@ typedef struct
 	unsigned short shutterspeed;
 	unsigned short isFlashOn;
 } exif_data_t;
+
+enum msm_cam_flicker_type {
+	MSM_CAM_FLICKER_50HZ,
+	MSM_CAM_FLICKER_60HZ,
+};
 
 #define VIDIOC_MSM_SENSOR_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 1, struct sensorb_cfg_data)

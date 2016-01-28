@@ -77,6 +77,12 @@
 #ifdef CONFIG_TIMA_LKMAUTH
 #include <linux/qseecom.h>
 #include <linux/kobject.h>
+#include <linux/spinlock.h>
+
+#define CONFIG_LKMAUTH_SECONDWAY
+#ifdef CONFIG_LKMAUTH_SECONDWAY
+#define LKM_MAGIC 0x11223344
+#endif
 
 #define QSEECOM_ALIGN_SIZE  0x40
 #define QSEECOM_ALIGN_MASK  (QSEECOM_ALIGN_SIZE - 1)
@@ -2461,8 +2467,9 @@ static void add_kallsyms(struct module *mod, const struct load_info *info)
 #endif /* CONFIG_KALLSYMS */
 
 #ifdef	CONFIG_TIMA_LKMAUTH
-#define LAST_TRY_CNT 4
+static DEFINE_SPINLOCK(lkm_va_to_pa_lock);
 extern pid_t pid_from_lkm;
+#define LAST_TRY_CNT 4
 int qseecom_set_bandwidth(struct qseecom_handle *handle, bool high);
 static int lkmauth(Elf_Ehdr *hdr, int len, int cnt)
 {
@@ -2473,7 +2480,14 @@ static int lkmauth(Elf_Ehdr *hdr, int len, int cnt)
 	lkmauth_req_t *kreq = NULL;
 	lkmauth_rsp_t *krsp = NULL;
 	int req_len = 0, rsp_len = 0;
-
+#ifdef CONFIG_LKMAUTH_SECONDWAY
+	unsigned int par;
+	unsigned int virt_addr;
+	unsigned int *pBuf = NULL;
+	unsigned int *ptr;
+	unsigned int size;
+	unsigned long flags;
+#endif
 	mutex_lock(&lkmauth_mutex);
 	pr_warn("TIMA: lkmauth--launch the tzapp to check kernel module; module len is %d\n", len);
 
@@ -2504,8 +2518,42 @@ static int lkmauth(Elf_Ehdr *hdr, int len, int cnt)
 	kreq = (struct lkmauth_req_s *)qhandle->sbuf;
 	kreq->cmd_id = LKMAUTH_CMD_AUTH; 
 	pr_warn("TIMA: lkmauth -- hdr before kreq is : %x\n", (u32)hdr);
-	kreq->module_addr_start = (u32)hdr; 
 	kreq->module_len = len;
+#ifdef CONFIG_LKMAUTH_SECONDWAY
+	virt_addr = (u32)hdr;
+	size = ((len/PAGE_SIZE) + 2)*sizeof(pBuf);
+	pBuf = kmalloc(size, GFP_KERNEL);
+
+	if (pBuf == NULL) {
+		printk("lkmauth: failed to allocate memory %d \n", size);
+		goto lkmauth_ret;
+	}
+	ptr = pBuf;
+	*ptr = LKM_MAGIC;
+	ptr++;
+
+	do {
+		spin_lock_irqsave(&lkm_va_to_pa_lock, flags);
+		__asm__	("mcr	p15, 0, %1, c7, c8, 0\n"
+		"isb\n"
+		"mrc 	p15, 0, %0, c7, c4, 0\n"
+		:"=r"(par):"r"(virt_addr));
+
+		spin_unlock_irqrestore(&lkm_va_to_pa_lock, flags);
+		if(par & 0x1) {
+			printk("failed to translate va: %x \n", virt_addr);
+			goto lkmauth_ret;
+		}
+		//fix last 12 bits
+		*ptr = (unsigned int)(par & PAGE_MASK);
+		len = len - PAGE_SIZE;
+		virt_addr = virt_addr + PAGE_SIZE;
+		ptr++;
+	} while (len > 0);
+	kreq->module_addr_start = (u32)(unsigned long)(virt_to_phys(pBuf));
+#else
+	kreq->module_addr_start = (u32)hdr;
+#endif
 
 	req_len = sizeof(lkmauth_req_t);
 	if (req_len & QSEECOM_ALIGN_MASK)
@@ -2526,7 +2574,7 @@ static int lkmauth(Elf_Ehdr *hdr, int len, int cnt)
 	qseecom_set_bandwidth(qhandle, true);
 	pid_from_lkm = current->pid;
 	qsee_ret = qseecom_send_command(qhandle, kreq, req_len, krsp, rsp_len);
-    pid_from_lkm = -1;
+	pid_from_lkm = -1;
 	qseecom_set_bandwidth(qhandle, false);
 
 	if (qsee_ret) {
@@ -2574,19 +2622,21 @@ static int lkmauth(Elf_Ehdr *hdr, int len, int cnt)
 			goto lkmauth_ret;
 		}
 		snprintf(result , 256, "TIMA_RESULT=%s", krsp->result.result_ondemand);
-		pr_warn("TIMA: %s result (%s) \n", krsp->result.result_ondemand, result);
+		pr_err("TIMA: %s result (%s) \n", krsp->result.result_ondemand, result);
 		envp[1] = result;
 		envp[2] = NULL;
-
-		if ( cnt == LAST_TRY_CNT ) {		
+		if ( cnt == LAST_TRY_CNT ) {
 			kobject_uevent_env(&tima_uevent_dev->kobj, KOBJ_CHANGE, envp);
 		}
-
 		kfree(envp[0]);
 		kfree(envp[1]);
 	}
 
  lkmauth_ret:
+#ifdef CONFIG_LKMAUTH_SECONDWAY
+	if(pBuf)
+		kfree(pBuf);
+#endif
 	mutex_unlock(&lkmauth_mutex);
 	return ret;
 }
@@ -2693,7 +2743,11 @@ static int module_sig_check(struct load_info *info)
 #endif /* !CONFIG_MODULE_SIG */
 
 /* Sanity checks against invalid binaries, wrong arch, weird elf version. */
+#ifdef CONFIG_TIMA_LKMAUTH
+static int elf_header_check(struct load_info *info, unsigned long module_len)
+#else
 static int elf_header_check(struct load_info *info)
+#endif
 {
 #ifdef CONFIG_TIMA_LKMAUTH
 	int i;
@@ -2712,15 +2766,16 @@ static int elf_header_check(struct load_info *info)
 		info->len - info->hdr->e_shoff))
 		return -ENOEXEC;
 #ifdef CONFIG_TIMA_LKMAUTH
-	if (lkmauth(info->hdr, info->len, 0) != 0) {
-		for(i = 0; i < LAST_TRY_CNT + 1 ; i++) {
-			if (lkmauth(info->hdr, info->len, i) == 0)
+	if (lkmauth(info->hdr, module_len, 0) != 0) {
+		for(i = 1; i <= LAST_TRY_CNT; i++) {
+			if (lkmauth(info->hdr, module_len, i) == 0)
 				goto success;
 		}
 		return -ENOEXEC;
 	}
 success:
 #endif
+
 	return 0;
 }
 
@@ -3424,11 +3479,17 @@ static int load_module(struct load_info *info, const char __user *uargs,
 	struct module *mod;
 	long err;
 
+#ifdef CONFIG_TIMA_LKMAUTH
+	unsigned long module_len = info->len;
+#endif
 	err = module_sig_check(info);
 	if (err)
 		goto free_copy;
-
+#ifdef CONFIG_TIMA_LKMAUTH
+	err = elf_header_check(info, module_len);
+#else
 	err = elf_header_check(info);
+#endif
 	if (err)
 		goto free_copy;
 
@@ -3499,6 +3560,9 @@ static int load_module(struct load_info *info, const char __user *uargs,
 	}
 
 	dynamic_debug_setup(info->debug, info->num_debug);
+
+	/* Ftrace init must be called in the MODULE_STATE_UNFORMED state */
+	ftrace_module_init(mod);
 
 	/* Finally it's fully formed, ready to start executing. */
 	err = complete_formation(mod, info);

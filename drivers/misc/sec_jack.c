@@ -35,7 +35,7 @@
 #if defined (SEC_HEADSET_ADC_ADJUST)
 #include <linux/uaccess.h>
 #include <linux/file.h>
-#endif
+#endif /* SEC_HEADSET_ADC_ADJUST */
 
 #define NUM_INPUT_DEVICE_ID	2
 #define MAX_ZONE_LIMIT		10
@@ -43,6 +43,7 @@
 #define DET_CHECK_TIME_MS	   100		/* 100ms */
 #define DET_CHECK_TIME_MS_WITH_FSA 50		/* 50ms */
 #define WAKE_LOCK_TIME		(HZ * 5)	/* 5 sec */
+#define ADC_SAMPLE_CNT		8   /* Ear ADC avg 6 times (except max, min) */
 
 struct sec_jack_info {
 	struct platform_device *client;
@@ -137,12 +138,13 @@ static int sec_soc_btn[] = {
 
 enum {
 	POLE3_MAX_ADC,
- 	POLE4_LOW_ADC,
- 	POLE4_MAX_ADC,
- 	KEY_MEDIA_ADC,
- 	KEY_VOLUME_UP_ADC,
- 	KEY_VOLUME_DOWN_ADC,
- 	MAX_ARRAY
+	POLE4_LOW_ADC,
+	POLE4_MAX_ADC,
+	KEY_MEDIA_ADC,
+	KEY_VOICECOMMAND_ADC,
+	KEY_VOLUME_UP_ADC,
+	KEY_VOLUME_DOWN_ADC,
+	MAX_ARRAY
 } sed_jack_adc_type;
 
 static char file_path[64];
@@ -150,10 +152,22 @@ static bool is_init = false;
 
 static int sec_jack_read_data(struct sec_jack_info *hi, char * filename);
 static int sec_jack_write_data(struct sec_jack_info *hi, char * filename );
-#endif
+#endif /* SEC_HEADSET_ADC_ADJUST */
+
+int ear_adc_value = 0;
 
 /*Enabling Ear Mic Bias of WCD Codec*/
 extern void msm8x16_enable_ear_micbias(bool state);
+
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+extern void set_earjack_state(void);
+
+bool is_sec_earjack_on = false;
+bool sec_jack_onoff(void)
+{
+    return is_sec_earjack_on;
+}
+#endif
 
 static void sec_jack_gpio_init(struct sec_jack_platform_data *pdata)
 {
@@ -181,19 +195,21 @@ static void sec_jack_gpio_init(struct sec_jack_platform_data *pdata)
 
 }
 
-static int sec_jack_get_adc_value(struct sec_jack_info *hi)
+static int sec_jack_get_adc_value(struct sec_jack_info *hi, int count)
 {
 	struct qpnp_vadc_result result;
 	struct sec_jack_platform_data *pdata = hi->pdata;
 	struct qpnp_vadc_chip *earjack_vadc;
 	int retVal;
+	int maxVal = 0, minVal = 0xffff, totalVal = 0, adcVal;
+	int i;
 	uint32_t mpp_ch;
-	
+
 	/* Initialize mpp_ch default setting
 	* default mpp scale is  < 4 1 3 >
 	*/
 	mpp_ch = pdata->mpp_ch_scale[0] + P_MUX1_1_3 - 1;
-	
+
 	/* To get proper mpp_ch,
 	* If scaling is 1:1 then add (P_MUX1_1_1 - 1)
 	* If scaling is 1:3 then add (P_MUX1_1_3 - 1)
@@ -207,10 +223,28 @@ static int sec_jack_get_adc_value(struct sec_jack_info *hi)
 
 	earjack_vadc = qpnp_get_vadc(&hi->client->dev, "earjack-read");
 
-	qpnp_vadc_read(earjack_vadc,  mpp_ch, &result);
-	// Get voltage in microvolts
-	retVal = ((int)result.physical)/1000;
-
+	if(count < 3) {
+		qpnp_vadc_read(earjack_vadc,  mpp_ch, &result);
+		// Get voltage in microvolts
+		retVal = ((int)result.physical)/1000;
+	} else {
+		for (i = 0; i < count; i++) {
+			qpnp_vadc_read(earjack_vadc,  mpp_ch, &result);
+			// Get voltage in microvolts
+			adcVal = ((int)result.physical)/1000;
+			if (i != 0) {
+				if (adcVal > maxVal)
+					maxVal = adcVal;
+				else if (adcVal < minVal)
+					minVal = adcVal;
+			} else {
+				maxVal = adcVal;
+				minVal = adcVal;
+			}
+			totalVal += adcVal;
+		}
+		retVal = (totalVal - maxVal - minVal) / (count - 2);
+	}
 	return retVal;
 }
 
@@ -333,10 +367,10 @@ static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
 		} else {
 			sec_jack_write_data(hi, NULL);
 		}
-#endif
+#endif /* SEC_HEADSET_ADC_ADJUST */
 #if defined (SEC_USE_SOC_JACK_API)
 		hi->hset_state = SND_JACK_HEADSET;
-#endif
+#endif /* SEC_USE_SOC_JACK_API */
 	} else {
 		/* for all other jacks, disable send/end key detection */
 		if (hi->send_key_dev != NULL) {
@@ -354,16 +388,16 @@ static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
 		} else {
 			hi->hset_state = 0;
 		}
-#endif
+#endif /* SEC_USE_SOC_JACK_API */
 	}
 
 	hi->cur_jack_type = jack_type;
 	pr_info("%s : jack_type = %d\n", __func__, jack_type);
 #if defined (SEC_USE_SOC_JACK_API)
 	snd_soc_jack_report_no_dapm(hi->headset_jack, hi->hset_state, SND_JACK_HEADSET);
-#else
+#else /* SEC_USE_SOC_JACK_API */
 	switch_set_state(&switch_jack_detection, jack_type);
-#endif
+#endif /* not SEC_USE_SOC_JACK_API */
 
 	/* Estimate Headset detection time */  //KSND
 	if( jack_type == SEC_HEADSET_4POLE || jack_type == SEC_HEADSET_3POLE ) {
@@ -373,6 +407,10 @@ static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
 			--hi->ts.tv_sec;
 			hi->ts.tv_nsec += 1000000000L;
 		}
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+		is_sec_earjack_on = true;
+		set_earjack_state();
+#endif
 		pr_info("%s: detect time : %d ms\n", __func__, (int)hi->ts.tv_nsec/1000000 );
 	}
 
@@ -392,10 +430,17 @@ static void determine_jack_type(struct sec_jack_info *hi)
 		zones[0].adc_high, zones[1].adc_high, zones[2].adc_high, zones[3].adc_high) ;
 
 	/* set mic bias to enable adc */
+#ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
+	/* There is an issue detect adc is low because Micbias is 2.2V.
+	   Micbias is 2.2V when detect irq is detected
+	   while 4-pole headset is connected. */
+	msm8x16_wcd_dynamic_control_micbias(MIC_BIAS_V2P80V);
+#else
 	set_sec_micbias_state(hi, true);
+#endif
 
 	while (gpio_get_value(pdata->det_gpio) ^ npolarity) {
-		adc = sec_jack_get_adc_value(hi);
+		adc = sec_jack_get_adc_value(hi, 1);
 		pr_info("%s: adc = %d\n", __func__, adc);
 
 		/* determine the type of headset based on the
@@ -424,6 +469,10 @@ static void determine_jack_type(struct sec_jack_info *hi)
 	/* jack removed before detection complete */
 	pr_debug("%s : jack removed before detection complete\n", __func__);
 	sec_jack_set_type(hi, SEC_JACK_NO_DEVICE);
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+	is_sec_earjack_on = false;
+    set_earjack_state();
+#endif
 	set_sec_micbias_state(hi, false);
 }
 
@@ -454,6 +503,17 @@ static ssize_t earjack_state_onoff_show(struct device *dev,
 }
 
 static DEVICE_ATTR(state, 0444 , earjack_state_onoff_show, NULL);
+
+static ssize_t mic_adc_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int value = 0;
+
+	value = ear_adc_value;
+	return snprintf(buf, 10, "%d\n", value);
+}
+
+static DEVICE_ATTR(mic_adc, 0444 , mic_adc_show, NULL);
 
 #if defined (CONFIG_EARJACK_ADC_SYSFS)
 static ssize_t jack_adc_show(struct device *dev,
@@ -542,12 +602,10 @@ static ssize_t send_end_btn_adc_store(struct device *dev,
 
 	return count;
 }
-
-
 static DEVICE_ATTR(send_end_btn_adc, 0666, send_end_btn_adc_show,
 	send_end_btn_adc_store);
 
-static ssize_t vol_up_btn_adc_show(struct device *dev,
+static ssize_t voicecommand_btn_adc_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct sec_jack_info *hi = dev_get_drvdata(dev);
@@ -557,9 +615,9 @@ static ssize_t vol_up_btn_adc_show(struct device *dev,
 	val[1] = hi->pdata->jack_buttons_zones[1].adc_high;
 
 	return sprintf(buf, "%d %d\n",val[0],val[1]);
-	}
+}
 
-static ssize_t vol_up_btn_adc_store(struct device *dev,
+static ssize_t voicecommand_btn_adc_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct sec_jack_info *hi = dev_get_drvdata(dev);
@@ -579,9 +637,53 @@ static ssize_t vol_up_btn_adc_store(struct device *dev,
 	hi->pdata->jack_buttons_zones[1].adc_high = val[1];
 
 	return count;
+}
+static DEVICE_ATTR(voicecommand_btn_adc, 0666, voicecommand_btn_adc_show,
+	voicecommand_btn_adc_store);
+
+static ssize_t vol_up_btn_adc_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct sec_jack_info *hi = dev_get_drvdata(dev);
+	int val[2]  = {0,};
+
+	if(hi->pdata->jack_buttons_zones[2].adc_low == hi->pdata->jack_buttons_zones[3].adc_low) {
+		val[0] = hi->pdata->jack_buttons_zones[1].adc_low;
+		val[1] = hi->pdata->jack_buttons_zones[1].adc_high;
+	} else {
+		val[0] = hi->pdata->jack_buttons_zones[2].adc_low;
+		val[1] = hi->pdata->jack_buttons_zones[2].adc_high;
 	}
 
+	return sprintf(buf, "%d %d\n",val[0],val[1]);
+}
 
+static ssize_t vol_up_btn_adc_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct sec_jack_info *hi = dev_get_drvdata(dev);
+	char *buffer = (char*)buf;
+	char *token;
+	int val[2] = {0,};
+
+	token = strsep(&buffer, " ");
+	if(kstrtoint(token,0,&val[0]) != 0)
+		return -EINVAL;
+
+	token = strsep(&buffer, " ");
+	if(kstrtoint(token,0,&val[1]) != 0)
+		return -EINVAL;
+
+	if(hi->pdata->jack_buttons_zones[2].adc_low == hi->pdata->jack_buttons_zones[3].adc_low) {
+		hi->pdata->jack_buttons_zones[1].adc_low = val[0];
+		hi->pdata->jack_buttons_zones[1].adc_high = val[1];
+	} else {
+		hi->pdata->jack_buttons_zones[2].adc_low = val[0];
+		hi->pdata->jack_buttons_zones[2].adc_high = val[1];
+	}
+
+	return count;
+}
 static DEVICE_ATTR(vol_up_btn_adc, 0666, vol_up_btn_adc_show,
 	vol_up_btn_adc_store);
 
@@ -591,8 +693,13 @@ static ssize_t vol_down_btn_adc_show(struct device *dev,
 	struct sec_jack_info *hi = dev_get_drvdata(dev);
 	int val[2]  = {0,};
 
-	val[0] = hi->pdata->jack_buttons_zones[2].adc_low;
-	val[1] = hi->pdata->jack_buttons_zones[2].adc_high;
+	if(hi->pdata->jack_buttons_zones[2].adc_low == hi->pdata->jack_buttons_zones[3].adc_low) {
+		val[0] = hi->pdata->jack_buttons_zones[2].adc_low;
+		val[1] = hi->pdata->jack_buttons_zones[2].adc_high;
+	} else {
+		val[0] = hi->pdata->jack_buttons_zones[3].adc_low;
+		val[1] = hi->pdata->jack_buttons_zones[3].adc_high;
+	}
 
 	return sprintf(buf, "%d %d\n",val[0],val[1]);
 }
@@ -613,16 +720,19 @@ static ssize_t vol_down_btn_adc_store(struct device *dev,
 	if(kstrtoint(token,0,&val[1]) != 0)
 		return -EINVAL;
 
-	hi->pdata->jack_buttons_zones[2].adc_low = val[0];
-	hi->pdata->jack_buttons_zones[2].adc_high = val[1];
+	if(hi->pdata->jack_buttons_zones[2].adc_low == hi->pdata->jack_buttons_zones[3].adc_low) {
+		hi->pdata->jack_buttons_zones[2].adc_low = val[0];
+		hi->pdata->jack_buttons_zones[2].adc_high = val[1];
+	} else {
+		hi->pdata->jack_buttons_zones[3].adc_low = val[0];
+		hi->pdata->jack_buttons_zones[3].adc_high = val[1];
+	}
 
 	return count;
 }
-
-
 static DEVICE_ATTR(vol_down_btn_adc, 0666, vol_down_btn_adc_show,
 	vol_down_btn_adc_store);
-#endif
+#endif /* CONFIG_EARJACK_ADC_SYSFS */
 
 #if defined (SEC_HEADSET_ADC_ADJUST)
 static int sec_jack_read_data( struct sec_jack_info *hi, char * filename )
@@ -689,8 +799,9 @@ read_data:
 	pdata->jack_zones[2].adc_high = adc_array[POLE4_LOW_ADC];
 	pdata->jack_zones[3].adc_high = adc_array[POLE4_MAX_ADC];
 	pdata->jack_buttons_zones[0].adc_high = adc_array[KEY_MEDIA_ADC];
-	pdata->jack_buttons_zones[1].adc_high = adc_array[KEY_VOLUME_UP_ADC];
-	pdata->jack_buttons_zones[2].adc_high = adc_array[KEY_VOLUME_DOWN_ADC];
+	pdata->jack_buttons_zones[1].adc_high = adc_array[KEY_VOICECOMMAND_ADC];
+	pdata->jack_buttons_zones[2].adc_high = adc_array[KEY_VOLUME_UP_ADC];
+	pdata->jack_buttons_zones[3].adc_high = adc_array[KEY_VOLUME_DOWN_ADC];
 
 	pr_info("%s : Read the ADC data file. size:%d\n", __func__, ret);
 	return 0;
@@ -727,8 +838,9 @@ static int sec_jack_write_data(struct sec_jack_info *hi, char * filename )
 	adc_array[POLE4_LOW_ADC] = pdata->jack_zones[2].adc_high;
 	adc_array[POLE4_MAX_ADC] = pdata->jack_zones[3].adc_high;
 	adc_array[KEY_MEDIA_ADC] = pdata->jack_buttons_zones[0].adc_high;
-	adc_array[KEY_VOLUME_UP_ADC] = pdata->jack_buttons_zones[1].adc_high;
-	adc_array[KEY_VOLUME_DOWN_ADC] = pdata->jack_buttons_zones[2].adc_high;
+	adc_array[KEY_VOICECOMMAND_ADC] = pdata->jack_buttons_zones[1].adc_high;
+	adc_array[KEY_VOLUME_UP_ADC] = pdata->jack_buttons_zones[2].adc_high;
+	adc_array[KEY_VOLUME_DOWN_ADC] = pdata->jack_buttons_zones[3].adc_high;
 
 	result = kmalloc( FILE_BUFFER_SIZE, GFP_KERNEL);
 	if( result == NULL ){
@@ -767,8 +879,7 @@ static void sec_jack_adcData_init (void)
 	is_init = false;
 	pr_info("%s : file path : %s \n", __func__, file_path);
 }
-#endif
-
+#endif /* SEC_HEADSET_ADC_ADJUST */
 
 static void sec_jack_timer_handler(unsigned long data)
 {
@@ -800,6 +911,9 @@ void sec_jack_detect_work(struct work_struct *work)
 	unsigned npolarity = !hi->pdata->det_active_high;
 	int time_left_ms;
 
+#ifdef CONFIG_SAMSUNG_JACK_WATCH_DOG_RESET_WORK_AROUND
+        disable_irq(hi->det_irq);
+#endif /* CONFIG_SAMSUNG_JACK_WATCH_DOG_RESET_WORK_AROUND */
 	if (pdata->fsa_en_gpio < 0)
 		time_left_ms = DET_CHECK_TIME_MS;
 	else
@@ -818,7 +932,18 @@ void sec_jack_detect_work(struct work_struct *work)
 		if (!(gpio_get_value(hi->pdata->det_gpio) ^ npolarity)) {
 			/* jack not detected. */
 			sec_jack_set_type(hi, SEC_JACK_NO_DEVICE);
+#ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
+			/* restore micbias to 2.8V */
+			msm8x16_wcd_dynamic_control_micbias(MIC_BIAS_V2P80V);
+#endif
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+			is_sec_earjack_on = false;
+			set_earjack_state();
+#endif
 			set_sec_micbias_state(hi, false);
+#ifdef CONFIG_SAMSUNG_JACK_WATCH_DOG_RESET_WORK_AROUND
+                       enable_irq(hi->det_irq);
+#endif /* CONFIG_SAMSUNG_JACK_WATCH_DOG_RESET_WORK_AROUND */
 			return;
 		}
 		usleep_range(10000, 10000);
@@ -827,6 +952,15 @@ void sec_jack_detect_work(struct work_struct *work)
 
 	/* jack presence was detected the whole time, figure out which type */
 	determine_jack_type(hi);
+#ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
+	/* Mic bias default 2.2V */
+	if (hi->cur_jack_type == SEC_HEADSET_4POLE)
+		msm8x16_wcd_dynamic_control_micbias(MIC_BIAS_V2P20V);
+#endif
+
+#ifdef CONFIG_SAMSUNG_JACK_WATCH_DOG_RESET_WORK_AROUND
+       enable_irq(hi->det_irq);
+#endif /* CONFIG_SAMSUNG_JACK_WATCH_DOG_RESET_WORK_AROUND */
 }
 
 /* thread run whenever the button of headset is pressed or released */
@@ -836,14 +970,17 @@ void sec_jack_buttons_work(struct work_struct *work)
 		container_of(work, struct sec_jack_info, buttons_work);
 	struct sec_jack_platform_data *pdata = hi->pdata;
 	struct sec_jack_buttons_zone *btn_zones = pdata->jack_buttons_zones;
-	int num_buttons_zones = ARRAY_SIZE(pdata->jack_buttons_zones);	
+	int num_buttons_zones = ARRAY_SIZE(pdata->jack_buttons_zones);
 	int adc;
 	int i;
 
-	pr_info("%s - BTN adc range - [%d %d] [%d %d] [%d %d]\n", __func__,
+	ear_adc_value = 0;
+
+	pr_info("%s - BTN adc range - [%d %d] [%d %d] [%d %d] [%d %d]\n", __func__,
 		btn_zones[0].adc_low, btn_zones[0].adc_high,
 		btn_zones[1].adc_low, btn_zones[1].adc_high,
-		btn_zones[2].adc_low, btn_zones[2].adc_high);
+		btn_zones[2].adc_low, btn_zones[2].adc_high,
+		btn_zones[3].adc_low, btn_zones[3].adc_high);
 
 	if (!hi->buttons_enable) {
 		pr_info("%s: BTN %d is skipped\n", __func__,
@@ -855,22 +992,34 @@ void sec_jack_buttons_work(struct work_struct *work)
 
 	/* when button is released */
 	if (hi->pressed == 0) {
+#ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
+		/* Mic bias must keep 2.8V when mic is enalbed */
+		if (!is_mic_enable())
+			msm8x16_wcd_dynamic_control_micbias(MIC_BIAS_V2P20V);
+#endif
 #if defined (SEC_USE_SOC_JACK_API)
 		hi->button_jack->jack->type = hi->btn_state;
 		snd_soc_jack_report_no_dapm(hi->button_jack, 0, SEC_JACK_BUTTON_MASK);
 		hi->button_jack->jack->type = SEC_JACK_BUTTON_MASK;
-#else
+#else /* SEC_USE_SOC_JACK_API */
 		input_report_key(hi->input_dev, hi->pressed_code, 0);
 		input_sync(hi->input_dev);
 		switch_set_state(&switch_sendend, 0);
-#endif
+#endif /* not SEC_USE_SOC_JACK_API */
 		pr_info("%s: BTN %d is released\n", __func__,
 			hi->pressed_code);
 		return;
 	}
 
 	/* when button is pressed */
-	adc = sec_jack_get_adc_value(hi);
+#ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
+	/* Mic bias is alreay 2.8V due to mic is enalbed */
+	if (!is_mic_enable())
+		msm8x16_wcd_dynamic_control_micbias(MIC_BIAS_V2P80V);
+#endif
+
+	adc = sec_jack_get_adc_value(hi, pdata->btn_adc_read_count);
+	ear_adc_value = adc;
 
 	for (i = 0; i < num_buttons_zones; i++)
 		if (adc >= btn_zones[i].adc_low &&
@@ -878,19 +1027,34 @@ void sec_jack_buttons_work(struct work_struct *work)
 			hi->pressed_code = btn_zones[i].code;
 #if defined (SEC_USE_SOC_JACK_API)
 			hi->btn_state = sec_soc_btn[i];
-			snd_soc_jack_report_no_dapm(hi->button_jack, 
+			snd_soc_jack_report_no_dapm(hi->button_jack,
 							hi->btn_state, SEC_JACK_BUTTON_MASK);
-#else
+#else /* SEC_USE_SOC_JACK_API */
 			input_report_key(hi->input_dev, btn_zones[i].code, 1);
 			input_sync(hi->input_dev);
 			switch_set_state(&switch_sendend, 1);
-#endif
+#endif /* not SEC_USE_SOC_JACK_API */
 			pr_info("%s: adc = %d, BTN %d is pressed\n", __func__,
 				adc, btn_zones[i].code);
 			return;
 		}
 
 	pr_warn("%s: key is skipped. ADC value is %d\n", __func__, adc);
+}
+
+int sec_jack_get_button_type(int arg)
+{
+	switch(arg) {
+	case 1:
+		return KEY_VOLUMEUP;
+	case 2:
+		return KEY_VOLUMEDOWN;
+	case 3:
+		return KEY_VOICECOMMAND;
+	case 0:
+	default:
+		return KEY_MEDIA;
+	}
 }
 
 static struct sec_jack_platform_data *sec_jack_populate_dt_pdata(struct device *dev)
@@ -932,8 +1096,8 @@ static struct sec_jack_platform_data *sec_jack_populate_dt_pdata(struct device *
 		pr_info("%s : No support FSA8038 chip\n", __func__);
 	else
 		pr_info("%s : earjack-fsa_en-gpio =%d\n", __func__, pdata->fsa_en_gpio);
-	
-	for( i=0; i<4; i++)
+
+	for( i = 0; i < 4; i++)
 	{
 		of_parse_phandle_with_args(dev->of_node, "det-zones-list","#list-det-cells", i, &args);
 		pdata->jack_zones[i].adc_high = args.args[0];
@@ -942,12 +1106,12 @@ static struct sec_jack_platform_data *sec_jack_populate_dt_pdata(struct device *
 		pdata->jack_zones[i].jack_type = args.args[3]==0?SEC_HEADSET_3POLE:SEC_HEADSET_4POLE;
 		pr_info("%s : %d, %d, %d, %d, %d \n",
 				__func__, args.args_count, args.args[0],
-				args.args[1], args.args[2],args.args[3]);		
+				args.args[1], args.args[2],args.args[3]);
 	}
-	for( i=0; i<3; i++)
+	for( i = 0; i < 4; i++)
 	{
 		of_parse_phandle_with_args(dev->of_node, "but-zones-list","#list-but-cells", i, &args);
-		pdata->jack_buttons_zones[i].code = args.args[0]==0?KEY_MEDIA:args.args[0]==1?KEY_VOLUMEUP:KEY_VOLUMEDOWN;
+		pdata->jack_buttons_zones[i].code = sec_jack_get_button_type(args.args[0]);
 		pdata->jack_buttons_zones[i].adc_low = args.args[1];
 		pdata->jack_buttons_zones[i].adc_high = args.args[2];
 		pr_info("%s : %d, %d, %d, %d\n",
@@ -955,9 +1119,13 @@ static struct sec_jack_platform_data *sec_jack_populate_dt_pdata(struct device *
 				args.args[1], args.args[2]);
 	}
 
+	if (of_property_read_u32(dev->of_node, "btn-adc-read-count", &pdata->btn_adc_read_count))
+		pdata->btn_adc_read_count = ADC_SAMPLE_CNT;
+	pr_info("%s - btn-adc-read-count - %d\n", __func__, pdata->btn_adc_read_count);
+
 	if (of_find_property(dev->of_node, "qcom,send-end-active-high", NULL))
 		pdata->send_end_active_high = true;
-		
+
 	ret = of_property_read_u32_array(dev->of_node, "mpp-channel-scaling", pdata->mpp_ch_scale, 3);
 	if (ret < 0) {
 		pr_err("%s : cannot find mpp-channel-scaling in the dt - using default MPP6_1_3\n",
@@ -1023,7 +1191,7 @@ int sec_jack_soc_init(struct snd_soc_card *card)
 	return 0;
 }
 EXPORT_SYMBOL(sec_jack_soc_init);
-#endif
+#endif /* SEC_USE_SOC_JACK_API */
 
 extern bool is_codec_probe_done(void);
 
@@ -1135,6 +1303,12 @@ static int sec_jack_probe(struct platform_device *pdev)
 	if (ret)
 		pr_err("Failed to create device file in sysfs entries(%s)!\n",
 			dev_attr_state.attr.name);
+
+	ret = device_create_file(earjack, &dev_attr_mic_adc);
+	if (ret)
+		pr_err("Failed to create device file in sysfs entries(%s)!\n",
+			dev_attr_key_state.attr.name);
+
 #if defined (CONFIG_EARJACK_ADC_SYSFS)
 	ret = device_create_file(earjack, &dev_attr_jack_adc);
 	if (ret)
@@ -1146,6 +1320,11 @@ static int sec_jack_probe(struct platform_device *pdev)
 		pr_err("Failed to create device file in sysfs entries(%s)!\n",
 			dev_attr_send_end_btn_adc.attr.name);
 
+	ret = device_create_file(earjack, &dev_attr_voicecommand_btn_adc);
+	if (ret)
+		pr_err("Failed to create device file in sysfs entries(%s)!\n",
+			dev_attr_voicecommand_btn_adc.attr.name);
+
 	ret = device_create_file(earjack, &dev_attr_vol_up_btn_adc);
 	if (ret)
 		pr_err("Failed to create device file in sysfs entries(%s)!\n",
@@ -1155,7 +1334,7 @@ static int sec_jack_probe(struct platform_device *pdev)
 	if (ret)
 		pr_err("Failed to create device file in sysfs entries(%s)!\n",
 			dev_attr_vol_down_btn_adc.attr.name);
-#endif
+#endif /* CONFIG_EARJACK_ADC_SYSFS */
 	setup_timer(&hi->timer, sec_jack_timer_handler, (unsigned long)hi);
 
 	INIT_WORK(&hi->buttons_work, sec_jack_buttons_work);
@@ -1189,7 +1368,7 @@ static int sec_jack_probe(struct platform_device *pdev)
 	hi->button_jack = &btn_jack;
 	hi->btn_state = 0;
 	hi->hset_state = 0;
-#endif
+#endif /* SEC_USE_SOC_JACK_API */
 	ret = input_register_handler(&hi->handler);
 	if (ret) {
 		pr_err("%s : Failed to register_handler\n", __func__);
@@ -1219,7 +1398,7 @@ static int sec_jack_probe(struct platform_device *pdev)
 
 #if defined (SEC_HEADSET_ADC_ADJUST)
 	sec_jack_adcData_init();
-#endif
+#endif /* SEC_HEADSET_ADC_ADJUST */
 
 	return 0;
 
@@ -1234,14 +1413,16 @@ err_create_buttons_wq_failed:
 err_create_wq_failed:
 	device_remove_file(earjack, &dev_attr_state);
 	device_remove_file(earjack, &dev_attr_key_state);
+	device_remove_file(earjack, &dev_attr_mic_adc);
 #if defined (CONFIG_EARJACK_ADC_SYSFS)
 	device_remove_file(earjack, &dev_attr_jack_adc);
 	device_remove_file(earjack, &dev_attr_send_end_btn_adc);
+	device_remove_file(earjack, &dev_attr_send_end_btn_adc);
 	device_remove_file(earjack, &dev_attr_vol_up_btn_adc);
 	device_remove_file(earjack, &dev_attr_vol_down_btn_adc);
-#endif
+#endif /* CONFIG_EARJACK_ADC_SYSFS */
 	device_destroy(audio, 0);
-	class_destroy(audio);	
+	class_destroy(audio);
 	wake_lock_destroy(&hi->det_wake_lock);
 	switch_dev_unregister(&switch_jack_detection);
 	switch_dev_unregister(&switch_sendend);
@@ -1307,7 +1488,7 @@ static int sec_jack_resume(struct device *dev)
 }
 
 static SIMPLE_DEV_PM_OPS(sec_jack_pm_ops, sec_jack_suspend, sec_jack_resume);
-#endif
+#endif /* CONFIG_PM */
 
 static const struct of_device_id sec_jack_dt_match[] = {
 	{ .compatible = "sec_jack" },
@@ -1323,7 +1504,7 @@ static struct platform_driver sec_jack_driver = {
 		.owner = THIS_MODULE,
 #ifdef CONFIG_PM
 		.pm	= &sec_jack_pm_ops,
-#endif
+#endif /* CONFIG_PM */
 		.of_match_table = sec_jack_dt_match,
 	},
 };

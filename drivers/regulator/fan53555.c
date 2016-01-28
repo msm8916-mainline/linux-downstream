@@ -560,7 +560,6 @@ static int fan53555_regulator_probe(struct i2c_client *client,
 	unsigned int val;
 	int ret;
 
-	pr_info("[BATT]fan53555_regulator_probe Start!\n");
 	if (client->dev.of_node)
 		pdata = fan53555_get_of_platform_data(client);
 	else

@@ -75,6 +75,7 @@ enum MODE {
 #endif
 	MOVIE_MODE,
 	AUTO_MODE,
+	READING_MODE,
 	MAX_MODE,
 };
 
@@ -183,6 +184,7 @@ struct mdnie_lite_tune_data {
 	struct dsi_cmd_desc *DSI0_NEGATIVE_MDNIE;
 	struct dsi_cmd_desc *DSI0_COLOR_BLIND_MDNIE;
 	struct dsi_cmd_desc *DSI0_HBM_CE_MDNIE;
+	struct dsi_cmd_desc *DSI0_HBM_CE_TEXT_MDNIE;
 	struct dsi_cmd_desc *DSI0_RGB_SENSOR_MDNIE;
 	struct dsi_cmd_desc *DSI0_CURTAIN;
 	struct dsi_cmd_desc *DSI0_GRAYSCALE_MDNIE;

@@ -64,7 +64,7 @@
 		qcom,mdss-dsi-bl-max-level = <255>;
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
-		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_ap_pwm";
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_ss_pwm";
 		samsung,tft-common-support;
 		samsung,backlight-gpio-config;
 		samsung,backlight-pwm-ap-support;
@@ -130,17 +130,20 @@
 			};
 		};
 	};
-	i2c@24 {
+	i2c_24: i2c@24 {
+
 		cell-index = <24>;
 		compatible = "i2c-gpio";
-		gpios = <&msm_gpio 24 0 /* sda */
-			&msm_gpio 25 0 /* scl */
-		>;
-
+		i2c-gpio-scl = <&msm_gpio 25  0x00>; /*scl gpio*/
+		i2c-gpio-sda = <&msm_gpio 24 0x00>;  /*sda gpio*/
 		i2c-gpio,delay-us = <4>;
 		lp8556_backlight@2C {
 			compatible = "lp8556,backlight-control";
 			reg = <0x2C>;
+			lp8556,scl-gpio = <&msm_gpio 25 0x00>;
+			lp8556,sda-gpio = <&msm_gpio 24 0x00>;
+			backlight-en-gpio = <&msm_gpio 69 0x00>;
+			backlight-pwm-gpio = <&msm_gpio 51 0x00>;
 		};
 	};
 };

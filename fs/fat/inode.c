@@ -1278,7 +1278,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
 	sbi = kzalloc(sizeof(struct msdos_sb_info), GFP_KERNEL);
 	if (!sbi) {
 		fat_msg(sb, KERN_ERR, "failed to mount! (ENOMEM)");
-		ST_LOG("<%s> failed to mount! %d:%d (ENOMEM)",__func__,MAJOR(sb->s_dev),MINOR(sb->s_dev));
+		ST_LOG("<%s> failed to mount! %d:%d (ENOMEM)", __func__, MAJOR(sb->s_dev), MINOR(sb->s_dev));
 		return -ENOMEM;
 	}
 	sb->s_fs_info = sbi;

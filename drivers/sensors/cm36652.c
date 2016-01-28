@@ -34,7 +34,7 @@
 #include <linux/of_gpio.h>
 #include <linux/regulator/consumer.h>
 #include "cm36652.h"
-#include "sensors_core.h"
+#include <linux/sensor/sensors_core.h>
 
 /* For debugging */
 #undef	cm36652_DEBUG
@@ -494,30 +494,32 @@ static int cm36652_leden_gpio_onoff(struct cm36652_data *cm36652, bool onoff)
 		msleep(20);
 	return 0;
 }
-#else
-static int prox_led_onoff(struct cm36652_data *cm36652, bool onoff)
-{
-#if !defined(CONFIG_SEC_ATLANTIC3G_COMMON)
-	int ret;
-	struct regulator *leda;
-
-	leda = devm_regulator_get(&cm36652->i2c_client->dev, "reg_leda");
-	if (IS_ERR(leda)) {
-		pr_err("%s: regulator pointer null leda fail\n", __func__);
-		return -ENOMEM;
-	}
-
-	if (onoff)
-		ret = regulator_enable(leda);
-	else
-		ret = regulator_disable(leda);
-
-	devm_regulator_put(leda);
-	msleep(20);
-	return 0;
-#else
-	return 0;
 #endif
+
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+static int cm36652_setup_sensoren_gpio(struct cm36652_data *cm36652)
+{
+	int rc;
+	struct cm36652_platform_data *pdata = cm36652->pdata;
+
+	rc = gpio_request(pdata->sensoren_gpio, "sensor_en");
+	if (rc < 0) {
+		pr_err("%s: gpio %d request failed (%d)\n",
+			__func__, pdata->sensoren_gpio, rc);
+	}
+	gpio_direction_output(pdata->sensoren_gpio, 1);
+	pr_info("%s: gpio %d request success\n", __func__, pdata->sensoren_gpio);
+	return rc;
+}
+
+static int cm36652_sensoren_gpio_onoff(struct cm36652_data *cm36652, bool onoff)
+{
+	struct cm36652_platform_data *pdata = cm36652->pdata;
+	gpio_set_value(pdata->sensoren_gpio, onoff);
+	pr_info("%s onoff:%d\n", __func__, onoff);
+	if (onoff)
+		msleep(20);
+	return 0;
 }
 #endif
 
@@ -546,8 +548,9 @@ static ssize_t proximity_enable_store(struct device *dev,
 		cm36652->power_state |= PROXIMITY_ENABLED;
 #if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
 		cm36652_leden_gpio_onoff(cm36652, 1);
-#else
-		prox_led_onoff(cm36652, 1);
+#endif
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+		cm36652_sensoren_gpio_onoff(cm36652, 1);
 #endif
 #ifdef CM36652_CANCELATION
 		/* open cancelation data */
@@ -580,8 +583,9 @@ static ssize_t proximity_enable_store(struct device *dev,
 		cm36652_i2c_write_word(cm36652, REG_PS_CONF1, 0x0001);
 #if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
 		cm36652_leden_gpio_onoff(cm36652, 0);
-#else
-		prox_led_onoff(cm36652, 0);
+#endif
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+		cm36652_sensoren_gpio_onoff(cm36652, 0);
 #endif
 	}
 	mutex_unlock(&cm36652->power_lock);
@@ -679,8 +683,9 @@ static ssize_t proximity_avg_store(struct device *dev,
 		if (!(cm36652->power_state & PROXIMITY_ENABLED)) {
 #if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
 			cm36652_leden_gpio_onoff(cm36652, 1);
-#else
-			prox_led_onoff(cm36652, 1);
+#endif
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+			cm36652_sensoren_gpio_onoff(cm36652, 1);
 #endif
 			cm36652_i2c_write_word(cm36652, REG_PS_CONF1,
 				ps_reg_init_setting[PS_CONF1][CMD]);
@@ -695,8 +700,9 @@ static ssize_t proximity_avg_store(struct device *dev,
 				0x0001);
 #if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
 			cm36652_leden_gpio_onoff(cm36652, 0);
-#else
-			prox_led_onoff(cm36652, 0);
+#endif
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+			cm36652_sensoren_gpio_onoff(cm36652, 0);
 #endif
 		}
 	}
@@ -715,8 +721,9 @@ static ssize_t proximity_state_show(struct device *dev,
 	if (!(cm36652->power_state & PROXIMITY_ENABLED)) {
 #if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
 		cm36652_leden_gpio_onoff(cm36652, 1);
-#else
-		prox_led_onoff(cm36652, 1);
+#endif
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+		cm36652_sensoren_gpio_onoff(cm36652, 1);
 #endif
 		pr_info("%s prox_led_on\n", __func__);
 		cm36652_i2c_write_word(cm36652, REG_PS_CONF1,
@@ -731,8 +738,9 @@ static ssize_t proximity_state_show(struct device *dev,
 		cm36652_i2c_write_word(cm36652, REG_PS_CONF1, 0x0001);
 #if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
 		cm36652_leden_gpio_onoff(cm36652, 0);
-#else
-		prox_led_onoff(cm36652, 0);
+#endif
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+		cm36652_sensoren_gpio_onoff(cm36652, 0);
 #endif
 	}
 	mutex_unlock(&cm36652->power_lock);
@@ -1121,6 +1129,14 @@ static int cm36652_parse_dt(struct device *dev,
 		return -ENODEV;
 	}
 #endif
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+	pdata->sensoren_gpio = of_get_named_gpio_flags(np, "cm36652,en-gpio", 0,
+		&flags);
+	if (pdata->sensoren_gpio < 0) {
+		pr_err("[SENSOR]: %s - get prox_sensoren_gpio error\n", __func__);
+		return -ENODEV;
+	}
+#endif
 
 	ret = of_property_read_u32(np, "cm36652,default_hi_thd",
 	&pdata->default_hi_thd);
@@ -1225,6 +1241,7 @@ err_vdd:
 	return ret;
 }
 
+#if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
 static int cm36652_pin_ctrl(struct device *dev)
 {
 	int ret;
@@ -1268,7 +1285,7 @@ exit:
 
 	return ret;
 }
-
+#endif
 static int cm36652_i2c_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
@@ -1332,8 +1349,15 @@ static int cm36652_i2c_probe(struct i2c_client *client,
 		goto err_setup_leden_gpio;
 	}
 	cm36652_leden_gpio_onoff(cm36652, 1);
-#else
-	prox_led_onoff(cm36652, 1);
+#endif
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+	/* setup sensoren_gpio */
+	ret = cm36652_setup_sensoren_gpio(cm36652);
+	if (ret) {
+		pr_err("%s: could not setup sensoren_gpio\n", __func__);
+		goto err_setup_sensoren_gpio;
+	}
+	cm36652_sensoren_gpio_onoff(cm36652, 1);
 #endif
 
 	/* Check if the device is there or not. */
@@ -1351,12 +1375,14 @@ static int cm36652_i2c_probe(struct i2c_client *client,
 		goto err_setup_reg;
 	}
 
+#if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
+
 	cm36652_pin_ctrl(&client->dev);
 
-#if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
 	cm36652_leden_gpio_onoff(cm36652, 0);
-#else
-	prox_led_onoff(cm36652, 0);
+#endif
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+	cm36652_sensoren_gpio_onoff(cm36652, 0);
 #endif
 
 	/* allocate proximity input_device */
@@ -1530,12 +1556,15 @@ err_sensors_create_symlink_prox:
 err_input_register_device_proximity:
 err_input_allocate_device_proximity:
 err_setup_reg:
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+	cm36652_sensoren_gpio_onoff(cm36652, 0);
+	gpio_free(cm36652->pdata->sensoren_gpio);
+err_setup_sensoren_gpio:
+#endif
 #if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
 	cm36652_leden_gpio_onoff(cm36652, 0);
 	gpio_free(cm36652->pdata->leden_gpio);
 err_setup_leden_gpio:
-#else
-	prox_led_onoff(cm36652, 0);
 #endif
 	wake_lock_destroy(&cm36652->prx_wake_lock);
 	mutex_destroy(&cm36652->read_lock);
@@ -1590,8 +1619,10 @@ static int cm36652_i2c_remove(struct i2c_client *client)
 #if defined(CONFIG_SENSORS_CM36652_LEDA_EN_GPIO)
 	cm36652_leden_gpio_onoff(cm36652, 0);
 	gpio_free(cm36652->pdata->leden_gpio);
-#else
-	prox_led_onoff(cm36652, 0);
+#endif
+#if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+	cm36652_sensoren_gpio_onoff(cm36652, 0);
+	gpio_free(cm36652->pdata->sensoren_gpio);
 #endif
 
 	/* lock destroy */

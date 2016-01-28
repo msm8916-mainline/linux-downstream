@@ -42,6 +42,8 @@ static enum power_supply_property rt5033_fuelgauge_props[] = {
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_TEMP_AMBIENT,
+	POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN,
+	POWER_SUPPLY_PROP_CHARGE_TYPE,
 };
 
 static int offset_li(int voltNR, int tempNR,
@@ -393,7 +395,7 @@ static unsigned int fg_get_avg_volt(struct i2c_client *client)
 	ret = rt5033_fg_i2c_read_word(client, RT5033_AVG_VOLT_MSB);
 	if (ret<0) {
 		pr_err("%s: read vbat fail", __func__);
-		avg_volt = 4000;
+		avg_volt = -1;
 	} else {
 		avg_volt = (ret&0xfff0)>>4;
 		avg_volt = avg_volt * 125 / 100;
@@ -1402,8 +1404,34 @@ static void sec_fg_get_atomic_capacity(
 	fuelgauge->capacity_old = val->intval;
 }
 
+static int sec_fg_check_capacity_max(
+				struct sec_fuelgauge_info *fuelgauge, int capacity_max)
+{
+	int new_capacity_max = capacity_max;
+
+	if (new_capacity_max < (fuelgauge->pdata->capacity_max -
+			fuelgauge->pdata->capacity_max_margin - 10)) {
+		new_capacity_max =
+			(fuelgauge->pdata->capacity_max -
+			fuelgauge->pdata->capacity_max_margin);
+
+		dev_info(&fuelgauge->client->dev, "%s: set capacity max(%d --> %d)\n",
+			__func__, capacity_max, new_capacity_max);
+	} else if (new_capacity_max > (fuelgauge->pdata->capacity_max +
+			fuelgauge->pdata->capacity_max_margin)) {
+		new_capacity_max =
+			(fuelgauge->pdata->capacity_max +
+			fuelgauge->pdata->capacity_max_margin);
+
+		dev_info(&fuelgauge->client->dev, "%s: set capacity max(%d --> %d)\n",
+			__func__, capacity_max, new_capacity_max);
+	}
+
+	return new_capacity_max;
+}
+
 static int sec_fg_calculate_dynamic_scale(
-				struct sec_fuelgauge_info *fuelgauge)
+				struct sec_fuelgauge_info *fuelgauge, int capacity)
 {
 	union power_supply_propval raw_soc_val;
 
@@ -1434,11 +1462,16 @@ static int sec_fg_calculate_dynamic_scale(
 			__func__, fuelgauge->capacity_max);
 	}
 
-	fuelgauge->capacity_max =
-		(fuelgauge->capacity_max * 99 / 100);
+	if (capacity != 100) {
+		fuelgauge->capacity_max = sec_fg_check_capacity_max(
+			fuelgauge, (fuelgauge->capacity_max * 100 / capacity));
+	} else  {
+		fuelgauge->capacity_max =
+			(fuelgauge->capacity_max * 99 / 100);
+	}
 
 	/* update capacity_old for sec_fg_get_atomic_capacity algorithm */
-	fuelgauge->capacity_old = 100;
+	fuelgauge->capacity_old = capacity;
 
 	dev_info(&fuelgauge->client->dev, "%s: %d is used for capacity_max\n",
 		__func__, fuelgauge->capacity_max);
@@ -1507,6 +1540,25 @@ static int rt5033_get_current_average(struct i2c_client *client)
 	}
 
 	return curr_avg;
+}
+
+void rt5033_fg_reset_capacity_by_jig_connection(struct i2c_client *client)
+{
+	struct sec_fuelgauge_info *fuelgauge = i2c_get_clientdata(client);
+	union power_supply_propval value;
+	int ret = 0;
+
+	ret = rt5033_fg_i2c_read_word(fuelgauge->client, RT5033_CONFIG_MSB);
+	pr_info("%s : Before jig attached. 0x0C = 0x%x\n", __func__, ret);
+	ret |= 0x0004;
+	rt5033_fg_i2c_write_word(fuelgauge->client, RT5033_CONFIG_MSB, ret);
+	ret = rt5033_fg_i2c_read_word(fuelgauge->client, RT5033_CONFIG_MSB);
+	pr_info("%s : Jig attached. 0x0C = 0x%x\n", __func__, ret);
+
+	/* If JIG is attached, the voltage is set as 1079 */
+	value.intval = 1079;
+	psy_do_property("battery", set,
+			POWER_SUPPLY_PROP_VOLTAGE_NOW, value);
 }
 
 bool sec_hal_fg_get_property(struct i2c_client *client,
@@ -1644,8 +1696,12 @@ static int rt5033_fg_get_property(struct power_supply *psy,
 				sec_fg_get_atomic_capacity(fuelgauge, val);
 		}
 		break;
+	case POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN:
+		val->intval = fuelgauge->capacity_max;
+		break;
 	case POWER_SUPPLY_PROP_STATUS:
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
+	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		return -ENODATA;
 	default:
 		return -EINVAL;
@@ -1686,11 +1742,14 @@ static int rt5033_fg_set_property(struct power_supply *psy,
 			sec_hal_fg_full_charged(fuelgauge->client);
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
-		if (val->intval == POWER_SUPPLY_TYPE_BATTERY) {
-			if (fuelgauge->pdata->capacity_calculation_type &
-				SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE)
-				sec_fg_calculate_dynamic_scale(fuelgauge);
-		}
+		if (fuelgauge->pdata->capacity_calculation_type &
+			SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE) {
+#if defined(CONFIG_PREVENT_SOC_JUMP)
+			sec_fg_calculate_dynamic_scale(fuelgauge, val->intval);
+#else
+			sec_fg_calculate_dynamic_scale(fuelgauge, 100);
+#endif
+	}
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
 		fuelgauge->cable_type = val->intval;
@@ -1698,19 +1757,29 @@ static int rt5033_fg_set_property(struct power_supply *psy,
 			fuelgauge->is_charging = false;
 		else
 			fuelgauge->is_charging = true;
+		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RESET) {
 			fuelgauge->initial_update_of_soc = true;
 			if (!sec_hal_fg_reset(fuelgauge->client))
 				return -EINVAL;
-			else
-				break;
 		}
+		break;
 	case POWER_SUPPLY_PROP_TEMP:
 	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
 		if (!sec_hal_fg_set_property(fuelgauge->client, psp, val))
 			return -EINVAL;
 		break;
+	case POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN:
+		dev_info(&fuelgauge->client->dev,
+				"%s: capacity_max changed, %d -> %d\n",
+				__func__, fuelgauge->capacity_max, val->intval);
+		fuelgauge->capacity_max = sec_fg_check_capacity_max(fuelgauge, val->intval);
+		fuelgauge->initial_update_of_soc = true;
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_TYPE:
+		rt5033_fg_reset_capacity_by_jig_connection(fuelgauge->client);
+        break;
 	default:
 		return -EINVAL;
 	}
@@ -1983,13 +2052,13 @@ static int rt5033_fuelgauge_probe(struct i2c_client *client,
 	fuelgauge->psy_fg.properties	= rt5033_fuelgauge_props;
 	fuelgauge->psy_fg.num_properties =
 		ARRAY_SIZE(rt5033_fuelgauge_props);
-        fuelgauge->capacity_max = fuelgauge->pdata->capacity_max;
-        raw_soc_val.intval = SEC_FUELGAUGE_CAPACITY_TYPE_RAW;
-        sec_hal_fg_get_property(fuelgauge->client,
-                POWER_SUPPLY_PROP_CAPACITY, &raw_soc_val);
-        raw_soc_val.intval /= 10;
-        if(raw_soc_val.intval > fuelgauge->pdata->capacity_max)
-                sec_fg_calculate_dynamic_scale(fuelgauge);
+    fuelgauge->capacity_max = fuelgauge->pdata->capacity_max;
+    raw_soc_val.intval = SEC_FUELGAUGE_CAPACITY_TYPE_RAW;
+    sec_hal_fg_get_property(fuelgauge->client,
+            POWER_SUPPLY_PROP_CAPACITY, &raw_soc_val);
+    raw_soc_val.intval /= 10;
+    if(raw_soc_val.intval > fuelgauge->pdata->capacity_max)
+			sec_fg_calculate_dynamic_scale(fuelgauge, 100);
 
 	ret = power_supply_register(&client->dev, &fuelgauge->psy_fg);
 	if (ret) {
@@ -2044,6 +2113,8 @@ static int rt5033_fuelgauge_probe(struct i2c_client *client,
 	}
 
 	fuelgauge->initial_update_of_soc = true;
+	if (sec_bat_check_jig_status())
+		rt5033_fg_reset_capacity_by_jig_connection(client);
 
 	ret = rt5033_create_attrs(fuelgauge->psy_fg.dev);
 	if (ret) {

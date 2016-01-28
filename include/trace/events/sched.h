@@ -302,7 +302,7 @@ TRACE_EVENT(sched_update_history,
 		__field(	 int,	samples			)
 		__field(enum task_event,	evt		)
 		__field(unsigned int,	demand			)
-		__array(         u32,	hist, RAVG_HIST_SIZE_MAX)
+		__array(	 u32,	hist, RAVG_HIST_SIZE_MAX)
 		__field(unsigned int,	nr_big_tasks		)
 		__field(unsigned int,	nr_small_tasks		)
 		__field(	 int,	cpu			)

@@ -774,6 +774,8 @@ do {									       \
 	if (EXT4_FITS_IN_INODE(raw_inode, einode, xtime))		       \
 		(einode)->xtime.tv_sec = 				       \
 			(signed)le32_to_cpu((raw_inode)->xtime);	       \
+	else								       \
+		(einode)->xtime.tv_sec = 0;				       \
 	if (EXT4_FITS_IN_INODE(raw_inode, einode, xtime ## _extra))	       \
 		ext4_decode_extra_time(&(einode)->xtime,		       \
 				       raw_inode->xtime ## _extra);	       \
@@ -1186,6 +1188,7 @@ struct ext4_sb_info {
 	unsigned int s_mount_flags;
 	unsigned int s_def_mount_opt;
 	ext4_fsblk_t s_sb_block;
+	atomic64_t s_r_blocks_count;
 	atomic64_t s_resv_clusters;
 	kuid_t s_resuid;
 	kgid_t s_resgid;
@@ -2261,12 +2264,13 @@ extern int ext4_register_li_request(struct super_block *sb,
 				    ext4_group_t first_not_zeroed);
 /* for debugging, sangwoo2.lee */
 extern void print_iloc_info(struct super_block *sb,
-						struct ext4_iloc iloc);
+				struct ext4_iloc iloc);
 extern void print_bh(struct super_block *sb,
-		                  struct buffer_head *bh, int start, int len);
+                  struct buffer_head *bh, int start, int len);
 extern void print_block_data(struct super_block *sb, sector_t blocknr,
-		                  unsigned char *data_to_dump, int start, int len);
+                  unsigned char *data_to_dump, int start, int len);
 /* for debugging */
+
 static inline int ext4_has_group_desc_csum(struct super_block *sb)
 {
 	return EXT4_HAS_RO_COMPAT_FEATURE(sb,

@@ -1,4 +1,5 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/*
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -270,7 +271,7 @@ static void __iomem *virt_dbgbase;
 #define CAMSS_TOP_AHB_CMD_RCGR				0x5A000
 #define BIMC_GFX_CBCR					0x31024
 #define BIMC_GPU_CBCR					0x31040
-
+#define SNOC_QOSGEN					0x2601C
 #define APCS_CCI_PLL_MODE				0x00000
 #define APCS_CCI_PLL_L_VAL				0x00004
 #define APCS_CCI_PLL_M_VAL				0x00008
@@ -524,6 +525,7 @@ static struct pll_freq_tbl apcs_c1_pll_freq[] = {
 	F_APCS_PLL(1190400000, 62, 0x0, 0x1, 0x0, 0x0, 0x0),
 	F_APCS_PLL(1267200000, 66, 0x0, 0x1, 0x0, 0x0, 0x0),
 	F_APCS_PLL(1344000000, 70, 0x0, 0x1, 0x0, 0x0, 0x0),
+	F_APCS_PLL(1363200000, 71, 0x0, 0x1, 0x0, 0x0, 0x0),
 	F_APCS_PLL(1420800000, 74, 0x0, 0x1, 0x0, 0x0, 0x0),
 	F_APCS_PLL(1497600000, 78, 0x0, 0x1, 0x0, 0x0, 0x0),
 	F_APCS_PLL(1536000000, 80, 0x0, 0x1, 0x0, 0x0, 0x0),
@@ -1245,8 +1247,8 @@ static struct rcg_clk csi1phytimer_clk_src = {
 static struct clk_freq_tbl ftbl_gcc_camss_cpp_clk[] = {
 	F( 160000000,	   gpll0_out_main,   5,	  0,	0),
 	F( 200000000,      gpll0_out_main,   4,   0,    0),
-	F( 228500000,      gpll0_out_main, 3.5,   0,    0),
-	F( 266000000,      gpll0_out_main,   3,   0,    0),
+	F( 228570000,      gpll0_out_main, 3.5,   0,    0),
+	F( 266670000,      gpll0_out_main,   3,   0,    0),
 	F( 320000000,	   gpll0_out_main, 2.5,	  0,	0),
 	F( 465000000,	   gpll2_out_main,   2,	  0,	0),
 	F_END
@@ -1409,11 +1411,7 @@ static struct rcg_clk mdp_clk_src = {
 	.c = {
 		.dbg_name = "mdp_clk_src",
 		.ops = &clk_ops_rcg,
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-		VDD_DIG_FMAX_MAP3(LOW, 100000000, NOMINAL, 307200000, HIGH,
-#else
 		VDD_DIG_FMAX_MAP3(LOW, 153600000, NOMINAL, 307200000, HIGH,
-#endif
 			366670000),
 		CLK_INIT(mdp_clk_src.c),
 	},
@@ -2942,6 +2940,20 @@ static struct pll_config_regs gpll4_regs = {
 	.base = &virt_bases[GCC_BASE],
 };
 
+static struct gate_clk gcc_snoc_qosgen_clk = {
+	.en_mask = BIT(0),
+	.en_reg = SNOC_QOSGEN,
+	.base = &virt_bases[GCC_BASE],
+	.c = {
+		.dbg_name = "gcc_snoc_qosgen_clk",
+		.ops = &clk_ops_gate,
+		.flags = CLKFLAG_SKIP_HANDOFF,
+		CLK_INIT(gcc_snoc_qosgen_clk.c),
+	},
+};
+
+
+
 static struct mux_clk gcc_debug_mux;
 static struct clk_ops clk_ops_debug_mux;
 
@@ -3273,19 +3285,15 @@ static struct clk_lookup msm_clocks_lookup[] = {
 	CLK_LIST(gcc_bimc_gfx_clk),
 	CLK_LIST(gcc_bimc_gpu_clk),
 	CLK_LIST(wcnss_m_clk),
-};
 
-static struct clk_lookup msm_clocks_gcc_8936_crypto[] = {
 	/* Crypto clocks */
-	CLK_LOOKUP_OF("core_clk",     gcc_crypto_clk,      "scm"),
-	CLK_LOOKUP_OF("iface_clk",    gcc_crypto_ahb_clk,  "scm"),
-	CLK_LOOKUP_OF("bus_clk",      gcc_crypto_axi_clk,  "scm"),
-	CLK_LOOKUP_OF("core_clk_src", crypto_clk_src,      "scm"),
+	CLK_LIST(gcc_crypto_clk),
+	CLK_LIST(gcc_crypto_ahb_clk),
+	CLK_LIST(gcc_crypto_axi_clk),
+	CLK_LIST(crypto_clk_src),
 
-	CLK_LOOKUP_OF("core_clk", 	gcc_crypto_clk, 	"mcd"),
-	CLK_LOOKUP_OF("iface_clk", 	gcc_crypto_ahb_clk, "mcd"),
-	CLK_LOOKUP_OF("bus_clk", 	gcc_crypto_axi_clk, "mcd"),
-	CLK_LOOKUP_OF("core_clk_src", crypto_clk_src, 	"mcd"),
+	/* QoS Reference clock */
+	CLK_LIST(gcc_snoc_qosgen_clk),
 };
 
 /* Please note that the order of reg-names is important */
@@ -3402,12 +3410,6 @@ static int msm_gcc_probe(struct platform_device *pdev)
 	ret = of_msm_clock_register(pdev->dev.of_node,
 				msm_clocks_lookup,
 				ARRAY_SIZE(msm_clocks_lookup));
-	if (ret)
-		return ret;
-
-	ret = of_msm_clock_register(pdev->dev.of_node,
-				 msm_clocks_gcc_8936_crypto,
-				 ARRAY_SIZE(msm_clocks_gcc_8936_crypto));
 	if (ret)
 		return ret;
 

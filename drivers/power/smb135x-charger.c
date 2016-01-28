@@ -27,6 +27,7 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/regulator/machine.h>
+#include <linux/pinctrl/consumer.h>
 
 #define SMB135X_BITS_PER_REG	8
 
@@ -60,6 +61,9 @@
 #define RECHARGE_200MV_BIT		BIT(2)
 #define USB_2_3_BIT			BIT(5)
 
+#define CFG_A_REG			0x0A
+#define DCIN_INPUT_MASK			SMB135X_MASK(4, 0)
+
 #define CFG_C_REG			0x0C
 #define USBIN_INPUT_MASK		SMB135X_MASK(4, 0)
 
@@ -68,9 +72,6 @@
 #define CFG_E_REG			0x0E
 #define POLARITY_100_500_BIT		BIT(2)
 #define USB_CTRL_BY_PIN_BIT		BIT(1)
-
-#define CFG_10_REG			0x11
-#define DCIN_INPUT_MASK			SMB135X_MASK(4, 0)
 
 #define CFG_11_REG			0x11
 #define PRIORITY_BIT			BIT(7)
@@ -333,6 +334,8 @@ struct smb135x_chg {
 	int				dc_current_arr_size;
 	int				*dc_current_table;
 	bool				inhibit_disabled;
+	int				fastchg_current_arr_size;
+	int				*fastchg_current_table;
 	u8				irq_cfg_mask[3];
 	int				otg_oc_count;
 
@@ -343,6 +346,7 @@ struct smb135x_chg {
 	/* psy */
 	struct power_supply		*usb_psy;
 	int				usb_psy_ma;
+	int				real_usb_psy_ma;
 	struct power_supply		batt_psy;
 	struct power_supply		dc_psy;
 	struct power_supply		parallel_psy;
@@ -379,6 +383,9 @@ struct smb135x_chg {
 	unsigned int			therm_lvl_sel;
 	unsigned int			*thermal_mitigation;
 	struct mutex			current_change_lock;
+
+	const char			*pinctrl_state_name;
+	struct pinctrl			*smb_pinctrl;
 };
 
 #define RETRY_COUNT 5
@@ -791,6 +798,41 @@ static int usb_current_table_smb1356[] = {
 	1800
 };
 
+static int fastchg_current_table[] = {
+	300,
+	400,
+	450,
+	475,
+	500,
+	550,
+	600,
+	650,
+	700,
+	900,
+	950,
+	1000,
+	1100,
+	1200,
+	1400,
+	2700,
+	1500,
+	1600,
+	1800,
+	1850,
+	1880,
+	1910,
+	2800,
+	1950,
+	1970,
+	2000,
+	2050,
+	2100,
+	2300,
+	2400,
+	2500,
+	3000
+};
+
 static int usb_current_table_smb1357_smb1358[] = {
 	300,
 	400,
@@ -986,6 +1028,75 @@ static int smb135x_path_suspend(struct smb135x_chg *chip, enum path_type path,
 	return rc;
 }
 
+static int smb135x_get_usb_chg_current(struct smb135x_chg *chip)
+{
+	if (chip->usb_suspended)
+		return SUSPEND_CURRENT_MA;
+	else
+		return chip->real_usb_psy_ma;
+}
+#define FCC_MASK			SMB135X_MASK(5, 0)
+#define CFG_1C_REG			0x1C
+static int smb135x_get_fastchg_current(struct smb135x_chg *chip)
+{
+	u8 reg;
+	int rc;
+
+	rc = smb135x_read(chip, CFG_1C_REG, &reg);
+	if (rc < 0) {
+		pr_debug("cannot read 1c rc = %d\n", rc);
+		return 0;
+	}
+	reg &= FCC_MASK;
+	if (reg < 0 || chip->fastchg_current_arr_size == 0
+			|| reg > chip->fastchg_current_table[
+				chip->fastchg_current_arr_size - 1]) {
+		dev_err(chip->dev, "Current table out of range\n");
+		return -EINVAL;
+	}
+	return chip->fastchg_current_table[reg];
+}
+
+static int smb135x_set_fastchg_current(struct smb135x_chg *chip,
+							int current_ma)
+{
+	int i, rc, diff, best, best_diff;
+	u8 reg;
+
+	/*
+	 * if there is no array loaded or if the smallest current limit is
+	 * above the requested current, then do nothing
+	 */
+	if (chip->fastchg_current_arr_size == 0) {
+		dev_err(chip->dev, "no table loaded\n");
+		return -EINVAL;
+	} else if ((current_ma - chip->fastchg_current_table[0]) < 0) {
+		dev_err(chip->dev, "invalid current requested\n");
+		return -EINVAL;
+	}
+
+	/* use the closest setting under the requested current */
+	best = 0;
+	best_diff = current_ma - chip->fastchg_current_table[best];
+
+	for (i = 1; i < chip->fastchg_current_arr_size; i++) {
+		diff = current_ma - chip->fastchg_current_table[i];
+		if (diff >= 0 && diff < best_diff) {
+			best_diff = diff;
+			best = i;
+		}
+	}
+	i = best;
+
+	reg = i & FCC_MASK;
+	rc = smb135x_masked_write(chip, CFG_1C_REG, FCC_MASK, reg);
+	if (rc < 0)
+		dev_err(chip->dev, "cannot write to config c rc = %d\n", rc);
+	pr_debug("fastchg current set to %dma\n",
+			chip->fastchg_current_table[i]);
+	return rc;
+}
+
 static int smb135x_set_high_usb_chg_current(struct smb135x_chg *chip,
 							int current_ma)
 {
@@ -1007,6 +1118,8 @@ static int smb135x_set_high_usb_chg_current(struct smb135x_chg *chip,
 		if (rc < 0)
 			dev_err(chip->dev, "Couldn't set %dmA rc=%d\n",
 					CURRENT_150_MA, rc);
+		else
+			chip->real_usb_psy_ma = CURRENT_150_MA;
 		return rc;
 	}
 
@@ -1022,6 +1135,8 @@ static int smb135x_set_high_usb_chg_current(struct smb135x_chg *chip,
 					USB_100_500_AC_MASK, USB_AC_VAL);
 	if (rc < 0)
 		dev_err(chip->dev, "Couldn't write cfg 5 rc = %d\n", rc);
+	else
+		chip->real_usb_psy_ma = chip->usb_current_table[i];
 	return rc;
 }
 
@@ -1054,6 +1169,7 @@ static int smb135x_set_usb_chg_current(struct smb135x_chg *chip,
 	if (current_ma == SUSPEND_CURRENT_MA) {
 		/* force suspend bit */
 		rc = smb135x_path_suspend(chip, USB, CURRENT, true);
+		chip->real_usb_psy_ma = SUSPEND_CURRENT_MA;
 		goto out;
 	}
 	if (current_ma < CURRENT_150_MA) {
@@ -1062,6 +1178,7 @@ static int smb135x_set_usb_chg_current(struct smb135x_chg *chip,
 		rc |= smb135x_masked_write(chip, CMD_INPUT_LIMIT,
 				USB_100_500_AC_MASK, USB_100_VAL);
 		rc |= smb135x_path_suspend(chip, USB, CURRENT, false);
+		chip->real_usb_psy_ma = CURRENT_100_MA;
 		goto out;
 	}
 	/* specific current values */
@@ -1071,6 +1188,7 @@ static int smb135x_set_usb_chg_current(struct smb135x_chg *chip,
 		rc |= smb135x_masked_write(chip, CMD_INPUT_LIMIT,
 				USB_100_500_AC_MASK, USB_100_VAL);
 		rc |= smb135x_path_suspend(chip, USB, CURRENT, false);
+		chip->real_usb_psy_ma = CURRENT_150_MA;
 		goto out;
 	}
 	if (current_ma == CURRENT_500_MA) {
@@ -1078,6 +1196,7 @@ static int smb135x_set_usb_chg_current(struct smb135x_chg *chip,
 		rc |= smb135x_masked_write(chip, CMD_INPUT_LIMIT,
 				USB_100_500_AC_MASK, USB_500_VAL);
 		rc |= smb135x_path_suspend(chip, USB, CURRENT, false);
+		chip->real_usb_psy_ma = CURRENT_500_MA;
 		goto out;
 	}
 	if (current_ma == CURRENT_900_MA) {
@@ -1086,6 +1205,7 @@ static int smb135x_set_usb_chg_current(struct smb135x_chg *chip,
 		rc |= smb135x_masked_write(chip, CMD_INPUT_LIMIT,
 				USB_100_500_AC_MASK, USB_500_VAL);
 		rc |= smb135x_path_suspend(chip, USB, CURRENT, false);
+		chip->real_usb_psy_ma = CURRENT_900_MA;
 		goto out;
 	}
 
@@ -1109,7 +1229,7 @@ static int smb135x_set_dc_chg_current(struct smb135x_chg *chip,
 			break;
 	}
 	dc_cur_val = i & DCIN_INPUT_MASK;
-	rc = smb135x_masked_write(chip, CFG_10_REG,
+	rc = smb135x_masked_write(chip, CFG_A_REG,
 				DCIN_INPUT_MASK, dc_cur_val);
 	if (rc < 0) {
 		dev_err(chip->dev, "Couldn't set dc charge current rc = %d\n",
@@ -1551,12 +1671,20 @@ static enum power_supply_property smb135x_parallel_properties[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_CURRENT_MAX,
+	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 };
 
 static int smb135x_parallel_set_chg_present(struct smb135x_chg *chip,
 						int present)
 {
+	u8 val;
 	int rc;
+
+	if (present == chip->parallel_charger_present) {
+		pr_debug("present %d -> %d, skipping\n",
+				chip->parallel_charger_present, present);
+		return 0;
+	}
 
 	if (present) {
 		rc = smb135x_enable_volatile_writes(chip);
@@ -1620,6 +1748,11 @@ static int smb135x_parallel_set_chg_present(struct smb135x_chg *chip,
 			return rc;
 		}
 
+		/* set the fastchg_current to the lowest setting */
+		if (chip->fastchg_current_arr_size > 0)
+			rc = smb135x_set_fastchg_current(chip,
+					chip->fastchg_current_table[0]);
+
 		/*
 		 * enforce chip->chg_enabled since this could be the first
 		 * time we have i2c access to the charger after
@@ -1643,11 +1776,34 @@ static int smb135x_parallel_set_chg_present(struct smb135x_chg *chip,
 	 */
 	chip->usb_psy_ma = SUSPEND_CURRENT_MA;
 	rc = smb135x_path_suspend(chip, USB, CURRENT, true);
-	if (present && rc < 0) {
-		dev_err(chip->dev,
-			"Couldn't set usb suspend to true rc = %d\n",
-			rc);
-		return rc;
+
+	if (present) {
+		if (rc) {
+			dev_err(chip->dev,
+				"Couldn't set usb suspend to true rc = %d\n",
+				rc);
+			return rc;
+		}
+		/* Check if the USB is configured for suspend. If not, do it */
+		mutex_lock(&chip->path_suspend_lock);
+		rc = smb135x_read(chip, CMD_INPUT_LIMIT, &val);
+		if (rc) {
+			dev_err(chip->dev,
+				"Couldn't read 0x%02x rc:%d\n", CMD_INPUT_LIMIT,
+				rc);
+			mutex_unlock(&chip->path_suspend_lock);
+			return rc;
+		} else if (!(val & BIT(6))) {
+			rc = __smb135x_usb_suspend(chip, 1);
+		}
+		mutex_unlock(&chip->path_suspend_lock);
+		if (rc) {
+			dev_err(chip->dev,
+				"Couldn't set usb to suspend rc:%d\n", rc);
+			return rc;
+		}
+	} else {
+		chip->real_usb_psy_ma = SUSPEND_CURRENT_MA;
 	}
 	return 0;
 }
@@ -1669,6 +1825,12 @@ static int smb135x_parallel_set_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
 		rc = smb135x_parallel_set_chg_present(chip, val->intval);
+		break;
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
+		if (chip->parallel_charger_present) {
+			rc = smb135x_set_fastchg_current(chip,
+						val->intval / 1000);
+		}
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		if (chip->parallel_charger_present) {
@@ -1710,10 +1872,20 @@ static int smb135x_parallel_get_property(struct power_supply *psy,
 		val->intval = chip->chg_enabled;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
-		val->intval = chip->usb_psy_ma * 1000;
+		if (chip->parallel_charger_present)
+			val->intval = smb135x_get_usb_chg_current(chip) * 1000;
+		else
+			val->intval = 0;
+		break;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
 		val->intval = chip->parallel_charger_present;
+		break;
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
+		if (chip->parallel_charger_present)
+			val->intval = smb135x_get_fastchg_current(chip) * 1000;
+		else
+			val->intval = 0;
 		break;
 	case POWER_SUPPLY_PROP_STATUS:
 		if (chip->parallel_charger_present)
@@ -1780,19 +1952,6 @@ static void smb135x_external_power_changed(struct power_supply *psy)
 		dev_err(chip->dev, "could not set usb online, rc=%d\n", rc);
 }
 
-static int smb135x_chg_otg_regulator_enable(struct regulator_dev *rdev)
-{
-	int rc = 0;
-	struct smb135x_chg *chip = rdev_get_drvdata(rdev);
-
-	chip->otg_oc_count = 0;
-	rc = smb135x_masked_write(chip, CMD_CHG_REG, OTG_EN, OTG_EN);
-	if (rc < 0)
-		dev_err(chip->dev, "Couldn't enable OTG mode rc=%d\n", rc);
-
-	return rc;
-}
-
 static bool elapsed_msec_greater(struct timeval *start_time,
 				struct timeval *end_time, int ms)
 {
@@ -1805,84 +1964,109 @@ static bool elapsed_msec_greater(struct timeval *start_time,
 }
 
 #define MAX_STEP_MS		10
-static int smb135x_chg_otg_regulator_enable_rev2(struct regulator_dev *rdev)
+static int smb135x_chg_otg_enable(struct smb135x_chg *chip)
 {
 	int rc = 0;
-	struct smb135x_chg *chip = rdev_get_drvdata(rdev);
 	int restart_count = 0;
 	struct timeval time_a, time_b, time_c, time_d;
 
-	/*
-	 * Workaround for a hardware bug where the OTG needs to be enabled
-	 * disabled and enabled for it to be actually enabled. The time between
-	 * each step should be atmost MAX_STEP_MS
-	 *
-	 * Note that if enable-disable executes within the timeframe
-	 * but the final enable takes more than MAX_STEP_ME, we treat it as
-	 * the first enable and try disabling again. We don't want
-	 * to issue enable back to back.
-	 *
-	 * Notice the instances when time is captured and the successive
-	 * steps.
-	 * timeA-enable-timeC-disable-timeB-enable-timeD.
-	 * When
-	 * (timeB - timeA) < MAX_STEP_MS AND (timeC - timeD) < MAX_STEP_MS
-	 * then it is guaranteed that the successive steps
-	 * must have executed within MAX_STEP_MS
-	 */
-	do_gettimeofday(&time_a);
-	chip->otg_oc_count = 0;
+	if (chip->revision == REV_2) {
+		/*
+		 * Workaround for a hardware bug where the OTG needs to be
+		 * enabled disabled and enabled for it to be actually enabled.
+		 * The time between each step should be atmost MAX_STEP_MS
+		 *
+		 * Note that if enable-disable executes within the timeframe
+		 * but the final enable takes more than MAX_STEP_ME, we treat
+		 * it as the first enable and try disabling again. We don't
+		 * want to issue enable back to back.
+		 *
+		 * Notice the instances when time is captured and the
+		 * successive steps.
+		 * timeA-enable-timeC-disable-timeB-enable-timeD.
+		 * When
+		 * (timeB - timeA) < MAX_STEP_MS AND
+		 *			(timeC - timeD) < MAX_STEP_MS
+		 * then it is guaranteed that the successive steps
+		 * must have executed within MAX_STEP_MS
+		 */
+		do_gettimeofday(&time_a);
 restart_from_enable:
-	/* first step - enable otg */
-	rc = smb135x_masked_write(chip, CMD_CHG_REG, OTG_EN, OTG_EN);
-	if (rc < 0) {
-		dev_err(chip->dev, "Couldn't enable OTG mode rc=%d\n", rc);
-		return rc;
-	}
+		/* first step - enable otg */
+		rc = smb135x_masked_write(chip, CMD_CHG_REG, OTG_EN, OTG_EN);
+		if (rc < 0) {
+			dev_err(chip->dev, "Couldn't enable OTG mode rc=%d\n",
+					rc);
+			return rc;
+		}
 
 restart_from_disable:
-	/* second step - disable otg */
-	do_gettimeofday(&time_c);
-	rc = smb135x_masked_write(chip, CMD_CHG_REG, OTG_EN, 0);
-	if (rc < 0) {
-		dev_err(chip->dev, "Couldn't enable OTG mode rc=%d\n", rc);
-		return rc;
-	}
-	do_gettimeofday(&time_b);
-
-	if (elapsed_msec_greater(&time_a, &time_b, MAX_STEP_MS)) {
-		restart_count++;
-		if (restart_count > 10) {
-			dev_err(chip->dev,
-				"Couldn't enable OTG restart_count=%d\n",
-				restart_count);
-			return -EAGAIN;
+		/* second step - disable otg */
+		do_gettimeofday(&time_c);
+		rc = smb135x_masked_write(chip, CMD_CHG_REG, OTG_EN, 0);
+		if (rc < 0) {
+			dev_err(chip->dev, "Couldn't enable OTG mode rc=%d\n",
+					rc);
+			return rc;
 		}
+		do_gettimeofday(&time_b);
+
+		if (elapsed_msec_greater(&time_a, &time_b, MAX_STEP_MS)) {
+			restart_count++;
+			if (restart_count > 10) {
+				dev_err(chip->dev,
+						"Couldn't enable OTG restart_count=%d\n",
+						restart_count);
+				return -EAGAIN;
+			}
+			time_a = time_b;
+			pr_debug("restarting from first enable\n");
+			goto restart_from_enable;
+		}
+
+		/* third step (first step in case of a failure) - enable otg */
 		time_a = time_b;
-		pr_debug("restarting from first enable\n");
-		goto restart_from_enable;
-	}
-
-	/* third step (first step in case of a failure) - enable otg */
-	time_a = time_b;
-	rc = smb135x_masked_write(chip, CMD_CHG_REG, OTG_EN, OTG_EN);
-	if (rc < 0) {
-		dev_err(chip->dev, "Couldn't enable OTG mode rc=%d\n", rc);
-		return rc;
-	}
-	do_gettimeofday(&time_d);
-
-	if (elapsed_msec_greater(&time_c, &time_d, MAX_STEP_MS)) {
-		restart_count++;
-		if (restart_count > 10) {
-			dev_err(chip->dev,
-				"Couldn't enable OTG restart_count=%d\n",
-				restart_count);
-			return -EAGAIN;
+		rc = smb135x_masked_write(chip, CMD_CHG_REG, OTG_EN, OTG_EN);
+		if (rc < 0) {
+			dev_err(chip->dev, "Couldn't enable OTG mode rc=%d\n",
+					rc);
+			return rc;
 		}
-		pr_debug("restarting from disable\n");
-		goto restart_from_disable;
+		do_gettimeofday(&time_d);
+
+		if (elapsed_msec_greater(&time_c, &time_d, MAX_STEP_MS)) {
+			restart_count++;
+			if (restart_count > 10) {
+				dev_err(chip->dev,
+						"Couldn't enable OTG restart_count=%d\n",
+						restart_count);
+				return -EAGAIN;
+			}
+			pr_debug("restarting from disable\n");
+			goto restart_from_disable;
+		}
+	} else {
+		rc = smb135x_masked_write(chip, CMD_CHG_REG, OTG_EN, OTG_EN);
+		if (rc < 0) {
+			dev_err(chip->dev, "Couldn't enable OTG mode rc=%d\n",
+					rc);
+			return rc;
+		}
 	}
+
+	return rc;
+}
+
+static int smb135x_chg_otg_regulator_enable(struct regulator_dev *rdev)
+{
+	int rc = 0;
+	struct smb135x_chg *chip = rdev_get_drvdata(rdev);
+
+	chip->otg_oc_count = 0;
+	rc = smb135x_chg_otg_enable(chip);
+	if (rc)
+		dev_err(chip->dev, "Couldn't enable otg regulator rc=%d\n", rc);
+
 	return rc;
 }
 
@@ -1919,12 +2103,6 @@ struct regulator_ops smb135x_chg_otg_reg_ops = {
 	.is_enabled	= smb135x_chg_otg_regulator_is_enable,
 };
 
-struct regulator_ops smb135x_chg_otg_reg_ops_rev2 = {
-	.enable		= smb135x_chg_otg_regulator_enable_rev2,
-	.disable	= smb135x_chg_otg_regulator_disable,
-	.is_enabled	= smb135x_chg_otg_regulator_is_enable,
-};
-
 static int smb135x_set_current_tables(struct smb135x_chg *chip)
 {
 	switch (chip->version) {
@@ -1935,6 +2113,8 @@ static int smb135x_set_current_tables(struct smb135x_chg *chip)
 		chip->dc_current_table = dc_current_table_smb1356;
 		chip->dc_current_arr_size
 			= ARRAY_SIZE(dc_current_table_smb1356);
+		chip->fastchg_current_table = NULL;
+		chip->fastchg_current_arr_size = 0;
 		break;
 	case V_SMB1357:
 		chip->usb_current_table = usb_current_table_smb1357_smb1358;
@@ -1942,6 +2122,9 @@ static int smb135x_set_current_tables(struct smb135x_chg *chip)
 			= ARRAY_SIZE(usb_current_table_smb1357_smb1358);
 		chip->dc_current_table = dc_current_table;
 		chip->dc_current_arr_size = ARRAY_SIZE(dc_current_table);
+		chip->fastchg_current_table = fastchg_current_table;
+		chip->fastchg_current_arr_size
+			= ARRAY_SIZE(fastchg_current_table);
 		break;
 	case V_SMB1358:
 		chip->usb_current_table = usb_current_table_smb1357_smb1358;
@@ -1949,6 +2132,8 @@ static int smb135x_set_current_tables(struct smb135x_chg *chip)
 			= ARRAY_SIZE(usb_current_table_smb1357_smb1358);
 		chip->dc_current_table = dc_current_table;
 		chip->dc_current_arr_size = ARRAY_SIZE(dc_current_table);
+		chip->fastchg_current_table = NULL;
+		chip->fastchg_current_arr_size = 0;
 		break;
 	case V_SMB1359:
 		chip->usb_current_table = usb_current_table_smb1359;
@@ -1956,6 +2141,8 @@ static int smb135x_set_current_tables(struct smb135x_chg *chip)
 			= ARRAY_SIZE(usb_current_table_smb1359);
 		chip->dc_current_table = dc_current_table;
 		chip->dc_current_arr_size = ARRAY_SIZE(dc_current_table);
+		chip->fastchg_current_table = NULL;
+		chip->fastchg_current_arr_size = 0;
 		break;
 	}
 	return 0;
@@ -2078,11 +2265,7 @@ static int smb135x_regulator_init(struct smb135x_chg *chip)
 	if (init_data->constraints.name) {
 		chip->otg_vreg.rdesc.owner = THIS_MODULE;
 		chip->otg_vreg.rdesc.type = REGULATOR_VOLTAGE;
-		if (chip->revision == REV_2)
-			chip->otg_vreg.rdesc.ops =
-				&smb135x_chg_otg_reg_ops_rev2;
-		else
-			chip->otg_vreg.rdesc.ops = &smb135x_chg_otg_reg_ops;
+		chip->otg_vreg.rdesc.ops = &smb135x_chg_otg_reg_ops;
 		chip->otg_vreg.rdesc.name = init_data->constraints.name;
 
 		cfg.dev = chip->dev;
@@ -2251,7 +2434,7 @@ static int otg_oc_handler(struct smb135x_chg *chip, u8 rt_stat)
 
 	++chip->otg_oc_count;
 	if (chip->otg_oc_count < MAX_OTG_RETRY) {
-		rc = smb135x_masked_write(chip, CMD_CHG_REG, OTG_EN, OTG_EN);
+		rc = smb135x_chg_otg_enable(chip);
 		if (rc < 0)
 			dev_err(chip->dev, "Couldn't enable  OTG mode rc=%d\n",
 				rc);
@@ -3091,6 +3274,17 @@ static int smb135x_hw_init(struct smb135x_chg *chip)
 	int i;
 	u8 reg, mask;
 
+	if (chip->pinctrl_state_name) {
+		chip->smb_pinctrl = pinctrl_get_select(chip->dev,
+						chip->pinctrl_state_name);
+		if (IS_ERR(chip->smb_pinctrl)) {
+			pr_err("Could not get/set %s pinctrl state rc = %ld\n",
+						chip->pinctrl_state_name,
+						PTR_ERR(chip->smb_pinctrl));
+			return PTR_ERR(chip->smb_pinctrl);
+		}
+	}
+
 	if (chip->therm_bias_vreg) {
 		rc = regulator_enable(chip->therm_bias_vreg);
 		if (rc) {
@@ -3482,6 +3676,8 @@ static int smb_parse_dt(struct smb135x_chg *chip)
 			return rc;
 		}
 	}
+
+	chip->pinctrl_state_name = of_get_property(node, "pinctrl-names", NULL);
 
 	return 0;
 }

@@ -261,6 +261,8 @@ static int create_lvl_avail_nodes(const char *name,
 		goto failed;
 	}
 
+	avail->idle_enabled = true;
+	avail->suspend_enabled = true;
 	avail->kobj = kobj;
 
 	return ret;
@@ -273,7 +275,7 @@ failed:
 static int create_cpu_lvl_nodes(struct lpm_cluster *p, struct kobject *parent)
 {
 	int cpu;
-	int i, j;
+	int i, j, cpu_idx;
 	struct kobject **cpu_kobj = NULL;
 	struct lpm_level_avail *level_list = NULL;
 	char cpu_name[20] = {0};
@@ -284,17 +286,22 @@ static int create_cpu_lvl_nodes(struct lpm_cluster *p, struct kobject *parent)
 	if (!cpu_kobj)
 		return -ENOMEM;
 
+	cpu_idx = 0;
 	for_each_cpu(cpu, &p->child_cpus) {
 		snprintf(cpu_name, sizeof(cpu_name), "cpu%d", cpu);
-		cpu_kobj[cpu] = kobject_create_and_add(cpu_name, parent);
-		if (!cpu_kobj[cpu])
-			return -ENOMEM;
+		cpu_kobj[cpu_idx] = kobject_create_and_add(cpu_name, parent);
+		if (!cpu_kobj[cpu_idx]) {
+			ret = -ENOMEM;
+			goto release_kobj;
+		}
 
 		level_list = devm_kzalloc(&lpm_pdev->dev,
 				MSM_PM_SLEEP_MODE_NR * sizeof(*level_list),
 				GFP_KERNEL);
-		if (!level_list)
-			return -ENOMEM;
+		if (!level_list) {
+			ret = -ENOMEM;
+			goto release_kobj;
+		}
 
 		for (i = 0; i < MSM_PM_SLEEP_MODE_NR; i++) {
 			for (j = 0; j < p->cpu->nlevels; j++)
@@ -307,21 +314,24 @@ static int create_cpu_lvl_nodes(struct lpm_cluster *p, struct kobject *parent)
 				continue;
 			}
 
-			level_list[i].idle_enabled =
-				p->cpu->levels[j].default_idle_enable;
-			level_list[i].suspend_enabled =
-				p->cpu->levels[j].default_suspend_enable;
 			ret = create_lvl_avail_nodes(p->cpu->levels[j].name,
-						cpu_kobj[cpu], &level_list[i]);
+					cpu_kobj[cpu_idx], &level_list[i]);
 			if (ret)
-				return ret;
+				goto release_kobj;
 		}
 
 		cpu_level_available[cpu] = level_list;
+		cpu_idx++;
 	}
 
-	return 0;
+	return ret;
 
+release_kobj:
+	j = cpumask_weight(&p->child_cpus);
+	for (i = 0; i < j; i++)
+		kobject_put(cpu_kobj[i]);
+
+	return ret;
 }
 
 int create_cluster_lvl_nodes(struct lpm_cluster *p, struct kobject *kobj)
@@ -349,10 +359,6 @@ int create_cluster_lvl_nodes(struct lpm_cluster *p, struct kobject *kobj)
 		return -ENOMEM;
 
 	for (i = 0; i < p->nlevels; i++) {
-		p->levels[i].available.idle_enabled
-				= p->levels[i].default_idle_enable;
-		p->levels[i].available.suspend_enabled
-				= p->levels[i].default_suspend_enable;
 		ret = create_lvl_avail_nodes(p->levels[i].level_name,
 				cluster_kobj, &p->levels[i].available);
 		if (ret)
@@ -488,6 +494,7 @@ static int parse_lpm_mode(const char *str)
 		{MSM_SPM_MODE_POWER_COLLAPSE, "pc"},
 		{MSM_SPM_MODE_GDHS, "gdhs"},
 		{MSM_SPM_MODE_RETENTION, "retention"},
+		{MSM_SPM_MODE_CLOCK_GATING, "wfi"},
 		{MSM_SPM_MODE_DISABLED, "active"}
 	};
 
@@ -575,19 +582,11 @@ static int parse_cluster_level(struct device_node *node,
 	level->last_core_only = of_property_read_bool(node,
 					"qcom,last-core-only");
 
-	level->default_idle_enable = of_property_read_bool(node,
-						"qcom,default-idle");
-	level->default_suspend_enable = of_property_read_bool(node,
-						"qcom,default-suspend");
 	ret = parse_power_params(node, &level->pwr);
 	if (ret)
 		goto failed;
 
 	cluster->nlevels++;
-#ifdef CONFIG_RPM_WAIT_FOR_ACK_DEBUG_PATCH
-	if (!cluster->last_level)
-		cluster->last_level = 1;
-#endif
 	return 0;
 failed:
 	pr_err("Failed %s() ret = %d\n", __func__, ret);
@@ -625,6 +624,7 @@ static int get_cpumask_for_node(struct device_node *node, struct cpumask *mask)
 	struct device_node *cpu_node;
 	int cpu;
 	int idx = 0;
+	bool found = false;
 
 	cpu_node = of_parse_phandle(node, "qcom,cpu", idx++);
 	if (!cpu_node) {
@@ -640,18 +640,23 @@ static int get_cpumask_for_node(struct device_node *node, struct cpumask *mask)
 	}
 
 	while (cpu_node) {
+		found = false;
 		for_each_possible_cpu(cpu) {
 			if (of_get_cpu_node(cpu, NULL) == cpu_node) {
 				cpumask_set_cpu(cpu, mask);
+				found = true;
 				break;
 			}
 		}
+		if (!found)
+			pr_crit("Unable to find CPU node for %s\n",
+					cpu_node->full_name);
+
 		cpu_node = of_parse_phandle(node, "qcom,cpu", idx++);
 	}
 
 	if (!cpumask_empty(mask))
 		return 0;
-	pr_crit("Unable to find CPU node for %s\n", cpu_node->full_name);
 	return -EINVAL;
 }
 
@@ -692,10 +697,6 @@ static int parse_cpu_levels(struct device_node *node, struct lpm_cluster *c)
 		key = "qcom,use-broadcast-timer";
 		l->use_bc_timer = of_property_read_bool(n, key);
 
-		l->default_idle_enable =
-			of_property_read_bool(n, "qcom,default-idle");
-		l->default_suspend_enable =
-			of_property_read_bool(n, "qcom,default-suspend");
 	}
 	return 0;
 failed:

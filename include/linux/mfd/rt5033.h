@@ -103,6 +103,7 @@ typedef struct rt5033_charger_platform_data {
     sec_charging_current_t *charging_current_table;
     int chg_float_voltage;
     char *charger_name;
+    bool dualized_charging_current;
     uint32_t is_750kHz_switching : 1;
     uint32_t is_fixed_switching : 1;
 } rt5033_charger_platform_data_t;
@@ -149,8 +150,10 @@ struct rt5033_mfd_chip {
 	struct rt5033_fled_info *fled_info;
 #endif
 #ifdef CONFIG_REGULATOR_RT5033
+	bool regulator_states[RT5033_MAX_REGULATOR];
 	struct rt5033_regulator_info *regulator_info[RT5033_MAX_REGULATOR];
 #endif
+	int rev_id;
 };
 
 #define rt5033_mfd_chip_t \
@@ -170,6 +173,14 @@ extern int rt5033_set_bits(struct i2c_client *i2c, int reg_addr, unsigned char m
 extern int rt5033_clr_bits(struct i2c_client *i2c, int reg_addr, unsigned char mask);
 extern void rt5033_lock_regulator(struct i2c_client *i2c);
 extern void rt5033_unlock_regulator(struct i2c_client *i2c);
+
+#ifdef CONFIG_REGULATOR_RT5033
+extern void rt5033_set_regulator_state(struct i2c_client *i2c, int id, bool en);
+extern bool rt5033_get_pmic_state(struct i2c_client *i2c);
+#endif
+
+void rt5033_read_dump(struct i2c_client *i2c);
+void rt5033_workaround(rt5033_mfd_chip_t *chip);
 
 typedef enum {
         RT5033_PREV_STATUS = 0,
