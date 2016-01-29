@@ -195,7 +195,6 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
 ARCH		?= $(SUBARCH)
 CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
 
-
 # Architecture as present in compile.h
 UTS_MACHINE 	:= $(ARCH)
 SRCARCH 	:= $(ARCH)

@@ -94,6 +94,11 @@ static unsigned long lowmem_deathpending_timeout;
 			pr_info(x);			\
 	} while (0)
 
+#if defined(CONFIG_ZSWAP)
+extern u64 zswap_pool_pages;
+extern atomic_t zswap_stored_pages;
+#endif
+
 static void dump_tasks_info(void)
 {
 	struct task_struct *p;
@@ -163,6 +168,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	static DEFINE_RATELIMIT_STATE(lmk_rs, DEFAULT_RATELIMIT_INTERVAL, 1);
 #endif
 	unsigned long nr_cma_free;
+	struct reclaim_state *reclaim_state = current->reclaim_state;
 
 	if (nr_to_scan > 0) {
 		if (mutex_lock_interruptible(&scan_mutex) < 0)
@@ -246,6 +252,15 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			continue;
 		}
 		tasksize = get_mm_rss(p->mm);
+#if defined(CONFIG_ZSWAP)
+		if (atomic_read(&zswap_stored_pages)) {
+			lowmem_print(3, "shown tasksize : %d\n", tasksize);
+			tasksize += (int)zswap_pool_pages * get_mm_counter(p->mm, MM_SWAPENTS)
+				/ atomic_read(&zswap_stored_pages);
+			lowmem_print(3, "real tasksize : %d\n", tasksize);
+		}
+#endif
+
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;
@@ -328,6 +343,9 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 #endif
 		/* give the system time to free up the memory */
 		msleep_interruptible(20);
+
+		if(reclaim_state)
+			reclaim_state->reclaimed_slab = selected_tasksize;
 	} else
 		rcu_read_unlock();
 

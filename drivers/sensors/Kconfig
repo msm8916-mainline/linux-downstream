@@ -96,6 +96,16 @@ config SENSORS_CM3323
 
 	  Say N here if you do not use cm3323.
 
+config SENSORS_CM3323_ESD_DEFENCE
+	depends on I2C
+	tristate "CM3323 ESD Defence"
+	default n
+	help
+	  Say Y here if you use ESD defence in cm3323.
+	  This option enables ESD defence code.
+
+	  Say N here if you do not use ESD defence in cm3323.
+
 config SENSORS_TCS3490
 	depends on I2C
 	tristate "TCS3490 driver"

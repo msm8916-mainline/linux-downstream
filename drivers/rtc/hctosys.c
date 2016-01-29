@@ -36,11 +36,6 @@ int rtc_hctosys(void)
 			__FILE__, CONFIG_RTC_HCTOSYS_DEVICE);
 		goto err_open;
 	}
-		/*
-	 * Force update rtc year time to 2015
-	 * (The release year of device)
-	 */
-	tm.tm_year = 115;
 
 	err = rtc_read_time(rtc, &tm);
 	if (err) {
@@ -49,6 +44,12 @@ int rtc_hctosys(void)
 		goto err_read;
 
 	}
+
+	/*
+	 * Force update rtc year time to 2015
+	 * (The release year of device)
+	 */
+	tm.tm_year = 115;
 
 	err = rtc_valid_tm(&tm);
 	if (err) {

@@ -2029,7 +2029,8 @@ retry_init:
 
 	cap->MinX = (u32)0;
 	cap->MinY = (u32)0;
-#if defined(CONFIG_MACH_GT58_EUR_OPEN) || defined(CONFIG_MACH_GT58WIFI_EUR_OPEN)
+#if defined(CONFIG_MACH_GT58_EUR_OPEN) || defined(CONFIG_MACH_GT58WIFI_EUR_OPEN) \
+	|| defined(CONFIG_MACH_GT5NOTE8_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE8WIFI_EUR_OPEN)
 	cap->MaxX = 3072;
 	cap->MaxY = 4096;
 #else
@@ -2077,7 +2078,8 @@ retry_init:
 	write_reg(client, 0x11e, reg_val);
 #endif
 
-#if defined(CONFIG_MACH_GT58_EUR_OPEN) || defined(CONFIG_MACH_GT58WIFI_EUR_OPEN)
+#if defined(CONFIG_MACH_GT58_EUR_OPEN) || defined(CONFIG_MACH_GT58WIFI_EUR_OPEN) \
+	|| defined(CONFIG_MACH_GT5NOTE8_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE8WIFI_EUR_OPEN)
 	write_reg(client, 0x1ff, 4);
 	write_reg(client, 0x0c3, 0);
 #endif
@@ -2233,7 +2235,8 @@ static bool mini_init_touch(struct bt532_ts_info *info)
 	write_reg(client, 0x11e, reg_val);
 #endif
 
-#if defined(CONFIG_MACH_GT58_EUR_OPEN) || defined(CONFIG_MACH_GT58WIFI_EUR_OPEN)
+#if defined(CONFIG_MACH_GT58_EUR_OPEN) || defined(CONFIG_MACH_GT58WIFI_EUR_OPEN) \
+	|| defined(CONFIG_MACH_GT5NOTE8_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE8WIFI_EUR_OPEN)	
 	write_reg(client, 0x1ff, 4);
 	write_reg(client, 0x0c3, 0);
 #endif

@@ -90,6 +90,13 @@ config PANEL_S6D7AA0_LSL080AL03_WXGA
 	---help---
 	SDC S6D7AA0 LDI 1280_800
 
+config PANEL_S6D7AA0_LSL080AL03_BOE_WXGA
+        depends on FB_MSM_MDSS_SAMSUNG
+        bool "SDC S6D7AA0 LDI"
+        default n
+        ---help---
+        SDC S6D7AA0 LDI 1280_800
+
 config PANEL_SC7798A_BV045WVM_WVGA
 	depends on FB_MSM_MDSS_SAMSUNG
 	bool "SITRONIX SC7798A LDI"
@@ -110,6 +117,13 @@ config PANEL_S6D7AA0_LTL101AT01_WXGA
 	default n
 	---help---
 	SDC S6D7AA0 LDI 800_1280
+
+config PANEL_S6D7AA0_BOE_LTL101AT01_WXGA
+        depends on FB_MSM_MDSS_SAMSUNG
+        bool "SDC S6D7AA0 LDI"
+        default n
+        ---help---
+        SDC S6D7AA0 LDI 800_1280
 
 config PANEL_HX8389C_GH9607501A_QHD
 	depends on FB_MSM_MDSS_SAMSUNG

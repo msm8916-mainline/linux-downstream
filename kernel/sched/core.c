@@ -2965,10 +2965,12 @@ void scheduler_ipi(void)
 		return;
 
 	if (got_boost_kick()) {
+#if defined(CONFIG_ARCH_MSM8939)
 		struct rq *rq = cpu_rq(cpu);
 
 		if (rq->curr->sched_class == &fair_sched_class)
 			check_for_migration(rq, rq->curr);
+#endif
 		clear_boost_kick(cpu);
 	}
 
@@ -4412,8 +4414,10 @@ void scheduler_tick(void)
 	trigger_load_balance(rq, cpu);
 #endif
 	rq_last_tick_reset(rq);
+#if defined(CONFIG_ARCH_MSM8939)
 	if (curr->sched_class == &fair_sched_class)
 		check_for_migration(rq, curr);
+#endif
 }
 
 #ifdef CONFIG_NO_HZ_FULL

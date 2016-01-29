@@ -676,8 +676,10 @@ static void mxt_report_input_data(struct mxt_data *data)
 			if (!data->charging_mode)
 				data->fingers[i].w += 10;
 #endif
+#ifdef CONFIG_SEC_FACTORY
 			input_report_abs(data->input_dev, ABS_MT_PRESSURE,
 					 data->fingers[i].z);
+#endif
 			input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR,
 					 data->fingers[i].m);
 			input_report_abs(data->input_dev, ABS_MT_TOUCH_MINOR,
@@ -1056,12 +1058,28 @@ static void mxt_treat_T15_object(struct mxt_data *data,
 }
 #endif
 
-#if defined(CONFIG_MACH_GT5NOTE10_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_CHN_OPEN) || defined(CONFIG_MACH_GT5NOTE103G_EUR_OPEN)  \
-	|| defined(CONFIG_MACH_GT5NOTE10WIFI_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)	
 static void mxt_gt5_change_config(struct mxt_data *data)
 {
-	/* 0310 for Back Key */
+
 	u8 ret = 0;
+
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							0, 128);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							10, 0);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							11, 0);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							18, 30);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							20, 0x33);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							21, 20);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							22, 0);
+#if defined(CONFIG_MACH_GT5NOTE10_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_CHN_OPEN) || defined(CONFIG_MACH_GT5NOTE103G_EUR_OPEN)  \
+	|| defined(CONFIG_MACH_GT5NOTE10WIFI_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)
+	/* 0310 for Back Key */
 	ret = mxt_write_object(data, MXT_GEN_ACQUISITIONCONFIG_T8,
 	                        6, 10);
 	ret = mxt_write_object(data, MXT_GEN_ACQUISITIONCONFIG_T8,
@@ -1081,67 +1099,47 @@ static void mxt_gt5_change_config(struct mxt_data *data)
 							46, 129);	
 	ret = mxt_write_object(data, MXT_PROCI_LENSBENDING_T65,
 							47, 38);
-							
 
-	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-							0, 128);	
-	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-							10, 0);	
-	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-							11, 0);
-								
-	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-							18, 30);							
-	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-							20, 51);									
-	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,      /* 0323 */
-							21, 20);								                        
-
-	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-							23, 0);	
-
-    /* 0320 */
+	/* 0320 */
 	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
-							140, 0);	
+							140, 0);
 	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
-							150, 0);	
-														
-	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							0, 25);	
-
+							150, 0);
 	/* 0324 */
 	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
-							180, 0);	
+							180, 0);
 	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
-							190, 0);	
+							190, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,  /* 0424 */
+							0, 25);
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							0, 27);	
+							0, 27);
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							1, 1);	
+							1, 1);
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							2, 100);	
+							2, 100);
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							3, 60);	
+							3, 60);
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							4, 30);	
+							4, 30);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80, /* 0424 */
+							5, 197);	
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							5, 0);	
+							6, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80, /* 0424 */
+							7, 128);	
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80, /* 0424 */
+							8, 64);	
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							6, 0);	
+							9, 0);
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							7, 0);	
-	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							8, 0);	
-	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							9, 0);	
-	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-						   10, 0);		
-	ret = mxt_write_object(data, MXT_PROCI_TOUCHSUPPRESSION_T42, /* 0324_2 */
-						   3, 100);							   
-	ret = mxt_write_object(data, MXT_PROCI_TOUCHSUPPRESSION_T42, /* 0324_2 */
-						   4, 64);		
-}
+						   10, 0);
+	ret = mxt_write_object(data, MXT_PROCI_TOUCHSUPPRESSION_T42, /* 0424 */
+						   3, 80);							   
+	ret = mxt_write_object(data, MXT_PROCI_TOUCHSUPPRESSION_T42, /* 0424 */
+						   4, 48);	
 #endif
+}
 
 static void mxt_treat_T6_object(struct mxt_data *data,
 		struct mxt_message *message)
@@ -1183,10 +1181,7 @@ static void mxt_treat_T6_object(struct mxt_data *data,
 	if (message->message[0] & 0x80) {
 		tsp_debug_info(true, &data->client->dev, "Reset is ongoing\n");
 
-#if defined(CONFIG_MACH_GT5NOTE10_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_CHN_OPEN) || defined(CONFIG_MACH_GT5NOTE103G_EUR_OPEN)  \
-	|| defined(CONFIG_MACH_GT5NOTE10WIFI_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)	
 		mxt_gt5_change_config(data);	//0324
-#endif	
 	                        
 	mxt_release_all_finger(data);
 #if ENABLE_TOUCH_KEY
@@ -3037,8 +3032,10 @@ static int  mxt_probe(struct i2c_client *client,
 				0, MXT_AREA_MAX, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MINOR,
 				0, MXT_AREA_MIN, 0, 0);
+#ifdef CONFIG_SEC_FACTORY
 	input_set_abs_params(input_dev, ABS_MT_PRESSURE,
 				0, MXT_AMPLITUDE_MAX, 0, 0);
+#endif
 #if TSP_USE_SHAPETOUCH
 	input_set_abs_params(input_dev, ABS_MT_COMPONENT,
 				0, MXT_COMPONENT_MAX, 0, 0);
@@ -3094,10 +3091,7 @@ static int  mxt_probe(struct i2c_client *client,
 		goto err_touch_init;
 	}
 
-#if defined(CONFIG_MACH_GT5NOTE10_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_CHN_OPEN) || defined(CONFIG_MACH_GT5NOTE103G_EUR_OPEN)  \
-	|| defined(CONFIG_MACH_GT5NOTE10WIFI_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)	
 	mxt_gt5_change_config(data);	//0324
-#endif	
 
 	client->irq = gpio_to_irq(data->pdata->gpio_irq);
 	dev_info(&data->client->dev, "%s: tsp int gpio is %d : gpio_to_irq : %d\n",

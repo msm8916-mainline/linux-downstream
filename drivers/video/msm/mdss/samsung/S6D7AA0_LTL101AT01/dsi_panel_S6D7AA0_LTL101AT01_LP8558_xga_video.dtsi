@@ -33,7 +33,7 @@
 
 &mdss_mdp {
 
-	dsi_sdc_xga_vid: qcom,mdss_dsi_sdc_xga_video {
+	dsi_sdc_xga_vid: ss_dsi_panel_S6D7AA0_LTL101AT01_WXGA {
 
 		qcom,mdss-dsi-panel-name = "S6D7AA0 xga video mode dsi panel";
 
@@ -96,10 +96,10 @@
                39 01 00 00 00 00 03 D0 00 10
 
                39 01 00 00 00 00 04 C3 40 00 08
-               39 01 00 00 00 00 04 BC 01 4E A0
+               39 01 00 00 00 00 04 BC 01 4E 0B
                39 01 00 00 00 00 06 FD 16 10 11 23 09
 
-               39 01 00 00 00 00 07 FE 00 02 03 21 80 78
+               39 01 00 00 00 00 07 FE 00 02 03 21 80 68
 
                39 01 00 00 00 00 02 B3 51
 
@@ -752,6 +752,8 @@
 &soc {
 
 	mdss_dsi0: qcom,mdss_dsi@1a98000 {
+
+		qcom,dsi-pref-prim-pan = <&dsi_sdc_xga_vid>;
 
 		gdsc-supply = <&gdsc_mdss>;
 

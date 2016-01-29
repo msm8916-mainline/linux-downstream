@@ -108,7 +108,7 @@ static int mdss_panel_revision(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	return true;
 }
-void mdss_samsung_cabc_update_tft(struct mdss_dsi_ctrl_pdata *ctrl, int val)
+static void mdss_samsung_cabc_update_tft(struct mdss_dsi_ctrl_pdata *ctrl, int val)
 {
 	static int prev_val;
 	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
