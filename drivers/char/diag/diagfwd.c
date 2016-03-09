@@ -1068,7 +1068,7 @@ int diag_process_apps_pkt(unsigned char *buf, int len)
 	data_type = APPS_DATA;
 	/* Dont send any command other than mode reset */
 	if (chk_apps_master() && cmd_code == MODE_CMD) {
-		if (subsys_id != RESET_ID)
+		if (!(subsys_id == RESET_ID || subsys_id == POWER_OFF_ID))
 			data_type = MODEM_DATA;
 	}
 

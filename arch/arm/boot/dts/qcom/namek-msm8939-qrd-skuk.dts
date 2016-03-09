@@ -15,6 +15,7 @@
 #include "./namek-msm8939-qrd-skuk/namek-msm8939.dtsi"
 #include "./namek-msm8939-qrd-skuk/namek-msm8939-qrd-skuk.dtsi"
 #include "./namek-msm8939-qrd-skuk/namek-dsi-panel-goworld-1080p-cmd.dtsi"
+#include "./namek-msm8939-qrd-skuk/namek-dsi-panel-eR63422-truly-1080p-cmd.dtsi"
 #include "./namek-msm8939-qrd-skuk/namek-msm8939-camera-sensor-qrd.dtsi"
 
 / {
@@ -139,7 +140,4 @@
 	qcom,disable-bms;
 };
 
-&dsi_goworld_1080p_cmd {
-	qcom,cont-splash-enabled;
-	//qcom,esd-check-enabled;
-};
+

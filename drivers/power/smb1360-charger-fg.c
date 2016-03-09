@@ -5234,6 +5234,8 @@ static void smb1360_shutdown(struct i2c_client *client)
 
 	temperature = smb1360_get_prop_batt_temp(chip);
 
+	__smb1360_charging_disable(chip, false);
+
 	if (chip->shdn_after_pwroff && (temperature < 450)) {
 		rc = smb1360_poweroff(chip);
 		if (rc)

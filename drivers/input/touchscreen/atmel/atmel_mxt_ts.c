@@ -334,6 +334,10 @@ struct mxt_selfcap_status {
 
 #define DEBUG_MSG_MAX		200
 
+//added by yong.bo on 2015/11/23 for double tap wake up.
+#define DOUBLE_CLICK   KEY_DOUBLE_TAP
+//end
+
 struct mxt_info {
 	u8 family_id;
 	u8 variant_id;
@@ -620,15 +624,6 @@ static ssize_t mxt_plugin_clip_tag_show(struct device *dev,
 #	endif
 #endif
 
-/*added by yong.bo on 2015/07/27 for double tap do not wake up when phone in pocket*/
-extern unsigned int  ltr559_get_psensor_enable(void);
-extern void ltr559_set_ps_sensor(int val);
-extern bool ltr559_psensor_get_shade(void);
-/* end */
-
-/*added by yong.bo on 2015/08/04 for double tap to vibrator when wake up */
-extern void qpnp_vib_vibrator( int value);
-/*end*/
 
 //static void mxt_regulator_disable(struct mxt_data *data);
 static void mxt_regulator_enable(struct mxt_data *data);
@@ -2441,34 +2436,18 @@ static void mxt_proc_T92_messages(struct mxt_data *data, u8 *msg)
 static void mxt_proc_T93_messages(struct mxt_data *data, u8 *msg)
 {
 	struct device *dev = &data->client->dev;
-//	u8 status = msg[1];
+	u8 status = msg[0];
 	int ret;
-/*added by yong.bo on 2015/07/28 for double tap do not wake up when phone in pocket */
-	unsigned int ps_sensor_enable = 0;
-	bool report_event = 1;  //modify by yong.bo on 2015/09/15 for optimization double tap.
 
-//	dev_info(dev, "T93 Status 0x%x Info: %x\n",
-//		status,
-//		msg[1]);
-	ps_sensor_enable = ltr559_get_psensor_enable();
-	if(ps_sensor_enable == 0)
-	{
-		ltr559_set_ps_sensor(1);
-		msleep(2);
-	}
-	report_event= ltr559_psensor_get_shade();
-	if(ps_sensor_enable == 0)
-	{
-		ltr559_set_ps_sensor(0);
-	}
-/*end*/
+
+	dev_info(dev, "T93 Status 0x%x Info: %x\n",
+		status,
+		msg[1]);
+
 	/* do not report events if input device not yet registered */
-	if (test_bit(MXT_WK_ENABLE,&data->enable_wakeup)&&report_event) {
+	if (test_bit(MXT_WK_ENABLE,&data->enable_wakeup)) {
 		ret = mxt_proc_gesture_messages(data, MXT_PROCI_TOUCHSEQUENCELOGGER_T93,
 			T93_KEY, msg);
-		/*added by yong.bo on 2015/08/04 for double tap to vibrator when wake up */
-		qpnp_vib_vibrator(50);
-		/*end*/
 		if (!ret)
 			set_bit(MXT_WK_DETECTED,&data->enable_wakeup);
 		else
@@ -5772,7 +5751,7 @@ static struct mxt_platform_data *mxt_parse_dt(struct i2c_client *client)
 		keymap[T15_T97_KEY][0] = KEY_BACK;
 		keymap[T15_T97_KEY][1] = KEY_HOMEPAGE;
 		keymap[T15_T97_KEY][2] = KEY_MENU;
-                keymap[T93_KEY][0] = KEY_POWER;
+                keymap[T93_KEY][0] = DOUBLE_CLICK; //for double tap wake up key
 #endif
 		pdata->num_keys = num_keys;
 		pdata->keymap = (void *)keymap;
@@ -6072,7 +6051,7 @@ static void update_keymap(struct mxt_platform_data *pdata)
 	pdata->keymap[T15_T97_KEY][0] = KEY_BACK;
 	pdata->keymap[T15_T97_KEY][1] = KEY_HOMEPAGE;
 	pdata->keymap[T15_T97_KEY][2] = KEY_MENU;
-        pdata->keymap[T93_KEY][0] = KEY_POWER;
+        pdata->keymap[T93_KEY][0] = DOUBLE_CLICK; //for double tap wake up key
 #endif
 	return;
 }

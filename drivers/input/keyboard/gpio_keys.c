@@ -331,12 +331,20 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 	unsigned int type = button->type ?: EV_KEY;
 	int state = (gpio_get_value_cansleep(button->gpio) ? 1 : 0) ^ button->active_low;
 
+	//Get hall switch state.
+	int state_s = (gpio_get_value_cansleep(1016) ? 1 : 0) ^ button->active_low;
+	int state_n = (gpio_get_value_cansleep(1022) ? 1 : 0) ^ button->active_low;
+	int state_hall = ((!!state_s) || (!!state_n));
+
 	if (type == EV_ABS) {
 		if (state)
 			input_event(input, type, button->code, button->value);
 	} else {
-		input_event(input, type, button->code, !!state);
+		input_event(input, type, button->code, !!state_hall);
 	}
+	//report "volume +"
+	if(!strcmp(button->desc, "volume_up"))
+		input_event(input, type, button->code, !!state);
 	input_sync(input);
 }
 

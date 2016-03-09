@@ -196,9 +196,10 @@ static void qpnp_vib_enable(struct timed_output_dev *dev, int value)
 
 	mutex_lock(&vib->lock);
 	hrtimer_cancel(&vib->vib_timer);
+	printk("enter enable value = %d\n",value);
 	if (value == 0 || value == 10)
 		vib->state = 0;
-	else {
+	else if (value < 100){
 		value = (value > vib->timeout ? vib->timeout : value);
 
 		if ( ts_diff.tv_sec == 0 && ts_diff.tv_nsec < wait_ms * 1000000
@@ -223,6 +224,14 @@ static void qpnp_vib_enable(struct timed_output_dev *dev, int value)
 			wait_ms = wait_ms_1 > wait_ms_2 ? wait_ms_1 : wait_ms_2;
 		}
 	}
+	else {
+		value = (value > vib->timeout ?
+				 vib->timeout : value);
+		vib->state = 1;
+		hrtimer_start(&vib->vib_timer,
+			      ktime_set(value / 1000, (value % 1000) * 1000000),
+			      HRTIMER_MODE_REL);
+		}
 	schedule_work(&vib->work);
 	mutex_unlock(&vib->lock);
 }

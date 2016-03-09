@@ -1267,6 +1267,10 @@ static struct reg_config mxt_dwakeup_cfg[] = {
 	{.reg = MXT_GEN_ACQUISITIONCONFIG_T8,
 		.offset = 11,.buf = {0x1,0x1}, .len = 2, .mask = 0,.flag = BIT_MASK(P_COMMON)},
 
+//added by yong.bo on 2015/11/18 from atmel frank.sha for double tap do not work sometimes.
+	{.reg = MXT_GEN_ACQUISITIONCONFIG_T8,
+		.offset = 6,.buf = {0x5,0x8,0x0A,0xB0}, .len = 4, .mask = 0,.flag = BIT_MASK(P_COMMON)},
+
 //	{.reg = MXT_SPT_GPIOPWM_T19, .instance = 0, 
 //		.offset = 0,.buf = {1,0,0,15}, .len = 4, .mask = 0,.flag = BIT_MASK(P_COMMON)},
 
