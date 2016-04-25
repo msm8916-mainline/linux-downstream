@@ -2646,6 +2646,38 @@ struct asm_flac_cfg {
 	u16 md5_sum;
 };
 
+struct asm_alac_cfg {
+	u32 frame_length;
+	u8 compatible_version;
+	u8 bit_depth;
+	u8 pb;
+	u8 mb;
+	u8 kb;
+	u8 num_channels;
+	u16 max_run;
+	u32 max_frame_bytes;
+	u32 avg_bit_rate;
+	u32 sample_rate;
+	u32 channel_layout_tag;
+};
+
+struct asm_vorbis_cfg {
+	u32 bit_stream_fmt;
+};
+
+struct asm_ape_cfg {
+	u16 compatible_version;
+	u16 compression_level;
+	u32 format_flags;
+	u32 blocks_per_frame;
+	u32 final_frame_blocks;
+	u32 total_frames;
+	u16 bits_per_sample;
+	u16 num_channels;
+	u32 sample_rate;
+	u32 seek_table_present;
+};
+
 struct asm_softpause_params {
 	u32 enable;
 	u32 period;
@@ -2719,6 +2751,7 @@ struct asm_softvolume_params {
 	    || defined(CONFIG_SND_LGE_MABL)
 #define ASM_STREAM_POSTPROC_TOPO_ID_DEFAULT 0x00010BE4
 #define ASM_STREAM_POSTPROC_TOPO_ID_DEFAULT_LGE 0x10009009
+#define ASM_STREAM_POSTPROC_TOPO_ID_OFFLOAD_LGE 0x10009010
 #endif
 
 #define ASM_MEDIA_FMT_EVRCB_FS 0x00010BEF
@@ -2995,6 +3028,21 @@ struct asm_aac_enc_cfg_v2 {
 
 } __packed;
 
+struct asm_vorbis_fmt_blk_v2 {
+	struct apr_hdr hdr;
+	struct asm_data_cmd_media_fmt_update_v2 fmtblk;
+	u32          bit_stream_fmt;
+/* Bit stream format.
+ * Supported values:
+ * - 0 -- Raw bitstream
+ * - 1 -- Transcoded bitstream
+ *
+ * Transcoded bitstream containing the size of the frame as the first
+ * word in each frame.
+ */
+
+} __packed;
+
 struct asm_flac_fmt_blk_v2 {
 	struct apr_hdr hdr;
 	struct asm_data_cmd_media_fmt_update_v2 fmtblk;
@@ -3059,6 +3107,42 @@ struct asm_flac_fmt_blk_v2 {
 	u16 reserved;
 /* Clients must set this field to zero
  */
+
+} __packed;
+
+struct asm_alac_fmt_blk_v2 {
+	struct apr_hdr hdr;
+	struct asm_data_cmd_media_fmt_update_v2 fmtblk;
+
+	u32 frame_length;
+	u8 compatible_version;
+	u8 bit_depth;
+	u8 pb;
+	u8 mb;
+	u8 kb;
+	u8 num_channels;
+	u16 max_run;
+	u32 max_frame_bytes;
+	u32 avg_bit_rate;
+	u32 sample_rate;
+	u32 channel_layout_tag;
+
+} __packed;
+
+struct asm_ape_fmt_blk_v2 {
+	struct apr_hdr hdr;
+	struct asm_data_cmd_media_fmt_update_v2 fmtblk;
+
+	u16 compatible_version;
+	u16 compression_level;
+	u32 format_flags;
+	u32 blocks_per_frame;
+	u32 final_frame_blocks;
+	u32 total_frames;
+	u16 bits_per_sample;
+	u16 num_channels;
+	u32 sample_rate;
+	u32 seek_table_present;
 
 } __packed;
 
@@ -3462,11 +3546,14 @@ struct asm_amrwbplus_fmt_blk_v2 {
 
 } __packed;
 
-#define ASM_MEDIA_FMT_AC3_DEC                   0x00010BF6
-#define ASM_MEDIA_FMT_EAC3_DEC                   0x00010C3C
+#define ASM_MEDIA_FMT_AC3_DEC                0x00010BF6
+#define ASM_MEDIA_FMT_EAC3_DEC               0x00010C3C
 #define ASM_MEDIA_FMT_DTS                    0x00010D88
 #define ASM_MEDIA_FMT_MP2                    0x00010DE9
 #define ASM_MEDIA_FMT_FLAC                   0x00010C16
+#define ASM_MEDIA_FMT_ALAC                   0x00012F31
+#define ASM_MEDIA_FMT_VORBIS                 0x00010C15
+#define ASM_MEDIA_FMT_APE                    0x00012F32
 
 
 /* Media format ID for adaptive transform acoustic coding. This
@@ -4213,6 +4300,8 @@ struct asm_stream_cmd_open_write_v3 {
  * - #ASM_MEDIA_FMT_FR_FS
  * - #ASM_MEDIA_FMT_VORBIS
  * - #ASM_MEDIA_FMT_FLAC
+ * - #ASM_MEDIA_FMT_ALAC
+ * - #ASM_MEDIA_FMT_APE
  * - #ASM_MEDIA_FMT_EXAMPLE
  */
 } __packed;
@@ -7106,12 +7195,15 @@ struct asm_dts_eagle_param_get {
 #define LSM_SESSION_CMD_OPEN_TX				(0x00012A82)
 #define LSM_SESSION_CMD_CLOSE_TX			(0x00012A88)
 #define LSM_SESSION_CMD_SET_PARAMS			(0x00012A83)
+#define LSM_SESSION_CMD_SET_PARAMS_V2			(0x00012A8F)
 #define LSM_SESSION_CMD_REGISTER_SOUND_MODEL		(0x00012A84)
 #define LSM_SESSION_CMD_DEREGISTER_SOUND_MODEL		(0x00012A85)
 #define LSM_SESSION_CMD_START				(0x00012A86)
 #define LSM_SESSION_CMD_STOP				(0x00012A87)
 #define LSM_SESSION_CMD_EOB				(0x00012A89)
 #define LSM_SESSION_CMD_READ				(0x00012A8A)
+#define LSM_SESSION_CMD_OPEN_TX_V2			(0x00012A8B)
+#define LSM_CMD_ADD_TOPOLOGIES				(0x00012A8C)
 
 #define LSM_SESSION_EVENT_DETECTION_STATUS		(0x00012B00)
 #define LSM_SESSION_EVENT_DETECTION_STATUS_V2		(0x00012B01)
@@ -7123,13 +7215,12 @@ struct asm_dts_eagle_param_get {
 #define LSM_PARAM_ID_OPERATION_MODE			(0x00012C02)
 #define LSM_PARAM_ID_GAIN				(0x00012C03)
 #define LSM_PARAM_ID_CONNECT_TO_PORT			(0x00012C04)
-#define LSM_PARAM_ID_KEYWORD_DETECT_SENSITIVITY		(0x00012C05)
-#define LSM_PARAM_ID_USER_DETECT_SENSITIVITY		(0x00012C06)
 #define LSM_PARAM_ID_FEATURE_COMPENSATION_DATA		(0x00012C07)
 #define LSM_PARAM_ID_MIN_CONFIDENCE_LEVELS		(0x00012C07)
 #define LSM_MODULE_ID_LAB				(0x00012C08)
 #define LSM_PARAM_ID_LAB_ENABLE				(0x00012C09)
 #define LSM_PARAM_ID_LAB_CONFIG				(0x00012C0A)
+#define LSM_MODULE_ID_FRAMEWORK				(0x00012C0E)
 
 /* HW MAD specific */
 #define AFE_MODULE_HW_MAD				(0x00010230)
@@ -7256,9 +7347,11 @@ struct afe_param_id_clip_bank_sel {
 /* Operation needs more data or resources. */
 #define ADSP_ENEEDMORE    0x00000012
 /* Operation does not have memory. */
-#define ADSP_ENOMEMORY     0x00000014
+#define ADSP_ENOMEMORY    0x00000014
 /* Item does not exist. */
-#define ADSP_ENOTEXIST      0x00000015
+#define ADSP_ENOTEXIST    0x00000015
+/* Max count for adsp error code sent to HLOS*/
+#define ADSP_ERR_MAX      (ADSP_ENOTEXIST + 1)
 /* Operation is finished. */
 #define ADSP_ETERMINATED    0x00011174
 

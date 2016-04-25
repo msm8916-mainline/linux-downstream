@@ -73,11 +73,6 @@
 #define MAX17048_POLLING_PERIOD_3       5000
 #endif
 
-#ifdef CONFIG_LGE_PM_VZW_LLK
-#define LLK_MAX_THR_SOC 35
-#define LLK_MIN_THR_SOC 30
-#endif
-
 #define MAX17048_RESCALE_SOC		9400
 #define MAX17048_BATTERY_FULL           100
 #define MAX17048_BATTERY_LOW            15
@@ -110,9 +105,6 @@ struct max17048_chip {
 
 #ifdef CONFIG_MAX17048_POLLING
 	struct delayed_work		polling_work;
-#endif
-#ifdef CONFIG_LGE_PM_VZW_LLK
-	struct power_supply		*usb_psy;
 #endif
 };
 
@@ -393,10 +385,6 @@ static void max17048_work(struct work_struct *work)
 	struct max17048_chip *chip;
 	int ret = 0;
 
-#ifdef CONFIG_LGE_PM_VZW_LLK
-	union power_supply_propval val = {0,};
-#endif
-
 	pr_err(KERN_INFO "%s.\n", __func__);
 
 	chip = container_of(work, struct max17048_chip, work.work);
@@ -444,31 +432,6 @@ static void max17048_work(struct work_struct *work)
 				goto psy_error;
 		}
 
-#ifdef CONFIG_LGE_PM_VZW_LLK
-		if (!chip->usb_psy) {
-			chip->usb_psy = power_supply_get_by_name("usb");
-
-			if (!chip->usb_psy)
-				goto psy_error;
-		}
-		chip->usb_psy->get_property(chip->usb_psy,POWER_SUPPLY_PROP_PRESENT,&val);
-		if (val.intval) {
-			chip->batt_psy->get_property(chip->batt_psy,
-					POWER_SUPPLY_PROP_STORE_DEMO_ENABLED,&val);
-			if (val.intval) {
-				pr_err(KERN_INFO "%s : LLK_mode is operating.\n", __func__);
-				if (chip->capacity_level > LLK_MAX_THR_SOC) {
-					external_charger_enable(0);
-					pr_err(KERN_INFO "%s : stop charging by LLK_mode.\n",
-							__func__);
-				}
-				if (chip->capacity_level < LLK_MIN_THR_SOC) {
-					external_charger_enable(1);
-					pr_err(KERN_INFO "%s : charging by LLK_mode.\n", __func__);
-				}
-			}
-		}
-#endif
 		power_supply_changed(chip->batt_psy);
 	}
 

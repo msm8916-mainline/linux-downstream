@@ -35,12 +35,9 @@
 #include "../staging/android/timed_output.h"
 #include <linux/types.h>
 #include <linux/err.h>
-#include <asm/msm_iomap.h>
 #include <linux/io.h>
-//#include <mach/gpiomux.h>
-#include <mach/board_lge.h>
+#include <soc/qcom/lge/board_lge.h>
 #include <linux/i2c.h>
-#include <asm/msm_xo.h>
 #include <linux/slab.h>
 
 #include <linux/ioctl.h>
@@ -259,7 +256,7 @@ static ssize_t android_irrc_write(struct file *file, const char __user *buf, siz
 
 #ifdef CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 extern void mute_spk_for_swirrc (int enable);
-#endif //                               
+#endif //CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 
 static long android_irrc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -275,7 +272,7 @@ static long android_irrc_ioctl(struct file *file, unsigned int cmd, unsigned lon
 		android_irrc_enable_pwm(irrc, test.frequency/1000, test.duty);
 #ifdef CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 		mute_spk_for_swirrc (1);
-#endif //                               
+#endif //CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 		break;
 
 	case IRRC_STOP:
@@ -284,7 +281,7 @@ static long android_irrc_ioctl(struct file *file, unsigned int cmd, unsigned lon
 		queue_delayed_work(irrc->workqueue, &irrc->gpio_off_work, msecs_to_jiffies(1500));
 #ifdef CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 		mute_spk_for_swirrc (0);
-#endif //                               
+#endif //CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 		break;
 	default:
 	    INFO_MSG("CMD ERROR: cmd:%d\n", cmd);
@@ -323,7 +320,7 @@ struct miscdevice irrc_misc = {
 	.fops	= &IRRC_pcm_fops,
 };
 
-#ifdef CONFIG_DEBUG_FS //                             
+#ifdef CONFIG_DEBUG_FS //2013-07-08 beekay.lee@lge.com
 static struct dentry *debugfs_wcd9xxx_dent;
 static struct dentry *debugfs_poke;
 

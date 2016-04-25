@@ -17,6 +17,8 @@
 #define MSM_CAM_V4L2_IOCTL_NOTIFY_ERROR \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 33, struct msm_v4l2_event_data)
 
+#define MSM_CAM_V4L2_IOCTL_NOTIFY_FREEZE \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 34, struct msm_v4l2_event_data)
 
 #ifdef CONFIG_COMPAT
 #define MSM_CAM_V4L2_IOCTL_NOTIFY32 \
@@ -30,6 +32,9 @@
 
 #define MSM_CAM_V4L2_IOCTL_NOTIFY_ERROR32 \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 33, struct v4l2_event32)
+
+#define MSM_CAM_V4L2_IOCTL_NOTIFY_FREEZE32 \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 34, struct v4l2_event32)
 
 #endif
 
@@ -55,9 +60,17 @@
 #define MSM_CAMERA_SUBDEV_SENSOR_INIT  14
 #define MSM_CAMERA_SUBDEV_OIS          15
 #define MSM_CAMERA_SUBDEV_FLASH        16
-/*                                                        */
+/* LGE_CHANGE_S, proxy, 2014-09-16, byungsoo.moon@lge.com */
 #define MSM_CAMERA_SUBDEV_PROXY        17
-/*                                                        */
+/* LGE_CHANGE_E, proxy, 2014-09-16, byungsoo.moon@lge.com */
+/* LGE_CHANGE_S, tcs, 2015-01-14, booil.park@lge.com */
+#define MSM_CAMERA_SUBDEV_TCS        18
+/* LGE_CHANGE_E, tcs, 2015-01-14, booil.park@lge.com */
+
+#if defined(CONFIG_MSM_OTP) || defined(LGE_CAMERA_USE_OTP)
+#define MSM_CAMERA_SUBDEV_OTP       19
+#endif
+
 #define MSM_MAX_CAMERA_SENSORS  5
 
 /* The below macro is defined to put an upper limit on maximum
@@ -87,7 +100,9 @@
 #define MSM_CAMERA_MAPPING_CFG  (MSM_CAMERA_EVENT_MIN + 5)
 #define MSM_CAMERA_MAPPING_SES  (MSM_CAMERA_EVENT_MIN + 6)
 #define MSM_CAMERA_MSM_NOTIFY   (MSM_CAMERA_EVENT_MIN + 7)
-#define MSM_CAMERA_EVENT_MAX    (MSM_CAMERA_EVENT_MIN + 8)
+/*LGE_CHANGE, cst, added shutdown event*/
+#define MSM_CAMERA_SHUTDOWN     (MSM_CAMERA_EVENT_MIN + 8)
+#define MSM_CAMERA_EVENT_MAX    (MSM_CAMERA_EVENT_MIN + 9)
 
 /* data.command */
 #define MSM_CAMERA_PRIV_S_CROP		 (V4L2_CID_PRIVATE_BASE + 1)

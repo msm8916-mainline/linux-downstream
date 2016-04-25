@@ -478,8 +478,13 @@ static ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	struct timespec now;
 	ssize_t ret = 0;
 
+#if defined(CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_K5)
+	getnstimeofday(&now);
+#else
 	now = current_kernel_time();
-
+#endif
 	header.pid = current->tgid;
 	header.tid = current->pid;
 	header.sec = now.tv_sec;

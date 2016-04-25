@@ -18,6 +18,7 @@
 #include <linux/time.h>	/* struct timeval t_interval[TIME_PROFILE_MAX];*/
 #include <linux/string.h>/* memset */
 #include <linux/i2c.h>
+#include <linux/slab.h>
 #include <linux/input/TD4191/lge_touch_core.h>
 
 #define TRX_max 32

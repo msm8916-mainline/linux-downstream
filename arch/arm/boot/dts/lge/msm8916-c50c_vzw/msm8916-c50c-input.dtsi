@@ -23,7 +23,7 @@
 		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_evdd_ldo_suspend>;	/*Touch GPIO pin suspend setting*/
 		/* change AVDD(MIT-200) power control - L16 independent power - Rev.B */
 
-		lge,fw_image = "melfas/mit200/c50c_vzw/L0M45P1_00_10.fw";
+		lge,fw_image = "melfas/mit200/c50c_vzw/L0M45P1CY5_01_02.fw";
 
 		/* platform_data->pwr*/
 		/* type 0: none(default) */
@@ -45,10 +45,10 @@
 	gpio_keys {
 				status = "disable";
 		};
-		/* gpio keys for Rev.A, Rev.B */
+		/* gpio keys for Rev.A... */
 		gpio_keys_rev@a {
 				status = "ok";
-				revision = "...rev_b";
+				revision = "rev_a...";
 				compatible = "gpio-keys";
 				input-name = "gpio-keys";
 				pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
@@ -66,33 +66,6 @@
 		vol_down {
 						label = "volume_down";
 			gpios = <&msm_gpio 108 0x1>;
-						linux,input-type = <1>;
-						linux,code = <114>;
-						gpio-key,wakeup;
-						debounce-interval = <15>;
-				};
-		};
-
-		/* gpio keys after Rev.C */
-		gpio_keys_rev@b {
-				status = "ok";
-				revision = "rev_c...";
-				compatible = "gpio-keys";
-				input-name = "gpio-keys";
-				pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
-				pinctrl-0 = <&gpio_key_active>;
-				pinctrl-1 = <&gpio_key_suspend>;
-				vol_up {
-						label = "volume_up";
-						gpios = <&msm_gpio 108 0x1>;
-						linux,input-type = <1>;
-						linux,code = <115>;
-						gpio-key,wakeup;
-						debounce-interval = <15>;
-	};
-				vol_down {
-						label = "volume_down";
-						gpios = <&msm_gpio 107 0x1>;
 						linux,input-type = <1>;
 						linux,code = <114>;
 						gpio-key,wakeup;

@@ -147,10 +147,27 @@ static int ecryptfs_crypto_api_algify_cipher_name(char **algified_name,
 						  char *cipher_name,
 						  char *chaining_modifier)
 {
+#ifndef CONFIG_CRYPTO_DEV_KFIPS
 	int cipher_name_len = strlen(cipher_name);
 	int chaining_modifier_len = strlen(chaining_modifier);
+#else
+    int cipher_name_len;
+    int chaining_modifier_len;
+#endif
 	int algified_name_len;
 	int rc;
+
+
+#ifdef CONFIG_CRYPTO_DEV_KFIPS
+    if (!strcmp(cipher_name, "aes") &&
+            (!strcmp(chaining_modifier, "cbc") ||
+             !strcmp(chaining_modifier, "xts")))
+                cipher_name = "fipsaes";
+
+    cipher_name_len = strlen(cipher_name);
+    chaining_modifier_len = strlen(chaining_modifier);
+#endif
+
 
 	algified_name_len = (chaining_modifier_len + cipher_name_len + 3);
 	(*algified_name) = kmalloc(algified_name_len, GFP_KERNEL);
@@ -1015,12 +1032,6 @@ int ecryptfs_new_file_context(struct inode *ecryptfs_inode)
 	ecryptfs_set_default_crypt_stat_vals(crypt_stat, mount_crypt_stat);
 	crypt_stat->flags |= (ECRYPTFS_ENCRYPTED | ECRYPTFS_KEY_VALID);
 	
-#if 1 /* FEATURE_SDCARD_ENCRYPTION  DEBUG */
-	if (mount_crypt_stat && (mount_crypt_stat->flags & ECRYPTFS_DECRYPTION_ONLY)) {
-		printk(KERN_ERR "%s:%d::CHECK decryption_only set, try encryption disable\n", __FUNCTION__, __LINE__);
-	/*	crypt_stat->flags &= ~(ECRYPTFS_ENCRYPTED); */
-	}
-#endif
 	ecryptfs_copy_mount_wide_flags_to_inode_flags(crypt_stat,
 						      mount_crypt_stat);
 	rc = ecryptfs_copy_mount_wide_sigs_to_inode_sigs(crypt_stat,
@@ -1381,24 +1392,11 @@ int ecryptfs_write_metadata(struct dentry *ecryptfs_dentry,
 	struct ecryptfs_crypt_stat *crypt_stat =
 		&ecryptfs_inode_to_private(ecryptfs_inode)->crypt_stat;
 		
-#if 1 /* FEATURE_SDCARD_ENCRYPTION DEBUG */
-	struct ecryptfs_mount_crypt_stat *mount_crypt_stat =
-		&ecryptfs_superblock_to_private(
-				ecryptfs_dentry->d_sb)->mount_crypt_stat;
-#endif
-
 	unsigned int order;
 	char *virt;
 	size_t virt_len;
 	size_t size = 0;
 	int rc = 0;
-
-#if 1 /* FEATURE_SDCARD_ENCRYPTION DEBUG */
-	if (mount_crypt_stat && (mount_crypt_stat->flags
-				& ECRYPTFS_DECRYPTION_ONLY)) {
-		ecryptfs_printk(KERN_ERR, "%s:%d:: Error decryption_only set \n", __FUNCTION__, __LINE__);
-}
-#endif
 
 	if (likely(crypt_stat->flags & ECRYPTFS_ENCRYPTED)) {
 		if (!(crypt_stat->flags & ECRYPTFS_KEY_VALID)) {

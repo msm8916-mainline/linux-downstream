@@ -12,6 +12,30 @@ config MACH_MSM8939_ALTEV2_VZW
         help
           Support for the Qualcomm MSM8939 ALTEV2 VZW device.
 
+config MACH_MSM8939_P1B_GLOBAL_COM
+        bool "MSM8939 P1B_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8939 P1B GLOBAL COM device.
+
+config MACH_MSM8939_PH2_GLOBAL_COM
+        bool "MSM8939 PH2_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8939 PH2 GLOBAL COM device.
+
+config MACH_MSM8939_P1BSSN_SKT_KR
+        bool "MSM8939 P1BSSN_SKT_KR"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8939 P1BSSN SKT KR device.
+
 endmenu
 
 menu "LGE Specific Patches"
@@ -76,6 +100,11 @@ config LGE_KSWITCH
     depends on MACH_LGE
     help
 	  LGE Kill Switch
+
+config LGE_SENSOR_UNIFIED_NODE
+    bool "enable LGE SENSOR Unified sysfs node"
+    help
+      Support LGE SENSOR Unified sysfs node
 
 endmenu
 

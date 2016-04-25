@@ -36,9 +36,25 @@
 #define ATMF04_STATUS_SUSPEND       1
 #define ATMF04_STATUS_QUEUE_WORK    2
 
+/* Calibration Check */
+
+#if defined(CONFIG_MACH_MSM8916_E7IILTE_SPR_US)
+#define ATMF04_CRCS_DUTY_LOW        385
+#define ATMF04_CRCS_DUTY_HIGH       645
+#define ATMF04_CRCS_COUNT           30
+#define ATMF04_CSCR_RESULT          -1
+#else
+#define ATMF04_CRCS_DUTY_LOW        375
+#define ATMF04_CRCS_DUTY_HIGH       800
+#define ATMF04_CRCS_COUNT           80
+#define ATMF04_CSCR_RESULT          -2
+#endif
+
 /* I2C Register */
 
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 #define I2C_ADDR_SSTVT_H            0x01
 #define I2C_ADDR_SSTVT_L            0x02
 #define I2C_ADDR_TCH_ONOFF_CNT      0x03
@@ -78,6 +94,19 @@
 #define I2C_ADDR_PGM_VER_SUB        0x17
 #endif
 
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+//Calibration Data Backup/Restore
+#define I2C_ADDR_CMD_OPT 					0x7E
+#define I2C_ADDR_COMMAND 					0x7F
+#define I2C_ADDR_REQ_DATA					0x80
+#define CMD_R_CD_DUTY						0x04		//Cal Data Duty Read
+#define CMD_R_CD_REF						0x05		//Cal Data Ref Read
+#define CMD_W_CD_DUTY						0x84		//Cal Data Duty Read
+#define CMD_W_CD_REF						0x85		//Cal Data Ref Read
+#define SZ_CALDATA_UNIT 					16
+int CalData[4][SZ_CALDATA_UNIT];
+#endif
+
 #define BIT_PERCENT_UNIT            8.192
 #define MK_INT(X, Y)                (((int)X << 8)+(int)Y)
 
@@ -88,10 +117,12 @@
 #define OFF_SENSOR                  2
 #define PATH_CAPSENSOR_CAL  "/sns/capsensor_cal.dat"
 
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
-#define CNT_INITCODE                9
-const unsigned char InitCodeAddr[CNT_INITCODE] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0E };
-const unsigned char InitCodeVal[CNT_INITCODE] = { 0x00, 0x0C, 0x33, 0x0B, 0x08, 0x6A, 0x68, 0x06, 0x1E };
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
+#define CNT_INITCODE                13
+const unsigned char InitCodeAddr[CNT_INITCODE] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0C, 0x0D, 0x0E, 0x20, 0x21 };
+const unsigned char InitCodeVal[CNT_INITCODE] = { 0x00, 0x31, 0x33, 0x0B, 0x08, 0x6C, 0x68, 0x07, 0x00, 0x0C, 0x50, 0x81, 0x20 };
 #else
 #define CNT_INITCODE                7
 const unsigned char InitCodeAddr[CNT_INITCODE] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 };
@@ -100,6 +131,7 @@ const unsigned char InitCodeVal[CNT_INITCODE] = { 0x00, 0x0A, 0x69, 0x67, 0x0B, 
 static struct i2c_driver atmf04_driver;
 static struct workqueue_struct *atmf04_workqueue;
 
+unsigned char fuse_data[SZ_PAGE_DATA];
 
 #ifdef CONFIG_OF
 enum sensor_dt_entry_status {
@@ -187,6 +219,158 @@ void chg_mode(unsigned char flag, struct i2c_client *client)
 	mdelay(1);
 }
 
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+int Backup_CalData(struct i2c_client *client)
+{
+	int loop, dloop;
+    int ret;
+
+	for(loop = 0 ; loop < 2 ; loop++)
+	{
+		ret = i2c_smbus_write_byte_data(client,I2C_ADDR_CMD_OPT, loop);
+        if (ret) {
+            PINFO("atmf04: i2c_write_fail \n");
+                return ret;
+        }
+		ret = i2c_smbus_write_byte_data(client,I2C_ADDR_COMMAND, CMD_R_CD_DUTY);
+        if (ret) {
+            PINFO("atmf04: i2c_write_fail \n");
+                return ret;
+        }
+
+		mdelay(1); 		//1 ms Delay
+
+		for(dloop = 0; dloop < SZ_CALDATA_UNIT ; dloop++)
+			CalData[loop][dloop] = i2c_smbus_read_byte_data(client,I2C_ADDR_REQ_DATA + dloop);
+	}
+
+	for(loop = 0 ; loop < 2 ; loop++)
+	{
+		ret = i2c_smbus_write_byte_data(client,I2C_ADDR_CMD_OPT, loop);
+        if (ret) {
+            PINFO("atmf04: i2c_write_fail \n");
+                return ret;
+        }
+		ret = i2c_smbus_write_byte_data(client,I2C_ADDR_COMMAND, CMD_R_CD_REF);
+        if (ret) {
+            PINFO("atmf04: i2c_write_fail \n");
+                return ret;
+        }
+
+		mdelay(1); 		//1 ms Delay
+
+		for(dloop = 0; dloop < SZ_CALDATA_UNIT ; dloop++)
+			CalData[2+loop][dloop] = i2c_smbus_read_byte_data(client,I2C_ADDR_REQ_DATA + dloop);
+	}
+    if(CalData[0][0] == 0xFF || (CalData[0][0] == 0x00 && CalData[0][1] == 0x00))
+    {
+        PINFO("atmf04: Invalid cal data, Not back up this value.");
+        return -1;
+    }
+
+    for(loop =0;loop<2;loop++)
+    {
+        for(dloop=0;dloop < SZ_CALDATA_UNIT ; dloop++)
+			PINFO("atmf04: backup_caldata data[%d][%d] : %d \n",loop,dloop,CalData[loop][dloop]);
+    }
+
+    PINFO("atmf04 backup_cal success");
+    return 0;
+}
+
+int Write_CalData(struct i2c_client *client)
+{
+	int loop, dloop;
+    int ret;
+
+	for(loop = 0 ; loop < 2 ; loop++)
+	{
+		ret = i2c_smbus_write_byte_data(client,I2C_ADDR_CMD_OPT, loop);
+        if (ret) {
+            PINFO("atmf04: i2c_write_fail \n");
+                return ret;
+        }
+		ret =i2c_smbus_write_byte_data(client,I2C_ADDR_COMMAND, CMD_W_CD_DUTY);
+        if (ret) {
+            PINFO("atmf04: i2c_write_fail \n");
+                return ret;
+        }
+
+		mdelay(1); 		//1 ms Delay
+
+		for(dloop = 0; dloop < SZ_CALDATA_UNIT ; dloop++)
+        {
+			ret = i2c_smbus_write_byte_data(client,I2C_ADDR_REQ_DATA + dloop, CalData[loop][dloop]);
+            if (ret) {
+                PINFO("atmf04: i2c_write_fail \n");
+                return ret;
+            }
+
+        }
+	}
+
+	for(loop = 0 ; loop < 2 ; loop++)
+	{
+		ret = i2c_smbus_write_byte_data(client,I2C_ADDR_CMD_OPT, loop);
+        if (ret) {
+            PINFO("atmf04: i2c_write_fail \n");
+                return ret;
+        }
+		ret = i2c_smbus_write_byte_data(client,I2C_ADDR_COMMAND, CMD_W_CD_REF);
+        if (ret) {
+            PINFO("atmf04: i2c_write_fail \n");
+                return ret;
+        }
+
+		mdelay(1); 		//1 ms Delay
+
+		for(dloop = 0; dloop < SZ_CALDATA_UNIT ; dloop++)
+        {
+			ret = i2c_smbus_write_byte_data(client,I2C_ADDR_REQ_DATA + dloop, CalData[2+loop][dloop]);
+            if (ret) {
+                PINFO("atmf04: i2c_write_fail \n");
+                return ret;
+            }
+
+        }
+	}
+    return 0;
+}
+
+int RestoreProc_CalData(struct atmf04_data *data, struct i2c_client *client)
+{
+    int loop;
+    int ret;
+	//Power On
+    gpio_direction_output(data->platform_data->chip_enable, 0);
+    mdelay(450);
+
+
+	//Calibration data write
+	ret = Write_CalData(client);
+    if(ret)
+        return ret;
+
+	//Initial code write
+    for(loop = 0 ; loop < CNT_INITCODE ; loop++) {
+        ret = i2c_smbus_write_byte_data(client, InitCodeAddr[loop], InitCodeVal[loop]);
+        if (ret) {
+            PINFO("i2c_write_fail[0x%x]\n",InitCodeAddr[loop]);
+        }
+        PINFO("##[0x%x][0x%x]##\n", InitCodeAddr[loop], i2c_smbus_read_byte_data(client, InitCodeAddr[loop]));
+    }
+
+	//E-flash Data Save Command
+    i2c_smbus_write_byte_data(client, I2C_ADDR_SYS_CTRL, 0x80);
+
+	mdelay(50);		//50ms delay
+
+	//Software Reset2
+	i2c_smbus_write_byte_data(client,I2C_ADDR_SYS_CTRL, 0x02);
+    PINFO("atmf04 restore_cal success");
+    return 0;
+}
+#endif
 unsigned char chk_done(unsigned int wait_cnt, struct i2c_client *client)
 {
 	unsigned int trycnt = 0;
@@ -319,6 +503,9 @@ unsigned char load_firmware(struct atmf04_data *data, struct i2c_client *client,
 	unsigned char page_addr[2];
 	unsigned char fw_version, ic_fw_version, page_num;
 	int version_addr;
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+    int restore = 0;
+#endif
 
 	gpio_direction_output(data->platform_data->chip_enable, 0);
 
@@ -343,10 +530,40 @@ unsigned char load_firmware(struct atmf04_data *data, struct i2c_client *client,
 	ic_fw_version = MK_INT(main_version, sub_version);
 	PINFO("###########ic version : %d.%d, ic_fw_version : %d###########\n", main_version, sub_version, ic_fw_version);
 
-	if (fw_version > ic_fw_version) {
+	if (fw_version > ic_fw_version || fw->data[version_addr] > main_version) {
 		//mdelay(200);
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+		if (ic_fw_version == 0)
+			restore = 0;
+		else {
+			if (Backup_CalData(client) < 0)
+				restore = 0;
+			else
+				restore = 1;
+		}
+#endif
+		/* IC Download Mode Change */
 		chg_mode(ON, client);
 
+		/* fuse data process */
+		page_addr[0] = 0x00;
+		page_addr[1] = 0x00;
+
+		rtn = read_eflash_page(FLAG_FUSE, page_addr, fuse_data, client);
+		if (rtn != RTN_SUCC) {
+			PERR("read eflash page fail!");
+			return rtn;		/* fuse read fail */
+		}
+
+		fuse_data[51] |= 0x80;
+
+		rtn = write_eflash_page(FLAG_FUSE, page_addr, fuse_data, client);
+		if (rtn != RTN_SUCC) {
+			PERR("write eflash page fail!");
+			return rtn;		/* fuse write fail */
+		}
+
+		/* firmware write process */
 		rtn = erase_eflash(client);
 		if(rtn != RTN_SUCC) {
 			PINFO("earse fail\n");
@@ -380,7 +597,18 @@ unsigned char load_firmware(struct atmf04_data *data, struct i2c_client *client,
 	}
 	chg_mode(OFF, client);
 	gpio_direction_output(data->platform_data->chip_enable, 1);
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+	mdelay(10);
+    if(restore)
+    {
+    ret = RestoreProc_CalData(data, client);
+    if(ret)
+        PINFO("restore fail ret: %d",ret);
+    }
+#endif
 	PINFO("disable ok");
+
+	release_firmware(fw);
 
 	return 0;
 }
@@ -429,8 +657,8 @@ static int write_calibration_data(struct atmf04_data *data, char *filename)
 	fd = sys_open(filename, O_WRONLY|O_CREAT, 0664);
 
 	if (fd >= 0) {
-		PINFO("fd>=0");
 		sys_write(fd,0,sizeof(int));
+		sys_close(fd);
 	}
 	PINFO("sys open to save cal.dat\n");
 
@@ -480,7 +708,6 @@ static ssize_t atmf04_show_proxstatus(struct device *dev,
 	int ret ;
     struct atmf04_data *data = dev_get_drvdata(dev);
 	ret = gpio_get_value(data->platform_data->irq_gpio);
-	PINFO("proxstatus\n");
 	return sprintf(buf, "%d\n", ret);
 }
 
@@ -513,7 +740,7 @@ static ssize_t atmf04_show_docalibration(struct device *dev,
 	unsigned char  safe_duty;
 
 	/* check safe duty for validation of cal*/
-	safe_duty = i2c_smbus_read_byte_data(client, I2C_ADDR_SAFE_DUTY_CHK | 0x80);
+	safe_duty = i2c_smbus_read_byte_data(client, I2C_ADDR_SAFE_DUTY_CHK & 0x80);
 
 	return sprintf(buf, "%x\n", safe_duty);
 }
@@ -542,8 +769,8 @@ static ssize_t atmf04_store_docalibration(struct device *dev,
 	mdelay(450);
 #endif
 
-	safe_duty = i2c_smbus_read_byte_data(client, I2C_ADDR_SAFE_DUTY_CHK | 0x80);
-	PINFO("%x",safe_duty);
+	safe_duty = i2c_smbus_read_byte_data(client, I2C_ADDR_SAFE_DUTY_CHK & 0x80);
+	PINFO("safe_duty : %x", safe_duty);
 
 	write_calibration_data(data, PATH_CAPSENSOR_CAL);
 
@@ -561,7 +788,6 @@ static ssize_t atmf04_store_regreset(struct device *dev,
 	if(ret)
 		PINFO("i2c_write_fail\n");
 
-	PINFO("0x%x",i2c_smbus_read_byte_data(client, I2C_ADDR_SYS_CTRL));
 	return count;
 }
 
@@ -573,16 +799,16 @@ static ssize_t atmf04_show_regproxdata(struct device *dev,
         struct device_attribute *attr, char *buf)
 {
 	struct i2c_client *client = to_i2c_client(dev);
-	u8 cs_per[2],cr_duty[2], cs_duty[2];
-	u16 cs_per_result;
-	int cr_duty_val, cs_duty_val;
-	int tmp;
+	short cs_per[2], cs_per_result;
+	short cr_duty[2], cs_duty[2], cr_duty_val, cs_duty_val;
+	short tmp, cap_value;
     int nlength = 0;
     char buf_regproxdata[256] = "";
     char buf_line[64] = "";
 	unsigned char init_touch_md;
-	int cap_value ;
-
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)	 /*auto calibration FW*/
+	int check_mode;
+#endif
     memset(buf_line, 0, sizeof(buf_line));
     memset(buf_regproxdata, 0, sizeof(buf_regproxdata));
 
@@ -602,9 +828,17 @@ static ssize_t atmf04_show_regproxdata(struct device *dev,
 	cs_duty_val = MK_INT(cs_duty[1], cs_duty[0]);
 
 	cap_value = (int)cs_duty_val * (int)cs_per_result;
-	printk("H: %x L:%x H:%x L:%x\n",cr_duty[1] ,cr_duty[0], cs_duty[1], cs_duty[0]);
+	// printk("H: %x L:%x H:%x L:%x\n",cr_duty[1] ,cr_duty[0], cs_duty[1], cs_duty[0]);
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)	/*auto calibration FW*/
+	check_mode = get_bit(init_touch_md, 2);
 
-    sprintf(buf_line, "[R]%6d %6d %6d %6d %6d\n", get_bit(init_touch_md,1),(int)cs_per_result, (int)cr_duty_val, (int)cs_duty_val, cap_value);
+	if (check_mode)		/* Normal Mode */
+		sprintf(buf_line, "[R]%6d %6d %6d %6d %6d\n", get_bit(init_touch_md,2), cs_per_result, cr_duty_val, cs_duty_val, cap_value);
+	else		/* Init Touch Mode */
+#endif
+
+
+    sprintf(buf_line, "[R]%6d %6d %6d %6d %6d\n", get_bit(init_touch_md,1), cs_per_result, cr_duty_val, cs_duty_val, cap_value);
     nlength = strlen(buf_regproxdata);
 	strcpy(&buf_regproxdata[nlength], buf_line);
 
@@ -685,6 +919,108 @@ static ssize_t atmf04_show_version(struct device *dev,
 	return sprintf(buf,"%s", buf_regproxdata);
 }
 
+static ssize_t atmf04_show_check_far(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    struct i2c_client *client = to_i2c_client(dev);
+    struct atmf04_data *data = i2c_get_clientdata(client);
+    unsigned char init_touch_md_check;
+    short tmp, cs_per[2], cs_per_result, crcs_count;
+    short cr_duty[2], cs_duty[2], cr_duty_val, cs_duty_val;
+	int bit_mask = 1; //bit for reading of I2C_ADDR_SYS_STAT
+
+    mutex_lock(&data->update_lock);
+
+    cs_per[0] = i2c_smbus_read_byte_data(client,I2C_ADDR_PER_H);
+    cs_per[1] = i2c_smbus_read_byte_data(client,I2C_ADDR_PER_L);
+    tmp = MK_INT(cs_per[0], cs_per[1]);
+    cs_per_result = tmp / 8;    // BIT_PERCENT_UNIT;
+
+    cr_duty[1] = i2c_smbus_read_byte_data(client, I2C_ADDR_CR_DUTY_H);
+    cr_duty[0] = i2c_smbus_read_byte_data(client, I2C_ADDR_CR_DUTY_L);
+    cr_duty_val = MK_INT(cr_duty[1], cr_duty[0]);
+
+    cs_duty[1] = i2c_smbus_read_byte_data(client, I2C_ADDR_CS_DUTY_H);
+    cs_duty[0] = i2c_smbus_read_byte_data(client, I2C_ADDR_CS_DUTY_L);
+    cs_duty_val = MK_INT(cs_duty[1], cs_duty[0]);
+
+    crcs_count = cr_duty_val - cs_duty_val;
+
+    init_touch_md_check = i2c_smbus_read_byte_data(client, I2C_ADDR_SYS_STAT);
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) /*auto calibration FW*/
+    if(get_bit(init_touch_md_check, 2))
+        bit_mask = 2;  /* Normal Mode */
+    else
+        bit_mask = 1;  /* Init Touch Mode */
+#endif
+    if(gpio_get_value(data->platform_data->irq_gpio) == 1) {
+        if ((get_bit(init_touch_md_check, bit_mask) != 1) || (cs_duty_val < ATMF04_CRCS_DUTY_LOW)\
+                ||(cr_duty_val <ATMF04_CRCS_DUTY_LOW) || (cs_duty_val > ATMF04_CRCS_DUTY_HIGH)\
+                || (cr_duty_val > ATMF04_CRCS_DUTY_HIGH) || (cs_per_result < ATMF04_CSCR_RESULT) || (crcs_count > ATMF04_CRCS_COUNT)) {
+            printk("1.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check, bit_mask), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
+            mutex_unlock(&data->update_lock);
+            return sprintf(buf,"%d",0);
+        }
+        else {
+            printk("2.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check, bit_mask), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
+            mutex_unlock(&data->update_lock);
+            return sprintf(buf,"%d",1);
+        }
+    }
+    else {
+        printk("3.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check, bit_mask), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
+        mutex_unlock(&data->update_lock);
+        return sprintf(buf,"%d",0);
+    }
+}
+
+static ssize_t atmf04_show_check_mid(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    struct i2c_client *client = to_i2c_client(dev);
+    struct atmf04_data *data = i2c_get_clientdata(client);
+    unsigned char init_touch_md_check;
+    short tmp, cs_per[2], cs_per_result, crcs_count;
+    short cr_duty[2], cs_duty[2], cr_duty_val, cs_duty_val;
+	int bit_mask = 1; //bit for reading of I2C_ADDR_SYS_STAT
+
+    mutex_lock(&data->update_lock);
+
+    cs_per[0] = i2c_smbus_read_byte_data(client,I2C_ADDR_PER_H);
+    cs_per[1] = i2c_smbus_read_byte_data(client,I2C_ADDR_PER_L);
+    tmp = MK_INT(cs_per[0], cs_per[1]);
+    cs_per_result = tmp / 8;    // BIT_PERCENT_UNIT;
+
+    cr_duty[1] = i2c_smbus_read_byte_data(client, I2C_ADDR_CR_DUTY_H);
+    cr_duty[0] = i2c_smbus_read_byte_data(client, I2C_ADDR_CR_DUTY_L);
+    cr_duty_val = MK_INT(cr_duty[1], cr_duty[0]);
+
+    cs_duty[1] = i2c_smbus_read_byte_data(client, I2C_ADDR_CS_DUTY_H);
+    cs_duty[0] = i2c_smbus_read_byte_data(client, I2C_ADDR_CS_DUTY_L);
+    cs_duty_val = MK_INT(cs_duty[1], cs_duty[0]);
+
+    crcs_count = cr_duty_val - cs_duty_val;
+
+    init_touch_md_check = i2c_smbus_read_byte_data(client, I2C_ADDR_SYS_STAT);
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) /*auto calibration FW*/
+    if(get_bit(init_touch_md_check, 2))
+        bit_mask = 2;  /* Normal Mode */
+    else
+        bit_mask = 1;  /* Init Touch Mode */
+#endif
+
+    if ((get_bit(init_touch_md_check, bit_mask) != 1) || (cs_duty_val < ATMF04_CRCS_DUTY_LOW)\
+            ||(cr_duty_val <ATMF04_CRCS_DUTY_LOW) || (cs_duty_val > ATMF04_CRCS_DUTY_HIGH)\
+            || (cr_duty_val > ATMF04_CRCS_DUTY_HIGH) || (cs_per_result < ATMF04_CSCR_RESULT) || (crcs_count > ATMF04_CRCS_COUNT)) {
+        printk("1.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check, bit_mask), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
+        mutex_unlock(&data->update_lock);
+        return sprintf(buf,"%d",0);
+    }
+    else {
+        printk("2.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check, bit_mask), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
+        mutex_unlock(&data->update_lock);
+        return sprintf(buf,"%d",1);
+    }
+}
+
 static DEVICE_ATTR(onoff,        0664, NULL, atmf04_store_onoffsensor);
 static DEVICE_ATTR(proxstatus,   0664, atmf04_show_proxstatus, NULL);
 static DEVICE_ATTR(docalibration,0664, atmf04_show_docalibration, atmf04_store_docalibration);
@@ -696,6 +1032,9 @@ static DEVICE_ATTR(cntinputpins, 0664, atmf04_show_count_inputpins, NULL);
 static DEVICE_ATTR(regproxctrl0, 0664, atmf04_show_regproxctrl0, NULL);
 static DEVICE_ATTR(download,     0664, NULL, atmf04_store_firmware);
 static DEVICE_ATTR(version,      0664, atmf04_show_version, NULL);
+static DEVICE_ATTR(check_far,    0664, atmf04_show_check_far, NULL);
+static DEVICE_ATTR(check_mid,    0664, atmf04_show_check_mid, NULL);
+
 
 static struct attribute *atmf04_attributes[] = {
     &dev_attr_onoff.attr,
@@ -709,6 +1048,8 @@ static struct attribute *atmf04_attributes[] = {
     &dev_attr_regproxctrl0.attr,
 	&dev_attr_download.attr,
 	&dev_attr_version.attr,
+	&dev_attr_check_far.attr,
+	&dev_attr_check_mid.attr,
     NULL,
 };
 
@@ -999,7 +1340,7 @@ static int atmf04_probe(struct i2c_client *client,
 #endif
 	int err = 0;
 
-	PINFO("Entered\n");
+	PINFO("ATMF04 Entered\n");
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE)) {
 		return -EIO;
 	}
@@ -1055,14 +1396,12 @@ static int atmf04_probe(struct i2c_client *client,
 	wake_lock_init(&data->ps_wlock, WAKE_LOCK_SUSPEND, "capsensor_wakelock");
 	INIT_DELAYED_WORK(&data->dwork, atmf04_work_handler);
 
-	PINFO("request_irq\n");
 	if(request_irq(client->irq, atmf04_interrupt, IRQF_DISABLED|IRQ_TYPE_EDGE_FALLING|IRQ_TYPE_EDGE_RISING,
 			ATMF04_DRV_NAME, (void *)client )) {
 		PINFO("Could not allocate ATMF04_INT %d !\n", data->irq);
 		goto exit_irq_init_failed;
 	}
 
-	PINFO("%d",data->irq);
 	err = enable_irq_wake(data->irq);
 
 	data->input_dev_cap = input_allocate_device();

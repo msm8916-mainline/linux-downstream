@@ -59,8 +59,11 @@
 #define CREATE_TRACE_POINTS
 #include "mdss_mdp_trace.h"
 
+#ifdef CONFIG_LGE_DISPLAY_VSYNC_SKIP
+#include "lge/common/vsync_skip.h"
+#endif
 #define AXI_HALT_TIMEOUT_US	0x4000
-#define AUTOSUSPEND_TIMEOUT_MS	200
+#define AUTOSUSPEND_TIMEOUT_MS	50
 
 struct mdss_data_type *mdss_res;
 
@@ -672,7 +675,7 @@ int mdss_iommu_ctrl(int enable)
 
 	if (enable) {
 		if (mdata->iommu_ref_cnt == 0) {
-			mdss_bus_scale_set_quota(MDSS_HW_IOMMU, SZ_1M, SZ_1M);
+			mdss_bus_scale_set_quota(MDSS_IOMMU_RT, SZ_1M, SZ_1M);
 			rc = mdss_iommu_attach(mdata);
 		}
 		mdata->iommu_ref_cnt++;
@@ -681,7 +684,7 @@ int mdss_iommu_ctrl(int enable)
 			mdata->iommu_ref_cnt--;
 			if (mdata->iommu_ref_cnt == 0) {
 				rc = mdss_iommu_dettach(mdata);
-				mdss_bus_scale_set_quota(MDSS_HW_IOMMU, 0, 0);
+				mdss_bus_scale_set_quota(MDSS_IOMMU_RT, 0, 0);
 			}
 		} else {
 			pr_err("unbalanced iommu ref\n");
@@ -1132,6 +1135,10 @@ int mdss_hw_init(struct mdss_data_type *mdata)
 
 	mdss_hw_rev_init(mdata);
 
+	/* Restoring Secure configuration during boot-up */
+	if (mdss_mdp_req_init_restore_cfg(mdata))
+		__mdss_restore_sec_cfg(mdata);
+
 	/* disable hw underrun recovery */
 	writel_relaxed(0x0, mdata->mdp_base +
 			MDSS_MDP_REG_VIDEO_INTF_UNDERFLOW_CTL);
@@ -1419,48 +1426,18 @@ static ssize_t mdss_mdp_show_capabilities(struct device *dev,
 
 static DEVICE_ATTR(caps, S_IRUGO, mdss_mdp_show_capabilities, NULL);
 
-#ifdef CONFIG_LGE_VSYNC_SKIP
-static ssize_t fps_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	ulong fps;
-	if (!count)
-		return -EINVAL;
-	fps = simple_strtoul(buf, NULL, 10);
-	if (fps == 0 || fps >= 60) {
-		mdss_res->enable_skip_vsync = 0;
-		mdss_res->skip_value = 0;
-		mdss_res->weight = 0;
-		mdss_res->bucket = 0;
-		mdss_res->skip_count = 0;
-		pr_info("Disable frame skip.\n");
-	} else {
-		mdss_res->enable_skip_vsync = 1;
-		mdss_res->skip_value = (60<<16)/fps;
-		mdss_res->weight = (1<<16);
-		mdss_res->bucket = 0;
-		pr_info("Enable frame skip: Set to %lu fps.\n", fps);
-	}
-	return count;
-}
-static ssize_t fps_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	int r = 0;
-	r = snprintf(buf, PAGE_SIZE, "enable_skip_vsync=%d\nweight=%lu\nskip_value=%lu\nbucket=%lu\nskip_count=%lu\n",
-		mdss_res->enable_skip_vsync,
-		mdss_res->weight,
-		mdss_res->skip_value,
-		mdss_res->bucket,
-		mdss_res->skip_count);
-	return r;
-}
+#ifdef CONFIG_LGE_DISPLAY_VSYNC_SKIP
 static DEVICE_ATTR(vfps, 0644, fps_show, fps_store);
+static DEVICE_ATTR(vfps_ratio, 0644, fps_ratio_show, NULL);
+static DEVICE_ATTR(vfps_fcnt, 0644, fps_fcnt_show, NULL);
 #endif
+
 static struct attribute *mdp_fs_attrs[] = {
 	&dev_attr_caps.attr,
-#ifdef CONFIG_LGE_VSYNC_SKIP
+#ifdef CONFIG_LGE_DISPLAY_VSYNC_SKIP
 	&dev_attr_vfps.attr,
+	&dev_attr_vfps_ratio.attr,
+	&dev_attr_vfps_fcnt.attr,
 #endif
 	NULL
 };

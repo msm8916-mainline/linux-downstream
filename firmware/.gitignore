@@ -1,6 +1,0 @@
-*.gen.S
-*.csp
-*.dsp
-atmel/*.ihex
-atmel/altev2/*.ihex
-ihex2fw

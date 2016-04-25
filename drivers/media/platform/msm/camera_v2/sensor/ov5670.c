@@ -17,8 +17,98 @@ DEFINE_MSM_MUTEX(ov5670_mut);
 
 static struct msm_sensor_ctrl_t ov5670_s_ctrl;
 
+#if defined(CONFIG_LGE_P1B_CAMERA)
 static struct msm_sensor_power_setting ov5670_power_setting[] = {
-
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET,
+		.config_val = GPIO_OUT_LOW,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VIO,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VANA,
+		.config_val = 0,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VDIG,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_CLK,
+		.seq_val = SENSOR_CAM_MCLK,
+		.config_val = 23880000,
+		.delay = 2,
+	},
+	{
+		.seq_type = SENSOR_I2C_MUX,
+		.seq_val = 0,
+		.config_val = 0,
+		.delay = 1,
+	},
+};
+#elif defined(CONFIG_LGE_YG_CAMERA)
+static struct msm_sensor_power_setting ov5670_power_setting[] = {
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET,
+		.config_val = GPIO_OUT_LOW,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VIO,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VANA,
+		.config_val = 0,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VDIG,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_CLK,
+		.seq_val = SENSOR_CAM_MCLK,
+		.config_val = 23880000,
+		.delay = 2,
+	},
+	{
+		.seq_type = SENSOR_I2C_MUX,
+		.seq_val = 0,
+		.config_val = 0,
+		.delay = 1,
+	},
+};
+#else
+static struct msm_sensor_power_setting ov5670_power_setting[] = {
 	{//[0]
 		.seq_type = SENSOR_GPIO,
 		.seq_val = SENSOR_GPIO_RESET,
@@ -52,8 +142,8 @@ static struct msm_sensor_power_setting ov5670_power_setting[] = {
 	{//[5]
 		.seq_type = SENSOR_CLK,
 		.seq_val = SENSOR_CAM_MCLK,
-		.config_val = 0,
-		.delay = 10,
+		.config_val = 23880000,
+		.delay = 2,
 	},
 	{//[6]
 		.seq_type = SENSOR_I2C_MUX,
@@ -62,6 +152,7 @@ static struct msm_sensor_power_setting ov5670_power_setting[] = {
 		.delay = 1,
 	},
 };
+#endif
 
 static struct v4l2_subdev_info ov5670_subdev_info[] = {
 	{

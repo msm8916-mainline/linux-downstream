@@ -528,6 +528,23 @@ int bdi_set_max_ratio(struct backing_dev_info *bdi, unsigned max_ratio)
 }
 EXPORT_SYMBOL(bdi_set_max_ratio);
 
+#ifdef CONFIG_CHECK_SYNC_TIME
+int bdi_set_max_sync_count(struct backing_dev_info *bdi, unsigned max_sync_count)
+{
+	int ret = 0;
+
+	if (max_sync_count > 256)
+		return -EINVAL;
+
+	spin_lock_bh(&bdi_lock);
+	bdi->max_sync_count = max_sync_count;
+	spin_unlock_bh(&bdi_lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(bdi_set_max_sync_count);
+#endif
+
 static unsigned long dirty_freerun_ceiling(unsigned long thresh,
 					   unsigned long bg_thresh)
 {
@@ -1529,6 +1546,12 @@ void throttle_vm_writeout(gfp_t gfp_mask)
                 if (global_page_state(NR_UNSTABLE_NFS) +
 			global_page_state(NR_WRITEBACK) <= dirty_thresh)
                         	break;
+		/* Try safe version */
+		else if (unlikely(global_page_state_snapshot(NR_UNSTABLE_NFS) +
+			global_page_state_snapshot(NR_WRITEBACK) <=
+				dirty_thresh))
+				break;
+
                 congestion_wait(BLK_RW_ASYNC, HZ/10);
 
 		/*

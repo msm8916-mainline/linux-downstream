@@ -35,10 +35,13 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/async.h>
+#include <linux/wakelock.h>
 
 #ifdef CONFIG_OF
 #include <linux/of_gpio.h>
 #endif
+
+#include <mach/board_lge.h>
 
 #define MODULE_TAG "<rpr0521>"
 #include "bs_log.h"
@@ -46,11 +49,19 @@
 #include "rohm_rpr0521_i2c_config.h"
 #include "rohm_rpr0521_i2c_if.h"
 
-/*                   */
+/* ssoon.lee@lge.com */
 #define PS_CALIBRATION_PATH "/sns/prox_calibration.dat"
-#define PS_THRESHOLD_MAX 4095
-#define PS_THRESHOLD_MIN 0
-#define DEFAULT_CROSS_TALK 150
+#define PS_THRESHOLD_MAX (4095)
+#define PS_THRESHOLD_MIN (0)
+#define ALS_THRESHOLD_MAX (65535)
+#define ALS_THRESHOLD_MIN (0)
+#define DEFAULT_CROSS_TALK (9)
+#define ALSCALC_OFFSET (1000)
+#define ALS_MAX_VALUE (43000)
+#define ALSCALC_GAIN_MASK (0xF << 2)
+#define GAIN_THRESHOLD (1000)
+
+#define RPR0521_PM_SUSPEND_RESUME
 
 /******************************* define *******************************/
 /* structure of peculiarity to use by system */
@@ -87,12 +98,11 @@ typedef struct {
 	u32	persistence;
 	u32	near_offset;
 	u32	far_offset;
-	u8	mode_ctl;
-	u8	psals_ctl;
-	u8	ps_ctl;
-	u8	intr;
-	u8	psth_upper;
-	u8	psth_low;
+    INIT_ARG init_data;
+  /*D1-5T-SW-INPUT@lge.com*/
+	signed long judge_coef0, judge_coef1, judge_coef2, judge_coef3;
+	signed long data0_coef0, data0_coef1, data0_coef2, data0_coef3;
+	signed long data1_coef0, data1_coef1, data1_coef2, data1_coef3;
 } PS_ALS_CONFIG;
 #endif
 
@@ -102,12 +112,14 @@ typedef struct {
     struct hrtimer      timer;       /* structure for timer handler              */
     struct work_struct  work;        /* structure for work queue                 */
     struct input_dev    *input_dev;  /* structure pointer for input device       */
+    struct input_dev    *input_dev_als;  /* structure pointer for input device       */
     struct delayed_work input_work;  /* structure for work queue                 */
     int                 delay_time;  /* delay time to set from application       */
     int                 fopen_cnt;   /* open count */
-	
-	/*                   */
-	unsigned char		enable;		/* sensor on/off status*/
+
+	/* ssoon.lee@lge.com */
+	unsigned char		enable;		/* ps sensor on/off status*/
+	unsigned char		als_enable;		/* als sensor on/off status*/
     unsigned short 		ps_data;	/* data value of PS data from sensor        */
     unsigned short 		als_data0;	/* data value of ALS data0 from sensor      */
     unsigned short 		als_data1;	/* data value of ALS data1 from sensor      */
@@ -115,20 +127,38 @@ typedef struct {
 	unsigned short 		default_cross_talk;
 	unsigned short		adjusted_psth_upper;
 	unsigned short		adjusted_psth_low;
+	unsigned short		alsth_upper;
+	unsigned short		alsth_low;
 	bool				ps_value;			/* near=true, far=false			*/
+	int					lux_value;
+	int 				boot_mode;
+	bool				is_interrupt;
+	bool				is_timer;
 	bool				is_calibrated;
+	bool				ps_first_reported;
 	PS_ALS_CONFIG		config;
 	struct mutex		enable_lock;
+	struct mutex		work_lock;
+	struct wake_lock 	ps_wlock;
 } PS_ALS_DATA;
 
 /* logical functions */
+#ifdef RPR0521_PM_SUSPEND_RESUME
+static atomic_t ps_log = ATOMIC_INIT(0);
+#endif
+static int					make_init_data(PS_ALS_DATA *ps_als);
 static int 					write_calibration_data_to_fs(unsigned short cal_data);
 static int 					read_calibration_data_from_fs(void);
 static int                  get_from_device(DEVICE_VAL *calc_data, struct i2c_client *client);
-static int                  long_long_divider(long long data, unsigned long base_divier, unsigned long *answer, unsigned long long *overplus);
-static int                  calculate_als_data(READ_DATA_BUF data, DEVICE_VAL dev_val, struct i2c_client *client);
-static int                  calculate_ps_data(READ_DATA_BUF data, DEVICE_VAL dev_val, struct i2c_client *client);
+//static int                  long_long_divider(long long data, unsigned long base_divier, unsigned long *answer, unsigned long long *overplus);
+//static int                  calculate_als_data(READ_DATA_BUF data, DEVICE_VAL dev_val, struct i2c_client *client);
+//static int                  calculate_ps_data(READ_DATA_BUF data, DEVICE_VAL dev_val, struct i2c_client *client);
+static int 					get_boot_mode(void);
+static int 					lux_calculation(void);
+static int 					get_alsgain( struct i2c_client *client, unsigned char *raw_gain, unsigned char *gain);
+static int 					set_alsgain( struct i2c_client *client, unsigned char raw_gain, signed long lux);
 static int 					update_ps_value(unsigned short new_ps_data);
+static int 					update_als_value(unsigned short new_als_data0, unsigned short new_als_data1);
 static void                 ps_als_work_func(struct work_struct *work);
 static enum hrtimer_restart ps_als_timer_func(struct hrtimer *timer);
 static irqreturn_t          ps_als_irq_handler(int irq, void *dev_id);
@@ -142,6 +172,10 @@ static long                 ps_als_iodev_ioctl(struct file *file, unsigned int c
 static int                  ps_als_ioctl_power_on_off(PS_ALS_DATA *ps_als, POWERON_ARG *power_data);
 static int                  ps_als_probe(struct i2c_client *client, const struct i2c_device_id *id);
 static int                  ps_als_remove(struct i2c_client *client);
+#ifdef RPR0521_PM_SUSPEND_RESUME
+static int 					        ps_als_suspend(struct device *dev);
+static int 					        ps_als_resume(struct device *dev);
+#endif
 static int __devinit        ps_als_init(void);
 static void __exit          ps_als_exit(void);
 /* access functions */
@@ -159,11 +193,17 @@ static int ps_als_driver_write_ps_th_h(unsigned short data, struct i2c_client *c
 static int ps_als_driver_write_ps_th_l(unsigned short data, struct i2c_client *client);
 static int ps_als_driver_write_als_th_up(unsigned short data, struct i2c_client *client);
 static int ps_als_driver_write_als_th_low(unsigned short data, struct i2c_client *client);
+static int ps_als_driver_write_alsps_control(unsigned char data, struct i2c_client *client);
+static int ps_als_driver_read_alsps_control(unsigned char* data, struct i2c_client *client);
 
 /**************************** variable declaration ****************************/
 static const char              rpr0521_driver_ver[] = RPR0521_DRIVER_VER;
 static struct workqueue_struct *rohm_workqueue;
 static PS_ALS_DATA             *ps_als_ginfo;
+
+/*D1-5T-SW-INPUT@lge.com*/
+static int data_count = 0;
+static int pre_lux_value = 0;
 
 /**************************** structure declaration ****************************/
 /* I2C device IDs supported by this driver */
@@ -172,10 +212,27 @@ static const struct i2c_device_id ps_als_id[] = {
     { }
 };
 
+static struct of_device_id rpr0521_match_table[] = {
+	{ .compatible = "rohm,rpr0521",},
+	{ },
+};
+
+#ifdef RPR0521_PM_SUSPEND_RESUME
+static const struct dev_pm_ops rpr0521_pm_ops = {
+	.suspend	= ps_als_suspend,
+	.resume 	= ps_als_resume,
+};
+#endif
+
 /* represent an I2C device driver */
 static struct i2c_driver rpr0521_driver = {
     .driver = {                      /* device driver model driver */
         .name = RPR0521_I2C_NAME,
+#ifdef RPR0521_PM_SUSPEND_RESUME
+	.owner = THIS_MODULE,
+	.of_match_table = rpr0521_match_table,
+	.pm = &rpr0521_pm_ops
+#endif
     },
     .probe    = ps_als_probe,        /* callback for device binding */
     .remove   = ps_als_remove,       /* callback for device unbinding */
@@ -250,7 +307,6 @@ static const struct GAIN_TABLE {
 };
 
 /************************* sysfs ************************/
-/*                   */
 static ssize_t rpr0521_show_cross_talk_value(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%d\n", read_calibration_data_from_fs());
@@ -272,14 +328,14 @@ static ssize_t rpr0521_store_run_calibration(struct device *dev, struct device_a
 	ps_als_ginfo->is_calibrated = false;
 
 	if(val != 1){
-		printk(KERN_ERR "run_calibration failed by invalid store value\n");
+		PINFO("run_calibration failed by invalid store value\n");
 		return -1;
 	}
 
 	for(i=0 ; i<20 ; i++){
 		result = ps_als_driver_read_data(&read_data_buf, ps_als_ginfo->client);
 		if (result < 0) {
-			printk(KERN_ERR "ERROR! read data\n");
+			PINFO("ERROR! read data\n");
 			return result;
 		}
 		cross_talk_array[i] = read_data_buf.ps_data;
@@ -296,7 +352,7 @@ static ssize_t rpr0521_store_run_calibration(struct device *dev, struct device_a
 			}
 		}
 	}
-	
+
 	// assign cross_talk value to middle value of cross_talk_array
 	for(i=5 ; i<15 ; i++)
 	{
@@ -308,93 +364,93 @@ static ssize_t rpr0521_store_run_calibration(struct device *dev, struct device_a
 	write_calibration_data_to_fs(cross_talk);
 	ps_als_ginfo->cross_talk = cross_talk;
 	ps_als_ginfo->is_calibrated = true;
-	
+
 	return count;
 }
 
-static ssize_t rpr0521_show_enable_ps_sensor(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t rpr0521_show_enable(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", ps_als_ginfo->enable);
+	if(!strcmp(dev->kobj.name, "lge_proximity")){
+		return sprintf(buf, "%d\n", ps_als_ginfo->enable);
+	}
+	else{	// case of dev->kobj.name is "lge_light"
+		return sprintf(buf, "%d\n", ps_als_ginfo->als_enable);
+	}
 }
 
-static ssize_t rpr0521_store_enable_ps_sensor(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t rpr0521_store_enable(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
+	bool is_proximity = false;
+	bool is_light = false;
 	unsigned long val = simple_strtoul(buf, NULL, 10);
-	int result;
-	POWERON_ARG parg;
-	PWR_ST		pwr_st;
-    INIT_ARG    init_data;
-	READ_DATA_BUF read_data_buf;
+	int result = 0;
+	POWERON_ARG parg = {0,};
+	PWR_ST		pwr_st = {0,};
+
+	if(!strcmp(dev->kobj.name, "lge_proximity")){
+		is_proximity = true;
+	}
+	else {
+		is_light = true;
+	}
 
 	mutex_lock(&ps_als_ginfo->enable_lock);
-	result = 0;
-	read_data_buf.ps_data   = 0;
-	read_data_buf.als_data0 = 0;
-	read_data_buf.als_data1 = 0;
+	/* read power state */
+	result = ps_als_driver_read_power_state(&pwr_st, ps_als_ginfo->client);
+	if (result < 0) {
+		PINFO("ps_als_driver_read_power_state fail");
+		goto unlock;
+	}
 
-	if(val == 1){
-		/* read power state */
-		pwr_st.als_state = 0;
-		pwr_st.ps_state  = 0;
-		result = ps_als_driver_read_power_state(&pwr_st, ps_als_ginfo->client);
+	/* check the stop system is */
+	if ((pwr_st.als_state == CTL_STANDBY) && (pwr_st.ps_state == CTL_STANDBY)) {
+		result = ps_als_driver_init(ps_als_ginfo->config.init_data, ps_als_ginfo->client);
 		if (result < 0) {
-			PINFO("ps_als_driver_read_power_state fail");
+			PINFO("ps_als_driver_init fail. error value = 0x%x\n", result);
 			goto unlock;
 		}
-		/* check the stop system is */
-		if ((pwr_st.als_state == CTL_STANDBY) && (pwr_st.ps_state == CTL_STANDBY)) {
-			/* set initialization data */
-#ifdef CONFIG_OF
-			/* construct register setting value from device tree */
-			ps_als_ginfo->config.mode_ctl = (ps_als_ginfo->config.pulse << 5) |
-			                                (ps_als_ginfo->config.mode << 4) |
-			                                (ps_als_ginfo->config.measure_time);
-			ps_als_ginfo->config.psals_ctl = (ps_als_ginfo->config.als_gain << 2) |
-			                                 (ps_als_ginfo->config.led_current);
-			ps_als_ginfo->config.ps_ctl = (ps_als_ginfo->config.infrared_level << 6) |
-			                              (ps_als_ginfo->config.ps_gain << 4) |
-			                              (ps_als_ginfo->config.persistence);
-			ps_als_ginfo->config.intr = (PS_THH_BOTH_OUTSIDE | POLA_ACTIVEL | OUTPUT_LATCH | MODE_PROXIMITY);
-			ps_als_ginfo->config.psth_upper = ps_als_ginfo->config.near_offset;
-			ps_als_ginfo->config.psth_low = ps_als_ginfo->config.far_offset;;
+	}
 
-			init_data.mode_ctl    = ps_als_ginfo->config.mode_ctl;
-			init_data.psals_ctl   = ps_als_ginfo->config.psals_ctl;
-			init_data.ps_ctl      = ps_als_ginfo->config.ps_ctl;
-			init_data.intr        = ps_als_ginfo->config.intr;
-			init_data.psth_upper  = ps_als_ginfo->config.psth_upper;
-			init_data.psth_low    = ps_als_ginfo->config.psth_low;
-			init_data.alsth_upper = PS_ALS_SET_ALS_TH;
-			init_data.alsth_low   = PS_ALS_SET_ALS_TL;
-#else
-			init_data.mode_ctl    = PS_ALS_SET_MODE_CONTROL;
-			init_data.psals_ctl   = PS_ALS_SET_ALSPS_CONTROL;
-			init_data.ps_ctl      = PS_ALS_SET_PS_CONTROL;
-			init_data.intr        = PS_ALS_SET_INTR;
-			init_data.psth_upper  = PS_ALS_SET_PS_TH;
-			init_data.psth_low    = PS_ALS_SET_PS_TL;
-			init_data.alsth_upper = PS_ALS_SET_ALS_TH;
-			init_data.alsth_low   = PS_ALS_SET_ALS_TL;
-#endif
-			/* set initialization state */
-			result = ps_als_driver_init(init_data, ps_als_ginfo->client);
-			if (result < 0) {
-				PINFO("ps_als_driver_init fail. error value = 0x%x\n", result);
+	parg.power_als = pwr_st.als_state;
+	parg.power_ps = pwr_st.ps_state;
+	parg.intr = MODE_PROXIMITY;
+
+	if(val == 1){
+		if(is_proximity){
+			parg.power_ps = PS_ALS_ENABLE;
+			PINFO("change proximity sensor power state to (%ld)", val);
+			if(pwr_st.ps_state == CTL_STANDALONE){
+				PINFO("proximity sensor is already enabled");
 				goto unlock;
 			}
-			PINFO("ps_als_driver initialize success.");
 		}
-
-		PINFO("change rpr0521 proximity senosr power state to (%ld)", val);
-		parg.power_als = PS_ALS_DISABLE;
-		parg.power_ps = PS_ALS_ENABLE; 
-		parg.intr = MODE_PROXIMITY;
+		else if(is_light){
+			parg.power_als = PS_ALS_ENABLE;
+			PINFO("change light sensor power state to (%ld)", val);
+			if(pwr_st.als_state == CTL_STANDALONE){
+				PINFO("light sensor is already enabled");
+				goto unlock;
+			}
+		}
 	}
-	else if(val == 0){	
-		PINFO("change rpr0521 proximity senosr power state to (%ld)", val);
-		parg.power_als = PS_ALS_DISABLE;
-		parg.power_ps = PS_ALS_DISABLE;
-		parg.intr = MODE_PROXIMITY; 
+	else if(val == 0){
+		if(is_proximity){
+			parg.power_ps = PS_ALS_DISABLE;
+			ps_als_ginfo->ps_first_reported = false;
+			PINFO("change proximity sensor power state to (%ld)", val);
+			if(pwr_st.ps_state == CTL_STANDBY){
+				PINFO("proximity sensor is already disabled");
+				goto unlock;
+			}
+		}
+		else if(is_light){
+			parg.power_als = PS_ALS_DISABLE;
+			PINFO("change light sensor power state to (%ld)", val);
+			if(pwr_st.als_state == CTL_STANDBY){
+				PINFO("light sensor is already disabled");
+				goto unlock;
+			}
+		}
 	}
 	else {
 		PINFO("store value is invalid = %ld", val);
@@ -403,26 +459,54 @@ static ssize_t rpr0521_store_enable_ps_sensor(struct device *dev, struct device_
 
 	result = ps_als_driver_power_on_off(parg, ps_als_ginfo->client);
 	if (result < 0) {
-		PINFO("proximity sensor powewr on/off failed, err = %d", result);
+		PINFO("proximity sensor power on/off failed, err = %d", result);
 		goto unlock;
 	}
 
 	if(val==1){
-		ps_als_ginfo->cross_talk = read_calibration_data_from_fs();
-
-		// initialize current state to far for the setting of initial threshold
-		update_ps_value(PS_THRESHOLD_MIN);
-		input_report_abs(ps_als_ginfo->input_dev, ABS_DISTANCE, (ps_als_ginfo->ps_value==true)? 0:1);
-		input_sync(ps_als_ginfo->input_dev);
+		if(is_proximity){
+			ps_als_ginfo->cross_talk = read_calibration_data_from_fs();
+			ps_als_ginfo->enable = PS_ALS_ENABLE;
+			ps_als_driver_write_ps_th_h(PS_THRESHOLD_MIN, ps_als_ginfo->client);
+			ps_als_driver_write_ps_th_l(PS_THRESHOLD_MAX, ps_als_ginfo->client);
+		}
+		else if(is_light){
+			/* start timer of 1 second */
+			result = hrtimer_start(&ps_als_ginfo->timer, ktime_set(0, 125000000), HRTIMER_MODE_REL);
+			if (result != 0) {
+				PINFO("can't start timer\n");
+				goto unlock;
+			}
+			ps_als_ginfo->als_enable = PS_ALS_ENABLE;
+		}
+	}
+	else{
+		if(is_proximity) {
+			ps_als_ginfo->ps_first_reported = false;
+			ps_als_ginfo->enable = PS_ALS_DISABLE;
+			input_report_abs(ps_als_ginfo->input_dev, ABS_DISTANCE, -1); // change unknown state.
+		}
+		else if(is_light) {
+			ps_als_ginfo->als_enable = PS_ALS_DISABLE;
+			result = hrtimer_cancel(&ps_als_ginfo->timer);
+			input_report_abs(ps_als_ginfo->input_dev_als, ABS_MISC, -1); // change unknown state.
+			PINFO("[RPR0521]hrtimer_cancel() result : %d \n", result);
+		}
 	}
 
 	mutex_unlock(&ps_als_ginfo->enable_lock);
-	PINFO("rpr0521 proximity sensor power state change success.");\
+	if(is_proximity)
+		PINFO("rpr0521 proximity sensor power state change success.");
+	else if(is_light)
+		PINFO("rpr0521 light sensor power state change success.");
 	return count;
 
 unlock:
 	mutex_unlock(&ps_als_ginfo->enable_lock);
-	PINFO("rpr0521 proximity sensor power state change fail.");
+	if(is_proximity)
+		PINFO("rpr0521 proximity sensor power state change fail.");
+	else if(is_light)
+		PINFO("rpr0521 light sensor power state change fail.");
 	return result;
 }
 
@@ -444,15 +528,15 @@ static ssize_t rpr0521_show_pdata(struct device *dev, struct device_attribute *a
 	gene_data.size    = sizeof(read_intr);
 	result = ps_als_driver_general_read(gene_data, ps_als_ginfo->client);
 	if (result < 0) {
-		printk(KERN_ERR "general read can't execute \n");
-		printk(KERN_ERR "can't read interrupt register \n");
+		PINFO("general read can't execute \n");
+		PINFO("can't read interrupt register \n");
 		return result;
 	}
 
 	/* read the state of sensor */
 	result = ps_als_driver_read_power_state(&pwr_st, ps_als_ginfo->client);
 	if (result < 0) {
-		printk(KERN_ERR "power_state error \n");
+		PINFO("power_state error \n");
 		return result;
 	}
 
@@ -462,17 +546,23 @@ static ssize_t rpr0521_show_pdata(struct device *dev, struct device_attribute *a
     }
     result = ps_als_driver_read_data(&read_data_buf, ps_als_ginfo->client);
     if (result < 0) {
-        printk(KERN_ERR "ERROR! read data\n");
+        PINFO("ERROR! read data\n");
         return result;
     }
 	ps_als_ginfo->ps_data = read_data_buf.ps_data;
-	
+
 	return sprintf(buf, "%d\n", ps_als_ginfo->ps_data);
 }
 
 static ssize_t rpr0521_show_value(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", ((ps_als_ginfo->ps_value)==true) ? 1 : 0);
+	if(!strcmp(dev->kobj.name, "lge_proximity")){
+		return sprintf(buf, "%d\n", ((ps_als_ginfo->ps_value)==true) ? 1 : 0);
+	}
+	else{	// case of dev->kobj.name is "lge_light"
+		return sprintf(buf, "%d\n", ps_als_ginfo->lux_value);
+	}
+
 }
 
 static ssize_t rpr0521_show_near_offset(struct device *dev, struct device_attribute *attr, char *buf)
@@ -484,6 +574,7 @@ static ssize_t rpr0521_store_near_offset(struct device *dev, struct device_attri
 {
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 	ps_als_ginfo->config.near_offset = val;
+	make_init_data(ps_als_ginfo);
 	return count;
 }
 
@@ -496,6 +587,7 @@ static ssize_t rpr0521_store_far_offset(struct device *dev, struct device_attrib
 {
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 	ps_als_ginfo->config.far_offset= val;
+	make_init_data(ps_als_ginfo);
 	return count;
 }
 
@@ -508,6 +600,20 @@ static ssize_t rpr0521_store_ps_gain(struct device *dev, struct device_attribute
 {
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 	ps_als_ginfo->config.ps_gain = val;
+	make_init_data(ps_als_ginfo);
+	return count;
+}
+
+static ssize_t rpr0521_show_led_current(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", ps_als_ginfo->config.led_current);
+}
+
+static ssize_t rpr0521_store_led_current(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long val = simple_strtoul(buf, NULL, 10);
+	ps_als_ginfo->config.led_current = val;
+	make_init_data(ps_als_ginfo);
 	return count;
 }
 
@@ -520,10 +626,174 @@ static ssize_t rpr0521_store_infrared_level(struct device *dev, struct device_at
 {
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 	ps_als_ginfo->config.infrared_level = val;
+	make_init_data(ps_als_ginfo);
 	return count;
 }
 
-static DEVICE_ATTR(enable, S_IRUGO | S_IWUSR | S_IWGRP ,rpr0521_show_enable_ps_sensor, rpr0521_store_enable_ps_sensor);
+static ssize_t rpr0521_show_ch0data(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int           result;
+	READ_DATA_BUF read_data_buf;
+	PWR_ST        pwr_st;
+	unsigned char read_intr;
+	GENREAD_ARG   gene_data;
+
+	read_data_buf.ps_data   = 0;
+	read_data_buf.als_data0 = 0;
+	read_data_buf.als_data1 = 0;
+
+	/* clear interrupt flag */
+	gene_data.adr_reg = REG_INTERRUPT;
+	gene_data.addr    = (unsigned char *)&read_intr;
+	gene_data.size    = sizeof(read_intr);
+	result = ps_als_driver_general_read(gene_data, ps_als_ginfo->client);
+	if (result < 0) {
+		PINFO("general read can't execute \n");
+		PINFO("can't read interrupt register \n");
+		return result;
+	}
+
+	/* read the state of sensor */
+	result = ps_als_driver_read_power_state(&pwr_st, ps_als_ginfo->client);
+	if (result < 0) {
+		PINFO("power_state error \n");
+		return result;
+	}
+
+	/* check the state of sensor */
+	if ((pwr_st.als_state == CTL_STANDBY) && (pwr_st.ps_state == CTL_STANDBY)) {
+        return result;
+    }
+    result = ps_als_driver_read_data(&read_data_buf, ps_als_ginfo->client);
+    if (result < 0) {
+        PINFO("ERROR! read data\n");
+        return result;
+    }
+	ps_als_ginfo->als_data0 = read_data_buf.als_data0;
+
+	return sprintf(buf, "%d\n", ps_als_ginfo->als_data0);
+}
+
+static ssize_t rpr0521_show_ch1data(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int           result;
+	READ_DATA_BUF read_data_buf;
+	PWR_ST        pwr_st;
+	unsigned char read_intr;
+	GENREAD_ARG   gene_data;
+
+	read_data_buf.ps_data   = 0;
+	read_data_buf.als_data0 = 0;
+	read_data_buf.als_data1 = 0;
+
+	/* clear interrupt flag */
+	gene_data.adr_reg = REG_INTERRUPT;
+	gene_data.addr    = (unsigned char *)&read_intr;
+	gene_data.size    = sizeof(read_intr);
+	result = ps_als_driver_general_read(gene_data, ps_als_ginfo->client);
+	if (result < 0) {
+		PINFO("general read can't execute \n");
+		PINFO("can't read interrupt register \n");
+		return result;
+	}
+
+	/* read the state of sensor */
+	result = ps_als_driver_read_power_state(&pwr_st, ps_als_ginfo->client);
+	if (result < 0) {
+		PINFO("power_state error \n");
+		return result;
+	}
+
+	/* check the state of sensor */
+	if ((pwr_st.als_state == CTL_STANDBY) && (pwr_st.ps_state == CTL_STANDBY)) {
+        return result;
+    }
+    result = ps_als_driver_read_data(&read_data_buf, ps_als_ginfo->client);
+    if (result < 0) {
+        PINFO("ERROR! read data\n");
+        return result;
+    }
+	ps_als_ginfo->als_data1 = read_data_buf.als_data1;
+
+	return sprintf(buf, "%d\n", ps_als_ginfo->als_data1);
+}
+
+static ssize_t rpr0521_show_poll_delay(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	/* return delay_time */
+	return sprintf(buf, "%d\n", ps_als_ginfo->delay_time);
+}
+
+static ssize_t rpr0521_store_poll_delay(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long nSecval = simple_strtoul(buf, NULL, 10);
+  unsigned long val = nSecval / 1000000; //nSec to mSec
+
+	if (val >= (PS_ALS_SET_MIN_DELAY_TIME)) {
+	  ps_als_ginfo->delay_time = val;
+	} else {
+	  ps_als_ginfo->delay_time = PS_ALS_SET_MIN_DELAY_TIME;
+	  PINFO("parameter is too small. \n");
+	}
+
+	return count;
+}
+
+#ifdef RPR0521_PM_SUSPEND_RESUME
+static ssize_t rpr0521_show_interrupt_reg(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	/* return delay_time */
+	return sprintf(buf, "DEC : %d\n", ps_als_ginfo->config.init_data.intr);
+}
+
+static ssize_t rpr0521_store_interrupt_reg(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long val = simple_strtoul(buf, NULL, 10);
+
+	if ( (val >=0) && (val <= 63) ) {
+		ps_als_ginfo->config.init_data.intr = val;
+	} else {
+		PINFO("beyond the range. \n");
+	}
+	return count;
+}
+
+static ssize_t rpr0521_show_alsth_upper(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	/* return delay_time */
+	return sprintf(buf, "DEC : %d\n", ps_als_ginfo->config.init_data.alsth_upper);
+}
+
+static ssize_t rpr0521_store_alsth_upper(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long val = simple_strtoul(buf, NULL, 10);
+	ps_als_ginfo->config.init_data.alsth_upper = val;
+	return count;
+}
+
+static ssize_t rpr0521_show_alsth_low(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	/* return delay_time */
+	return sprintf(buf, "DEC : %d\n", ps_als_ginfo->config.init_data.alsth_low);
+}
+
+static ssize_t rpr0521_store_alsth_low(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long val = simple_strtoul(buf, NULL, 10);
+	ps_als_ginfo->config.init_data.alsth_low = val;
+	return count;
+}
+#endif
+
+static DEVICE_ATTR(enable, S_IRUGO | S_IWUSR | S_IWGRP ,rpr0521_show_enable, rpr0521_store_enable);
 static DEVICE_ATTR(pdata, S_IRUGO | S_IWUSR | S_IWGRP ,rpr0521_show_pdata, NULL);
 static DEVICE_ATTR(value, S_IRUGO | S_IWUSR | S_IWGRP ,rpr0521_show_value, NULL);
 static DEVICE_ATTR(prox_cal_data, S_IRUGO | S_IWUSR | S_IWGRP ,rpr0521_show_cross_talk_value, NULL);
@@ -531,9 +801,19 @@ static DEVICE_ATTR(run_calibration, S_IRUGO | S_IWUSR | S_IWGRP , rpr0521_show_r
 static DEVICE_ATTR(near_offset, S_IRUGO | S_IWUSR | S_IWGRP , rpr0521_show_near_offset, rpr0521_store_near_offset);
 static DEVICE_ATTR(far_offset, S_IRUGO | S_IWUSR | S_IWGRP , rpr0521_show_far_offset, rpr0521_store_far_offset);
 static DEVICE_ATTR(ps_gain, S_IRUGO | S_IWUSR | S_IWGRP , rpr0521_show_ps_gain, rpr0521_store_ps_gain);
+static DEVICE_ATTR(led_current, S_IRUGO | S_IWUSR | S_IWGRP , rpr0521_show_led_current, rpr0521_store_led_current);
 static DEVICE_ATTR(infrared_level, S_IRUGO | S_IWUSR | S_IWGRP , rpr0521_show_infrared_level, rpr0521_store_infrared_level);
+static DEVICE_ATTR(ch0data, S_IRUGO | S_IWUSR | S_IWGRP ,rpr0521_show_ch0data, NULL);
+static DEVICE_ATTR(ch1data, S_IRUGO | S_IWUSR | S_IWGRP ,rpr0521_show_ch1data, NULL);
+static DEVICE_ATTR(poll_delay, S_IWUSR | S_IWGRP | S_IRUGO,	rpr0521_show_poll_delay, rpr0521_store_poll_delay);
+#ifdef RPR0521_PM_SUSPEND_RESUME
+static DEVICE_ATTR(interrupt_reg, S_IWUSR | S_IWGRP | S_IRUGO,	rpr0521_show_interrupt_reg, rpr0521_store_interrupt_reg);
+static DEVICE_ATTR(alsth_upper, S_IWUSR | S_IWGRP | S_IRUGO,	rpr0521_show_alsth_upper, rpr0521_store_alsth_upper);
+static DEVICE_ATTR(alsth_low, S_IWUSR | S_IWGRP | S_IRUGO,	rpr0521_show_alsth_low, rpr0521_store_alsth_low);
+#endif
 
-static struct attribute *ps_als_attributes[] = {
+
+static struct attribute *ps_attributes[] = {
 	&dev_attr_enable.attr,
 	&dev_attr_pdata.attr,
 	&dev_attr_value.attr,
@@ -542,23 +822,44 @@ static struct attribute *ps_als_attributes[] = {
 	&dev_attr_near_offset.attr,
 	&dev_attr_far_offset.attr,
 	&dev_attr_ps_gain.attr,
+	&dev_attr_led_current.attr,
 	&dev_attr_infrared_level.attr,
 	NULL
 };
 
-static struct attribute_group ps_als_attr_group = {
-    .attrs = ps_als_attributes,
+static struct attribute_group ps_attr_group = {
+    .attrs = ps_attributes,
 };
 
+static struct attribute *als_attributes[] = {
+	&dev_attr_enable.attr,
+	&dev_attr_ps_gain.attr,
+	&dev_attr_led_current.attr,
+	&dev_attr_infrared_level.attr,
+	&dev_attr_value.attr,
+	&dev_attr_ch0data.attr,
+	&dev_attr_ch1data.attr,
+	&dev_attr_poll_delay.attr,
+#ifdef RPR0521_PM_SUSPEND_RESUME
+	&dev_attr_interrupt_reg.attr,
+	&dev_attr_alsth_upper.attr,
+	&dev_attr_alsth_low.attr,
+#endif
+	NULL
+};
+
+static struct attribute_group als_attr_group = {
+    .attrs = als_attributes,
+};
 
 /************************************************************
  *                      logic function                      *
  ************************************************************/
-/*                                                                             
-                               
-                                 
-                                 
-                                                                             */
+/******************************************************************************
+ * NAME       : sensor_parse_dt
+ * FUNCTION   : parse device tree
+ * REMARKS    : ssoon.lee@lge.com
+ *****************************************************************************/
 #ifdef CONFIG_OF
 static int sensor_parse_dt(struct device *dev, PS_ALS_DATA *ps_als)
 {
@@ -567,18 +868,31 @@ static int sensor_parse_dt(struct device *dev, PS_ALS_DATA *ps_als)
 	int ret, err = 0;
 	struct sensor_dt_to_pdata_map *itr;
 	struct sensor_dt_to_pdata_map map[] = {
-		{"Rohm,pulse",		&ps_als->config.pulse,		DT_SUGGESTED,	DT_U32,		0},
-		{"Rohm,mode",		&ps_als->config.mode,		DT_SUGGESTED,	DT_U32,		0},
-		{"Rohm,measure_time",		&ps_als->config.measure_time,		DT_SUGGESTED,	DT_U32,		0},
-		{"Rohm,led_current",		&ps_als->config.led_current,		DT_SUGGESTED,	DT_U32,		0},
-		{"Rohm,als_gain",		&ps_als->config.als_gain,		DT_SUGGESTED,	DT_U32,		0},
-		{"Rohm,infrared_level",		&ps_als->config.infrared_level,		DT_SUGGESTED,	DT_U32,		0},
-		{"Rohm,ps_gain",		&ps_als->config.ps_gain,		DT_SUGGESTED,	DT_U32,		0},
-		{"Rohm,persistence",		&ps_als->config.persistence,		DT_SUGGESTED,	DT_U32,		0},
-		{"Rohm,near_offset",		&ps_als->config.near_offset,		DT_SUGGESTED,	DT_U32,		0},
-		{"Rohm,far_offset",		&ps_als->config.far_offset,		DT_SUGGESTED,	DT_U32,		0},
-		{"Rohm,default_cross_talk",		&ps_als->default_cross_talk,		DT_SUGGESTED,	DT_U32,		0},
-		{NULL,				NULL,				0,		0,		0},
+		{"Rohm,pulse", &ps_als->config.pulse, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,mode", &ps_als->config.mode, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,measure_time", &ps_als->config.measure_time, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,led_current", &ps_als->config.led_current, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,als_gain", &ps_als->config.als_gain, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,infrared_level", &ps_als->config.infrared_level, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,ps_gain", &ps_als->config.ps_gain, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,persistence", &ps_als->config.persistence, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,near_offset", &ps_als->config.near_offset, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,far_offset", &ps_als->config.far_offset, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,default_cross_talk", &ps_als->default_cross_talk, DT_SUGGESTED, DT_U32, 0},
+		/*D1-5T-SW-INPUT@lge.com*/
+		{"Rohm,judge_coef0", &ps_als->config.judge_coef0, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,judge_coef1", &ps_als->config.judge_coef1, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,judge_coef2", &ps_als->config.judge_coef2, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,judge_coef3", &ps_als->config.judge_coef3, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,data0_coef0", &ps_als->config.data0_coef0, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,data0_coef1", &ps_als->config.data0_coef1, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,data0_coef2", &ps_als->config.data0_coef2, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,data0_coef3", &ps_als->config.data0_coef3, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,data1_coef0", &ps_als->config.data1_coef0, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,data1_coef1", &ps_als->config.data1_coef1, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,data1_coef2", &ps_als->config.data1_coef2, DT_SUGGESTED, DT_U32, 0},
+		{"Rohm,data1_coef3", &ps_als->config.data1_coef3, DT_SUGGESTED, DT_U32, 0},
+		{NULL, NULL, 0, 0, 0},
 	};
 
 	for (itr = map; itr->dt_name ; ++itr) {
@@ -619,11 +933,11 @@ static int sensor_parse_dt(struct device *dev, PS_ALS_DATA *ps_als)
 }
 #endif
 
-/*                                                                             
-                                            
-                                                     
-                                 
-                                                                             */
+/******************************************************************************
+ * NAME       : write_calibration_data_to_fs
+ * FUNCTION   : write cross-talk value to file system
+ * REMARKS    : ssoon.lee@lge.com
+ *****************************************************************************/
 static int write_calibration_data_to_fs(unsigned short cal_data)
 {
 	int fd;
@@ -634,8 +948,8 @@ static int write_calibration_data_to_fs(unsigned short cal_data)
 	sprintf(buf, "%d", cal_data);
 
 	set_fs(KERNEL_DS);
-	fd = sys_open(PS_CALIBRATION_PATH, O_WRONLY | O_CREAT, 0664); 
-	
+	fd = sys_open(PS_CALIBRATION_PATH, O_WRONLY | O_CREAT, 0664);
+
 	if (fd >= 0) {
 		sys_write(fd, buf, sizeof(buf));
 		sys_fsync(fd); /*ensure calibration data write to file system*/
@@ -651,11 +965,11 @@ static int write_calibration_data_to_fs(unsigned short cal_data)
 	return ret;
 }
 
-/*                                                                           
-                                             
-                                                      
-                                 
-                                                                             */
+/****************************************************************************
+ * NAME       : read_calibration_data_from_fs
+ * FUNCTION   : read cross-talk value from file system
+ * REMARKS    : ssoon.lee@lge.com
+ *****************************************************************************/
 static int read_calibration_data_from_fs()
 {
 	int fd;
@@ -693,8 +1007,8 @@ static int read_calibration_data_from_fs()
 	sys_close(fd);
 	set_fs(old_fs);
 
-	ps_als_ginfo->adjusted_psth_upper = ps_als_ginfo->config.psth_upper + ret;
-	ps_als_ginfo->adjusted_psth_low = ps_als_ginfo->adjusted_psth_upper - ps_als_ginfo->config.psth_low;
+	ps_als_ginfo->adjusted_psth_upper = ps_als_ginfo->config.init_data.psth_upper + ret;
+	ps_als_ginfo->adjusted_psth_low = ps_als_ginfo->adjusted_psth_upper - ps_als_ginfo->config.init_data.psth_low;
 	PINFO("adjusted_psth_upper = %d, adjusted_psth_low = %d", ps_als_ginfo->adjusted_psth_upper, ps_als_ginfo->adjusted_psth_low);
 
 	return ret;
@@ -711,7 +1025,8 @@ static int get_from_device(DEVICE_VAL *dev_val, struct i2c_client *client)
 #define GAIN_VAL_MASK  (0xF)
 	int           result;
     GENREAD_ARG   gene_read;
-    unsigned char alsps_ctl, read_time;
+    unsigned char alsps_ctl = 0;
+    unsigned char read_time = 0;
 
     /* initialize the returning value */
     dev_val->time        = 0;
@@ -724,7 +1039,7 @@ static int get_from_device(DEVICE_VAL *dev_val, struct i2c_client *client)
     gene_read.size    = sizeof(read_time);
     result = ps_als_driver_general_read(gene_read, client);
     if (result < 0) {
-        printk(KERN_ERR "ERROR! read data of itime.\n");
+        PINFO("ERROR! read data of itime.\n");
         return (result);
     }
     dev_val->time = read_time & 0xF;
@@ -735,7 +1050,7 @@ static int get_from_device(DEVICE_VAL *dev_val, struct i2c_client *client)
     gene_read.size    = sizeof(alsps_ctl);
     result = ps_als_driver_general_read(gene_read, client);
     if (result < 0) {
-        printk(KERN_ERR "ERROR! read data of gain.\n");
+        PINFO("ERROR! read data of gain.\n");
         return (result);
     }
     dev_val->led_current = alsps_ctl & LEDBIT_MASK;
@@ -746,192 +1061,192 @@ static int get_from_device(DEVICE_VAL *dev_val, struct i2c_client *client)
 #undef GAIN_VAL_MASK
 }
 
-/******************************************************************************
- * NAME       : long_long_divider
- * FUNCTION   : calc divider of unsigned long long int or unsgined long
- * REMARKS    :
- *****************************************************************************/
-static int long_long_divider(long long data, unsigned long base_divier, unsigned long *answer, unsigned long long *overplus)
+static int get_boot_mode()
 {
-    volatile long long divier;
-    volatile long      unit_sft;
+	enum lge_boot_mode_type lge_boot_mode;
+	lge_boot_mode = lge_get_boot_mode();
 
+	return lge_boot_mode;
+}
 
-    if ((data < 0) || (base_divier == 0)) {
-        *answer   = 0;
-        *overplus = 0;
-        return (CALC_ERROR);
-    }
-    
-    divier = base_divier;
-    if (data > MASK_LONG) {
-        unit_sft = 0;
-        while ((data > divier) && (divier > 0)) {
-            unit_sft++;
-            divier = divier << 1;
-        }
-        while ((data > base_divier) && (unit_sft > 0)) {
-            if (data > divier) {
-                *answer += 1 << unit_sft;
-                data    -= divier;
-            }
-            unit_sft--;
-            divier = divier >> 1;
-        }
-        *overplus = data;
+static int lux_calculation()
+{
+    /* TODO : calculation lux value with alsdata0 and alsdata1
+      you can use rpr0521_get_alsdata0 & rpr0521_get_alsdata1 function for read register*/
+    unsigned long  base1, base2;
+    unsigned long  cnt;
+    signed long    keep_lux;
+    int            lux;
+    int            result;
+    unsigned short data0, data1;
+    signed long    moving_point;
+    unsigned char  raw_gain, als_gain;
+
+    if (ALSCALC_OFFSET == 0) {
+        moving_point = 1;
     } else {
-        *answer = (unsigned long)(data & MASK_LONG) / base_divier;
-        /* calculate over plus and shift 16bit */
-        *overplus = (unsigned long long)(data - (*answer * base_divier));
+        moving_point = ALSCALC_OFFSET;
     }
-    
-    return (0);
+
+#if 1
+    /* get the data from IC */
+	data0 = ps_als_ginfo->als_data0;
+	data1 = ps_als_ginfo->als_data1;
+	result = get_alsgain(ps_als_ginfo->client, &raw_gain, &als_gain);
+    if(result < 0){
+        PINFO("Can't read gain. I2C communication Error.\n");
+        return (-EINVAL);
+    }
+
+#if 0
+	/* Check boot mode */
+	if(ps_als_ginfo->boot_mode != LGE_BOOT_MODE_NORMAL) {
+		lux = data0;
+
+		if( als_gain == 64 ) {
+			lux = data0 / als_gain;
+		}
+
+		return lux;
+	}
+#endif
+	/* IF      D1/ D0 < 1.13  : case 0 */
+    /* ELSE IF D1/ D0 < 1.424 : case 1 */
+    /* ELSE IF D1/ D0 < 1.751 : case 2 */
+    /* ELSE IF D1/ D0 < 3.015 : case 3 */
+    /* ELSE                   : case 4 */
+	base1 = data1 * moving_point;
+	for(cnt=0;cnt < COEFFICIENT; cnt++) {
+		//PINFO("judge_coef[%ld] = %ld", cnt, judge_coef[cnt]); /*D1-5T-SW-INPUT@lge.com*/
+		base2 = data0 * judge_coef[cnt];
+		if(base1 < base2) {
+			break;
+		}
+	}
+
+	if(cnt >= COEFFICIENT) {
+		/* case 4 */
+		lux = 0;
+	} else {
+		/* case 0,1,2,3 */
+		/* lux = ((data0_conf * data0 - data1_conf * data1) / (1000 * gain)  */
+		//PINFO("data0_coef[%ld] = %ld", cnt, data0_coef[cnt]); /*D1-5T-SW-INPUT@lge.com*/
+		//PINFO("data1_coef[%ld] = %ld", cnt, data1_coef[cnt]); /*D1-5T-SW-INPUT@lge.com*/
+		keep_lux = ((data0_coef[cnt] * data0) - (data1_coef[cnt] * data1));
+		/* LGE_CHANGE_S D1-5T-SW-INPUT@lge.com */
+		if (als_gain == 0) {
+		PINFO("Crash Handle!! als_gain = 0x%d.\n", als_gain);
+		return  (-EINVAL);
+		}
+		/* LGE_CHANGE_E D1-5T-SW-INPUT@lge.com */
+		lux      = (int)(keep_lux / (moving_point * als_gain));
+		if (lux < 0) {
+			/* minimum process */
+			lux = 0;
+		} else if (lux > ALS_MAX_VALUE) {
+			/* overflow process */
+			lux = ALS_MAX_VALUE;
+		}
+	}
+
+	ps_als_ginfo->lux_value = lux;
+	//PINFO("rpr0521_lux_calculation : keep_lux = %ld", keep_lux);
+	/*D1-5T-SW-INPUT@lge.com*/
+	data_count++;
+	if(data_count > 100000) data_count = 0;
+	if((pre_lux_value - lux > 150) || (pre_lux_value - lux < -150) || (data_count%15 == 0))
+	{
+		PINFO("rpr0521_lux_calculation : lux_result = %d / data_count = %d", lux, data_count);
+	}
+	pre_lux_value = lux;
+	result = set_alsgain(ps_als_ginfo->client, raw_gain, lux);
+#endif
+
+	return (lux);
+}
+
+static int get_alsgain( struct i2c_client *client, unsigned char *raw_gain, unsigned char *gain)
+{
+    int result;
+    unsigned char check_gain;
+    unsigned char gain_value;
+
+    result = ps_als_driver_read_alsps_control(raw_gain, client);
+    if(result < 0) {
+		return result;
+	}
+
+	check_gain = *raw_gain & ALSCALC_GAIN_MASK;
+	if (check_gain == 0) {
+		gain_value = 1;
+	} else {
+		gain_value = 64;
+	}
+	*gain = gain_value;
+
+	return (result);
+}
+
+
+static int set_alsgain( struct i2c_client *client, unsigned char raw_gain, signed long lux)
+{
+    int result;
+    unsigned char set_gain;
+    unsigned char check_value;
+    unsigned char set_value;
+
+    if (lux < GAIN_THRESHOLD) {
+        set_gain = ALSGAIN_X64X64;
+    } else {
+        set_gain = ALSGAIN_X1X1;
+    }
+
+    check_value = raw_gain & ALSCALC_GAIN_MASK;
+    if(check_value != set_gain) {
+        /* make setting value */
+        set_value = (raw_gain & ~ALSCALC_GAIN_MASK) | set_gain;
+        result    = ps_als_driver_write_alsps_control(set_value, client);
+    }
+
+    return (result);
+}
+
+static int ps_als_driver_write_alsps_control(unsigned char data, struct i2c_client *client)
+{
+    int result;
+
+    /* write register to RPR0521 via i2c */
+    result = i2c_smbus_write_byte_data(client, REG_ALSPSCONTROL, data);
+
+    return (result);
+}
+
+static int ps_als_driver_read_alsps_control(unsigned char* data, struct i2c_client *client)
+{
+    int result;
+
+    /* write register to RPR0521 via i2c */
+    result = i2c_smbus_read_byte_data(client, REG_ALSPSCONTROL);
+	*data = result;
+
+    return (result);
 }
 
 /******************************************************************************
- * NAME       : calculate_als_data
- * FUNCTION   : calculate illuminance data for RPR0521
- * REMARKS    : final_data format
- *            :+-------------------------+------------------------+
- *            :| positive values : 17bit | decimal values : 15bit |
- *            :+-------------------------+------------------------+
+ * NAME       : update_ps_value
+ * FUNCTION   : update_ps_value to near(1) or far(0)
+ * REMARKS    : ssoon.lee@lge.com
  *****************************************************************************/
-static int calculate_als_data(READ_DATA_BUF data, DEVICE_VAL dev_val, struct i2c_client *client)
-{
-#define JUDGE_FIXED_COEF (100)
-#define MAX_OUTRANGE     (47000)
-#define MAXRANGE_NMODE   (0xFFFF)
-#define MODE50MS_FLAG    (0xC)
-#define MAXRANGE_50MODE  (0x7FFF)
-#define MAXSET_CASE      (4)
-
-    int                result;
-    int                final_data;
-    CALC_DATA          calc_data;
-    CALC_ANS           calc_ans;
-    unsigned long      calc_judge;
-    unsigned char      set_case;
-    unsigned long      div_answer;
-    unsigned long long div_overplus;
-    unsigned long long overplus;
-    unsigned long      max_range;
-
-
-    /* set the value of measured als data */
-    calc_data.als_data0  = data.als_data0;
-    calc_data.als_data1  = data.als_data1;
-    calc_data.gain_data0 = GAIN_TABLE[dev_val.gain].DATA0;
-
-    /* set max range */
-    if (calc_data.gain_data0 == 0) {
-        /* issue error value when gain is 0 */
-        return (CALC_ERROR);
-    } else {
-        max_range = MAX_OUTRANGE / calc_data.gain_data0;
-    }
-    /* calculate data */
-    if (calc_data.als_data0 == MAXRANGE_NMODE) {
-        calc_ans.positive = max_range;
-        calc_ans.decimal  = 0;
-    } else {
-        if ((MODE50MS_FLAG == dev_val.time) && (calc_data.als_data0 >= MAXRANGE_50MODE)) {
-            calc_ans.positive = max_range;
-            calc_ans.decimal  = 0;
-        } else {
-            /* get the value which is measured from power table */
-            calc_data.als_time = MCTL_TABLE[dev_val.time].ALS;
-
-            calc_judge = calc_data.als_data1 * JUDGE_FIXED_COEF;
-            if (calc_judge < (calc_data.als_data0 * judge_coefficient[0])) {
-                set_case = 0;
-            } else if (calc_judge < (data.als_data0 * judge_coefficient[1])) {
-                set_case = 1;
-            } else if (calc_judge < (data.als_data0 * judge_coefficient[2])) {
-                set_case = 2;
-            } else if (calc_judge < (data.als_data0 * judge_coefficient[3])) {
-                set_case = 3;
-            } else {
-                set_case = MAXSET_CASE;
-            }
-            calc_ans.positive = 0;
-            if (set_case >= MAXSET_CASE) {
-                calc_ans.decimal = 0;
-            } else {
-                calc_data.gain_data1 = GAIN_TABLE[dev_val.gain].DATA1;
-                calc_data.data0      = (long long )(data0_coefficient[set_case] * calc_data.als_data0) * calc_data.gain_data1;
-                calc_data.data1      = (long long )(data1_coefficient[set_case] * calc_data.als_data1) * calc_data.gain_data0;
-                calc_data.data       = (calc_data.data0 - calc_data.data1);
-                calc_data.dev_unit   = calc_data.gain_data0 * calc_data.gain_data1 * calc_data.als_time * 10;
-                /* calculate a positive number */
-                div_answer   = 0;
-                div_overplus = 0;
-                result = long_long_divider(calc_data.data, calc_data.dev_unit, &div_answer, &div_overplus);
-                if (result == CALC_ERROR) {
-                    return (result);
-                }
-                calc_ans.positive = div_answer;
-                /* calculate a decimal number */
-                calc_ans.decimal = 0;
-                overplus         = div_overplus;
-                if (calc_ans.positive < max_range) {
-                    if (overplus != 0) {
-                        overplus     = overplus << ALS_DECIMAL_BIT;
-                        div_answer   = 0;
-                        div_overplus = 0;
-                        result = long_long_divider(overplus, calc_data.dev_unit, &div_answer, &div_overplus);
-                        if (result == CALC_ERROR) {
-                            return (result);
-                        }
-                        calc_ans.decimal = div_answer;
-                    }
-                } else {
-                    calc_ans.positive = max_range;
-                }
-            }
-        }
-    }
-    final_data = (int)(calc_ans.positive << ALS_DECIMAL_BIT) + calc_ans.decimal;
-
-    return (final_data);
-
-#undef JUDGE_FIXED_COEF
-#undef MAX_OUTRANGE
-#undef MAXRANGE_NMODE
-#undef MODE50MS_FLAG
-#undef MAXRANGE_50MODE
-#undef MAXSET_CASE
-}
-
-/******************************************************************************
- * NAME       : calculate_ps_data
- * FUNCTION   : calculate proximity data for RPR0521
- * REMARKS    : final_data format
- *            :+-----------------------------+-----------------------------+
- *            :| led current values 2bit     | proxmity values : 16bit     |
- *            :+-----------------------------+-----------------------------+
- *****************************************************************************/
-static int calculate_ps_data(READ_DATA_BUF data, DEVICE_VAL dev_val, struct i2c_client *client)
-{
-    int final_data;
-    final_data = (int)(dev_val.led_current << PS_VALUE_BIT) + data.ps_data;
-    return (final_data);
-
-}
-
-/*                                                                             
-                                
-                                                    
-                                 
-                                                                             */
 static int update_ps_value(unsigned short new_ps_data)
 {
-	ps_als_ginfo->ps_data = new_ps_data;
-
 	if(new_ps_data > ps_als_ginfo->adjusted_psth_upper)	// current state is near
 	{
 		ps_als_ginfo->ps_value = true;
+		if (atomic_read(&ps_log) == 0) {
 		PINFO("pdata(%d) > adjusted_near_offset(%d), proximity state is changed far to near",
 				new_ps_data, ps_als_ginfo->adjusted_psth_upper);
+		atomic_set(&ps_log, 1);
+		}
 		ps_als_driver_write_ps_th_h(PS_THRESHOLD_MAX, ps_als_ginfo->client);
 		ps_als_driver_write_ps_th_l(ps_als_ginfo->adjusted_psth_low, ps_als_ginfo->client);
 
@@ -939,15 +1254,65 @@ static int update_ps_value(unsigned short new_ps_data)
 	else if(new_ps_data < ps_als_ginfo->adjusted_psth_low)	// current state is far
 	{
 		ps_als_ginfo->ps_value = false;
+		if (atomic_read(&ps_log) == 1) {
 		PINFO("pdata(%d) < adjusted_far_offset(%d), proximity state is changed near to far",
 				new_ps_data, ps_als_ginfo->adjusted_psth_low);
+		atomic_set(&ps_log, 0);
+		}
 		ps_als_driver_write_ps_th_h(ps_als_ginfo->adjusted_psth_upper, ps_als_ginfo->client);
 		ps_als_driver_write_ps_th_l(PS_THRESHOLD_MIN, ps_als_ginfo->client);
 	}
 	else
 	{
 		PINFO("proximity state is not changed. pdata(%d)", new_ps_data);
+		if (ps_als_ginfo->ps_first_reported == false)
+		{
+			PINFO("pdata(%d) first ps event report far", new_ps_data);
+			ps_als_ginfo->ps_value = false;
+			ps_als_driver_write_ps_th_h(ps_als_ginfo->adjusted_psth_upper, ps_als_ginfo->client);
+			ps_als_driver_write_ps_th_l(PS_THRESHOLD_MIN, ps_als_ginfo->client);
+		}
 	}
+	if (ps_als_ginfo->ps_first_reported == false)
+	{
+		ps_als_ginfo->ps_first_reported = true;
+	}
+
+	ps_als_ginfo->ps_data = new_ps_data;
+	return 0;
+}
+
+/******************************************************************************
+ * NAME       : update_als_value
+ * FUNCTION   : update als_data0, als_data1
+ * REMARKS    : ssoon.lee@lge.com
+ *****************************************************************************/
+static int update_als_value(unsigned short new_als_data0, unsigned short new_als_data1)
+{
+	ps_als_ginfo->als_data0 = new_als_data0;
+	ps_als_ginfo->als_data1 = new_als_data1;
+
+#ifdef RPR0521_PM_SUSPEND_RESUME
+	if(new_als_data0 > ps_als_ginfo->config.init_data.alsth_upper)	// current state is bright
+	{
+		PINFO("als_data0(%d) > alsth_upper(%d), als state is changed dark to bright",
+				new_als_data0, ps_als_ginfo->config.init_data.alsth_upper);
+		ps_als_driver_write_als_th_up(ALS_THRESHOLD_MAX, ps_als_ginfo->client);
+		ps_als_driver_write_als_th_low(ps_als_ginfo->config.init_data.alsth_low, ps_als_ginfo->client);
+
+	}
+	else if(new_als_data0 <= ps_als_ginfo->config.init_data.alsth_upper)	// current state is dark
+	{
+		PINFO("als_data0(%d) < alsth_low(%d), als state is changed bright to dark",
+				new_als_data0, ps_als_ginfo->config.init_data.alsth_low);
+		ps_als_driver_write_als_th_up(ps_als_ginfo->config.init_data.alsth_upper, ps_als_ginfo->client);
+		ps_als_driver_write_als_th_low(ALS_THRESHOLD_MIN, ps_als_ginfo->client);
+	}
+	else
+	{
+		PINFO("als state is not changed. als_data0(%d)", new_als_data0);
+	}
+#endif
 	return 0;
 }
 
@@ -960,20 +1325,18 @@ static int update_ps_value(unsigned short new_ps_data)
 static void ps_als_work_func(struct work_struct *work)
 {
     int           result;
-    READ_DATA_BUF read_data_buf;
-    PS_ALS_DATA   *ps_als;
-    DEVICE_VAL    dev_val;
     long          get_timer;
     long          wait_sec;
     unsigned long wait_nsec;
-    PWR_ST        pwr_st;
-    int           ps_data;
-    int           als_data;
     unsigned char read_intr;
+    PWR_ST        pwr_st;
+    READ_DATA_BUF read_data_buf;
+    PS_ALS_DATA   *ps_als;
+    DEVICE_VAL    dev_val;
     GENREAD_ARG   gene_data;
 
-	mutex_lock(&ps_als_ginfo->enable_lock);
-    
+	mutex_lock(&ps_als_ginfo->work_lock);
+
 	read_data_buf.ps_data   = 0;
     read_data_buf.als_data0 = 0;
     read_data_buf.als_data1 = 0;
@@ -985,72 +1348,66 @@ static void ps_als_work_func(struct work_struct *work)
     gene_data.size    = sizeof(read_intr);
     result = ps_als_driver_general_read(gene_data, ps_als->client);
     if (result < 0) {
-        printk(KERN_ERR "general read can't execute \n");
-        printk(KERN_ERR "can't read interrupt register \n");
+        PINFO("general read can't execute \n");
+        PINFO("can't read interrupt register \n");
 		goto unlock;
     }
- 
+
     /* read the state of sensor */
     result = ps_als_driver_read_power_state(&pwr_st, ps_als->client);
     if (result < 0) {
-        printk(KERN_ERR "power_state error \n");
+        PINFO("power_state error \n");
 		goto unlock;
     }
-    
+
 	/* check the state of sensor */
     if ((pwr_st.als_state == CTL_STANDBY) && (pwr_st.ps_state == CTL_STANDBY)) {
 		goto unlock;
     }
     result = ps_als_driver_read_data(&read_data_buf, ps_als->client);
     if (result < 0) {
-        printk(KERN_ERR "ERROR! read data\n");
+        PINFO("ERROR! read data\n");
 		goto unlock;
     }
-
-	/*                   */
-	// update current proximity state
-	update_ps_value(read_data_buf.ps_data);
 
 	/* read value from device */
     result = get_from_device(&dev_val, ps_als->client);
     if (result < 0) {
-        printk(KERN_ERR "ERROR! read data from device.\n");
+        PINFO("ERROR! read data from device.\n");
 		goto unlock;
     }
-    if (pwr_st.als_state == CTL_STANDALONE) {
-        /* make als data */
-        als_data = calculate_als_data(read_data_buf, dev_val, ps_als->client);
-        if (als_data == CALC_ERROR) {
-            printk(KERN_ERR "ERROR! als data.\n");
+
+    if (pwr_st.als_state == CTL_STANDALONE && ps_als_ginfo->is_timer) {
+		update_als_value(read_data_buf.als_data0, read_data_buf.als_data1);
+		input_report_abs(ps_als->input_dev_als, ABS_MISC, lux_calculation());
+		//input_report_abs(ps_als->input_dev_als, ABS_MISC, ps_als_ginfo->als_data0);
+		input_sync(ps_als->input_dev_als);
+		ps_als_ginfo->is_timer = false;
+
+		/* the setting value from application */
+		get_timer = ps_als->delay_time;
+		/* 125ms(8Hz) at least */
+		wait_sec  = (get_timer / SM_TIME_UNIT);
+		wait_nsec = ((get_timer - (wait_sec * SM_TIME_UNIT)) * MN_TIME_UNIT);
+		result = hrtimer_start(&ps_als->timer, ktime_set(wait_sec, wait_nsec), HRTIMER_MODE_REL);
+		if (result != 0) {
+			PINFO("can't start timer\n");
 			goto unlock;
-        }
-        input_report_abs(ps_als->input_dev, ABS_X, als_data);
-        input_sync(ps_als->input_dev);
-    }
-    /* make ps data */
-    if (pwr_st.ps_state == CTL_STANDALONE) {
-        ps_data = calculate_ps_data(read_data_buf, dev_val, ps_als->client);
-        input_report_abs(ps_als->input_dev, ABS_DISTANCE, (ps_als_ginfo->ps_value==true)? 0:1);
-        input_sync(ps_als->input_dev);
-    }
-    if (ps_als->use_irq == IRQ_NON_USE) {
-        /* the setting value from application */
-        get_timer = ps_als->delay_time;
-        /* 125ms(8Hz) at least */
-        wait_sec  = (get_timer / SM_TIME_UNIT);
-        wait_nsec = ((get_timer - (wait_sec * SM_TIME_UNIT)) * MN_TIME_UNIT);
-        result = hrtimer_start(&ps_als->timer, ktime_set(wait_sec, wait_nsec), HRTIMER_MODE_REL);
-        if (result != 0) {
-            printk(KERN_ERR "can't start timer\n");
-			goto unlock;
-        }
-    } else {
-        /* interruption clear */
-        enable_irq(ps_als->client->irq);
-    }
+		}
+	}
+	if (pwr_st.ps_state == CTL_STANDALONE && ps_als_ginfo->is_interrupt) {
+		update_ps_value(read_data_buf.ps_data);
+		input_report_abs(ps_als->input_dev, ABS_DISTANCE, (ps_als_ginfo->ps_value==true)? 0:1);
+		input_sync(ps_als->input_dev);
+	}
 
 unlock :
-	mutex_unlock(&ps_als_ginfo->enable_lock);
+	if (ps_als_ginfo->is_interrupt) {
+		ps_als_ginfo->is_interrupt = false;
+		enable_irq(ps_als->client->irq); //Consecutive irq control
+	}
+
+	mutex_unlock(&ps_als_ginfo->work_lock);
 	return ;
 }
 
@@ -1064,11 +1421,12 @@ static enum hrtimer_restart ps_als_timer_func(struct hrtimer *timer)
     PS_ALS_DATA *ps_als;
     int         result;
 
+	ps_als_ginfo->is_timer = true;
     ps_als = container_of(timer, PS_ALS_DATA, timer);
     result = queue_work(rohm_workqueue, &ps_als->work);
     if (result == 0) {
-        printk(KERN_ERR "can't register que.\n");
-        printk(KERN_ERR "result = 0x%x\n", result);
+        PINFO("can't register que.\n");
+        PINFO("result = 0x%x\n", result);
     }
 
     return (HRTIMER_NORESTART);
@@ -1084,11 +1442,16 @@ static irqreturn_t ps_als_irq_handler(int irq, void *dev_id)
     PS_ALS_DATA *ps_als;
     int         result;
 
+  PINFO("[RPR0521]ps_als_irq_handler() Enter\n");
+	ps_als_ginfo->is_interrupt = true;
     ps_als = dev_id;
+    if (wake_lock_active(&ps_als->ps_wlock))
+        wake_unlock(&ps_als->ps_wlock);
+    wake_lock_timeout(&ps_als->ps_wlock, 1 * HZ);
     disable_irq_nosync(ps_als->client->irq);
     result = queue_work(rohm_workqueue, &ps_als->work);
     if (result == 0) {
-        printk(KERN_ERR "can't register que.\n");
+        PINFO("can't register que.\n");
     }
 
     return (IRQ_HANDLED);
@@ -1105,13 +1468,12 @@ static int ps_als_iodev_open(struct inode *inode, struct file *file)
     int         result;
     PWR_ST      pwr_st;
     PS_ALS_DATA *ps_als;
-    INIT_ARG    init_data;
 
 	mutex_lock(&ps_als_ginfo->enable_lock);
 
 	ps_als = ps_als_ginfo;
     if (ps_als->fopen_cnt >= FOPEN_MAX_TIME) {
-        printk(KERN_ERR "already call open function! open time = %d \n", ps_als->fopen_cnt);
+        PINFO("already call open function! open time = %d \n", ps_als->fopen_cnt);
 		result = (-ENFILE);
 		goto unlock;
     }
@@ -1121,62 +1483,23 @@ static int ps_als_iodev_open(struct inode *inode, struct file *file)
     pwr_st.ps_state  = 0;
     result = ps_als_driver_read_power_state(&pwr_st, ps_als->client);
     if (result < 0) {
-        printk(KERN_ERR "power_state error \n");
+        PINFO("power_state error \n");
 		goto unlock;
     }
     /* check the stop system is */
     if ((pwr_st.als_state == CTL_STANDBY) && (pwr_st.ps_state == CTL_STANDBY)) {
-        /* set initialization data */
-#ifdef CONFIG_OF
-		/* construct register setting value from device tree */
-		ps_als_ginfo->config.mode_ctl = (ps_als_ginfo->config.pulse << 5) |
-		                                (ps_als_ginfo->config.mode << 4) |
-		                                (ps_als_ginfo->config.measure_time);
-		ps_als_ginfo->config.psals_ctl = (ps_als_ginfo->config.als_gain << 2) |
-		                                 (ps_als_ginfo->config.led_current);
-		ps_als_ginfo->config.ps_ctl = (ps_als_ginfo->config.infrared_level << 6) |
-		                              (ps_als_ginfo->config.ps_gain << 4) |
-		                              (ps_als_ginfo->config.persistence);
-		ps_als_ginfo->config.intr = (PS_THH_BOTH_OUTSIDE | POLA_ACTIVEL | OUTPUT_LATCH | MODE_PROXIMITY);
-		ps_als_ginfo->config.psth_upper = ps_als_ginfo->config.near_offset;
-		ps_als_ginfo->config.psth_low = ps_als_ginfo->config.far_offset;;
 
-		PINFO("mode_ctl = %d", ps_als_ginfo->config.mode_ctl);
-		PINFO("psals_ctl = %d", ps_als_ginfo->config.psals_ctl);
-		PINFO("ps_ctl = %d", ps_als_ginfo->config.ps_ctl);
-		PINFO("intr = %d", ps_als_ginfo->config.intr);
-		PINFO("psth_upper = %d", ps_als_ginfo->config.near_offset);
-		PINFO("psth_low = %d", ps_als_ginfo->config.far_offset);
-		PINFO("default_cross_talk = %d", ps_als_ginfo->default_cross_talk);
-
-		init_data.mode_ctl    = ps_als_ginfo->config.mode_ctl;
-		init_data.psals_ctl   = ps_als_ginfo->config.psals_ctl;
-		init_data.ps_ctl      = ps_als_ginfo->config.ps_ctl;
-		init_data.intr        = ps_als_ginfo->config.intr;
-		init_data.psth_upper  = ps_als_ginfo->config.psth_upper;
-		init_data.psth_low    = ps_als_ginfo->config.psth_low;
-		init_data.alsth_upper = PS_ALS_SET_ALS_TH;
-		init_data.alsth_low   = PS_ALS_SET_ALS_TL;
-#else
-		init_data.mode_ctl    = PS_ALS_SET_MODE_CONTROL;
-		init_data.psals_ctl   = PS_ALS_SET_ALSPS_CONTROL;
-		init_data.ps_ctl      = PS_ALS_SET_PS_CONTROL;
-		init_data.intr        = PS_ALS_SET_INTR;
-        init_data.psth_upper  = PS_ALS_SET_PS_TH;
-        init_data.psth_low    = PS_ALS_SET_PS_TL;
-        init_data.alsth_upper = PS_ALS_SET_ALS_TH;
-        init_data.alsth_low   = PS_ALS_SET_ALS_TL;
-#endif
-        /* set initialization state */
-        result = ps_als_driver_init(init_data, ps_als->client);
+		make_init_data(ps_als_ginfo);
+		/* set initialization state */
+        result = ps_als_driver_init(ps_als_ginfo->config.init_data, ps_als->client);
         if (result < 0) {
-            printk(KERN_ERR "%s don't initialize to sensor\n", __func__);
-            printk(KERN_ERR "error value = 0x%x\n", result);
+            PINFO("%s don't initialize to sensor\n", __func__);
+            PINFO("error value = 0x%x\n", result);
 			goto unlock;
         }
         file->private_data = ps_als;
     } else {
-        printk(KERN_ERR "already open device !!\n");
+        PINFO("already open device !!\n");
     }
 
 	PINFO("ps_als_iodev_open success");
@@ -1189,6 +1512,76 @@ unlock:
 	return result;
 
 #undef FOPEN_MAX_TIME
+}
+
+static int make_init_data(PS_ALS_DATA *ps_als)
+{
+	/* set initialization data */
+#ifdef CONFIG_OF
+	/* construct register setting value from device tree */
+	ps_als->config.init_data.mode_ctl = (ps_als->config.pulse << 5) |
+                                              (ps_als->config.mode << 4) |
+                                              (ps_als->config.measure_time);
+	ps_als->config.init_data.psals_ctl = (ps_als->config.als_gain << 2) |
+                                               (ps_als->config.led_current);
+	ps_als->config.init_data.ps_ctl = (ps_als->config.infrared_level << 6) |
+                                            (ps_als->config.ps_gain << 4) |
+                                            (ps_als->config.persistence);
+	ps_als->config.init_data.intr = (PS_THH_BOTH_OUTSIDE | MODE_PROXIMITY);
+	ps_als->config.init_data.psth_upper = ps_als->config.near_offset;
+	ps_als->config.init_data.psth_low = ps_als->config.far_offset;;
+	ps_als->config.init_data.alsth_upper = PS_ALS_SET_ALS_TH;
+	ps_als->config.init_data.alsth_low = PS_ALS_SET_ALS_TL;
+	ps_als->boot_mode 					 = get_boot_mode();
+  /*D1-5T-SW-INPUT@lge.com*/
+	judge_coef[0] = ps_als->config.judge_coef0;
+	judge_coef[1] = ps_als->config.judge_coef1;
+	judge_coef[2] = ps_als->config.judge_coef2;
+	judge_coef[3] = ps_als->config.judge_coef3;
+
+	data0_coef[0] = ps_als->config.data0_coef0;
+	data0_coef[1] = ps_als->config.data0_coef1;
+	data0_coef[2] = ps_als->config.data0_coef2;
+	data0_coef[3] = ps_als->config.data0_coef3;
+
+	data1_coef[0] = ps_als->config.data1_coef0;
+	data1_coef[1] = ps_als->config.data1_coef1;
+	data1_coef[2] = ps_als->config.data1_coef2;
+	data1_coef[3] = ps_als->config.data1_coef3;
+#else
+	ps_als->config.init_data.mode_ctl    = PS_ALS_SET_MODE_CONTROL;
+	ps_als->config.init_data.psals_ctl   = PS_ALS_SET_ALSPS_CONTROL;
+	ps_als->config.init_data.ps_ctl      = PS_ALS_SET_PS_CONTROL;
+	ps_als->config.init_data.intr        = PS_ALS_SET_INTR;
+	ps_als->config.init_data.psth_upper  = PS_ALS_SET_PS_TH;
+	ps_als->config.init_data.psth_low    = PS_ALS_SET_PS_TL;
+	ps_als->config.init_data.alsth_upper = PS_ALS_SET_ALS_TH;
+	ps_als->config.init_data.alsth_low   = PS_ALS_SET_ALS_TL;
+#endif
+	PINFO("mode_ctl = %d", ps_als->config.init_data.mode_ctl);
+	PINFO("psals_ctl = %d", ps_als->config.init_data.psals_ctl);
+	PINFO("ps_ctl = %d", ps_als->config.init_data.ps_ctl);
+	PINFO("intr = %d", ps_als->config.init_data.intr);
+	PINFO("psth_upper = %d", ps_als->config.init_data.psth_upper);
+	PINFO("psth_low = %d", ps_als->config.init_data.psth_low);
+	PINFO("alsth_upper = %d", ps_als->config.init_data.alsth_upper);
+	PINFO("alsth_low = %d", ps_als->config.init_data.alsth_low);
+	PINFO("default_cross_talk = %d", ps_als->default_cross_talk);
+	PINFO("boot_mode = %d", ps_als->boot_mode);
+  /*D1-5T-SW-INPUT@lge.com*/
+	PINFO("judge_coef[0] = %ld", judge_coef[0]);
+	PINFO("judge_coef[1] = %ld", judge_coef[1]);
+	PINFO("judge_coef[2] = %ld", judge_coef[2]);
+	PINFO("judge_coef[3] = %ld", judge_coef[3]);
+	PINFO("data0_coef[0] = %ld", data0_coef[0]);
+	PINFO("data0_coef[1] = %ld", data0_coef[1]);
+	PINFO("data0_coef[2] = %ld", data0_coef[2]);
+	PINFO("data0_coef[3] = %ld", data0_coef[3]);
+	PINFO("data1_coef[0] = %ld", data1_coef[0]);
+	PINFO("data1_coef[1] = %ld", data1_coef[1]);
+	PINFO("data1_coef[2] = %ld", data1_coef[2]);
+	PINFO("data1_coef[3] = %ld", data1_coef[3]);
+	return 0;
 }
 
 /******************************************************************************
@@ -1208,7 +1601,7 @@ static int ps_als_iodev_release(struct inode *inode, struct file *file)
     ps_als->fopen_cnt--;
     result = ps_als_driver_shutdown(ps_als->client);
     if (result != 0) {
-        printk(KERN_ERR "can't close device\n");
+        PINFO("can't close device\n");
     }
 
     return (result);
@@ -1248,19 +1641,19 @@ static long ps_als_iodev_ioctl(struct file *file, unsigned int cmd, unsigned lon
     switch (cmd) {
         case IOCTL_APP_SET_TIMER:
             if (copy_from_user(&time, argp, sizeof(time))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             if (time >= (PS_ALS_SET_MIN_DELAY_TIME)) {
                 ps_als_ginfo->delay_time = time;
             } else {
-                printk(KERN_ERR "parameter is too small. \n");
+                PINFO("parameter is too small. \n");
                 return (-EFAULT);
             }
             break;
         case IOCTL_APP_SET_PWRSET_ALS:
             if (copy_from_user(&pwr_als, argp, sizeof(pwr_als))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             /* input power data */
@@ -1269,14 +1662,14 @@ static long ps_als_iodev_ioctl(struct file *file, unsigned int cmd, unsigned lon
             power_data.intr      = pwr_als.intr;
             result = ps_als_ioctl_power_on_off(ps_als, &power_data);
             if (result < 0) {
-                printk(KERN_ERR "error value = 0x%x \n", result);
+                PINFO("error value = 0x%x \n", result);
                 return (result);
             }
             break;
 
         case IOCTL_APP_SET_PWRSET_PS:
             if (copy_from_user(&pwr_ps, argp, sizeof(pwr_ps))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             /* input power data */
@@ -1285,129 +1678,129 @@ static long ps_als_iodev_ioctl(struct file *file, unsigned int cmd, unsigned lon
             power_data.intr      = pwr_ps.intr;
             result = ps_als_ioctl_power_on_off(ps_als, &power_data);
             if (result < 0) {
-                printk(KERN_ERR "error value = 0x%x \n", result);
+                PINFO("error value = 0x%x \n", result);
                 return (result);
             }
             break;
 
         case IOCTL_APP_SET_MEASUR_TIME:
             if (copy_from_user(&measure_time, argp, sizeof(measure_time))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             result = ps_als_driver_write_measurement_time(measure_time, ps_als->client);
             if (result < 0) {
-                printk(KERN_ERR "error value = 0x%x \n", result);
+                PINFO("error value = 0x%x \n", result);
                 return (result);
             }
             break;
 
         case IOCTL_APP_SET_PERSISTENCE:
             if (copy_from_user(&persistence, argp, sizeof(persistence))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             result = ps_als_driver_write_persistence(persistence, ps_als->client);
             if (result < 0) {
-                printk(KERN_ERR "error value = 0x%x \n", result);
+                PINFO("error value = 0x%x \n", result);
                 return (result);
             }
             break;
 
         case IOCTL_APP_SET_INTR_MODE:
             if (copy_from_user(&intr, argp, sizeof(intr))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             result = ps_als_driver_write_interrupt_mode(intr, ps_als->client);
             if (result < 0) {
-                printk(KERN_ERR "error value = 0x%x \n", result);
+                PINFO("error value = 0x%x \n", result);
                 return (result);
             }
             break;
 
         case IOCTL_APP_SET_PS_TH_HIGH:
             if (copy_from_user(&ps_th_h, argp, sizeof(ps_th_h))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             result = ps_als_driver_write_ps_th_h(ps_th_h, ps_als->client);
             if (result < 0) {
-                printk(KERN_ERR "error value = 0x%x \n", result);
+                PINFO("error value = 0x%x \n", result);
                 return (result);
             }
             break;
 
         case IOCTL_APP_SET_PS_TH_LOW:
             if (copy_from_user(&ps_th_l, argp, sizeof(ps_th_l))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             result = ps_als_driver_write_ps_th_l(ps_th_l, ps_als->client);
             if (result < 0) {
-                printk(KERN_ERR "error value = 0x%x \n", result);
+                PINFO("error value = 0x%x \n", result);
                 return (result);
             }
             break;
 
         case IOCTL_APP_SET_ALS_TH_UP:
             if (copy_from_user(&als_th_up, argp, sizeof(als_th_up))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             result = ps_als_driver_write_als_th_up(als_th_up, ps_als->client);
             if (result < 0) {
-                printk(KERN_ERR "error value = 0x%x \n", result);
+                PINFO("error value = 0x%x \n", result);
                 return (result);
             }
             break;
 
         case IOCTL_APP_SET_ALS_TH_LOW:
             if (copy_from_user(&als_th_low, argp, sizeof(als_th_low))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             result = ps_als_driver_write_als_th_low(als_th_low, ps_als->client);
             if (result < 0) {
-                printk(KERN_ERR "error value = 0x%x \n", result);
+                PINFO("error value = 0x%x \n", result);
                 return (result);
             }
             break;
 
         case IOCTL_APP_SET_GENERAL:
             if (copy_from_user(&gen_read, argp, sizeof(gen_read))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             if (gen_read.size > GEN_READ_MAX) {
-                printk(KERN_ERR "parameter NG!! size is the bigger than %d bytes.\n", GEN_READ_MAX);
+                PINFO("parameter NG!! size is the bigger than %d bytes.\n", GEN_READ_MAX);
                 return (-EFAULT);
             }
             memset(&gen_data, 0, sizeof(gen_data));
             gen_read.addr = gen_data;
             result = ps_als_driver_general_read(gen_read, ps_als->client);
             if (result < 0) {
-                printk(KERN_ERR "error value = 0x%x \n", result);
+                PINFO("error value = 0x%x \n", result);
                 return (result);
             }
             break;
 
         case IOCTL_APP_READ_GENERAL:
             if (copy_to_user(argp, &gen_data, sizeof(gen_data))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             break;
 
         case IOCTL_APP_READ_DRIVER_VER:
             if (copy_to_user(argp, &rpr0521_driver_ver, sizeof(rpr0521_driver_ver))) {
-                printk(KERN_ERR "parameter NG !!\n");
+                PINFO("parameter NG !!\n");
                 return (-EFAULT);
             }
             break;
 
         default:
-            printk(KERN_ERR "non cmd parameter!\n");
+            PINFO("non cmd parameter!\n");
             return (-EFAULT);
             break;
     }
@@ -1428,8 +1821,8 @@ static int ps_als_ioctl_power_on_off(PS_ALS_DATA *ps_als, POWERON_ARG *power_dat
 
     result = ps_als_driver_read_power_state(&pwr_st, ps_als->client);
     if (result < 0) {
-        printk(KERN_ERR "power_state error \n");
-        printk(KERN_ERR "can't excute device on/off \n");
+        PINFO("power_state error \n");
+        PINFO("can't excute device on/off \n");
         return (result);
     }
     /* make power on data */
@@ -1450,8 +1843,8 @@ static int ps_als_ioctl_power_on_off(PS_ALS_DATA *ps_als, POWERON_ARG *power_dat
     /* set power state */
     result = ps_als_driver_power_on_off(*power_data, ps_als->client);
     if (result < 0) {
-        printk(KERN_ERR "power on failed\n");
-        printk(KERN_ERR "error value = 0x%x\n", result);
+        PINFO("power on failed\n");
+        PINFO("error value = 0x%x\n", result);
         return (result);
     }
     /* clear to timer que */
@@ -1466,7 +1859,7 @@ static int ps_als_ioctl_power_on_off(PS_ALS_DATA *ps_als, POWERON_ARG *power_dat
                 /* start timer of 1 second */
                 result = hrtimer_start(&ps_als_ginfo->timer, ktime_set(1, 0), HRTIMER_MODE_REL);
                 if (result != 0) {
-                    printk(KERN_ERR "can't start timer\n");
+                    PINFO("can't start timer\n");
                     return (result);
                 }
             }
@@ -1476,6 +1869,54 @@ static int ps_als_ioctl_power_on_off(PS_ALS_DATA *ps_als, POWERON_ARG *power_dat
     return (result);
 }
 
+#ifdef RPR0521_PM_SUSPEND_RESUME
+static int ps_als_suspend(struct device *dev)
+{
+    PS_ALS_DATA *ps_als;
+    PWR_ST pwr_st;
+    int result;
+
+    struct i2c_client *client = container_of(dev, struct i2c_client, dev);
+    PINFO("[RPR0521]Enter Suspend!! \n");
+    ps_als = i2c_get_clientdata(client);
+
+    result = ps_als_driver_read_power_state(&pwr_st, ps_als->client);
+    PINFO("[RPR0521]Enter Suspend ps_als_driver_read_power_state : %d !! \n", result);
+
+    if (pwr_st.als_state == CTL_STANDALONE){
+	result = ps_als_driver_write_interrupt_mode((unsigned char) MODE_BOTH, client);
+	PINFO("[RPR0521]Enter Suspend write_interrupt_mode result : %d!! \n", result);
+	ps_als_ginfo->is_timer = true;
+
+	result = hrtimer_cancel(&ps_als->timer);
+	PINFO("[RPR0521]hrtimer_cancel() result : %d \n", result);
+	result = cancel_work_sync(&ps_als_ginfo->work);
+	PINFO("[RPR0521]cancel_work_sync() result : %d \n", result);
+    }
+    return 0;
+}
+
+static int ps_als_resume(struct device *dev)
+{
+    PS_ALS_DATA   *ps_als;
+    PWR_ST	pwr_st;
+    int 		  result;
+
+    struct i2c_client *client = container_of(dev, struct i2c_client, dev);
+    ps_als = i2c_get_clientdata(client);
+    PINFO("[RPR0521]Enter Resume!! \n");
+
+    result = ps_als_driver_read_power_state(&pwr_st, ps_als->client);
+    PINFO("[RPR0521]Enter Resume ps_als_driver_read_power_state result : %d!! \n", result);
+
+    if (pwr_st.als_state == CTL_STANDALONE){
+    result = ps_als_driver_write_interrupt_mode((unsigned char) MODE_PROXIMITY, client);
+    PINFO("[RPR0521]Enter Resume write_interrupt_mode result : %d!! \n", result);
+    }
+    return 0;
+}
+
+#endif
 /******************************************************************************
  * NAME       : ps_als_probe
  * FUNCTION   : initialize system
@@ -1484,7 +1925,7 @@ static int ps_als_ioctl_power_on_off(PS_ALS_DATA *ps_als, POWERON_ARG *power_dat
 static int ps_als_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 #define ROHM_PSALS_ALSMAX (65535)
-#define ROHM_PSALS_PSMAX  (255)
+#define ROHM_PSALS_PSMAX  (1)       // 0=near, 1=far
 
     PS_ALS_DATA *ps_als;
     int         result;
@@ -1493,7 +1934,7 @@ static int ps_als_probe(struct i2c_client *client, const struct i2c_device_id *i
 	PINFO("RPR0521 proximity & ambient light sensor probing...");
     result = i2c_check_functionality(client->adapter, I2C_FUNC_I2C);
     if (!result) {
-        printk(KERN_ERR "need I2C_FUNC_I2C\n");
+        PINFO("need I2C_FUNC_I2C\n");
         result = -ENODEV;
         goto err_check_functionality_failed;
     }
@@ -1502,6 +1943,7 @@ static int ps_als_probe(struct i2c_client *client, const struct i2c_device_id *i
         result = -ENOMEM;
         goto err_alloc_data_failed;
     }
+    wake_lock_init(&ps_als->ps_wlock, WAKE_LOCK_SUSPEND, "proxi_wakelock");
     INIT_WORK(&ps_als->work, ps_als_work_func);
     ps_als->client = client;
     i2c_set_clientdata(client, ps_als);
@@ -1514,9 +1956,10 @@ static int ps_als_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 #endif
 
-    /* set input device */
-    INIT_DELAYED_WORK(&ps_als->input_work, ps_als_work_func);
+
+/*********** start proximity sensor input_dev registration **********/
     ps_als->input_dev = input_allocate_device();
+
     if (!ps_als->input_dev) {
         result = -ENOMEM;
         dev_err(&ps_als->client->dev, "input device allocate failed\n");
@@ -1528,13 +1971,12 @@ static int ps_als_probe(struct i2c_client *client, const struct i2c_device_id *i
     set_bit(EV_SYN, ps_als->input_dev->evbit);
 
     /* initialization of abs event */
-    input_set_abs_params(ps_als->input_dev, ABS_X, 0, ROHM_PSALS_ALSMAX, 0, 0);
     input_set_abs_params(ps_als->input_dev, ABS_DISTANCE, 0, ROHM_PSALS_PSMAX, 0, 0);
 
     /* set event name */
     ps_als->input_dev->dev.init_name = LGE_PROXIMITY_NAME;
-	ps_als->input_dev->uniq = RPR0521_DRV_NAME;
-	ps_als->input_dev->name = SENSOR_TYPE;
+	ps_als->input_dev->uniq = RPR0521_PROX_DRV_NAME;
+	ps_als->input_dev->name = SENSOR_TYPE_PROXIMITY;
 
     /* register the device */
     result = input_register_device(ps_als->input_dev);
@@ -1545,20 +1987,73 @@ static int ps_als_probe(struct i2c_client *client, const struct i2c_device_id *i
         goto err_inputdev;
     }
 
-	/*                   */
-	/* register sysfs */
-	err = sysfs_create_group(&ps_als->input_dev->dev.kobj, &ps_als_attr_group);
+	err = sysfs_create_group(&ps_als->input_dev->dev.kobj, &ps_attr_group);
+	if (err) {
+	    dev_err(&ps_als->client->dev, "sysfs_create_group failed\n");
+	    goto err_unregister_ps;
+	}
+/*********** end proximity sensor input dev registration ********/
 
-    /* reset for sensor */
-    result = ps_als_driver_reset(ps_als->client);
-    if (result != 0) {
-        printk(KERN_ERR "don't reset result = 0x%x\n", result);
-        goto err_inputdev;
+/*********** start light sensor input_dev registration **********/
+	ps_als->input_dev_als = input_allocate_device();
+
+    if (!ps_als->input_dev_als) {
+        result = -ENOMEM;
+		PINFO("input_allocate_device() fail");
+        dev_err(&ps_als->client->dev, "input device allocate failed\n");
+        goto err_remove_ps_sysfs_group;
     }
-    /* check whether to use interrupt or not */
-    ps_als->use_irq = IRQ_USE;
-    if (client->irq) {
-        /* interrupt process */
+    input_set_drvdata(ps_als->input_dev_als, ps_als);
+    /* set event bit */
+    set_bit(EV_ABS, ps_als->input_dev_als->evbit);
+    set_bit(EV_SYN, ps_als->input_dev_als->evbit);
+
+    /* initialization of abs event */
+    input_set_abs_params(ps_als->input_dev_als, ABS_MISC, 0, ROHM_PSALS_ALSMAX, 0, 0);
+
+    /* set event name */
+    ps_als->input_dev_als->dev.init_name = LGE_LIGHT_NAME;
+	ps_als->input_dev_als->uniq = RPR0521_LIGHT_DRV_NAME;
+	ps_als->input_dev_als->name = SENSOR_TYPE_LIGHT;
+
+    /* register the device */
+    result = input_register_device(ps_als->input_dev_als);
+    if (result) {
+		PINFO("input_register_device() fail ");
+        dev_err(&ps_als->client->dev,
+                "unable to register input polled device %s: %d\n",
+                ps_als->input_dev_als->name, result);
+        goto err_inputdev_als;
+    }
+
+	err = sysfs_create_group(&ps_als->input_dev_als->dev.kobj, &als_attr_group);
+	if(err) {
+	    dev_err(&ps_als->client->dev, "sysfs_create_group failed\n");
+	    goto err_unregister_als;
+	}
+/*********** end light sensor input dev registration ***************/
+
+
+	make_init_data(ps_als);
+	client->adapter->retries = 15;
+	/* set initialization state */
+	result = ps_als_driver_init(ps_als->config.init_data, ps_als->client);
+	if (result < 0) {
+		PINFO("%s don't initialize to sensor\n", __func__);
+		PINFO("error value = 0x%x\n", result);
+		goto err_remove_als_sysfs_group;
+	}
+
+	/* reset for sensor */
+	result = ps_als_driver_reset(ps_als->client);
+	if (result != 0) {
+		PINFO("don't reset result = 0x%x\n", result);
+		goto err_remove_als_sysfs_group;
+	}
+	/* check whether to use interrupt or not */
+	ps_als->use_irq = IRQ_USE;
+	if (client->irq) {
+		/* interrupt process */
 #if ((LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)) || (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)))
         result = request_irq(client->irq, ps_als_irq_handler, IRQF_TRIGGER_FALLING, client->name, ps_als);
 #else
@@ -1568,41 +2063,61 @@ static int ps_als_probe(struct i2c_client *client, const struct i2c_device_id *i
         if (result == 0) {
             ps_als->use_irq = IRQ_USE;
         } else {
-            printk(KERN_ERR "request IRQ Failed==>result : %d\n", result);
-            printk(KERN_ERR "client->irq        = 0x%x\n", client->irq);
-            printk(KERN_ERR "ps_als_irq_handler = 0x%x\n", (int)ps_als_irq_handler);
-            printk(KERN_ERR "interrupt flag     = 0x%x\n", IRQF_TRIGGER_FALLING);
-            printk(KERN_ERR "interrupt name     = %s\n", client->name);
-            printk(KERN_ERR "base address       = 0x%x\n", (int)ps_als);
+            PINFO("request IRQ Failed==>result : %d\n", result);
+            PINFO("client->irq        = 0x%x\n", client->irq);
+            PINFO("ps_als_irq_handler = 0x%x\n", (int)ps_als_irq_handler);
+            PINFO("interrupt flag     = 0x%x\n", IRQF_TRIGGER_FALLING);
+            PINFO("interrupt name     = %s\n", client->name);
+            PINFO("base address       = 0x%x\n", (int)ps_als);
         }
-    } else {
-        /* timer process */
+        enable_irq_wake(client->irq);
+
+		/* timer process */
         hrtimer_init(&ps_als->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
         ps_als->timer.function = ps_als_timer_func;
     }
     result = misc_register(&rpr0521_device);
     if (result != 0) {
-        printk(KERN_ERR "ps_als_probe register failed\n");
-        goto err_inputdev;
+        PINFO("ps_als_probe register failed\n");
+        goto err_free_irq;
     }
 
-	/*                   */
+	/* ssoon.lee@lge.com */
     /* initialize static variable */
-    ps_als->delay_time	= 0;
-    ps_als->fopen_cnt	= 0;
-	ps_als->cross_talk	= 0;
+    ps_als->delay_time = 125;
+    ps_als->fopen_cnt = 0;
+	ps_als->cross_talk = 0;
 	ps_als->adjusted_psth_upper = 0;
 	ps_als->adjusted_psth_low = 0;
-	ps_als->ps_value	= false;
-    ps_als_ginfo		= ps_als;
+	ps_als->ps_value = false;
+	ps_als->is_interrupt = false;
+	ps_als->is_timer = false;
+	ps_als->ps_first_reported = false;
+	ps_als_ginfo = ps_als;
 
 	mutex_init(&ps_als_ginfo->enable_lock);
+	mutex_init(&ps_als_ginfo->work_lock);
 
 	PINFO("RPR0521 proximity & ambient light sensor is probed successfully!");
     return (result);
+
+err_free_irq:
+    disable_irq_wake(client->irq);
+    disable_irq(client->irq);
+err_remove_als_sysfs_group:
+    sysfs_remove_group(&client->dev.kobj, &als_attr_group);
+err_unregister_als:
+    input_unregister_device(ps_als->input_dev_als);
+err_inputdev_als:
+    input_free_device(ps_als->input_dev_als);
+err_remove_ps_sysfs_group:
+    sysfs_remove_group(&client->dev.kobj, &ps_attr_group);
+err_unregister_ps:
+    input_unregister_device(ps_als->input_dev);
 err_inputdev:
     input_free_device(ps_als->input_dev);
 err_power_failed:
+    wake_lock_destroy(&ps_als->ps_wlock);
     kfree(ps_als);
 err_alloc_data_failed:
 err_check_functionality_failed:
@@ -1624,22 +2139,25 @@ static int ps_als_remove(struct i2c_client *client)
     int         result;
 
     ps_als = i2c_get_clientdata(client);
+    disable_irq_wake(client->irq);
     if (ps_als->use_irq == IRQ_USE) {
         free_irq(client->irq, ps_als);
     } else {
         result = hrtimer_cancel(&ps_als->timer);
         if (result != 0) {
-            printk(KERN_ERR "can't finish timer.\n");
+            PINFO("can't finish timer.\n");
             return (result);
         }
     }
+    wake_lock_destroy(&ps_als->ps_wlock);
     kfree(ps_als);
     result = misc_deregister(&rpr0521_device);
     if (result != 0) {
-        printk(KERN_ERR  "misc driver don't register in list.\n");
+        PINFO( "misc driver don't register in list.\n");
     }
 
 	mutex_destroy(&ps_als_ginfo->enable_lock);
+	mutex_destroy(&ps_als_ginfo->work_lock);
 
     return (result);
 }
@@ -1742,6 +2260,14 @@ static int ps_als_driver_init(INIT_ARG data, struct i2c_client *client)
     if (data.psth_low > REG_PSTL_MAX) {
         return (-EINVAL);
     }
+    /* check the parameter of proximity sensor threshold low */
+    if (data.alsth_upper > REG_ALS_DATA0_TH_MAX) {
+	return (-EINVAL);
+    }
+    /* check the parameter of proximity sensor threshold low */
+    if (data.alsth_low > REG_ALS_DATA0_TL_MAX) {
+	return (-EINVAL);
+    }
     write_data.mode_ctl  = data.mode_ctl;
     write_data.psals_ctl = data.psals_ctl;
     write_data.ps_ctl    = data.ps_ctl;
@@ -1835,7 +2361,6 @@ static int ps_als_driver_power_on_off(POWERON_ARG data, struct i2c_client *clien
     }
 
 	PINFO("ps_als_driver_power_on_off success.");
-	ps_als_ginfo->enable = data.power_ps;
 
     return (result);
 }
@@ -1938,7 +2463,7 @@ static int ps_als_driver_general_read(GENREAD_ARG data, struct i2c_client *clien
     /* block read */
     result = i2c_transfer(client->adapter, msg, 2);
     if (result < 0) {
-        printk(KERN_ERR "transfer error \n");
+        PINFO("transfer error \n");
     }
 
     return (result);

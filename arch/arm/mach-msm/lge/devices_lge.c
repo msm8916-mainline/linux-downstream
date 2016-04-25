@@ -6,16 +6,25 @@
 #include <asm/system_info.h>
 #include <linux/of.h>
 #include <linux/of_fdt.h>
-#include <linux/qpnp/qpnp-adc.h>
+//#include <linux/qpnp/qpnp-adc.h>
 #include <linux/power_supply.h>
+#ifdef CONFIG_LGE_QSDL_SUPPORT
+#include <soc/qcom/lge/lge_qsdl.h>
+#endif
 
-#ifdef CONFIG_USB_G_LGE_ANDROID
+#ifdef CONFIG_LGE_USB_G_ANDROID
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/platform_data/lge_android_usb.h>
 #endif
 
+#include <linux/qpnp/qpnp-adc.h>
+
 #define PROP_VAL_MAX_SIZE 50
+
+#if defined(CONFIG_LGE_DIC_TRIPLE_DETECT)
+int db7400_cut;
+#endif
 
 struct chg_cable_info_table {
 	int threshhold;
@@ -149,7 +158,7 @@ void get_dt_cn_prop_str(const char *name, char *value)
 	pr_err("The %s node have not property value\n", name);
 }
 
-#if defined(CONFIG_LGE_DIAG_USB_ACCESS_LOCK) || defined(CONFIG_LGE_DIAG_ENABLE_SYSFS)
+#if defined(CONFIG_LGE_USB_DIAG_LOCK) || defined(CONFIG_LGE_DIAG_ENABLE_SYSFS)
 static struct platform_device lg_diag_cmd_device = {
 	.name = "lg_diag_cmd",
 	.id = -1,
@@ -328,28 +337,67 @@ void lge_pm_read_cable_info(struct qpnp_vadc_chip *vadc)
 	lge_pm_get_cable_info(vadc, &lge_cable_info);
 }
 
+#ifdef CONFIG_USB_EMBEDDED_BATTERY_REBOOT
+/*
+   for download complete using LAF image
+   return value : 1 --> right after laf complete & reset
+*/
+
+int android_dlcomplete = 0;
+
+int __init lge_android_dlcomplete(char *s)
+{
+      if(strncmp(s,"1",1) == 0)
+              android_dlcomplete = 1;
+      else
+	     android_dlcomplete = 0;
+       printk("androidboot.dlcomplete = %d\n", android_dlcomplete);
+
+       return 1;
+}
+__setup("androidboot.dlcomplete=", lge_android_dlcomplete);
+
+int lge_get_android_dlcomplete(void)
+{
+		return android_dlcomplete;
+}
+#endif
 /* for board revision */
 static hw_rev_type lge_bd_rev = HW_REV_A;
 
 /* CAUTION: These strings are come from LK. */
-#if defined(CONFIG_MACH_MSM8916_E7IILTE_SPR_US)
-
+#if defined(CONFIG_MACH_MSM8916_E7IILTE_SPR_US) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 char *rev_str[] = {"rev_0", "rev_a", "rev_b", "rev_c", "rev_d",
-	"rev_e", "rev_10", "rev_11","revserved"};
-#elif defined (CONFIG_MACH_MSM8916_C70_CRK_US) || defined (CONFIG_MACH_MSM8916_C70N_TMO_US) || \
+	"rev_e", "rev_10", "rev_11","reserved"};
+#elif defined (CONFIG_MACH_MSM8916_C70N_CRK_US) || defined (CONFIG_MACH_MSM8916_C70N_TMO_US) || \
       defined (CONFIG_MACH_MSM8916_C70_USC_US) || defined (CONFIG_MACH_MSM8916_STYLUSC_SPR_US) || \
       defined (CONFIG_MACH_MSM8916_G4STYLUSN_TMO_US) || defined(CONFIG_MACH_MSM8916_C70N_ATT_US) || \
       defined (CONFIG_MACH_MSM8916_C70N_MPCS_US) || defined (CONFIG_MACH_MSM8916_G4STYLUSN_GLOBAL_COM) || \
-      defined (CONFIG_MACH_MSM8916_G4STYLUS_CRK_US) || defined (CONFIG_MACH_MSM8916_G4STYLUSN_MPCS_US) || \
-      defined (CONFIG_MACH_MSM8916_G4STYLUSDSN_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C70_RGS_CA) || defined(CONFIG_MACH_MSM8916_C90NAS_SPR_US)
+      defined (CONFIG_MACH_MSM8916_G4STYLUS_CRK_US) || defined (CONFIG_MACH_MSM8916_G4STYLUSN_MPCS_US) ||  \
+      defined (CONFIG_MACH_MSM8916_G4STYLUSDS_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C70_RGS_CA) || \
+      defined (CONFIG_MACH_MSM8916_C90NAS_SPR_US) || defined (CONFIG_MACH_MSM8916_G4STYLUSN_RGS_CA) || \
+      defined (CONFIG_MACH_MSM8916_C70W_KR) || defined (CONFIG_MACH_MSM8916_G4STYLUSW_KT_KR) || \
+      defined (CONFIG_MACH_MSM8916_G4STYLUSN_VTR_CA) || defined (CONFIG_MACH_MSM8916_K5)
 char *rev_str[] = {"rev_a", "rev_b", "rev_c", "rev_d", "rev_e",
-	"rev_f", "rev_g", "rev_10", "rev_11", "rev_mkt", "revserved"};
+	"rev_f", "rev_g", "rev_10", "rev_11", "rev_mkt", "reserved"};
+#elif defined(CONFIG_MACH_MSM8916_PH1_GLOBAL_COM) || defined (CONFIG_MACH_MSM8916_PH1_VZW) || \
+      defined (CONFIG_MACH_MSM8916_PH1_SPR_US) || defined (CONFIG_MACH_MSM8916_PH1_KR) || \
+      defined (CONFIG_MACH_MSM8916_PH1_CRK_US)
+char *rev_str[] = {"rev_a", "rev_a2", "rev_b", "rev_c", "rev_d", "rev_e",
+        "rev_f", "rev_g", "rev_10", "rev_11", "reserved"};
 #elif defined(CONFIG_MACH_MSM8916_C30_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C30DS_GLOBAL_COM)
 char *rev_str[] = {"evb1", "evb2", "rev_a", "rev_a2", "rev_b", "rev_c", "rev_d",
 	"rev_e", "rev_f", "rev_10", "rev_11","revserved"};
+#elif defined(CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8916_C100N_KR) || \
+      defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
+char *rev_str[] = {"rev_0","rev_a", "rev_b", "rev_c", "rev_d", "rev_e",
+	"rev_f", "rev_10", "rev_11", "rev_mkt", "revserved"};
 #else
 char *rev_str[] = {"evb1", "evb2", "rev_a", "rev_b", "rev_c", "rev_d",
-	"rev_e", "rev_f", "rev_10", "rev_11","revserved"};
+	"rev_e", "rev_f", "rev_10", "rev_11","reserved"};
 #endif
 
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
@@ -382,29 +430,64 @@ void pseudo_batt_set(struct pseudo_batt_info_type *info)
 	pseudo_batt_info.capacity = info->capacity;
 	pseudo_batt_info.charging = info->charging;
 
-#ifdef CONFIG_QPNP_LINEAR_CHARGER 
-	pseudo_batt_ibatmax_set();
+#ifdef CONFIG_QPNP_LINEAR_CHARGER
+#if defined(CONFIG_MACH_MSM8916_YG_SKT_KR)
+	if (lge_get_board_revno() != HW_REV_0)
+#elif defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || \
+      defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
+	if (lge_get_board_revno() == HW_REV_A)
+#endif
+		pseudo_batt_ibatmax_set();
 #endif
 	power_supply_changed(batt_psy);
 }
 #endif
 
 #ifdef CONFIG_LGE_PM_BATTERY_ID_CHECKER
-#ifdef CONFIG_QPNP_LINEAR_CHARGER
+#if defined(CONFIG_MACH_MSM8916_YG_SKT_KR)  || defined(CONFIG_MACH_MSM8916_C100N_KR) || \
+    defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
 extern int external_qpnp_lbc_is_usb_chg_plugged_in(void);
-#elif defined(CONFIG_BQ24262_CHARGER)
+int bq24262_is_charger_plugin(void);
+#elif defined(CONFIG_QPNP_LINEAR_CHARGER)
+extern int external_qpnp_lbc_is_usb_chg_plugged_in(void);
+#elif defined(CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER)
 int bq24262_is_charger_plugin(void);
 #endif
 
 int lge_battery_info = BATT_ID_UNKNOWN;
 bool is_lge_battery_valid(void)
 {
-#ifdef CONFIG_QPNP_LINEAR_CHARGER
+#if defined(CONFIG_MACH_MSM8916_YG_SKT_KR)
+	if(lge_pm_get_cable_type()== CABLE_56K ||
+		lge_pm_get_cable_type()== CABLE_130K ||
+		lge_pm_get_cable_type()== CABLE_910K) {
+		if (lge_get_board_revno() == HW_REV_0) {
+			if (bq24262_is_charger_plugin())
+				return true;
+		} else {
+			if (external_qpnp_lbc_is_usb_chg_plugged_in())
+				return true;
+		}
+	}
+#elif defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || \
+      defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
+	if(lge_pm_get_cable_type()== CABLE_56K ||
+		lge_pm_get_cable_type()== CABLE_130K ||
+		lge_pm_get_cable_type()== CABLE_910K) {
+		if (lge_get_board_revno() != HW_REV_A) {
+			if (bq24262_is_charger_plugin())
+				return true;
+		} else {
+			if (external_qpnp_lbc_is_usb_chg_plugged_in())
+				return true;
+		}
+	}
+#elif defined (CONFIG_QPNP_LINEAR_CHARGER)
 	if((lge_pm_get_cable_type()== CABLE_56K ||
 		lge_pm_get_cable_type()== CABLE_130K ||
 		lge_pm_get_cable_type()== CABLE_910K) && (external_qpnp_lbc_is_usb_chg_plugged_in()))
 		return true;
-#elif defined (CONFIG_BQ24262_CHARGER)
+#elif defined (CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER)
 	if((lge_pm_get_cable_type()== CABLE_56K ||
 		lge_pm_get_cable_type()== CABLE_130K ||
 		lge_pm_get_cable_type()== CABLE_910K) && (bq24262_is_charger_plugin()))
@@ -426,12 +509,14 @@ bool is_lge_battery_valid(void)
 		lge_battery_info == BATT_ID_RA4301_VC2 ||
 		lge_battery_info == BATT_ID_SW3800_VC0 ||
 		lge_battery_info == BATT_ID_SW3800_VC1 ||
-		lge_battery_info == BATT_ID_SW3800_VC2)
+		lge_battery_info == BATT_ID_SW3800_VC2 ||
+		lge_battery_info == BATT_ID_10KOHM_TCD ||
+		lge_battery_info == BATT_ID_OPEN_LGC)
 		return true;
 
 #if defined(CONFIG_MACH_MSM8916_C30_GLOBAL_COM) || \
 	defined(CONFIG_MACH_MSM8916_C30DS_GLOBAL_COM) || \
-	defined(CONFIG_MACH_MSM8916_C30F_GLOBAL_COM)
+	defined(CONFIG_MACH_MSM8916_C30F_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 	return true;
 #else
 	return false;
@@ -471,6 +556,10 @@ static int __init battery_information_setup(char *batt_info)
                 lge_battery_info = BATT_ID_SW3800_VC1;
         else if(!strcmp(batt_info, "SW3800_VC2"))
                 lge_battery_info = BATT_ID_SW3800_VC2;
+        else if(!strcmp(batt_info, "TCD_10K"))
+				lge_battery_info = BATT_ID_10KOHM_TCD;
+        else if(!strcmp(batt_info, "LGC_DNI"))
+				lge_battery_info = BATT_ID_OPEN_LGC;
         else
                 lge_battery_info = BATT_ID_UNKNOWN;
 
@@ -480,6 +569,21 @@ static int __init battery_information_setup(char *batt_info)
 }
 
 __setup("lge.battid=", battery_information_setup);
+#endif
+
+#if defined(CONFIG_LGE_DIC_TRIPLE_DETECT)
+static int __init display_db7400_setup(char *db7400_cmd)
+{
+	sscanf(db7400_cmd, "%d", &db7400_cut);
+	return 1;
+}
+__setup("lge.db7400_cut=", display_db7400_setup);
+
+int lge_get_db7400_cut(void)
+{
+	pr_info("[LCD] DB7400 panel cut is %d\n", db7400_cut);
+	return db7400_cut;
+}
 #endif
 
 static int __init board_revno_setup(char *rev_info)
@@ -540,6 +644,32 @@ static int __init display_kcal_setup(char *kcal)
 __setup("lge.kcal=", display_kcal_setup);
 #endif
 
+#if defined(CONFIG_LGE_LCD_OFF_DIMMING) || defined (CONFIG_LGE_QSDL_SUPPORT)
+static int lge_boot_reason = -1; /* undefined for error checking */
+static int __init lge_check_bootreason(char *reason)
+{
+	int ret = 0;
+
+	/* handle corner case of kstrtoint */
+	if (!strcmp(reason, "0xffffffff")) {
+		lge_boot_reason = 0xffffffff;
+		return 1;
+	}
+	ret = kstrtoint(reason, 16, &lge_boot_reason);
+	if (!ret)
+		printk(KERN_INFO "LGE REBOOT REASON: %x\n", lge_boot_reason);
+	else
+		printk(KERN_INFO "LGE REBOOT REASON: Couldn't get bootreason - %d\n",ret);
+	return 1;
+}
+__setup("lge.bootreason=", lge_check_bootreason);
+
+int lge_get_bootreason(void)
+{
+	return lge_boot_reason;
+}
+#endif
+
 /* get boot mode information from cmdline.
  * If any boot mode is not specified,
  * boot mode is normal type.
@@ -563,11 +693,11 @@ static int __init lge_boot_mode_init(char *s)
 		lge_boot_mode = LGE_BOOT_MODE_PIF_130K;
 	else if (!strcmp(s, "pif_910k"))
 		lge_boot_mode = LGE_BOOT_MODE_PIF_910K;
-	/*                            */
+	/* LGE_UPDATE_S for MINIOS2.0 */
 	else if (!strcmp(s, "miniOS"))
 		lge_boot_mode = LGE_BOOT_MODE_MINIOS;
 	pr_info("ANDROID BOOT MODE : %d %s\n", lge_boot_mode, s);
-	/*                            */
+	/* LGE_UPDATE_E for MINIOS2.0 */
 
 	return 1;
 }
@@ -611,12 +741,48 @@ static int __init lge_laf_mode_init(char *s)
 }
 __setup("androidboot.laf=", lge_laf_mode_init);
 
+unsigned int touch_module;
+EXPORT_SYMBOL(touch_module);
+
+static int __init touch_module_check(char *touch)
+{
+	if(!strncmp(touch,"PRIMARY_MODULE", 14)) {
+		touch_module = 0;
+		printk("touch_module 0\n");
+	} else if(!strncmp(touch, "SECONDARY_MODULE", 16)) {
+		touch_module = 1;
+		printk("touch_module 1\n");
+	} else if(!strncmp(touch, "TERITARY_MODULE", 15)) {
+		touch_module = 2;
+	} else if(!strncmp(touch, "QUATENARY_MODULE", 16)) {
+		touch_module = 3;
+	}
+	
+	printk("[TOUCH] kernel touch module check : %s\n", touch);
+	return 0;
+}
+__setup("lge.touchModule=", touch_module_check);
+
 enum lge_laf_mode_type lge_get_laf_mode(void)
 {
 	return lge_laf_mode;
 }
 
-#ifdef CONFIG_USB_G_LGE_ANDROID
+static bool is_mfts_mode = 0;
+static int __init lge_mfts_mode_init(char *s)
+{
+	if(strncmp(s,"1",1) == 0)
+		is_mfts_mode = 1;
+	return 0;
+}
+__setup("mfts.mode=", lge_mfts_mode_init);
+
+bool lge_get_mfts_mode(void)
+{
+	return is_mfts_mode;
+}
+
+#ifdef CONFIG_LGE_USB_G_ANDROID
 static int get_factory_cable(void)
 {
 	int res = 0;
@@ -670,3 +836,22 @@ void __init lge_add_android_usb_devices(void)
 }
 
 #endif
+#ifdef CONFIG_LGE_QSDL_SUPPORT
+static struct lge_qsdl_platform_data lge_qsdl_pdata = {
+	.oneshot_read = 0,
+	.using_uevent = 0
+};
+
+static struct platform_device lge_qsdl_device = {
+	.name = LGE_QSDL_DEV_NAME,
+	.id = -1,
+	.dev = {
+		.platform_data = &lge_qsdl_pdata,
+	}
+};
+
+void __init lge_add_qsdl_device(void)
+{
+	platform_device_register(&lge_qsdl_device);
+}
+#endif /* CONFIG_LGE_QSDL_SUPPORT */

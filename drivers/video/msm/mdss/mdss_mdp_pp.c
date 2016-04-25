@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,9 +30,6 @@ extern int g_kcal_b;
 extern struct kcal_data kcal_value;
 #endif
 
-#ifdef CONFIG_LGE_LCD_TUNING
-int put_lut_table(int num,uint32_t value);
-#endif
 struct mdp_csc_cfg mdp_csc_convert[MDSS_MDP_MAX_CSC] = {
 	[MDSS_MDP_CSC_RGB2RGB] = {
 		0,
@@ -83,6 +80,56 @@ struct mdp_csc_cfg mdp_csc_convert[MDSS_MDP_MAX_CSC] = {
 		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
 	},
 };
+
+#if defined(CONFIG_LGE_BROADCAST_TDMB)
+struct mdp_csc_cfg dmb_csc_convert = {
+#if defined(CONFIG_MACH_MSM8916_G4STYLUSW_KT_KR) || defined(CONFIG_MACH_MSM8916_PH1_KR)
+	0,
+	{
+		0x0254, 0x0000, 0x0331,
+		0x0254, 0xff37, 0xfe60,
+		0x0254, 0x0409, 0x0000,
+	},
+	{ 0xfff0, 0xff80, 0xff80,},
+	{ 0x0, 0x0, 0x0,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+#elif defined(CONFIG_MACH_MSM8916_YG_SKT_KR)
+	0,
+	{
+		0x0230, 0x0000, 0x0331, /* 280 */
+		0x0244, 0xff37, 0xfe60, /* 290 */
+		0x0254, 0x0409, 0x0000, /* 298 */
+	},
+	{ 0xfff0, 0xff80, 0xff80,},
+	{ 0x0, 0x0, 0x0,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+#elif defined(CONFIG_MACH_MSM8916_C100N_KR)
+        0,
+        {
+                0x024c, 0x0000, 0x0331,
+                0x0250, 0xff37, 0xfe60,
+                0x0264, 0x0409, 0x0000,
+        },
+        { 0xfff0, 0xff80, 0xff80,},
+        { 0x0, 0x0, 0x0,},
+        { 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+        { 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+#else
+	0,
+	{
+		0x0254, 0x0000, 0x0331,
+		0x0254, 0xff37, 0xfe60,
+		0x0254, 0x0409, 0x0000,
+	},
+	{ 0xfff0, 0xff80, 0xff80,},
+	{ 0x0, 0x0, 0x0,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+	{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+#endif
+};
+#endif /* LGE_BROADCAST */
 
 /*
  * To program a linear LUT we need to make the slope to be 1/16 to enable
@@ -353,89 +400,21 @@ struct mdss_pp_res_type {
 	struct mdp_gamut_cfg_data gamut_disp_cfg[MDSS_BLOCK_DISP_NUM];
 	uint16_t gamut_tbl[MDSS_BLOCK_DISP_NUM][GAMUT_TOTAL_TABLE_SIZE];
 	u32 hist_data[MDSS_BLOCK_DISP_NUM][HIST_V_SIZE];
-	struct pp_sts_type pp_disp_sts[MDSS_BLOCK_DISP_NUM];
+	struct pp_sts_type pp_disp_sts[MDSS_MAX_MIXER_DISP_NUM];
 	/* physical info */
 	struct pp_hist_col_info *dspp_hist;
 };
-#ifdef CONFIG_LGE_LCD_TUNING
-uint32_t igc_Table_LUT[256]={
-	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
-	0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
-	0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
-	0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F,
-	0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5A, 0x5B, 0x5C, 0x5D, 0x5E, 0x5F,
-	0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F,
-	0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F,
-	0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F,
-	0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0x9B, 0x9C, 0x9D, 0x9E, 0x9F,
-	0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF,
-	0xB0, 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF,
-	0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF,
-	0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF,
-	0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF,
-	0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF,
-};
-uint32_t igc_Table_RGB[256]={
-	4080	,		4064	,		4048	,		4032	,		4016	,		4000	,		3984	,		3968	,		3952	,		3936
-		,		3920	,		3904	,
-	3888	,		3872	,		3856	,		3840	,		3824	,		3808	,		3792	,		3776	,		3760	,		3744
-		,		3728	,		3712	,
-	3696	,		3680	,		3664	,		3648	,		3632	,		3616	,		3600	,		3584	,		3568	,		3552
-		,		3536	,		3520	,
-	3504	,		3488	,		3472	,		3456	,		3440	,		3424	,		3408	,		3392	,		3376	,		3360
-		,		3344	,		3328	,
-	3312	,		3296	,		3280	,		3264	,		3248	,		3232	,		3216	,		3200	,		3184	,		3168
-		,		3152	,		3136	,
-	3120	,		3104	,		3088	,		3072	,		3056	,		3040	,		3024	,		3008	,		2992	,		2976
-		,		2960	,		2944	,
-	2928	,		2912	,		2896	,		2880	,		2864	,		2848	,		2832	,		2816	,		2800	,		2784
-		,		2768	,		2752	,
-	2736	,		2720	,		2704	,		2688	,		2672	,		2656	,		2640	,		2624	,		2608	,		2592
-		,		2576	,		2560	,
-	2544	,		2528	,		2512	,		2496	,		2480	,		2464	,		2448	,		2432	,		2416	,		2400
-		,		2384	,		2368	,
-	2352	,		2336	,		2320	,		2304	,		2288	,		2272	,		2256	,		2240	,		2224	,		2208
-		,		2192	,		2176	,
-	2160	,		2144	,		2128	,		2112	,		2096	,		2080	,		2064	,		2048	,		2032	,		2016
-		,		2000	,		1984	,
-	1968	,		1952	,		1936	,		1920	,		1904	,		1888	,		1872	,		1856	,		1840	,		1824
-		,		1808	,		1792	,
-	1776	,		1760	,		1744	,		1728	,		1712	,		1696	,		1680	,		1664	,		1648	,		1632
-		,		1616	,		1600	,
-	1584	,		1568	,		1552	,		1536	,		1520	,		1504	,		1488	,		1472	,		1456	,		1440
-		,		1424	,		1408	,
-	1392	,		1376	,		1360	,		1344	,		1328	,		1312	,		1296	,		1280	,		1264	,		1248
-		,		1232	,		1216	,
-	1200	,		1184	,		1168	,		1152	,		1136	,		1120	,		1104	,		1088	,		1072	,		1056
-		,		1040	,		1024	,
-	1008	,		992	,		976	,		960	,		944	,		928	,		912	,		896	,		880	,		864
-		,		848	,		832	,
-	816	,		800	,		784	,		768	,		752	,		736	,		720	,		704	,		688	,		672
-		,		656	,		640	,
-	624	,		608	,		592	,		576	,		560	,		544	,		528	,		512	,		496	,		480
-		,		464	,		448	,
-	432	,		416	,		400	,		384	,		368	,		352	,		336	,		320	,		304	,		288
-		,		272	,		256	,
-	240	,		224	,		208	,		192	,		176	,		160	,		144	,		128	,		112	,		96
-		,		80	,		64	,
-	48	,		32	,		16	,		0
-};
-int igc_c0_c1[256]={0,};
-int igc_c2[256]={0,};
-int put_lut_table(int num,uint32_t value)
-{
-	if(value < 0 || value > 255)
-		value=0;
-	igc_Table_LUT[num]=value;
-	mdss_dsi_panel_invert(0);
-	pr_info("put_lut_table: num=%d, value=%x\n",num,value);
-	return 0;
-}
-#endif
 
 static DEFINE_MUTEX(mdss_pp_mutex);
 static struct mdss_pp_res_type *mdss_pp_res;
+
+#if defined(CONFIG_LGE_BROADCAST_TDMB)
+static int dmb_status; // on - 1, off - 0
+int pp_set_dmb_status(int flag) {
+	dmb_status = flag;
+	return 0;
+}
+#endif /* LGE_BROADCAST */
 
 static u32 pp_hist_read(char __iomem *v_addr,
 				struct pp_hist_col_info *hist_info);
@@ -523,7 +502,8 @@ static int pp_ad_attenuate_bl(struct mdss_ad_info *ad, u32 bl, u32 *bl_out);
 static int pp_ad_linearize_bl(struct mdss_ad_info *ad, u32 bl, u32 *bl_out,
 		int inv);
 static int pp_ad_calc_bl(struct msm_fb_data_type *mfd, int bl_in, int *bl_out,
-		int *ad_bl_out);
+		bool *bl_out_notify);
+static int pp_ad_shutdown_cleanup(struct msm_fb_data_type *mfd);
 static int pp_num_to_side(struct mdss_mdp_ctl *ctl, u32 num);
 static inline bool pp_sts_is_enabled(u32 sts, int side);
 static inline void pp_sts_set_split_bits(u32 *sts, u32 bits);
@@ -542,7 +522,7 @@ inline int linear_map(int in, int *out, int in_max, int out_max)
 {
 	if (in < 0 || !out || in_max <= 0 || out_max <= 0)
 		return -EINVAL;
-	*out = ((in * out_max) / in_max);
+	*out = ((2 * (in * out_max) + in_max) / (2 * in_max));
 	pr_debug("in = %d, out = %d, in_max = %d, out_max = %d\n",
 		in, *out, in_max, out_max);
 	if ((in > 0) && (*out == 0))
@@ -970,8 +950,16 @@ static int pp_vig_pipe_setup(struct mdss_mdp_pipe *pipe, u32 *op)
 			 * is a previously configured pipe need to re-configure
 			 * CSC matrix
 			 */
+#if !defined(CONFIG_LGE_BROADCAST_TDMB)
 			mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num,
 					   MDSS_MDP_CSC_YUV2RGB);
+#else
+			if(dmb_status == 1) {
+				mdss_mdp_csc_setup_data(MDSS_MDP_BLOCK_SSPP, pipe->num, &dmb_csc_convert);
+			} else {
+				mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num, MDSS_MDP_CSC_YUV2RGB);
+			}
+#endif /* LGE_BROADCAST */
 		}
 	}
 
@@ -1152,8 +1140,8 @@ static int mdss_mdp_scale_setup(struct mdss_mdp_pipe *pipe)
 		}
 	}
 
-	src_w = pipe->src.w >> pipe->horz_deci;
-	src_h = pipe->src.h >> pipe->vert_deci;
+	src_w = DECIMATED_DIMENSION(pipe->src.w, pipe->horz_deci);
+	src_h = DECIMATED_DIMENSION(pipe->src.h, pipe->vert_deci);
 
 	chroma_sample = pipe->src_fmt->chroma_sample;
 	if (pipe->flags & MDP_SOURCE_ROTATED_90) {
@@ -1795,6 +1783,11 @@ static int pp_dspp_setup(u32 disp_num, struct mdss_mdp_mixer *mixer)
 
 	pp_sts = &mdss_pp_res->pp_disp_sts[disp_num];
 
+	if (!flags) {
+		pr_debug("skip configuring dspp features\n");
+		goto opmode_config;
+	}
+
 	if (mdata->mdp_rev >= MDSS_MDP_HW_REV_103) {
 		pp_pa_v2_config(flags, base + MDSS_MDP_REG_DSPP_PA_BASE, pp_sts,
 				&mdss_pp_res->pa_v2_disp_cfg[disp_num],
@@ -1843,7 +1836,7 @@ static int pp_dspp_setup(u32 disp_num, struct mdss_mdp_mixer *mixer)
 			pp_sts->pgc_sts |= PP_STS_ENABLE;
 		pp_sts_set_split_bits(&pp_sts->pgc_sts, pgc_config->flags);
 	}
-
+opmode_config:
 	pp_dspp_opmode_config(ctl, dspp_num, pp_sts, mdata->mdp_rev, &opmode);
 
 flush_exit:
@@ -2113,11 +2106,8 @@ int mdss_mdp_pp_resume(struct mdss_mdp_ctl *ctl, u32 dspp_num)
 			bl_mfd = ctl->mfd;
 		}
 
-		mutex_lock(&bl_mfd->bl_lock);
-		bl = bl_mfd->ad_bl_level;
-		mutex_unlock(&bl_mfd->bl_lock);
-
 		mutex_lock(&ad->lock);
+		bl = bl_mfd->ad_bl_level;
 		if (PP_AD_STATE_CFG & ad->state)
 			pp_ad_cfg_write(&mdata->ad_off[dspp_num], ad);
 		if (PP_AD_STATE_INIT & ad->state)
@@ -2138,6 +2128,64 @@ int mdss_mdp_pp_resume(struct mdss_mdp_ctl *ctl, u32 dspp_num)
 	return 0;
 }
 #if defined(CONFIG_LCD_KCAL)
+#if defined(CONFIG_JDI_INCELL_VIDEO_FHD_PANEL)
+static struct mdp_ar_gc_lut_data test_r[GC_LUT_SEGMENTS] = {
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000100, 0x00000000},
+		{0x00000FFF, 0x00000000, 0x00007F80},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000}
+};
+
+static struct mdp_ar_gc_lut_data test_g[GC_LUT_SEGMENTS] = {
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000100, 0x00000000},
+		{0x00000FFF, 0x00000000, 0x00007F80},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000}
+};
+
+static struct mdp_ar_gc_lut_data test_b[GC_LUT_SEGMENTS] = {
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000100, 0x00000000},
+		{0x00000FFF, 0x00000000, 0x00007F80},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000},
+		{0x00000000, 0x00000000, 0x00000000}
+};
+#else
 static struct mdp_ar_gc_lut_data test_r[GC_LUT_SEGMENTS] =
 {
 	{0x00000000, 0x00000000, 0x00000000},
@@ -2195,6 +2243,7 @@ static struct mdp_ar_gc_lut_data test_b[GC_LUT_SEGMENTS] =
 	{0x00000000, 0x00000000, 0x00000000},
 	{0x00000000, 0x00000000, 0x00000000}
 };
+#endif
 void mdss_mdp_pp_argc(void)
 {
 	int disp_num = 0;
@@ -2370,22 +2419,26 @@ int mdss_mdp_pp_override_pu(int enable)
 
 int mdss_mdp_pp_overlay_init(struct msm_fb_data_type *mfd)
 {
-	if (!mfd) {
-		pr_err("Invalid mfd.\n");
+	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
+
+	if ((!mfd) || (!mdata)) {
+		pr_err("Invalid mfd or mdata.\n");
 		return -EPERM;
 	}
 
-	mfd->mdp.ad_invalidate_input = pp_ad_invalidate_input;
-	mfd->mdp.ad_calc_bl = pp_ad_calc_bl;
-
+	if (mdata->nad_cfgs) {
+		mfd->mdp.ad_calc_bl = pp_ad_calc_bl;
+		mfd->mdp.ad_shutdown_cleanup = pp_ad_shutdown_cleanup;
+	}
 	return 0;
 }
 
-int pp_ad_calc_bl(struct msm_fb_data_type *mfd, int bl_in, int *bl_out,
-	int *ad_bl_out)
+static int pp_ad_calc_bl(struct msm_fb_data_type *mfd, int bl_in, int *bl_out,
+	bool *bl_out_notify)
 {
 	int ret = -1;
 	int temp = bl_in;
+	u32 ad_bl_out = 0;
 	struct mdss_ad_info *ad;
 
 	ret = mdss_mdp_get_ad(mfd, &ad);
@@ -2399,6 +2452,8 @@ int pp_ad_calc_bl(struct msm_fb_data_type *mfd, int bl_in, int *bl_out,
 	}
 
 	mutex_lock(&ad->lock);
+	if (!mfd->ad_bl_level)
+		mfd->ad_bl_level = bl_in;
 	if (!(ad->state & PP_AD_STATE_RUN)) {
 		pr_debug("AD is not running.\n");
 		mutex_unlock(&ad->lock);
@@ -2429,7 +2484,7 @@ int pp_ad_calc_bl(struct msm_fb_data_type *mfd, int bl_in, int *bl_out,
 		mutex_unlock(&ad->lock);
 		return ret;
 	}
-	*ad_bl_out = temp;
+	ad_bl_out = temp;
 
 	ret = pp_ad_linearize_bl(ad, temp, &temp, MDP_PP_AD_BL_LINEAR_INV);
 	if (ret) {
@@ -2438,7 +2493,66 @@ int pp_ad_calc_bl(struct msm_fb_data_type *mfd, int bl_in, int *bl_out,
 		return ret;
 	}
 	*bl_out = temp;
+
+	if (!mfd->ad_bl_level)
+		mfd->ad_bl_level = bl_in;
+
+	if (ad_bl_out != mfd->ad_bl_level) {
+		mfd->ad_bl_level = ad_bl_out;
+		*bl_out_notify = true;
+	}
+
+	if (*bl_out_notify)
+		pp_ad_invalidate_input(mfd);
 	mutex_unlock(&ad->lock);
+	return 0;
+}
+
+static int pp_ad_shutdown_cleanup(struct msm_fb_data_type *mfd)
+{
+	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
+	struct mdss_mdp_ctl *ctl;
+	struct mdss_ad_info *ad;
+	bool needs_queue_cleanup = true;
+	int i = 0, ret = 0;
+
+	if ((!mdata) || (!mfd))
+		return -EPERM;
+
+	if (!mdata->ad_calc_wq)
+		return 0;
+
+	ret = mdss_mdp_get_ad(mfd, &ad);
+	if (ret) {
+		ret = -EINVAL;
+		pr_debug("failed to get ad_info, err = %d\n", ret);
+		return ret;
+	}
+
+	if (!ad->mfd)
+		return 0;
+
+	ad->mfd = NULL;
+	ctl = mfd_to_ctl(mfd);
+	if (ctl && ctl->remove_vsync_handler)
+		ctl->remove_vsync_handler(ctl, &ad->handle);
+	cancel_work_sync(&ad->calc_work);
+
+	/* Check if any other AD config is active */
+	for (i = 0; i < mdata->nad_cfgs; i++) {
+		ad = &mdata->ad_cfgs[i];
+		if (ad->mfd) {
+			needs_queue_cleanup = false;
+			break;
+		}
+	}
+
+	/* Destroy work queue if all AD configs are inactive */
+	if (needs_queue_cleanup) {
+		destroy_workqueue(mdata->ad_calc_wq);
+		mdata->ad_calc_wq = NULL;
+	}
+
 	return 0;
 }
 
@@ -2854,57 +2968,6 @@ pcc_config_exit:
 	return ret;
 }
 
-#ifdef CONFIG_LGE_LCD_TUNING
-int mdss_dsi_panel_invert(u32 enable)
-{
-	int i;
-	int disp_num = 0;
-	struct mdss_mdp_ctl *ctl;
-	struct mdss_mdp_ctl *ctl_d = NULL;
-	struct mdss_data_type *mdata;
-	struct mdp_igc_lut_data *igc_data;
-	mdata = mdss_mdp_get_mdata();
-	for (i = 0; i < mdata->nctl; i++) {
-		ctl = mdata->ctl_off + i;
-		if ((mdss_mdp_ctl_is_power_on(ctl)) && (ctl->mfd) &&
-			(ctl->mfd->index == 0)) {
-			ctl_d = ctl;
-			break;
-		}
-	}
-	igc_data = &mdss_pp_res->igc_disp_cfg[disp_num];
-	igc_data->c0_c1_data = &mdss_pp_res->igc_lut_c0c1[disp_num][0];
-	igc_data->c2_data = &mdss_pp_res->igc_lut_c2[disp_num][0];
-	igc_data->block = MDP_LOGICAL_BLOCK_DISP_0;
-	igc_data->len = 256;
-	if(ctl_d && enable)
-	{
-		igc_data->ops = MDP_PP_OPS_WRITE | MDP_PP_OPS_ENABLE;
-		for(i=0; i<256 ; i++){
-			igc_c0_c1[i]=(igc_Table_RGB[i]&0xFFF)|((igc_Table_RGB[i]&0xFFF))<<16;
-			igc_c2[i]=igc_Table_RGB[i];
-		}
-		igc_data->c0_c1_data=&igc_c0_c1[0];
-		igc_data->c2_data=&igc_c2[0];
-	}
-	else if(ctl_d && !enable)
-	{
-		igc_data->ops = MDP_PP_OPS_WRITE | MDP_PP_OPS_ENABLE;
-		for(i=0; i<256 ; i++){
-			igc_c0_c1[i]=(((igc_Table_LUT[i]*16))&0xFFF)|((((igc_Table_LUT[i]*16))&0xFFF))<<16;
-			igc_c2[i]=((igc_Table_LUT[i]*16));
-		}
-		igc_data->c0_c1_data=&igc_c0_c1[0];
-		igc_data->c2_data=&igc_c2[0];
-	}
-	else
-	{
-		pr_info("!!!!!!!!!!!!!!!!! null !!!!!!!!!!!!\n");
-	}
-	mdss_pp_res->pp_disp_flags[disp_num] |= PP_FLAGS_DIRTY_IGC;
-	return 0;
-}
-#endif
 static void pp_read_igc_lut_cached(struct mdp_igc_lut_data *cfg)
 {
 	int i;
@@ -3286,17 +3349,11 @@ int mdss_mdp_argc_config(struct mdp_pgc_lut_data *config,
 		argc_addr = mdss_mdp_get_mixer_addr_off(dspp_num) +
 			MDSS_MDP_REG_LM_GC_LUT_BASE;
 		pgc_ptr = &mdss_pp_res->argc_disp_cfg[disp_num];
-		if (config->flags & MDP_PP_OPS_WRITE)
-			mdss_pp_res->pp_disp_flags[disp_num] |=
-				PP_FLAGS_DIRTY_ARGC;
 		break;
 	case MDSS_PP_DSPP_CFG:
 		argc_addr = mdss_mdp_get_dspp_addr_off(dspp_num) +
 					MDSS_MDP_REG_DSPP_GC_BASE;
 		pgc_ptr = &mdss_pp_res->pgc_disp_cfg[disp_num];
-		if (config->flags & MDP_PP_OPS_WRITE)
-			mdss_pp_res->pp_disp_flags[disp_num] |=
-				PP_FLAGS_DIRTY_PGC;
 		break;
 	default:
 		goto argc_config_exit;
@@ -3379,6 +3436,12 @@ int mdss_mdp_argc_config(struct mdp_pgc_lut_data *config,
 			&mdss_pp_res->gc_lut_g[disp_num][0];
 		pgc_ptr->b_data =
 			&mdss_pp_res->gc_lut_b[disp_num][0];
+		if (PP_LOCAT(config->block) == MDSS_PP_LM_CFG)
+			mdss_pp_res->pp_disp_flags[disp_num] |=
+				PP_FLAGS_DIRTY_ARGC;
+		else if (PP_LOCAT(config->block) == MDSS_PP_DSPP_CFG)
+			mdss_pp_res->pp_disp_flags[disp_num] |=
+				PP_FLAGS_DIRTY_PGC;
 	}
 argc_config_exit:
 	mutex_unlock(&mdss_pp_mutex);
@@ -4796,6 +4859,12 @@ ad_config_exit:
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+#if IS_ENABLED(CONFIG_BACKLIGHT_LM3697)
+    extern void lm3697_set_level_no_mapping(int bl_level);
+#endif
+#endif
+
 int mdss_mdp_ad_input(struct msm_fb_data_type *mfd,
 			struct mdss_ad_input *input, int wait) {
 	int ret = 0;
@@ -4866,6 +4935,11 @@ int mdss_mdp_ad_input(struct msm_fb_data_type *mfd,
 			MDSS_BRIGHT_TO_BL(bl, bl, mfd->panel_info->bl_max,
 					mfd->panel_info->brightness_max);
 			mdss_fb_set_backlight(mfd, bl);
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+#if IS_ENABLED(CONFIG_BACKLIGHT_LM3697)
+            lm3697_set_level_no_mapping(bl >> 4);  // downscaling from 12bits to 8bits
+#endif
+#endif
 			mutex_unlock(&mfd->bl_lock);
 			mutex_lock(&ad->lock);
 		} else {
@@ -5083,6 +5157,8 @@ static void pp_ad_vsync_handler(struct mdss_mdp_ctl *ctl, ktime_t t)
 
 	if (ctl->mixer_left && ctl->mixer_left->num < mdata->nad_cfgs) {
 		ad = &mdata->ad_cfgs[ctl->mixer_left->num];
+		if (!ad || !ad->mfd || !mdata->ad_calc_wq)
+			return;
 		queue_work(mdata->ad_calc_wq, &ad->calc_work);
 	}
 }
@@ -5147,10 +5223,6 @@ static int mdss_mdp_ad_setup(struct msm_fb_data_type *mfd)
 
 	mdata = mfd_to_mdata(mfd);
 
-	mutex_lock(&bl_mfd->bl_lock);
-	bl = bl_mfd->ad_bl_level;
-	mutex_unlock(&bl_mfd->bl_lock);
-
 	mutex_lock(&ad->lock);
 	if (ad->sts != last_sts || ad->state != last_state) {
 		last_sts = ad->sts;
@@ -5168,6 +5240,8 @@ static int mdss_mdp_ad_setup(struct msm_fb_data_type *mfd)
 		ad->sts &= ~PP_AD_STS_DIRTY_DATA;
 		ad->state |= PP_AD_STATE_DATA;
 		pr_debug("dirty data, last_bl = %d\n", ad->last_bl);
+		bl = bl_mfd->ad_bl_level;
+
 		if ((ad->cfg.mode == MDSS_AD_MODE_AUTO_STR) &&
 							(ad->last_bl != bl)) {
 			ad->last_bl = bl;

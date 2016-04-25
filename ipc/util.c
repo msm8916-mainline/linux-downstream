@@ -659,8 +659,10 @@ struct kern_ipc_perm *ipc_lock(struct ipc_ids *ids, int id)
 	/* ipc_rmid() may have already freed the ID while ipc_lock
 	 * was spinning: here verify that the structure is still valid
 	 */
-	if (!out->deleted)
+	if (!out->deleted){
+		spin_unlock(&out->lock);
 		return out;
+	}
 
 	spin_unlock(&out->lock);
 	out = ERR_PTR(-EINVAL);

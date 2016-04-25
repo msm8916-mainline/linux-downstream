@@ -42,4 +42,4 @@ enum lge_android_usb_type {
 	LGEUSB_FACTORY_910K,
 };
 
-#endif /*                       */
+#endif /* __LGE_ANDROID_USB_H__ */

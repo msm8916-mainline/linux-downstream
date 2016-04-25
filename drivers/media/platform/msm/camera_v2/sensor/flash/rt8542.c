@@ -34,6 +34,10 @@
 #define RT8542_FLED_EN
 #define FLASH_PORTING_TEMP
 
+#if defined(CONFIG_MACH_MSM8916_C30_TRF_US) || defined(CONFIG_MACH_MSM8916_C30C_TRF_US)
+//extern int lge_lcd_id;
+extern int get_lcd_id(void);
+#endif
 
 #ifdef FLASH_PORTING_TEMP
 //#undef pr_debug
@@ -60,7 +64,7 @@
 /* Linear BLED Brightness Control - 83%*/
 #define MAX_BRIGHTNESS_RT8542                    0x7D
 #define MIN_BRIGHTNESS_RT8542                    0x04
-#define DEFAULT_BRIGHTNESS                       0x54
+#define DEFAULT_BRIGHTNESS                       0x66
 #define DEFAULT_FTM_BRIGHTNESS                   0x02
 #define UI_MAX_BRIGHTNESS                        0xFF
 
@@ -146,10 +150,16 @@ int wireless_backlight_state(void)
 EXPORT_SYMBOL(wireless_backlight_state);
 #endif
 
+///LGE_CHANGE, jongkwon.chae@lge.com, Flash Alert Issue Fix, 2015-01-07
+int get_backlight_status(void) {
+	return backlight_status;
+}
+///
+
 static void rt8542_hw_reset(void)
 {
 	int gpio = main_rt8542_dev->gpio;
-	/*            */
+	/* LGE_CHANGE */
 	if (gpio_is_valid(gpio)) {
 		gpio_direction_output(gpio, 1);
 		gpio_set_value_cansleep(gpio, 1);
@@ -214,7 +224,11 @@ static void rt8542_set_main_current_level(struct i2c_client *client, int level)
 	mutex_lock(&dev->bl_mutex);
 
 #ifdef CONFIG_LGE_PM_FACTORY_CABLE
-	if ( ( LGE_BOOT_MODE_QEM_910K == lge_get_boot_mode() || LGE_BOOT_MODE_PIF_910K == lge_get_boot_mode() ) && ( BATT_ID_UNKNOWN == read_lge_battery_id()) ){
+	if ( ( LGE_BOOT_MODE_QEM_910K == lge_get_boot_mode() || LGE_BOOT_MODE_PIF_910K == lge_get_boot_mode() )
+#ifdef CONFIG_LGE_PM_BATTERY_ID_CHECKER
+		&& ( BATT_ID_UNKNOWN == read_lge_battery_id() )
+#endif
+	){
 			pr_err("Set LCD brightness minimum, No Battery or No proper Battery with 910K Cable\n");
 			rt8542_write_reg(client, 0x05, 0x05);
 	} else{
@@ -305,19 +319,47 @@ static void rt8542_set_main_current_level_no_mapping(
 void rt8542_backlight_on(int level)
 {
 #ifdef FLASH_PORTING_TEMP
-	if ((backlight_status != BL_ON) && (backlight_status != BOTH_ON)){
+	if ((get_backlight_status() != BL_ON) && (get_backlight_status() != BOTH_ON)){
 #else
 	if (backlight_status != BL_ON) {
 #endif
+
+#if defined(CONFIG_MACH_MSM8916_C30_TRF_US) || defined(CONFIG_MACH_MSM8916_C30C_TRF_US)
+		rt8542_hw_reset();
+
+		rt8542_set_main_current_level(main_rt8542_dev->client, level);
+
+		bl_ctrl = 0;
+		rt8542_read_reg(main_rt8542_dev->client, 0x0A, &bl_ctrl);
+
+		/* BLED2 disable */
+		//bl_ctrl &= 0x77;
+		//bl_ctrl |= 0x11;
+		rt8542_write_reg(main_rt8542_dev->client, 0x0A, 0x11);
+
+		/*	OVP(32V), MAX BLED(20mA), OCP(1.0A), Boost Frequency(500khz)  Ramp up rate(262.144ms)  Ramp down rate(262.144ms)*/
+		rt8542_write_reg(main_rt8542_dev->client, 0x02, 0x54);
+
+		bl_ctrl = 0;
+		rt8542_read_reg(main_rt8542_dev->client, 0x03, &bl_ctrl);
+		bl_ctrl &= 0x3F;
+		rt8542_write_reg(main_rt8542_dev->client, 0x03, bl_ctrl);
+#else
 		rt8542_hw_reset();
 		rt8542_write_reg(main_rt8542_dev->client, 0x05, 0x04);
 
-/*OVP(32V),MAX BLED(12.1mA),OCP(1.0A),Boost Frequency(500khz)*/
+#ifdef CONFIG_MACH_MSM8916_C90NAS_SPR_US
+		/*OVP(32V),MAX BLED(22.3mA),OCP(1.0A),Boost Frequency(500khz)*/
+		rt8542_write_reg(main_rt8542_dev->client, 0x02, 0x55);
+#else
+		/*OVP(32V),MAX BLED(12.1mA),OCP(1.0A),Boost Frequency(500khz)*/
 		rt8542_write_reg(main_rt8542_dev->client, 0x02, 0x52);
+#endif
 		bl_ctrl = 0;
 		rt8542_read_reg(main_rt8542_dev->client, 0x0A, &bl_ctrl);
 		bl_ctrl |= 0x19;
 		rt8542_write_reg(main_rt8542_dev->client, 0x0A, bl_ctrl);
+#endif
 		pr_info("%s: ON!\n", __func__);
 	}
 
@@ -809,7 +851,22 @@ static int rt8542_probe(struct i2c_client *i2c_dev,
 	props.max_brightness = MAX_BRIGHTNESS_RT8542;
 	bl_dev = backlight_device_register(I2C_BL_NAME, &i2c_dev->dev,
 			NULL, &rt8542_bl_ops, &props);
+
+#if defined(CONFIG_MACH_MSM8916_C30_TRF_US) || defined(CONFIG_MACH_MSM8916_C30C_TRF_US)
+		if(get_lcd_id())
+		{
+			pr_err("<< %s TIANMA\n", __func__);
+			bl_dev->props.max_brightness = MAX_BRIGHTNESS_RT8542 + 1; /* TIANMA PANEL needs max brightness value to 0x7E */
+		}
+		else
+		{
+			pr_err("<< %s BYD\n", __func__);
+			bl_dev->props.max_brightness = MAX_BRIGHTNESS_RT8542;
+		}
+#else
 	bl_dev->props.max_brightness = MAX_BRIGHTNESS_RT8542;
+#endif
+
 	bl_dev->props.brightness = DEFAULT_BRIGHTNESS;
 	bl_dev->props.power = FB_BLANK_UNBLANK;
 
@@ -820,7 +877,20 @@ static int rt8542_probe(struct i2c_client *i2c_dev,
 	dev->max_current = pdata->max_current;
 	dev->min_brightness = pdata->min_brightness;
 	dev->default_brightness = pdata->default_brightness;
+#if defined(CONFIG_MACH_MSM8916_C30_TRF_US) || defined(CONFIG_MACH_MSM8916_C30C_TRF_US)
+	if(get_lcd_id())
+	{
+		pr_err("<< %s TIANMA\n", __func__);
+		dev->max_brightness = pdata->max_brightness + 1;  /* TIANMA PANEL needs max brightness value to 0x7E */
+	}
+	else
+	{
+		pr_err("<< %s BYD\n", __func__);
+		dev->max_brightness = pdata->max_brightness;
+	}
+#else
 	dev->max_brightness = pdata->max_brightness;
+#endif
 	dev->blmap_size = pdata->blmap_size;
 	dev->factory_brightness = pdata->factory_brightness;
 
@@ -866,7 +936,7 @@ static int rt8542_probe(struct i2c_client *i2c_dev,
 
 #ifdef FLASH_PORTING_TEMP
 	//Porting Temp: build error -> comment out
-	//                                                 
+	//if (lge_get_boot_mode() >= LGE_BOOT_MODE_QEM_56K)
 	//	dev->default_brightness = dev->factory_brightness;
 #else
 	if (lge_get_boot_mode() >= LGE_BOOT_MODE_QEM_56K)

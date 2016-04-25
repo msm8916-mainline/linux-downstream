@@ -569,3 +569,7 @@ config SND_SOC_ZDET_ENABLE
         default n
         help
         Recalibrates dce_z and sta_z parameters. Say Y here to enable
+
+config LGE_ENABLE_HDSET_MIC_BIAS_FOR_MITS
+    bool "hdset mic bias enable for mits"
+    default n

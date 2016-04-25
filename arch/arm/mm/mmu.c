@@ -1641,10 +1641,20 @@ static void __init remap_pages(void)
 		bool fixup = false;
 		unsigned long saved_start = addr;
 
+		if (phys_start > arm_lowmem_limit)
+			break;
 		if (phys_end > arm_lowmem_limit)
 			end = (unsigned long)__va(arm_lowmem_limit);
 		if (phys_start >= phys_end)
 			break;
+
+#ifdef CONFIG_FORCE_PAGES_CHECK_VA
+		if ((addr < PAGE_OFFSET) || (addr >= end)) {
+			pr_err("Invalid page address, start : 0x%08lx[VA], end : 0x%08lx[VA]\n", addr, end);
+
+			break;
+		}
+#endif
 
 		pmd = pmd_offset(
 			pud_offset(pgd_offset(&init_mm, addr), addr), addr);

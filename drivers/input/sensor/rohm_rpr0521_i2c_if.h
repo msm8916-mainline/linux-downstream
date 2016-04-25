@@ -10,11 +10,14 @@
 #ifndef _ROHM_RPR0521_I2C_IF_H_
 #define _ROHM_RPR0521_I2C_IF_H_
 
-/*                   */
-#define LGE_PROXIMITY_NAME	"lge_proximity"
-#define RPR0521_DRV_NAME	"rpr0521"
-#define SENSOR_TYPE			"proximity"
+/* ssoon.lee@lge.com */
+#define LGE_PROXIMITY_NAME "lge_proximity"
+#define RPR0521_PROX_DRV_NAME "rpr0521_proximity_drv"
+#define SENSOR_TYPE_PROXIMITY "proximity"
 
+#define LGE_LIGHT_NAME "lge_light"
+#define RPR0521_LIGHT_DRV_NAME "rpr0521_als_drv"
+#define SENSOR_TYPE_LIGHT "light"
 
 /************ definition to dependent on sensor IC ************/
 #define RPR0521_I2C_NAME          "rpr0521"

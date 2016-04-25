@@ -96,6 +96,7 @@
 		Bosch,vddio_i2c_supply_max = <1800000>;
 		Bosch,vddio_i2c_load_ua = <10000>;
 		place = <4>;
+		cal_range = <3>; //RANGE 2G:3 4G:5 8G:8 16G:12
 	};
 
 	ak09911@0c {

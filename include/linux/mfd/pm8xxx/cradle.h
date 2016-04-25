@@ -36,9 +36,18 @@
 #define CARKIT_DOCKED               2	// only VZW
 #endif
 
+#if defined(CONFIG_STYLUS_PEN)
+#define SMARTCOVER_PEN_IN		1
+#define SMARTCOVER_PEN_OUT		0
+#endif
+
 struct pm8xxx_cradle_platform_data {
 	int hallic_pouch_detect_pin;
 	unsigned int hallic_pouch_irq;
+#if defined(CONFIG_STYLUS_PEN)
+	int hallic_pen_detect_pin;
+	unsigned int hallic_pen_irq;
+#endif
 	unsigned long irq_flags;
 };
 

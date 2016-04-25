@@ -26,10 +26,11 @@
 
 #include "../inc/fci_types.h"
 #include "../inc/fci_hal.h"
+#include "../inc/fci_oal.h"
 #include "../inc/fc8080_regs.h"
 #include "../inc/fc8080_isr.h"
 
-static fci_u8 fic_buffer[768];
+//static fci_u8 fic_buffer[768];
 static fci_u8 msc_buffer[8192];
 
 fci_s32 (*fic_callback)(fci_u32 userdata, fci_u8 *data, fci_s32 length) = NULL;
@@ -45,10 +46,12 @@ static void fc8080_data(HANDLE handle, fci_u16 status)
     fci_s32 i;
 
     if (status & 0x0100) {
+#if 0
         bbm_data(handle, BBM_RD_FIC, &fic_buffer[0], FIC_BUF_LENGTH/2);
 
         if (fic_callback)
             (*fic_callback)(fic_user_data, &fic_buffer[0], FIC_BUF_LENGTH/2);
+#endif
     }
 
     for (i = 0; i < 3; i++) {
@@ -59,6 +62,23 @@ static void fc8080_data(HANDLE handle, fci_u16 status)
 
         bbm_word_read(handle, BBM_BUF_CH0_THR + i * 2, &size);
         size++;
+
+        if (i == 0) {
+            if (size != (CH0_BUF_THR + 1)) {
+                print_log(handle, "[FC8080] ISR BUF0 SIZE ERR : %d, %d\n", i, size);
+                size = CH0_BUF_THR + 1;
+            }
+        } else if (i == 1) {
+            if (size != (CH1_BUF_THR + 1)) {
+                print_log(handle, "[FC8080] ISR BUF1 SIZE ERR : %d, %d\n", i, size);
+                size = CH1_BUF_THR + 1;
+            }
+        } else if (i == 2) {
+        if (size != (CH2_BUF_THR + 1)) {
+                print_log(handle, "[FC8080] ISR BUF2 SIZE ERR : %d, %d\n", i, size);
+                size = CH2_BUF_THR + 1;
+            }
+        }
 
         bbm_read(handle, BBM_BUF_CH0_SUBID + i, &subch_id);
         subch_id &= 0x3f;
@@ -97,8 +117,17 @@ void fc8080_isr(HANDLE handle)
     bbm_word_read(handle, BBM_BUF_STATUS, &buf_int_status);
 
     if (buf_int_status) {
-        bbm_word_write(handle, BBM_BUF_STATUS, buf_int_status);
+        bbm_word_write(handle, BBM_BUF_STATUS, buf_int_status&0xff);
         fc8080_data(handle, buf_int_status);
+    } else {
+        bbm_word_read(handle, BBM_BUF_OVERRUN, &buf_int_status);
+
+        if (buf_int_status) {
+            print_log(0, "======= FC8080 OverRun and Buffer Reset =======\n");
+            bbm_word_write(handle, BBM_BUF_OVERRUN, buf_int_status);
+            bbm_word_write(handle, BBM_BUF_OVERRUN, 0);
+            fc8080_data(handle, buf_int_status);
+        }
     }
 
     #if 0

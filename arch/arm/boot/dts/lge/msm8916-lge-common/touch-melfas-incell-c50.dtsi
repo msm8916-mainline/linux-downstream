@@ -26,9 +26,7 @@
 		lge,auto_fw_update = <1>;
 		lge,ic_type = <2>;
 		lge,maker = "Melfas";
-		/* kiwoo.han@lge.com_S */
 		lge,product = "L0M45P1CY5";
-		/* kiwoo.han@lge.com_E */
 
 		/* panel status check */
 		openshort_enable = <1>;
@@ -40,8 +38,8 @@
 		raw_data_otp_min = <15000>;
 		raw_data_otp_max = <39000>;
 		open_short_min = <10>;
-		slope_max = <110>;
-		slope_min = <90>;
+		slope_max = <111>;
+		slope_min = <89>;
 
 		/* platform_data->caps */
 		button_support = <0>;
@@ -119,9 +117,7 @@
 		lge,auto_fw_update = <1>;
 		lge,ic_type = <2>;
 		lge,maker = "Melfas";
-		/* kiwoo.han@lge.com_S */
 		lge,product = "L0M45P1CY5";
-		/* kiwoo.han@lge.com_E */
 
 		/* panel status check */
 		openshort_enable = <1>;
@@ -133,8 +129,8 @@
 		raw_data_otp_min = <15000>;
 		raw_data_otp_max = <39000>;
 		open_short_min = <10>;
-		slope_max = <110>;
-		slope_min = <90>;
+		slope_max = <111>;
+		slope_min = <89>;
 
 		/* platform_data->caps */
 		button_support = <0>;

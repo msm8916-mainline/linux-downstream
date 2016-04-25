@@ -635,9 +635,19 @@ static void print_vmalloc_lowmem_info(void)
 {
 	struct memblock_region *reg, *prev_reg = NULL;
 
+	pr_notice(
+		"	   vmalloc : 0x%08lx - 0x%08lx   (%4ld MB)\n",
+		MLM((unsigned long)high_memory, VMALLOC_END));
+
 	for_each_memblock_rev(memory, reg) {
 		phys_addr_t start_phys = reg->base;
 		phys_addr_t end_phys = reg->base + reg->size;
+
+		if (start_phys > arm_lowmem_limit)
+			continue;
+
+		if (end_phys > arm_lowmem_limit)
+			end_phys = arm_lowmem_limit;
 
 		if (prev_reg == NULL) {
 			prev_reg = reg;
@@ -655,6 +665,11 @@ static void print_vmalloc_lowmem_info(void)
 					MLM((unsigned long)__va(start_phys),
 					(unsigned long)__va(arm_lowmem_limit)));
 				} else {
+#ifdef CONFIG_ENABLE_VMALLOC_SAVING_CHECK_VA
+					if (((unsigned long)__va(start_phys) < PAGE_OFFSET) || ((unsigned long)__va(start_phys) >= (unsigned long)__va(end_phys))) {
+						continue;
+					}
+#endif
 					pr_notice(
 					"	   vmalloc : 0x%08lx - 0x%08lx   (%4ld MB)\n",
 					MLM((unsigned long)__va(start_phys),
@@ -662,11 +677,11 @@ static void print_vmalloc_lowmem_info(void)
 
 				}
 			} else {
-
 				pr_notice(
-				"	   lowmem  : 0x%08lx - 0x%08lx   (%4ld MB)\n",
-				MLM((unsigned long)__va(start_phys),
-				(unsigned long)__va(end_phys)));
+			    "	   lowmem  : 0x%08lx - 0x%08lx   (%4ld MB)\n",
+			    MLM((unsigned long)__va(start_phys),
+			    (unsigned long)__va(end_phys)));
+
 			}
 
 			continue;
@@ -675,42 +690,36 @@ static void print_vmalloc_lowmem_info(void)
 		start_phys = reg->base + reg->size;
 		end_phys = prev_reg->base;
 
-		pr_notice(
+#ifdef CONFIG_ENABLE_VMALLOC_SAVING_CHECK_VA
+		if ((unsigned long)__va(end_phys) < PAGE_OFFSET) {
+			end_phys = __pa(VMALLOC_END);
+			
+			pr_notice(
+			"	   vmalloc : 0x%08lx - 0x%08lx   (%4ld MB)\n",
+			MLM((unsigned long)__va(start_phys),
+			(unsigned long)__va(end_phys)));
+
+			prev_reg = reg;
+			continue;
+		}
+		else {
+			pr_notice(
+			"	   vmalloc : 0x%08lx - 0x%08lx   (%4ld MB)\n",
+			MLM((unsigned long)__va(start_phys),
+			(unsigned long)__va(end_phys)));
+		}
+#else
+        pr_notice(
 		"	   vmalloc : 0x%08lx - 0x%08lx   (%4ld MB)\n",
+		MLM((unsigned long)__va(end_phys),
+		(unsigned long)__va(prev_reg->base)));
+#endif
+
+		pr_notice(
+		"	   lowmem  : 0x%08lx - 0x%08lx   (%4ld MB)\n",
 		MLM((unsigned long)__va(start_phys),
 		(unsigned long)__va(end_phys)));
-
-
-		if (end_phys > arm_lowmem_limit) {
-
-			if (start_phys < arm_lowmem_limit) {
-				pr_notice(
-				"	   vmalloc : 0x%08lx - 0x%08lx   (%4ld MB)\n",
-				MLM((unsigned long)__va(arm_lowmem_limit),
-				VMALLOC_END));
-
-				pr_notice(
-				"	   lowmem  : 0x%08lx - 0x%08lx   (%4ld MB)\n",
-				MLM((unsigned long)__va(start_phys),
-				(unsigned long)__va(arm_lowmem_limit)));
-			} else {
-				pr_notice(
-				"	   vmalloc : 0x%08lx - 0x%08lx   (%4ld MB)\n",
-				MLM((unsigned long)__va(start_phys),
-				(unsigned long)__va(end_phys)));
-
-			}
-		} else {
-				start_phys = reg->base;
-				end_phys = reg->base + reg->size;
-				pr_notice(
-				"	   lowmem  : 0x%08lx - 0x%08lx   (%4ld MB)\n",
-				MLM((unsigned long)__va(start_phys),
-				(unsigned long)__va(end_phys)));
-		}
-				prev_reg = reg;
 	}
-
 }
 #endif
 
@@ -851,19 +860,15 @@ static int keep_initrd;
 
 void free_initrd_mem(unsigned long start, unsigned long end)
 {
-	unsigned long reclaimed_initrd_mem;
-
 	if (!keep_initrd) {
-		/*                                                */
+		/* CONFIG_MACH_LGE Change pulled from Main Kernel */
 		if (start == initrd_start)
 			start = round_down(start, PAGE_SIZE);
 		if(end == initrd_end)
 			end = round_up(end, PAGE_SIZE);
 
 		poison_init_mem((void *)start, PAGE_ALIGN(end) - start);
-		reclaimed_initrd_mem = free_reserved_area(start, end, 0,
-				"initrd");
-		totalram_pages += reclaimed_initrd_mem;
+		free_reserved_area(start, end, 0, "initrd");
 	}
 }
 
@@ -888,4 +893,15 @@ static int __init msm_krait_wfe_init(void)
 	return 0;
 }
 pure_initcall(msm_krait_wfe_init);
+#endif
+
+#ifdef CONFIG_KERNEL_TEXT_RDONLY
+void set_kernel_text_ro(void)
+{
+	unsigned long start = PFN_ALIGN(_stext);
+	unsigned long end = PFN_ALIGN(_etext);
+
+	/* Set the kernel identity mapping for text RO. */
+	set_memory_ro(start, (end - start) >> PAGE_SHIFT);
+}
 #endif

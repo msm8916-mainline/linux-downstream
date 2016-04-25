@@ -14,9 +14,9 @@
 
 #include <linux/wait.h>
 #include "wcdcal-hwdep.h"
-//                                      
+//LGE Update // add switch dev for mbhc 
 #include <linux/switch.h> 
-//                                      
+//LGE Update // add switch dev for mbhc 
 
 #define TOMBAK_MBHC_NC	0
 #define TOMBAK_MBHC_NO	1
@@ -149,6 +149,8 @@ struct wcd_mbhc_cb {
 	void (*set_auto_zeroing) (struct snd_soc_codec *, bool);
 	struct firmware_cal * (*get_hwdep_fw_cal)(struct snd_soc_codec *,
 			enum wcd_cal_type);
+	void (*set_cap_mode)(struct snd_soc_codec *, bool, bool);
+	void (*skip_imped_detect)(struct snd_soc_codec *);
 };
 
 struct wcd_mbhc {
@@ -174,6 +176,8 @@ struct wcd_mbhc {
 	bool micbias_enable;
 	bool btn_press_intr;
 	bool is_hs_recording;
+	bool is_extn_cable;
+	bool skip_imped_detection;
 
 	struct snd_soc_codec *codec;
 	/* Work to perform MBHC Firmware Read */
@@ -200,9 +204,9 @@ struct wcd_mbhc {
 	/* Work to correct accessory type */
 	struct work_struct correct_plug_swch;
 	struct notifier_block nblock;
-//                                     
+//LGE Update // add switch dev for mbhc
 		struct switch_dev sdev; 
-//                                     
+//LGE Update // add switch dev for mbhc
 };
 #define WCD_MBHC_CAL_SIZE(buttons, rload) ( \
 	sizeof(struct wcd_mbhc_general_cfg) + \

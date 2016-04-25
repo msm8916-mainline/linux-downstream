@@ -54,6 +54,15 @@
 }
 #endif
 
+#ifdef CONFIG_LGE_PM_LLK_MODE
+#define STORE_DEMO_ENABLED_ATTR(_name)                  \
+{                                   \
+	    .attr = { .name = #_name, .mode = 0644},            \
+	    .show =  power_supply_show_property,                \
+	    .store =  power_supply_store_property,              \
+}
+#endif
+
 static struct device_attribute power_supply_attrs[];
 
 static ssize_t power_supply_show_property(struct device *dev,
@@ -294,22 +303,33 @@ static struct device_attribute power_supply_attrs[] = {
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
 	PSEUDO_BATT_ATTR(pseudo_batt),
 #endif
+#ifdef CONFIG_LGE_PM_USB_CURRENT_MAX
+	POWER_SUPPLY_ATTR(usb_current_max),
+#endif
 #ifdef CONFIG_LGE_PM
 	POWER_SUPPLY_ATTR(safety_timer),
 #endif
 #ifdef CONFIG_LGE_PM_CHARGING_BQ24296_CHARGER
 	POWER_SUPPLY_ATTR(ext_pwr),
 	POWER_SUPPLY_ATTR(removed),
+#elif defined(CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER)
+	POWER_SUPPLY_ATTR(ext_pwr),
+	POWER_SUPPLY_ATTR(removed),
 #elif defined (CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER)
 	POWER_SUPPLY_ATTR(ext_pwr),
+#ifdef CONFIG_LGE_PM_CHARGING_USING_AICL
+	POWER_SUPPLY_ATTR(aicl),
 #endif
-#ifdef CONFIG_LGE_PM_CHARGING_VZW_POWER_REQ
+#endif
+#ifdef CONFIG_LGE_PM_FLOATED_CHARGER
 	POWER_SUPPLY_ATTR(vzw_chg),
 #endif
 #ifdef CONFIG_LGE_PM_BATTERY_ID_CHECKER
 	POWER_SUPPLY_ATTR(valid_batt_id),
+	POWER_SUPPLY_ATTR(check_batt_id_for_aat),
 #endif
-#if defined (CONFIG_LGE_PM_CHARGING_BQ24296_CHARGER) || defined (CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER)
+#if defined (CONFIG_LGE_PM_CHARGING_BQ24296_CHARGER) || defined (CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER) || \
+        defined (CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER)
         POWER_SUPPLY_ATTR(charger_timer),
 	POWER_SUPPLY_ATTR(charging_complete),
 #endif
@@ -320,6 +340,10 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(usb_chg_detect_done),
 	POWER_SUPPLY_ATTR(usb_chg_type),
         POWER_SUPPLY_ATTR(usb_dcd_timeout),
+	POWER_SUPPLY_ATTR(usb_chg_type_manual),
+#endif
+#if defined(CONFIG_LGE_PM_LLK_MODE)
+	STORE_DEMO_ENABLED_ATTR(store_demo_enabled),
 #endif
 #ifdef CONFIG_LGE_PM_FACTORY_TESTMODE
 	POWER_SUPPLY_ATTR(hw_rev),
@@ -327,6 +351,11 @@ static struct device_attribute power_supply_attrs[] = {
 #ifdef CONFIG_LGE_PM
 	POWER_SUPPLY_ATTR(calculated_soc),
 #endif
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	POWER_SUPPLY_ATTR(status_raw),
+	POWER_SUPPLY_ATTR(capacity_raw),
+#endif
+	POWER_SUPPLY_ATTR(resistance_now),
 	/* Local extensions */
 	POWER_SUPPLY_ATTR(usb_hc),
 	POWER_SUPPLY_ATTR(usb_otg),

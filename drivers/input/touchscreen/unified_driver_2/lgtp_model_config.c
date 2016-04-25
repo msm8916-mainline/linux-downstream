@@ -72,6 +72,11 @@ extern TouchDeviceSpecificFunction MIT200_Func;
 extern TouchDeviceSpecificFunction td4191_Func;
 #endif
 
+#if defined ( TOUCH_DEVICE_MIT300 )
+extern TouchDeviceSpecificFunction MIT300_Func;
+#endif
+
+
 static TouchDeviceSpecificFunction *pDeviceSpecificFunction[MAX_DEVICE_SUPPORT] = {
 
 	#if defined ( TOUCH_MODEL_Y30 )
@@ -92,10 +97,25 @@ static TouchDeviceSpecificFunction *pDeviceSpecificFunction[MAX_DEVICE_SUPPORT] 
 		&Dummy_Func,
 		#endif
 
-	#elif defined ( TOUCH_MODEL_C70 ) || defined ( TOUCH_MODEL_C90 ) || defined ( TOUCH_MODEL_Y90 ) || defined ( TOUCH_MODEL_Y70 ) || defined ( TOUCH_MODEL_C90NAS)
+	#elif defined ( TOUCH_MODEL_C30 )
+
+		#if defined ( TOUCH_DEVICE_LU202X )
+		&Lu202x_Func,
+		#endif
+
+		#if defined ( TOUCH_DEVICE_DUMMY )
+		&Dummy_Func,
+		#endif
+
+	#elif defined ( TOUCH_MODEL_C70 ) || defined ( TOUCH_MODEL_C90 ) || defined ( TOUCH_MODEL_Y90 ) || defined ( TOUCH_MODEL_Y70 ) || defined ( TOUCH_MODEL_C90NAS)\
+        || defined( TOUCH_MODEL_P1B ) || defined ( TOUCH_MODEL_P1C) || defined ( TOUCH_MODEL_YG ) || defined ( TOUCH_MODEL_C100N )
 
 		#if defined ( TOUCH_DEVICE_S3320 )
 		&S3320_Func,
+		#endif
+
+		#if defined ( TOUCH_DEVICE_MIT300 )
+		&MIT300_Func,
 		#endif
 
 	#elif defined ( TOUCH_MODEL_C50 )
@@ -171,8 +191,94 @@ static void TouchPowerY30( int isOn )
 
 }
 #endif
+#if defined ( TOUCH_MODEL_C30 )
+static void TouchPowerVioC30( int isOn )
+{
+    static struct regulator *vdd_io = NULL;
+    int error = 0;
 
 
+    if( vdd_io == NULL ) {
+        vdd_io = regulator_get(NULL, "vdd_ana");
+        if (IS_ERR(vdd_io))
+        {
+            error = PTR_ERR(vdd_io);
+            TOUCH_ERR("failed to get regulator ( error = %d )\n",error);
+            return;
+        }
+
+        error = regulator_set_voltage(vdd_io, 1800000, 1800000);
+        if (error < 0) {
+            TOUCH_ERR("failed to set regulator voltage ( error = %d )\n", error);
+            return;
+        }
+    }
+
+    if( vdd_io != NULL )
+    {
+        if( isOn )
+        {
+            error = regulator_enable(vdd_io);
+            if (error < 0) {
+                TOUCH_ERR("failed to enable regulator ( error = %d )\n", error);
+                return;
+            }
+            msleep(15);
+        }
+        else
+        {
+            error = regulator_disable(vdd_io);
+            if (error < 0) {
+                TOUCH_ERR("failed to enable regulator ( error = %d )\n", error);
+                return;
+            }
+        }
+    }
+}
+
+static void TouchPowerVddC30( int isOn )
+{
+    static struct regulator *vdd_dd = NULL;
+    int error = 0;
+
+    if( vdd_dd == NULL ) {
+        vdd_dd = regulator_get(NULL, "vdd_dd");
+        if (IS_ERR(vdd_dd))
+        {
+            error = PTR_ERR(vdd_dd);
+            TOUCH_ERR("failed to get regulator ( error = %d )\n",error);
+            return;
+        }
+
+        error = regulator_set_voltage(vdd_dd, 3000000, 3000000);
+        if (error < 0) {
+            TOUCH_ERR("failed to set regulator voltage ( error = %d )\n", error);
+            return;
+        }
+    }
+
+    if( vdd_dd != NULL )
+    {
+        if( isOn )
+        {
+            error = regulator_enable(vdd_dd);
+            if (error < 0) {
+                TOUCH_ERR("failed to enable regulator ( error = %d )\n", error);
+                return;
+            }
+            msleep(15);
+        }
+        else
+        {
+            error = regulator_disable(vdd_dd);
+            if (error < 0) {
+                TOUCH_ERR("failed to enable regulator ( error = %d )\n", error);
+                return;
+            }
+        }
+    }
+}
+#endif
 /****************************************************************************
 * Global Functions
 ****************************************************************************/
@@ -195,6 +301,23 @@ void TouchGetModelConfig(TouchDriverData *pDriverData)
 	pConfig->max_orientation = 1;
 	pConfig->max_id = 10;
     
+	#elif defined ( TOUCH_MODEL_C30 )
+	pConfig->button_support = 1;
+	pConfig->number_of_button = 3;
+	pConfig->button_name[0] = 158;
+	pConfig->button_name[1] = 172;
+	pConfig->button_name[2] = 139;
+	pConfig->button_name[3] = 0;
+
+	pConfig->max_x = 480;
+	pConfig->max_y = 800;
+	pConfig->max_pressure = 0xff;
+	pConfig->max_width = 15;
+	pConfig->max_orientation = 1;
+	pConfig->max_id = 2;
+
+	pConfig->protocol_type = MT_PROTOCOL_B;
+
 	#elif defined ( TOUCH_MODEL_Y30 )
 	
 	pConfig->button_support = 1;
@@ -213,7 +336,7 @@ void TouchGetModelConfig(TouchDriverData *pDriverData)
 
 	pConfig->protocol_type = MT_PROTOCOL_B;
 	
-	#elif defined ( TOUCH_MODEL_C70 ) || defined ( TOUCH_MODEL_C90 ) || defined ( TOUCH_MODEL_Y90 ) || defined ( TOUCH_MODEL_Y70 ) || defined ( TOUCH_MODEL_C90NAS)
+	#elif defined ( TOUCH_MODEL_C70 ) || defined ( TOUCH_MODEL_C90 ) || defined ( TOUCH_MODEL_Y90 ) || defined ( TOUCH_MODEL_Y70 ) || defined ( TOUCH_MODEL_C90NAS) || defined ( TOUCH_MODEL_P1C) || defined ( TOUCH_MODEL_YG ) || defined ( TOUCH_MODEL_C100N )
 
 	pConfig->button_support = 0;
 	pConfig->number_of_button = 0;
@@ -248,7 +371,25 @@ void TouchGetModelConfig(TouchDriverData *pDriverData)
 	pConfig->max_id = 10;
 
 	pConfig->protocol_type = MT_PROTOCOL_B;
-	
+
+    #elif defined ( TOUCH_MODEL_P1B )
+ 
+	pConfig->button_support = 0;
+	pConfig->number_of_button = 0;
+	pConfig->button_name[0] = 0;
+	pConfig->button_name[1] = 0;
+	pConfig->button_name[2] = 0;
+	pConfig->button_name[3] = 0;
+
+	pConfig->max_x = 1080;
+	pConfig->max_y = 1920;
+	pConfig->max_pressure = 0xff;
+	pConfig->max_width = 15;
+	pConfig->max_orientation = 1;
+	pConfig->max_id = 10;
+
+	pConfig->protocol_type = MT_PROTOCOL_B;
+
 	#else
 	#error "Model should be defined"
 	#endif
@@ -279,8 +420,15 @@ void TouchPowerModel( int isOn )
 	#if defined ( TOUCH_MODEL_Y30 )
 
 	TouchPowerY30(isOn);
+
+	#elif defined ( TOUCH_MODEL_C30 )
+
+	TouchPowerVddC30(isOn);
+	TouchPowerVioC30(isOn);
+
 	
-	#elif defined ( TOUCH_MODEL_C70 ) || defined ( TOUCH_MODEL_Y90 )  || defined ( TOUCH_MODEL_Y70 )  || defined ( TOUCH_MODEL_C90 ) || defined ( TOUCH_MODEL_C90NAS)
+	#elif defined ( TOUCH_MODEL_C70 ) || defined ( TOUCH_MODEL_Y90 )  || defined ( TOUCH_MODEL_Y70 )  || defined ( TOUCH_MODEL_C90 ) || defined ( TOUCH_MODEL_C90NAS) \
+    || defined( TOUCH_MODEL_P1B ) || defined ( TOUCH_MODEL_P1C) || defined ( TOUCH_MODEL_YG ) || defined ( TOUCH_MODEL_C100N )
 
 	/* there is no power control */
 	
@@ -307,11 +455,11 @@ void TouchPowerModel( int isOn )
 /* this function is for platform api so do not use it in other module */
 void TouchAssertResetModel( void )
 {
-	#if defined ( TOUCH_MODEL_Y30 )
+	#if defined ( TOUCH_MODEL_Y30 ) || defined ( TOUCH_MODEL_C30 )
 
 	gpio_set_value(TOUCH_GPIO_RESET, 0);
 
-	#elif defined ( TOUCH_MODEL_C70 ) || defined ( TOUCH_MODEL_C90NAS)
+	#elif defined ( TOUCH_MODEL_C70 ) || defined ( TOUCH_MODEL_C90NAS) || defined( TOUCH_MODEL_P1B ) || defined ( TOUCH_MODEL_P1C) || defined ( TOUCH_MODEL_YG ) || defined ( TOUCH_MODEL_C100N )
 
 	gpio_set_value(TOUCH_GPIO_RESET, 0);
 	

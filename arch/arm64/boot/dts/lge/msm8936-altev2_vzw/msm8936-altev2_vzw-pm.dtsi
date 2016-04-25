@@ -49,11 +49,6 @@
 			<  800000000 4>;
 	};
 
-	qcom,msm-thermal {
-		qcom,freq-mitigation-temp = <82>;
-		qcom,freq-mitigation-value = <800000>;
-	};
-
 	i2c_1: i2c@78b5000 { /* BLSP1 QUP1 */
 		compatible = "qcom,i2c-msm-v2";
 		#address-cells = <1>;

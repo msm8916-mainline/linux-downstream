@@ -51,6 +51,11 @@
 int Lu20xx_I2C_Read ( struct i2c_client *client, u16 addr, u8 *rxbuf, int len );
 int Lu20xx_I2C_Write ( struct i2c_client *client, u16 addr, u8 *txbuf, int len );
 #endif
+#if defined ( TOUCH_DEVICE_MIT300 )
+int Mit300_I2C_Read ( struct i2c_client *client, u8 *addr, u8 addrLen, u8 *rxbuf, int len );
+int Mit300_I2C_Write ( struct i2c_client *client, u8 *writeBuf, u32 write_len );
+#endif
+
 int Touch_I2C_Read_Byte ( struct i2c_client *client, u8 addr, u8 *rxbuf );
 int Touch_I2C_Write_Byte ( struct i2c_client *client, u8 addr, u8 txbuf );
 int Touch_I2C_Read ( struct i2c_client *client, u8 addr, u8 *rxbuf, int len );
@@ -65,7 +70,7 @@ void TouchEnableIrq( void );
 void TouchDisableIrq( void );
 int TouchReadMakerId(void);
 int TouchReadInterrupt( void );
-#if defined ( TOUCH_DEVICE_LU201X )
+#if defined ( TOUCH_DEVICE_LU201X ) || defined( TOUCH_DEVICE_LU202X )
 void TouchIntPinToggle(void);
 #endif
 int TouchGetBootMode(void);

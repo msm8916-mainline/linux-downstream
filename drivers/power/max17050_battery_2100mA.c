@@ -59,9 +59,9 @@ struct max17050_chip {
 	struct max17050_platform_data *pdata;
 	struct delayed_work	max17050_monitor_work;
 };
-/*                                                                   */
+/* 130411 junnyoung.jang@lge.com Implement Power test SOC quickstart */
 int lge_power_test_flag_max17050 = 1;
-/*                                                                   */
+/* 130411 junnyoung.jang@lge.com Implement Power test SOC quickstart */
 
 static int max17050_write_reg(struct i2c_client *client, u8 reg, u16 value)
 {
@@ -991,7 +991,7 @@ static ssize_t at_fuel_guage_level_show
 	int r = 0;
 	int guage_level = 0;
 
-	/*                                                                */
+	/* 121128 doosan.baek@lge.com Implement Power test SOC quickstart */
 	if (lge_power_test_flag_max17050 == 1) {
 		/*pm8921_charger_enable(0);
 		pm8921_disable_source_current(1);*/
@@ -1032,7 +1032,7 @@ static ssize_t at_fuel_guage_level_show
 
 		return snprintf(buf, PAGE_SIZE, "%d\n", guage_level);
 	}
-	/*                                                                */
+	/* 121128 doosan.baek@lge.com Implement Power test SOC quickstart */
 	guage_level = max17050_get_capacity_percent();
 	pr_debug(" [AT_CMD][at_fuel_guage_level_show]");
 	pr_debug(" not quick start BATT guage_level = %d\n", guage_level);
@@ -1048,7 +1048,7 @@ static ssize_t at_batt_level_show
 	int battery_level = 0;
 
 
-	/*                                                                */
+	/* 121128 doosan.baek@lge.com Implement Power test SOC quickstart */
 	if (lge_power_test_flag_max17050 == 1) {
 		/*pm8921_charger_enable(0);
 		pm8921_disable_source_current(1);*/
@@ -1076,7 +1076,7 @@ static ssize_t at_batt_level_show
 
 		return snprintf(buf, PAGE_SIZE, "%d\n", battery_level);
 	}
-	/*                                                                */
+	/* 121128 doosan.baek@lge.com Implement Power test SOC quickstart */
 
 	battery_level =  max17050_get_battery_mvolts();
 	pr_debug(" [AT_CMD][at_batt_level_show]");

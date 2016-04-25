@@ -39,10 +39,6 @@
 
 static bool sIsWakeLocked = false;
 
-#ifdef CONFIG_LGE_NFC_SET_IRQ_WAKEUP
-static bool sIrqState = false;
-#endif
-
 static bool sPowerState = NFC_POWER_OFF;
 
 static struct i2c_client *pn547_client;
@@ -125,23 +121,36 @@ static void pn547_disable_irq(struct pn547_dev *pn547_dev)
     unsigned long flags;
 
     spin_lock_irqsave(&pn547_dev->irq_enabled_lock, flags);
+
     if (pn547_dev->irq_enabled) {
         disable_irq_nosync(pn547_get_irq_pin(pn547_dev));
         disable_irq_wake(pn547_get_irq_pin(pn547_dev));
         pn547_dev->irq_enabled = false;
+        pr_debug(PN547_DRV_NAME ":%s disable IRQ\n", __func__);
     }
+    else {
+        pr_debug("%s IRQ is already disabled!\n", __func__);
+    }
+
     spin_unlock_irqrestore(&pn547_dev->irq_enabled_lock, flags);
 }
 
 static void pn547_enable_irq(struct pn547_dev *pn547_dev)
 {
     unsigned long flags;
+
     spin_lock_irqsave(&pn547_dev->irq_enabled_lock, flags);
+
     if (!pn547_dev->irq_enabled) {
         pn547_dev->irq_enabled = true;
         enable_irq(pn547_dev->client->irq);
         enable_irq_wake(pn547_dev->client->irq);
+        pr_debug(PN547_DRV_NAME ":%s enable IRQ\n", __func__);
     }
+    else {
+        pr_debug("%s IRQ is already enabled!\n", __func__);
+    }
+
     spin_unlock_irqrestore(&pn547_dev->irq_enabled_lock, flags);
 }
 
@@ -185,7 +194,7 @@ static ssize_t pn547_dev_read(struct file *filp, char __user *buf,
     struct pn547_dev *pn547_dev = filp->private_data;
     static char tmp[MAX_BUFFER_SIZE];
     int ret;
-    static bool isFinalPacket = true;
+    static bool isFirstPacket = true;
     unsigned long flags;
 
     if (count > MAX_BUFFER_SIZE)
@@ -193,11 +202,10 @@ static ssize_t pn547_dev_read(struct file *filp, char __user *buf,
 
     //pr_err("%s : reading %zu bytes.\n", __func__, count); // for debug
 
-wait:
-    if (isFinalPacket == true) {
+    if (isFirstPacket == false) {
         ret = wait_event_interruptible_timeout(pn547_dev->read_wq, gpio_get_value(pn547_dev->irq_gpio), msecs_to_jiffies(NFC_TIMEOUT_MS));
         if (ret == 0) {
-            pr_err("%s: pass wait_event_interruptible by %dms timeout. restart waiting!\n", __func__, NFC_TIMEOUT_MS); // for debug
+            pr_err("%s: no more interrupt after %dms (%d)!\n", __func__, NFC_TIMEOUT_MS, gpio_get_value(pn547_dev->irq_gpio)); // for debug
             spin_lock_irqsave(&pn547_dev->irq_enabled_lock, flags);
             if (sIsWakeLocked == true) {
                 wake_unlock(&nfc_wake_lock);
@@ -205,13 +213,15 @@ wait:
             }
             spin_unlock_irqrestore(&pn547_dev->irq_enabled_lock, flags);
             //pr_err("%s: wake_unlock\n", __func__); // for debug
-            isFinalPacket = false;
-            goto wait;
+            isFirstPacket = true;
         }
     }
-    else {
+
+    if (isFirstPacket == true)
+    {
         ret = wait_event_interruptible(pn547_dev->read_wq, gpio_get_value(pn547_dev->irq_gpio));
-        isFinalPacket = true;
+        if (ret == 0)
+            isFirstPacket = false;
     }
 
     if (ret == -ERESTARTSYS) {
@@ -289,7 +299,10 @@ static int pn547_dev_open(struct inode *inode, struct file *filp)
 {
     struct pn547_dev *pn547_dev = i2c_get_clientdata(pn547_client);
     filp->private_data = pn547_dev;
+#ifdef CONFIG_LGE_NFC_SET_IRQ_WAKEUP
+#else
     pn547_enable_irq(pn547_dev);
+#endif
     pr_debug("%s : %d,%d\n", __func__, imajor(inode), iminor(inode));
 
     return 0;
@@ -317,7 +330,7 @@ static long pn547_dev_unlocked_ioctl(struct file *filp, unsigned int cmd, unsign
             msleep(10);
         } else if (arg == 1) {
             /* power on */
-            dprintk(PN547_DRV_NAME ":%s power on\n", __func__);
+            pr_info(PN547_DRV_NAME ":%s power on\n", __func__);
             if (sPowerState == NFC_POWER_OFF) {
 #ifdef CONFIG_LGE_NFC_USE_PMIC
                 pn547_change_clk(pn547_dev, CLK_PIN);
@@ -326,17 +339,11 @@ static long pn547_dev_unlocked_ioctl(struct file *filp, unsigned int cmd, unsign
                 gpio_set_value(pn547_dev->ven_gpio, 1);
                 msleep(10);
 
-                spin_lock_irqsave(&pn547_dev->irq_enabled_lock, flags);
 #ifdef CONFIG_LGE_NFC_SET_IRQ_WAKEUP
-                if (sIrqState == false) {
-                    irq_set_irq_wake(pn547_dev->client->irq,1);
-                    sIrqState = true;
-                    dprintk(PN547_DRV_NAME ":%s enable IRQ\n", __func__);
-                }
-                else {
-                    pr_err("%s IRQ is already enabled!\n", __func__);
-                }
+                pn547_enable_irq(pn547_dev);
 #endif
+
+                spin_lock_irqsave(&pn547_dev->irq_enabled_lock, flags);
                 //pr_err("%s NFC_POWER_ON\n", __func__); // for debug
                 sPowerState = NFC_POWER_ON;
                 spin_unlock_irqrestore(&pn547_dev->irq_enabled_lock, flags);
@@ -346,7 +353,7 @@ static long pn547_dev_unlocked_ioctl(struct file *filp, unsigned int cmd, unsign
             }
         } else  if (arg == 0) {
             /* power off */
-            dprintk(PN547_DRV_NAME ":%s power off\n", __func__);
+            pr_info(PN547_DRV_NAME ":%s power off\n", __func__);
             if (sPowerState == NFC_POWER_ON) {
 #ifdef CONFIG_LGE_NFC_USE_PMIC
                 pn547_change_clk(pn547_dev, CLK_DISABLE);
@@ -355,17 +362,11 @@ static long pn547_dev_unlocked_ioctl(struct file *filp, unsigned int cmd, unsign
                 gpio_set_value(pn547_dev->ven_gpio, 0);
                 msleep(10);
 
-                spin_lock_irqsave(&pn547_dev->irq_enabled_lock, flags);
 #ifdef CONFIG_LGE_NFC_SET_IRQ_WAKEUP
-                if (sIrqState == true) {
-                    irq_set_irq_wake(pn547_dev->client->irq,0);
-                    sIrqState = false;
-                    dprintk(PN547_DRV_NAME ":%s disable IRQ\n", __func__);
-                }
-                else {
-                    pr_err("%s IRQ is already disabled!\n", __func__);
-                }
+                pn547_disable_irq(pn547_dev);
 #endif
+
+                spin_lock_irqsave(&pn547_dev->irq_enabled_lock, flags);
                 if (sIsWakeLocked == true) {
                     pr_err("%s: Release Wake_Lock\n", __func__);
                     wake_unlock(&nfc_wake_lock);
@@ -411,7 +412,7 @@ static int pn547_probe(struct i2c_client *client,
     struct pn547_dev *pn547_dev = NULL;
     pn547_client = client;
 
-    dprintk(PN547_DRV_NAME ": pn547_probe() start\n");
+    pr_info(PN547_DRV_NAME ": pn547_probe() start\n");
 
     pn547_dev = kzalloc(sizeof(*pn547_dev), GFP_KERNEL);
     if (pn547_dev == NULL) {
@@ -421,7 +422,12 @@ static int pn547_probe(struct i2c_client *client,
         goto err_exit;
     }
 
-    pn547_parse_dt(&client->dev, pn547_dev);
+    ret = pn547_parse_dt(&client->dev, pn547_dev);
+    if (ret != 0) {
+        dev_err(&client->dev,"device tree set nfc is disabled\n");
+        ret = -ENOMEM;
+        goto err_int;
+    }
 
     pn547_dev->client   = client;
     dprintk(PN547_DRV_NAME ":IRQ : %d\nVEN : %d\nFIRM : %d\n",
@@ -474,17 +480,22 @@ static int pn547_probe(struct i2c_client *client,
      * for reading.  it is cleared when all data has been read.
      */
     pr_info("%s : requesting IRQ %d\n", __func__, client->irq);
-    pn547_dev->irq_enabled = true;
     ret = request_irq(pn547_gpio_to_irq(pn547_dev), pn547_dev_irq_handler,
               IRQF_TRIGGER_RISING|IRQF_NO_SUSPEND, client->name, pn547_dev);
     if (ret) {
         dev_err(&client->dev, "request_irq failed\n");
         goto err_request_irq_failed;
     }
+    // Below code does not pack with pn547_enable_irq
+    // request irq make irq enable.
+    // so if irq enable in pn547_enable_irq called,
+    // unbalanced enable log will be appeared.
+    pn547_dev->irq_enabled = true;
     enable_irq_wake(pn547_get_irq_pin(pn547_dev));
+    //
     pn547_disable_irq(pn547_dev);
     i2c_set_clientdata(client, pn547_dev);
-    dprintk(PN547_DRV_NAME ": pn547_probe() end\n");
+    pr_info(PN547_DRV_NAME ": pn547_probe() end\n");
 
     return 0;
 

@@ -22,7 +22,7 @@ int inv_mpu_power_on(struct mpu_platform_data *pdata)
 #else
 	return 0;
 #endif /* No need regulator setting in Odin */
-/*              */
+/* LGE_CHANGE_E */
 }
 
 int inv_mpu_power_off(struct mpu_platform_data *pdata)
@@ -246,9 +246,9 @@ int inv_parse_aux(struct device *dev, struct mpu_platform_data *pdata)
 	return 0;
 }
 
-/*             
-                             
-                                
+/* LGE_CHANGE_S
+* Comment : Read gpio for irq
+* 2013-12-21, jeongh.kim@lge.com
 */
 int inv_parse_irqgpio(struct device *dev, struct mpu_platform_data *pdata)
 {
@@ -278,11 +278,11 @@ int inv_parse_irqgpio(struct device *dev, struct mpu_platform_data *pdata)
 	}
 	return ret;
 }
-/*              */
+/* LGE_CHANGE_E */
 
-/*             
-                                            
-                                
+/* LGE_CHANGE_S
+* Comment : add additional DTS parsing codes
+* 2013-12-21, jeongh.kim@lge.com
 */
 /*
 static int inv_parse_key(struct device *dev, struct mpu_platform_data *pdata)
@@ -332,7 +332,7 @@ static int inv_parse_int_config(struct device *dev,
 	return 0;
 }
 */
-/*              */
+/* LGE_CHANGE_E */
 
 int invensense_mpu_parse_dt(struct device *dev, struct mpu_platform_data *pdata)
 {
@@ -365,7 +365,7 @@ int invensense_mpu_parse_dt(struct device *dev, struct mpu_platform_data *pdata)
 		return rc;
 	}
 #endif
-/*              */
+/* LGE_CHANGE_E */
 	pdata->power_on = inv_mpu_power_on;
 	pdata->power_off = inv_mpu_power_off;
 	pr_debug("Invensense MPU parse_dt complete.\n");

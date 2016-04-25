@@ -11,6 +11,12 @@
  */
 
 / {
+	memory {
+		secure_mem: secure_region@0 {
+			status = "disabled";
+		};
+	};
+
 	aliases {
 		serial0 = &blsp1_uart2;
 		i2c1 = &i2c_1; /* i2c_1 BLSP1 QUP1 */
@@ -24,6 +30,12 @@
 };
 
 &soc {
+	qcom,ion {
+		qcom,ion-heap@8 {
+			status = "disabled";
+		};
+	};
+
 	i2c_1: i2c@78b5000 { /* BLSP1 QUP1 */
 		compatible = "qcom,i2c-msm-v2";
 		#address-cells = <1>;
@@ -168,23 +180,23 @@
 };
 
 &qcom_tzlog {
-	status = "disabled";
+	status = "okay";
 };
 
 &qcom_rng {
-	status = "disabled";
+	status = "okay";
 };
 
 &qcom_crypto {
-	status = "disabled";
+	status = "okay";
 };
 
 &qcom_cedev {
-	status = "disabled";
+	status = "okay";
 };
 
 &qcom_seecom {
-	status = "disabled";
+	status = "okay";
 };
 
 /* LGE Change FB size */

@@ -23,7 +23,7 @@
 #include <linux/input/mt.h>
 #include <linux/wakelock.h>
 
-/* Block the LCD DSV ctrl for sunlight knock on issue. */
+/* Block the LCD DSV ctrl for sunlight knock on issue */
 #define TOUCH_USE_DSV
 
 #define POWER_FW_UP_LOCK	0x01
@@ -35,15 +35,12 @@
 #define BATT_THERMAL		"/sys/class/hwmon/hwmon0/device/batt_therm"
 #define BATT_PRESENT		"/sys/class/power_supply/battery/present"
 
-/*                     */
 #define RETRY_CNT		2
-/*                     */
 
-struct touch_device_caps
-{
+struct touch_device_caps {
 	u8	button_support;
 	u16	y_button_boundary;
-	u32	button_margin;		// percentage %
+	u32	button_margin;		/* percentage % */
 	u8	number_of_button;
 	u32	button_name[MAX_BUTTON];
 	u8	is_width_supported;
@@ -69,11 +66,10 @@ struct touch_limit_value {
 	u32	slope_min;
 };
 
-struct touch_operation_role
-{
-	u8	key_type;		// none = 0, hard_touch_key = 1, virtual_key = 2
-	u32	booting_delay;	// ms
-	u32	reset_delay;	// ms
+struct touch_operation_role {
+	u8	key_type;		/* none = 0, hard_touch_key = 1, virtual_key = 2 */
+	u32	booting_delay;	/* ms */
+	u32	reset_delay;	/* ms */
 	u8	suspend_pwr;
 	u8	resume_pwr;
 
@@ -84,9 +80,8 @@ struct touch_operation_role
 	int	ta_debouncing_count;
 	int	ta_debouncing_finger_num;
 	int	ghost_detection_enable;
-	int	use_crack_mode;	// Yes = 1, No = 0
+	int	use_crack_mode;	/* Yes = 1, No = 0 */
 };
-
 
 #define TOUCH_PWR_NUM	3
 struct touch_power_info {
@@ -131,8 +126,7 @@ enum {
 	CMD_LPWG_TOTAL_STATUS = 9,
 };
 
-struct touch_platform_data
-{
+struct touch_platform_data {
 	int	int_pin;
 	int	reset_pin;
 	int	scl_pin;
@@ -151,10 +145,10 @@ struct touch_platform_data
 	char	ic_type;
 	char	auto_fw_update;
 	char	maker[30];
-	/*                     */
 	char	fw_product[16];
-	/*                     */
 	char	fw_image[NAME_BUFFER_SIZE];
+	char p5_fw_product[16];
+	char p5_fw_image[NAME_BUFFER_SIZE];
 	char	panel_spec[NAME_BUFFER_SIZE];
 	bool	selfdiagnostic_state[3];
 	struct touch_power_info		pwr[TOUCH_PWR_NUM];
@@ -167,11 +161,9 @@ struct touch_platform_data
 	u8 lpwg_debug_enable;
 	u8 lpwg_fail_reason;
 	u8 lpwg_lcd_status;
-	/*                     */
 	u8 lpwg_mode_old;
-	/*                     */
 
-	//add lpwg point
+	/* Add lpwg point */
 	int lpwg_x[10];
 	int lpwg_y[10];
 	int tap_count;
@@ -201,7 +193,7 @@ struct touch_tci_info {
 	int max_intertap;
 	int tap_count;
 
-//only multi tap
+	/* only multi tap  */
 	int touch_slope_2;
 	int min_distance_2;
 	int max_distance_2;
@@ -211,8 +203,7 @@ struct touch_tci_info {
 
 };
 
-struct t_data
-{
+struct t_data {
 	u16	id;
 	u16	x_position;
 	u16	y_position;
@@ -225,14 +216,12 @@ struct t_data
 	u8  touch_conut;
 };
 
-struct b_data
-{
+struct b_data {
 	u16	key_code;
 	u16	state;
 };
 
-struct touch_data
-{
+struct touch_data {
 	u8	total_num;
 	u8	prev_total_num;
 	u8	state;
@@ -245,8 +234,7 @@ struct touch_data
 	struct b_data	prev_button;
 };
 
-struct touch_fw_info
-{
+struct touch_fw_info {
 	char path[NAME_BUFFER_SIZE];
 	volatile bool is_downloading;
 	bool force_upgrade;
@@ -255,16 +243,14 @@ struct touch_fw_info
 	struct firmware *fw;
 };
 
-struct rect
-{
+struct rect {
 	u16	left;
 	u16	right;
 	u16	top;
 	u16	bottom;
 };
 
-struct section_info
-{
+struct section_info {
 	struct rect panel;
 	struct rect button[MAX_BUTTON];
 	struct rect button_cancel[MAX_BUTTON];
@@ -309,6 +295,8 @@ struct touch_device_driver {
 };
 
 extern struct wake_lock touch_wake_lock;
+/* CY/K LGD Panel Dualization */
+extern int dual_panel;
 
 enum {
 	POLLING_MODE = 0,
@@ -420,7 +408,7 @@ enum window_status {
 	CRACK,
 };
 
-enum{
+enum {
 	CRACK_TEST_FINISH = 0,
 	CRACK_TEST_START,
 };
@@ -473,20 +461,20 @@ enum {
 
 enum {
 	DEBUG_NONE			= 0,
-	DEBUG_BASE_INFO		= (1U << 0),	// 1
-	DEBUG_TRACE			= (1U << 1),	// 2
-	DEBUG_GET_DATA		= (1U << 2),	// 4
-	DEBUG_ABS			= (1U << 3),	// 8
-	DEBUG_BUTTON		= (1U << 4),	// 16
-	DEBUG_FW_UPGRADE	= (1U << 5),	// 32
-	DEBUG_GHOST			= (1U << 6),	// 64
-	DEBUG_IRQ_HANDLE	= (1U << 7),	// 128
-	DEBUG_POWER			= (1U << 8),	// 256
-	DEBUG_JITTER		= (1U << 9),	// 512
-	DEBUG_ACCURACY		= (1U << 10),	// 1024
-	DEBUG_NOISE			= (1U << 11),	// 2048
-	DEBUG_CONFIG		= (1U << 12),	// 4096
-	DEBUG_ABS_POINT		= (1U << 13),	// 8196
+	DEBUG_BASE_INFO		= (1U << 0),		/* 1 */
+	DEBUG_TRACE			= (1U << 1),		/* 2 */
+	DEBUG_GET_DATA		= (1U << 2),		/* 4 */
+	DEBUG_ABS				= (1U << 3),		/* 8 */
+	DEBUG_BUTTON			= (1U << 4),		/* 16 */
+	DEBUG_FW_UPGRADE		= (1U << 5),		/* 32 */
+	DEBUG_GHOST			= (1U << 6),		/* 64 */
+	DEBUG_IRQ_HANDLE		= (1U << 7),		/* 128 */
+	DEBUG_POWER			= (1U << 8),		/* 256 */
+	DEBUG_JITTER			= (1U << 9),		/* 512 */
+	DEBUG_ACCURACY		= (1U << 10),	/* 1024 */
+	DEBUG_NOISE			= (1U << 11),	/* 2048 */
+	DEBUG_CONFIG			= (1U << 12),	/* 4096 */
+	DEBUG_ABS_POINT		= (1U << 13),	/* 8196 */
 };
 
 #ifdef LGE_TOUCH_TIME_DEBUG
@@ -503,12 +491,12 @@ enum {
 
 enum {
 	DEBUG_TIME_PROFILE_NONE		= 0,
-	DEBUG_TIME_INT_INTERVAL		= (1U << 0),	// 1
-	DEBUG_TIME_INT_IRQ_DELAY	= (1U << 1),	// 2
-	DEBUG_TIME_INT_THREAD_IRQ_DELAY	= (1U << 2),	// 4
-	DEBUG_TIME_DATA_HANDLE		= (1U << 3),	// 8
-	DEBUG_TIME_FW_UPGRADE		= (1U << 4),	// 16
-	DEBUG_TIME_PROFILE_ALL		= (1U << 5),	// 32
+	DEBUG_TIME_INT_INTERVAL		= (1U << 0),		/* 1 */
+	DEBUG_TIME_INT_IRQ_DELAY		= (1U << 1),		/* 2 */
+	DEBUG_TIME_INT_THREAD_IRQ_DELAY	= (1U << 2),	/* 4 */
+	DEBUG_TIME_DATA_HANDLE		= (1U << 3),		/* 8 */
+	DEBUG_TIME_FW_UPGRADE		= (1U << 4),		/* 16 */
+	DEBUG_TIME_PROFILE_ALL		= (1U << 5),		/* 32 */
 };
 #endif
 

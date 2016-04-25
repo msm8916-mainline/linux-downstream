@@ -22,6 +22,10 @@
        qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 };
 
+&dsi_lgd_incellp5_vid {
+       qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+};
+
 &pmx_mdss {
        qcom,num-grp-pins = <1>;
        qcom,pins = <&gp 25>;

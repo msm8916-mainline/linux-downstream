@@ -33,6 +33,11 @@ KERNEL_CONFIG_OVERRIDE := CONFIG_ANDROID_BINDER_IPC_32BIT=y
 endif
 endif
 
+ifeq ($(PRODUCT_SUPPORT_OTG), y)
+KERNEL_CONFIG_OVERRIDE := \
+	CONFIG_USB_HOST_NOTIFY=y
+endif
+
 TARGET_KERNEL_CROSS_COMPILE_PREFIX := $(strip $(TARGET_KERNEL_CROSS_COMPILE_PREFIX))
 ifeq ($(TARGET_KERNEL_CROSS_COMPILE_PREFIX),)
 KERNEL_CROSS_COMPILE := arm-eabi-
@@ -58,7 +63,11 @@ ifeq ($(TARGET_USES_UNCOMPRESSED_KERNEL),true)
 $(info Using uncompressed kernel)
 TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/Image
 else
+ifeq ($(KERNEL_ARCH),arm64)
+TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/Image.gz
+else
 TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/zImage
+endif
 endif
 
 ifeq ($(TARGET_KERNEL_APPEND_DTB), true)
@@ -71,6 +80,7 @@ KERNEL_MODULES_INSTALL := system
 KERNEL_MODULES_OUT := $(TARGET_OUT)/lib/modules
 
 TARGET_PREBUILT_KERNEL := $(TARGET_PREBUILT_INT_KERNEL)
+$(info TARGET_PREBUILT_KERNEL is $(TARGET_PREBUILT_KERNEL))
 
 define mv-modules
 mdpath=`find $(KERNEL_MODULES_OUT) -type f -name modules.dep`;\
@@ -106,10 +116,47 @@ $(TARGET_PREBUILT_INT_KERNEL): $(KERNEL_OUT) $(KERNEL_HEADERS_INSTALL)
 	$(MAKE) -C kernel O=../$(KERNEL_OUT) INSTALL_MOD_PATH=../../$(KERNEL_MODULES_INSTALL) INSTALL_MOD_STRIP=1 ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) modules_install
 	$(mv-modules)
 	$(clean-module-folder)
+ifeq ($(PRODUCT_SUPPORT_EXFAT), y)
+ifneq ($(PRODUCT_SUPPORT_OPEN_EXFAT), y)
+	@cp -f $(ANDROID_BUILD_TOP)/kernel/tuxera_update.sh $(ANDROID_BUILD_TOP)
+ifdef TUXERA_TARGET
+	@sh tuxera_update.sh --target target/lg.d/$(TUXERA_TARGET) --use-cache --latest --max-cache-entries 2 --source-dir $(ANDROID_BUILD_TOP)/kernel --output-dir $(ANDROID_BUILD_TOP)/$(KERNEL_OUT) -a --user lg-mobile --pass AumlTsj0ou
+else
+	@sh tuxera_update.sh --target target/lg.d/mobile-msm8939-arm64-4.9 --use-cache --latest --max-cache-entries 2 --source-dir $(ANDROID_BUILD_TOP)/kernel --output-dir $(ANDROID_BUILD_TOP)/$(KERNEL_OUT) -a --user lg-mobile --pass AumlTsj0ou
+endif
+	@tar -xzf tuxera-*.tgz
+	@mkdir -p $(TARGET_OUT_EXECUTABLES)
+	@cp $(ANDROID_BUILD_TOP)/tuxera-*/exfat/kernel-module/texfat.ko $(ANDROID_BUILD_TOP)/$(TARGET_OUT_EXECUTABLES)/../lib/modules/
+	@cp $(ANDROID_BUILD_TOP)/tuxera-*/exfat/tools/* $(TARGET_OUT_EXECUTABLES)
+ifneq ($(PRODUCT_SUPPORT_EXFAT_NO_SIGN), y)
+	perl $(ANDROID_BUILD_TOP)/kernel/scripts/sign-file sha1 $(ANDROID_BUILD_TOP)/$(KERNEL_OUT)/signing_key.priv $(ANDROID_BUILD_TOP)/$(KERNEL_OUT)/signing_key.x509 $(ANDROID_BUILD_TOP)/$(KERNEL_MODULES_OUT)/texfat.ko
+endif
+ifeq ($(PRODUCT_SUPPORT_NTFS), y)
+	@cp $(ANDROID_BUILD_TOP)/tuxera-*/ntfs/kernel-module/tntfs.ko $(ANDROID_BUILD_TOP)/$(TARGET_OUT_EXECUTABLES)/../lib/modules/
+	@cp $(ANDROID_BUILD_TOP)/tuxera-*/ntfs/tools/* $(TARGET_OUT_EXECUTABLES)
+	perl $(ANDROID_BUILD_TOP)/kernel/scripts/sign-file sha1 $(ANDROID_BUILD_TOP)/$(KERNEL_OUT)/signing_key.priv $(ANDROID_BUILD_TOP)/$(KERNEL_OUT)/signing_key.x509 $(ANDROID_BUILD_TOP)/$(KERNEL_MODULES_OUT)/tntfs.ko
+endif
+	@rm -f kheaders*.tar.bz2
+	@rm -f tuxera-*.tgz
+	@rm -rf tuxera-*
+	@rm -f tuxera_update.sh
+endif
+endif
+
+ifeq ($(ITSON_ENABLED), true)
+	@cp -r $(ANDROID_BUILD_TOP)/$(ITSON_MODULE2_PATH)/$(TARGET_ARCH)/ $(ANDROID_BUILD_TOP)/$(ITSON_MODULE2_PATH)/build/
+	@cp $(ANDROID_BUILD_TOP)/kernel/drivers/misc/itson_module1/*.h $(ANDROID_BUILD_TOP)/$(ITSON_MODULE2_PATH)/build/itson/
+	@sh $(ANDROID_BUILD_TOP)/$(ITSON_MODULE2_PATH)/build/build-kernel-module2.sh $(KERNEL_CROSS_COMPILE) $(ANDROID_BUILD_TOP)/$(KERNEL_OUT) $(ANDROID_BUILD_TOP)/$(ITSON_MODULE2_PATH)/build 1500 $(TARGET_BUILD_VARIANT) system $(PLATFORM_VERSION)
+	perl $(ANDROID_BUILD_TOP)/kernel/scripts/sign-file sha1 \
+	$(ANDROID_BUILD_TOP)/$(KERNEL_OUT)/signing_key.priv $(ANDROID_BUILD_TOP)/$(KERNEL_OUT)/signing_key.x509 \
+	$(ANDROID_BUILD_TOP)/$(ITSON_MODULE2_PATH)/build/$(TARGET_BUILD_VARIANT)/itson_module2.ko \
+	$(ANDROID_BUILD_TOP)/$(KERNEL_MODULES_OUT)/itson_module2.ko
+	@rm -rf $(ANDROID_BUILD_TOP)/$(ITSON_MODULE2_PATH)/build
+endif
 
 # porting bootchart2 to android
 ifeq ($(INIT_BOOTCHART2),true)
-ifeq ($(TARGET_DEVICE),altev2)
+ifeq ($(TARGET_DEVICE),$(filter $(TARGET_DEVICE), altev2))
 KERNEL_DEFCONFIG_PATH:=kernel/arch/arm64/configs/$(KERNEL_DEFCONFIG)
 KERNEL_DEFCONFIG_BC2_PATH:=kernel/arch/arm64/configs/bc2_$(KERNEL_DEFCONFIG)
 else

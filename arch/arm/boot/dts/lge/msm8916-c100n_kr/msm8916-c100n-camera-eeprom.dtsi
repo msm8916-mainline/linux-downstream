@@ -1,0 +1,179 @@
+/*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&cci {
+
+	eeprom0_rev_a: qcom,eeprom_main_rev_a@0 {
+		revision = "...rev_a";
+		cell-index = <0>;
+		reg = <0x0>;
+		qcom,eeprom-name = "t4kb3";
+		compatible = "qcom,eeprom";
+		qcom,slave-addr = <0xA0>;   //Rev.A has the same EEPROM SlaveAddr
+		qcom,cci-master = <0>;
+		qcom,num-blocks = <1>;
+
+		qcom,page0 = <0 0x0 2 0x0 1 20>;
+		qcom,poll0 = <0 0x0 2 0x0 1 20>;
+		qcom,mem0 = <0x802 0x0000 2 0 1 0>;
+
+		qcom,i2c-freq-mode = <1>; //I2C_FAST_MODE
+
+		cam_vana-supply = <&pm8916_l10>; //2V8_VREG_L10
+
+		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana", "cam_vaf";
+		qcom,cam-vreg-min-voltage = <0 0 2800000 0>;
+		qcom,cam-vreg-max-voltage = <0 0 2800000 0>;
+		qcom,cam-vreg-op-mode = <0 0 80000 0>;
+
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_default &cam_sensor_rear_default>;
+		pinctrl-1 = <&cam_sensor_mclk0_sleep &cam_sensor_rear_sleep>;
+
+		gpios = <&msm_gpio 26 0>,	//MAIN_CAM0_MCLK
+		        <&msm_gpio 35 0>,	//MAIN_CAM0_RESET_N
+		        <&msm_gpio 121 0>,	//CAM_DVDD_1.2V
+				<&msm_gpio 116 0>;	//CAM_IOVDD
+
+		qcom,gpio-no-mux	= <0>;
+		qcom,gpio-reset		= <1>;
+		qcom,gpio-vdig		= <2>;
+		qcom,gpio-vio		= <3>;
+
+		qcom,gpio-req-tbl-num	= <0 1 2 3>;
+		qcom,gpio-req-tbl-flags	= <1 0 0 0>;
+		qcom,gpio-req-tbl-label	= "CAMIF_MCLK",
+		                          "CAM_RESET1",
+		                          "CAM_DVDD",
+								  "CAM_IOVDD";
+
+		qcom,csi-lane-assign = <0x4320>;
+		qcom,csi-lane-mask   = <0x1F>;
+
+		qcom,cam-power-seq-type = "sensor_gpio";
+		qcom,cam-power-seq-val  = "sensor_gpio_vio";
+		qcom,cam-power-seq-cfg-val = <1>;
+		qcom,cam-power-seq-delay   = <5>;
+
+		qcom,mclk-23880000;
+	};
+
+	eeprom0: qcom,eeprom_main@0 {
+		revision = "rev_b...";
+		cell-index = <0>;
+		reg = <0x0>;
+		qcom,eeprom-name = "t4kb3";
+		compatible = "qcom,eeprom";
+		qcom,slave-addr = <0xA8>;   //I2C Addr Changed 0xA0 -> 0xA8
+		qcom,cci-master = <0>;
+		qcom,num-blocks = <1>;
+
+		qcom,page0 = <0 0x0 2 0x0 1 20>;
+		qcom,poll0 = <0 0x0 2 0x0 1 20>;
+		qcom,mem0 = <0x802 0x0000 2 0 1 0>;
+
+		qcom,i2c-freq-mode = <1>; //I2C_FAST_MODE
+
+		cam_vana-supply = <&pm8916_l10>; //2V8_VREG_L10
+
+		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana", "cam_vaf";
+		qcom,cam-vreg-min-voltage = <0 0 2800000 0>;
+		qcom,cam-vreg-max-voltage = <0 0 2800000 0>;
+		qcom,cam-vreg-op-mode = <0 0 80000 0>;
+
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_default &cam_sensor_rear_default>;
+		pinctrl-1 = <&cam_sensor_mclk0_sleep &cam_sensor_rear_sleep>;
+
+		gpios = <&msm_gpio 26 0>,	//MAIN_CAM0_MCLK
+		        <&msm_gpio 35 0>,	//MAIN_CAM0_RESET_N
+		        <&msm_gpio 121 0>,	//CAM_DVDD_1.2V
+				<&msm_gpio 116 0>;	//CAM_IOVDD
+
+		qcom,gpio-no-mux	= <0>;
+		qcom,gpio-reset		= <1>;
+		qcom,gpio-vdig		= <2>;
+		qcom,gpio-vio		= <3>;
+
+		qcom,gpio-req-tbl-num	= <0 1 2 3>;
+		qcom,gpio-req-tbl-flags	= <1 0 0 0>;
+		qcom,gpio-req-tbl-label	= "CAMIF_MCLK",
+		                          "CAM_RESET1",
+		                          "CAM_DVDD",
+								  "CAM_IOVDD";
+
+		qcom,csi-lane-assign = <0x4320>;
+		qcom,csi-lane-mask   = <0x1F>;
+
+		qcom,cam-power-seq-type = "sensor_gpio";
+		qcom,cam-power-seq-val  = "sensor_gpio_vio";
+		qcom,cam-power-seq-cfg-val = <1>;
+		qcom,cam-power-seq-delay   = <5>;
+
+		qcom,mclk-23880000;
+	};
+
+	eeprom1: qcom,eeprom_front@1 {
+		cell-index = <1>;
+		reg = <0x0>;
+		qcom,eeprom-name = "t4ka3";
+		compatible = "qcom,eeprom";
+		qcom,slave-addr = <0xA0>;
+		qcom,cci-master = <0>;
+		qcom,num-blocks = <1>;
+
+		qcom,page0 = <0 0x0 2 0x0 1 20>;
+		qcom,poll0 = <0 0x0 2 0x0 1 20>;
+		qcom,mem0 = <0xD76 0x0000 2 0 1 0>;
+
+		qcom,i2c-freq-mode = <1>; //I2C_FAST_MODE
+
+		cam_vana-supply = <&pm8916_l10>;  //2V8_VREG_L10
+		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana";
+		qcom,cam-vreg-min-voltage = <0 0 2800000>;
+		qcom,cam-vreg-max-voltage = <0 0 2800000>;
+		qcom,cam-vreg-op-mode     = <0 0   80000>;
+
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_default &cam_sensor_front_default>;
+		pinctrl-1 = <&cam_sensor_mclk1_sleep &cam_sensor_front_sleep>;
+
+		gpios = <&msm_gpio 27  0>,    //VT_CAM_MCLK
+		        <&msm_gpio 28  0>,    //VT_CAM_RESET_N
+		        <&msm_gpio 121 0>,	  //CAM_DVDD_1V2
+		        <&msm_gpio 116 0>;	  //CAM_IOVDD_1V8
+
+		qcom,gpio-no-mux  = <0>;
+		qcom,gpio-reset   = <1>;
+		qcom,gpio-vdig    = <2>;
+		qcom,gpio-vio    =  <3>;
+
+		qcom,gpio-req-tbl-num   = <0 1 2 3>;
+		qcom,gpio-req-tbl-flags = <1 0 0 0>;
+		qcom,gpio-req-tbl-label = "CAMIF_MCLK2",
+		                          "CAM_RESET2",
+		                          "MAIN_VDIG_EN2",
+		                          "CAM_IOVDD2";
+
+		qcom,csi-lane-assign    = <0x4320>;
+		qcom,csi-lane-mask      = <0x7>;
+
+		qcom,cam-power-seq-type = "sensor_gpio";
+		qcom,cam-power-seq-val  = "sensor_gpio_vio";
+		qcom,cam-power-seq-cfg-val = <1>;
+		qcom,cam-power-seq-delay   = <5>;
+
+		qcom,mclk-23880000;
+	};
+
+};

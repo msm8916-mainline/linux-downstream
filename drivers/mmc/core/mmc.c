@@ -327,13 +327,12 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		}
 	}
 
+	/*
+	 * The EXT_CSD format is meant to be forward compatible. As long
+	 * as CSD_STRUCTURE does not change, all values for EXT_CSD_REV
+	 * are authorized, see JEDEC JESD84-B50 section B.8.
+	 */
 	card->ext_csd.rev = ext_csd[EXT_CSD_REV];
-	if (card->ext_csd.rev > 7) {
-		pr_err("%s: unrecognised EXT_CSD revision %d\n",
-			mmc_hostname(card->host), card->ext_csd.rev);
-		err = -EINVAL;
-		goto out;
-	}
 
 	/* fixup device after ext_csd revision field is updated */
 	mmc_fixup_device(card, mmc_fixups);
@@ -1732,6 +1731,10 @@ static int mmc_poweroff_notify(struct mmc_card *card, unsigned int notify_type)
 	/* Use EXT_CSD_POWER_OFF_SHORT as default notification type. */
 	if (notify_type == EXT_CSD_POWER_OFF_LONG)
 		timeout = card->ext_csd.power_off_longtime;
+#if defined(CONFIG_LGE_MMC_PON_SHORT)
+    else if (notify_type == EXT_CSD_POWER_OFF_SHORT)
+        timeout = card->ext_csd.generic_cmd6_time;
+#endif
 
 	err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 			 EXT_CSD_POWER_OFF_NOTIFICATION,
@@ -1746,6 +1749,25 @@ static int mmc_poweroff_notify(struct mmc_card *card, unsigned int notify_type)
 	return err;
 }
 
+#if defined(CONFIG_LGE_MMC_PON_SHORT)
+int mmc_send_short_pon(struct mmc_card *card)
+{
+    int err = 0;
+    struct mmc_host *host = card->host;
+
+    mmc_claim_host(host);
+    if (card->issue_long_pon == false && mmc_can_poweroff_notify(card)) {
+        err = mmc_poweroff_notify(host->card, EXT_CSD_POWER_OFF_SHORT);
+        if (err)
+            pr_warning("%s: error %d sending Short PON",
+                        mmc_hostname(host), err);
+    }
+    mmc_release_host(host);
+
+    return err;
+}
+#endif
+
 int mmc_send_long_pon(struct mmc_card *card)
 {
 	int err = 0;
@@ -1759,6 +1781,7 @@ int mmc_send_long_pon(struct mmc_card *card)
 					mmc_hostname(host), err);
 	}
 	mmc_release_host(host);
+
 	return err;
 }
 

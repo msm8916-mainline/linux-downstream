@@ -12,7 +12,7 @@
 
 &mdss_mdp {
 	dsi_e7ii_NT35521_vid_dsv: qcom,mdss_dsi_lgd_nt35521_e7II_wxga_video {
-		qcom,mdss-dsi-panel-name = "E7II NT35521 wxga with DSV video mode dsi panel";
+		qcom,mdss-dsi-panel-name = "E7II lgd NT35521 wxga with DSV video mode dsi primary panel";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
 		qcom,mdss-dsi-panel-type = "dsi_video_mode";
 		qcom,mdss-dsi-panel-destination = "display_1";
@@ -21,12 +21,12 @@
 		qcom,mdss-dsi-stream = <0>;
 		qcom,mdss-dsi-panel-width = <800>;
 		qcom,mdss-dsi-panel-height = <1280>;
-		qcom,mdss-dsi-h-front-porch = <38>;
-		qcom,mdss-dsi-h-back-porch = <56>;
+		qcom,mdss-dsi-h-front-porch = <32>;
+		qcom,mdss-dsi-h-back-porch = <20>;
 		qcom,mdss-dsi-h-pulse-width = <4>;
 		qcom,mdss-dsi-h-sync-skew = <0>;
-		qcom,mdss-dsi-v-front-porch = <24>;
-		qcom,mdss-dsi-v-back-porch = <32>;
+		qcom,mdss-dsi-v-front-porch = <32>;
+		qcom,mdss-dsi-v-back-porch = <20>;
 		qcom,mdss-dsi-v-pulse-width = <4>;
 		qcom,mdss-dsi-h-left-border = <0>;
 		qcom,mdss-dsi-h-right-border = <0>;
@@ -36,9 +36,9 @@
 		qcom,mdss-pan-physical-height-dimension = < 150 >;
 		qcom,mdss-dsi-bpp = <24>;
 		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
-		qcom,mdss-dsi-underflow-color = <0xff>;
+		qcom,mdss-dsi-underflow-color = <0x0>;
 		qcom,mdss-dsi-border-color = <0>;
-		qcom,mdss-dsi-lp11-init =<1>;
+		qcom,mdss-dsi-lp11-init;
 		qcom,cont-splash-enabled;
 		qcom,mdss-dsi-on-command = [
 		39 01 00 00 00 00 05 FF AA 55 A5 80
@@ -57,8 +57,8 @@
 		15 01 00 00 00 00 02 D0 00
 		15 01 00 00 00 00 02 C8 83
 		39 01 00 00 00 00 11 CC 40 36 87 00 00 00 00 00 00 00 00 00 40 08 A5 05
-		39 01 00 00 00 00 11 D1 00 06 0A 0E 12 16 18 18 18 18 16 14 12 0E 08 00
-		39 01 00 00 00 00 0D D7 03 2F 2C 28 25 00 00 00 00 00 00 00
+		39 01 00 00 00 00 11 D1 00 06 0A 0E 12 16 22 28 22 20 16 14 12 0E 08 00
+		39 01 00 00 00 00 0D D7 26 28 25 23 23 00 00 00 00 00 00 00
 		39 01 00 00 00 00 0E D8 00 00 00 00 00 00 00 00 00 00 23 25 00
 		39 01 00 00 00 00 06 F0 55 AA 52 08 01
 		39 01 00 00 00 00 03 B3 28 28
@@ -195,7 +195,7 @@
 		qcom,mdss-dsi-lane-1-state;
 		qcom,mdss-dsi-lane-2-state;
 		qcom,mdss-dsi-lane-3-state;
-		qcom,mdss-dsi-panel-timings = [7A 1A 12 00 40 4C 12 20 14 03 04 00];
+		qcom,mdss-dsi-panel-timings = [7B 1A 10 00 3E 42 14 1C 15 03 04 00];
 		qcom,mdss-dsi-t-clk-post = <0x04>;
 		qcom,mdss-dsi-t-clk-pre = <0x1A>;
 		qcom,mdss-dsi-bl-min-level = <1>;
@@ -204,6 +204,202 @@
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 		qcom,mdss-dsi-reset-sequence = <1 1>, <0 1>, <1 150>;
+	};
+
+	dsi_e7ii_NT35521S_vid_dsv: qcom,mdss_dsi_tovis_nt35521s_e7II_wxga_video {
+		qcom,mdss-dsi-panel-name = "E7II tovis NT35521S wxga with DSV video mode dsi secondary panel";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,mdss-dsi-panel-destination = "display_1";
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-panel-width = <800>;
+		qcom,mdss-dsi-panel-height = <1280>;
+		qcom,mdss-dsi-h-front-porch = <36>;
+		qcom,mdss-dsi-h-back-porch = <44>;
+		qcom,mdss-dsi-h-pulse-width = <8>;
+		qcom,mdss-dsi-h-sync-skew = <0>;
+		qcom,mdss-dsi-v-front-porch = <20>;
+		qcom,mdss-dsi-v-back-porch = <36>;
+		qcom,mdss-dsi-v-pulse-width = <2>;
+		qcom,mdss-dsi-h-left-border = <0>;
+		qcom,mdss-dsi-h-right-border = <0>;
+		qcom,mdss-dsi-v-top-border = <0>;
+		qcom,mdss-dsi-v-bottom-border = <0>;
+		qcom,mdss-pan-physical-width-dimension = < 94 >;
+		qcom,mdss-pan-physical-height-dimension = < 150 >;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-underflow-color = <0x0>;
+		qcom,mdss-dsi-border-color = <0>;
+		qcom,mdss-dsi-lp11-init;
+		qcom,cont-splash-enabled;
+		qcom,mdss-dsi-on-command = [
+		39 01 00 00 00 00 06 F0 55 AA 52 08 00
+		39 01 00 00 00 00 03 B1 68 01
+		15 01 00 00 00 00 02 B6 01
+		39 01 00 00 00 00 05 B8 01 02 02 02
+		39 01 00 00 00 00 03 BB CC CC
+		39 01 00 00 00 00 03 BC 05 05
+		39 01 00 00 00 00 06 BD 01 A0 0C 08 01
+		39 01 00 00 00 00 06 F0 55 AA 52 08 01
+		39 01 00 00 00 00 03 B3 28 28
+		39 01 00 00 00 00 03 B4 0F 0F
+		39 01 00 00 00 00 03 B5 03 03
+		39 01 00 00 00 00 03 B9 34 34
+		39 01 00 00 00 00 03 BA 15 15
+		39 01 00 00 00 00 03 BC 78 00
+		39 01 00 00 00 00 03 BD 78 00
+		15 01 00 00 00 00 02 CA 00
+		39 01 00 00 00 00 06 F0 55 AA 52 08 02
+		15 01 00 00 00 00 02 EE 02
+		39 01 00 00 00 00 11 B0 00 64 00 7D 00 AE 00 C7 00 DF 01 04 01 23 01 52
+		39 01 00 00 00 00 11 B1 01 74 01 B0 01 DF 02 27 02 62 02 64 02 97 02 CF
+		39 01 00 00 00 00 11 B2 02 F0 03 1F 03 3E 03 63 03 7F 03 9F 03 B9 03 D4
+		39 01 00 00 00 00 05 B3 03 EC 03 F0
+		39 01 00 00 00 00 11 BC 00 64 00 7D 00 AE 00 C7 00 DF 01 04 01 23 01 52
+		39 01 00 00 00 00 11 BD 01 74 01 B0 01 DF 02 27 02 62 02 64 02 97 02 CF
+		39 01 00 00 00 00 11 BE 02 F0 03 1F 03 3E 03 63 03 7F 03 9F 03 B9 03 D4
+		39 01 00 00 00 00 05 BF 03 EC 03 F0
+		39 01 00 00 00 00 06 F0 55 AA 52 08 03
+		39 01 00 00 00 00 03 B0 20 00
+		39 01 00 00 00 00 03 B1 00 00
+		39 01 00 00 00 00 06 B2 05 00 00 00 90
+		39 01 00 00 00 00 06 B3 05 00 00 00 90
+		39 01 00 00 00 00 06 B4 05 00 00 00 90
+		39 01 00 00 00 00 06 B5 05 00 00 00 90
+		39 01 00 00 00 00 06 B6 05 00 00 00 90
+		39 01 00 00 00 00 06 B7 05 00 00 00 90
+		39 01 00 00 00 00 06 B8 05 00 00 00 90
+		39 01 00 00 00 00 06 B9 05 00 00 00 90
+		39 01 00 00 00 00 06 BA 44 00 00 01 00
+		39 01 00 00 00 00 06 BB 44 00 00 01 00
+		39 01 00 00 00 00 06 BC 44 00 00 01 00
+		39 01 00 00 00 00 06 BD 44 00 00 01 00
+		15 01 00 00 00 00 02 C4 60
+		15 01 00 00 00 00 02 C5 40
+		15 01 00 00 00 00 02 C6 60
+		15 01 00 00 00 00 02 C7 40
+		39 01 00 00 00 00 06 F0 55 AA 52 08 05
+		39 01 00 00 00 00 03 B0 17 06
+		15 01 00 00 00 00 02 B8 00
+		39 01 00 00 00 00 06 BD 03 03 01 00 03
+		39 01 00 00 00 00 03 B1 17 06
+		39 01 00 00 00 00 03 B9 00 03
+		39 01 00 00 00 00 03 B2 17 06
+		39 01 00 00 00 00 03 BA 00 00
+		39 01 00 00 00 00 03 B3 17 06
+		39 01 00 00 00 00 03 BB 00 00
+		39 01 00 00 00 00 03 B4 17 06
+		39 01 00 00 00 00 03 B5 17 06
+		39 01 00 00 00 00 03 B6 17 06
+		39 01 00 00 00 00 03 B7 17 06
+		39 01 00 00 00 00 03 BC 00 03
+		15 01 00 00 00 00 02 C0 0B
+		15 01 00 00 00 00 02 C1 09
+		15 01 00 00 00 00 02 C2 0B
+		15 01 00 00 00 00 02 C3 09
+		15 01 00 00 00 00 02 C4 10
+		15 01 00 00 00 00 02 C5 10
+		15 01 00 00 00 00 02 C6 10
+		15 01 00 00 00 00 02 C7 10
+		39 01 00 00 00 00 03 C8 07 20
+		39 01 00 00 00 00 03 C9 03 20
+		39 01 00 00 00 00 03 CA 07 00
+		39 01 00 00 00 00 03 CB 03 00
+		39 01 00 00 00 00 08 D0 00 00 00 00 00 00 00
+		39 01 00 00 00 00 06 D1 00 05 00 07 10
+		39 01 00 00 00 00 06 D2 00 05 04 07 10
+		39 01 00 00 00 00 06 D3 00 00 0A 07 10
+		39 01 00 00 00 00 06 D4 00 00 0A 07 10
+		39 01 00 00 00 00 0C D5 00 00 00 00 00 00 00 00 00 00 00
+		39 01 00 00 00 00 0C D6 00 00 00 00 00 00 00 00 00 00 00
+		39 01 00 00 00 00 0C D7 00 00 00 00 00 00 00 00 00 00 00
+		39 01 00 00 00 00 06 D8 00 00 00 00 00
+		15 01 00 00 00 00 02 E5 06
+		15 01 00 00 00 00 02 E6 06
+		15 01 00 00 00 00 02 E7 06
+		15 01 00 00 00 00 02 E8 06
+		15 01 00 00 00 00 02 E9 06
+		15 01 00 00 00 00 02 EA 06
+		15 01 00 00 00 00 02 EB 06
+		15 01 00 00 00 00 02 EC 06
+		15 01 00 00 00 00 02 ED 30
+		39 01 00 00 00 00 06 F0 55 AA 52 08 06
+		39 01 00 00 00 00 03 B0 31 2E
+		39 01 00 00 00 00 03 B1 2D 12
+		39 01 00 00 00 00 03 B2 10 18
+		39 01 00 00 00 00 03 B3 16 00
+		39 01 00 00 00 00 03 B4 02 31
+		39 01 00 00 00 00 03 B5 31 08
+		39 01 00 00 00 00 03 B6 31 31
+		39 01 00 00 00 00 03 B7 31 31
+		39 01 00 00 00 00 03 B8 31 31
+		39 01 00 00 00 00 03 B9 31 31
+		39 01 00 00 00 00 03 BA 31 31
+		39 01 00 00 00 00 03 BB 31 31
+		39 01 00 00 00 00 03 BC 31 31
+		39 01 00 00 00 00 03 BD 31 31
+		39 01 00 00 00 00 03 BE 09 31
+		39 01 00 00 00 00 03 BF 31 03
+		39 01 00 00 00 00 03 C0 01 17
+		39 01 00 00 00 00 03 C1 19 11
+		39 01 00 00 00 00 03 C2 13 2D
+		39 01 00 00 00 00 03 C3 2E 31
+		39 01 00 00 00 00 03 E5 31 31
+		39 01 00 00 00 00 03 C4 31 2D
+		39 01 00 00 00 00 03 C5 2E 17
+		39 01 00 00 00 00 03 C6 19 11
+		39 01 00 00 00 00 03 C7 13 03
+		39 01 00 00 00 00 03 C8 01 31
+		39 01 00 00 00 00 03 C9 31 09
+		39 01 00 00 00 00 03 CA 31 31
+		39 01 00 00 00 00 03 CB 31 31
+		39 01 00 00 00 00 03 CC 31 31
+		39 01 00 00 00 00 03 CD 31 31
+		39 01 00 00 00 00 03 CE 31 31
+		39 01 00 00 00 00 03 CF 31 31
+		39 01 00 00 00 00 03 D0 31 31
+		39 01 00 00 00 00 03 D1 31 31
+		39 01 00 00 00 00 03 D2 08 31
+		39 01 00 00 00 00 03 D3 31 00
+		39 01 00 00 00 00 03 D4 02 12
+		39 01 00 00 00 00 03 D5 10 18
+		39 01 00 00 00 00 03 D6 16 2E
+		39 01 00 00 00 00 03 D7 2D 31
+		39 01 00 00 00 00 06 D8 00 00 00 00 00
+		39 01 00 00 00 00 06 D9 00 00 00 00 00
+		15 01 00 00 00 00 02 E7 00
+		15 01 00 00 00 00 02 51 FF
+		15 01 00 00 00 00 02 53 24
+		15 01 00 00 00 00 02 55 00
+		05 01 00 00 78 00 02 11 00
+		05 01 00 00 00 00 02 29 00];
+		qcom,mdss-dsi-off-command = [
+		05 01 00 00 32 00 02 28 00
+		05 01 00 00 78 00 02 10 00
+		];
+		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-h-sync-pulse = <0>;
+		qcom,mdss-dsi-traffic-mode = "non_burst_sync_event";
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-panel-timings = [7A 1A 12 00 3E 42 16 1E 14 03 04 00];
+		qcom,mdss-dsi-t-clk-post = <0x04>;
+		qcom,mdss-dsi-t-clk-pre = <0x1A>;
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <255>;
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+		qcom,mdss-dsi-reset-sequence = <1 1>, <0 10>, <1 120>;
 	};
 };
 
@@ -219,7 +415,6 @@
 };
 
 &mdss_dsi0 {
-       qcom,dsi-pref-prim-pan = <&dsi_e7ii_NT35521_vid_dsv>;
        pinctrl-names = "mdss_default", "mdss_sleep";
        pinctrl-0 = <&mdss_dsi_active>;
        pinctrl-1 = <&mdss_dsi_suspend>;
@@ -228,6 +423,7 @@
        qcom,platform-dsv_p_en-gpio = <&msm_gpio 20 0>;
        qcom,platform-dsv_n_en-gpio = <&msm_gpio 21 0>;
        qcom,regulator-ldo-mode;
+       qcom,platform-regulator-settings = [02 09 03 00 20 00 01];
 };
 
 &i2c_4 {

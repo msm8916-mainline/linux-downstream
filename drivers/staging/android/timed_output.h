@@ -23,7 +23,12 @@ struct timed_output_dev {
 	void	(*enable)(struct timed_output_dev *sdev, int timeout);
 
 	/* returns the current number of milliseconds remaining on the timer */
-	int		(*get_time)(struct timed_output_dev *sdev);
+	int	(*get_time)(struct timed_output_dev *sdev);
+
+	/* set the voltage */
+	int	(*set_vtg)(struct timed_output_dev *sdev, int voltage);
+	/* returns the voltage number of millivoltes setting on the vibrator */
+	int	(*get_vtg)(struct timed_output_dev *sdev);
 
 	/* private data */
 	struct device	*dev;

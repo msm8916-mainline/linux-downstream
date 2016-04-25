@@ -36,6 +36,7 @@
 #include <linux/file.h>
 #include <linux/syscalls.h>
 #include <linux/async.h>
+#include <mach/board_lge.h>
 
 #include "lge_ts_core.h"
 
@@ -232,9 +233,7 @@ struct mms_section {
 };
 
 struct mms_module {
-	/*                     */
 	u8 product_code[24];
-	/*                     */
 	u8 version[2];
 	u8 otp;
 };
@@ -323,5 +322,5 @@ ssize_t mit_delta_show(struct i2c_client *client, char *buf);
 //ssize_t mit_openshort_show(struct i2c_client *client, char *buf);
 int mit_isc_page_read(struct mms_data *ts, u8 *rdata, int addr);
 int mit_isc_exit(struct mms_data *ts);
-#endif //                
+#endif // LGE_TS_MELFAS_H
 

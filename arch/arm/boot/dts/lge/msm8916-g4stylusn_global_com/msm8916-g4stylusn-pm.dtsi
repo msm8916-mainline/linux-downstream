@@ -33,7 +33,7 @@
 	qcom,vddsafe-mv = <4380>;
 	qcom,vinmin-mv = <4470>;
 	qcom,tchg-mins = <480>;
-	qcom,btc-disabled = <1>;
+	qcom,btc-disabled;
 	qcom,resume-soc = <98>;
 	qcom,disable-vbatdet-based-recharge;
 };
@@ -42,12 +42,83 @@
 	qcom,msm-thermal {
 		qcom,freq-control-mask = <0xf>;
 		qcom,core-control-mask = <0xe>;
-		qcom,hotplug-temp = <110>;
-		qcom,hotplug-temp-hysteresis = <20>;
-		qcom,freq-mitigation-temp = <110>;
-		qcom,freq-mitigation-temp-hysteresis = <20>;
-		qcom,freq-mitigation-value = <960000>;
+		qcom,hotplug-temp = <94>;
+		qcom,hotplug-temp-hysteresis = <15>;
+		qcom,freq-mitigation-temp = <94>;
+		qcom,freq-mitigation-temp-hysteresis = <10>;
+		qcom,freq-mitigation-value = <400000>;
+		qcom,limit-temp = <90>;
+		qcom,freq-step = <1>;
+		qcom,core-limit-temp = <100>;
 		};
+	
+		lge,power-sysfs {
+		status = "ok";
+		compatible = "lge,power-sysfs";
+
+		sysfs,node =
+			/* group, user_node kernel node */
+			/* ADC/MPP */
+			"adc", "thermal", "/sys/class/thermal/",
+			"adc", "xo_therm", "/sys/class/hwmon/hwmon0/device/xo_therm",
+			"adc", "batt_therm", "/sys/class/power_supply/battery/temp",
+			"adc", "batt_id", "/sys/class/power_supply/battery/battery_id_checker",
+			"adc", "pa_therm0", "/sys/class/hwmon/hwmon0/device/pa_therm0",
+			"adc", "pa_therm1", "NULL",
+			"adc", "usb_in", "/sys/class/hwmon/hwmon0/device/usb_in",
+			"adc", "vcoin", "/sys/class/hwmon/hwmon0/device/vcoin",
+			"adc", "vph_pwr", "/sys/class/hwmon/hwmon0/device/vph_pwr",
+			"adc", "usb_id", "/sys/class/hwmon/hwmon0/device/usb_id",
+			/* Battery */
+			"battery", "capacity", "/sys/class/power_supply/battery/capacity",
+			"battery", "health", "/sys/class/power_supply/battery/health",
+			"battery", "present", "/sys/class/power_supply/battery/present",
+			"battery", "pseudo_batt", "/sys/class/power_supply/battery/pseudo_batt",
+			"battery", "status", "/sys/class/power_supply/battery/status",
+			"battery", "temp", "/sys/class/power_supply/battery/temp",
+			"battery", "valid_batt_id", "/sys/class/power_supply/battery/valid_batt_id",
+			"battery", "voltage_now", "/sys/class/power_supply/battery/voltage_now",
+			/* Charger */
+			"charger", "ac_online", "NULL",
+			"charger", "usb_online", "/sys/class/power_supply/usb/online",
+			"charger", "present", "/sys/class/power_supply/usb/present",
+			"charger", "wlc_online", "NULL",
+			"charger", "type", "/sys/class/power_supply/usb/type",
+			"charger", "time_out", "NULL",
+			"charger", "charging_enabled", "/sys/class/power_supply/battery/charging_enabled",
+			"charger", "ibat_current", "/sys/class/power_supply/battery/current_now",
+			"charger", "ichg_current", "/sys/class/power_supply/usb/current_max",
+			"charger", "iusb_control", "NULL",
+			"charger", "thermal_mitigation", "/sys/module/bq24262_charger/parameters/bq24262_thermal_mitigation",
+			"charger", "wlc_thermal_mitigation", "NULL",
+			"charger", "usb_parallel_chg_status", "NULL",
+			"charger", "usb_parallel_charging_enabled", "NULL",
+			/* LCD Backlight */
+			"lcd", "brightness", "/sys/class/leds/lcd-backlight/brightness",
+			"lcd", "max_brightness", "/sys/class/leds/lcd-backlight/max_brightness",
+		        /* KEY LED */
+			"key_led", "red_brightness", "/sys/class/leds/red/brightness",
+			"key_led", "green_brightness", "NULL",
+			"key_led", "blue_brightness", "NULL",
+			/* CPU */
+			"cpu", "cpu_idle_modes", "/sys/module/lpm_levels/system/",
+			/* GPU */
+			"gpu", "busy", "/sys/class/kgsl/kgsl-3d0/gpubusy",
+			/* PLATFORM */
+			"platform", "speed_bin", "NULL",
+			"platform", "pvs_bin", "NULL",
+			"platform", "power_state", "/sys/power/autosleep",
+			"platform", "poweron_alarm", "/sys/module/qpnp_rtc/parameters/poweron_alarm",
+			"platform", "pcb_rev", "/sys/class/power_supply/battery/hw_rev",
+			/* testmode */
+			"testmode", "charge", "/sys/class/power_supply/battery/charging_enabled",
+			"testmode", "chcomp", "/sys/class/power_supply/battery/device/at_chcomp1",
+			"testmode", "chgmodeoff", "/sys/class/power_supply/battery/charging_enabled",
+			"testmode", "fuelrst", "/sys/devices/soc.0/78b5000.i2c/i2c-1/1-0036/fuelrst",
+			"testmode", "rtc_time", "/dev/rtc0",
+			"testmode", "pmrst", "/sys/class/power_supply/battery/device/at_pmrst1",
+			"testmode", "battexit", "/sys/class/power_supply/battery/present";
+	};
 };
 
 &spmi_bus {
@@ -60,7 +131,7 @@ qcom,pm8916@0 {
 			linux,default-trigger = "none";
 			qcom,default-state = "on";
 			qcom,max-current = <40>;
-			qcom,current-setting = <40>;
+			qcom,current-setting = <5>;
 			charge-current = <5>;
 			qcom,id = <6>;
 			qcom,mode = "pwm";
@@ -115,29 +186,42 @@ qcom,pm8916@0 {
 
 / {
 	BL51YF_LGC_3000MAH_BATTERY: rt,lgc-battery-data {
-		rt,vgpara_hcap = <0x8155 0x825A 0x8337 0x8455 0x8501>;
-		rt,vgpara_lcap = <0x8141 0x8225 0x8337 0x8455 0x8501>;
+		rt,vgpara_hcap = <0x8155 0x825A 0x8341 0x8455 0x8501>;
+		rt,vgpara_lcap = <0x8141 0x8225 0x8350 0x845A 0x8501>;
 		rt,r1_gain_hcap = < 1 150 0 100 1 150>;
 		rt,r2_gain_hcap = < 1 375 0 550 1 375>;
-		rt,r3_gain_hcap = < 1 150 0 100 0 150>;
-		rt,r4_gain_hcap = < 1 150 0 0   1 150>;
+		rt,r3_gain_hcap = < 1 175 0 225 1 175>;
+		rt,r4_gain_hcap = < 1 150 0 25  1 150>;
 		rt,r1_gain_lcap = < 1 75  0 200 1 75>;
 		rt,r2_gain_lcap = < 1 110 1 10  1 110>;
-		rt,r3_gain_lcap = < 1 150 0 100 1 150>;
-		rt,r4_gain_lcap = < 1 150 0 0   1 150>;
+		rt,r3_gain_lcap = < 1 225 0 225 1 225>;
+		rt,r4_gain_lcap = < 1 150 0 50  1 150>;
+	};
+
+	BL51YF_TECHNOPHILE_3000MAH_BATTERY: rt,technophile-battery-data {
+		rt,vgpara_hcap = <0x814B 0x8223 0x831E 0x8473 0x8501>;
+		rt,vgpara_lcap = <0x814B 0x8219 0x833C 0x8478 0x8501>;
+		rt,r1_gain_hcap = < 1 225 0 125 1 225>;
+		rt,r2_gain_hcap = < 1 50  0 325 1 50>;
+		rt,r3_gain_hcap = < 0 0   0 125 0 0>;
+		rt,r4_gain_hcap = < 1 375 1 50  1 375>;
+		rt,r1_gain_lcap = < 1 225 0 0   1 225>;
+		rt,r2_gain_lcap = < 0 0   0 50  0 0>;
+		rt,r3_gain_lcap = < 1 125 0 100 1 125>;
+		rt,r4_gain_lcap = < 1 375 1 75  1 375>;
 	};
 
 	BL51YF_DEFAULT_3000MAH_BATTERY: rt,default-battery-data {
-		rt,vgpara_hcap = <0x8155 0x825A 0x8337 0x8455 0x8501>;
-		rt,vgpara_lcap = <0x8141 0x8225 0x8337 0x8455 0x8501>;
+		rt,vgpara_hcap = <0x8155 0x825A 0x8341 0x8455 0x8501>;
+		rt,vgpara_lcap = <0x8141 0x8225 0x8350 0x845A 0x8501>;
 		rt,r1_gain_hcap = < 1 150 0 100 1 150>;
 		rt,r2_gain_hcap = < 1 375 0 550 1 375>;
-		rt,r3_gain_hcap = < 1 150 0 100 0 150>;
-		rt,r4_gain_hcap = < 1 150 0 0   1 150>;
+		rt,r3_gain_hcap = < 1 175 0 225 1 175>;
+		rt,r4_gain_hcap = < 1 150 0 25  1 150>;
 		rt,r1_gain_lcap = < 1 75  0 200 1 75>;
 		rt,r2_gain_lcap = < 1 110 1 10  1 110>;
-		rt,r3_gain_lcap = < 1 150 0 100 1 150>;
-		rt,r4_gain_lcap = < 1 150 0 0   1 150>;
+		rt,r3_gain_lcap = < 1 225 0 225 1 225>;
+		rt,r4_gain_lcap = < 1 150 0 50  1 150>;
 	};
 };
 
@@ -184,6 +268,7 @@ qcom,pm8916@0 {
 		rt,vgcomp0 = <0xAB>;
 		rt,temp_base = <5 5 25 45>;
 		rt,lgc-battery-data = <&BL51YF_LGC_3000MAH_BATTERY>;
+		rt,technophile-battery-data = <&BL51YF_TECHNOPHILE_3000MAH_BATTERY>;
 		rt,default-battery-data = <&BL51YF_DEFAULT_3000MAH_BATTERY>;
 	};
 
@@ -198,6 +283,7 @@ qcom,pm8916@0 {
 		ti,ext-chg-disen-gpio = <&msm_gpio 17 0>;
 		ti,term-current-ma = <150>;
 		ti,vbat-max-mv = <4400>;		/* Step unit 20 mV, battery available voltage(x = 4.375) : x-0.025 ~ x ~ x+0.025 */
+		ti,safety-time = <480>;
 		ti,vin-limit-mv = <4540>;
 		/* Pins config setting */
 		pinctrl-names = "default", "sleep";

@@ -49,21 +49,31 @@ enum lm3639_bled_mode {
 	LM3639_BLED_MODE_LINEAR = 0x10,
 };
 
-struct lm3639_platform_data {
-	unsigned int max_brt_led;
-	unsigned int init_brt_led;
+struct backlight_platform_data {
+	void (*platform_init)(void);
+	int bl_gpio;
+	unsigned int mode;
+	int max_current;
+	int init_on_boot;
+	int min_brightness;
+	int max_brightness;
+	int default_brightness;
+	int factory_brightness;
+	int blmap_size;
+	char *blmap;
+};
 
-	/* input pins */
-	enum lm3639_pwm pin_pwm;
-	enum lm3639_strobe pin_strobe;
-	enum lm3639_txpin pin_tx;
-
-	/* output pins */
-	enum lm3639_fleds fled_pins;
-	enum lm3639_bleds bled_pins;
-	enum lm3639_bled_mode bled_mode;
-
-	void (*pwm_set_intensity) (int brightness, int max_brightness);
-	int (*pwm_get_intensity) (void);
+struct lm3639_device {
+	struct i2c_client *client;
+	struct backlight_device *bl_dev;
+	int bl_gpio;
+	int max_current;
+	int min_brightness;
+	int max_brightness;
+	int default_brightness;
+	int factory_brightness;
+	struct mutex bl_mutex;
+	int blmap_size;
+	char *blmap;
 };
 #endif /* __LINUX_LM3639_H */

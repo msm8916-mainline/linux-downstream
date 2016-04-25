@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -220,6 +220,7 @@ struct mdss_mdp_ctl {
 	struct mdss_mdp_mixer *mixer_left;
 	struct mdss_mdp_mixer *mixer_right;
 	struct mutex lock;
+	struct mutex offlock;
 	struct mutex *shared_lock;
 	spinlock_t spin_lock;
 
@@ -253,7 +254,7 @@ struct mdss_mdp_ctl {
 
 	void *priv_data;
 	u32 wb_type;
-	bool prg_fet;
+	u32 prg_fet;
 };
 
 struct mdss_mdp_mixer {
@@ -481,6 +482,9 @@ struct mdss_overlay_private {
 	struct mdss_data_type *mdata;
 	struct mutex ov_lock;
 	struct mutex dfps_lock;
+#if defined(CONFIG_JDI_INCELL_VIDEO_FHD_PANEL)
+	struct mutex ovdfps_lock;
+#endif
 	struct mdss_mdp_ctl *ctl;
 	struct mdss_mdp_wb *wb;
 
@@ -494,6 +498,7 @@ struct mdss_overlay_private {
 	struct mdss_mdp_data free_list[MAX_FREE_LIST_SIZE];
 	int free_list_size;
 	int ad_state;
+	int dyn_pu_state;
 
 	bool handoff;
 	u32 splash_mem_addr;
@@ -621,6 +626,15 @@ static inline int mdss_mdp_iommu_dyn_attach_supported(
 static inline int mdss_mdp_line_buffer_width(void)
 {
 	return MAX_LINE_BUFFER_WIDTH;
+}
+
+static inline bool mdss_mdp_req_init_restore_cfg(struct mdss_data_type *mdata)
+{
+	if ((mdata->mdp_rev == MDSS_MDP_HW_REV_106) ||
+                (mdata->mdp_rev == MDSS_MDP_HW_REV_108))
+		return true;
+
+	return false;
 }
 
 static inline int mdss_mdp_panic_signal_support_mode(
@@ -921,15 +935,14 @@ void mdss_mdp_crop_rect(struct mdss_rect *src_rect,
 	const struct mdss_rect *sci_rect);
 
 
-int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd);
+int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd,
+		struct mdss_mdp_commit_cb *commit_cb);
 int mdss_mdp_wb_ioctl_handler(struct msm_fb_data_type *mfd, u32 cmd, void *arg);
 
 int mdss_mdp_get_ctl_mixers(u32 fb_num, u32 *mixer_id);
 u32 mdss_mdp_get_mixercfg(struct mdss_mdp_mixer *mixer);
 u32 mdss_mdp_fb_stride(u32 fb_index, u32 xres, int bpp);
-#ifdef CONFIG_LGE_LCD_TUNING
-int mdss_dsi_panel_invert(u32 enable);
-#endif
+
 void mdss_check_dsi_ctrl_status(struct work_struct *work, uint32_t interval);
 
 int mdss_panel_register_done(struct mdss_panel_data *pdata);

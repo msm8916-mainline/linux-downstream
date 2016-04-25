@@ -101,9 +101,9 @@
 
 #define REG_INT_PIN_CFG         0x37
 #define BIT_BYPASS_EN           0x2
-/*             
-                                             
-                                
+/* LGE_CHANGE_S
+* Comment : add definitions for interrupt cfg
+* 2014-01-10, jeongh.kim@lge.com
 */
 /*  0: Interrupt status cleared only by reading REG_INT_STATUS,
 	1 : cleared if any reading */
@@ -115,7 +115,7 @@
 #define BIT_OPEN			0x40
 /* 0: active high, 1 : active low */
 #define BIT_ACTL			0x80
-/*              */
+/* LGE_CHANGE_E */
 
 #define REG_INT_ENABLE          0x38
 #define BIT_DATA_RDY_EN         0x01
@@ -212,6 +212,7 @@
 #define FIFO_SIZE                992
 #define HARDWARE_FIFO_SIZE       1024
 #define MAX_READ_SIZE            64
+#define MPU6500_CALIBRATION_TIME 3000
 #define POWER_UP_TIME            100
 #define SENSOR_UP_TIME           30
 #define REG_UP_TIME              2
@@ -263,6 +264,7 @@
 #define INIT_ZMOT_DUR            128
 #define INIT_ZMOT_THR            128
 #define INIT_ST_SAMPLES          200
+#define INIT_RMS_SAMPLES         64
 #define INIT_ST_MPU6050_SAMPLES  600
 #define INIT_ST_THRESHOLD        50
 #define INIT_PED_INT_THRESH      2
@@ -782,6 +784,7 @@ struct inv_mpu_state {
 #ifdef LGE_LIGER_SELF_TEST_FLAG
 	bool self_test_exec_state;
 #endif
+	u16 run_calibration_result;
 };
 
 /* produces an unique identifier for each device based on the
@@ -990,6 +993,8 @@ enum MPU_IIO_ATTR_ADDR {
 #ifdef LGE_LIGER_SELF_TEST_FLAG
 	ATTR_SELF_TEST_EXEC_FLAG,
 #endif
+	ATTR_RUN_CALIBRATION,
+	ATTR_RESULT_CALIBRATION,
 };
 
 enum inv_accel_fs_e {

@@ -54,6 +54,7 @@ unsigned short SynaF35DataBase;
 unsigned short SynaF34DataBase;
 unsigned short SynaF34QueryBase;
 unsigned short SynaF01DataBase;
+unsigned short SynaF01ControlBase;
 unsigned short SynaF01CommandBase;
 unsigned short SynaF01QueryBase;
 
@@ -133,6 +134,10 @@ enum F35RecoveryCommand {
 	CMD_F35_RESET = 0x10,
 };
 
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+extern void mdss_lcd_lut_update(void);
+#endif
+
 char SynaFlashCommandStr[0x0C][0x20] = {
 	"",
 	"FirmwareCrc",
@@ -148,7 +153,7 @@ char SynaFlashCommandStr[0x0C][0x20] = {
 	"EraseDisplayConfig",
 };
 
-int FirmwareUpgrade (struct synaptics_ts_data *ts, const char *fw_path) {
+int FirmwareUpgrade(struct synaptics_ts_data *ts, const char *fw_path) {
 
 	int ret = 0;
 	const struct firmware *fw_entry = NULL;
@@ -182,10 +187,17 @@ int FirmwareUpgrade (struct synaptics_ts_data *ts, const char *fw_path) {
 	CompleteReflash(ts);
 	memset(my_image_bin, 0, my_image_size);
 
+	release_firmware(fw_entry);
+	kfree(my_image_bin);
+	my_image_bin = NULL;
 	return ret;
 error:
-	memset(&fw_entry, 0, sizeof(fw_entry));
-	memset(my_image_bin, 0, my_image_size);
+	if (fw_entry)
+		release_firmware(fw_entry);
+	if (my_image_bin) {
+		kfree(my_image_bin);
+		my_image_bin = NULL;
+	}
 	return ret;
 }
 
@@ -217,11 +229,18 @@ int FirmwareRecovery(struct synaptics_ts_data *ts, const char *fw_path)
 	FlashRecovery(ts);
 	memset(my_image_bin, 0, my_image_size);
 
+	release_firmware(fw_entry);
+	kfree(my_image_bin);
+	my_image_bin = NULL;
 	return ret;
 
 error:
-	memset(&fw_entry, 0, sizeof(fw_entry));
-	memset(my_image_bin, 0, my_image_size);
+	if (fw_entry)
+		release_firmware(fw_entry);
+	if (my_image_bin) {
+		kfree(my_image_bin);
+		my_image_bin = NULL;
+	}
 	return ret;
 }
 
@@ -465,6 +484,7 @@ int SynaScanPDT(struct synaptics_ts_data *ts) //void SynaSetup()
 			break;
 		case 0x01:
 			SynaF01DataBase = buffer[3];
+			SynaF01ControlBase = buffer[2];
 			SynaF01CommandBase = buffer[1];
 			SynaF01QueryBase = buffer[0];//no ds4
 			break;
@@ -579,6 +599,7 @@ void SynaEnableFlashing(struct synaptics_ts_data *ts)
 {
 	//    int ret;
 	unsigned char uStatus = 0;
+	unsigned char zero = 0x00;
 	enum FlashCommand cmd;
 	unsigned char uData[3] = {0};
 	int firmware_version;
@@ -589,6 +610,9 @@ void SynaEnableFlashing(struct synaptics_ts_data *ts)
 	readRMI (ts->client, SynaF01DataBase, &uStatus, 1);
 
 	if ((uStatus & 0x40) == 0) {
+		writeRMI(ts->client, SynaF01ControlBase + 1, &zero, 1);
+		msleep(20);
+
 		// Reflash is enabled by first reading the bootloader ID
 		// from the firmware and write it back
 		SynaReadBootloadID(ts);
@@ -600,6 +624,9 @@ void SynaEnableFlashing(struct synaptics_ts_data *ts)
 		cmd = m_uF34ReflashCmd_Enable;
 		writeRMI(ts->client, SynaF34_FlashControl,
 				(unsigned char *)&cmd, 1);
+
+		msleep(100);
+
 		SynaWaitForATTN(1000, ts);
 
 		//I2C addrss may change
@@ -887,7 +914,7 @@ void EraseConfigBlock(struct synaptics_ts_data *ts)
 
 void SynaCheckFlashStatus(struct synaptics_ts_data *ts)
 {
-	unsigned char status;
+	unsigned char status = 0;
 
 	readRMI(ts->client, SynaF35DataBase + F35_ERROR_CODE_OFFSET, &status, 1);
 
@@ -999,6 +1026,11 @@ void CompleteReflash(struct synaptics_ts_data *ts)
 		SynaUpdateConfig(ts);
 
 	SynaFinalizeReflash(ts);
+
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+        if (ts->fw_info.need_rewrite_firmware)
+	        mdss_lcd_lut_update();
+#endif
 }
 
 void FlashRecovery(struct synaptics_ts_data *ts)
@@ -1010,6 +1042,8 @@ void FlashRecovery(struct synaptics_ts_data *ts)
 	SynaWriteChunkData(ts);
 
 	SynaFinalizeRecovery(ts);
-
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+	mdss_lcd_lut_update();
+#endif
 	return;
 }

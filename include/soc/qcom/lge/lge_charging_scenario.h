@@ -24,7 +24,9 @@
 
 #define DC_IUSB_VOLTUV   4000000
 
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 #define DC_IUSB_CURRENT  450
 #else
 #define DC_IUSB_CURRENT  500
@@ -32,7 +34,9 @@
 #define DC_CURRENT_DEF   -1
 
 /* Battery temperature states */
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 enum lge_battemp_states {
 	CHG_BATTEMP_BL_M11,
 	CHG_BATTEMP_M10_M5,
@@ -55,7 +59,7 @@ enum lge_battemp_states {
 };
 #endif
 
-/*                     */
+/* LGE charging states */
 enum lge_charging_states {
 	CHG_BATT_NORMAL_STATE,
 	CHG_BATT_DECCUR_STATE,
@@ -63,8 +67,10 @@ enum lge_charging_states {
 	CHG_BATT_STPCHG_STATE,
 };
 
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
-/*                            */
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
+/* LGE charging states change */
 enum lge_states_changes {
 	STS_CHE_NONE,
 	STS_CHE_NORMAL_TO_DECCUR,
@@ -75,7 +81,7 @@ enum lge_states_changes {
 	STS_CHE_STPCHG_TO_DECCUR,
 };
 #else
-/*                            */
+/* LGE charging states change */
 enum lge_states_changes {
 	STS_CHE_NONE,
 	STS_CHE_NORMAL_TO_DECCUR,
@@ -124,5 +130,5 @@ struct batt_temp_table {
 extern void
 lge_monitor_batt_temp(struct charging_info req, struct charging_rsp *res);
 #endif
-/*                            */
+/* __LGE_CHARGING_SCENARIO_H_ */
 

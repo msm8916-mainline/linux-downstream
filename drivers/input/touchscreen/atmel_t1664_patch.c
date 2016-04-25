@@ -1059,8 +1059,10 @@ static int mxt_patch_make_source(struct mxt_data *data, struct test_src* tsrc)
 		data->patch.src_item[MXT_PATCH_ITEM_USER2] = tsrc->user2;
 	if (tsrc->user3 >= 0)
 		data->patch.src_item[MXT_PATCH_ITEM_USER3] = tsrc->user3;
+#if 0
 	if (tsrc->user4 >= 0)
 		data->patch.src_item[MXT_PATCH_ITEM_USER4] = tsrc->user4;
+#endif
 	if (tsrc->user5 >= 0)
 		data->patch.src_item[MXT_PATCH_ITEM_USER5] = tsrc->user5;
 	/* using err_cnt for reference */

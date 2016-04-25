@@ -1177,14 +1177,14 @@ static struct kobj_type lge_touch_kobj_type = {
 };
 
 /*
-                                                  
-                        
-  
+static struct sysdev_class lge_touch_sys_class = {
+	.name	= LGE_TOUCH_NAME,
+};
 
-                                                 
-         
-                             
-  
+static struct sys_device lge_touch_sys_device = {
+	.id	= 0,
+	.cls	= &lge_touch_sys_class,
+};
 */
 
 /* get_dts_data

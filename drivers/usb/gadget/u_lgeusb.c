@@ -14,9 +14,9 @@
  */
 
 /*
-                                   
-                                   
-                                       
+ * DGMS MC-C05702-7 : Apply Autorun
+ * CONFIG_LGE_USB_G_AUTORUN
+ * CONFIG_LGE_USB_G_AUTORUN_LGE
  */
 
 #include <linux/init.h>
@@ -43,7 +43,7 @@
 
 static struct mutex lgeusb_lock;
 
-#ifdef CONFIG_USB_G_LGE_ANDROID_AUTORUN
+#ifdef CONFIG_LGE_USB_G_AUTORUN
 static u16 user_mode;
 #endif
 
@@ -73,7 +73,7 @@ static char swver_string[32];
 static char subver_string[32];
 static char phoneid_string[32];
 
-#ifdef CONFIG_USB_G_LGE_MULTIPLE_CONFIGURATION
+#ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
 static bool is_mac_os;
 #endif
 
@@ -179,7 +179,7 @@ static ssize_t lgeusb_mode_show(struct device *dev,
 }
 static DEVICE_ATTR(lge_usb_mode, S_IRUGO, lgeusb_mode_show, NULL);
 
-#ifdef CONFIG_USB_G_LGE_ANDROID_AUTORUN
+#ifdef CONFIG_LGE_USB_G_AUTORUN
 /* To set/get USB user mode to/from user space for autorun */
 static ssize_t autorun_user_mode_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -229,7 +229,7 @@ static struct device_attribute *lge_android_usb_attributes[] = {
 	&dev_attr_sw_version,
 	&dev_attr_sub_version,
 	&dev_attr_phone_id,
-#ifdef CONFIG_USB_G_LGE_ANDROID_AUTORUN
+#ifdef CONFIG_LGE_USB_G_AUTORUN
 	&dev_attr_autorun_user_mode,
 #endif
 	NULL
@@ -364,7 +364,7 @@ static struct platform_driver lge_android_usb_platform_driver = {
 	},
 };
 
-#ifdef CONFIG_USB_G_LGE_MULTIPLE_CONFIGURATION
+#ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
 void lgeusb_set_host_os(u16 w_length)
 {
 	switch (w_length) {

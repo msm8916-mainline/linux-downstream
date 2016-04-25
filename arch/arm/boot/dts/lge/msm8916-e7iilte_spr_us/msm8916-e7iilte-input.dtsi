@@ -17,6 +17,10 @@
 
 		atmel,fw_name = "atmel/LK430_1_01_06.fw";
 
+		lge,id-gpio = <&msm_gpio 53 0x00>;
+		pinctrl-names = "ts_int_active","ts_int_suspend";
+		pinctrl-0 = <&ts_int_active>;
+		pinctrl-1 = <&ts_int_suspend>;
 
 	};
 

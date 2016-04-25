@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -160,8 +160,11 @@ struct msm8916_asoc_mach_data {
 	int codec_type;
 	int ext_pa;
 	int us_euro_gpio;
+	int spk_ext_pa_gpio;
 	int mclk_freq;
 	int lb_mode;
+	u8 micbias1_cap_mode;
+	u8 micbias2_cap_mode;
 	atomic_t mclk_rsc_ref;
 	atomic_t mclk_enabled;
 	struct mutex cdc_mclk_mutex;
@@ -169,6 +172,7 @@ struct msm8916_asoc_mach_data {
 	struct afe_digital_clk_cfg digital_cdc_clk;
 	void __iomem *vaddr_gpio_mux_spkr_ctl;
 	void __iomem *vaddr_gpio_mux_mic_ctl;
+	void __iomem *vaddr_gpio_mux_pcm_ctl;
 };
 
 struct msm8x16_wcd_pdata {
@@ -224,6 +228,7 @@ struct msm8x16_wcd_priv {
 	bool mclk_enabled;
 	bool clock_active;
 	bool config_mode_active;
+	u16 boost_option;
 	bool spk_boost_set;
 	bool ear_pa_boost_set;
 	bool ext_spk_boost_set;
@@ -236,7 +241,7 @@ struct msm8x16_wcd_priv {
 	struct fw_info *fw_data;
 	struct blocking_notifier_head notifier;
 	unsigned long status_mask;
-
+	int (*codec_spk_ext_pa_cb)(struct snd_soc_codec *codec, int enable);
 };
 
 extern int msm8x16_wcd_mclk_enable(struct snd_soc_codec *codec, int mclk_enable,
@@ -253,5 +258,8 @@ extern int msm8x16_register_notifier(struct snd_soc_codec *codec,
 extern int msm8x16_unregister_notifier(struct snd_soc_codec *codec,
 				     struct notifier_block *nblock);
 
+extern void msm8x16_wcd_spk_ext_pa_cb(
+		int (*codec_spk_ext_pa)(struct snd_soc_codec *codec,
+		int enable), struct snd_soc_codec *codec);
 #endif
 

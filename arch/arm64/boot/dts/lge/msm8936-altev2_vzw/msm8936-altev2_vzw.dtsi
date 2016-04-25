@@ -19,9 +19,6 @@
 		i2c1 = &i2c_1; /* i2c_1 BLSP1 QUP1 */
 		i2c3 = &i2c_3; /* i2c_3 BLSP1 QUP3 */
 	};
-	chosen {
-		bootargs = "boot_cpus=0,1,2,3 sched_enable_hmp=1";
-	};
 };
 
 &blsp1_uart2 {
@@ -117,7 +114,6 @@
 		status = "ok";
 		pm8916_l17: regulator-l17 {
 			status = "ok";
-			revision = "...rev_c";
 			regulator-always-on;
 		};
 

@@ -40,8 +40,8 @@
 #define AEC_ROI_DX (192) // (128)
 #define AEC_ROI_DY (192) // (128) // (96)
 
-static int PREV_SOC_AEC_LOCK = -1;	/*                                                                             */
-static int PREV_SOC_AWB_LOCK = -1;  /*                                                                             */
+static int PREV_SOC_AEC_LOCK = -1;	/*LGE_CHANGE, to prevent duplicated setting, 2013-01-07, kwangsik83.kim@lge.com*/
+static int PREV_SOC_AWB_LOCK = -1;  /*LGE_CHANGE, to prevent duplicated setting, 2013-01-07, kwangsik83.kim@lge.com*/
 
 DEFINE_MSM_MUTEX(bf3905_mut);
 static struct msm_sensor_ctrl_t bf3905_s_ctrl;
@@ -464,13 +464,13 @@ static int32_t bf3905_platform_probe(struct platform_device *pdev)
 	int32_t rc;
 	const struct of_device_id *match;
 	match = of_match_device(bf3905_dt_match, &pdev->dev);
-/*                                                              */
+/* LGE_CHANGE_S, WBT issue fix, 2013-11-25, hyunuk.park@lge.com */
 	if(!match)
 	{
 		  pr_err(" %s failed ",__func__);
 		  return -ENODEV;
 	}
-/*                                                              */
+/* LGE_CHANGE_E, WBT issue fix, 2013-11-25, hyunuk.park@lge.com */
 	rc = msm_sensor_platform_probe(pdev, match->data);
 	return rc;
 }
@@ -810,12 +810,12 @@ int32_t bf3905_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 			s_ctrl->sensordata->sensor_info->is_mount_angle_valid;
 		cdata->cfg.sensor_info.sensor_mount_angle =
 			s_ctrl->sensordata->sensor_info->sensor_mount_angle;
-/*                                                                  */
+/*LGE_CHANGE_S, set sensor position, 2014-06-13, jeognda.lee@lge.com*/
 		cdata->cfg.sensor_info.position =
 			s_ctrl->sensordata->sensor_info->position;
 		CDBG("%s:%d sensor position %d\n", __func__, __LINE__,
 			cdata->cfg.sensor_info.position);
-/*                                                                  */
+/*LGE_CHANGE_E, set sensor position, 2014-06-13, jeognda.lee@lge.com*/
 		CDBG("%s:%d sensor name %s\n", __func__, __LINE__,
 			cdata->cfg.sensor_info.sensor_name);
 		CDBG("%s:%d session id %d\n", __func__, __LINE__,
@@ -907,7 +907,7 @@ int32_t bf3905_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		kfree(reg_setting);
 		break;
 	}
-/*                                                              */
+/*LGE_CHANGE_S, add soc exif, 2013-10-04, kwangsik83.kim@lge.com*/
 	case CFG_PAGE_MODE_READ_I2C_ARRAY:{
 		int16_t size=0;
 		uint16_t read_data_size = 0;
@@ -1002,8 +1002,8 @@ int32_t bf3905_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 
 		break;
 	}
-/*                                                              */
-/*                                                                                          */
+/*LGE_CHANGE_E, add soc exif, 2013-10-04, kwangsik83.kim@lge.com*/
+/*LGE_CHANGE_S, modified power-up/down status for recovery, 2013-12-27, hyungtae.lee@lge.com*/
 	case CFG_POWER_UP:{
 
 		if (s_ctrl->sensor_state != MSM_SENSOR_POWER_DOWN) {
@@ -1055,7 +1055,7 @@ int32_t bf3905_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 		break;
 	}
-/*                                                                                          */
+/*LGE_CHANGE_E, modified power-up/down status for recovery, 2013-12-27, hyungtae.lee@lge.com*/
 	case CFG_SET_STOP_STREAM_SETTING: {
 		struct msm_camera_i2c_reg_setting *stop_setting =
 			&s_ctrl->stop_setting;

@@ -33,6 +33,9 @@ struct led_classdev {
 	const char		*name;
 	int			 brightness;
 	int			 max_brightness;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	int			 usr_brightness_req;
+#endif
 	int			 flags;
 
 	/* Lower 16 bits reflect status */
@@ -82,6 +85,10 @@ struct led_classdev {
 	void			*trigger_data;
 	/* true if activated - deactivate routine uses it to do cleanup */
 	bool			activated;
+#endif
+
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	int			led_id;
 #endif
 };
 

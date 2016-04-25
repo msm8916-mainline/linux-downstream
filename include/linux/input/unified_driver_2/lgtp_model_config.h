@@ -38,7 +38,27 @@
 
 #define TOUCH_IRQ_FLAGS ( IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_NO_SUSPEND )
 
+#elif defined ( TOUCH_MODEL_C30 )
+
+#define TOUCH_I2C_BUS_NUM 5
+
+#define TOUCH_GPIO_RESET (12+902)
+#define TOUCH_GPIO_INTERRUPT (13+902)
+#define TOUCH_GPIO_MAKER_ID (32+902)
+#define TOUCH_GPIO_POWER (9+902)
+
+#define TOUCH_IRQ_FLAGS ( IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_NO_SUSPEND )
+
 #elif defined ( TOUCH_MODEL_C70 )
+
+#define TOUCH_I2C_BUS_NUM 5
+
+#define TOUCH_GPIO_RESET 			(12+902)
+#define TOUCH_GPIO_INTERRUPT 		(13+902)
+
+#define TOUCH_IRQ_FLAGS ( IRQF_ONESHOT )
+
+#elif defined ( TOUCH_MODEL_YG ) || defined( TOUCH_MODEL_C100N )
 
 #define TOUCH_I2C_BUS_NUM 5
 
@@ -55,6 +75,16 @@
 #define TOUCH_GPIO_INTERRUPT        (13+902)
 
 #define TOUCH_IRQ_FLAGS ( IRQF_ONESHOT )
+
+#elif defined ( TOUCH_MODEL_P1C )
+
+#define TOUCH_I2C_BUS_NUM 5
+
+#define TOUCH_GPIO_RESET            (12+902)
+#define TOUCH_GPIO_INTERRUPT        (13+902)
+
+#define TOUCH_IRQ_FLAGS ( IRQF_ONESHOT )
+
 
 #elif defined ( TOUCH_MODEL_Y90 )
 
@@ -76,7 +106,17 @@
 #define TOUCH_GPIO_INTERRUPT (13+902)
 #define TOUCH_GPIO_POWER (9+902)
 
-#define TOUCH_IRQ_FLAGS ( IRQF_TRIGGER_LOW | IRQF_ONESHOT | IRQF_NO_SUSPEND )
+#define TOUCH_IRQ_FLAGS ( IRQF_ONESHOT )
+
+#elif defined ( TOUCH_MODEL_P1B )
+
+#define TOUCH_I2C_BUS_NUM 5
+
+#define TOUCH_GPIO_RESET 			(12+902)
+#define TOUCH_GPIO_INTERRUPT 		(13+902)
+
+#define TOUCH_IRQ_FLAGS ( IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_NO_SUSPEND )
+
 
 #else
 #error "Model should be defined"
@@ -106,6 +146,7 @@ void TouchGetDeviceSpecificDriver(TouchDeviceSpecificFunction ***pDeviceFunc);
 void TouchGetModelConfig(TouchDriverData *pDriverData);
 void TouchPowerModel( int isOn );
 void TouchAssertResetModel( void );
+void TouchGetDeviceSpecificMatchTable(struct of_device_id ***pMatchtableList);
 
 
 #endif /* _LGTP_MODEL_CONFIG_H_ */

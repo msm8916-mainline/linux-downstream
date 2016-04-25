@@ -23,12 +23,12 @@ static struct msm_sensor_ctrl_t hi544_s_ctrl;
 #if defined(CONFIG_MACH_MSM8916_C70N_GLOBAL_COM) || \
 	defined (CONFIG_MACH_MSM8916_C70DS_GLOBAL_COM) || \
 	defined (CONFIG_MACH_MSM8916_C70_GLOBAL_COM) || \
-	defined (CONFIG_MACH_MSM8916_C70_CRK_US) || \
+	defined (CONFIG_MACH_MSM8916_C70N_CRK_US) || \
 	defined (CONFIG_MACH_MSM8916_C70N_ATT_US) || \
 	defined (CONFIG_MACH_MSM8916_C70_USC_US) || \
 	defined (CONFIG_MACH_MSM8916_E7IILTE_SPR_US) || \
 	defined (CONFIG_MACH_MSM8916_C70_RGS_CA) || \
-	defined (CONFIG_MACH_MSM8916_C90N_GLOBAL_COM)
+	defined (CONFIG_MACH_MSM8916_C90_GLOBAL_COM)
 static struct msm_sensor_power_setting hi544_power_setting[] = {
 	{//[3]
 		.seq_type = SENSOR_VREG,

@@ -29,6 +29,40 @@ config SENSOR_APDS9930_ALS_ENABLE
 	depends on I2C
 	help
 	  Support APDS-9930 ALS ENABLE as an input device.
+config APDS9930_BMCHAL
+	tristate "Avago APDS9930 combined als and proximity sensors"
+	depends on I2C
+	help
+	  Say Y here if you want to build a driver for Avago APDS9930
+	  combined ambient light and proximity sensor chip.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called apds9950. If unsure, say N here.
+config APDS9930_ALS_INT
+	tristate "Avago APDS9930 combined als and proximity sensors"
+	depends on I2C
+	help
+	  Support apds9930 as an IRQ input device.
+
+config APDS9930_DEBUG_BMCHAL
+	tristate "Avago APDS9930 debug option"
+	depends on I2C
+        help
+	  Say Y here if you want to look debug log.
+
+config SENSORS_PAS230
+	depends on I2C
+	tristate "PAS230 ambient light and proximity input device"
+	default n
+	help
+		This option enables proximity & light sensors using PAS230 driver.
+
+config SENSOR_PAS230_ALS_INT
+	depends on I2C
+	tristate "PAS230 ambient light and proximity input device"
+	default n
+	help
+		This option enables light sensors Interrupt mode using PAS230 driver.
 
 config SENSOR_K2DH
         bool "K2DH support"
@@ -60,6 +94,13 @@ config SENSORS_BMC150
 	  If you say yes here you get support for Bosch Sensortec's
 	  acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
 
+config SENSORS_BMC150_ENABLE_INT1
+	tristate "BMC150 sensor interrupt INT1 support"
+	depends on SENSORS_BMC150
+	help
+	  If you say yes here, you get INT1 support for Bosch Sensortec
+	  sensors BMC150.
+
 config SENSOR_SX9500
     tristate "SX9500 based capacitive touch button"
     depends on I2C
@@ -75,4 +116,59 @@ config SENSOR_ATMF04
        depends on I2C
        help
          Support ATMF04 as an input device.
+config SENSORS_K303B
+	tristate "STM K303B 6axis axl+mag sensor support"
+	depends on I2C=y
+	help
+	  If you say yes here you get support for STMicroelectronics's
+	  acceleration sesnsors K303C.
+config SENSORS_K303C
+	tristate "STM K303C 6axis axl+mag sensor support"
+	depends on I2C=y
+	help
+	  If you say yes here you get support for STMicroelectronics's
+	  acceleration sesnsors K303C.
+
+#
+# Makefile for Bosch sensors driver.
+#
+config SENSORS_BMI160
+	tristate "BMI160 Sensor Support"
+		depends on I2C || SPI_MASTER
+			help
+				 If you say yes here, you get support for Bosch Sensortec's
+					 sensor driver of BMI160.
+
+config SENSORS_BMI160_I2C
+	tristate "support I2C bus communication"
+	depends on SENSORS_BMI160 && I2C
+	help
+	 If you say yes here, you get support Bosch Sensortec's BMI160 sensor hooked to an I2C bus.
+
+config BMI160_MAG_INTERFACE_SUPPORT
+tristate "BMI160 Sensor mag interface support"
+depends on SENSORS_BMI160
+	help
+	 If you say yes here, you get support for Bosch Sensortec's
+	 sensor driver of BMI160 with mag sensor support.
+
+config SENSORS_BMI160_ENABLE_INT1
+tristate "BMI160 sensor interrupt INT1 support"
+depends on SENSORS_BMI160
+	help
+	 If you say yes here, you get INT1 support for Bosch Sensortec
+	 sensors BMI160.
+
+config SENSORS_BMI160_ENABLE_INT2
+tristate "BMI160 sensor interrupt INT2 support"
+depends on SENSORS_BMI160
+	help
+	 If you say yes here, you get INT2 support for Bosch Sensortec
+	 sensors BMI160.
+
+config SENSOR_AK09911_DRIVER
+        bool "AK09911 support"
+        depends on I2C
+        help
+          Support AK09911 in BMI160 Driver as an input device.
 endif

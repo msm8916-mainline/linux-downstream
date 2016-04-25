@@ -11,7 +11,7 @@ ifeq ($(KERNEL_BUILD),1)
 	# Need to explicitly define for Kernel-based builds
 
 	CONFIG_QCOM_TDLS := y
-	ENABLE_LINUX_REG := y
+	CONFIG_ENABLE_LINUX_REG := y
 
 	MODNAME := wlan
 	WLAN_ROOT := drivers/staging/prima
@@ -307,6 +307,7 @@ SME_P2P_OBJS = $(SME_SRC_DIR)/p2p/p2p_Api.o
 
 SME_RRM_OBJS := $(SME_SRC_DIR)/rrm/sme_rrm.o
 
+SME_NAN_OBJS = $(SME_SRC_DIR)/nan/nan_Api.o
 SME_OBJS :=	$(SME_BTC_OBJS) \
 		$(SME_CCM_OBJS) \
 		$(SME_CMN_OBJS) \
@@ -315,7 +316,8 @@ SME_OBJS :=	$(SME_BTC_OBJS) \
 		$(SME_P2P_OBJS) \
 		$(SME_PMC_OBJS) \
 		$(SME_QOS_OBJS) \
-		$(SME_RRM_OBJS)
+		$(SME_RRM_OBJS) \
+		$(SME_NAN_OBJS)
 
 ############ SVC ############
 SVC_DIR :=	CORE/SVC
@@ -561,6 +563,14 @@ CDEFINES :=	-DANI_BUS_TYPE_PLATFORM=1 \
                 -DWLAN_FEATURE_LINK_LAYER_STATS \
                 -DWLAN_FEATURE_EXTSCAN
 
+#[LGE_CHANGE_S] to disable RTT and LINK_LAYER_STATS feature, 2015.1022
+CONFIG_LGE_PATCH := y
+
+ifeq ($(CONFIG_LGE_PATCH), y)
+CDEFINES += -DLG_NOT_SUPPORT_FEATURE
+endif
+#[LGE_CHANGE_E] to disable RTT and LINK_LAYER_STATS feature, 2015.1022
+
 ifneq ($(CONFIG_PRONTO_WLAN),)
 CDEFINES += -DWCN_PRONTO
 CDEFINES += -DWCN_PRONTO_V1
@@ -665,6 +675,7 @@ CDEFINES += -DDEBUG_ROAM_DELAY
 endif
 
 CDEFINES += -DFEATURE_WLAN_CH_AVOID
+CDEFINES += -DWLAN_FEATURE_AP_HT40_24G
 
 # Some kernel include files are being moved.  Check to see if
 # the old version of the files are present

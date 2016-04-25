@@ -266,7 +266,7 @@ static int rmidev_i2c_write(struct synaptics_ts_data *ts,
 
 static int rmidev_reset_device(struct synaptics_ts_data *ts)
 {
-	struct lge_touch_data *lge_ts = i2c_get_clientdata(ts->client);
+	struct lge_touch_data *lge_ts = NULL;
 	int retval;
 	unsigned char command = 0x01;
 	int reg_read_cnt;
@@ -280,6 +280,8 @@ static int rmidev_reset_device(struct synaptics_ts_data *ts)
 		TOUCH_RMIDEV_MSG("ts points to NULL\n");
 		return -EACCES;
 	}
+
+	lge_ts = i2c_get_clientdata(ts->client);
 
 	if (!lge_ts) {
 		TOUCH_RMIDEV_MSG("lge_ts points to NULL\n");
@@ -335,16 +337,16 @@ static int rmidev_reset_device(struct synaptics_ts_data *ts)
 		return retval;
 	}
 
-	mutex_lock(&lge_ts->thread_lock);
+	mutex_lock(&lge_ts->pdata->thread_lock);
 	touch_ic_init(lge_ts, 0);
-	mutex_unlock(&lge_ts->thread_lock);
+	mutex_unlock(&lge_ts->pdata->thread_lock);
 
 	return 0;
 }
 
 static int rmidev_irq_enable(struct synaptics_ts_data *ts, bool enable)
 {
-	struct lge_touch_data *lge_ts = i2c_get_clientdata(ts->client);
+	struct lge_touch_data *lge_ts = NULL;
 	int retval = 0;
 	unsigned char intr_status;
 
@@ -354,6 +356,8 @@ static int rmidev_irq_enable(struct synaptics_ts_data *ts, bool enable)
 		TOUCH_RMIDEV_MSG("ts points to NULL\n");
 		return -EACCES;
 	}
+
+	lge_ts = i2c_get_clientdata(ts->client);
 
 	if (!lge_ts) {
 		TOUCH_RMIDEV_MSG("lge_ts points to NULL\n");
@@ -388,7 +392,7 @@ static int rmidev_irq_enable(struct synaptics_ts_data *ts, bool enable)
 static irqreturn_t rmidev_sysfs_irq(int irq, void *data)
 {
 	struct synaptics_ts_data *ts = rmidev->ts_data;
-	struct lge_touch_data *lge_ts = i2c_get_clientdata(ts->client);
+	struct lge_touch_data *lge_ts = NULL;
 
 	TOUCH_RMIDEV_MSG("\n");
 
@@ -396,6 +400,8 @@ static irqreturn_t rmidev_sysfs_irq(int irq, void *data)
 		TOUCH_RMIDEV_MSG("ts points to NULL\n");
 		return -EACCES;
 	}
+
+	lge_ts = i2c_get_clientdata(ts->client);
 
 	if (!lge_ts) {
 		TOUCH_RMIDEV_MSG("lge_ts points to NULL\n");
@@ -533,7 +539,7 @@ static ssize_t rmidev_sysfs_open_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct synaptics_ts_data *ts = rmidev->ts_data;
-	struct lge_touch_data *lge_ts = i2c_get_clientdata(ts->client);
+	struct lge_touch_data *lge_ts = NULL;
 	unsigned int input;
 
 	TOUCH_RMIDEV_MSG("\n");
@@ -542,6 +548,8 @@ static ssize_t rmidev_sysfs_open_store(struct device *dev,
 		TOUCH_RMIDEV_MSG("ts points to NULL\n");
 		return -EACCES;
 	}
+
+	lge_ts = i2c_get_clientdata(ts->client);
 
 	if (sscanf(buf, "%u", &input) != 1) {
 		TOUCH_RMIDEV_MSG("The length of the input value is not 1\n");

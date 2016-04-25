@@ -53,6 +53,8 @@ static u32 I2CDMABuf_pa = NULL;
 static int nIrq_num;
 #endif
 
+extern int wakeup_by_swipe_mit300;
+
 /****************************************************************************
 * Extern Function Prototypes
 ****************************************************************************/
@@ -88,9 +90,9 @@ static void TouchClearPendingIrq(void)
 
 static void TouchMaskIrq(void)
 {
-	#if defined ( TOUCH_PLATFORM_MSM8210 )
+	#if defined ( TOUCH_DEVICE_LU202X )
 	struct irq_desc *desc = irq_to_desc(nIrq_num);
-	
+
 	if(desc->irq_data.chip->irq_mask) {
 		desc->irq_data.chip->irq_mask(&desc->irq_data);
 	}
@@ -99,9 +101,9 @@ static void TouchMaskIrq(void)
 
 static void TouchUnMaskIrq(void)
 {
-	#if defined ( TOUCH_PLATFORM_MSM8210 )
+	#if defined ( TOUCH_DEVICE_LU202X )
 	struct irq_desc *desc = irq_to_desc(nIrq_num);
-	
+
 	if(desc->irq_data.chip->irq_unmask) {
 		desc->irq_data.chip->irq_unmask(&desc->irq_data);
 	}
@@ -163,7 +165,7 @@ static int i2c_dma_read(struct i2c_client *client, uint8_t *buf, int len)
 	}
 
 	return ret;
-	
+
 }
 
 static int i2c_msg_transfer(struct i2c_client *client, struct i2c_msg *msgs, int count)
@@ -191,20 +193,27 @@ static int i2c_read(struct i2c_client *client, u8 *reg, int regLen, u8 *buf, int
 
 	int result = TOUCH_SUCCESS;
 	int ret = 0;
+	int retry = 0;
 	
 	struct i2c_msg msgs[2] = {
 		{ .addr = client->addr, .flags = 0, .len = regLen, .buf = reg, },
 		{ .addr = client->addr, .flags = I2C_M_RD, .len = dataLen, .buf = buf, },
 	};
-
-	ret = i2c_transfer(client->adapter, msgs, 2);
-	if (ret < 0)
-	{
-		result = TOUCH_FAIL;
-	}
+	
+	do {		
+		ret = i2c_transfer(client->adapter, msgs, 2);				
+		if (ret < 0) {			
+			TOUCH_ERR("i2c retry [%d]\n", retry+1);            			
+			msleep(20);			
+			result = TOUCH_FAIL;		
+		} else {			
+			result = TOUCH_SUCCESS;			
+			return result;		
+		}	
+	} while(++retry < 3);
 
 	return result;
-	
+
 #elif defined ( TOUCH_PLATFORM_MTK )
 
 	if( dataLen <= MAX_I2C_TRANSFER_SIZE )
@@ -216,12 +225,12 @@ static int i2c_read(struct i2c_client *client, u8 *reg, int regLen, u8 *buf, int
 			{ .addr = client->addr, .flags = 0, .len = regLen, .buf = reg, },
 			{ .addr = client->addr, .flags = I2C_M_RD, .len = dataLen, .buf = buf, },
 		};
-		
+
 		ret = i2c_msg_transfer(client, msgs, 2);
 		if (ret < 0) {
 			result = TOUCH_FAIL;
 		}
-		
+
 		return result;
 	}
 	else
@@ -229,14 +238,14 @@ static int i2c_read(struct i2c_client *client, u8 *reg, int regLen, u8 *buf, int
 		int result = TOUCH_SUCCESS;
 		int ret = 0;
 		int i = 0;
-		
+
 		int msgCount = 0;
 		int remainedDataLen = 0;
-		
+
 		struct i2c_msg* msgs = NULL;
-	
+
 		remainedDataLen = dataLen%MAX_I2C_TRANSFER_SIZE;
-		
+
 		msgCount = 1; /* msg for register */
 		msgCount += (int)(dataLen/MAX_I2C_TRANSFER_SIZE); /* add msgs for data read */
 		if( remainedDataLen > 0 ) {
@@ -265,23 +274,23 @@ static int i2c_read(struct i2c_client *client, u8 *reg, int regLen, u8 *buf, int
 		if( remainedDataLen > 0 ) {
 			msgs[msgCount-1].len = remainedDataLen;
 		}
-		
+
 		ret = i2c_msg_transfer(client, msgs, msgCount);
 		if (ret < 0) {
 			result = TOUCH_FAIL;
 		}
 
 		kfree(msgs);
-		
+
 		return result;
-		
+
 	}
-	
-	
+
+
 #else
 	#error "Platform should be defined"
 #endif
-	
+
 }
 
 static int i2c_write(struct i2c_client *client, u8 *reg, int regLen, u8 *buf, int dataLen)
@@ -299,7 +308,7 @@ static int i2c_write(struct i2c_client *client, u8 *reg, int regLen, u8 *buf, in
 		TOUCH_ERR("You should implement to overcome this problem like read\n");
 		return TOUCH_FAIL;
 	}
-	#endif	
+	#endif
 
 	u8 *pTmpBuf = NULL;
 
@@ -314,7 +323,7 @@ static int i2c_write(struct i2c_client *client, u8 *reg, int regLen, u8 *buf, in
 	memcpy((pTmpBuf+regLen), buf, dataLen);
 
 	msg.buf = pTmpBuf;
-	
+
 	#if defined ( TOUCH_PLATFORM_QCT )
 	ret = i2c_transfer(client->adapter, &msg, 1);
 	#elif defined ( TOUCH_PLATFORM_MTK )
@@ -328,15 +337,15 @@ static int i2c_write(struct i2c_client *client, u8 *reg, int regLen, u8 *buf, in
 	}
 
 	kfree(pTmpBuf);
-	
+
 	return result;
-	
+
 }
 
 /****************************************************************************
 * Global Functions
 ****************************************************************************/
-#if defined ( TOUCH_DEVICE_LU201X )
+#if defined ( TOUCH_DEVICE_LU201X ) || defined ( TOUCH_DEVICE_LU202X )
 int Lu20xx_I2C_Read ( struct i2c_client *client, u16 addr, u8 *rxbuf, int len )
 {
 	int ret = 0;
@@ -366,9 +375,39 @@ int Lu20xx_I2C_Write ( struct i2c_client *client, u16 addr, u8 *txbuf, int len )
 		return TOUCH_FAIL;
 	}
 
-	return TOUCH_SUCCESS;	
+	return TOUCH_SUCCESS;
 }
 #endif
+
+int Mit300_I2C_Read ( struct i2c_client *client, u8 *addr, u8 addrLen, u8 *rxbuf, int len )
+{
+	int ret = 0;
+
+	ret = i2c_read(client, addr, addrLen, rxbuf, len);
+	if( ret == TOUCH_FAIL ) {
+		if (printk_ratelimit()) {
+			TOUCH_ERR("failed to read i2c ( reg = %d )\n", (u16)((addr[0]<<7)|addr[1]));
+		}
+		return TOUCH_FAIL;
+	}
+
+	return TOUCH_SUCCESS;
+}
+
+int Mit300_I2C_Write ( struct i2c_client *client, u8 *writeBuf, u32 write_len )
+{
+	int ret = 0;
+
+	ret = i2c_write(client, writeBuf, 2, writeBuf+2, write_len-2);
+	if( ret == TOUCH_FAIL ) {
+		if (printk_ratelimit()) {
+			TOUCH_ERR("failed to write i2c ( reg = %d )\n", (u16)((writeBuf[0]<<7)|writeBuf[1]));
+		}
+		return TOUCH_FAIL;
+	}
+
+	return TOUCH_SUCCESS;
+}
 
 int Touch_I2C_Read_Byte ( struct i2c_client *client, u8 addr, u8 *rxbuf )
 {
@@ -383,7 +422,7 @@ int Touch_I2C_Read_Byte ( struct i2c_client *client, u8 addr, u8 *rxbuf )
 		return TOUCH_FAIL;
 	}
 
-	return TOUCH_SUCCESS;	
+	return TOUCH_SUCCESS;
 }
 
 int Touch_I2C_Write_Byte ( struct i2c_client *client, u8 addr, u8 txbuf )
@@ -400,7 +439,7 @@ int Touch_I2C_Write_Byte ( struct i2c_client *client, u8 addr, u8 txbuf )
 		return TOUCH_FAIL;
 	}
 
-	return TOUCH_SUCCESS;	
+	return TOUCH_SUCCESS;
 }
 
 int Touch_I2C_Read ( struct i2c_client *client, u8 addr, u8 *rxbuf, int len )
@@ -415,8 +454,8 @@ int Touch_I2C_Read ( struct i2c_client *client, u8 addr, u8 *rxbuf, int len )
 		}
 		return TOUCH_FAIL;
 	}
-	
-	return TOUCH_SUCCESS;	
+
+	return TOUCH_SUCCESS;
 }
 
 int Touch_I2C_Write ( struct i2c_client *client, u8 addr, u8 *txbuf, int len )
@@ -431,11 +470,11 @@ int Touch_I2C_Write ( struct i2c_client *client, u8 addr, u8 *txbuf, int len )
 		}
 		return TOUCH_FAIL;
 	}
-	
-	return TOUCH_SUCCESS;	
+
+	return TOUCH_SUCCESS;
 }
 
-#if 1 /*                                                 */
+#if 1 /* LGE_BSP_COMMON : branden.you@lge.com_20141105 : */
 int touch_i2c_read_for_query(int slave_addr, u8 *reg, u8 regLen, u8 *buf, u8 dataLen)
 {
 	int ret = 0;
@@ -450,7 +489,7 @@ int touch_i2c_read_for_query(int slave_addr, u8 *reg, u8 regLen, u8 *buf, u8 dat
 	if ( adap == NULL ) {
 		return TOUCH_FAIL;
 	}
-	
+
 	ret = i2c_transfer(adap, msgs, 2);
 	if (ret < 0)
 	{
@@ -487,13 +526,13 @@ int TouchInitializePlatform( void )
 
 	gpio_request(TOUCH_GPIO_INTERRUPT, "touch_int");
 	gpio_direction_input(TOUCH_GPIO_INTERRUPT);
-	
+
 	#if defined ( TOUCH_GPIO_MAKER_ID )
-	gpio_request(TOUCH_GPIO_INTERRUPT, "touch_maker");
+	gpio_request(TOUCH_GPIO_MAKER_ID, "touch_maker");
 	gpio_direction_input(TOUCH_GPIO_MAKER_ID);
 	#endif
 	#elif defined ( TOUCH_MODEL_LION_3G )
-	
+
 	#elif defined ( TOUCH_PLATFORM_MTK )
 
 	mt_set_gpio_mode(GPIO_TOUCH_RESET, GPIO_TOUCH_RESET_M_GPIO);
@@ -507,7 +546,7 @@ int TouchInitializePlatform( void )
 	#endif
 
 	return TOUCH_SUCCESS;
-	
+
 }
 
 void TouchPower( int isOn )
@@ -524,13 +563,15 @@ void TouchAssertReset(void)
 
 void TouchResetCtrl( int isHigh )
 {
-	
+	if (wakeup_by_swipe_mit300)
+		return;
+
 	if( isHigh )
 	{
 		#if defined ( TOUCH_PLATFORM_QCT )
 		gpio_set_value(TOUCH_GPIO_RESET, 1);
 		#elif defined ( TOUCH_MODEL_LION_3G )
-		
+
 		#elif defined ( TOUCH_PLATFORM_MTK )
 		mt_set_gpio_out(GPIO_TOUCH_RESET, GPIO_OUT_ONE);
 		#else
@@ -544,16 +585,16 @@ void TouchResetCtrl( int isHigh )
 		#if defined ( TOUCH_PLATFORM_QCT )
 		gpio_set_value(TOUCH_GPIO_RESET, 0);
 		#elif defined ( TOUCH_MODEL_LION_3G )
-		
+
 		#elif defined ( TOUCH_PLATFORM_MTK )
 		mt_set_gpio_out(GPIO_TOUCH_RESET, GPIO_OUT_ZERO);
 		#else
 		#error "Platform should be defined"
 		#endif
-		
+
 		TOUCH_LOG("Reset Pin was set to LOW\n");
 	}
-	
+
 }
 
 int TouchRegisterIrq ( TouchDriverData *pDriverData, irq_handler_t irqHandler )
@@ -573,7 +614,7 @@ int TouchRegisterIrq ( TouchDriverData *pDriverData, irq_handler_t irqHandler )
 	nIrq_num = pDriverData->client->irq;
 
 	#elif defined ( TOUCH_PLATFORM_MTK )
-	
+
 	mt_eint_registration(CUST_EINT_TOUCH_PANEL_NUM, CUST_EINT_TOUCH_PANEL_TYPE, irqHandler, 1);
 
     #else
@@ -581,7 +622,7 @@ int TouchRegisterIrq ( TouchDriverData *pDriverData, irq_handler_t irqHandler )
 	#endif
 
 	return TOUCH_SUCCESS;
-	
+
 }
 
 void TouchEnableIrq( void )
@@ -591,31 +632,31 @@ void TouchEnableIrq( void )
 	//TouchClearPendingIrq(); // TBD
 
 	#if defined ( TOUCH_PLATFORM_QCT )
-	
+
 	enable_irq(nIrq_num);
-	
+
 	#elif defined ( TOUCH_PLATFORM_MTK )
-	
+
 	mt_eint_unmask(CUST_EINT_TOUCH_PANEL_NUM);
-	
+
 	#else
 	#error "Platform should be defined"
 	#endif
 
 	TOUCH_LOG("Interrupt Enabled\n");
-	
+
 }
 
 void TouchDisableIrq( void )
 {
 	#if defined ( TOUCH_PLATFORM_QCT )
-	
+
 	disable_irq(nIrq_num);
-	
+
 	#elif defined ( TOUCH_PLATFORM_MTK )
-	
+
 	mt_eint_mask(CUST_EINT_TOUCH_PANEL_NUM);
-	
+
 	#else
 	#error "Platform should be defined"
 	#endif
@@ -628,7 +669,7 @@ void TouchDisableIrq( void )
 int TouchReadMakerId(void)
 {
 	int pinState = 1; /* default value is "ONE" */
-	
+
 	#if defined ( TOUCH_PLATFORM_QCT )
 
 	#if defined ( TOUCH_GPIO_MAKER_ID )
@@ -649,13 +690,13 @@ int TouchReadInterrupt( void )
 	int gpioState = 0;
 
 	#if defined ( TOUCH_PLATFORM_QCT )
-	
+
 	gpioState = gpio_get_value(TOUCH_GPIO_INTERRUPT);
-	
+
 	#elif defined ( TOUCH_PLATFORM_MTK )
-	
+
 	gpioState = mt_get_gpio_in(GPIO_TOUCH_INT); /* TBD */
-	
+
 	#else
 	#error "Platform  should be defined"
 	#endif
@@ -663,11 +704,11 @@ int TouchReadInterrupt( void )
 	return gpioState;
 }
 
-#if defined ( TOUCH_DEVICE_LU201X )
+#if defined ( TOUCH_DEVICE_LU201X ) || defined ( TOUCH_DEVICE_LU202X )
 void TouchIntPinToggle(void)
 {
-	#if defined ( TOUCH_PLATFORM_MSM8210 )
-	
+	#if defined ( TOUCH_PLATFORM_MSM8916 )
+
 	// Add interrupt pin change for output mode
 	gpio_direction_output(TOUCH_GPIO_INTERRUPT, 0);
 	// Add here interrupt pin goes to low
@@ -679,24 +720,24 @@ void TouchIntPinToggle(void)
 	// Add here interrupt pin change for input mode
 	gpio_direction_input(TOUCH_GPIO_INTERRUPT);
 	mdelay(1);
-	
+
 	#else
 	#error "Platform  should be defined"
 	#endif
-	
+
 }
 #endif
 
 int TouchGetBootMode(void)
 {
 	int mode = BOOT_NORMAL;
-	
-	#if defined ( TOUCH_PLATFORM_MSM8916 )
+
+	#if defined ( TOUCH_PLATFORM_MSM8916 ) || defined ( TOUCH_PLATFORM_MSM8936 )
 	{
 		enum lge_boot_mode_type lge_boot_mode;
-		
+
 		lge_boot_mode = lge_get_boot_mode();
-		
+
 		if( lge_boot_mode == LGE_BOOT_MODE_CHARGERLOGO ) {
 			mode = BOOT_OFF_CHARGING;
 		} else if( lge_boot_mode ==  LGE_BOOT_MODE_MINIOS ) {
@@ -708,9 +749,9 @@ int TouchGetBootMode(void)
 	#elif defined ( TOUCH_PLATFORM_MSM8210)
 	{
 		enum lge_boot_mode_type lge_boot_mode;
-		
+
 		lge_boot_mode = lge_get_boot_mode();
-		
+
 		if( lge_boot_mode == LGE_BOOT_MODE_CHARGERLOGO ) {
 			mode = BOOT_OFF_CHARGING;
 		} else {
@@ -718,13 +759,13 @@ int TouchGetBootMode(void)
 		}
 	}
 	#elif defined ( TOUCH_PLATFORM_MTK )
-	
+
 	#else
 	#error "Platform should be defined"
 	#endif
 
 	return mode;
-	
+
 }
 
 
@@ -743,7 +784,7 @@ void touch_keylock_enable(int key_lock)
 	{
 		TouchDisableIrq();
 		key_lock_status = 1;
-	}	
+	}
 }
 EXPORT_SYMBOL(touch_keylock_enable);
 #endif

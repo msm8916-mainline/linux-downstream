@@ -58,6 +58,7 @@
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/irq.h>
+#include <linux/clk.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/module.h>
@@ -71,7 +72,7 @@
 
 #include "ci13xxx_udc.h"
 
-#ifdef CONFIG_USB_G_LGE_ANDROID_PFSC
+#ifdef CONFIG_LGE_USB_G_ANDROID_PFSC
 #ifdef CONFIG_64BIT
 #include <soc/qcom/lge/board_lge.h>
 #else
@@ -345,7 +346,7 @@ static int hw_device_reset(struct ci13xxx *udc)
 {
 	int delay_count = 25; /* 250 usec */
 
-#ifdef CONFIG_USB_G_LGE_ANDROID_PFSC
+#ifdef CONFIG_LGE_USB_G_ANDROID_PFSC
 	enum lge_boot_mode_type boot_mode;
 #endif
 
@@ -388,7 +389,7 @@ static int hw_device_reset(struct ci13xxx *udc)
 		return -ENODEV;
 	}
 
-#ifdef CONFIG_USB_G_LGE_ANDROID_PFSC
+#ifdef CONFIG_LGE_USB_G_ANDROID_PFSC
 
 	/* USB FS only used in 130K */
 
@@ -415,6 +416,7 @@ static int hw_device_state(u32 dma)
 {
 	struct ci13xxx *udc = _udc;
 	struct usb_gadget *gadget = &udc->gadget;
+	int ret;
 
 	if (dma) {
 		if (gadget->streaming_enabled || !(udc->udc_driver->flags &
@@ -422,12 +424,38 @@ static int hw_device_state(u32 dma)
 			hw_cwrite(CAP_USBMODE, USBMODE_SDIS, 0);
 			pr_debug("%s(): streaming mode is enabled. USBMODE:%x\n",
 				 __func__, hw_cread(CAP_USBMODE, ~0));
+
+			/* In streaming mode, allowed to increase USB system
+			 * clock upto 133MHz. But, going to 133MHz require
+			 * system to run at turbo. Hence setting up optimum
+			 * frequency 100MHZ, that operates in nominal mode.
+			 */
+			if (udc->system_clk) {
+				ret = clk_set_rate(udc->system_clk, 100000000);
+				if (ret)
+					pr_err("fail to set system_clk: %d\n",
+						ret);
+			}
 		} else {
 			hw_cwrite(CAP_USBMODE, USBMODE_SDIS, USBMODE_SDIS);
 			pr_debug("%s(): streaming mode is disabled. USBMODE:%x\n",
 				__func__, hw_cread(CAP_USBMODE, ~0));
 
+			/* In non-stream mode, due to HW limitation cannot go
+			 * beyond 80MHz, otherwise, may see EP prime failures.
+			 */
+			if (udc->system_clk) {
+				ret = clk_set_rate(udc->system_clk, 80000000);
+				if (ret)
+					pr_err("fail to set system_clk: %d\n",
+						ret);
+			}
+
 		}
+
+		/* make sure clock set rate is finished before proceeding */
+		mb();
+
 		hw_cwrite(CAP_ENDPTLISTADDR, ~0, dma);
 
 
@@ -450,6 +478,18 @@ static int hw_device_state(u32 dma)
 			hw_awrite(ABS_AHBMODE, AHB2AHB_BYPASS, 0);
 			pr_debug("%s(): ByPass Mode is disabled. AHBMODE:%x\n",
 					__func__, hw_aread(ABS_AHBMODE, ~0));
+
+		/* In non-stream mode, due to HW limitation cannot go
+		 * beyond 80MHz, otherwise, may see EP prime failures.
+		 */
+		if (udc->system_clk) {
+			ret = clk_set_rate(udc->system_clk, 80000000);
+			if (ret)
+				pr_err("fail to set system_clk ret:%d\n", ret);
+		}
+
+		/* make sure clock set rate is finished before proceeding */
+		mb();
 		}
 	}
 	return 0;
@@ -507,6 +547,10 @@ static int hw_ep_flush(int num, int dir)
 					dir ? "IN" : "OUT");
 				debug_ept_flush_info(num, dir);
 				_udc->skip_flush = true;
+				/* Notify to trigger h/w reset recovery later */
+				if (_udc->udc_driver->notify_event)
+					_udc->udc_driver->notify_event(_udc,
+						CI13XXX_CONTROLLER_ERROR_EVENT);
 				return 0;
 			}
 		}
@@ -2941,7 +2985,7 @@ __acquires(udc->lock)
 					udc->gadget.remote_wakeup = 1;
 					err = isr_setup_status_phase(udc);
 					break;
-#ifdef CONFIG_USB_G_LGE_ANDROID_OTG // this feature is not set.
+#ifdef CONFIG_LGE_USB_G_ANDROID_OTG // this feature is not set.
 				case USB_DEVICE_B_HNP_ENABLE:
 					udc->gadget.b_hnp_enable = 1;
 					err = isr_setup_status_phase(udc);
@@ -2962,7 +3006,7 @@ __acquires(udc->lock)
 				case USB_DEVICE_A_ALT_HNP_SUPPORT:
 					err = 0;
 					break;
-#endif //                             
+#endif // CONFIG_LGE_USB_G_ANDROID_OTG
 				case USB_DEVICE_TEST_MODE:
 					tmode = le16_to_cpu(req.wIndex) >> 8;
 					switch (tmode) {
@@ -2975,7 +3019,7 @@ __acquires(udc->lock)
 						err = isr_setup_status_phase(
 								udc);
 						break;
-#ifdef CONFIG_USB_G_LGE_ANDROID_OTG // this feature is not set.
+#ifdef CONFIG_LGE_USB_G_ANDROID_OTG // this feature is not set.
 					case TEST_OTG_SRP_REQD:
 						udc->gadget.otg_srp_reqd = 1;
 						err = isr_setup_status_phase(
@@ -2993,7 +3037,7 @@ __acquires(udc->lock)
 					case TEST_OTG_HNP_REQD:
 						err = 0;
 						break;
-#endif //                             
+#endif // CONFIG_LGE_USB_G_ANDROID_OTG
 					default:
 						break;
 					}
@@ -3627,9 +3671,25 @@ static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
 	return 0;
 }
 
+#define VBUS_DRAW_BUF_LEN 10
+#define MAX_OVERRIDE_VBUS_ALLOWED 900	/* 900 mA */
+static char vbus_draw_mA[VBUS_DRAW_BUF_LEN];
+module_param_string(vbus_draw_mA, vbus_draw_mA, VBUS_DRAW_BUF_LEN,
+			S_IRUGO | S_IWUSR);
+
 static int ci13xxx_vbus_draw(struct usb_gadget *_gadget, unsigned mA)
 {
 	struct ci13xxx *udc = container_of(_gadget, struct ci13xxx, gadget);
+	unsigned int override_mA = 0;
+
+	/* override param to draw more current if battery draining faster */
+	if ((mA == CONFIG_USB_GADGET_VBUS_DRAW) &&
+		(vbus_draw_mA[0] != '\0')) {
+		if ((!kstrtoint(vbus_draw_mA, 10, &override_mA)) &&
+				(override_mA <= MAX_OVERRIDE_VBUS_ALLOWED)) {
+			mA = override_mA;
+		}
+	}
 
 	if (udc->transceiver)
 		return usb_phy_set_power(udc->transceiver, mA);
@@ -3849,8 +3909,7 @@ static irqreturn_t udc_irq(void)
 
 	spin_lock(udc->lock);
 
-	if ((udc->udc_driver->flags & CI13XXX_PULLUP_ON_VBUS) &&
-				!udc->vbus_active) {
+	if (udc->udc_driver->in_lpm && udc->udc_driver->in_lpm(udc)) {
 		spin_unlock(udc->lock);
 		return IRQ_NONE;
 	}
@@ -4023,8 +4082,10 @@ static int udc_probe(struct ci13xxx_udc_driver *driver, struct device *dev,
 	udc->gadget.ep0 = &udc->ep0in.ep;
 
 	pdata = dev->platform_data;
-	if (pdata)
+	if (pdata) {
 		udc->gadget.usb_core_id = pdata->usb_core_id;
+		udc->system_clk = pdata->system_clk;
+	}
 
 	if (udc->udc_driver->flags & CI13XXX_REQUIRE_TRANSCEIVER) {
 		udc->transceiver = usb_get_phy(USB_PHY_TYPE_USB2);

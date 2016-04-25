@@ -41,21 +41,30 @@
     const unsigned long judge_coefficient[COEFFICIENT] = { 29, 65, 85,158};
  */
 
-/*                   */
-#define PS_ALS_SET_MODE_CONTROL   (NORMAL_MODE | PS_PULSE_200 | MTIME_ALSPS_0_100)
+/* ssoon.lee@lge.com */
+#define PS_ALS_SET_MODE_CONTROL   (NORMAL_MODE | PS_PULSE_200 | MTIME_ALSPS_100_100)
 #define PS_ALS_SET_ALSPS_CONTROL  (LEDCURRENT_100MA | ALSGAIN_X1X1)
 #define PS_ALS_SET_PS_CONTROL     (INFRARED_LEVEL_TOOHIGH | PS_GAIN_X4 | PERSISTENCE)
-#define PS_ALS_SET_INTR           (PS_THH_BOTH_OUTSIDE | POLA_ACTIVEL | OUTPUT_LATCH | MODE_PROXIMITY)
-#define PS_ALS_SET_PS_TH          (150)
-#define PS_ALS_SET_PS_TL          (100)
-#define PS_ALS_SET_ALS_TH         (0xFFFF)
+#define PS_ALS_SET_INTR           (PS_THH_BOTH_OUTSIDE | POLA_ACTIVEL | OUTPUT_LATCH | MODE_BOTH)
+#define PS_ALS_SET_PS_TH          (16)
+#define PS_ALS_SET_PS_TL          (4)
+#define PS_ALS_SET_ALS_TH         (0x004b)
 #define PS_ALS_SET_ALS_TL         (0x0000)
 #define PS_ALS_SET_MIN_DELAY_TIME (125)
 
 #define COEFFICIENT               (4)
-const long          data0_coefficient[COEFFICIENT] = {708, 852, 614, 207};
-const long          data1_coefficient[COEFFICIENT] = {-16, 676, 380,  89};
-const unsigned long judge_coefficient[COEFFICIENT] = { 20,  80, 140, 231};
+
+/*D1-5T-SW-INPUT@lge.com*/
+#ifdef CONFIG_OF
+signed long judge_coef[COEFFICIENT] = { 1130, 1424, 1751, 3015};
+signed long data0_coef[COEFFICIENT] = { 6803, 3667, 2054, 1520};
+signed long data1_coef[COEFFICIENT] = { 4714, 1941,  809,  504};
+#else
+const signed long judge_coef[COEFFICIENT] = { 1130, 1424, 1751, 3015};
+const signed long data0_coef[COEFFICIENT] = { 6803, 3667, 2054, 1520};
+const signed long data1_coef[COEFFICIENT] = { 4714, 1941,  809,  504};
+#endif
+
 
 /*
     PS_ALS_SET_MODE_CONTROL : ALS,PS function setting

@@ -446,6 +446,7 @@ struct mxt_platform_data {
 	unsigned long gpio_ldo1;
 	unsigned long gpio_reset;
 	unsigned long gpio_int;
+	unsigned long gpio_id;
 	unsigned int panel_check;
 	unsigned char panel_on;
 	const char *fw_name;
@@ -456,7 +457,7 @@ struct mxt_platform_data {
 	unsigned int lcd_y;
 	int global_access_pixel;
 	u8 use_mfts;
-	u8 fw_ver[2];
+	u8 fw_ver[4];
 	u8 product[10];
 	unsigned int ghost_detection_enable;
 	unsigned int ghost_detection_value[GHOST_VALUE_MAX];
@@ -834,6 +835,10 @@ struct mxt_data {
 	int sensor;
 	int screen;
 	int qcover;
+
+	struct pinctrl *ts_pinctrl;
+	struct pinctrl_state *ts_pinctrl_state_active;
+	struct pinctrl_state *ts_pinctrl_state_suspend;
 
 	int msg_error;
 	int msg_info;

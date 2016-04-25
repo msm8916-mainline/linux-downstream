@@ -33,7 +33,7 @@
 	qcom,vddsafe-mv = <4380>;
 	qcom,vinmin-mv = <4470>;
 	qcom,tchg-mins = <480>;
-	qcom,btc-disabled = <1>;
+	qcom,btc-disabled;
 	qcom,resume-soc = <98>;
 	qcom,disable-vbatdet-based-recharge;
 };
@@ -42,11 +42,11 @@
 	qcom,msm-thermal {
 		qcom,freq-control-mask = <0xf>;
 		qcom,core-control-mask = <0xe>;
-		qcom,hotplug-temp = <110>;
-		qcom,hotplug-temp-hysteresis = <20>;
-		qcom,freq-mitigation-temp = <110>;
-		qcom,freq-mitigation-temp-hysteresis = <20>;
-		qcom,freq-mitigation-value = <960000>;
+		qcom,hotplug-temp = <94>;
+		qcom,hotplug-temp-hysteresis = <15>;
+		qcom,freq-mitigation-temp = <94>;
+		qcom,freq-mitigation-temp-hysteresis = <10>;
+		qcom,freq-mitigation-value = <400000>;
 		};
 };
 
@@ -60,7 +60,7 @@ qcom,pm8916@0 {
 			linux,default-trigger = "none";
 			qcom,default-state = "on";
 			qcom,max-current = <40>;
-			qcom,current-setting = <40>;
+			qcom,current-setting = <5>;
 			charge-current = <5>;
 			qcom,id = <6>;
 			qcom,mode = "pwm";
@@ -115,42 +115,42 @@ qcom,pm8916@0 {
 
 / {
 	BL51YF_LGC_3000MAH_BATTERY: rt,lgc-battery-data {
-		rt,vgpara_hcap = <0x8155 0x825A 0x8337 0x8455 0x8501>;
-		rt,vgpara_lcap = <0x8141 0x8225 0x8337 0x8455 0x8501>;
+		rt,vgpara_hcap = <0x8155 0x825A 0x8341 0x8455 0x8501>;
+		rt,vgpara_lcap = <0x8141 0x8225 0x8350 0x845A 0x8501>;
 		rt,r1_gain_hcap = < 1 150 0 100 1 150>;
 		rt,r2_gain_hcap = < 1 375 0 550 1 375>;
-		rt,r3_gain_hcap = < 1 150 0 100 0 150>;
-		rt,r4_gain_hcap = < 1 150 0 0   1 150>;
+		rt,r3_gain_hcap = < 1 175 0 225 1 175>;
+		rt,r4_gain_hcap = < 1 150 0 25  1 150>;
 		rt,r1_gain_lcap = < 1 75  0 200 1 75>;
 		rt,r2_gain_lcap = < 1 110 1 10  1 110>;
-		rt,r3_gain_lcap = < 1 150 0 100 1 150>;
-		rt,r4_gain_lcap = < 1 150 0 0   1 150>;
+		rt,r3_gain_lcap = < 1 225 0 225 1 225>;
+		rt,r4_gain_lcap = < 1 150 0 50  1 150>;
 	};
 
 	BL51YF_TECHNOPHILE_3000MAH_BATTERY: rt,technophile-battery-data {
-		rt,vgpara_hcap = <0x814B 0x8223 0x8314 0x8469 0x8501>;
-		rt,vgpara_lcap = <0x814B 0x8219 0x8328 0x8469 0x8501>;
+		rt,vgpara_hcap = <0x814B 0x8223 0x831E 0x8473 0x8501>;
+		rt,vgpara_lcap = <0x814B 0x8219 0x833C 0x8478 0x8501>;
 		rt,r1_gain_hcap = < 1 225 0 125 1 225>;
-		rt,r2_gain_hcap = < 1 50  0 325  1 50>;
-		rt,r3_gain_hcap = < 0 25  0 100 0 25>;
-		rt,r4_gain_hcap = < 1 350 1 50 1 350>;
-		rt,r1_gain_lcap = < 1 225 0 0 1 225>;
-		rt,r2_gain_lcap = < 0 0  0 50  0 0>;
-		rt,r3_gain_lcap = < 1 65  0 75 1 65>;
-		rt,r4_gain_lcap = < 1 350 1 50 1 350>;
+		rt,r2_gain_hcap = < 1 50  0 325 1 50>;
+		rt,r3_gain_hcap = < 0 0   0 125 0 0>;
+		rt,r4_gain_hcap = < 1 375 1 50  1 375>;
+		rt,r1_gain_lcap = < 1 225 0 0   1 225>;
+		rt,r2_gain_lcap = < 0 0   0 50  0 0>;
+		rt,r3_gain_lcap = < 1 125 0 100 1 125>;
+		rt,r4_gain_lcap = < 1 375 1 75  1 375>;
 	};
 
 	BL51YF_DEFAULT_3000MAH_BATTERY: rt,default-battery-data {
-		rt,vgpara_hcap = <0x8155 0x825A 0x8337 0x8455 0x8501>;
-		rt,vgpara_lcap = <0x8141 0x8225 0x8337 0x8455 0x8501>;
+		rt,vgpara_hcap = <0x8155 0x825A 0x8341 0x8455 0x8501>;
+		rt,vgpara_lcap = <0x8141 0x8225 0x8350 0x845A 0x8501>;
 		rt,r1_gain_hcap = < 1 150 0 100 1 150>;
 		rt,r2_gain_hcap = < 1 375 0 550 1 375>;
-		rt,r3_gain_hcap = < 1 150 0 100 0 150>;
-		rt,r4_gain_hcap = < 1 150 0 0   1 150>;
+		rt,r3_gain_hcap = < 1 175 0 225 1 175>;
+		rt,r4_gain_hcap = < 1 150 0 25  1 150>;
 		rt,r1_gain_lcap = < 1 75  0 200 1 75>;
 		rt,r2_gain_lcap = < 1 110 1 10  1 110>;
-		rt,r3_gain_lcap = < 1 150 0 100 1 150>;
-		rt,r4_gain_lcap = < 1 150 0 0   1 150>;
+		rt,r3_gain_lcap = < 1 225 0 225 1 225>;
+		rt,r4_gain_lcap = < 1 150 0 50  1 150>;
 	};
 };
 
@@ -213,11 +213,13 @@ qcom,pm8916@0 {
 		ti,ext-chg-disen-gpio = <&msm_gpio 17 0>;
 		ti,term-current-ma = <150>;
 		ti,vbat-max-mv = <4400>;		/* Step unit 20 mV, battery available voltage(x = 4.375) : x-0.025 ~ x ~ x+0.025 */
+		ti,safety-time = <480>;
 		ti,vin-limit-mv = <4540>;
 		/* Pins config setting */
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&bq24262_int_active &bq24262_ext_stat_active>;
-		pinctrl-1 = <&bq24262_int_sleep &bq24262_ext_stat_sleep>;
+		pinctrl-1 = <&bq24262_int_sleep &bq24262_ext_stat_sleep
+				&nc_sleep>;
 
 /* Each model is defferently value */
 		lge,no-init-cable = <0 0 0>;

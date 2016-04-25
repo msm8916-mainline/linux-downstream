@@ -11,6 +11,11 @@
  * of the License, or (at your option) any later version.
  */
 
+/* C100n - Rev.0 : TI + RT9428 / Rev.a... : LBC + VM-BMS */
+#if defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
+#undef CONFIG_QPNP_LINEAR_CHARGER
+#endif
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -27,6 +32,14 @@
 #include <linux/uaccess.h>
 #include <linux/miscdevice.h>
 #include <linux/delay.h>
+#include <linux/pinctrl/pinctrl-state.h>
+
+#ifdef CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER
+#include <linux/power/bq24262_charger.h>
+#endif
+#ifdef CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER
+#include <linux/power/bq24296_charger.h>
+#endif
 
 #include <linux/power/rt9428_battery.h>
 #ifdef CONFIG_LGE_PM_BATTERY_ID_CHECKER
@@ -42,7 +55,16 @@
 #define RT9428_POLLING_PERIOD_7       10000
 #define RT9428_POLLING_PERIOD_3       5000
 #endif
+#if defined(CONFIG_MACH_MSM8916_YG_SKT_KR)
+#define RT9428_SOC_RESCALING 94
+#elif defined(CONFIG_MACH_MSM8916_C100N_KR)
+#define RT9428_SOC_RESCALING 99
+#elif defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || \
+      defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
+#define RT9428_SOC_RESCALING 99
+#else
 #define RT9428_SOC_RESCALING 93
+#endif
 #define SOC_EXCECPTION_PERIOD_BASE 30000 /* 30 sec */
 
 struct rt9428_chip {
@@ -61,11 +83,20 @@ struct rt9428_chip {
 	int last_vcell;
 	int vcell;
 	int qs_flag;
+#if defined(CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC) || defined(CONFIG_LGE_PM_BATTERY_RT9428_RAW_SOC)
+	int last_raw_capacity;
+#endif
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	bool	eoc_flag;
+	int plateau_cnt;
+	struct wake_lock eoc_lock;
+#endif
 	unsigned char suspend:1;
 	unsigned char online:1;
 	unsigned char reg_addr;
 	unsigned int reg_data;
 	struct wake_lock update_lock;
+	struct wake_lock irq_lock;
 	bool update_lock_flag;
 #ifdef CONFIG_LGE_PM_RT9428_POLLING
 	struct wake_lock polling_lock;
@@ -140,10 +171,19 @@ static enum power_supply_property rt_fg_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_CAPACITY,
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	POWER_SUPPLY_PROP_CAPACITY_RAW,
+#endif
 };
 
 #ifdef CONFIG_LGE_PM
 static struct rt9428_chip *ref;
+#if defined(CONFIG_QPNP_LINEAR_CHARGER) || defined(CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER)
+static int get_prop_hw_rev(void)
+{
+	return lge_get_board_revno();
+}
+#endif
 #endif
 
 static inline int rt9428_read_device(struct i2c_client *i2c,
@@ -256,10 +296,147 @@ static int rt9428_clr_bits(struct i2c_client *i2c, int reg, unsigned char mask)
 
 static void rt9428_update_info(struct rt9428_chip *chip);
 
+#if defined(CONFIG_QPNP_LINEAR_CHARGER)
+extern int get_prop_batt_temp_raw(void);
+#endif
+
+bool rt9428_battery_present_checker(void)
+{
+	int batt_temp = 0;
+
+#if defined(CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER) && defined(CONFIG_QPNP_LINEAR_CHARGER)
+	if (get_prop_hw_rev() > HW_REV_0)
+		batt_temp = get_prop_batt_temp_raw();
+	else
+		batt_temp = bq24262_get_prop_batt_temp_raw();
+#elif defined(CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER) && defined(CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER)
+	if (get_prop_hw_rev() == HW_REV_A)
+		batt_temp = bq24296_get_batt_temp_origin();
+	else
+		batt_temp = bq24262_get_prop_batt_temp_raw();
+#elif defined(CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER) && !defined(CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER)
+	batt_temp = bq24262_get_prop_batt_temp_raw();
+#elif defined(CONFIG_QPNP_LINEAR_CHARGER)
+	batt_temp = get_prop_batt_temp_raw();
+#endif
+
+	if (batt_temp <= -300 || batt_temp >= 790)
+		return false;
+	else
+		return true;
+}
+
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+#define EOC_SOC_LEVEL 100
+static int rt9428_get_battery_status(struct rt9428_chip *chip)
+{
+	union power_supply_propval ret = {0,};
+
+	if (chip->batt_psy == NULL)
+		chip->batt_psy = power_supply_get_by_name("battery");
+	if (chip->batt_psy) {
+		/* if battery has been registered, use the status property */
+		chip->batt_psy->get_property(chip->batt_psy,
+					POWER_SUPPLY_PROP_STATUS_RAW, &ret);
+		return ret.intval;
+	}
+
+	/* Default to false if the battery power supply is not registered. */
+	pr_debug("battery power supply is not registered\n");
+	return POWER_SUPPLY_STATUS_UNKNOWN;
+
+}
+
+static int rt9428_report_eoc(struct rt9428_chip *chip)
+{
+	int rc = -EINVAL;
+	union power_supply_propval ret = {0,};
+
+	if (chip->batt_psy == NULL)
+		chip->batt_psy = power_supply_get_by_name("battery");
+	if (chip->batt_psy) {
+		rc = chip->batt_psy->get_property(chip->batt_psy,
+				POWER_SUPPLY_PROP_STATUS_RAW, &ret);
+		if (rc) {
+			pr_err("Unable to get battery 'STATUS' rc=%d\n", rc);
+		} else if (ret.intval != POWER_SUPPLY_STATUS_FULL) {
+			pr_info("%s: Report End of charging to charger\n",__func__);
+			ret.intval = POWER_SUPPLY_STATUS_FULL;
+			rc = chip->batt_psy->set_property(chip->batt_psy,
+					POWER_SUPPLY_PROP_STATUS_RAW, &ret);
+			if (rc) {
+				pr_err("Unable to set 'STATUS' rc=%d\n", rc);
+				return rc;
+			}
+		}
+	} else {
+		pr_err("battery psy not registered\n");
+	}
+
+	return rc;
+
+}
+static void rt9428_check_eoc_condition(struct rt9428_chip *chip)
+{
+	int rc;
+	int status = rt9428_get_battery_status(chip);
+	union power_supply_propval ret = {0,};
+
+	if (status == POWER_SUPPLY_STATUS_UNKNOWN) {
+		pr_err("Unable to read battery status\n");
+		return;
+	}
+
+	/*
+	 * Check battery status:
+	 * if last_soc is 100 and battery status is still charging
+	 * force reporting of eoc to charger.
+	 */
+	if ((chip->last_raw_capacity >= EOC_SOC_LEVEL) &&
+			(status == POWER_SUPPLY_STATUS_CHARGING))
+		chip->eoc_flag = 0;
+
+	if (!chip->eoc_flag) {
+		if (chip->last_raw_capacity >= EOC_SOC_LEVEL) {
+				rc = rt9428_report_eoc(chip);
+				if (!rc) {
+					pr_info("%s: Battery FULL\n",__func__);
+					chip->eoc_flag = 1;
+				} else {
+					pr_err("Unable to report eoc rc=%d\n",
+							rc);
+				}
+		}
+	} else {
+		if (chip->last_raw_capacity < EOC_SOC_LEVEL) {
+			/*
+			 * Report that the battery is discharging.
+			 * This gets called once when the SOC falls
+			 * below 100.
+			 */
+			pr_info("%s: Prepare to recharge Battery \n", __func__);
+			ret.intval = POWER_SUPPLY_STATUS_DISCHARGING;
+			chip->batt_psy->set_property(chip->batt_psy,
+						POWER_SUPPLY_PROP_STATUS_RAW, &ret);
+			chip->eoc_flag = 0;
+		}
+	}
+}
+void rt9428_handle_charger_unplug(void) {
+	if (wake_lock_active(&ref->eoc_lock)){
+		pr_err("%s: release eoc lock <<< \n",__func__);
+		wake_unlock(&ref->eoc_lock);
+	}
+	ref->plateau_cnt = 0;
+}
+#endif
+
 static int rt9428_get_capacity(struct rt9428_chip *chip)
 {
 	int capacity = 0;
-
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	int capa_diff =0;
+#endif
 	capacity = rt9428_reg_read(chip->i2c, RT9428_REG_SOCH);
 	capacity *= 10;
 
@@ -280,10 +457,25 @@ static int rt9428_get_capacity(struct rt9428_chip *chip)
 			}
 			else
 				capacity = 0;
+#if defined(CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC) || defined(CONFIG_LGE_PM_BATTERY_RT9428_RAW_SOC)
+			chip->last_raw_capacity = capacity;
+#endif
 		}
 		/* 10% ~  */
 		else {
 			capacity = DIV_ROUND_UP(capacity, 10);
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+			if(capacity >= EOC_SOC_LEVEL) {
+				capa_diff = abs(chip->last_raw_capacity - capacity);
+				chip->last_raw_capacity = capacity;
+				if(capa_diff)
+					rt9428_check_eoc_condition(chip);
+			} else {
+				chip->last_raw_capacity = capacity;
+			}
+#elif defined(CONFIG_LGE_PM_BATTERY_RT9428_RAW_SOC)
+			chip->last_raw_capacity = capacity;
+#endif
 			/* soc rescaling */
 			capacity = ((capacity*100000)/RT9428_SOC_RESCALING)/1000;
 		}
@@ -301,6 +493,13 @@ static int rt9428_get_vcell(struct rt9428_chip *chip)
 {
 	int regval;
 	int rc;
+	bool batt_present;
+
+	batt_present = rt9428_battery_present_checker();
+	if (!batt_present) {
+		pr_err("%s: no battery, skip get_vcell\n", __func__);
+		return RT9428_DEFAULT_VCELL;
+	}
 
 	regval = rt9428_reg_read_word(chip->i2c, RT9428_REG_VBATH);
 	if (regval < 0)
@@ -416,7 +615,12 @@ with_ta:
 	pr_err("%s:soc1 = %d\n", __func__, soc1);
 	pr_err("%s:soc2 = %d\n", __func__, soc2);
 	/* this compensation code is for charging current 1.0A, 1.2A  */
+#ifdef CONFIG_QPNP_LINEAR_CHARGER
+	soc1 = (soc2 *10*3 + soc1*10)/4;
+	soc1 = DIV_ROUND_UP(soc1, 10);
+#else
 	soc1 = (soc2 *4 + soc1)/5;
+#endif
 	pr_err("%s:soc_new = %d\n", __func__, soc1);
 	goto update_soc_new;
 without_ta:
@@ -487,17 +691,32 @@ static ssize_t rt_fg_show_attrs_factory(struct device *dev,
 {
 	const ptrdiff_t offset = attr - rt_fuelgauge_attrs_factory;
 	int i = 0;
+	bool batt_present = rt9428_battery_present_checker();
 
 	switch (offset) {
 	case FG_CAPACITY:
-		disable_irq(gpio_to_irq(ref->pdata->alert_gpio));
-		i = rt9428_get_capacity(ref);
-		enable_irq(gpio_to_irq(ref->pdata->alert_gpio));
+		if (batt_present) {
+			disable_irq(gpio_to_irq(ref->pdata->alert_gpio));
+			i = rt9428_get_capacity(ref);
+			enable_irq(gpio_to_irq(ref->pdata->alert_gpio));
+		}
+		else {
+			pr_err("%s: no battery, set RT9428_DEFAULT_SOC\n",
+					__func__);
+			i = RT9428_DEFAULT_SOC;
+		}
 		break;
 	case FG_VOLTAGE:
-		disable_irq(gpio_to_irq(ref->pdata->alert_gpio));
-		i = rt9428_get_vcell(ref);
-		enable_irq(gpio_to_irq(ref->pdata->alert_gpio));
+		if (batt_present) {
+			disable_irq(gpio_to_irq(ref->pdata->alert_gpio));
+			i = rt9428_get_vcell(ref);
+			enable_irq(gpio_to_irq(ref->pdata->alert_gpio));
+		}
+		else {
+			pr_err("%s: no battery, set RT9428_DEFAULT_VCELL\n",
+					__func__);
+			i = RT9428_DEFAULT_VCELL;
+		}
 		break;
 	case FG_FUELRST:
 	default:
@@ -516,14 +735,21 @@ static ssize_t rt_fg_store_attrs_factory(struct device *dev,
 {
 	const ptrdiff_t offset = attr - rt_fuelgauge_attrs_factory;
 	int ret = 0;
+	bool batt_present = rt9428_battery_present_checker();
 
 	switch (offset) {
 	case FG_FUELRST:
 		if (strncmp(buf, "reset", 5) == 0) {
-			disable_irq(gpio_to_irq(ref->pdata->alert_gpio));
-			rt9428_execute_qs_command(ref);
-			enable_irq(gpio_to_irq(ref->pdata->alert_gpio));
-			ret = count;
+			if (batt_present) {
+				disable_irq(gpio_to_irq(ref->pdata->alert_gpio));
+				rt9428_execute_qs_command(ref);
+				enable_irq(gpio_to_irq(ref->pdata->alert_gpio));
+				ret = count;
+			}
+			else {
+				pr_err("%s: no battery, skip FG_FUELRST\n", __func__);
+				ret = -EINVAL;
+			}
 		}
 		else
 			ret = -EINVAL;
@@ -708,7 +934,14 @@ static int rt_fg_get_property(struct power_supply *psy,
 		val->intval = chip->online;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-		val->intval = rt9428_get_vcell(chip);
+		if (chip->suspend) {
+			if (chip->vcell != 0)
+				val->intval = chip->vcell;
+			else
+				val->intval = RT9428_DEFAULT_VCELL;
+		}
+		else
+			val->intval = rt9428_get_vcell(chip);
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
 		/*now casually return a constant value */
@@ -724,6 +957,11 @@ static int rt_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 		val->intval = chip->pdata->full_design;
 		break;
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	case POWER_SUPPLY_PROP_CAPACITY_RAW:
+		val->intval = chip->last_raw_capacity;
+		break;
+#endif
 	default:
 		rc = -EINVAL;
 		break;
@@ -755,11 +993,29 @@ static void rt9428_update_info(struct rt9428_chip *chip)
 	int btemp, original_btemp;
 	int regval, capacity, capacity_raw, diff_capa = 0;
 	struct rt9428_platform_data *pdata = chip->pdata;
+#ifdef CONFIG_MACH_MSM8916_C100N_KR
+	struct power_supply *psy;
+	union power_supply_propval pval;
+#endif
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	int status = rt9428_get_battery_status(chip);
+	if ((chip->last_raw_capacity == 99)
+		&& (status == POWER_SUPPLY_STATUS_CHARGING)){
+		if (!wake_lock_active(&chip->eoc_lock)){
+			pr_err("%s: acquire eoc lock >>> \n",__func__);
+			wake_lock(&chip->eoc_lock);
+		}
+	}
+#endif
 
 	if (chip->update_lock_flag)
 		pr_err("%s: exception, try update again.\n", __func__);
 	else
 		wake_lock(&chip->update_lock);
+
+	/* wake_unlock irq_lock */
+	if (wake_lock_active(&chip->irq_lock))
+		wake_unlock(&chip->irq_lock);
 
 	/*always clr ALRT */
 	pr_debug("%s: ++\n", __func__);
@@ -769,7 +1025,9 @@ static void rt9428_update_info(struct rt9428_chip *chip)
 	/*get battery voltage store to chip->vcell */
 	regval = rt9428_reg_read_word(chip->i2c, RT9428_REG_VBATH);
 	if (regval < 0) {
-		pr_err("%s:read vcell fail\n", __func__);
+		if (wake_lock_active(&chip->update_lock))
+			wake_unlock(&chip->update_lock);
+		pr_err("%s:read vcell fail, release update_lock\n", __func__);
 		return;
 	}
 	chip->vcell = ((regval >> 4) * 5) >> 2;
@@ -793,7 +1051,7 @@ static void rt9428_update_info(struct rt9428_chip *chip)
 		btemp = 5;
 	else
 		btemp = 25;
-	pr_err("%s:original_temp=%d, btemp=%d\n", __func__, original_btemp,
+	pr_err("%s: original_temp=%d, btemp=%d\n", __func__, original_btemp,
 		 btemp);
 
 	mutex_lock(&chip->var_lock);
@@ -1008,6 +1266,32 @@ static void rt9428_update_info(struct rt9428_chip *chip)
 	pr_err("%s: last_capa:%d. capa:%d\n", __func__,
 			chip->last_capacity, capacity);
 
+#ifdef CONFIG_MACH_MSM8916_C100N_KR
+	if ((chip->last_capacity == 5) && (capacity > 5)) {
+		psy = power_supply_get_by_name("ac");
+		if (!psy) {
+			pr_err("%s:cannot get charger supply\n", __func__);
+		}
+
+		regval = psy->get_property(psy, POWER_SUPPLY_PROP_PRESENT, &pval);
+		if (regval < 0) {
+			pr_err("%s:get charger online fail\n", __func__);
+		} else {
+			if (!pval.intval) {
+				pr_err("%s:TA/USB does not exist! do not update raised SOC ", __func__);
+#ifdef CONFIG_LGE_PM_RT9428_IRQ_LOW_WA
+				mutex_unlock(&chip->soc_update_lock);
+#endif
+				if (wake_lock_active(&chip->update_lock))
+					wake_unlock(&chip->update_lock);
+				return;
+			} else {
+				pr_err("%s:TA/USB exist! update raised SOC ", __func__);
+			}
+		}
+	}
+#endif
+
 	diff_capa = abs(chip->last_capacity - capacity);
 
 	if ( diff_capa > 1 && !chip->qs_flag ) {
@@ -1036,13 +1320,17 @@ static void rt9428_update_info(struct rt9428_chip *chip)
 #ifdef CONFIG_LGE_PM_RT9428_IRQ_LOW_WA
 		mutex_unlock(&chip->soc_update_lock);
 #endif
+		if (wake_lock_active(&chip->update_lock))
+			wake_unlock(&chip->update_lock);
 		return;
 	}
 #ifdef CONFIG_LGE_PM_RT9428_IRQ_LOW_WA
 	mutex_unlock(&chip->soc_update_lock);
 #endif
-	if (chip->update_lock_flag == false)
-		wake_unlock(&chip->update_lock);
+	if (chip->update_lock_flag == false) {
+		if (wake_lock_active(&chip->update_lock))
+			wake_unlock(&chip->update_lock);
+	}
 
 	power_supply_changed(chip->batt_psy);
 	pr_debug("%s: --\n", __func__);
@@ -1065,15 +1353,29 @@ void rt9428_reg_info(struct rt9428_chip *chip)
 	pr_err("%s:[2h~Fh] %s\n", __func__, buf);
 }
 
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+#define RT9428_QS_period_min 20
+#endif
+
 static void rt9428_polling_work(struct work_struct *work)
 {
 	struct rt9428_chip *chip;
 	union power_supply_propval soc;
+
 	int voltage_now = 0;
 #ifdef CONFIG_LGE_PM_RT9428_IRQ_LOW_WA
 	int regval = 0;
 	bool alert_bit = 0;
 #endif
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	int status;
+#endif
+#if defined(CONFIG_MACH_MSM8916_PH1)
+	int regval = 0;
+	struct power_supply *psy;
+	union power_supply_propval pval;
+#endif
+
 	chip = container_of(work, struct rt9428_chip, polling_work.work);
 
 	if (chip == NULL) {
@@ -1081,13 +1383,48 @@ static void rt9428_polling_work(struct work_struct *work)
 		return;
 	}
 
+	if (chip->suspend) {
+		pr_err("%s:suspend, no read rt9428_reg\n", __func__);
+		goto reschedule_work;
+	}
+
 	rt9428_reg_info(chip);
 	voltage_now = rt9428_get_vcell(chip);
 	chip->batt_psy->get_property(chip->batt_psy,
 			POWER_SUPPLY_PROP_CAPACITY, &soc);
-
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	status = rt9428_get_battery_status(chip);
+	if ((chip->last_raw_capacity == 99)
+		&& (status == POWER_SUPPLY_STATUS_CHARGING)){
+		if (!wake_lock_active(&chip->eoc_lock)) {
+			pr_err("%s: acquire eoc lock >>> \n",__func__);
+			wake_lock(&chip->eoc_lock);
+		}
+		pr_err("%s: voltage : %dmV / soc : %d%% (raw:%d) / %d-%d (eoc monitor)\n"
+			,__func__ ,voltage_now ,soc.intval,chip->last_raw_capacity,status,chip->plateau_cnt);
+		if (chip->plateau_cnt == RT9428_QS_period_min) {
+			pr_info("%s: QS for EOC\n",__func__);
+			rt9428_execute_qs_command(chip);
+			chip->plateau_cnt = 0;
+		} else {
+			chip->plateau_cnt++;
+		}
+	} else {
+		pr_err("%s: voltage : %dmV / soc : %d%% (raw:%d) / %d \n"
+			,__func__ ,voltage_now ,soc.intval,chip->last_raw_capacity,status);
+		chip->plateau_cnt = 0;
+		if (wake_lock_active(&chip->eoc_lock)){
+			pr_err("%s: release eoc lock <<<\n",__func__);
+			wake_unlock(&chip->eoc_lock);
+		}
+	}
+#elif defined(CONFIG_LGE_PM_BATTERY_RT9428_RAW_SOC)
+	pr_err("%s: voltage : %dmV / soc : %d%% (raw:%d) \n"
+			,__func__ ,voltage_now ,soc.intval,chip->last_raw_capacity);
+#else
 	pr_err("%s:[polling_work] voltage_now : %dmV / capacity : %d%%\n"
 			,__func__ ,voltage_now ,soc.intval);
+#endif
 
 #ifdef CONFIG_LGE_PM_RT9428_IRQ_LOW_WA
 	regval = rt9428_reg_read_word(chip->i2c, RT9428_REG_CFG0);
@@ -1100,6 +1437,35 @@ static void rt9428_polling_work(struct work_struct *work)
 	}
 #endif
 
+#if defined(CONFIG_MACH_MSM8916_PH1)
+	psy = power_supply_get_by_name("ac");
+	if (!psy) {
+		pr_err("%s:cannot get charger supply\n", __func__);
+	}
+
+	regval = psy->get_property(psy, POWER_SUPPLY_PROP_PRESENT, &pval);
+	if (regval < 0) {
+		pr_err("%s:get charger online fail\n", __func__);
+	} else {
+		if (!pval.intval) {
+			pr_debug("%s:TA/USB does not exist! do not change SOC ", __func__);
+
+			if (rt9428_reg_write_word(chip->i2c, RT9428_REG_MFAH, 0x8301) < 0)
+				pr_err("%s:failed to write VG3\n", __func__);
+
+			if (rt9428_reg_write_word(chip->i2c, RT9428_REG_MFAH, 0x8401) < 0)
+				pr_err("%s:failed to write VG4\n", __func__);
+		} else {
+			pr_debug("%s:TA/USB exist! update raised SOC ", __func__);
+			if (rt9428_reg_write_word(chip->i2c, RT9428_REG_MFAH, 0x8332) < 0)
+				pr_err("%s:failed to write VG3\n", __func__);
+
+			if (rt9428_reg_write_word(chip->i2c, RT9428_REG_MFAH, 0x8432) < 0)
+				pr_err("%s:failed to write VG4\n", __func__);
+		}
+	}
+#endif
+reschedule_work:
 	if (3 < soc.intval && soc.intval < 8)
 		schedule_delayed_work(&chip->polling_work,
 				msecs_to_jiffies(RT9428_POLLING_PERIOD_7));
@@ -1139,11 +1505,19 @@ static irqreturn_t rt9428_irq_handler(int irqno, void *param)
 	struct rt9428_chip *chip = (struct rt9428_chip *)param;
 
 	pr_debug("%s: ++\n", __func__);
+
+	/* for guarantee of irq function */
+	/* It could enter system_pm_sleep before running dwork */
+	wake_lock(&chip->irq_lock);
+
 	if (chip->suspend) {
+		pr_err("%s: run dwork after 20msec\n", __func__);
 		schedule_delayed_work(&chip->dwork, msecs_to_jiffies(20));
 		goto intr_end;
 	}
-	rt9428_update_info(chip);
+	else
+		rt9428_update_info(chip);
+
 intr_end:
 	pr_debug("%s: --\n", __func__);
 	return IRQ_HANDLED;
@@ -1154,9 +1528,18 @@ static void rt9428_dwork_func(struct work_struct *work)
 	struct rt9428_chip *chip =
 	    (struct rt9428_chip *)container_of(work, struct rt9428_chip,
 					       dwork.work);
+
+	/* need to check system_pm_suspend or resume */
+	if (chip->suspend) {
+		pr_err("%s:suspend, run dwork after 20msec again\n", __func__);
+		schedule_delayed_work(&chip->dwork, msecs_to_jiffies(20));
+		return;
+	}
+	else {
 	/* update rt9428 information */
-	rt9428_update_info(chip);
-	pr_err("%s: done\n", __func__);
+		rt9428_update_info(chip);
+	}
+	pr_err("%s: Done\n", __func__);
 }
 
 static ssize_t rt9428_io_read(struct file *filp, char __user *buf,
@@ -1389,6 +1772,37 @@ static int rt_parse_dt(struct device *dev, struct rt9428_platform_data *pdata)
 		case BATT_ID_RA4301_VC0:
 		case BATT_ID_SW3800_VC1:
 			profile_id = RT9428_BATTERY_TECHNOPHILE;
+			break;
+#elif defined(CONFIG_LGE_PM_BATTERY_RT9428_BL45B1F_3000mAh)
+		/* PH1 */
+		case BATT_ID_SW3800_VC0:
+		case BATT_ID_RA4301_VC1:
+			profile_id = RT9428_BATTERY_LGC;
+			break;
+
+		case BATT_ID_RA4301_VC0:
+		case BATT_ID_SW3800_VC1:
+			profile_id = RT9428_BATTERY_TOCAD;
+			break;
+#elif defined(CONFIG_LGE_PM_BATTERY_RT9428_BL49SF_2300mAh)
+		/* YG */
+		case BATT_ID_SW3800_VC0:
+		case BATT_ID_RA4301_VC1:
+			profile_id = RT9428_BATTERY_LGC;
+			break;
+
+		case BATT_ID_RA4301_VC0:
+		case BATT_ID_SW3800_VC1:
+			profile_id = RT9428_BATTERY_TOCAD;
+			break;
+#elif defined(CONFIG_LGE_PM_BATTERY_RT9428_BLT22_2050mAh)
+		/* C100n */
+		case BATT_ID_10KOHM_TCD:
+			profile_id = RT9428_BATTERY_TOCAD;
+			break;
+
+		case BATT_ID_OPEN_LGC:
+			profile_id = RT9428_BATTERY_LGC;
 			break;
 #elif defined(CONFIG_LGE_PM_BATTERY_RT9428_BLT12_4000mAh)
 		/* e7II */
@@ -1692,6 +2106,7 @@ static int rt9428_i2c_probe(struct i2c_client *client,
 	struct rt9428_platform_data *pdata = client->dev.platform_data;
 	int regval, ret = 0;
 	bool use_dt = client->dev.of_node;
+	bool batt_present;
 
 	pr_err("%s : start\n", __func__);
 
@@ -1741,6 +2156,10 @@ static int rt9428_i2c_probe(struct i2c_client *client,
 	mutex_init(&chip->io_lock);
 	INIT_DELAYED_WORK(&chip->dwork, rt9428_dwork_func);
 	wake_lock_init(&chip->update_lock, WAKE_LOCK_SUSPEND, "rt9428_update_lock");
+	wake_lock_init(&chip->irq_lock, WAKE_LOCK_SUSPEND, "rt9428_irq_lock");
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	wake_lock_init(&chip->eoc_lock, WAKE_LOCK_SUSPEND, "rt9428_eoc_lock");
+#endif
 #ifdef CONFIG_LGE_PM_RT9428_POLLING
 	INIT_DELAYED_WORK(&chip->polling_work, rt9428_polling_work);
 #endif
@@ -1789,10 +2208,15 @@ static int rt9428_i2c_probe(struct i2c_client *client,
 		goto err_psy;
 	}
 
-	/*queue update work immediately */
-	schedule_delayed_work(&chip->dwork, msecs_to_jiffies(100));
+	batt_present = rt9428_battery_present_checker();
+	if (!batt_present)
+		pr_err("%s: no battery, skip dwork, polling_work\n", __func__);
+	else {
+		/*queue update work immediately */
+		schedule_delayed_work(&chip->dwork, msecs_to_jiffies(100));
 #ifdef CONFIG_LGE_PM_RT9428_POLLING
-	schedule_delayed_work(&chip->polling_work, msecs_to_jiffies(1000));
+		schedule_delayed_work(&chip->polling_work, msecs_to_jiffies(1000));
+	}
 #endif
 #ifdef CONFIG_LGE_PM_RT9428_IRQ_LOW_WA
 	schedule_delayed_work(&chip->update_polling_work, msecs_to_jiffies(1000));
@@ -1803,14 +2227,21 @@ static int rt9428_i2c_probe(struct i2c_client *client,
 #endif
 	dev_info(&client->dev, "driver successfully loaded\n");
 
+#ifdef CONFIG_MACH_MSM8916_C100N_KR
+	pr_err("%s : Done with New profile\n", __func__);
+#else
 	pr_err("%s : Done\n", __func__);
+#endif
 
 	return 0;
 err_psy:
-	wake_lock_destroy(&chip->update_lock);
 	power_supply_unregister(&chip->fg_psy);
 err_init1:
-	mutex_destroy(&chip->io_lock);
+	wake_lock_destroy(&chip->update_lock);
+	wake_lock_destroy(&chip->irq_lock);
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	wake_lock_destroy(&chip->eoc_lock);
+#endif
 err_init:
 	devm_kfree(&client->dev, chip);
 	return ret;
@@ -1822,6 +2253,10 @@ static int rt9428_i2c_remove(struct i2c_client *client)
 	misc_deregister(&chip->rt9428_io_misc);
 	rt9428_intr_deinit(chip);
 	wake_lock_destroy(&chip->update_lock);
+	wake_lock_destroy(&chip->irq_lock);
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	wake_lock_destroy(&chip->eoc_lock);
+#endif
 	power_supply_unregister(&chip->fg_psy);
 #ifdef CONFIG_LGE_PM_RT9428_POLLING
 	cancel_delayed_work(&chip->polling_work);
@@ -1833,9 +2268,11 @@ static int rt9428_i2c_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int rt9428_i2c_suspend(struct i2c_client *client, pm_message_t mesg)
+static int rt9428_i2c_suspend(struct device *dev)
 {
-	struct rt9428_chip *chip = i2c_get_clientdata(client);
+	struct rt9428_chip *chip = dev_get_drvdata(dev);
+	struct pinctrl *pinctrl = devm_pinctrl_get(dev);
+	struct pinctrl_state *set_state;
 
 	cancel_delayed_work_sync(&chip->dwork);
 	chip->suspend = 1;
@@ -1845,17 +2282,36 @@ static int rt9428_i2c_suspend(struct i2c_client *client, pm_message_t mesg)
 #ifdef CONFIG_LGE_PM_RT9428_IRQ_LOW_WA
 	cancel_delayed_work(&chip->update_polling_work);
 #endif
+
+	if (!IS_ERR(pinctrl)) {
+		set_state = pinctrl_lookup_state(pinctrl, PINCTRL_STATE_SLEEP);
+		if (!IS_ERR(set_state)) {
+			pinctrl_select_state(pinctrl, set_state);
+		}
+	}
+
+	pr_err("%s: Done\n", __func__);
 	return 0;
 }
 
-static int rt9428_i2c_resume(struct i2c_client *client)
+static int rt9428_i2c_resume(struct device *dev)
 {
-	struct rt9428_chip *chip = i2c_get_clientdata(client);
+	struct rt9428_chip *chip = dev_get_drvdata(dev);
+	struct pinctrl *pinctrl = devm_pinctrl_get(dev);
+	struct pinctrl_state *set_state;
+
+	if (!IS_ERR(pinctrl)) {
+		set_state = pinctrl_lookup_state(pinctrl, PINCTRL_STATE_DEFAULT);
+		if (!IS_ERR(set_state)) {
+			pinctrl_select_state(pinctrl, set_state);
+		}
+	}
 
 	chip->suspend = 0;
 #ifdef CONFIG_LGE_PM_RT9428_POLLING
 	schedule_delayed_work(&chip->polling_work, msecs_to_jiffies(HZ));
 #endif
+	pr_err("%s: Done\n", __func__);
 	return 0;
 }
 
@@ -1870,16 +2326,22 @@ static const struct of_device_id rt_match_table[] = {
 	{},
 };
 
+static const struct dev_pm_ops rt9428_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(
+		rt9428_i2c_suspend,
+		rt9428_i2c_resume
+	)
+};
+
 static struct i2c_driver rt9428_i2c_driver = {
 	.driver = {
 		   .name = RT9428_DEVICE_NAME,
 		   .owner = THIS_MODULE,
 		   .of_match_table = rt_match_table,
+		   .pm = &rt9428_pm_ops,
 		   },
 	.probe = rt9428_i2c_probe,
 	.remove = rt9428_i2c_remove,
-	.suspend = rt9428_i2c_suspend,
-	.resume = rt9428_i2c_resume,
 	.id_table = rt_i2c_id,
 };
 

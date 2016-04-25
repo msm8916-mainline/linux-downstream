@@ -20,6 +20,7 @@
 #define CSI_DECODE_DPCM_10_8_10 5
 #define MAX_CID                 16
 #define I2C_SEQ_REG_DATA_MAX    256
+#define I2C_REG_DATA_MAX       (8*1024)
 #define MSM_V4L2_PIX_FMT_META v4l2_fourcc('M', 'E', 'T', 'A') /* META */
 
 #define MAX_ACTUATOR_REG_TBL_SIZE 8
@@ -28,7 +29,7 @@
 #define MAX_ACTUATOR_SCENARIO     8
 #define MAX_ACT_MOD_NAME_SIZE     32
 #define MAX_ACT_NAME_SIZE         32
-#define MAX_ACTUATOR_INIT_SET     12
+#define MAX_ACTUATOR_INIT_SET     32
 #define MAX_I2C_REG_SET           12
 
 #define MAX_NAME_SIZE             32
@@ -63,6 +64,20 @@ enum msm_sensor_power_seq_type_t {
 	SENSOR_I2C,
 };
 
+enum msm_camera_qup_i2c_write_batch_size_t {
+	MSM_CAMERA_I2C_BATCH_SIZE_1 = 1,
+	MSM_CAMERA_I2C_BATCH_SIZE_2,
+	MSM_CAMERA_I2C_BATCH_SIZE_3,
+	MSM_CAMERA_I2C_BATCH_SIZE_4,
+	MSM_CAMERA_I2C_BATCH_SIZE_5,
+	MSM_CAMERA_I2C_BATCH_SIZE_MAX,
+};
+
+enum msm_camera_qup_i2c_write_batch_t {
+	MSM_CAMREA_I2C_BATCH_DISABLE = 0,
+	MSM_CAMERA_I2C_BATCH_ENABLE,
+};
+
 enum msm_camera_i2c_reg_addr_type {
 	MSM_CAMERA_I2C_BYTE_ADDR = 1,
 	MSM_CAMERA_I2C_WORD_ADDR,
@@ -90,9 +105,9 @@ enum msm_sensor_power_seq_gpio_t {
 	SENSOR_GPIO_VANA,
 	SENSOR_GPIO_VDIG,
 	SENSOR_GPIO_VAF,
-/*                                      */
+/* LGE_CHANGE_S, Add gpio to control LDO*/
     SENSOR_GPIO_LDAF_EN,
- /*                                      */
+ /* LGE_CHANGE_E, Add gpio to control LDO*/
 	SENSOR_GPIO_FL_EN,
 	SENSOR_GPIO_FL_NOW,
 	SENSOR_GPIO_FL_RESET,
@@ -169,6 +184,12 @@ enum msm_flash_cfg_type_t {
 	CFG_FLASH_HIGH,
 };
 
+enum msm_sensor_output_format_t {
+	MSM_SENSOR_BAYER,
+	MSM_SENSOR_YCBCR,
+	MSM_SENSOR_META,
+};
+
 struct msm_sensor_power_setting {
 	enum msm_sensor_power_seq_type_t seq_type;
 	uint16_t seq_val;
@@ -177,7 +198,7 @@ struct msm_sensor_power_setting {
 	void *data[10];
 };
 
-//                                                                     
+//LGE_CHANGE_S, apply proper power setting, 2014-10-29, yt.jeon@lge.com
 #if 1
 struct msm_sensor_power_setting_array {
 	struct msm_sensor_power_setting *power_setting_a;
@@ -199,7 +220,7 @@ struct msm_sensor_power_setting_array {
 	uint16_t size_down;
 };
 #endif
-//                                                                     
+//LGE_CHANGE_E, apply proper power setting, 2014-10-29, yt.jeon@lge.com
 
 struct msm_sensor_init_params {
 	/* mask of modes supported: 2D, 3D */
@@ -221,6 +242,11 @@ struct msm_camera_sensor_slave_info {
 	char actuator_name[32];
 	char ois_name[32];
 	char flash_name[32];
+
+#if defined(CONFIG_MSM_OTP) || defined(LGE_CAMERA_USE_OTP)
+	char otp_name[32];
+#endif
+
 	enum msm_sensor_camera_id_t camera_id;
 	uint16_t slave_addr;
 	enum i2c_freq_mode_t i2c_freq_mode;
@@ -230,6 +256,7 @@ struct msm_camera_sensor_slave_info {
 	uint8_t  is_init_params_valid;
 	struct msm_sensor_init_params sensor_init_params;
 	uint8_t is_flash_supported;
+	enum msm_sensor_output_format_t output_format;
 };
 
 struct msm_camera_i2c_reg_array {
@@ -244,7 +271,8 @@ struct msm_camera_i2c_reg_setting {
 	enum msm_camera_i2c_reg_addr_type addr_type;
 	enum msm_camera_i2c_data_type data_type;
 	uint16_t delay;
-	uint16_t *value;	/*                                                            */
+	uint16_t *value;	/*LGE_CHANGE, add soc exif, 2013-10-04, kwangsik83.kim@lge.com*/
+	enum msm_camera_qup_i2c_write_batch_t qup_i2c_batch;
 };
 
 struct msm_camera_csid_vc_cfg {
@@ -309,6 +337,8 @@ struct region_params_t {
 	*/
 	uint16_t step_bound[2];
 	uint16_t code_per_step;
+	/* qvalue for converting float type numbers to integer format */
+	uint32_t qvalue;
 };
 
 struct reg_settings_t {

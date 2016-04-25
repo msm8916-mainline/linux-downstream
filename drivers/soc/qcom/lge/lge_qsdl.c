@@ -71,7 +71,10 @@ static int lge_qsdl_trigger_notify(struct platform_device *pdev)
 {
 	struct qsdl_uevent_table info[] = {
 		{0x0301, {"QSDL=Q002", NULL}, },
+		{0x0302, {"QSDL=Q002", NULL}, },
 		{0x0303, {"QSDL=Q002", NULL}, },
+		{0x0304, {"QSDL=Q002", NULL}, },
+		{0x0308, {"QSDL=Q002", NULL}, },
 		{0x0400, {"QSDL=Q002", NULL}, },
 		{0x0100, {"QSDL=Q003", NULL}, },
 		{0x3001, {"QSDL=Q005", NULL}, },
@@ -113,7 +116,7 @@ static ssize_t lge_qsdl_trigger_show(struct device *dev,
 	struct qsdl *data = platform_get_drvdata(pdev);
 
 	int ret = 0;
-	static bool already_read = false;
+	static bool already_read;
 
 	if (!data->using_uevent)
 		return snprintf(buffer, PAGE_SIZE, "Nothing to report");
@@ -140,7 +143,10 @@ static ssize_t lge_qsdl_apps_info_show(struct device *dev,
 
 	struct qsdl_sysfs_table info[] = {
 		{0x0301, "Q002"},
+		{0x0302, "Q002"},
 		{0x0303, "Q002"},
+		{0x0304, "Q002"},
+		{0x0308, "Q002"},
 		{0x0400, "Q002"},
 		{0x0100, "Q003"},
 		{0x3001, "Q005"},
@@ -148,7 +154,7 @@ static ssize_t lge_qsdl_apps_info_show(struct device *dev,
 	};
 
 	int i, reboot_reason = 0;
-	static bool already_read = false;
+	static bool already_read;
 
 	if (data->oneshot_read) {
 		if (already_read) {
@@ -240,7 +246,7 @@ static int __init lge_qsdl_handler_probe(struct platform_device *pdev)
 		data->using_uevent = pdata->using_uevent;
 	} else {
 		pr_err("%s: probe fail - no platform data\n", __func__);
-		kfree(data);
+		devm_kfree(&pdev->dev, data);
 		return -ENODEV;
 	}
 
@@ -262,12 +268,12 @@ static int __init lge_qsdl_handler_probe(struct platform_device *pdev)
 	return 0;
 
 fail_sysfs_group:
-	kfree(data);
+	devm_kfree(&pdev->dev, data);
 	pr_err("%s: probe fail - %d\n", __func__, ret);
 	return ret;
 }
 
-static int __devexit lge_qsdl_handler_remove(struct platform_device *pdev)
+static int lge_qsdl_handler_remove(struct platform_device *pdev)
 {
 	struct qsdl *data = platform_get_drvdata(pdev);
 	kfree(data);
@@ -283,8 +289,29 @@ static struct platform_driver qsdl_handler_driver __refdata = {
 	},
 };
 
+#if 1
+static struct lge_qsdl_platform_data lge_qsdl_pdata = {
+	.oneshot_read = 0,
+	.using_uevent = 0
+};
+
+static struct platform_device lge_qsdl_device = {
+	.name = LGE_QSDL_DEV_NAME,
+	.id = -1,
+	.dev = {
+		.platform_data = &lge_qsdl_pdata,
+	}
+};
+
+void __init lge_add_qsdl_device(void)
+{
+	platform_device_register(&lge_qsdl_device);
+}
+#endif /* CONFIG_LGE_QSDL_SUPPORT */
+
 static int __init lge_qsdl_handler_init(void)
 {
+	lge_add_qsdl_device();
 	return platform_driver_register(&qsdl_handler_driver);
 }
 

@@ -86,7 +86,7 @@ void lge_set_fb_addr(unsigned int addr)
 
 void lge_set_restart_reason(unsigned int reason)
 {
-#ifdef CONFIG_LAF_G_DRIVER
+#ifdef CONFIG_LGE_USB_G_LAF
 	if ((lge_get_laf_mode() == LGE_LAF_MODE_LAF)
 			&& (reason != LAF_DLOAD_MODE))
 		__raw_writel(LGE_RB_MAGIC | LGE_LAF_CRASH, RESTART_REASON);

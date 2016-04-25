@@ -27,6 +27,19 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&huben_default>;
 
+/*
+	qcom,vbus-flt-n = <&msm_gpio 109 0>;
+	pintctrl-name = "default";
+	pinctrl-0 = <&vbus_flt_default>;
+*/
+
+	qcom,hsusb-otg-phy-init-seq =
+		<0x44 0x80 0x75 0x81 0x70 0x82 0x0F 0x83 0xffffffff>;
+
+/*
+	qcom,hsusb-otg-phy-init-host-seq =
+		<0x44 0x80 0x75 0x81 0x70 0x82 0x0F 0x83 0xffffffff>;
+*/
 
 	qcom,phy-vadc = <&pm8916_vadc>;
 };

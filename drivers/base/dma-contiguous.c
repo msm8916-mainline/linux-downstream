@@ -39,7 +39,9 @@
 #include <linux/mm_types.h>
 #include <linux/dma-contiguous.h>
 #include <linux/dma-removed.h>
+#include <linux/delay.h>
 #include <trace/events/kmem.h>
+#include <linux/delay.h>
 
 struct cma {
 	unsigned long	base_pfn;
@@ -73,6 +75,9 @@ static struct cma_map {
 static unsigned cma_map_count __initdata;
 static bool allow_memblock_alloc __initdata;
 
+#if defined(CONFIG_MACH_MSM8916_C70W_SKT_KR ) || defined(CONFIG_MACH_MSM8916_C70W_KT_KR) || defined(CONFIG_MACH_MSM8916_C70W_LGU_KR)
+extern int compare_revision(const char *revision);
+#endif
 static struct cma *cma_get_area(phys_addr_t base)
 {
 	int i;
@@ -231,7 +236,16 @@ int __init cma_fdt_scan(unsigned long node, const char *uname,
 	unsigned long addr_cells = dt_root_addr_cells;
 	phys_addr_t limit = MEMBLOCK_ALLOC_ANYWHERE;
 	const char *status;
+#if defined(CONFIG_MACH_MSM8916_C70W_SKT_KR ) || defined(CONFIG_MACH_MSM8916_C70W_KT_KR) || defined(CONFIG_MACH_MSM8916_C70W_LGU_KR)
+	const char *revision = NULL;
 
+	revision = of_get_flat_dt_prop(node, "revision", NULL);
+	if (revision)
+	{
+	    if(!compare_revision(revision))
+		return 0;
+	}
+#endif
 	if (!of_get_flat_dt_prop(node, "linux,reserve-contiguous-region", NULL))
 		return 0;
 
@@ -595,6 +609,7 @@ unsigned long dma_alloc_from_contiguous(struct device *dev, int count,
 	struct cma *cma = dev_get_cma_area(dev);
 	int ret = 0;
 	int tries = 0;
+	int retry_after_sleep = 0;
 
 	if (!cma || !cma->count)
 		return 0;
@@ -616,9 +631,27 @@ unsigned long dma_alloc_from_contiguous(struct device *dev, int count,
 		pageno = bitmap_find_next_zero_area(cma->bitmap, cma->count,
 						    start, count, mask);
 		if (pageno >= cma->count) {
-			pfn = 0;
-			mutex_unlock(&cma->lock);
-			break;
+			if (retry_after_sleep < 2) {
+				pfn = 0;
+				start = 0;
+				pr_debug("%s: Memory range busy,"
+					"retry after sleep\n", __func__);
+				/*
+				* Page may be momentarily pinned by some other
+				* process which has been scheduled out, eg.
+				* in exit path or during unmap call,and so
+				* cannot be  freed there. Sleep for 100ms and
+				* retry twice to see if it has been freed later.
+				*/
+				msleep(100);
+				retry_after_sleep++;
+				mutex_unlock(&cma->lock);
+				continue;
+			} else {
+				pfn = 0;
+				mutex_unlock(&cma->lock);
+				break;
+			}
 		}
 		bitmap_set(cma->bitmap, pageno, count);
 		/*

@@ -238,7 +238,7 @@
 #define MXT_T109_CMD_STORE_RAM	4
 
 /* Delay times */
-#define MXT_BACKUP_TIME		50	/* msec */
+#define MXT_BACKUP_TIME		20	/* msec */
 #define MXT_RESET_TIME		200	/* msec */
 #define MXT_RESET_TIMEOUT	3000	/* msec */
 #define MXT_CRC_TIMEOUT		1000	/* msec */
@@ -246,7 +246,7 @@
 #define MXT_FW_CHG_TIMEOUT	300	/* msec */
 #define MXT_WAKEUP_TIME		25	/* msec */
 #define MXT_REGULATOR_DELAY	150	/* msec */
-#define MXT_POWERON_DELAY	150	/* msec */
+#define MXT_POWERON_DELAY	100	/* msec */
 #define MXT_SELFTEST_TIME	3000	/* msec */
 #define MXT_WAITED_UDF_TIME 200 /* msec */
 
@@ -293,10 +293,20 @@
 #define NOCHARGER_KNOCKON_WAKEUP	6
 
 #define PATCH_EVENT_PAIR_NUM 4
+#if 1 //For sensing test
+#define SELF_CAP_ON_NOISE_RECOVER      11
+#define SELF_CAP_OFF_NOISE_SUPPRESSION 12
 
+#define HIGH_TEMP_SET      		13
+#define HIGH_TEMP_UNSET 		14
+#if 1
+#define PATCH_EVENT_AAT      		15
+#define CHARGER_PLUGGED_AAT 		16
+#endif
+#else
 #define PATCH_EVENT_AAT	11
 #define CHARGER_PLUGGED_AAT			12
-
+#endif
 #else
 /* patch Event */
 #define CHARGER_PLUGGED             0
@@ -443,6 +453,12 @@ enum{
     LPWG_MULTI_TAP,
 };
 
+enum {
+	PM_RESUME = 0,
+	PM_SUSPEND,
+	PM_SUSPEND_IRQ,
+};
+
 typedef enum error_type {
     NO_ERROR = 0,
     ERROR,
@@ -481,15 +497,14 @@ struct mxt_platform_data {
 	unsigned long gpio_ldo1;
 	unsigned long gpio_reset;
 	unsigned long gpio_int;
-	unsigned int panel_check;
+	unsigned long gpio_id;
 	unsigned char panel_on;
 	const char *fw_name;
-	const char *extra_fw_name;
 	const char *fw_name_ogs;
-	const char *extra_fw_name_ogs;
 	const char *fw_name_gf2;
+	const char *fw_name_lgd;
+	const char *fw_name_laibao;
 	const char *extra_fw_name_gf2;
-	unsigned char auto_fw_update;
 	char knock_on_type;
 	unsigned int lcd_x;
 	unsigned int lcd_y;
@@ -497,16 +512,12 @@ struct mxt_platform_data {
 	u8 use_mfts;
 	u8 fw_ver[3];
 	u8 product[10];
-	unsigned int ghost_detection_enable;
-	unsigned int ghost_detection_value[GHOST_VALUE_MAX];
-    unsigned int ghost_detection_card_enable;
-  	unsigned int ghost_detection_card_value[GHOST_CARD_DETECTION_VALUE_MAX];
-    unsigned int ghost_detection_invalid_amplitude_enable;
-    unsigned int ghost_detection_invalid_amplitude_value[GHOST_INVALID_AMPLITUDE_VALUE_MAX];
-    unsigned int ghost_detection_pattern_enable;
-    unsigned int ghost_detection_pattern_value[GHOST_PATTERN_DETECTION_VALUE_MAX];
 	unsigned int ref_reg_weight_val;
 	unsigned int butt_check_enable;
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+	int use_debug_reason;
+	int realtime_use_debug_reason;
+#endif
 };
 
 struct mxt_finger {
@@ -803,7 +814,7 @@ struct mxt_data {
     u8 T93_reportid;
 	u8 g_tap_cnt;
 
-	u8 panel_check_revB;
+	u8 panel_type;
 
 	u16 T100_address;
 	u8 T100_reportid_min;
@@ -862,6 +873,7 @@ struct mxt_data {
 	//u8 is_lpwg_report_enable;
 	u8 mxt_multi_tap_enable;
 	u8 lpwg_mode;
+	u8 knock_on_mode;
 	/* ATMEL SELF REFERENCE CHECK FOR E8 */
 
 	u8 self_ref_chk[2];
@@ -888,6 +900,16 @@ struct mxt_data {
 	int screen;
 	int qcover;
 
+	int stylus_in_a_row_cnt;        // Count of continuing stylus data
+	int	stylus_in_a_row_cnt_thr;    // if stylus_in_a_row_cnt_thr < sylus_in_a_row_cnt valut, notify on global valiant.
+	int x_zitter;
+	int y_zitter;
+
+	u8 pm_state;
+	u8 pen_support;
+
+	int self_cap;
+
 	struct pinctrl      *ts_pinctrl;
 	struct pinctrl_state    *ts_pinset_state_active;
 	struct pinctrl_state    *ts_pinset_state_suspend;
@@ -897,15 +919,34 @@ struct tci_abs {
 	int x;
 	int y;
 };
+#ifdef CONFIG_TOUCHSCREEN_MSG_INFO_PRINT
+#define TOUCH_DEBUG_PRINT 			1
+#endif
+#define TOUCH_ERROR_PRINT  			1
+#define TOUCH_INFO_PRINT 			1
 
+#if defined(TOUCH_INFO_PRINT)
 #define TOUCH_INFO_MSG(fmt, args...) 	printk(KERN_ERR "[Touch] " fmt, ##args)
+#else
+#define TOUCH_INFO_MSG(fmt, args...)    do {} while(0)
+#endif
+#if defined(TOUCH_DEBUG_PRINT)
+#define TOUCH_DEBUG_MSG(fmt, args...) 	printk(KERN_ERR "[Touch D] " fmt, ##args)
+#else
+#define TOUCH_DEBUG_MSG(fmt, args...)    do {} while(0)
+#endif
+
+#if defined(TOUCH_ERROR_PRINT)
 #define TOUCH_ERR_MSG(fmt, args...) printk(KERN_ERR "[Touch E] [%s %d] " fmt, __FUNCTION__, __LINE__, ##args)
+#else
+#define TOUCH_ERR_MSG(fmt, args...)    do {} while(0)
+#endif
 #define TOUCH_PATCH_INFO_MSG(fmt, args...) 	printk(KERN_ERR "[Touch Patch] " fmt, ##args)
 
 int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
 int mxt_initialize_t9_input_device(struct mxt_data *data);
 int mxt_initialize_t100_input_device(struct mxt_data *data);
-void mxt_request_firmware_work(const struct firmware *fw,void *context);
+int mxt_request_firmware_work(const struct firmware *fw,void *context);
 int mxt_write_mem(struct mxt_data *data, u16 reg, u16 len, const u8 *buf);
 int mxt_read_mem(struct mxt_data *data, u16 reg, u16 len, void *buf);
 int mxt_write_object(struct mxt_data *data, u8 type, u8 offset, u8 val);

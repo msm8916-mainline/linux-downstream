@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  */
 
-#include "../msm8916-lge-common/dsi-panel-byd-480p-video.dtsi"
+#include "../msm8916-lge-common/dsi-panel-byd_ili9806e-480p-video.dtsi"
 
 &mdss_mdp {
        qcom,mdss-pref-prim-intf = "dsi";

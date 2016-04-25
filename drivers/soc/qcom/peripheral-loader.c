@@ -79,7 +79,6 @@ struct pil_mdt {
  * struct pil_seg - memory map representing one segment
  * @next: points to next seg mentor NULL if last segment
  * @paddr: physical start address of segment
- * @vaddr: virtual start address of segment
  * @sz: size of segment
  * @filesz: size of segment on disk
  * @num: segment number
@@ -90,7 +89,6 @@ struct pil_mdt {
  */
 struct pil_seg {
 	phys_addr_t paddr;
-	void *vaddr;
 	unsigned long sz;
 	unsigned long filesz;
 	int num;
@@ -154,14 +152,13 @@ int pil_do_ramdump(struct pil_desc *desc, void *ramdump_dev)
 	list_for_each_entry(seg, &priv->segs, list)
 		count++;
 
-	ramdump_segs = kmalloc_array(count, sizeof(*ramdump_segs), GFP_KERNEL);
+	ramdump_segs = kcalloc(count, sizeof(*ramdump_segs), GFP_KERNEL);
 	if (!ramdump_segs)
 		return -ENOMEM;
 
 	s = ramdump_segs;
 	list_for_each_entry(seg, &priv->segs, list) {
 		s->address = seg->paddr;
-		s->v_address = seg->vaddr;
 		s->size = seg->sz;
 		s++;
 	}
@@ -296,8 +293,6 @@ static struct pil_seg *pil_init_seg(const struct pil_desc *desc,
 		return ERR_PTR(-ENOMEM);
 	seg->num = num;
 	seg->paddr = reloc ? pil_reloc(priv, phdr->p_paddr) : phdr->p_paddr;
-	seg->vaddr = reloc ? priv->region +
-			(seg->paddr - priv->region_start) : 0;
 	seg->filesz = phdr->p_filesz;
 	seg->sz = phdr->p_memsz;
 	seg->relocated = reloc;
@@ -779,6 +774,16 @@ void pil_shutdown(struct pil_desc *desc)
 		pil_proxy_unvote(desc, 1);
 	else
 		flush_delayed_work(&priv->proxy);
+}
+EXPORT_SYMBOL(pil_shutdown);
+
+/**
+ * pil_free_memory() - Free memory resources associated with a peripheral
+ * @desc: descriptor from pil_desc_init()
+ */
+void pil_free_memory(struct pil_desc *desc)
+{
+	struct pil_priv *priv = desc->priv;
 
 	if (priv->region) {
 		dma_free_attrs(desc->dev, priv->region_size,
@@ -786,7 +791,7 @@ void pil_shutdown(struct pil_desc *desc)
 		priv->region = NULL;
 	}
 }
-EXPORT_SYMBOL(pil_shutdown);
+EXPORT_SYMBOL(pil_free_memory);
 
 static DEFINE_IDA(pil_ida);
 

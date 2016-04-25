@@ -51,7 +51,33 @@ static ssize_t enable_store(
 	return size;
 }
 
+static ssize_t vtg_level_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct timed_output_dev *tdev = dev_get_drvdata(dev);
+	int vtg_level = tdev->get_vtg(tdev);
+
+	return sprintf(buf, "%d\n", vtg_level);
+}
+
+static ssize_t vtg_level_store(
+		struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	struct timed_output_dev *tdev = dev_get_drvdata(dev);
+	int value;
+
+	if (sscanf(buf, "%d", &value) != 1)
+		return -EINVAL;
+
+	tdev->set_vtg(tdev, value);
+
+	return size;
+}
+
 static DEVICE_ATTR(enable, S_IRUGO | S_IWUSR, enable_show, enable_store);
+static DEVICE_ATTR(vtg_level, S_IRUGO | S_IWUSR, vtg_level_show, vtg_level_store);
+
 
 static int create_timed_output_class(void)
 {
@@ -69,7 +95,7 @@ int timed_output_dev_register(struct timed_output_dev *tdev)
 {
 	int ret;
 
-	if (!tdev || !tdev->name || !tdev->enable || !tdev->get_time)
+	if (!tdev || !tdev->name || !tdev->enable || !tdev->get_time  || !tdev->set_vtg  || !tdev->get_vtg)
 		return -EINVAL;
 
 	ret = create_timed_output_class();
@@ -83,6 +109,7 @@ int timed_output_dev_register(struct timed_output_dev *tdev)
 		return PTR_ERR(tdev->dev);
 
 	ret = device_create_file(tdev->dev, &dev_attr_enable);
+	ret = device_create_file(tdev->dev, &dev_attr_vtg_level);
 	if (ret < 0)
 		goto err_create_file;
 
@@ -102,7 +129,9 @@ EXPORT_SYMBOL_GPL(timed_output_dev_register);
 void timed_output_dev_unregister(struct timed_output_dev *tdev)
 {
 	tdev->enable(tdev, 0);
+	tdev->set_vtg(tdev, 0);
 	device_remove_file(tdev->dev, &dev_attr_enable);
+	device_remove_file(tdev->dev, &dev_attr_vtg_level);
 	dev_set_drvdata(tdev->dev, NULL);
 	device_destroy(timed_output_class, MKDEV(0, tdev->index));
 }

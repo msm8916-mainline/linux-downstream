@@ -19,6 +19,14 @@
 			reg = <0x0 0x8ff00000 0x0 0x100000>;
 			label = "ramoops_mem";
 		};
+
+		venus_mem: venus_region@0 {
+			linux,reserve-contiguous-region;
+			linux,reserve-region;
+			linux,memory-limit = <0x90000000>;
+			reg = <0 0 0 0x0500000>;
+			label = "venus_mem";
+		};
 	};
 };
 

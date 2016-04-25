@@ -970,9 +970,13 @@ static void msm_tlmm_gp_irq_resume(void)
 			{
 				struct irq_desc *virq_desc = NULL;
 				virq_desc = irq_to_desc(virq);
-				if (virq_desc)
+				if (virq_desc && virq_desc->action != NULL
+						&& virq_desc->action->name != NULL)
 					pr_err("%s: virq %d, virq->name : %s\n",
 					 __func__, virq, virq_desc->action->name);
+				else
+					pr_err("%s: virq %d registered improperly!\n",
+							__func__, virq);
 			}
 			else
 				pr_err("%s: stray virq\n", __func__);

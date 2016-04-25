@@ -120,13 +120,13 @@ struct mpu_platform_data {
 	struct regulator *vdd_i2c;
 #endif
 
-/*             
-                        
-                                
+/* LGE_CHANGE_S
+* Comment : gpio for irq
+* 2014-01-08, jeongh.kim@lge.com
 */
 	int irq_gpio;
 	int reset_gpio;
-/*              */
+/* LGE_CHANGE_E */
 };
 
 #endif	/* __MPU_H_ */

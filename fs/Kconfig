@@ -97,8 +97,6 @@ source "fs/ntfs/Kconfig"
 endmenu
 endif # BLOCK
 
-source "fs/exfat/Kconfig"
-
 menu "Pseudo filesystems"
 
 source "fs/proc/Kconfig"
@@ -168,6 +166,14 @@ config HUGETLBFS
 config HUGETLB_PAGE
 	def_bool HUGETLBFS
 
+config CHECK_SYNC_TIME
+	bool "Check Sync Time support for sdcard"
+	default n
+	help
+	  It takes a long time to sync for sdcard during entering suspend
+	  due to lots of sync data and slow sdcard.
+	  So, do async instead of sync during entering suspend.
+
 source "fs/configfs/Kconfig"
 
 endmenu
@@ -190,6 +196,7 @@ if MISC_FILESYSTEMS
 source "fs/adfs/Kconfig"
 source "fs/affs/Kconfig"
 source "fs/ecryptfs/Kconfig"
+source "fs/sdcardfs/Kconfig"
 source "fs/hfs/Kconfig"
 source "fs/hfsplus/Kconfig"
 source "fs/befs/Kconfig"

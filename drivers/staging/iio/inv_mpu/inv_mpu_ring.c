@@ -33,12 +33,12 @@
 
 #include "inv_mpu_iio.h"
 
-/*             
-                                             
-                                
+/* LGE_CHANGE_S
+* Comment : Debugging utility and gpio header
+* 2013-12-21, jeongh.kim@lge.com
 */
 //#include <linux/platform_data/gpio-odin.h>
-/*              */
+/* LGE_CHANGE_E */
 
 static u8 fifo_data[HARDWARE_FIFO_SIZE + HEADERED_Q_BYTES];
 static int inv_process_batchmode(struct inv_mpu_state *st);
@@ -1904,18 +1904,18 @@ int inv_mpu_configure_ring(struct iio_dev *indio_dev)
 			inv_read_fifo,
 			IRQF_TRIGGER_RISING | IRQF_ONESHOT | IRQF_NO_SUSPEND, "inv_irq", st);
 #else
-/*             
-                                                                            
-                                
+/* LGE_CHANGE_S
+* Comment : change IRQF_SHARED to IRQF_ONESHOT to avoid duplicated interrupt
+* 2014-01-13, jeongh.kim@lge.com
 */
 		ret = odin_gpio_sms_request_threaded_irq(st->client->irq,
 			inv_irq_handler,
 			inv_read_fifo,
 			IRQF_TRIGGER_RISING | IRQF_ONESHOT | IRQF_NO_SUSPEND, "inv_irq", st);
-/*              */
+/* LGE_CHANGE_E */
 #endif
 	}
-/*              */
+/* LGE_CHANGE_E */
 	if (ret)
 		goto error_iio_sw_rb_free;
 

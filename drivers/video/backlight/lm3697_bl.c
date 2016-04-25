@@ -32,7 +32,9 @@
 //#include <linux/earlysuspend.h>
 //#include <mach/board_lge.h>
 
-
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+#include "../msm/mdss/lge/panel/oem_mdss_dsi_common.h"
+#endif
 
 #define I2C_BL_NAME                              "lm3697"
 #define MAX_BRIGHTNESS_LM3697                    0xFF
@@ -44,7 +46,7 @@
 #define BL_OFF       0
 
 
-/*                                                                                       */
+/* LGE_CHANGE  - To turn backlight on by setting default brightness while kernel booting */
 #define BOOT_BRIGHTNESS 1
 
 static struct i2c_client *lm3697_i2c_client;
@@ -63,6 +65,10 @@ struct backlight_platform_data {
 	int factory_brightness;
 	int blmap_size;
 	char *blmap;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	char *blmap_u1;
+	char *blmap_u2;
+#endif
 };
 
 struct lm3697_device {
@@ -77,12 +83,19 @@ struct lm3697_device {
 	struct mutex bl_mutex;
 	int blmap_size;
 	char *blmap;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	char *blmap_u1;
+	char *blmap_u2;
+#endif
 };
 
 static const struct i2c_device_id lm3697_bl_id[] = {
 	{ I2C_BL_NAME, 0 },
 	{ },
 };
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+extern int lge_get_mode_type(void);
+#endif
 #if defined(CONFIG_BACKLIGHT_CABC_DEBUG_ENABLE)
 static int lm3697_read_reg(struct i2c_client *client, u8 reg, u8 *buf);
 #endif
@@ -111,7 +124,7 @@ EXPORT_SYMBOL(wireless_backlight_state);
 static void lm3697_hw_reset(void)
 {
 	int gpio = main_lm3697_dev->gpio;
-	/*                                      */
+	/* LGE_CHANGE - Fix GPIO Setting Warning*/
 	if (gpio_is_valid(gpio)) {
 		gpio_direction_output(gpio, 1);
 		//gpio_set_value_cansleep(gpio, 1);
@@ -165,6 +178,9 @@ static void lm3697_set_main_current_level(struct i2c_client *client, int level)
 	struct lm3697_device *dev = i2c_get_clientdata(client);
 	int min_brightness = dev->min_brightness;
 	int max_brightness = dev->max_brightness;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	int flag_mode = lge_get_mode_type();
+#endif
 
 	if (level == -BOOT_BRIGHTNESS)
 		level = dev->default_brightness;
@@ -180,6 +196,44 @@ static void lm3697_set_main_current_level(struct i2c_client *client, int level)
 			level = min_brightness;
 		else if (level > max_brightness)
 			level = max_brightness;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		if (flag_mode == LGE_PANEL_MODE_U1)
+		{
+			if (dev->blmap_u1) {
+				if (level < dev->blmap_size) {
+					cal_value = dev->blmap_u1[level];
+					pr_debug("%s cal_value U1 %d\n", __func__, cal_value);
+
+					lm3697_write_reg(client, 0x21, cal_value);
+					//lm3697_write_reg(client, 0x23, cal_value);
+				} else
+					dev_warn(&client->dev, "invalid index %d:%d\n", dev->blmap_size, level);
+			} else {
+				cal_value = level;
+				lm3697_write_reg(client, 0x21, cal_value);
+				//lm3697_write_reg(client, 0x23, cal_value);
+			}
+		}
+		else if (flag_mode == LGE_PANEL_MODE_U2)
+		{
+			if (dev->blmap_u2) {
+				if (level < dev->blmap_size) {
+					cal_value = dev->blmap_u2[level];
+					pr_debug("%s cal_value U2 %d\n", __func__, cal_value);
+
+					lm3697_write_reg(client, 0x21, cal_value);
+					//lm3697_write_reg(client, 0x23, cal_value);
+				} else
+					dev_warn(&client->dev, "invalid index %d:%d\n", dev->blmap_size, level);
+			} else {
+				cal_value = level;
+				lm3697_write_reg(client, 0x21, cal_value);
+				//lm3697_write_reg(client, 0x23, cal_value);
+			}
+		}
+		else
+		{
+#endif
 		if (dev->blmap) {
 			if (level < dev->blmap_size) {
 				cal_value = dev->blmap[level];
@@ -196,6 +250,9 @@ static void lm3697_set_main_current_level(struct i2c_client *client, int level)
 			lm3697_write_reg(client, 0x21, cal_value);
 			//lm3697_write_reg(client, 0x23, cal_value);
 		}
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		}
+#endif
 	} else
 	{
 		pr_info("%s lm3697_write_reg... off??? level : %d\n", __func__, level);
@@ -231,6 +288,7 @@ static void lm3697_set_main_current_level_no_mapping(
 		lm3697_write_reg(client, 0x24, 0x00);
 	}
 	mutex_unlock(&main_lm3697_dev->bl_mutex);
+	pr_info("[LCD][LM3697] %s : backlight level=%d\n", __func__, level);
 }
 
 void lm3697_backlight_on(int level)
@@ -302,11 +360,33 @@ void lm3697_lcd_backlight_set_level(int level)
 }
 EXPORT_SYMBOL(lm3697_lcd_backlight_set_level);
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+void lm3697_set_level_no_mapping(int level)
+{
+    lm3697_set_main_current_level_no_mapping(main_lm3697_dev->client, level);
+}
+
+void lm3697_set_ramp_time(u32 interval)
+{
+    u32 value;
+
+    if(interval > 15)
+        interval = 15;
+    value = (interval << 4) | interval;
+    pr_debug("%s() : set value : 0x%x\n", __func__, value);
+    if (lm3697_i2c_client != NULL) {
+        lm3697_write_reg(main_lm3697_dev->client, 0x13, value);
+    } else {
+        pr_err("%s(): No client\n", __func__);
+    }
+}
+#endif
+
 static int bl_set_intensity(struct backlight_device *bd)
 {
 	struct i2c_client *client = to_i2c_client(bd->dev.parent);
 
-	/*                                                                  */
+	/* LGE_CHANGE - if it's trying to set same backlight value, skip it.*/
 	if(bd->props.brightness == cur_main_lcd_level){
 		pr_info("%s level is already set. skip it\n", __func__);
 		return 0;
@@ -525,11 +605,50 @@ static int lm3697_parse_dt(struct device *dev,
 		for (i = 0; i < pdata->blmap_size; i++ )
 			pdata->blmap[i] = (char)array[i];
 
+
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		rc = of_property_read_u32_array(np, "lm3697,blmap_u1", array, pdata->blmap_size);
+		if (rc) {
+			pr_err("%s:%d, uable to read backlight map U1\n",__func__, __LINE__);
+			kfree(array);
+			return -EINVAL;
+		}
+		pdata->blmap_u1 = kzalloc(sizeof(char) * pdata->blmap_size, GFP_KERNEL);
+
+		if (!pdata->blmap_u1) {
+			kfree(array);
+			return -ENOMEM;
+		}
+
+		for (i = 0; i < pdata->blmap_size; i++ )
+			pdata->blmap_u1[i] = (char)array[i];
+
+		rc = of_property_read_u32_array(np, "lm3697,blmap_u2", array, pdata->blmap_size);
+		if (rc) {
+			pr_err("%s:%d, uable to read backlight map U1\n",__func__, __LINE__);
+			kfree(array);
+			return -EINVAL;
+		}
+		pdata->blmap_u2 = kzalloc(sizeof(char) * pdata->blmap_size, GFP_KERNEL);
+
+		if (!pdata->blmap_u2) {
+			kfree(array);
+			return -ENOMEM;
+		}
+
+		for (i = 0; i < pdata->blmap_size; i++ )
+			pdata->blmap_u2[i] = (char)array[i];
+#endif
 		if (array)
 			kfree(array);
 
+
 	} else {
 		pdata->blmap = NULL;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		pdata->blmap_u1 = NULL;
+		pdata->blmap_u2 = NULL;
+#endif
 	}
 
 	pr_info("[LM3697] %s gpio: %d, max_current: %d, min: %d, "
@@ -621,8 +740,30 @@ static int lm3697_probe(struct i2c_client *i2c_dev,
 			return -ENOMEM;
 		}
 		memcpy(dev->blmap, pdata->blmap, dev->blmap_size);
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		dev->blmap_u1 = kzalloc(sizeof(char) * dev->blmap_size, GFP_KERNEL);
+		if (!dev->blmap_u1) {
+			pr_err("%s: Failed to allocate memory\n", __func__);
+			return -ENOMEM;
+		}
+		memcpy(dev->blmap_u1, pdata->blmap_u1, dev->blmap_size);
+
+		dev->blmap_u2 = kzalloc(sizeof(char) * dev->blmap_size, GFP_KERNEL);
+		if (!dev->blmap_u2) {
+			pr_err("%s: Failed to allocate memory\n", __func__);
+			return -ENOMEM;
+		}
+		memcpy(dev->blmap_u2, pdata->blmap_u2, dev->blmap_size);
+
+#endif
+
 	} else {
 		dev->blmap = NULL;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		dev->blmap_u1 = NULL;
+		dev->blmap_u2 = NULL;
+#endif
+
 	}
 
 	if (gpio_get_value(dev->gpio))

@@ -210,6 +210,7 @@ static int peelir_write_message(struct peelir_data *peelir,
 	u8 *buf;
 	int status = -EFAULT;
 
+	unsigned long start_time = jiffies;
 
 	spi_message_init(&msg);
 	k_xfers = kcalloc(1, sizeof(*k_tmp), GFP_KERNEL);
@@ -264,7 +265,7 @@ static int peelir_write_message(struct peelir_data *peelir,
 
 done:
 	kfree(k_xfers);
-	IRRC_INFO_MSG("SPI write done\n");
+	IRRC_INFO_MSG("SPI write done duration %d\n", jiffies_to_msecs(jiffies - start_time));
 	return status;
 }
 

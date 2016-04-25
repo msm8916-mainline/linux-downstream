@@ -14,6 +14,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/of_platform.h>
 #include <linux/io.h>
 #include <linux/iopoll.h>
 #include <linux/ioport.h>
@@ -36,6 +37,26 @@
 #include "pil-q6v5.h"
 #include "pil-msa.h"
 
+#include <linux/time.h>
+
+/* Added getting MSM chip version info, 2014-12-21, secheol.pyo@lge.com*/
+#define FEATURE_LGE_MODEM_CHIPVER_INFO
+#ifdef FEATURE_LGE_MODEM_CHIPVER_INFO
+typedef struct modem_chip_info {
+	uint32_t chip_version;
+	uint32_t chip_id;
+	uint32_t chip_family;
+} lg_chip_info;
+#endif
+
+/* FEATURE_LGE_MODEM_DEBUG_INFO, 2014-08-18, jin.park@lge.com */
+#define FEATURE_LGE_MODEM_DEBUG_INFO
+#ifdef FEATURE_LGE_MODEM_DEBUG_INFO
+#include <asm/uaccess.h>
+#include <linux/syscalls.h>
+
+#define MAX_WRITE_SSR   2
+#endif
 #define MAX_VDD_MSS_UV		1150000
 #define PROXY_TIMEOUT_MS	10000
 #define MAX_SSR_REASON_LEN	81U
@@ -48,15 +69,201 @@ struct lge_hw_smem_id2_type {
 	u32 lcd_maker;
 	u32 build_info;             /* build type user:0 userdebug:1 eng:2 */
 	int modem_reset;
+#if defined(CONFIG_LGE_MODULE_DETECT)
+	int display_id;
+	int touch_id;
+	int proximity_id;
+	int accel_id;
+	int magnetic_id;
+#endif
 };
 #endif
 
 #define subsys_to_drv(d) container_of(d, struct modem_data, subsys_desc)
 
+#ifdef FEATURE_LGE_MODEM_DEBUG_INFO
+enum modem_ssr_event {
+    MODEM_SSR_ERR_FATAL = 0x01,
+    MODEM_SSR_WATCHDOG_BITE,
+    MODEM_SSR_UNEXPECTED_RESET1,
+    MODEM_SSR_UNEXPECTED_RESET2,
+};
+
+struct modem_debug_info {
+    char save_ssr_reason[MAX_SSR_REASON_LEN];
+#ifdef FEATURE_LGE_MODEM_CHIPVER_INFO
+	char save_msm_chip_info[MAX_SSR_REASON_LEN];
+#endif
+    int modem_ssr_event;
+    int modem_ssr_level;
+    struct workqueue_struct *modem_ssr_queue;
+    struct work_struct modem_ssr_report_work;
+};
+
+struct modem_debug_info modem_debug;
+
+static void modem_ssr_report_work_fn(struct work_struct *work)
+{
+
+    int fd, ret = 0;
+    char report_index = 0;
+    char index_to_write = 0;
+    char path_prefix[]="/data/logger/modem_ssr_report";
+    char index_file_path[]="/data/logger/modem_ssr_index";
+    char report_file_path[128];
+#ifdef FEATURE_LGE_MODEM_CHIPVER_INFO
+    int i = 0;
+    char chip_info_path[]="/data/logger/modem_chip_info";
+	struct timespec time;
+	struct tm tmresult;
+	char time_stamp[128];
+#endif
+    char watchdog_bite[]="Watchdog bite received from modem software!";
+    char unexpected_reset1[]="unexpected reset external modem";
+    char unexpected_reset2[]="MDM2AP_STATUS did not go high";
+
+    mm_segment_t oldfs;
+
+    oldfs = get_fs();
+    set_fs(get_ds());
+
+    fd = sys_open(index_file_path, O_RDONLY, 0664);
+    if (fd < 0) {
+        printk("%s : can't open the index file\n", __func__);
+        report_index = '0';
+    } else {
+        ret = sys_read(fd, &report_index, 1);
+        if (ret < 0) {
+            printk("%s : can't read the index file\n", __func__);
+            report_index = '0';
+        }
+        sys_close(fd);
+    }
+
+    if (report_index == '9') {
+        index_to_write = '0';
+    } else if (report_index >= '0' && report_index <= '8') {
+        index_to_write = report_index + 1;
+    } else {
+        index_to_write = '1';
+        report_index = '0';
+    }
+
+    fd = sys_open(index_file_path, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+    if (fd < 0) {
+        printk("%s : can't open the index file\n", __func__);
+        return;
+    }
+
+    ret = sys_write(fd, &index_to_write, 1);
+    if (ret < 0) {
+        printk("%s : can't write the index file\n", __func__);
+        return;
+    }
+
+    ret = sys_close(fd);
+    if (ret < 0) {
+        printk("%s : can't close the index file\n", __func__);
+        return;
+    }
+
+#ifdef FEATURE_LGE_MODEM_CHIPVER_INFO
+	time = __current_kernel_time();
+	time_to_tm(time.tv_sec, sys_tz.tz_minuteswest * 60 * (-1),
+				&tmresult);
+
+	sprintf(time_stamp, "[%02d-%02d %02d:%02d:%02d.%03lu] ",
+		tmresult.tm_mon+1,tmresult.tm_mday,tmresult.tm_hour,
+		tmresult.tm_min,tmresult.tm_sec,(unsigned long) time.tv_nsec/1000000);
+#endif
+    for (i = 0; i < MAX_WRITE_SSR; i++){
+        if (i == 0){
+			sprintf(report_file_path, "%s%c", path_prefix, report_index);
+			fd = sys_open(report_file_path, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+        }
+        else if (i == 1){
+			fd = sys_open(path_prefix, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+        }
+
+		if (fd < 0) {
+			printk("%s : can't open the report file\n", __func__);
+			return;
+		}
+
+#ifdef FEATURE_LGE_MODEM_CHIPVER_INFO
+		ret = sys_write(fd, time_stamp, strlen(time_stamp));
+
+		if (ret < 0) {
+			printk("%s : can't write the report file\n", __func__);
+			return;
+		}
+#endif
+
+		switch (modem_debug.modem_ssr_event) {
+			case MODEM_SSR_ERR_FATAL:
+				ret = sys_write(fd, modem_debug.save_ssr_reason, strlen(modem_debug.save_ssr_reason));
+				break;
+			case MODEM_SSR_WATCHDOG_BITE:
+				ret = sys_write(fd, watchdog_bite, sizeof(watchdog_bite) - 1);
+				break;
+			case MODEM_SSR_UNEXPECTED_RESET1:
+				ret = sys_write(fd, unexpected_reset1, sizeof(unexpected_reset1) - 1);
+				break;
+			case MODEM_SSR_UNEXPECTED_RESET2:
+				ret = sys_write(fd, unexpected_reset2, sizeof(unexpected_reset2) - 1);
+				break;
+			default:
+				printk("%s : modem_ssr_event error %d\n", __func__, modem_debug.modem_ssr_event);
+				break;
+		}
+
+		if (ret < 0) {
+			printk("%s : can't write the report file\n", __func__);
+			return;
+		}
+
+		ret = sys_close(fd);
+
+		if (ret < 0) {
+			printk("%s : can't close the report file\n", __func__);
+			return;
+		}
+    }
+
+#ifdef FEATURE_LGE_MODEM_CHIPVER_INFO
+	fd = sys_open(chip_info_path, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+	if (fd < 0) {
+		pr_err("can't open the report file\n");
+		return;
+	}
+
+	ret = sys_write(fd, modem_debug.save_msm_chip_info, strlen(modem_debug.save_msm_chip_info));
+	if (ret < 0) {
+		pr_err("can't write the report file\n");
+		return;
+    }
+
+    ret = sys_close(fd);
+    if (ret < 0) {
+        printk("%s : can't close the report file\n", __func__);
+        return;
+    }
+#endif
+
+    sys_sync();
+    set_fs(oldfs);
+}
+#endif
+
 static void log_modem_sfr(void)
 {
 	u32 size;
 	char *smem_reason, reason[MAX_SSR_REASON_LEN];
+
+#ifdef FEATURE_LGE_MODEM_CHIPVER_INFO
+	u32 chip_info_size;
+	char *chip_info_str, info_str[MAX_SSR_REASON_LEN];
+#endif
 
 	smem_reason = smem_get_entry_no_rlock(SMEM_SSR_REASON_MSS0, &size, 0,
 							SMEM_ANY_HOST_FLAG);
@@ -72,18 +279,56 @@ static void log_modem_sfr(void)
 	strlcpy(reason, smem_reason, min(size, MAX_SSR_REASON_LEN));
 	pr_err("modem subsystem failure reason: %s.\n", reason);
 
-	smem_reason[0] = '\0';
-	wmb();
+#ifdef FEATURE_LGE_MODEM_CHIPVER_INFO
+	chip_info_str = smem_get_entry_no_rlock(SMEM_SSR_REASON_MSS1_LG, &chip_info_size, 0,
+							SMEM_ANY_HOST_FLAG);
+	if (!chip_info_str || !chip_info_size) {
+		pr_err("modem subsystem failure reason: (unknown, smem_get_entry_no_rlock failed).\n");
+		return;
+	}
+	if (!chip_info_str[0]) {
+		pr_err("modem subsystem failure reason: (unknown, empty string found).\n");
+		return;
+	}
+
+	strlcpy(info_str, chip_info_str, min(chip_info_size, MAX_SSR_REASON_LEN));
+	pr_err("[LGE] MSM Chip info : %s.\n", info_str);
+#endif
+
+#ifdef FEATURE_LGE_MODEM_DEBUG_INFO
+    if (modem_debug.modem_ssr_level != RESET_SOC) {
+        strlcpy(modem_debug.save_ssr_reason, smem_reason, min(size, MAX_SSR_REASON_LEN));
+#ifdef FEATURE_LGE_MODEM_CHIPVER_INFO
+		strlcpy(modem_debug.save_msm_chip_info, chip_info_str, min(chip_info_size, MAX_SSR_REASON_LEN));
+#endif
+        modem_debug.modem_ssr_event = MODEM_SSR_ERR_FATAL;
+        queue_work(modem_debug.modem_ssr_queue, &modem_debug.modem_ssr_report_work);
+    }
+#endif
+
+    smem_reason[0] = '\0';
+    wmb();
 }
 
 static void restart_modem(struct modem_data *drv)
 {
+
+#ifdef FEATURE_LGE_MODEM_DEBUG_INFO
+    modem_debug.modem_ssr_level = subsys_get_restart_level(drv->subsys);
+#endif
+
 	log_modem_sfr();
 	drv->ignore_errors = true;
 	subsystem_restart_dev(drv->subsys);
 }
 
 #ifdef CONFIG_LGE_HANDLE_PANIC
+void modem_set_ignore_errors(struct subsys_desc *subsys)
+{
+	struct modem_data *drv = subsys_to_drv(subsys);
+	drv->ignore_errors = true;
+}
+EXPORT_SYMBOL(modem_set_ignore_errors);
 static int check_modem_reset(struct modem_data *drv)
 {
 	u32 size;
@@ -110,7 +355,7 @@ static int check_modem_reset(struct modem_data *drv)
 	return ret;
 }
 
-//                                                                                          
+//2014-06-20 seongmook.yim(seongmook.yim@lge.com) [P3/MDMBSP] ADD ADSP Crash handler [START]
 static int check_adsp_crash(struct modem_data *drv)
 {
   u32 size;
@@ -134,7 +379,7 @@ static int check_adsp_crash(struct modem_data *drv)
   }
   return ret;
 }
-//                                                                                        
+//2014-06-20 seongmook.yim(seongmook.yim@lge.com) [P3/MDMBSP] ADD ADSP Crash handler [END]
 #endif
 
 static irqreturn_t modem_err_fatal_intr_handler(int irq, void *dev_id)
@@ -152,13 +397,13 @@ static irqreturn_t modem_err_fatal_intr_handler(int irq, void *dev_id)
 	if (check_modem_reset(drv) == 0)
 		return IRQ_HANDLED;
 
-//                                                                                          
+//2014-06-20 seongmook.yim(seongmook.yim@lge.com) [P3/MDMBSP] ADD ADSP Crash handler [START]
     if(check_adsp_crash(drv) == 0)
     {
       pr_err("%s: ADSP Crash done!\n",__func__);
       //return IRQ_HANDLED;
     }
-//                                                                                        
+//2014-06-20 seongmook.yim(seongmook.yim@lge.com) [P3/MDMBSP] ADD ADSP Crash handler [END]
 #endif
 
 	restart_modem(drv);
@@ -181,6 +426,7 @@ static int modem_shutdown(const struct subsys_desc *subsys, bool force_stop)
 	if (subsys->is_not_loadable)
 		return 0;
 
+#if 0
 	if (!subsys_get_crash_status(drv->subsys) && force_stop &&
 	    subsys->force_stop_gpio) {
 		gpio_set_value(subsys->force_stop_gpio, 1);
@@ -190,7 +436,16 @@ static int modem_shutdown(const struct subsys_desc *subsys, bool force_stop)
 			pr_warn("Timed out on stop ack from modem.\n");
 		gpio_set_value(subsys->force_stop_gpio, 0);
 	}
+#else
+	pr_err("Setting FORCE STOP GPIO\n");
 
+	gpio_set_value(subsys->force_stop_gpio, 1);
+	ret = wait_for_completion_timeout(&drv->stop_ack,
+			msecs_to_jiffies(STOP_ACK_TIMEOUT_MS));
+	if (!ret)
+		pr_warn("Timed out on stop ack from modem.\n");
+	gpio_set_value(subsys->force_stop_gpio, 0);
+#endif
 	if (drv->subsys_desc.ramdump_disable_gpio) {
 		drv->subsys_desc.ramdump_disable = gpio_get_value(
 					drv->subsys_desc.ramdump_disable_gpio);
@@ -231,6 +486,13 @@ static void modem_crash_shutdown(const struct subsys_desc *subsys)
 	}
 }
 
+static void modem_free_memory(const struct subsys_desc *subsys)
+{
+	struct modem_data *drv = subsys_to_drv(subsys);
+
+	pil_free_memory(&drv->q6->desc);
+}
+
 static int modem_ramdump(int enable, const struct subsys_desc *subsys)
 {
 	struct modem_data *drv = subsys_to_drv(subsys);
@@ -251,7 +513,7 @@ static int modem_ramdump(int enable, const struct subsys_desc *subsys)
 	if (ret < 0)
 		pr_err("Unable to dump modem fw memory (rc = %d).\n", ret);
 
-	ret = pil_mss_deinit_image(&drv->q6->desc);
+	ret = __pil_mss_deinit_image(&drv->q6->desc, false);
 	if (ret < 0)
 		pr_err("Unable to free up resources (rc = %d).\n", ret);
 
@@ -264,9 +526,23 @@ static irqreturn_t modem_wdog_bite_intr_handler(int irq, void *dev_id)
 	struct modem_data *drv = subsys_to_drv(dev_id);
 	if (drv->ignore_errors)
 		return IRQ_HANDLED;
+
 	pr_err("Watchdog bite received from modem software!\n");
+	if (drv->subsys_desc.system_debug &&
+			!gpio_get_value(drv->subsys_desc.err_fatal_gpio))
+		panic("%s: System ramdump requested. Triggering device restart!\n",
+							__func__);
 	subsys_set_crash_status(drv->subsys, true);
 	restart_modem(drv);
+
+#ifdef FEATURE_LGE_MODEM_DEBUG_INFO
+    modem_debug.modem_ssr_level = subsys_get_restart_level(drv->subsys);
+    if (modem_debug.modem_ssr_level != RESET_SOC) {
+        modem_debug.modem_ssr_event = MODEM_SSR_WATCHDOG_BITE;
+        queue_work(modem_debug.modem_ssr_queue, &modem_debug.modem_ssr_report_work);
+    }
+#endif
+
 	return IRQ_HANDLED;
 }
 
@@ -281,6 +557,7 @@ static int pil_subsys_init(struct modem_data *drv,
 	drv->subsys_desc.shutdown = modem_shutdown;
 	drv->subsys_desc.powerup = modem_powerup;
 	drv->subsys_desc.ramdump = modem_ramdump;
+	drv->subsys_desc.free_memory = modem_free_memory;
 	drv->subsys_desc.crash_shutdown = modem_crash_shutdown;
 	drv->subsys_desc.err_fatal_handler = modem_err_fatal_intr_handler;
 	drv->subsys_desc.stop_ack_handler = modem_stop_ack_intr_handler;
@@ -430,6 +707,21 @@ static int pil_mss_driver_probe(struct platform_device *pdev)
 	}
 	init_completion(&drv->stop_ack);
 
+#ifdef FEATURE_LGE_MODEM_DEBUG_INFO
+    modem_debug.modem_ssr_queue = alloc_workqueue("modem_ssr_queue", 0, 0);
+    if (!modem_debug.modem_ssr_queue) {
+        printk("could not create modem_ssr_queue\n");
+    }
+
+    modem_debug.modem_ssr_event = 0;
+    modem_debug.modem_ssr_level = RESET_SOC;
+    INIT_WORK(&modem_debug.modem_ssr_report_work, modem_ssr_report_work_fn);
+#endif
+	/* Probe the MBA mem device if present */
+	ret = of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
+	if (ret)
+		return ret;
+
 	return pil_subsys_init(drv, pdev);
 }
 
@@ -440,8 +732,43 @@ static int pil_mss_driver_exit(struct platform_device *pdev)
 	subsys_unregister(drv->subsys);
 	destroy_ramdump_device(drv->ramdump_dev);
 	pil_desc_release(&drv->q6->desc);
+
+#ifdef FEATURE_LGE_MODEM_DEBUG_INFO
+    if (modem_debug.modem_ssr_queue) {
+        destroy_workqueue(modem_debug.modem_ssr_queue);
+        modem_debug.modem_ssr_queue = NULL;
+    }
+#endif
+
 	return 0;
 }
+
+static int pil_mba_mem_driver_probe(struct platform_device *pdev)
+{
+	struct modem_data *drv;
+
+	if (!pdev->dev.parent)
+		return -EINVAL;
+
+	drv = dev_get_drvdata(pdev->dev.parent);
+	drv->mba_mem_dev_fixed = &pdev->dev;
+
+	return 0;
+}
+
+static struct of_device_id mba_mem_match_table[] = {
+	{ .compatible = "qcom,pil-mba-mem" },
+	{}
+};
+
+static struct platform_driver pil_mba_mem_driver = {
+	.probe = pil_mba_mem_driver_probe,
+	.driver = {
+		.name = "pil-mba-mem",
+		.of_match_table = mba_mem_match_table,
+		.owner = THIS_MODULE,
+	},
+};
 
 static struct of_device_id mss_match_table[] = {
 	{ .compatible = "qcom,pil-q6v5-mss" },
@@ -462,7 +789,13 @@ static struct platform_driver pil_mss_driver = {
 
 static int __init pil_mss_init(void)
 {
-	return platform_driver_register(&pil_mss_driver);
+	int ret;
+
+	ret = platform_driver_register(&pil_mba_mem_driver);
+	if (!ret)
+		ret = platform_driver_register(&pil_mss_driver);
+
+	return ret;
 }
 module_init(pil_mss_init);
 

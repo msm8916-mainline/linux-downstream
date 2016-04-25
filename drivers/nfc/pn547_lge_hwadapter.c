@@ -85,9 +85,17 @@ void pn547_get_clk_source(struct pn547_dev *pn547_dev)
 }
 #endif
 
-void pn547_parse_dt(struct device *dev, struct pn547_dev *pn547_dev)
+int pn547_parse_dt(struct device *dev, struct pn547_dev *pn547_dev)
 {
     struct device_node *np = dev->of_node;
+    const char *status;
+
+    of_property_read_string(np,"status", &status);
+    if (!((strcmp(status,"ok")==0) || (strcmp(status, "okay")== 0))){
+        dprintk(PN547_DRV_NAME ":pn547_parse_dt:Driver will not be loaded because status is not okay! \n");
+        return -1;
+    }
+
 #if defined(CONFIG_LGE_NFC_HW_ODIN)
     int val = 0;
 
@@ -107,4 +115,6 @@ void pn547_parse_dt(struct device *dev, struct pn547_dev *pn547_dev)
     pn547_dev->firm_gpio = of_get_named_gpio_flags(np, "nxp,gpio_mode", 0, NULL);
     pn547_dev->irq_gpio = of_get_named_gpio_flags(np, "nxp,gpio_irq", 0, NULL);
 #endif
+
+    return 0;
 }

@@ -46,7 +46,8 @@
 #define PS_DEFAULT_CROSS_TALK 150
 #endif
 
-#include "bs_log.h"
+#include "lge_log.h"
+#define SENSOR_TAG	"[LGE_Proximity]"
 
 #define LGE_PROXIMITY_NAME	"lge_proximity"
 
@@ -55,6 +56,8 @@
 
 #define APDS9130_INT		IRQ_EINT20
 
+#define APDS9130_PS_MIN_THRESHOLD			0
+#define APDS9130_PS_MAX_THRESHOLD			1023
 #define APDS9130_PS_DETECTION_THRESHOLD		600
 #define APDS9130_PS_HYSTERESIS_THRESHOLD	500
 
@@ -72,14 +75,14 @@
 
 #define APDS9130_INTERRUPT_MODE_ENABLE
 
-/*               
-  
-                                           
-  
-                                                   
-                                              
-                                                         
-  
+/* Change History
+ *
+ * 1.0.0	Funcamental Functions of APDS-9130
+ *
+ * 1.0.1	Remove ioctl interface, remain using sysfs
+ * 1.0.2	Add LG cross-talk calibration process
+ * 1.0.3	LGE Commonization (WX-BSP-TS@lge.com, 2013/8/27)
+ *
  */
 
 #define APDS9130_IOCTL_PS_ENABLE		1
@@ -344,7 +347,7 @@ struct apds9130_data {
 #if defined(APDS9130_PROXIMITY_CAL)
 	int cross_talk;
 	bool read_ps_cal_data;
-	int ps_cal_result; /*                                                                  */
+	int ps_cal_result; /* [LGSI_SP4_BSP][kirankumar.vm@lge.com] Proximity Testmode changes */
 #endif
 
 	atomic_t i2c_status;
@@ -363,6 +366,7 @@ enum apds9130_dev_status {
 };
 
 enum apds9130_input_event {
+	PROX_INPUT_UNKNOWN = -1,
 	PROX_INPUT_NEAR = 0,
 	PROX_INPUT_FAR,
 };
@@ -434,7 +438,7 @@ static int apds9930_set_ailt(struct i2c_client *client, int threshold)
 	mutex_unlock(&data->update_lock);
 
 	data->ailt = threshold;
-	PINFO("Set ailt %d",data->ailt);
+	SENSOR_LOG("Set ailt %d",data->ailt);
 	return ret;
 }
 
@@ -449,7 +453,7 @@ static int apds9930_set_aiht(struct i2c_client *client, int threshold)
 	mutex_unlock(&data->update_lock);
 
 	data->aiht = threshold;
-	PINFO("Set aiht %d",data->aiht);
+	SENSOR_LOG("Set aiht %d",data->aiht);
 	return ret;
 }
 #endif
@@ -506,8 +510,8 @@ static int apds9130_backup_crosstalk_data_fs(unsigned int val)
 	memset(buf, 0, sizeof(buf));
 	sprintf(buf, "%d", val);
 
-	PINFO("Enter");
-	PINFO("buf = %s ", buf);
+	SENSOR_LOG("Enter");
+	SENSOR_LOG("buf = %s ", buf);
 
 	set_fs(KERNEL_DS);
 	fd = sys_open("/sns/prox_calibration.dat", O_WRONLY | O_CREAT, 0664);
@@ -535,15 +539,15 @@ static int apds9130_read_crosstalk_data_fs(void)
 	char read_buf[50];
 	mm_segment_t old_fs = get_fs();
 
-	PINFO("Enter");
+	SENSOR_LOG("Enter");
 	memset(read_buf, 0, sizeof(read_buf));
 	set_fs(KERNEL_DS);
 
 	fd = sys_open("/sns/prox_calibration.dat", O_RDONLY, 0);
 	if (fd >= 0) {
-		PINFO("Success read Prox Cross-talk from FS ");
+		SENSOR_LOG("Success read Prox Cross-talk from FS ");
 		len = sys_read(fd, read_buf, sizeof(read_buf));
-		PINFO("Proximity Calibration File size is = %d", len);
+		SENSOR_LOG("Proximity Calibration File size is = %d", len);
 		if (len <= 0) {
 			ret = -1;
 			sys_close(fd);
@@ -553,8 +557,8 @@ static int apds9130_read_crosstalk_data_fs(void)
 		sys_close(fd);
 		set_fs(old_fs);
 	} else {
-		PINFO("Fail read Prox Cross-talk FS");
-		PINFO("Return error code : %d", fd);
+		SENSOR_ERR("Fail read Prox Cross-talk FS");
+		SENSOR_ERR("Return error code : %d", fd);
 		ret = -1;
 		sys_close(fd);
 		set_fs(old_fs);
@@ -573,7 +577,7 @@ static void apds9930_set_als_threshold(
 
 	data->als_upper_threshold = data->platform_data->als_upper_threshold;
 	data->als_lower_threshold = data->platform_data->als_lower_threshold;
-	PINFO("ALS H Threshold = %d, L Threshold = %d", data->als_upper_threshold, data->als_lower_threshold);
+	SENSOR_LOG("ALS H Threshold = %d, L Threshold = %d", data->als_upper_threshold, data->als_lower_threshold);
 }
 #endif
 
@@ -591,7 +595,7 @@ static void apds9130_Set_PS_Threshold_Adding_Cross_talk(
 	data->ps_threshold = data->platform_data->near_offset + cal_data;
 	data->ps_hysteresis_threshold = data->ps_threshold -
 					data->platform_data->far_offset;
-	PINFO("Crosstalk = %d, H Threshold = %d, L Threshold = %d", data->cross_talk,
+	SENSOR_LOG("Crosstalk = %d, H Threshold = %d, L Threshold = %d", data->cross_talk,
 	      data->ps_threshold, data->ps_hysteresis_threshold);
 	/*apds_proxi_high_threshold = data->ps_threshold;*/
 	/*apds_proxi_low_threshold = data->ps_hysteresis_threshold;*/
@@ -605,7 +609,7 @@ static int apds9130_Run_Cross_talk_Calibration(struct i2c_client *client)
 	unsigned int ret = 0, i = 0, j = 0, ArySize = 20, cal_check_flag = 0;
 	unsigned int old_enable = 0;
 
-	PINFO("Enter ");
+	SENSOR_LOG("Enter ");
 RE_CALIBRATION:
 	old_enable = data->enable;
 	sum_of_pdata = 0;
@@ -628,7 +632,7 @@ RE_CALIBRATION:
 		sum_of_pdata = sum_of_pdata + temp_pdata[i];
 
 	data->cross_talk = sum_of_pdata / 10;
-	PINFO("sum_of_pdata/10 = %d", data->cross_talk);
+	SENSOR_LOG("sum_of_pdata/10 = %d", data->cross_talk);
 	if (data->cross_talk > data->platform_data->crosstalk_max) {
 		if (cal_check_flag == 0) {
 			cal_check_flag = 1;
@@ -645,11 +649,11 @@ RE_CALIBRATION:
 
 	ret = apds9130_backup_crosstalk_data_fs(data->cross_talk);
 
-	PINFO("threshold : %d", data->ps_threshold);
-	PINFO("Hysteresis_threshold : %d", data->ps_hysteresis_threshold);
+	SENSOR_LOG("threshold : %d", data->ps_threshold);
+	SENSOR_LOG("Hysteresis_threshold : %d", data->ps_hysteresis_threshold);
 
 	apds9130_set_enable(client, old_enable);
-	PINFO("Leave");
+	SENSOR_LOG("Leave");
 
 	return data->cross_talk;
 }
@@ -660,7 +664,7 @@ static ssize_t apds9130_show_run_calibration(struct device *dev,
 	struct apds9130_data *data = dev_get_drvdata(dev);
 
 	return sprintf(buf, "%d\n",
-		       data->ps_cal_result); /*                                                                */
+		       data->ps_cal_result); /*[LGSI_SP4_BSP][kirankumar.vm@lge.com] Proximity Testmode changes*/
 }
 
 static ssize_t apds9130_store_run_calibration(struct device *dev,
@@ -670,10 +674,10 @@ static ssize_t apds9130_store_run_calibration(struct device *dev,
 	int ret = apds9130_Run_Cross_talk_Calibration(data->client);
 
 	if (ret < 0) {
-		PINFO("Fail error :  %d", ret);
+		SENSOR_ERR("Fail error :  %d", ret);
 		data->ps_cal_result = 0;
 	} else {
-		PINFO("Succes cross-talk :  %d", ret);
+		SENSOR_LOG("Succes cross-talk :  %d", ret);
 		data->ps_cal_result = 1;
 	}
 
@@ -703,14 +707,14 @@ static ssize_t apds9130_store_crosstalk_data(struct device *dev,
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 
 
-	PINFO("Enter");
+	SENSOR_LOG("Enter");
 	ret = apds9130_backup_crosstalk_data_fs(val);
 	if (ret != 0)
-		return PINFO("File open fail %d", ret);
+		return SENSOR_ERR("File open fail %d", ret);
 
 	data->cross_talk = val;
 
-	PINFO("Saved cross_talk val : %d", (int)val);
+	SENSOR_LOG("Saved cross_talk val : %d", (int)val);
 
 
 	return count;
@@ -828,9 +832,9 @@ static void apds9130_change_ps_threshold(struct i2c_client *client)
 	struct apds9130_data *data = i2c_get_clientdata(client);
 
 #ifdef APDS9930_ALS_SENSOR_ENABLE
-	apds9130_set_pers(client, APDS9130_PPERS_2 | APDS9930_APERS_2);	/*sh.kim, set PS7persistence 3 */
+	apds9130_set_pers(client, APDS9130_PPERS_2 | APDS9930_APERS_2);
 #else
-	apds9130_set_pers(client, APDS9130_PPERS_2); /*sh.kim, set PS7persistence 3 */
+	apds9130_set_pers(client, APDS9130_PPERS_2);
 #endif
 	/* repeat this because of the first interrupt forced */
 
@@ -840,22 +844,20 @@ static void apds9130_change_ps_threshold(struct i2c_client *client)
 		* Thus, if such incident happens, narrow interrupt condition (i.e set high threshold to very near range (about 2~3cm)) 
 		* so that no more interrupt occurs.
 		*/
-		PINFO("Triggered by strong light");
+		SENSOR_LOG("Triggered by strong light");
 		if (data->ps_detection != 0) {
 			/* Bring it back to FAR */
 			input_report_abs(data->input_dev_ps, ABS_DISTANCE, PROX_INPUT_FAR);
 			input_sync(data->input_dev_ps);
-			PINFO("near-to-far enforced.");
+
+			SENSOR_LOG("near-to-far enforced.");
 		}
-		i2c_smbus_write_word_data(client,
-						CMD_WORD|APDS9130_PILTL_REG, 0);
-		i2c_smbus_write_word_data(client,
-						CMD_WORD|APDS9130_PIHTL_REG, 1022);
-		data->pilt = 0;
-		data->piht = 1022;
+
+		apds9130_set_pilt(client, APDS9130_PS_MIN_THRESHOLD);
+		apds9130_set_piht(client, APDS9130_PS_MAX_THRESHOLD - 1);
 
 		data->ps_detection = 0;
-		PINFO("Narrow interrupt condition.");
+		SENSOR_LOG("Narrow interrupt condition.");
 		/* 0 = CMD_CLR_PS_INT */
 		apds9130_set_command(client, 0);
 		return;
@@ -864,38 +866,30 @@ static void apds9130_change_ps_threshold(struct i2c_client *client)
 	data->ps_data =	i2c_smbus_read_word_data(client,
 			CMD_WORD | APDS9130_PDATAL_REG);
 
-	if ((data->ps_data > data->pilt) && (data->ps_data >= data->piht)) {
+	if (data->ps_data >= data->piht) {
 		/* far-to-near detected */
 		data->ps_detection = 1;
 
-		input_report_abs(data->input_dev_ps, ABS_DISTANCE,
-				 PROX_INPUT_NEAR);/* FAR-to-NEAR detection */
+		input_report_abs(data->input_dev_ps, ABS_DISTANCE, PROX_INPUT_NEAR);
 		input_sync(data->input_dev_ps);
 
-		i2c_smbus_write_word_data(client, CMD_WORD | APDS9130_PILTL_REG,
-					  data->ps_hysteresis_threshold);
-		i2c_smbus_write_word_data(client, CMD_WORD | APDS9130_PIHTL_REG, 1023);
+		apds9130_set_pilt(client, data->ps_hysteresis_threshold);
+		apds9130_set_piht(client, APDS9130_PS_MAX_THRESHOLD);
 
-		data->pilt = data->ps_hysteresis_threshold;
-		data->piht = 1023;
-
-		PINFO("far-to-near detected. pdata = %d", data->ps_data);
-	} else if ((data->ps_data <= data->pilt) && (data->ps_data < data->piht)) {
+		SENSOR_LOG("far-to-near detected. pdata = %d", data->ps_data);
+	} else if (data->ps_data <= data->pilt) {
 		/* near-to-far detected */
 		data->ps_detection = 0;
 
-		input_report_abs(data->input_dev_ps, ABS_DISTANCE,
-				 PROX_INPUT_FAR);/* NEAR-to-FAR detection */
+		input_report_abs(data->input_dev_ps, ABS_DISTANCE, PROX_INPUT_FAR);
 		input_sync(data->input_dev_ps);
 
-		i2c_smbus_write_word_data(client, CMD_WORD | APDS9130_PILTL_REG, 0);
-		i2c_smbus_write_word_data(client, CMD_WORD | APDS9130_PIHTL_REG,
-					  data->ps_threshold);
+		apds9130_set_pilt(client, APDS9130_PS_MIN_THRESHOLD);
+		apds9130_set_piht(client, data->ps_threshold);
 
-		data->pilt = 0;
-		data->piht = data->ps_threshold;
-
-		PINFO("near-to-far detected. pdata = %d", data->ps_data);
+		SENSOR_LOG("near-to-far detected. pdata = %d", data->ps_data);
+	} else {
+		SENSOR_LOG("else detected. pdata = %d", data->ps_data);
 	}
 }
 
@@ -905,7 +899,7 @@ static void apds9930_change_als_threshold(struct i2c_client *client)
 	struct apds9130_data *data = i2c_get_clientdata(client);
 	int v;
 
-	apds9130_set_pers(client, APDS9130_PPERS_2 | APDS9930_APERS_2);	/*sh.kim, set PS7persistence 3 */
+	apds9130_set_pers(client, APDS9130_PPERS_2 | APDS9930_APERS_2);
 	/* repeat this because of the first interrupt forced */
 
 	data->als_cdata0 =	i2c_smbus_read_word_data(client,
@@ -918,56 +912,48 @@ static void apds9930_change_als_threshold(struct i2c_client *client)
 	v = 1024 * (256 - data->atime);
 	v = (v * 75) / 100;
 	if ((data->ps_detection == 1) && (data->als_cdata0 > v)) {
-		/*
-		* need to inform input event as there will be no interrupt
-		* from the PS
-		*/
-		/* NEAR-to-FAR detection */
-		input_report_abs(data->input_dev_ps, ABS_DISTANCE, PROX_INPUT_FAR);
-
-		input_sync(data->input_dev_ps);
-
-		i2c_smbus_write_word_data(client, CMD_WORD | APDS9130_PILTL_REG, 0);
-		i2c_smbus_write_word_data(client, CMD_WORD | APDS9130_PIHTL_REG, data->ps_threshold);
-
-		data->pilt = 0;
-		data->piht = data->ps_threshold;
+		/* need to inform input event as there will be no interrupt from PS */
 		/* near-to-far detected */
 		data->ps_detection = 0;
-		PINFO("near-to-far enforced. cdata = %d", data->als_cdata0);
+
+		input_report_abs(data->input_dev_ps, ABS_DISTANCE, PROX_INPUT_FAR);
+		input_sync(data->input_dev_ps);
+
+		apds9130_set_pilt(client, APDS9130_PS_MIN_THRESHOLD);
+		apds9130_set_piht(client, data->ps_threshold);
+
+		SENSOR_LOG("near-to-far enforced. cdata = %d", data->als_cdata0);
 	}
 
-	PINFO ("Change ALS Threshold : Read CData: %d",	data->als_cdata0);
+	SENSOR_LOG ("Change ALS Threshold : Read CData: %d", data->als_cdata0);
+
 	if ((data->als_cdata0 > data->ailt) && (data->als_cdata0 >= data->aiht)) {
 		/* strong light detected */
 		data->als_detection = 1;
+#ifndef CONFIG_MACH_MSM8916_C50_CRK_US
+		apds9130_set_ailt(client, data->als_lower_threshold);
+		apds9130_set_aiht(client, 65535);
+#endif
 
-		i2c_smbus_write_word_data(client, CMD_WORD | APDS9930_AILTL_REG,
-					  data->als_lower_threshold);
-		i2c_smbus_write_word_data(client, CMD_WORD | APDS9930_AIHTL_REG, 65535);
+		SENSOR_LOG("Dark -> Bright detected ");
 
-		data->ailt = data->als_lower_threshold;
-		data->aiht = 65535;
-
-		PINFO("Dark -> Bright detected ");
-		if(apds9930_lux_change_cb)
+		if(apds9930_lux_change_cb) {
 			apds9930_lux_change_cb(1);
-
+		}
 	} else if ((data->als_cdata0 <= data->ailt) && (data->als_cdata0 < data->aiht)) {
+		/* dark detected */
 		data->als_detection = 0;
 
-		i2c_smbus_write_word_data(client, CMD_WORD | APDS9930_AILTL_REG, 0);
-		i2c_smbus_write_word_data(client, CMD_WORD | APDS9930_AIHTL_REG,
-					  data->als_upper_threshold);
+#ifndef CONFIG_MACH_MSM8916_C50_CRK_US
+		apds9130_set_ailt(client, 0);
+		apds9130_set_aiht(client, data->als_upper_threshold);
+#endif
 
-		data->ailt = 0;
-		data->aiht = data->als_upper_threshold;
+		SENSOR_LOG("Bright -> Dark detected ");
 
-		PINFO("Bright -> Dark detected ");
-
-		if(apds9930_lux_change_cb)
+		if(apds9930_lux_change_cb) {
 			apds9930_lux_change_cb(0);
-
+		}
 	}
 }
 #endif
@@ -983,7 +969,7 @@ static void apds9130_reschedule_work(struct apds9130_data *data,
 	cancel_delayed_work(&data->dwork);
 	ret = queue_delayed_work(apds9130_workqueue, &data->dwork, delay);
 	if (ret < 0)
-		PINFO("queue_work fail, ret = %d ", ret);
+		SENSOR_ERR("queue_work fail, ret = %d ", ret);
 }
 
 #ifdef APDS9130_POLLING_MODE_ENABLE
@@ -1005,24 +991,22 @@ static void apds9130_ps_polling_work_handler(struct work_struct *work)
 		/* far-to-near detected */
 		data->ps_detection = 1;
 
-		input_report_abs(data->input_dev_ps, ABS_DISTANCE,
-				 PROX_INPUT_NEAR);/* FAR-to-NEAR detection */
+		input_report_abs(data->input_dev_ps, ABS_DISTANCE, PROX_INPUT_NEAR);
 		input_sync(data->input_dev_ps);
 
-		PINFO("far-to-near detected");
+		SENSOR_LOG("far-to-near detected");
 	} else if ((data->ps_data < data->ps_hysteresis_threshold)
 		   && (data->ps_detection == 1) && ((status & 0x40) == 0x00)) {
 		/* PS was previously in far-to-near condition */
 		/* near-to-far detected */
 		data->ps_detection = 0;
 
-		input_report_abs(data->input_dev_ps, ABS_DISTANCE,
-				 PROX_INPUT_FAR);/* NEAR-to-FAR detection */
+		input_report_abs(data->input_dev_ps, ABS_DISTANCE, PROX_INPUT_FAR);
 		input_sync(data->input_dev_ps);
 
-		PINFO("near-to-far detected");
+		SENSOR_LOG("near-to-far detected");
 	} else {
-		PINFO("Triggered by background ambient noise");
+		SENSOR_LOG("Triggered by background ambient noise");
 	}
 
 	if ((status & 0x40) == 0x40) {	/* need to clear psat bit if it is set */
@@ -1045,23 +1029,23 @@ static void apds9130_work_handler(struct work_struct *work)
 
 	status = i2c_smbus_read_byte_data(client, CMD_BYTE | APDS9130_STATUS_REG);
 	if (status < 0) {
-		PINFO("I2C Read Fail, status = %d", status);
+		SENSOR_ERR("I2C Read Fail, status = %d", status);
 		return;
 	}
 	enable = i2c_smbus_read_byte_data(client, CMD_BYTE | APDS9130_ENABLE_REG);
 	if (status < 0) {
-		PINFO("I2C Read Fail, enable = %d", status);
+		SENSOR_ERR("I2C Read Fail, enable = %d", status);
 		return;
 	}
 
 	i2c_smbus_write_byte_data(client, CMD_BYTE | APDS9130_ENABLE_REG, 1);	/* disable 9130 first */
 
-	PINFO("status = %x ", status);
+	SENSOR_LOG("status = %x ", status);
 	data->ps_sat = (status & 0x40);
 
 	if ((status & enable & 0x30) == 0x30) {
 		/* both PS and ALS are interrupted */
-		PINFO("Both PS ALS Interrupted");
+		SENSOR_LOG("Both PS ALS Interrupted");
 
 #ifdef APDS9930_ALS_SENSOR_ENABLE
 		apds9930_change_als_threshold(client);
@@ -1076,13 +1060,13 @@ static void apds9130_work_handler(struct work_struct *work)
 
 		apds9130_set_command(client, 0);	/* 0 = CMD_CLR_PS_INT */
 	} else if ((status & enable & 0x10) == 0x10) {
-		PINFO("ALS Interrupted");
+		SENSOR_LOG("ALS Interrupted");
 #ifdef APDS9930_ALS_SENSOR_ENABLE
 		apds9930_change_als_threshold(client);
 #endif
 		apds9130_set_command(client, 1);	/* 1 = CMD_CLR_ALS_INT */
 	} else {
-		PINFO("Unknown interrupt");
+		SENSOR_ERR("Unknown interrupt");
 		apds9130_set_command(client, 0);	/* 0 = CMD_CLR_PS_INT */
 	}
 
@@ -1097,7 +1081,7 @@ static irqreturn_t apds9130_interrupt(int vec, void *info)
 	int tmp = -1;
 	tmp = atomic_read(&data->i2c_status);
 
-	PINFO("==> apds9130_interrupt");
+	SENSOR_LOG("==> apds9130_interrupt");
 
 	if (wake_lock_active(&data->ps_wlock))
 		wake_unlock(&data->ps_wlock);
@@ -1105,13 +1089,13 @@ static irqreturn_t apds9130_interrupt(int vec, void *info)
 
 	if (tmp == APDS9130_STATUS_SUSPEND) {
 		atomic_set(&data->i2c_status, APDS9130_STATUS_QUEUE_WORK);
-		PINFO("i2c_status = %d ", tmp);
+		SENSOR_LOG("i2c_status = %d ", tmp);
 	} else {
 		if (tmp == APDS9130_STATUS_RESUME) {
-			PINFO("queue_work , i2c_status = %d ", tmp);
+			SENSOR_LOG("queue_work , i2c_status = %d ", tmp);
 			apds9130_reschedule_work(data, 0);
 		}
-		PINFO("i2c_status = %d  ", tmp);
+		SENSOR_LOG("i2c_status = %d  ", tmp);
 	}
 
 	return IRQ_HANDLED;
@@ -1125,11 +1109,11 @@ static int apds9130_set_ps_poll_delay(struct i2c_client *client,
 	int ret;
 	int wtime = 0;
 
-	PINFO(": %d\n", val);
+	SENSOR_LOG(": %d", val);
 
 	if ((val != APDS9130_PS_POLL_SLOW) && (val != APDS9130_PS_POLL_MEDIUM)
 	    && (val != APDS9130_PS_POLL_FAST)) {
-		PINFO(":invalid value=%d", val);
+		SENSOR_ERR(":invalid value=%d", val);
 		return -1;
 	}
 
@@ -1168,11 +1152,11 @@ static int apds9130_enable_ps_sensor(struct i2c_client *client, int val)
 	int err = 0;
 	int ret = 0;
 
-	PINFO("enable ps senosr Enter, val = ( %d)", val);
+	SENSOR_LOG("enable ps senosr Enter, val = ( %d)", val);
 
 	if ((val != APDS9130_DISABLE_PS) && (val != APDS9130_ENABLE_PS_WITH_INT)
 	    && (val != APDS9130_ENABLE_PS_NO_INT)) {
-		PINFO("invalid value=%d\n", val);
+		SENSOR_ERR("invalid value=%d", val);
 		return -1;
 	}
 
@@ -1186,14 +1170,14 @@ static int apds9130_enable_ps_sensor(struct i2c_client *client, int val)
 		data->cross_talk = apds9130_read_crosstalk_data_fs();
 
 #if 1
-		/*                                                                                  */
+		/* LGE_CHANGE. 2014.2.27. dongwon.you@lge.com. Fixed for CPK fail in MS323(W5 MPCS) */
 		/* Fixed for CPK fail when cross_talk is 0. Don't change to default value when cross talk is 0.*/
 		if (data->cross_talk <= 0) {
-			PINFO("!!! Cross talk value is 0. cross_talk:%d . Set value to 0",
+			SENSOR_ERR("!!! Cross talk value is 0. cross_talk:%d . Set value to 0",
 			      data->cross_talk);
 			data->cross_talk = 0;
 		} else if (data->cross_talk > data->platform_data->crosstalk_max) {
-			PINFO("!!! ERROR!!! Cross talk value is lager than max value. cross_talk :%d . Set default to %d",
+			SENSOR_ERR("!!! ERROR!!! Cross talk value is lager than max value. cross_talk :%d . Set default to %d",
 			      data->cross_talk, PS_DEFAULT_CROSS_TALK);
 			data->cross_talk = PS_DEFAULT_CROSS_TALK;
 		}
@@ -1201,13 +1185,12 @@ static int apds9130_enable_ps_sensor(struct i2c_client *client, int val)
 		if (data->cross_talk <= 0
 		    || data->cross_talk > data->platform_data->crosstalk_max)
 			data->cross_talk = PS_DEFAULT_CROSS_TALK;
-		PINFO("Cross_talk : %d", data->cross_talk);
+		SENSOR_LOG("Cross_talk : %d", data->cross_talk);
 
 #endif
 		apds9130_Set_PS_Threshold_Adding_Cross_talk(client, data->cross_talk);
 
-		PINFO("apds9130_Set_PS_Threshold_Adding_Cross_talk");
-		PINFO("apds9130_Set_PS_Threshold_Adding_Cross_talk = %d", data->cross_talk);
+		SENSOR_LOG("apds9130_Set_PS_Threshold_Adding_Cross_talk = %d", data->cross_talk);
 
 #ifdef APDS9930_ALS_SENSOR_ENABLE
 		apds9930_set_als_threshold(client, 0);
@@ -1217,46 +1200,40 @@ static int apds9130_enable_ps_sensor(struct i2c_client *client, int val)
 
 		if (val == APDS9130_ENABLE_PS_WITH_INT) {
 			if (pdata->power_on) {
-				PINFO("power_on,	 val = %d ", val);
+				SENSOR_LOG("power_on,	 val = %d ", val);
 				pdata->power_on(client, true);
 			}
 
 			mdelay(5);
 			err = apds9130_init_client(client);
 			if (err < 0) {
-				PINFO("Proximity INIT FAIL err = %d ", err);
+				SENSOR_ERR("Proximity INIT FAIL err = %d ", err);
 				ret = -1;
 				goto unlock;
 			}
 			/*turn on p sensor*/
 			err = apds9130_set_enable(client, 0); /* Power Off */
 			if (err < 0) {
-				PINFO("first disable fail, err = %d", err);
+				SENSOR_ERR("first disable fail, err = %d", err);
 				ret = -1;
 				goto unlock;
 			}
 
-			apds9130_set_pilt(client, 0);		/* init threshold for proximity*/
-			apds9130_set_piht(client,
-					  data->ps_threshold); /*                                                              */
+			/* init threshold for proximity */
+			apds9130_set_pilt(client, data->ps_threshold);
+			apds9130_set_piht(client, data->ps_hysteresis_threshold);
 
 #ifdef APDS9930_ALS_SENSOR_ENABLE
 			apds9930_set_ailt(client, 0);
 			apds9930_set_aiht(client, data->als_upper_threshold);
-#endif
 
-			/*                                                                                                                   */
-			input_report_abs(data->input_dev_ps, ABS_DISTANCE,
-					 PROX_INPUT_FAR);/* NEAR-to-FAR detection */
-			input_sync(data->input_dev_ps);
-			/*                                                                                                      */
-#ifdef APDS9930_ALS_SENSOR_ENABLE
-			err = apds9130_set_enable(client, 0x3D|0x02);	 /* enable PS interrupt + ALS interrupt*/ 
+			err = apds9130_set_enable(client, 0x3D|0x02); /* enable PS interrupt + ALS interrupt */
 #else
 			err = apds9130_set_enable(client, 0x2D);
 #endif
+
 			if (err < 0) {
-				PINFO("set_enable fail, err = %d", err);
+				SENSOR_ERR("set_enable fail, err = %d", err);
 				ret = -1;
 				goto unlock;
 			}
@@ -1274,20 +1251,20 @@ static int apds9130_enable_ps_sensor(struct i2c_client *client, int val)
 			cancel_delayed_work(&data->ps_dwork);
 			flush_delayed_work(&data->ps_dwork);
 #endif
-		} else {
+		} else { // val == APDS9130_ENABLE_PS_NO_INT
 			if (pdata->power_on)
 				pdata->power_on(client, true);
 			mdelay(5);
 
 			err = apds9130_init_client(client);
 			if (err < 0) {
-				PINFO("Proximity INIT FAIL err = %d ", err);
+				SENSOR_ERR("Proximity INIT FAIL err = %d ", err);
 				ret = -1;
 				goto unlock;
 			}
 			err = apds9130_set_enable(client, 0x0D);	 /* no PS interrupt */
 			if (err < 0) {
-				PINFO("Polling enable fail, err = %d", err);
+				SENSOR_ERR("Polling enable fail, err = %d", err);
 				ret = -1;
 				goto unlock;
 			}
@@ -1304,7 +1281,7 @@ static int apds9130_enable_ps_sensor(struct i2c_client *client, int val)
 			schedule_delayed_work(&data->ps_dwork, msecs_to_jiffies(data->ps_poll_delay));
 #endif
 		}
-	} else {
+	} else { // val == APDS9130_DISABLE_PS
 		/*
 		if(wake_lock_active(&data->ps_wlock))
 			wake_unlock(&data->ps_wlock);
@@ -1313,17 +1290,19 @@ static int apds9130_enable_ps_sensor(struct i2c_client *client, int val)
 		cancel_delayed_work(&data->dwork);
 		err = apds9130_set_enable(client, 0);
 		if (err < 0) {
-			PINFO("second disable fail, err = %d", err);
+			SENSOR_ERR("second disable fail, err = %d", err);
 			ret = -1;
 			goto unlock;
 		}
 
 		mdelay(5);
 		if (pdata->power_on) {
-			PINFO("power_off,  val = %d ", val);
+			SENSOR_LOG("power_off,  val = %d ", val);
 			pdata->power_on(client, false);
 		}
 		data->enable_ps_sensor = 0;
+
+		input_report_abs(data->input_dev_ps, ABS_DISTANCE, PROX_INPUT_UNKNOWN);
 
 #ifdef APDS9130_POLLING_MODE_ENABLE
 		/*
@@ -1337,7 +1316,7 @@ static int apds9130_enable_ps_sensor(struct i2c_client *client, int val)
 
 unlock:
 	mutex_unlock(&data->enable_lock);
-	PINFO("enable ps senosr End, val = %d", val);
+	SENSOR_LOG("enable ps senosr End, val = %d", val);
 	return ret;
 }
 
@@ -1410,16 +1389,16 @@ static ssize_t apds9130_store_enable_ps_sensor(struct device *dev,
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 	int err = 0;
 
-	PINFO("enable ps senosr ( %ld)", val);
+	SENSOR_LOG("enable ps senosr ( %ld)", val);
 
 	if ((val != 0) && (val != 1)) {
-		PINFO("store unvalid value=%ld", val);
+		SENSOR_ERR("store unvalid value=%ld", val);
 		return count;
 	}
 
 	err = apds9130_enable_ps_sensor(data->client, val);
 	if (err < 0) {
-		PINFO("proximity sensor enable failed, err = %d", err);
+		SENSOR_ERR("proximity sensor enable failed, err = %d", err);
 		return count;
 	}
 
@@ -1474,14 +1453,14 @@ static ssize_t apds9130_store_ppcount(struct device *dev,
 
 	err = apds9130_set_ppcount(data->client, val);
 	if (err < 0) {
-		PINFO("apds9130_set_ppcount failed to set ppcount %d", val);
+		SENSOR_ERR("apds9130_set_ppcount failed to set ppcount %d", val);
 		return err;
 	}
 	return count;
 }
 static DEVICE_ATTR(ppcount, S_IWUSR | S_IRUGO, apds9130_show_ppcount,
 		   apds9130_store_ppcount);
-/*                                                                                   */
+/*[LGSI_SP4_BSP_END][kirankumar.vm@lge.com] 31-10-2012 Added sys Fs entry for PPcount*/
 #if defined(APDS9130_PROXIMITY_CAL)
 static ssize_t apds9130_show_control(struct device *dev,
 				     struct device_attribute *attr, char *buf)
@@ -1520,7 +1499,7 @@ static DEVICE_ATTR(control,  S_IWUSR | S_IRUGO , apds9130_show_control,
 		   apds9130_store_control);
 #endif
 
-/*                                                                                                     */
+/*[LGSI_SP4_BSP_BEGIN][kirankumar.vm@lge.com] Added Sys Fs access to show proximity status for Testmode*/
 static ssize_t apds9130_show_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
@@ -1540,7 +1519,7 @@ static ssize_t apds9130_show_show(struct device *dev,
 }
 
 static DEVICE_ATTR(value, S_IWUSR | S_IRUGO , apds9130_show_show, NULL);
-/*                                         */
+/*[LGSI_SP4_BSP_END][kirankumar.vm@lge.com]*/
 
 static ssize_t apds9130_show_pdrive(struct device *dev,
 				    struct device_attribute *attr, char *buf)
@@ -1718,7 +1697,7 @@ static ssize_t apds9130_show_near_offset(struct device *dev,
 {
 	struct apds9130_data *data = dev_get_drvdata(dev);
 
-	PINFO("get near_offset = %u ", data->platform_data->near_offset);
+	SENSOR_LOG("get near_offset = %u ", data->platform_data->near_offset);
 
 	return sprintf(buf, "%d\n", data->platform_data->near_offset);
 }
@@ -1729,7 +1708,7 @@ static ssize_t apds9130_store_near_offset(struct device *dev,
 	struct apds9130_data *data = dev_get_drvdata(dev);
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 
-	PINFO("set near_offset = %ld ", val);
+	SENSOR_LOG("set near_offset = %ld ", val);
 	data->platform_data->near_offset = val;
 	return count;
 }
@@ -1743,7 +1722,7 @@ static ssize_t apds9130_show_far_offset(struct device *dev,
 {
 	struct apds9130_data *data = dev_get_drvdata(dev);
 
-	PINFO("get far_offset = %u ", data->platform_data->far_offset);
+	SENSOR_LOG("get far_offset = %u ", data->platform_data->far_offset);
 
 	return sprintf(buf, "%d\n", data->platform_data->far_offset);
 }
@@ -1754,7 +1733,7 @@ static ssize_t apds9130_store_far_offset(struct device *dev,
 	struct apds9130_data *data = dev_get_drvdata(dev);
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 
-	PINFO("set far_offset = %ld ", val);
+	SENSOR_LOG("set far_offset = %ld ", val);
 	data->platform_data->far_offset = val;
 	return count;
 }
@@ -1768,7 +1747,7 @@ static ssize_t apds9930_show_bright_threshold(struct device *dev,
 {
 	struct apds9130_data *data = dev_get_drvdata(dev);
 
-	PINFO("get bright_threshold = %u ", data->platform_data->als_upper_threshold);
+	SENSOR_LOG("get bright_threshold = %u ", data->platform_data->als_upper_threshold);
 
 	return sprintf(buf, "%d\n", data->platform_data->als_upper_threshold);
 }
@@ -1779,7 +1758,7 @@ static ssize_t apds9930_store_bright_threshold(struct device *dev,
 	struct apds9130_data *data = dev_get_drvdata(dev);
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 
-	PINFO("set bright_threshold = %ld ", val);
+	SENSOR_LOG("set bright_threshold = %ld ", val);
 	data->platform_data->als_upper_threshold = val;
 	return count;
 }
@@ -1793,7 +1772,7 @@ static ssize_t apds9930_show_dark_threshold(struct device *dev,
 {
 	struct apds9130_data *data = dev_get_drvdata(dev);
 
-	PINFO("get dark_threshold = %u ", data->platform_data->als_lower_threshold);
+	SENSOR_LOG("get dark_threshold = %u ", data->platform_data->als_lower_threshold);
 
 	return sprintf(buf, "%d\n", data->platform_data->als_lower_threshold);
 }
@@ -1804,7 +1783,7 @@ static ssize_t apds9930_store_dark_threshold(struct device *dev,
 	struct apds9130_data *data = dev_get_drvdata(dev);
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 
-	PINFO("set dark_threshold = %ld ", val);
+	SENSOR_LOG("set dark_threshold = %ld ", val);
 	data->platform_data->als_lower_threshold = val;
 	return count;
 }
@@ -1819,7 +1798,7 @@ static ssize_t apds9130_show_crosstalk_max(struct device *dev,
 {
 	struct apds9130_data *data = dev_get_drvdata(dev);
 
-	PINFO("get crosstalk_max = %u ", data->platform_data->crosstalk_max);
+	SENSOR_LOG("get crosstalk_max = %u ", data->platform_data->crosstalk_max);
 
 	return sprintf(buf, "%d\n", data->platform_data->crosstalk_max);
 }
@@ -1830,7 +1809,7 @@ static ssize_t apds9130_store_crosstalk_max(struct device *dev,
 	struct apds9130_data *data = dev_get_drvdata(dev);
 	unsigned long val = simple_strtoul(buf, NULL, 10);
 
-	PINFO("crosstalk_max = %ld ", val);
+	SENSOR_LOG("crosstalk_max = %ld ", val);
 	data->platform_data->crosstalk_max = val;
 	return count;
 }
@@ -1853,9 +1832,9 @@ static struct attribute *apds9130_attributes[] = {
 	&dev_attr_run_calibration.attr,
 	&dev_attr_prox_cal_data.attr,
 #endif
-	&dev_attr_value.attr, /*                                                                                               */
+	&dev_attr_value.attr, /*[LGSI_SP4_BSP][kirankumar.vm@lge.com] Added Sys Fs access to show proximity status for Testmode*/
 	&dev_attr_ppcount.attr,
-	&dev_attr_pdrive.attr,/*                                                   */
+	&dev_attr_pdrive.attr,/*[LGE_BSP][yunmo.yang@lge.com]add pDrive sysfs Entry*/
 	&dev_attr_pilt.attr,
 	&dev_attr_piht.attr,
 	/*add*/
@@ -1884,7 +1863,7 @@ static int apds9130_init_client(struct i2c_client *client)
 	struct apds9130_data *data = i2c_get_clientdata(client);
 	int err;
 	int id;
-
+	SENSOR_FUN();
 	err = apds9130_set_enable(client, 0);
 
 	if (err < 0)
@@ -1895,9 +1874,9 @@ static int apds9130_init_client(struct i2c_client *client)
 	id = i2c_smbus_read_byte_data(client, CMD_BYTE | APDS9130_ID_REG);
 
 	if (id == 0x39) {
-		PINFO("APDS-9130 ");
+		SENSOR_LOG("APDS-9130 ");
 	} else {
-		PINFO("Not APDS-9130 %x", id);
+		SENSOR_ERR("Not APDS-9130 %x", id);
 		return -EIO;
 	}
 
@@ -1945,15 +1924,15 @@ static int apds9130_init_client(struct i2c_client *client)
 	if (err < 0) return err;
 
 	/* sensor is in disabled mode but all the configurations are preset */
-	/*                                                                                                                                  
-                                    
-                                      
-              
-                                
-              
-   
-       
- */
+	/* Temp block the below code as no need to set cross talk threshold during proximity OFF state [LGSI_SP4_BSP][kirankumar.vm@lge.com]
+	#if defined(APDS9130_PROXIMITY_CAL)
+		err = apds9130_set_enable(client,0);
+		if(err < 0){
+			PINFO("%s, enable set Fail");
+			return err;
+		}
+	#endif
+	*/
 	return 0;
 }
 
@@ -2128,7 +2107,7 @@ static int sensor_regulator_power_on(struct apds9130_data *data, bool on)
 	}
 
 	msleep(10);
-
+	SENSOR_LOG("power on");
 	return 0;
 
 error_reg_en_vcc_i2c:
@@ -2158,6 +2137,7 @@ power_off:
 		regulator_disable(pdata->vcc_i2c);
 	}
 	msleep(50);
+	SENSOR_LOG("power off");
 	return 0;
 }
 
@@ -2257,7 +2237,7 @@ static int sensor_parse_dt(struct device *dev,
 			ret = 0;
 			break;
 		default:
-			PINFO("%d is an unknown DT entry type",
+			SENSOR_ERR("%d is an unknown DT entry type",
 			      itr->type);
 			ret = -EBADE;
 		}
@@ -2266,7 +2246,7 @@ static int sensor_parse_dt(struct device *dev,
 			*((int *)itr->ptr_data) = itr->default_val;
 
 			if (itr->status < DT_OPTIONAL) {
-				PINFO("Missing '%s' DT entry",
+				SENSOR_LOG("Missing '%s' DT entry",
 				      itr->dt_name);
 
 				/* cont on err to dump all missing entries */
@@ -2303,7 +2283,7 @@ static int apds9130_probe(struct i2c_client *client,
 #endif
 	int err = 0;
 
-	PINFO("Entered");
+	SENSOR_FUN();
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE)) {
 		return -EIO;
 	}
@@ -2348,7 +2328,7 @@ static int apds9130_probe(struct i2c_client *client,
 	client->adapter->retries = 15;
 	status = i2c_smbus_read_byte_data(client, CMD_BYTE | APDS9130_ID_REG);
 	if (status != 0x39) {
-		PINFO("Not APDS-9130 %x", status);
+		SENSOR_ERR("Not APDS-9130 %x", status);
 		goto exit;
 	}
 
@@ -2385,22 +2365,22 @@ static int apds9130_probe(struct i2c_client *client,
 #endif
 	if (request_irq(client->irq, apds9130_interrupt, IRQ_TYPE_EDGE_FALLING,
 			APDS9130_DRV_NAME, (void *)client)) {
-		PINFO("Could not allocate APDS9130_INT %d !", client->irq);
+		SENSOR_ERR("Could not allocate APDS9130_INT %d !", client->irq);
 
 		goto exit_irq_init_failed;
 	}
 
 	err = enable_irq_wake(client->irq);
 	if (err) {
-		PINFO("Set irq to wakeup failed.");
-		PINFO("enable_irq_wake return val =%d", err);
+		SENSOR_ERR("Set irq to wakeup failed.");
+		SENSOR_ERR("enable_irq_wake return val =%d", err);
 		goto exit_free_irq;
 	}
 
 	data->input_dev_ps = input_allocate_device();
 	if (!data->input_dev_ps) {
 		err = -ENOMEM;
-		PINFO("Failed to allocate input device ps");
+		SENSOR_ERR("Failed to allocate input device ps");
 		goto exit_free_irq;
 	}
 
@@ -2419,7 +2399,7 @@ static int apds9130_probe(struct i2c_client *client,
 	err = input_register_device(data->input_dev_ps);
 	if (err) {
 		err = -ENOMEM;
-		PINFO("Unable to register input device ps: %s",
+		SENSOR_ERR("Unable to register input device ps: %s",
 		      data->input_dev_ps->name);
 		goto exit_free_dev_ps;
 	}
@@ -2433,7 +2413,7 @@ static int apds9130_probe(struct i2c_client *client,
 		goto exit_unregister_dev_ps;
 
 	apds9130_enable_ps_sensor(client, 0);
-
+	SENSOR_LOG("probe end");
 	return 0;
 
 exit_unregister_dev_ps:
@@ -2485,12 +2465,12 @@ static int apds9130_suspend(struct i2c_client *client, pm_message_t mesg)
 	struct apds9130_data *data = i2c_get_clientdata(client);
 	atomic_set(&data->i2c_status, APDS9130_STATUS_SUSPEND);
 
-	PINFO("Enter");
+	SENSOR_FUN();
 #else
 	struct apds9130_data *data = i2c_get_clientdata(client);
 	struct apds9130_platform_data *pdata = data->platform_data;
 
-	PINFO("Enter");
+	SENSOR_LOG("suspend");
 
 	if (pdata->power_on)
 		pdata->power_on(client, false);
@@ -2502,11 +2482,11 @@ static int apds9130_resume(struct i2c_client *client)
 {
 #if 1
 	struct apds9130_data *data = i2c_get_clientdata(client);
-	PINFO("Enter");
+	SENSOR_FUN();
 
 	if (data->enable_ps_sensor == 1) {
 		if (atomic_read(&data->i2c_status) == APDS9130_STATUS_QUEUE_WORK) {
-			PINFO("Resume Trigger Queue");
+			SENSOR_LOG("Resume Trigger Queue");
 			apds9130_reschedule_work(data, 0);
 		}
 	}
@@ -2515,7 +2495,7 @@ static int apds9130_resume(struct i2c_client *client)
 	struct apds9130_data *data = i2c_get_clientdata(client);
 	struct apds9130_platform_data *pdata = data->platform_data;
 
-	PINFO("Enter");
+	SENSOR_LOG("resume");
 
 	if (pdata->power_on)
 		pdata->power_on(client, true);
@@ -2562,7 +2542,7 @@ static void async_sensor_init(void *data, async_cookie_t cookie)
 {
 	msleep(500);
 
-	PINFO("APDS9130 Proximity driver: initialize.");
+	SENSOR_LOG("APDS9130 Proximity driver: initialize.");
 	apds9130_workqueue = create_workqueue("proximity");
 	i2c_add_driver(&apds9130_driver);
 	return;
@@ -2576,7 +2556,7 @@ static int __init apds9130_init(void)
 
 static void __exit apds9130_exit(void)
 {
-	PINFO("APDS9130 Proximity driver: release.");
+	SENSOR_LOG("APDS9130 Proximity driver: release.");
 
 	if (apds9130_workqueue)
 		destroy_workqueue(apds9130_workqueue);

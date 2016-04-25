@@ -166,22 +166,33 @@ enum power_supply_property {
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
 	POWER_SUPPLY_PROP_PSEUDO_BATT,
 #endif
+#ifdef CONFIG_LGE_PM_USB_CURRENT_MAX
+	POWER_SUPPLY_PROP_USB_CURRENT_MAX,
+#endif
 #ifdef CONFIG_LGE_PM
 	POWER_SUPPLY_PROP_SAFETY_TIMER,
 #endif
 #if defined (CONFIG_LGE_PM_CHARGING_BQ24296_CHARGER)
 	POWER_SUPPLY_PROP_EXT_PWR_CHECK,
 	POWER_SUPPLY_PROP_BAT_REMOVED,
+#elif defined (CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER)
+	POWER_SUPPLY_PROP_EXT_PWR_CHECK,
+	POWER_SUPPLY_PROP_BAT_REMOVED,
 #elif defined (CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER)
 	POWER_SUPPLY_PROP_EXT_PWR_CHECK,
+#ifdef CONFIG_LGE_PM_CHARGING_USING_AICL
+	POWER_SUPPLY_PROP_AICL,
 #endif
-#ifdef CONFIG_LGE_PM_CHARGING_VZW_POWER_REQ
+#endif
+#ifdef CONFIG_LGE_PM_FLOATED_CHARGER
 	POWER_SUPPLY_PROP_VZW_CHG,
 #endif
 #ifdef CONFIG_LGE_PM_BATTERY_ID_CHECKER
 	POWER_SUPPLY_PROP_VALID_BATT,
+	POWER_SUPPLY_PROP_CHECK_BATT_ID_FOR_AAT,
 #endif
-#if defined (CONFIG_LGE_PM_CHARGING_BQ24296_CHARGER) || defined (CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER)
+#if defined (CONFIG_LGE_PM_CHARGING_BQ24296_CHARGER) || defined (CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER) || \
+        defined (CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER)
 	POWER_SUPPLY_PROP_SAFETY_CHARGER_TIMER,
 	POWER_SUPPLY_PROP_CHARGING_COMPLETE,
 #endif
@@ -192,6 +203,10 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_USB_CHG_DETECT_DONE,
 	POWER_SUPPLY_PROP_USB_CHG_TYPE,
 	POWER_SUPPLY_PROP_USB_DCD_TIMEOUT,
+	POWER_SUPPLY_PROP_USB_CHG_TYPE_MANUAL,
+#endif
+#if defined(CONFIG_LGE_PM_LLK_MODE)
+	POWER_SUPPLY_PROP_STORE_DEMO_ENABLED,
 #endif
 #ifdef CONFIG_LGE_PM_FACTORY_TESTMODE
 	POWER_SUPPLY_PROP_HW_REV,
@@ -199,6 +214,11 @@ enum power_supply_property {
 #ifdef CONFIG_LGE_PM
 	POWER_SUPPLY_PROP_CALCULATED_SOC,
 #endif
+#ifdef CONFIG_LGE_PM_BATTERY_RT9428_EOC_BY_SOC
+	POWER_SUPPLY_PROP_STATUS_RAW,
+	POWER_SUPPLY_PROP_CAPACITY_RAW,
+#endif
+	POWER_SUPPLY_PROP_RESISTANCE_NOW,
 	/* Local extensions */
 	POWER_SUPPLY_PROP_USB_HC,
 	POWER_SUPPLY_PROP_USB_OTG,
@@ -213,7 +233,7 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_BATTERY_TYPE,
 };
 
-#ifdef CONFIG_LGE_PM_CHARGING_BQ24296_CHARGER
+#if defined(CONFIG_LGE_PM_CHARGING_BQ24296_CHARGER) || defined(CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER)
 enum power_supply_event_type {
 	POWER_SUPPLY_PROP_UNKNOWN,
 #if defined(CONFIG_CHARGER_UNIFIED_WLC)
@@ -295,6 +315,14 @@ struct power_supply {
 			enum power_supply_event_type psp,
 			    const union power_supply_propval *val);
 #endif
+#if defined (CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER)
+	int (*get_event_property)(struct power_supply *psy,
+			enum power_supply_event_type psp,
+			union power_supply_propval *val);
+	int (*set_event_property)(struct power_supply *psy,
+			enum power_supply_event_type psp,
+			    const union power_supply_propval *val);
+#endif
 	int (*property_is_writeable)(struct power_supply *psy,
 				     enum power_supply_property psp);
 	void (*external_power_changed)(struct power_supply *psy);
@@ -325,7 +353,7 @@ struct power_supply {
 	struct led_trigger *charging_blink_full_solid_trig;
 	char *charging_blink_full_solid_trig_name;
 #endif
-#ifdef CONFIG_LGE_PM_CHARGING_BQ24296_CHARGER
+#if defined(CONFIG_LGE_PM_CHARGING_BQ24296_CHARGER) ||  defined (CONFIG_LGE_PM_CHARGING_BQ24296_SUB_CHARGER)
 	int is_floated_charger;
 #endif
 #ifdef CONFIG_LGE_PM_BATTERY_EXTERNAL_FUELGAUGE
@@ -353,8 +381,9 @@ struct power_supply_info {
 };
 
 #if defined(CONFIG_POWER_SUPPLY)
-#if defined(CONFIG_LGE_PM_CHARGING_VZW_POWER_REQ)
+#if defined(CONFIG_LGE_PM_FLOATED_CHARGER)
 int power_supply_set_floated_charger(struct power_supply *psy, int is_float);
+int power_supply_set_chg_type_manual(struct power_supply *psy, int manual);
 #endif
 extern struct power_supply *power_supply_get_by_name(const char *name);
 extern void power_supply_changed(struct power_supply *psy);

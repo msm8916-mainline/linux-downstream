@@ -154,7 +154,6 @@ static int mit_get_otp(struct mms_data *ts) {
 	return 0;
 }
 
-/*                     */
 static int mms_get_lcd_info(struct mms_data *ts, struct touch_fw_info *fw_info)
 {
 	struct i2c_client *client = ts->client;
@@ -175,7 +174,6 @@ static int mms_get_lcd_info(struct mms_data *ts, struct touch_fw_info *fw_info)
 	}
 	return 0;
 }
-/*                     */
 
 static int mms_get_ic_info(struct mms_data *ts, struct touch_fw_info *fw_info)
 {
@@ -199,12 +197,10 @@ static int mms_get_ic_info(struct mms_data *ts, struct touch_fw_info *fw_info)
 		TOUCH_INFO_MSG("MIT_FW_VERSION read failed\n");
 		return -EIO;
 	}
-	/*                     */
 	if (mms_i2c_read(client, MIT_FW_PRODUCT,(u8 *) &ts->module.product_code, 24) < 0){
 		TOUCH_INFO_MSG("MIT_FW_PRODUCT read failed\n");
 		return -EIO;
 	}
-	/*                     */
 	for (i = 0; i < otp_check_max; i++) { // need to time check for OTP status
 		if (mit_get_otp(ts) < 0) {
 			TOUCH_INFO_MSG("failed to get the otp-enable\n");
@@ -399,7 +395,7 @@ static int set_tci_info(struct i2c_client *client)
 	//common
 	ts->pdata->tci_info->idle_report_rate = 20;
 	ts->pdata->tci_info->active_report_rate = 40;
-	/* change ContactOnThd value of Firmware  */
+	/* change ContactOnThd value of Firmware for CY/K */
 	ts->pdata->tci_info->sensitivity = 20;
 
 	//double tap only
@@ -1473,7 +1469,11 @@ RETRY:
 				}
 				ret += sprintf(buf + ret, "======================\n");
 				ret += sprintf(buf + ret, "F/W Version : %X.%02X \n", ts->module.version[0], ts->module.version[1]);
+				if(lge_get_factory_boot()) {
+				ret += sprintf(buf + ret, "F/W Product : [%s] \n", ts->module.product_code);
+				} else {
 				ret += sprintf(buf + ret, "F/W Product : %s \n", ts->module.product_code);
+				}
 				ret += sprintf(buf + ret, "F/W Row : %d, Col : %d\n", ts->dev.row_num, ts->dev.col_num);
 				if (ts->module.otp == OTP_NOT_SUPPORTED) {
 					ret += sprintf(buf + ret, "OTP : F/W Not support \n");
@@ -1501,7 +1501,6 @@ RETRY:
 		break;
 
 	case IC_CTRL_LPWG:
-		/*                     */
 		if ( (u8)param->v1 == ts->pdata->lpwg_mode_old ) {
 			TOUCH_INFO_MSG("LPWG mode is already setted [ Current : %d / Old : %d]\n", (u8)param->v1, ts->pdata->lpwg_mode_old);
 			return 0;
@@ -1570,7 +1569,6 @@ RETRY:
 			if ( lpwg_control(ts, (u8)param->v1) == -EIO )
 				TOUCH_ERR_MSG("After reset, LPWG Control is fail...again -> Please check Touch IC \n");
 		}
-		/*                     */
 #if defined(TOUCH_USE_DSV)
 		if (ts_pdata->enable_sensor_interlock) {
 			if (ts_pdata->sensor_value) {
@@ -2156,10 +2154,8 @@ static ssize_t mms_lpwg_store(struct i2c_client *client, char* buf1, const char 
 					wake_unlock(&touch_wake_lock);
 				mms_power_ctrl(client, ts_role->suspend_pwr);
 				atomic_set(&dev_state,DEV_SUSPEND);
-				/*                     */
 				ts->pdata->lpwg_mode_old = LPWG_NONE;
 				TOUCH_INFO_MSG(" Proxi-status is [Near] / lpwg_mode_old is [%d]\n",ts->pdata->lpwg_mode_old);
-				/*                     */
 				TOUCH_INFO_MSG("SUSPEND AND SET power off\n");
 #if defined(TOUCH_USE_DSV)
 				if (ts_pdata->enable_sensor_interlock) {
@@ -2307,11 +2303,9 @@ static int mms_sysfs(struct i2c_client *client, char *buf1, const char *buf2, u3
 	case SYSFS_LPWG_REASON_STORE:
 		tci_control(ts, LPWG_FAIL_REASON_CTRL, ts->pdata->lpwg_fail_reason);
 		break;
-	/*                     */
 	case SYSFS_LPWG_LCD_STATUS_STORE:
 		mms_get_lcd_info(ts, NULL);
 		break;
-	/*                     */
 	}
 
 	if (code != SYSFS_TESTMODE_VERSION_SHOW && code != SYSFS_KEYGUARD_STORE) {

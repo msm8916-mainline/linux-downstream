@@ -15,19 +15,19 @@
 
 	lge,no-init-cable = <0 0 0>;
 	lge,cable-mhl-1k = <5000 500 500>;
-	lge,cable-u-28p7k = <5500 630 500>;
-	lge,cable-28p7k = <6000 630 500>;
+	lge,cable-u-28p7k = <5500 720 500>;
+	lge,cable-28p7k = <6000 720 500>;
 	lge,cable-56k = <200000 1500 1500>;
-	lge,cable-100k = <239000 630 500>;
+	lge,cable-100k = <239000 720 500>;
 	lge,cable-130k = <340000 1500 1500>;
-	lge,cable-180k = <400000 630 500>;
-	lge,cable-200k = <410000 630 500>;
-	lge,cable-220k = <485000 630 500>;
-	lge,cable-270k = <560000 630 500>;
-	lge,cable-330k = <735000 630 500>;
-	lge,cable-620k = <955000 630 500>;
+	lge,cable-180k = <400000 720 500>;
+	lge,cable-200k = <410000 720 500>;
+	lge,cable-220k = <485000 720 500>;
+	lge,cable-270k = <560000 720 500>;
+	lge,cable-330k = <735000 720 500>;
+	lge,cable-620k = <955000 720 500>;
 	lge,cable-910k = <1140000 1500 1500>;
-	lge,cable-none = <1900000 630  500>;
+	lge,cable-none = <1900000 720  500>;
 
 	qcom,vddmax-mv = <4350>;
 	qcom,vddsafe-mv = <4380>;
@@ -42,11 +42,11 @@
 	qcom,msm-thermal {
 		qcom,freq-control-mask = <0xf>;
 		qcom,core-control-mask = <0xe>;
-		qcom,hotplug-temp = <110>;
-		qcom,hotplug-temp-hysteresis = <20>;
-		qcom,freq-mitigation-temp = <110>;
-		qcom,freq-mitigation-temp-hysteresis = <20>;
-		qcom,freq-mitigation-value = <960000>;
+		qcom,hotplug-temp = <94>;
+		qcom,hotplug-temp-hysteresis = <15>;
+		qcom,freq-mitigation-temp = <94>;
+		qcom,freq-mitigation-temp-hysteresis = <10>;
+		qcom,freq-mitigation-value = <400000>;
 		};
 };
 

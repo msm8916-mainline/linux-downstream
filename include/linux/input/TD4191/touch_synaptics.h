@@ -20,6 +20,7 @@
 
 #define NUM_OF_EACH_FINGER_DATA_REG		8
 #define MAX_NUM_OF_FINGERS			10
+#define MAX_NUM_OF_DEBUG_REASON		2
 
 #define DESCRIPTION_TABLE_START			0xe9
 #define EXIST_OFFSET                            0xEE
@@ -34,11 +35,21 @@
 #define F12_HOVERING_FINGER_STATUS	(0x05)
 #define F12_GLOVED_FINGER_STATUS	(0x06)
 
+#define OBJECT_FINGER_BIT       0
+#define OBJECT_STYLUS_BIT       1
+#define OBJECT_PALM_BIT         2
+#define OBJECT_UNCLASSIFIED_OBJECT_BIT  3
+#define OBJECT_HOVERING_FINGER_BIT  4
+#define OBJECT_GLOVEED_FINGER_BIT   5
+#define OBJECT_NARROW_OBJECT_SWIPE_BIT  6
+#define OBJECT_HAND_EDGE_BUT        7
+
 #define S3621           0
 #define S3528_A0        1
 #define S3528_A1        2
 #define S3528_A1_SUN    3
 #define TD4191    4
+#define TD4191_TFT_ITO_PANEL    5
 
 #define F35_ERROR_CODE_OFFSET 0
 #define F35_CHUNK_NUM_LSB_OFFSET 0
@@ -62,6 +73,16 @@ struct function_descriptor {
 struct ts_ic_function {
 	struct function_descriptor dsc;
 	u8 	function_page;
+};
+
+struct synaptics_ts_f12_ctrl_23 {
+    union {
+        struct {
+            unsigned char obj_type_enable;
+            unsigned char max_reported_objects;
+        };
+        unsigned char data[2];
+    };
 };
 
 struct finger_data {
@@ -126,16 +147,41 @@ struct palm_data {
 	bool all_palm_released;
 };
 
+struct swipe_data {
+	u8	support_swipe;
+	u8	swipe_enable_mask;
+	u8	swipe_gesture;
+	u8	swipe_min_distance;
+	u8	swipe_ratio_threshold;
+	u8	swipe_ratio_check_period;
+	u8	swipe_ratio_check_min_distance;
+	u16	min_swipe_time_threshold;
+	u16	max_swipe_time_threshold;
+	u8	swipe_enable_reg;
+	u8	swipe_min_distance_reg;
+	u8	swipe_ratio_threshold_reg;
+	u8	swipe_ratio_check_period_reg;
+	u8	swipe_ratio_check_min_distance_reg;
+	u8	min_swipe_time_thres_lsb_reg;
+	u8	min_swipe_time_thres_msb_reg;
+	u8	max_swipe_time_thres_lsb_reg;
+	u8	max_swipe_time_thres_msb_reg;
+	u8	swipe_coordinate_start_reg;
+	u8	swipe_coordinate_end_reg;
+	u8	swipe_debug_reason_reg;
+	u8	swipe_time_reg;
+};
+
 struct synaptics_ts_data {
 	u8	is_probed;
 	u8	is_init;
+	u8      object_report;
 	struct lpwg_control	lpwg_ctrl;
 	struct lpwg_password_data	pw_data;
 //	struct regulator	*regulator_vdd;
 //	struct regulator	*regulator_vio;
 	struct regulator *vdd_regulator[TOUCH_PWR_NUM];
 	struct i2c_client	*client;
-	struct mutex			thread_lock;
 	struct ts_ic_function	common_fc;
 	struct ts_ic_function	finger_fc;
 	struct ts_ic_function	button_fc;
@@ -150,15 +196,17 @@ struct synaptics_ts_data {
 	struct delayed_work	diff_node_timer;  //test code
 	struct delayed_work     work_palm;
 	struct wake_lock	timer_wake_lock;
-	const struct touch_platform_data	*pdata;
+	struct touch_platform_data	*pdata;
 	const struct state_info	*state;
 	u8	fw_flag;
 	struct state_flag		ts_state_flag;
 	unsigned int bad_sample;
+	char reason[NUM_OF_EACH_FINGER_DATA_REG];
 	int h_err_cnt;
 	int v_err_cnt;
 	bool ubootloader_mode;
 	struct palm_data                ts_palm_data;
+	struct swipe_data		ts_swipe_data;
 };
 
 struct synaptics_ts_exp_fn {
@@ -269,6 +317,22 @@ enum{
 enum {
 	THERMAL_LOW = 0,
 	THERMAL_HIGH,
+};
+
+enum {
+	DEBUG_DISTANCE_INTER_TAP = 1,
+	DEBUG_DISTANCE_TOUCHSLOP,
+	DEBUG_TIMEOUT_INTER_TAP,
+	DEBUG_MULTI_FINGER,
+	DEBUG_DELAY_TIME,
+	DEBUG_PALM_STATE,
+	DEBUG_ACTIVE_AREA,
+	DEBUG_TAP_COUNT,
+};
+
+enum {
+	NO_SUPPORT_SWIPE = 0,
+	SUPPORT_SWIPE,
 };
 
 extern struct workqueue_struct *touch_wq;

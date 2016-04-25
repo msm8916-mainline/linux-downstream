@@ -91,13 +91,17 @@
 				bias-disable;
 			};
 		};
+
 		pmx-uartconsole {
 			qcom,pins = <&gp 4>, <&gp 5>;
 			qcom,num-grp-pins = <2>;
 			qcom,pin-func = <2>;
-			label = "uart-console";
-
-		uart_console_sleep: uart-console {
+			label = "uart_console";
+			uart_active: uart_active {
+				drive-strength = <16>;
+				bias-pull-down;
+			};
+			uart_sleep: uart_sleep {
 				drive-strength = <2>;
 				bias-pull-down;
 			};
@@ -244,7 +248,7 @@
 			qcom,pin-func = <1>;
 			label = "spi0-active";
 			/* active state */
-			spi0_default: default {
+			spi0_default: spi0_default {
 				drive-strength = <12>; /* 12 MA */
 				bias-disable = <0>; /* No PULL */
 			};
@@ -257,7 +261,7 @@
 			qcom,pin-func = <0>;
 			label = "spi0-suspend";
 			/* suspended state */
-			spi0_sleep: sleep {
+			spi0_sleep: spi0_sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* pull down */
 			};
@@ -596,6 +600,7 @@
 		};
 
 		pmx_rd_nfc_int{
+			status = "ok";
 			qcom,pins = <&gp 21>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
@@ -613,6 +618,7 @@
 		};
 
 		pmx_nfc_reset{
+			status = "ok";
 			qcom,pins = <&gp 20>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
@@ -630,6 +636,7 @@
 		};
 
 		pmx_nfc_wake{
+			status = "ok";
 			qcom,pins = <&gp 118>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
@@ -1140,12 +1147,9 @@
 		};
 
 		cam_sensor_rear {
-			/* RESET, STANDBY */
-			//qcom,pins =  <&gp 35>, <&gp 34>;
-
-			/* RESET */
-			qcom,pins =  <&gp 35>;
-			qcom,num-grp-pins = <1>; //<2>
+			/* RESET, VIO */
+			qcom,pins =  <&gp 35>, <&gp 121>;
+			qcom,num-grp-pins = <2>;
 			qcom,pin-func = <0>;
 			label = "cam-sensor-rear";
 			/* active state */
@@ -1156,12 +1160,9 @@
 		};
 
 		cam_sensor_rear_sleep {
-			/* RESET, STANDBY */
-			//qcom,pins =  <&gp 35>, <&gp 34>;
-
-			/* RESET */
-			qcom,pins =  <&gp 35>;
-			qcom,num-grp-pins = <1>; //<2>
+			/* RESET, VIO */
+			qcom,pins =  <&gp 35>, <&gp 121>;
+			qcom,num-grp-pins = <2>;
 			qcom,pin-func = <0>;
 			label = "cam-sensor-rear-sleep";
 			/*suspended state */
@@ -1172,12 +1173,9 @@
 		};
 
 		cam_sensor_front {
-			/* RESET, STANDBY */
-			//qcom,pins = <&gp 28>, <&gp 33>;
-
-			/* STANDBY */
-			qcom,pins = <&gp 28>;
-			qcom,num-grp-pins = <1>; //<2>;
+			/* RESET, VIO */
+			qcom,pins = <&gp 28>, <&gp 121>;
+			qcom,num-grp-pins = <2>;
 			qcom,pin-func = <0>;
 			label = "cam_sensor_front";
 			/* active state */
@@ -1188,18 +1186,63 @@
 		};
 
 		cam_sensor_front_sleep {
-			/* RESET, STANDBY */
-			//qcom,pins = <&gp 28>, <&gp 33>;
-
-			/* STANDBY */
-			qcom,pins = <&gp 28>;
-			qcom,num-grp-pins = <1>; //<2>;
+			/* RESET */
+			qcom,pins = <&gp 28>, <&gp 121>;
+			qcom,num-grp-pins = <2>;
 			qcom,pin-func = <0>;
-			label = "cam_sensor_front";
+			label = "cam_sensor_front_sleep";
 			/*suspended state */
 			cam_sensor_front_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down = <0>; /* PULL DOWN */
+			};
+		};
+
+		cam_ldaf_enable {
+			qcom,pins =  <&gp 109>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "cam-ldaf-enable";
+			/* active state */
+			cam_ldaf_enable_default: default {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable = <0>; /* No PULL */
+			};
+		};
+
+		cam_ldaf_enable_sleep {
+			qcom,pins =  <&gp 109>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "cam-ldaf-enable-sleep";
+
+			/*suspended state */
+			cam_ldaf_enable_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
+			};
+		};
+
+		cam_ldaf_interrupt {
+			qcom,pins =  <&gp 111>;
+			qcom,num-grp-pins = <1>;
+			label = "cam-ldaf-interrupt";
+			/* active state */
+			cam_ldaf_interrupt_default: default {
+				drive-strength = <8>; /* 2 MA */
+				input-enable;
+				bias-high-impedance;
+			};
+		};
+
+		cam_ldaf_interrupt_sleep {
+			qcom,pins =  <&gp 111>;
+			qcom,num-grp-pins = <1>;
+			label = "cam-ldaf-interrupt-sleep";
+			/*suspended state */
+			cam_ldaf_interrupt_sleep: sleep {
+				drive-strength = <8>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
 			};
 		};
 
@@ -1247,11 +1290,11 @@
 			/* active state */
 			i2c_1_active: active {
 				drive-strength = <8>; /* 8 MA */
-				bias-disable = <0>; /* No PULL */
+				bias-disable; /* No PULL */
 			};
 			i2c_1_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
-				bias-disable = <0>; /* No PULL */
+				bias-disable; /* No PULL */
 			};
 		};
 
@@ -1300,6 +1343,26 @@
 			};
 		};
 
+		/* NC gpio config */
+		nc_control_pin {
+			qcom,pins = <&gp 8>, <&gp 9>, <&gp 10>,
+				<&gp 12>, <&gp 16>, <&gp 24>, <&gp 32>,
+				<&gp 49>, <&gp 50>, <&gp 51>, <&gp 52>,
+				<&gp 53>, <&gp 54>, <&gp 55>, <&gp 56>,
+				<&gp 60>, <&gp 62>, <&gp 77>, <&gp 78>,
+				<&gp 79>, <&gp 80>, <&gp 83>, <&gp 90>,
+				<&gp 91>, <&gp 92>,
+				<&gp 97>, <&gp 100>, <&gp 101>, <&gp 102>,
+				<&gp 105>, <&gp 106>, <&gp 112>, <&gp 120>;
+			qcom,num-grp-pins = <25>;
+			qcom,pin-func = <0>;
+			label = "nc_control";
+			nc_sleep: nc_sleep {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+
 		/* apds9130 irq pin config */
 		apds9130_int_pin {
 			qcom,pins = <&gp 113>;
@@ -1311,7 +1374,7 @@
 				bias-pull-up;           /* PULL UP*/
 			};
 			apds9130_int_suspend: apds9130_int_suspend {
-				drive-strength = <6>;   /* 6 MA */
+				drive-strength = <2>;   /* 2 MA */
 				bias-disable; 		/* NO PULL */
 			};
 		};
@@ -1327,7 +1390,7 @@
 				bias-pull-up;           /* PULL UP*/
 			};
 			k2dh_int_suspend: k2dh_int_suspend {
-				drive-strength = <6>;   /* 6 MA */
+				drive-strength = <2>;   /* 2 MA */
 				bias-disable; 		/* NO PULL */
 			};
 		};
@@ -1343,7 +1406,7 @@
 				bias-pull-up;           /* PULL UP*/
 			};
 			bma2x2_int_suspend: bma2x2_int_suspend {
-				drive-strength = <6>;   /* 6 MA */
+				drive-strength = <2>;   /* 2 MA */
 				bias-disable; 		/* NO PULL */
 			};
 		};
@@ -1358,8 +1421,8 @@
 	                          drive-strength = <6>;
 	                          bias-pull-up;
 	                };
-	                akm09911_suspend: akm0991_suspend {
-	                           drive-strength = <6>;
+	                akm09911_suspend: akm09911_suspend {
+	                           drive-strength = <2>;
 	                           bias-pull-down;
 	                };
 	        };
@@ -1375,7 +1438,7 @@
 	                          bias-pull-up;
 	                };
 	                bmm_drdy_suspend: bmm_drdy_suspend {
-	                           drive-strength = <6>;
+	                           drive-strength = <2>;
 	                           bias-pull-down;
 	                };
 	        };

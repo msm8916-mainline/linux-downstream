@@ -27,11 +27,11 @@ int inv_parse_aux(struct device *dev, struct mpu_platform_data *pdata);
 int invensense_mpu_parse_dt(struct device *dev,
 			    struct mpu_platform_data *pdata);
 
-/*             
-                                
-                                
+/* LGE_CHANGE_S
+* Comment : gpio for MPU6515 irq
+* 2013-12-21, jeongh.kim@lge.com
 */
 int inv_parse_irqgpio(struct device *dev, struct mpu_platform_data *pdata);
-/*              */
+/* LGE_CHANGE_E */
 
 #endif  /* #ifndef _INV_MPU_DTS_H_ */

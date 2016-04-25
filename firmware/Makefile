@@ -12,7 +12,7 @@ fw-external-y := $(subst ",,$(CONFIG_EXTRA_FIRMWARE))
 # There are three cases to care about:
 # 1. Building kernel with CONFIG_FIRMWARE_IN_KERNEL=y -- $(fw-shipped-y) should
 #    include the firmware files to include, according to .config
-# 2. 'make modules_install', which will install firmware for modules, and 
+# 2. 'make modules_install', which will install firmware for modules, and
 #    _also_ for the in-kernel drivers when CONFIG_FIRMWARE_IN_KERNEL=n
 # 3. 'make firmware_install', which installs all firmware, unconditionally.
 
@@ -31,6 +31,7 @@ ifdef CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191
 synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/lions/*.img)
 synaptics_img_file += $(wildcard $(srctree)/firmware/synaptics/lions/*.bin)
 synaptics_img_file += $(wildcard $(srctree)/firmware/synaptics/lions/*.txt)
+
 synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
 fw-shipped-$(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191) += $(synaptics_firmware)
 else
@@ -39,6 +40,12 @@ synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/c90nas_spr_us/*)
 synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
 fw-shipped-$(CONFIG_MSM8916_C90) += $(synaptics_firmware)
 else
+ifdef CONFIG_MACH_MSM8939_P1B_GLOBAL_COM
+synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/p1b/*)
+synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
+fw-shipped-$(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS) += $(synaptics_firmware)
+else
+
 mit200_fw_file := $(wildcard $(srctree)/firmware/melfas/mit200/$(TARGET_PRODUCT)/*)
 mit200_firmware := $(subst $(srctree)/firmware/,,$(mit200_fw_file))
 fw-shipped-$(CONFIG_TOUCHSCREEN_LGE_MELFAS) += $(mit200_firmware)
@@ -59,6 +66,105 @@ atmel_ihex_list := $(subst .ihex, , $(notdir $(wildcard $(srctree)/firmware/atme
 atmel_ihex_files := $(foreach var, $(atmel_ihex_list), atmel/$(var))
 endif
 endif
+endif
+endif
+
+ifdef CONFIG_LGE_TOUCH_FW_PATH
+fwpath := $(subst ",,$(CONFIG_LGE_TOUCH_FW_PATH))
+lge_touch_image_files := $(wildcard $(srctree)/firmware/$(fwpath)/*.img)
+lge_touch_image_files += $(wildcard $(srctree)/firmware/$(fwpath)/*.txt)
+endif
+lge_touch_firmware := $(subst $(srctree)/firmware/,,$(lge_touch_image_files))
+fw-shipped-$(CONFIG_LGE_TOUCH_CORE_BASE) += $(lge_touch_firmware)
+
+ifdef CONFIG_MACH_MSM8939_PH2_GLOBAL_COM
+synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/p1b/*)
+synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
+fw-shipped-$(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS) += $(synaptics_firmware)
+endif
+
+ifdef CONFIG_MACH_MSM8939_P1BSSN_BELL_CA
+synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/p1b/*)
+synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
+fw-shipped-$(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS) += $(synaptics_firmware)
+endif
+
+ifdef CONFIG_MACH_MSM8939_P1BSSN_VTR_CA
+synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/p1b/*)
+synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
+fw-shipped-$(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS) += $(synaptics_firmware)
+endif
+
+ifdef CONFIG_MACH_MSM8939_P1BSSN_SKT_KR
+synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/p1b/*)
+synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
+fw-shipped-$(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS) += $(synaptics_firmware)
+endif
+
+ifdef CONFIG_MACH_MSM8939_P1BC_SPR_US
+synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/p1b/*)
+synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
+fw-shipped-$(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS) += $(synaptics_firmware)
+endif
+
+ifdef CONFIG_TOUCHSCREEN_MSM8916_YG
+synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/yg/*)
+synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
+fw-shipped-$(CONFIG_TOUCHSCREEN_MSM8916_YG) += $(synaptics_firmware)
+endif
+
+ifdef CONFIG_MACH_MSM8916_C100N_KR
+melfas_img_file := $(wildcard $(srctree)/firmware/melfas/mit300/c100n_kr/*)
+melfas_firmware := $(subst $(srctree)/firmware/,,$(melfas_img_file))
+fw-shipped-$(CONFIG_MACH_MSM8916_C100N_KR) += $(melfas_firmware)
+endif
+
+ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300
+mit300_fw_file := $(wildcard $(srctree)/firmware/melfas/mit300/p1s/*)
+mit300_firmware := $(subst $(srctree)/firmware/,,$(mit300_fw_file))
+fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MIT300) += $(mit300_firmware)
+endif
+
+ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_PH1
+mit300_fw_file := $(wildcard $(srctree)/firmware/melfas/mit300/ph1/*)
+mit300_firmware := $(subst $(srctree)/firmware/,,$(mit300_fw_file))
+fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MIT300_PH1) += $(mit300_firmware)
+endif
+
+ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_REFERENCE
+fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MIT300_REFERENCE) += melfas/mit300/reference/melfas_mip4.bin
+endif
+
+ifdef CONFIG_TOUCHSCREEN_UNIFIED_MELFAS_MIT300_PH1
+mit300_fw_file := $(wildcard $(srctree)/firmware/melfas/mit300/ph1/*)
+mit300_firmware := $(subst $(srctree)/firmware/,,$(mit300_fw_file))
+fw-shipped-$(CONFIG_TOUCHSCREEN_UNIFIED_MELFAS_MIT300_PH1) += $(mit300_firmware)
+endif
+
+ifdef CONFIG_TOUCHSCREEN_LU202X
+touch_leadingUI_limit_txt := $(wildcard $(srctree)/firmware/leadingUI/*.txt)
+$(shell objcopy -I binary -O ihex $(touch_leadingUI_limit_txt) $(touch_leadingUI_limit_txt).ihex)
+leadingUI_img_file := $(wildcard $(srctree)/firmware/leadingUI/*.img)
+$(foreach var, $(leadingUI_img_file),  $(shell objcopy -I binary -O ihex $(var) $(var).ihex))
+leadingUI_fw_list := $(subst .ihex, , $(notdir $(wildcard $(srctree)/firmware/leadingUI/*.ihex)))
+leadingUI_fw_files := $(foreach var, $(leadingUI_fw_list), leadingUI/$(var))
+
+fw-shipped-$(CONFIG_TOUCHSCREEN_LU202X) += $(leadingUI_fw_files)
+endif
+
+ifdef CONFIG_MSM8916_P1C
+synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/p1c/*)
+synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
+fw-shipped-$(CONFIG_MSM8916_P1C) += $(synaptics_firmware)
+mit300_fw_file := $(wildcard $(srctree)/firmware/melfas/mit300/p1c/*)
+mit300_firmware := $(subst $(srctree)/firmware/,,$(mit300_fw_file))
+fw-shipped-$(CONFIG_MSM8916_P1C) += $(mit300_firmware)
+endif
+
+ifdef CONFIG_MSM8916_C70
+synaptics_img_file := $(wildcard $(srctree)/firmware/synaptics/c70/*)
+synaptics_firmware := $(subst $(srctree)/firmware/,,$(synaptics_img_file))
+fw-shipped-$(CONFIG_MSM8916_C70) += $(synaptics_firmware)
 endif
 
 fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_T1664) += $(atmel_ihex_files)
@@ -174,9 +280,13 @@ fw-shipped-$(CONFIG_YAM) += yam/1200.bin yam/9600.bin
 
 # ATMF04
 ifdef CONFIG_MACH_MSM8916_E7IILTE_SPR_US
-fw-shipped-$(CONFIG_SENSOR_ATMF04) += atmf04/atmf04_E7_0_30.fw
+fw-shipped-$(CONFIG_SENSOR_ATMF04) += atmf04/atmf04_T7_1_00.fw
 else
-fw-shipped-$(CONFIG_SENSOR_ATMF04) += atmf04/atmf04_ALTEV2_0_42.fw
+ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+fw-shipped-$(CONFIG_SENSOR_ATMF04) += atmf04/atmf04_ALTEV2_0_55.fw
+else
+fw-shipped-$(CONFIG_SENSOR_ATMF04) += atmf04/atmf04_ALTEV2_0_43.fw
+endif
 endif
 
 # ATMEL T641
@@ -277,7 +387,7 @@ $(obj)/%.txt: $(objtree)/$(obj)/$$(dir %.txt)
 # Don't depend on ihex2fw if we're installing and it already exists.
 # Putting it after | in the dependencies doesn't seem sufficient when
 # we're installing after a cross-compile, because ihex2fw has dependencies
-# on stuff like /usr/lib/gcc/ppc64-redhat-linux/4.3.0/include/stddef.h and 
+# on stuff like /usr/lib/gcc/ppc64-redhat-linux/4.3.0/include/stddef.h and
 # thus wants to be rebuilt. Which it can't be, if the prebuilt kernel tree
 # is exported read-only for someone to run 'make install'.
 ifeq ($(INSTALL):$(wildcard $(obj)/ihex2fw),install:$(obj)/ihex2fw)

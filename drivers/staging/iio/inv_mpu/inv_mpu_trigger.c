@@ -86,6 +86,8 @@ void inv_mpu_remove_trigger(struct iio_dev *indio_dev)
 	iio_trigger_unregister(st->trig);
 #ifdef CONFIG_INV_KERNEL_3_10
 	iio_trigger_free(st->trig);
+    st->trig = NULL;
+    indio_dev->trig = NULL;
 #else
 	iio_free_trigger(st->trig);
 #endif

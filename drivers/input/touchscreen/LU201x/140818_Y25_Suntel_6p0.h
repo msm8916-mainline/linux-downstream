@@ -1,5 +1,5 @@
-/*                                                                                                                                         
-                                                                */
+/* E:\LUI_Project\2013\LU2010\국내모델\LGE\Release bin\Y25\140814_1st_fw(2p14)_rel(6p0)\140818_Y25_Suntel_6p0.bin (2014-08-18 오후 5:36:44)
+   StartOffset: 00000000, EndOffset: 00007BFF, Length: 00007C00 */
 
 unsigned char rawData[31744] = {
 	0x80, 0x00, 0x00, 0x80, 0x42, 0x01, 0x00, 0x80, 0x2A, 0x01, 0x00, 0x80,

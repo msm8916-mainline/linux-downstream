@@ -28,24 +28,24 @@
 		qcom,mdss-pan-physical-height-dimension = < 178 >;
 		qcom,mdss-dsi-bpp = <24>;
 		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
-		qcom,mdss-dsi-underflow-color = <0xff>;
+		qcom,mdss-dsi-underflow-color = <0x00>;
 		qcom,mdss-dsi-border-color = <0>;
 		qcom,mdss-dsi-on-command = [
-			05 01 00 00 10 00 02
+			05 01 00 00 0A 00 02
 			11 00
-			05 01 00 00 05 00 02
+			05 01 00 00 01 00 02
 			29 00
 		];
 		lge,display-on-cmds = [
-			05 01 00 00 10 00 02
+			05 01 00 00 0A 00 02
 			11 00
-			05 01 00 00 05 00 02
+			05 01 00 00 01 00 02
 			29 00
 		];
 		qcom,mdss-dsi-off-command = [
-			05 01 00 00 05 00 02
+			05 01 00 00 01 00 02
 			28 00
-			05 01 00 00 0A 00 02
+			05 01 00 00 03 00 02
 			10 00
 		];
 		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
@@ -76,18 +76,9 @@
 
 
 &mdss_dsi0 {
-	vdd-supply = <&pm8916_l10>;
 	vddio-supply = <&pm8916_l6>;
 	vdda-supply = <&pm8916_l2>;
 	qcom,panel-supply-entries {
-		qcom,panel-supply-entry@0 {
-			reg = <0>;
-			qcom,supply-name = "vdd";
-			qcom,supply-min-voltage = <3300000>;
-			qcom,supply-max-voltage = <3300000>;
-			qcom,supply-enable-load = <100000>;
-			qcom,supply-disable-load = <100>;
-		};
 	};
 };
 

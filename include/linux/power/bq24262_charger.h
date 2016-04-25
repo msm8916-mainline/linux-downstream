@@ -58,4 +58,5 @@ int bq24262_is_charger_plugin(void);
 void bq24262_charger_unregister_vbus_sn(void (*callback)(int));
 
 extern int32_t bq24262_is_ready(void);
+int bq24262_get_prop_batt_temp_raw(void);
 #endif

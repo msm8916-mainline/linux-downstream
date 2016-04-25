@@ -43,4 +43,4 @@ int synaptics_ts_page_data_write(struct i2c_client *client,
 int synaptics_ts_page_data_write_byte(struct i2c_client *client,
 	 u8 page, u8 reg, u8 data);
 
-#endif //                         
+#endif //LGE_TOUCH_SYNAPTICS_I2C_H

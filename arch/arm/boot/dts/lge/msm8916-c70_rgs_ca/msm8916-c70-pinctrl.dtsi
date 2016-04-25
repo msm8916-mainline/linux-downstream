@@ -1355,7 +1355,7 @@
 		};
 
 		bp24262_int_pin {
-			qcom,pins = <&gp 36>;
+			qcom,pins = <&gp 16>;
 			qcom,num-grp-pins = <1>;
 			qcom,pin-func = <0>;
 			label = "bp24262_int";
@@ -1384,22 +1384,6 @@
 			};
 		};
 
-
-		rt9428_int_pin {
-			qcom,pins = <&gp 1>;
-			qcom,num-grp-pins = <1>;
-			qcom,pin-func = <0>;
-			label = "rt9428_alert";
-			rt9428_int_active: rt9428_int_active {
-				drive-strength = <8>;   /* 8 MA */
-				bias-pull-up;           /* PULL UP*/
-			};
-			rt9428_int_sleep: rt9428_int_sleep {
-				drive-strength = <2>;   /* 2 MA */
-				bias-pull-up;           /* PULL UP */
-			};
-		};
-
 		max17048_int_pin {
 			qcom,pins = <&gp 1>;
 			qcom,num-grp-pins = <1>;
@@ -1414,6 +1398,22 @@
 				bias-pull-up;           /* PULL UP */
 			};
 		};
+
+        rt9428_int_pin {
+            qcom,pins = <&gp 1>;
+            qcom,num-grp-pins = <1>;
+            qcom,pin-func = <0>;
+            label = "rt9428_alert";
+            rt9428_int_active: rt9428_int_active {
+                drive-strength = <8>;   /* 8 MA */
+                bias-pull-up;           /* PULL UP*/
+            };
+            rt9428_int_sleep: rt9428_int_sleep {
+                drive-strength = <2>;   /* 2 MA */
+                bias-pull-up;           /* PULL UP */
+            };
+        };
+
 
 		/* apds9130 irq pin config */
 		apds9130_int_pin {

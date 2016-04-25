@@ -17,7 +17,7 @@
 #include <linux/gpio.h>
 #include <linux/of.h>
 
-#if defined(CONFIG_LGE_G4STYLUS_CAMERA)
+#if defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_CAMERA_USE_MAKER_ID) || defined(CONFIG_LGE_K5_CAMERA)
 #include <linux/of_gpio.h>
 #include <mach/board_lge.h>
 #endif

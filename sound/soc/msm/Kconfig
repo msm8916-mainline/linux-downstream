@@ -287,6 +287,7 @@ config SND_SOC_MSM8909
 	select MSM_QDSP6_APRV3
 	select MSM_QDSP6V2_CODECS
 	select SND_HWDEP
+	select DOLBY_DS2
 	help
 	 To add support for SoC audio on MSM8909.
 	 This will enable sound soc drivers which
@@ -335,6 +336,12 @@ config SND_LGE_USE_EXTERNAL_CODEC
 	help
 	 To support SELF-D MIC Test for msm8939 using external codec
 
+config SND_SOC_TPS61256A_BOOST
+	bool "SND_SOC_TPS61256A_BOOST"
+	default n
+	help
+	 To support 5V external boost TPS61256A
+
 config SND_SOC_MSM8994
 	tristate "SoC Machine driver for MSM8994 boards"
 	depends on ARCH_MSM8994
@@ -376,4 +383,17 @@ config SND_SOC_MSMZIRC
 	 interfaces with DSP, also it will enable
 	 the machine drivers and the corresponding
 	 DAI-links.
+
+config SND_LGE_USE_PHONE_MEMO
+        bool "LGE PHONE MEMO"
+        default n
+        help
+         To support LGE PHONE MEMO TX MUTE
+
+config SND_LGE_INCALL_RECORD_TUNE
+	bool "INCALL_RECORD_TUNE"
+	default n
+	help
+	 To support Incall_record_tune.
+
 endmenu

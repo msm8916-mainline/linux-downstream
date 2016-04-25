@@ -36,6 +36,8 @@
             //bcm,i2c-pull-up = <1>;
             qcom,clk-en-gpio = <&msm_gpio 0 0x00>;
             qcom,clk-gpio = <&pm8916_gpios 2 0>;
+            qcom,clk-freq-out = <400000>;
+            qcom,clk-freq-in  = <19200000>;
             clocks = <&clock_rpm clk_bb_clk2_pin>;
             clock-names = "ref_clk";
             };

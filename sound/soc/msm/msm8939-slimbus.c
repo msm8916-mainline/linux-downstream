@@ -1,4 +1,4 @@
- /* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ /* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,7 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#define DEBUG
+
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -83,7 +83,7 @@
 
 #ifdef CONFIG_SND_SOC_TPA2028D_STEREO
 static int ext_boost_gpio = -1;
-//                                                              
+//static int boost_on = 1; // set for boot seungbeom.son@lge.com
 #endif
 
 static int slim0_rx_sample_rate = SAMPLING_RATE_48KHZ;
@@ -101,13 +101,13 @@ static int ext_spk_amp_gpio = -1;
 #ifdef CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 static int flag_mute_spk_for_swirrc = 0;
 void mute_spk_for_swirrc (int enable);
-#endif //                               
+#endif //CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 
 static struct platform_device *spdev;
 
 static int msm_proxy_rx_ch = 2;
 static void *adsp_state_notifier;
-/*                                                                */
+/* [Audio BSP] set flag for self-d mic test seungbeom.son@lge.com */
 #ifdef CONFIG_SND_LGE_USE_EXTERNAL_CODEC
 static int mbhc_ready_state = 0;
 module_param(mbhc_ready_state, int,
@@ -137,8 +137,17 @@ static struct wcd9xxx_mbhc_config wcd9xxx_mbhc_cfg = {
 	.gpio = 0,
 	.gpio_irq = 0,
 	.gpio_level_insert = 0,
+#ifdef CONFIG_MACH_LGE
+	.detect_extn_cable = false,
+#else
 	.detect_extn_cable = true,
+#endif
+#ifdef CONFIG_MACH_LGE
+	.micbias_enable_flags = 1 << MBHC_MICBIAS_ENABLE_THRESHOLD_HEADSET |
+				1 << MBHC_MICBIAS_ENABLE_REGULAR_HEADSET,
+#else
 	.micbias_enable_flags = 1 << MBHC_MICBIAS_ENABLE_THRESHOLD_HEADSET,
+#endif
 	.insert_detect = true,
 	.swap_gnd_mic = NULL,
 	.cs_enable_flags = (1 << MBHC_CS_ENABLE_POLLING |
@@ -201,21 +210,21 @@ static void *def_codec_mbhc_cal(void)
 	btn_high = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg,
 					       MBHC_BTN_DET_V_BTN_HIGH);
 	btn_low[0] = -50;
-	btn_high[0] = 180; // Hook
-	btn_low[1] = 181;
-	btn_high[1] = 182;
-	btn_low[2] = 183;
-	btn_high[2] = 300; //+
-	btn_low[3] = 301;
-	btn_high[3] = 340;
-	btn_low[4] = 341;
-	btn_high[4] = 350;
-	btn_low[5] = 351;
-	btn_high[5] = 370;
-	btn_low[6] = 371;
-	btn_high[6] = 380;
-	btn_low[7] = 381;
-	btn_high[7] = 660; //-
+	btn_high[0] = 110;
+	btn_low[1] = 111;
+	btn_high[1] = 190;
+	btn_low[2] = 191;
+	btn_high[2] = 359;
+	btn_low[3] = 360;
+	btn_high[3] = 750;
+	btn_low[4] = 751;
+	btn_high[4] = 752;
+	btn_low[5] = 753;
+	btn_high[5] = 754;
+	btn_low[6] = 755;
+	btn_high[6] = 756;
+	btn_low[7] = 757;
+	btn_high[7] = 758;
 	n_ready = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg, MBHC_BTN_DET_N_READY);
 	n_ready[0] = 80;
 	n_ready[1] = 12;
@@ -263,7 +272,7 @@ static void param_set_mask(struct snd_pcm_hw_params *p, int n, unsigned bit)
 		m->bits[bit >> 5] |= (1 << (bit & 31));
 	}
 }
-//                                                                                                    
+////////////////////////////seungbeom.son@lge.com/////////////////////////////////////////////////////
 /*static void msm8939_ext_spk_power_amp_enable(u32 enable)
 {
 	if (enable) {
@@ -287,7 +296,7 @@ static void msm8939_ext_spk_power_amp_on(u32 spk)
 
 #ifdef CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 if (!flag_mute_spk_for_swirrc){
-#endif //                               
+#endif //CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 
 	if (spk & (LO_1_SPK_AMP | LO_2_SPK_AMP)) {
 #ifdef CONFIG_SND_SOC_TPA2028D_STEREO
@@ -330,7 +339,7 @@ if (!flag_mute_spk_for_swirrc){
 
 #ifdef CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 }
-#endif //                               
+#endif //CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 }
 
 static void msm8939_ext_spk_power_amp_off(u32 spk)
@@ -461,7 +470,7 @@ static int msm8939_set_spk(struct snd_kcontrol *kcontrol,
 		return 0;
 
 	msm8939_spk_control = ucontrol->value.integer.value[0];
-	snd_soc_dapm_sync(&codec->dapm); //                                        
+	snd_soc_dapm_sync(&codec->dapm); //////////////////// seungbeom.son@lge.com
 	//msm8939_ext_control(codec);
 	return 1;
 }
@@ -573,10 +582,10 @@ void mute_spk_for_swirrc (int enable)
 
 }
 EXPORT_SYMBOL_GPL(mute_spk_for_swirrc);
-#endif //                               
+#endif //CONFIG_LGE_SW_IRRC_MUTE_SPEAKER
 
 
-//                                                                                                                                    
+//////////////////////////////////////////////////////////////seungbeom.son@lge.com///////////////////////////////////////////////////
 #if 0
 static int msm8939_vdd_spkr_event(struct snd_soc_dapm_widget *w,
 		struct snd_kcontrol *kcontrol, int event)
@@ -753,6 +762,54 @@ static int msm_slim_0_tx_ch_put(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
+static int msm_btsco_rate_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: msm_btsco_rate  = %d", __func__, msm_btsco_rate);
+#ifdef CONFIG_MACH_LGE
+	switch (msm_btsco_rate) {
+	case BTSCO_RATE_16KHZ:
+		ucontrol->value.integer.value[0] = 1;
+		break;
+	case BTSCO_RATE_8KHZ:
+	default:
+		ucontrol->value.integer.value[0] = 0;
+		break;
+	}
+#else
+	ucontrol->value.integer.value[0] = msm_btsco_rate;
+#endif
+
+	return 0;
+}
+
+static int msm_btsco_rate_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ucontrol->value.integer.value[0]) {
+#ifdef CONFIG_MACH_LGE
+	case 0:
+		msm_btsco_rate = BTSCO_RATE_8KHZ;
+		break;
+	case 1:
+		msm_btsco_rate = BTSCO_RATE_16KHZ;
+		break;
+#else
+	case 8000:
+		msm_btsco_rate = SAMPLING_RATE_8KHZ;
+		break;
+	case 16000:
+		msm_btsco_rate = SAMPLING_RATE_16KHZ;
+		break;
+#endif
+	default:
+		msm_btsco_rate = SAMPLING_RATE_8KHZ;
+		break;
+	}
+	pr_debug("%s: msm_btsco_rate = %d\n", __func__, msm_btsco_rate);
+	return 0;
+}
+
 static const struct snd_soc_dapm_widget msm8x16_dapm_widgets[] = {
 
 	SND_SOC_DAPM_SUPPLY("MCLK",  SND_SOC_NOPM, 0, 0,
@@ -779,6 +836,11 @@ static const struct snd_soc_dapm_widget msm8x16_dapm_widgets[] = {
 #endif
 	SND_SOC_DAPM_SPK("Lineout_1 amp", msm8939_ext_spkramp_event),
 	SND_SOC_DAPM_SPK("Lineout_2 amp", msm8939_ext_spkramp_event),
+};
+
+static const char *const btsco_rate_text[] = {"8000", "16000"};
+static const struct soc_enum msm_btsco_enum[] = {
+	SOC_ENUM_SINGLE_EXT(2, btsco_rate_text),
 };
 
 static const char *const spk_function[] = {"Off", "On"};
@@ -809,6 +871,8 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 			slim0_rx_bit_format_get, slim0_rx_bit_format_put),
 	SOC_ENUM_EXT("SLIM_0_RX SampleRate", msm_snd_enum[4],
 			slim0_rx_sample_rate_get, slim0_rx_sample_rate_put),
+	SOC_ENUM_EXT("Internal BTSCO SampleRate", msm_btsco_enum[0],
+			msm_btsco_rate_get, msm_btsco_rate_put),
 };
 
 static int msm_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -1130,6 +1194,7 @@ static int msm_audrx_init_tomtom(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "ANC EAR");
 	snd_soc_dapm_ignore_suspend(dapm, "ANC HEADPHONE");
 
+
 	snd_soc_dapm_sync(dapm);
 
 	snd_soc_dai_set_channel_map(codec_dai, ARRAY_SIZE(tx_ch),
@@ -1197,9 +1262,21 @@ static int msm_audrx_init_tomtom(struct snd_soc_pcm_runtime *rtd)
 	tomtom_register_ext_clk_cb(msm_snd_enable_codec_ext_clk,
 				   msm_snd_get_ext_clk_cnt,
 				   rtd->codec);
+
 	return 0;
 out:
 	return err;
+}
+
+static void codec_enable_qfuse(struct snd_soc_codec *codec)
+{
+	if(codec == NULL ||
+		strcmp(codec->name, "tomtom_codec"))
+		return;
+
+	msm_snd_enable_codec_ext_clk(codec, 1, false);
+	tomtom_enable_qfuse_sensing(codec);
+	msm_snd_enable_codec_ext_clk(codec, 0, false);
 }
 
 static void hs_detect_work(struct work_struct *work)
@@ -1217,13 +1294,14 @@ static void hs_detect_work(struct work_struct *work)
 	if (ret < 0)
 		pr_err("%s: Failed to intialise mbhc %d\n", __func__, ret);
 
+	codec_enable_qfuse(pdata->codec);
 	/*
 	 *  Set pdata->codec back to NULL, to ensure codec pointer
 	 *  is not referenced further from this structure.
 	 */
 #ifdef CONFIG_SND_LGE_USE_EXTERNAL_CODEC
 	pr_debug("%s: change mbhc_ready_state to 1 after tapnan_hs_detect\n", __func__);
-	mbhc_ready_state = 1; /*                                                                        */
+	mbhc_ready_state = 1; /* [Audio BSP] set mbhc_ready_state flag to 1(true) seungbeom.son@lge.com */
 #endif
 	pdata->codec =  NULL;
 	pr_debug("%s: leave\n", __func__);
@@ -2162,6 +2240,40 @@ static struct snd_soc_dai_link msm8x16_dai[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 	},
+	//TODO:CHECK Hw27, 28
+	/*
+	{ // hw:x,27 
+		.name = "QUAT_MI2S Hostless",
+		.stream_name = "QUAT_MI2S Hostless",
+		.cpu_dai_name = "QUAT_MI2S_RX_HOSTLESS",
+		.platform_name = "msm-pcm-hostless",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		// this dainlink has playback support
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+	},
+	{ // hw:x, 28 
+		.name = "QCHAT",
+		.stream_name = "QCHAT",
+		.cpu_dai_name   = "QCHAT",
+		.platform_name  = "msm-pcm-voice",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		// this dainlink has playback support
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_QCHAT,
+	},
+	*/
 	/* Backend I2S DAI Links */
 	{
 		.name = LPASS_BE_INT_BT_SCO_RX,
@@ -2429,7 +2541,7 @@ static int msm8939_populate_dai_link_component_of_node(
 						"asoc-platform-names",
 						dai_link[i].platform_name);
 			if (index < 0) {
-				pr_err("%s: No match found for platform name: %s\n",
+				pr_debug("%s: No match found for platform name: %s\n",
 					__func__, dai_link[i].platform_name);
 				ret = index;
 				goto cpu_dai;
@@ -2578,7 +2690,7 @@ static int msm8939_asoc_machine_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	//                                                                                           
+	///////////////////////////////seungbeom.son@lge.com/////////////////////////////////////////
 
 	#ifdef CONFIG_SND_SOC_TPA2028D_STEREO
 	ext_boost_gpio = of_get_named_gpio(pdev->dev.of_node,
@@ -2599,7 +2711,7 @@ static int msm8939_asoc_machine_probe(struct platform_device *pdev)
 	}
 #endif
 
-	//                                                                                   
+	///////////////////////////////seungbeom.son@lge.com/////////////////////////////////
 
 	/* Parse US-Euro gpio info from DT. Report no error if us-euro
 	 * entry is not found in DT file as some targets do not support
@@ -2642,7 +2754,7 @@ static int msm8939_asoc_machine_remove(struct platform_device *pdev)
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 	struct msm8939_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
 
-//                                                            
+/////////////////////seungbeom.son@lge.com////////////////////
 	gpio_free(pdata->mclk_gpio);
 #ifdef CONFIG_SND_SOC_TPA2028D_STEREO
 	if (ext_boost_gpio >= 0)
@@ -2663,7 +2775,7 @@ static int msm8939_asoc_machine_remove(struct platform_device *pdev)
 #endif
 	vdd_spkr_gpio = -1;
 	ext_spk_amp_gpio = -1;
-//                                                            
+/////////////////////seungbeom.son@lge.com////////////////////
 
 	snd_soc_unregister_card(card);
 	mutex_destroy(&pdata->cdc_mclk_mutex);

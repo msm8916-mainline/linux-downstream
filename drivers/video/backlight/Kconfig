@@ -416,12 +416,6 @@ config BACKLIGHT_RT8542
 	depends on BACKLIGHT_CLASS_DEVICE
 	help
 	  Say Y to enable the backlight driver for RT8542.
-	  
-config DSV_DW8768
-	tristate "DSV Driver for DW8768"
-	depends on BACKLIGHT_CLASS_DEVICE
-	help
-	  Say Y to enable the DSV driver for DW8768
 
 config LCD_VDD_EXT_LDO
 	tristate "VDD use external LDO"
@@ -444,7 +438,7 @@ config BACKLIGHT_AS3711
 	  backlight driver.
 
 config BACKLIGHT_LM3697
-	tristate "Backlight Driver for LM3697"
+	tristate "Backlight LG Driver for LM3697"
 	depends on BACKLIGHT_CLASS_DEVICE
 	help
 	  Say Y to enable the backlight driver for National Semiconductor / TI
@@ -453,7 +447,6 @@ config BACKLIGHT_LM3697
 	  The backlights can be controlled directly, through PWM input, or by
 	  the ambient-light-sensor interface. The chip supports 256 brightness
 	  levels.
-
 
 endif # BACKLIGHT_CLASS_DEVICE
 

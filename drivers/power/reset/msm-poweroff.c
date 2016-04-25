@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -41,17 +41,22 @@
 #define EMERGENCY_DLOAD_MAGIC3    0x77777777
 
 #define SCM_IO_DISABLE_PMIC_ARBITER	1
+#define SCM_IO_DEASSERT_PS_HOLD		2
 #define SCM_WDOG_DEBUG_BOOT_PART	0x9
 #define SCM_DLOAD_MODE			0X10
 #define SCM_EDLOAD_MODE			0X01
 #define SCM_DLOAD_CMD			0x10
 
 
+extern int msm8x16_wcd_spmi_write(unsigned short reg, int bytes, void *src);
+
 static int restart_mode;
 void *restart_reason;
 static bool scm_pmic_arbiter_disable_supported;
+static bool scm_deassert_ps_hold_supported;
 /* Download mode master kill-switch */
 static void __iomem *msm_ps_hold;
+static phys_addr_t tcsr_boot_misc_detect;
 
 #ifdef CONFIG_MSM_DLOAD_MODE
 #define EDL_MODE_PROP "qcom,msm-imem-emergency_download_mode"
@@ -64,7 +69,11 @@ static void *emergency_dload_mode_addr;
 static bool scm_dload_supported;
 
 static int dload_set(const char *val, struct kernel_param *kp);
+#ifdef CONFIG_LGE_DEFAULT_DISABLE_DLOAD_MODE
+static int download_mode = 0;
+#else
 static int download_mode = 1;
+#endif
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
 static int panic_prep_restart(struct notifier_block *this,
@@ -86,8 +95,12 @@ int scm_set_dload_mode(int arg1, int arg2)
 		.arginfo = SCM_ARGS(2),
 	};
 
-	if (!scm_dload_supported)
+	if (!scm_dload_supported) {
+		if (tcsr_boot_misc_detect)
+			return scm_io_write(tcsr_boot_misc_detect, arg1);
+
 		return 0;
+	}
 
 	if (!is_scm_armv8())
 		return scm_call_atomic2(SCM_SVC_BOOT, SCM_DLOAD_CMD, arg1,
@@ -213,6 +226,12 @@ static void halt_spmi_pmic_arbiter(void)
 
 static void msm_restart_prepare(const char *cmd)
 {
+	/* LGE_CHANGE : there's no reason to forcing a hard reset on reboot request */
+#ifdef CONFIG_LGE_HANDLE_PANIC
+	bool is_warm_reset = true;
+#else
+	bool need_warm_reset = false;
+#endif
 #ifdef CONFIG_MSM_DLOAD_MODE
 
 	/* Write download mode flags if we're panic'ing
@@ -224,30 +243,80 @@ static void msm_restart_prepare(const char *cmd)
 			(in_panic || restart_mode == RESTART_DLOAD));
 #endif
 
+
+#ifdef CONFIG_LGE_USE_DEFAULT_HARD_RESET
+	/* default & test purpose reboot should be hard reset since QTI doesn't gurantee repeated warm boot test */
+	if (cmd) {
+		if ((cmd[0] == '\0')
+			|| !strncmp(cmd, "Restarted by power key", 22)
+			|| !strncmp(cmd, "bootchart", 9)
+			|| !strncmp(cmd, "cuz resetTool", 13)
+			|| !strncmp(cmd, "PMCycleTest", 11)
+			|| !strncmp(cmd, "eMMCTest", 8)
+		   )
+			is_warm_reset = false;
+	} else
+		is_warm_reset = false;
+#endif
+
 	/* Hard reset the PMIC unless memory contents must be maintained. */
 #ifdef CONFIG_LGE_HANDLE_PANIC
-#ifdef CONFIG_LGE_USE_DEFAULT_HARD_RESET
-	if (get_dload_mode() || (cmd != NULL && cmd[0] != '\0') || in_panic || (restart_mode == RESTART_DLOAD))
-#else
-	/*                                                                          */
-	if (true || get_dload_mode() || (cmd != NULL && cmd[0] != '\0'))
-#endif
+	pr_info("[DEBUG] msm_restart_prepare is_warm_reset=%d, get_dload_mode()=%d, in_panic=%d, restart_mode=%d\n", is_warm_reset, get_dload_mode(), in_panic, restart_mode);	
+	if (is_warm_reset || get_dload_mode() || in_panic || (restart_mode == RESTART_DLOAD)) {
 #else
 	if (get_dload_mode() || (cmd != NULL && cmd[0] != '\0'))
+
+	need_warm_reset = (get_dload_mode() ||
+				(cmd != NULL && cmd[0] != '\0'));
+
+	if (qpnp_pon_check_hard_reset_stored()) {
+		/* Set warm reset as true when device is in dload mode
+		 *  or device doesn't boot up into recovery, bootloader or rtc.
+		 */
+		if (get_dload_mode() ||
+			((cmd != NULL && cmd[0] != '\0') &&
+			strcmp(cmd, "recovery") &&
+			strcmp(cmd, "bootloader") &&
+			strcmp(cmd, "rtc")))
+			need_warm_reset = true;
+	}
+
+	/* Hard reset the PMIC unless memory contents must be maintained. */
+	if (need_warm_reset) {
+
 #endif
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
-	else
+	} else {
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
+	}
 
 	if (cmd != NULL) {
 		if (!strncmp(cmd, "bootloader", 10)) {
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_BOOTLOADER);
 			__raw_writel(0x77665500, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_RECOVERY);
 			__raw_writel(0x77665502, restart_reason);
 		} else if (!strncmp(cmd, "fota", 4)) {
 			__raw_writel(0x77665566, restart_reason);
 		} else if (!strcmp(cmd, "rtc")) {
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_RTC);
 			__raw_writel(0x77665503, restart_reason);
+#ifdef CONFIG_LGE_LCD_OFF_DIMMING
+		} else if (!strncmp(cmd, "FOTA LCD off", 12)) {
+			__raw_writel(0x77665560, restart_reason);
+		} else if (!strncmp(cmd, "FOTA OUT LCD off", 16)) {
+			__raw_writel(0x77665561, restart_reason);
+		 } else if (!strncmp(cmd, "LCD off", 7)) {
+                        __raw_writel(0x77665562, restart_reason);
+#endif
+        }else if (!strncmp(cmd, "dm-verity device corrupted", 26 )) {
+            __raw_writel(0x77665508, restart_reason);
+        } else if (!strncmp(cmd, "wallpaper_fail", 14)) {
+            __raw_writel(0x77665507, restart_reason);
 		} else if (!strncmp(cmd, "oem-", 4)) {
 			unsigned long code;
 			int ret;
@@ -281,6 +350,30 @@ static void msm_restart_prepare(const char *cmd)
 	outer_flush_all();
 #endif
 
+}
+
+/*
+ * Deassert PS_HOLD to signal the PMIC that we are ready to power down or reset.
+ * Do this by calling into the secure environment, if available, or by directly
+ * writing to a hardware register.
+ *
+ * This function should never return.
+ */
+static void deassert_ps_hold(void)
+{
+	struct scm_desc desc = {
+		.args[0] = 0,
+		.arginfo = SCM_ARGS(1),
+	};
+
+	if (scm_deassert_ps_hold_supported) {
+		/* This call will be available on ARMv8 only */
+		scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_PWR,
+				 SCM_IO_DEASSERT_PS_HOLD), &desc);
+	}
+
+	/* Fall-through to the direct write in case the scm_call "returns" */
+	__raw_writel(0, msm_ps_hold);
 }
 
 static void do_msm_restart(enum reboot_mode reboot_mode, const char *cmd)
@@ -317,9 +410,9 @@ static void do_msm_restart(enum reboot_mode reboot_mode, const char *cmd)
 		pr_err("Failed to disable secure wdog debug: %d\n", ret);
 
 	halt_spmi_pmic_arbiter();
-	__raw_writel(0, msm_ps_hold);
+	deassert_ps_hold();
 
-	mdelay(10000);
+    mdelay(10000);
 }
 
 static void do_msm_poweroff(void)
@@ -347,8 +440,7 @@ static void do_msm_poweroff(void)
 		pr_err("Failed to disable wdog debug: %d\n", ret);
 
 	halt_spmi_pmic_arbiter();
-	/* MSM initiated power off, lower ps_hold */
-	__raw_writel(0, msm_ps_hold);
+	deassert_ps_hold();
 
 	mdelay(10000);
 	pr_err("Powering off has failed\n");
@@ -385,7 +477,6 @@ static int msm_restart_probe(struct platform_device *pdev)
 			pr_err("unable to map imem EDLOAD mode offset\n");
 	}
 
-	set_dload_mode(download_mode);
 #endif
 	np = of_find_compatible_node(NULL, NULL,
 				"qcom,msm-imem-restart_reason");
@@ -405,11 +496,20 @@ static int msm_restart_probe(struct platform_device *pdev)
 	if (IS_ERR(msm_ps_hold))
 		return PTR_ERR(msm_ps_hold);
 
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (mem)
+		tcsr_boot_misc_detect = mem->start;
+
 	pm_power_off = do_msm_poweroff;
 	arm_pm_restart = do_msm_restart;
 
 	if (scm_is_call_available(SCM_SVC_PWR, SCM_IO_DISABLE_PMIC_ARBITER) > 0)
 		scm_pmic_arbiter_disable_supported = true;
+
+	if (scm_is_call_available(SCM_SVC_PWR, SCM_IO_DEASSERT_PS_HOLD) > 0)
+		scm_deassert_ps_hold_supported = true;
+
+	set_dload_mode(download_mode);
 
 	return 0;
 

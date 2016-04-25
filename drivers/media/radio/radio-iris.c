@@ -42,6 +42,10 @@
 #include <linux/of_gpio.h>
 #endif
 
+#ifdef CONFIG_LGE_ANT_SWITCH_FMRADIO_TDMB
+#include <linux/regulator/consumer.h>
+#endif
+
 static unsigned int rds_buf = 100;
 static int oda_agt;
 static int grp_mask;
@@ -55,6 +59,11 @@ static char rt_ert_flag;
 static char formatting_dir;
 static unsigned char sig_blend = CTRL_ON;
 static DEFINE_MUTEX(iris_fm);
+
+#ifdef CONFIG_LGE_ANT_SWITCH_FMRADIO_TDMB
+static struct regulator *vdd_reg = NULL;
+static int ldo_status = 0;
+#endif
 
 module_param(rds_buf, uint, 0);
 MODULE_PARM_DESC(rds_buf, "RDS buffer entries: *100*");
@@ -133,6 +142,10 @@ struct iris_device {
 #ifdef CONFIG_MACH_LGE
 	int fm_ldo_en;
 #endif
+#ifdef CONFIG_LGE_ANT_SWITCH_FMRADIO_TDMB
+	int fm_sw;
+#endif
+	struct hci_fm_blend_table blend_tbl;
 };
 
 static struct video_device *priv_videodev;
@@ -506,7 +519,7 @@ static struct v4l2_queryctrl iris_v4l2_queryctrl[] = {
 	},
 };
 
-#ifdef CONFIG_DEBUG_FS //                             
+#ifdef CONFIG_DEBUG_FS //2013-07-08 beekay.lee@lge.com
 #include <linux/debugfs.h>
 
 /*
@@ -1360,6 +1373,31 @@ static int hci_fm_get_ch_det_th(struct radio_hci_dev *hdev,
 	return radio_hci_send_cmd(hdev, opcode, 0, NULL);
 }
 
+static int hci_fm_get_blend_tbl(struct radio_hci_dev *hdev,
+		unsigned long param)
+{
+	u16 opcode = hci_opcode_pack(HCI_OGF_FM_RECV_CTRL_CMD_REQ,
+				HCI_OCF_FM_GET_BLND_TBL);
+	return radio_hci_send_cmd(hdev, opcode, 0, NULL);
+}
+
+static int hci_fm_set_blend_tbl(struct radio_hci_dev *hdev,
+		unsigned long param)
+{
+	struct hci_fm_blend_table *blnd_tbl =
+			 (struct hci_fm_blend_table *) param;
+	u16 opcode;
+
+	if (blnd_tbl == NULL) {
+		FMDERR("%s, blend tbl is null\n", __func__);
+		return -EINVAL;
+	}
+	opcode = hci_opcode_pack(HCI_OGF_FM_RECV_CTRL_CMD_REQ,
+			HCI_OCF_FM_SET_BLND_TBL);
+	return radio_hci_send_cmd(hdev, opcode,
+			sizeof(struct hci_fm_blend_table), blnd_tbl);
+}
+
 static int radio_hci_err(__u32 code)
 {
 	switch (code) {
@@ -1802,6 +1840,16 @@ static int hci_fm_get_spur_tbl_data(struct radio_hci_dev *hdev,
 	return radio_hci_send_cmd(hdev, opcode, sizeof(int), &spur_freq);
 }
 
+static int hci_set_blend_tbl_req(struct hci_fm_blend_table *arg,
+		struct radio_hci_dev *hdev)
+{
+	int ret = 0;
+	struct hci_fm_blend_table *blend_tbl = arg;
+	ret = radio_hci_request(hdev, hci_fm_set_blend_tbl,
+		 (unsigned long)blend_tbl, RADIO_HCI_TIMEOUT);
+	return ret;
+}
+
 static int hci_cmd(unsigned int cmd, struct radio_hci_dev *hdev)
 {
 	int ret = 0;
@@ -1894,6 +1942,10 @@ static int hci_cmd(unsigned int cmd, struct radio_hci_dev *hdev)
 		ret = radio_hci_request(hdev, hci_fm_get_ch_det_th, arg,
 					msecs_to_jiffies(RADIO_HCI_TIMEOUT));
 		break;
+	case HCI_FM_GET_BLND_TBL_CMD:
+		ret = radio_hci_request(hdev, hci_fm_get_blend_tbl, arg,
+					msecs_to_jiffies(RADIO_HCI_TIMEOUT));
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -1967,6 +2019,11 @@ static void hci_cc_fm_disable_rsp(struct radio_hci_dev *hdev,
 	} else if ((radio->mode == FM_TURNING_OFF) && (status != 0)) {
 		radio_hci_req_complete(hdev, status);
 	}
+	/* added by LGE, TD 137525 */
+	else if (radio->mode == FM_OFF){
+		radio_hci_req_complete(hdev, status);
+	}
+	/* added by LGE, TD 137525 */
 }
 
 static void hci_cc_conf_rsp(struct radio_hci_dev *hdev, struct sk_buff *skb)
@@ -2385,6 +2442,28 @@ static void hci_cc_get_ch_det_threshold_rsp(struct radio_hci_dev *hdev,
 	radio_hci_req_complete(hdev, status);
 }
 
+static void hci_cc_get_blend_tbl_rsp(struct radio_hci_dev *hdev,
+		struct sk_buff *skb)
+{
+	struct iris_device *radio = video_get_drvdata(video_get_dev());
+	u8  status;
+
+	if (unlikely(radio == NULL)) {
+		FMDERR(":radio is null");
+		return;
+	}
+	if (unlikely(skb == NULL)) {
+		FMDERR("%s, socket buffer is null\n", __func__);
+		return;
+	}
+	status = skb->data[0];
+	if (!status)
+		memcpy(&radio->blend_tbl, &skb->data[1],
+			sizeof(struct hci_fm_blend_table));
+
+	radio_hci_req_complete(hdev, status);
+}
+
 static inline void hci_cmd_complete_event(struct radio_hci_dev *hdev,
 		struct sk_buff *skb)
 {
@@ -2427,6 +2506,7 @@ static inline void hci_cmd_complete_event(struct radio_hci_dev *hdev,
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_EN_WAN_AVD_CTRL):
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_EN_NOTCH_CTRL):
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_SET_CH_DET_THRESHOLD):
+	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_SET_BLND_TBL):
 	case hci_trans_ctrl_cmd_op_pack(HCI_OCF_FM_RDS_RT_REQ):
 	case hci_trans_ctrl_cmd_op_pack(HCI_OCF_FM_RDS_PS_REQ):
 	case hci_common_cmd_op_pack(HCI_OCF_FM_DEFAULT_DATA_WRITE):
@@ -2498,6 +2578,9 @@ static inline void hci_cmd_complete_event(struct radio_hci_dev *hdev,
 		break;
 	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_GET_CH_DET_THRESHOLD):
 		hci_cc_get_ch_det_threshold_rsp(hdev, skb);
+		break;
+	case hci_recv_ctrl_cmd_op_pack(HCI_OCF_FM_GET_BLND_TBL):
+		hci_cc_get_blend_tbl_rsp(hdev, skb);
 		break;
 	default:
 		FMDERR("%s opcode 0x%x", hdev->name, opcode);
@@ -3291,8 +3374,6 @@ static int iris_do_calibration(struct iris_device *radio)
 			radio->fm_hdev);
 	if (retval < 0)
 		FMDERR("Disable Failed after calibration %d", retval);
-	else
-		radio->mode = FM_OFF;
 
 	return retval;
 }
@@ -3623,6 +3704,22 @@ static int iris_vidioc_g_ctrl(struct file *file, void *priv,
 			ctrl->value |= (cf0 << 24);
 		}
 		break;
+	case V4L2_CID_PRIVATE_BLEND_SINRHI:
+		retval = hci_cmd(HCI_FM_GET_BLND_TBL_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get blend table  %d", retval);
+			goto END;
+		}
+		ctrl->value = radio->blend_tbl.scBlendSinrHi;
+		break;
+	case V4L2_CID_PRIVATE_BLEND_RMSSIHI:
+		retval = hci_cmd(HCI_FM_GET_BLND_TBL_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get blend table  %d", retval);
+			goto END;
+		}
+		ctrl->value = radio->blend_tbl.scBlendRmssiHi;
+		break;
 	default:
 		retval = -EINVAL;
 		break;
@@ -3631,9 +3728,8 @@ static int iris_vidioc_g_ctrl(struct file *file, void *priv,
 END:
 	if (retval > 0)
 		retval = -EINVAL;
-	if (retval < 0)
-		FMDERR("get control failed with %d, id: %d\n",
-			retval, ctrl->id);
+	if (ctrl != NULL && retval < 0)
+		FMDERR("get control failed: %d, ret: %d\n", ctrl->id, retval);
 
 	return retval;
 }
@@ -3911,6 +4007,10 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 	__u8 intf_det_low_th, intf_det_high_th, intf_det_out;
 	unsigned int spur_freq;
 
+#ifdef CONFIG_LGE_ANT_SWITCH_FMRADIO_TDMB
+	int ret;
+#endif
+
 	if (unlikely(radio == NULL)) {
 		FMDERR(":radio is null");
 		retval = -EINVAL;
@@ -4009,6 +4109,23 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 			}
 			if (radio->mode == FM_RECV_TURNING_ON) {
 				radio->mode = FM_RECV;
+#ifdef CONFIG_LGE_ANT_SWITCH_FMRADIO_TDMB
+				if (radio->fm_sw > 0) {
+					if (ldo_status == 1) {
+						ret = regulator_enable(vdd_reg);
+						FMDBG("[FM_RECV_TURNING_ON] regulator enable\n");
+
+						if (ret < 0) {
+							FMDERR("[FM_RECV_TURNING_ON] regulator enable fail %d\n", ret);
+						}
+
+						mdelay(300);
+					}
+
+					gpio_direction_output(radio->fm_sw, 1);
+					FMDBG("[FM_RECV_TURNING_ON] gpio_get_value : %d\n", gpio_get_value(radio->fm_sw));
+				}
+#endif
 				iris_q_event(radio, IRIS_EVT_RADIO_READY);
 			}
 			break;
@@ -4054,6 +4171,17 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 					radio->mode = FM_RECV;
 					goto END;
 				}
+#ifdef CONFIG_LGE_ANT_SWITCH_FMRADIO_TDMB
+				if (radio->fm_sw > 0) {
+					gpio_direction_output(radio->fm_sw, 0);
+					FMDBG("[FM_TURNING_OFF] gpio_get_value : %d\n", gpio_get_value(radio->fm_sw));
+
+					if (ldo_status == 1) {
+						regulator_disable(vdd_reg);
+						FMDBG("[FM_TURNING_OFF] regulator disable\n");
+					}
+				}
+#endif
 				break;
 			case FM_TRANS:
 				radio->mode = FM_TURNING_OFF;
@@ -4855,7 +4983,7 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 			FMDERR("set RxRePeat count failed\n");
 		break;
 
-//                                                             
+//LGE_UPDATE 2014-12-30 beekay.lee@lge.com For c50c vzw intenna
 #ifdef CONFIG_MACH_LGE
 	case V4L2_CID_PRIVATE_IRIS_SET_INTENNA:
 		if ( !(ctrl->value == 0 || ctrl->value == 1) ) {
@@ -4891,6 +5019,46 @@ static int iris_vidioc_s_ctrl(struct file *file, void *priv,
 					RADIO_HCI_TIMEOUT);
 		if (retval < 0)
 			FMDERR("get Spur data failed\n");
+		break;
+	case V4L2_CID_PRIVATE_BLEND_SINRHI:
+		if (!is_valid_blend_value(ctrl->value)) {
+			FMDERR("%s: blend sinr count is not valid\n",
+				__func__);
+			retval = -EINVAL;
+			goto END;
+		}
+		retval = hci_cmd(HCI_FM_GET_BLND_TBL_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get blend table  %d", retval);
+			goto END;
+		}
+		radio->blend_tbl.scBlendSinrHi = ctrl->value;
+		retval = hci_set_blend_tbl_req(&radio->blend_tbl,
+					 radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to set blend tble %d ", retval);
+			goto END;
+		}
+		break;
+	case V4L2_CID_PRIVATE_BLEND_RMSSIHI:
+		if (!is_valid_blend_value(ctrl->value)) {
+			FMDERR("%s: blend rmssi count is not valid\n",
+				__func__);
+			retval = -EINVAL;
+			goto END;
+		}
+		retval = hci_cmd(HCI_FM_GET_BLND_TBL_CMD, radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to get blend table  %d", retval);
+			goto END;
+		}
+		radio->blend_tbl.scBlendRmssiHi = ctrl->value;
+		retval = hci_set_blend_tbl_req(&radio->blend_tbl,
+					 radio->fm_hdev);
+		if (retval < 0) {
+			FMDERR("Failed to set blend tble %d ", retval);
+			goto END;
+		}
 		break;
 	default:
 		retval = -EINVAL;
@@ -5158,20 +5326,30 @@ static int iris_fops_release(struct file *file)
 	if (radio == NULL)
 		return -EINVAL;
 
-
-
 	if (radio->mode == FM_OFF)
-		return 0;
+		goto END;
 
 	if (radio->mode == FM_RECV) {
 		radio->mode = FM_OFF;
 		retval = hci_cmd(HCI_FM_DISABLE_RECV_CMD,
 						radio->fm_hdev);
+		/* wait for disable cmd resp from controller */
+		if(retval == -EINTR)		//added by LGE, TD 137525
+			msleep(50);
 	} else if (radio->mode == FM_TRANS) {
 		radio->mode = FM_OFF;
 		retval = hci_cmd(HCI_FM_DISABLE_TRANS_CMD,
 					radio->fm_hdev);
+		/* wait for disable cmd resp from controller */
+		if(retval == -EINTR)		//added by LGE, TD 137525
+			msleep(50);
+	} else if (radio->mode == FM_CALIB) {
+		radio->mode = FM_OFF;
+		return retval;
 	}
+END:
+	if (radio->fm_hdev != NULL)
+		radio->fm_hdev->close_smd();
 	if (retval < 0)
 		FMDERR("Err on disable FM %d\n", retval);
 
@@ -5282,7 +5460,11 @@ static int initialise_recv(struct iris_device *radio)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_LGE_FMRADIO_SOFT_MUTE_OFF
+	radio->mute_mode.soft_mute = CTRL_OFF;
+#else
 	radio->mute_mode.soft_mute = CTRL_ON;
+#endif
 	retval = hci_set_fm_mute_mode(&radio->mute_mode,
 					radio->fm_hdev);
 
@@ -5395,6 +5577,36 @@ static struct video_device *video_get_dev(void)
 	return priv_videodev;
 }
 
+#ifdef CONFIG_LGE_ANT_SWITCH_FMRADIO_TDMB
+static int ant_switch_voltage_parse_dts(struct device *dev)
+{
+	int rc;
+	int err;
+
+	FMDBG("enter\n");
+
+	vdd_reg = regulator_get(dev, "xm,vdd_fm_sw");
+	if (IS_ERR(vdd_reg)) {
+		err = PTR_ERR(vdd_reg);
+		return err;
+	}
+
+	if (regulator_count_voltages(vdd_reg) > 0) {
+		rc = regulator_set_voltage(vdd_reg, 2500000, 3000000);
+
+		if (rc != 0) {
+			FMDERR("regulator_set_voltage failed : %d\n", rc);
+			return rc;
+		}
+	}
+
+	ldo_status = 1;
+	FMDBG("regulator voltage check end\n");
+
+	return 1;
+}
+#endif
+
 static int __init iris_probe(struct platform_device *pdev)
 {
 	struct iris_device *radio;
@@ -5436,6 +5648,21 @@ static int __init iris_probe(struct platform_device *pdev)
 	}
 #endif
 
+#ifdef CONFIG_LGE_ANT_SWITCH_FMRADIO_TDMB
+	if (ant_switch_voltage_parse_dts(radio->dev) == 1)
+		FMDBG("LDO use\n");
+	else
+		FMDBG("LDO not use\n");
+
+
+	radio->fm_sw = -1;
+	radio->fm_sw = of_get_named_gpio(pdev->dev.of_node, "qcom,fm-sw-gpio", 0);
+	if(radio->fm_sw > 0 ){
+		retval = gpio_request(radio->fm_sw, "fm_sw");
+		gpio_direction_output(radio->fm_sw, 0);
+		FMDBG("radio antenna enable gpio : %d, ret: %d\n", radio->fm_sw, retval);
+	}
+#endif
 	for (i = 0; i < IRIS_BUF_MAX; i++) {
 		int kfifo_alloc_rc = 0;
 		spin_lock_init(&radio->buf_lock[i]);

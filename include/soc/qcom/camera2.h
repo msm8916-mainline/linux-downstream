@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -19,7 +19,7 @@
 #include <linux/of_platform.h>
 #include <linux/of_device.h>
 #include <linux/of.h>
-
+#define MAX_SPECIAL_SUPPORT_SIZE 10
 
 enum msm_camera_device_type_t {
 	MSM_CAMERA_I2C_DEVICE,
@@ -147,6 +147,13 @@ struct msm_camera_sensor_board_info {
 	const char *eeprom_name;
 	const char *actuator_name;
 	const char *ois_name;
+
+#if defined(CONFIG_MSM_OTP)
+	const char *otp_name;
+#endif
+
+	const char *special_support_sensors[MAX_SPECIAL_SUPPORT_SIZE];
+	int32_t special_support_size;
 	struct msm_camera_slave_info *slave_info;
 	struct msm_camera_csi_lane_params *csi_lane_params;
 	struct msm_camera_sensor_strobe_flash_data *strobe_flash_data;
@@ -219,5 +226,52 @@ struct msm_eeprom_board_info {
 	struct msm_eeprom_cmm_t cmm_data;
 	enum i2c_freq_mode_t i2c_freq_mode;
 };
+
+#if defined(CONFIG_MSM_OTP)
+struct otp_map_t {
+	uint32_t valid_size;
+	uint32_t addr;
+	uint32_t addr_t;
+	uint32_t data;
+	uint32_t data_t;
+	uint32_t delay;
+};
+
+struct otp_slave_add_t {
+	uint32_t addr;
+};
+
+struct msm_otp_memory_map_t {
+	struct otp_map_t page;
+	struct otp_map_t pageen;
+	struct otp_map_t poll;
+	struct otp_map_t mem;
+	struct otp_slave_add_t saddr;
+};
+
+struct msm_otp_memory_block_t {
+	struct msm_otp_memory_map_t *map;
+	uint32_t num_map;	/* number of map blocks */
+	uint8_t *mapdata;
+	uint32_t num_data;	/* size of total mapdata */
+};
+
+struct msm_otp_cmm_t {
+	uint32_t cmm_support;
+	uint32_t cmm_compression;
+	uint32_t cmm_offset;
+	uint32_t cmm_size;
+};
+
+struct msm_otp_board_info {
+	const char *otp_name;
+	uint16_t i2c_slaveaddr;
+	struct msm_camera_power_ctrl_t power_info;
+	struct msm_otp_cmm_t cmm_data;
+	enum i2c_freq_mode_t i2c_freq_mode;
+	struct msm_camera_i2c_reg_array *i2c_init;
+	uint16_t cnt_i2c_init;
+};
+#endif
 
 #endif

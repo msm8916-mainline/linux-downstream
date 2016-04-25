@@ -10,7 +10,8 @@
 #include <linux/device.h>
 #include <linux/qpnp/qpnp-adc.h>
 #include <linux/power_supply.h>
-#ifdef CONFIG_USB_G_LGE_ANDROID
+#include <linux/delay.h>
+#ifdef CONFIG_LGE_USB_G_ANDROID
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <soc/qcom/lge/lge_android_usb.h>
@@ -159,7 +160,7 @@ void get_dt_cn_prop_str(const char *name, char *value)
 	pr_err("The %s node have not property value\n", name);
 }
 
-#if defined(CONFIG_LGE_DIAG_USB_ACCESS_LOCK) || defined(CONFIG_LGE_DIAG_ENABLE_SYSFS)
+#if defined(CONFIG_LGE_USB_DIAG_LOCK) || defined(CONFIG_LGE_DIAG_ENABLE_SYSFS)
 static struct platform_device lg_diag_cmd_device = {
 	.name = "lg_diag_cmd",
 	.id = -1,
@@ -227,8 +228,9 @@ int lge_pm_get_cable_info(struct qpnp_vadc_chip *vadc,
 
 	int table_size = ARRAY_SIZE(pm8941_acc_cable_type_data);
 	int acc_read_value = 0;
-	int i, rc;
-	int count = 1;
+	int acc_read_value_data[3] = {0,};
+	int i, j, rc;
+	int count = 3;
 
 	if (!info) {
 		pr_err("%s : invalid info parameters\n",
@@ -265,10 +267,21 @@ int lge_pm_get_cable_info(struct qpnp_vadc_chip *vadc,
 			return rc;
 		}
 
-		acc_read_value = (int)result.physical;
+		acc_read_value_data[i] = (int)result.physical;
 		pr_info("%s : acc_read_value - %d\n",
 				__func__, (int)result.physical);
-		/* mdelay(10); */
+		mdelay(10);
+
+		for (j = 0; j < i; j++) {
+			if (abs(acc_read_value_data[i] - acc_read_value_data[j]) > 100000) {
+				count = 0;
+				acc_read_value = 1800000;
+				pr_info("%s: abnormal acc_read_value\n", __func__);
+				break;
+			} else {
+				acc_read_value = (int)result.physical;
+			}
+		}
 	}
 
 	info->cable_type = NO_INIT_CABLE;
@@ -319,17 +332,44 @@ void lge_pm_read_cable_info(struct qpnp_vadc_chip *vadc)
 
 	lge_pm_get_cable_info(vadc, &lge_cable_info);
 }
+#ifdef CONFIG_USB_EMBEDDED_BATTERY_REBOOT
+/*
+   for download complete using LAF image
+   return value : 1 --> right after laf complete & reset
+*/
+
+int android_dlcomplete = 0;
+
+int __init lge_android_dlcomplete(char *s)
+{
+	if(strncmp(s,"1",1) == 0)
+		android_dlcomplete = 1;
+	else
+		android_dlcomplete = 0;
+			printk("androidboot.dlcomplete = %d\n", android_dlcomplete);
+
+	return 1;
+}
+__setup("androidboot.dlcomplete=", lge_android_dlcomplete);
+
+int lge_get_android_dlcomplete(void)
+{
+	return android_dlcomplete;
+}
+#endif
 
 /* for board revision */
 static hw_rev_type lge_bd_rev = HW_REV_A;
 
 /* CAUTION: These strings are come from LK. */
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined (CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined (CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 char *rev_str[] = {"rev_0", "rev_a", "rev_b", "rev_c", "rev_d",
-	"rev_e", "rev_10", "rev_11","revserved"};
+	"rev_e", "rev_10", "rev_11","reserved"};
 #else
 char *rev_str[] = {"evb1", "evb2", "rev_a", "rev_b", "rev_c", "rev_d",
-	"rev_e", "rev_f", "rev_10", "rev_11","revserved"};
+	"rev_e", "rev_f", "rev_10", "rev_11","reserved"};
 #endif
 
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
@@ -361,7 +401,9 @@ void pseudo_batt_set(struct pseudo_batt_info_type *info)
 	pseudo_batt_info.charging = info->charging;
 
 #ifndef CONFIG_BQ24296_CHARGER
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) && !defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) && !defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) && \
+	!defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) && !defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) && \
+	!defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 	pseudo_batt_ibatmax_set();
 #endif
 #endif
@@ -401,7 +443,12 @@ bool is_lge_battery_valid(void)
 
 int read_lge_battery_id(void)
 {
+#if !defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) && !defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) && \
+	!defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 		return lge_battery_info;
+#else
+		return 1;
+#endif
 }
 //EXPORT_SYMBOL(read_lge_battery_id);
 
@@ -524,11 +571,11 @@ static int __init lge_boot_mode_init(char *s)
 		lge_boot_mode = LGE_BOOT_MODE_PIF_130K;
 	else if (!strcmp(s, "pif_910k"))
 		lge_boot_mode = LGE_BOOT_MODE_PIF_910K;
-	/*                            */
+	/* LGE_UPDATE_S for MINIOS2.0 */
 	else if (!strcmp(s, "miniOS"))
 		lge_boot_mode = LGE_BOOT_MODE_MINIOS;
 	pr_info("ANDROID BOOT MODE : %d %s\n", lge_boot_mode, s);
-	/*                            */
+	/* LGE_UPDATE_E for MINIOS2.0 */
 
 	return 1;
 }
@@ -577,7 +624,7 @@ enum lge_laf_mode_type lge_get_laf_mode(void)
 	return lge_laf_mode;
 }
 
-#ifdef CONFIG_USB_G_LGE_ANDROID
+#ifdef CONFIG_LGE_USB_G_ANDROID
 static int get_factory_cable(void)
 {
 	int res = 0;
@@ -700,7 +747,7 @@ int  lge_get_kswitch_status()
 {
 	return s_kswitch_flag;
 }
-#endif/*                    */
+#endif/* CONFIG_LGE_KSWITCH */
 
 #ifdef CONFIG_LGE_QSDL_SUPPORT
 static struct lge_qsdl_platform_data lge_qsdl_pdata = {
@@ -723,4 +770,4 @@ static int  __init lge_add_qsdl_device(void)
 
 arch_initcall(lge_add_qsdl_device);
 
-#endif /*                         */
+#endif /* CONFIG_LGE_QSDL_SUPPORT */

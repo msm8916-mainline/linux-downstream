@@ -22,6 +22,9 @@
 #else
 #include <mach/board_lge.h>
 #endif
+#if defined(CONFIG_STYLUS_PEN)
+#define HALL_DETECT_DELAY 200
+#endif
 
 static int pre_set_flag;
 struct pm8xxx_cradle {
@@ -33,6 +36,12 @@ struct pm8xxx_cradle {
 	int pouch;
 	spinlock_t lock;
 	int state;
+#if defined(CONFIG_STYLUS_PEN)
+	struct switch_dev pen_sdev;
+	int pen;
+	int pen_state;
+	struct delayed_work pen_work;
+#endif
 };
 
 #if defined(CONFIG_MACH_MSM8X10_W5_MPCS_US) || defined(CONFIG_MACH_MSM8X10_W5C_VZW) || \
@@ -43,31 +52,92 @@ struct pm8xxx_cradle {
 	defined(CONFIG_MACH_MSM8226_E9WIFI) || defined(CONFIG_MACH_MSM8226_E9WIFIN)|| \
 	defined(CONFIG_MACH_MSM8926_E7LTE_VZW_US) || defined(CONFIG_MACH_MSM8926_E7LTE_ATT_US) || \
 	defined(CONFIG_MACH_MSM8926_E7LTE_USC_US) || defined(CONFIG_MACH_MSM8926_B2LN_KR) || \
-	defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+	defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8916_G4STYLUS_CRK_US) || \
+        defined(CONFIG_MACH_MSM8916_STYLUSC_SPR_US) || defined(CONFIG_MACH_MSM8916_G4STYLUSDS_GLOBAL_COM) || \
+        defined(CONFIG_MACH_MSM8916_G4STYLUSN_GLOBAL_COM) || \
+        defined(CONFIG_MACH_MSM8916_G4STYLUSN_MPCS_US) || defined(CONFIG_MACH_MSM8916_G4STYLUSN_RGS_CA) || \
+        defined(CONFIG_MACH_MSM8916_G4STYLUSN_TMO_US) || defined(CONFIG_MACH_MSM8916_G4STYLUSN_VTR_CA) || \
+        defined(CONFIG_MACH_MSM8916_G4STYLUSW_KT_KR) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+		defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA)  || defined(CONFIG_MACH_MSM8916_PH1_VZW) || \
+		defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_SPR_US)|| \
+		defined(CONFIG_MACH_MSM8916_PH1_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_KR) || \
+        defined(CONFIG_MACH_MSM8916_K5) || defined(CONFIG_MACH_MSM8916_PH1_CRK_US)
 #define POUCH_DETECT_DELAY 100
 #endif
 
 static struct workqueue_struct *cradle_wq;
 static struct pm8xxx_cradle *cradle;
 #if defined(CONFIG_MACH_MSM8926_X10_VZW) || defined(CONFIG_MACH_MSM8926_B2L_ATT) || \
-	defined(CONFIG_MACH_MSM8926_B2LN_KR) || defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
-#if defined(CONFIG_TOUCHSCREEN_ATMEL_S540) || defined(CONFIG_TOUCHSCREEN_ATMEL_T1664)
+	defined(CONFIG_MACH_MSM8926_B2LN_KR) || defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || \
+	defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || \
+	defined(CONFIG_MACH_MSM8916_G4STYLUS_CRK_US) || defined(CONFIG_MACH_MSM8916_G4STYLUSW_KT_KR) || \
+	defined(CONFIG_MACH_MSM8916_STYLUSC_SPR_US) || defined(CONFIG_MACH_MSM8916_G4STYLUSDS_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8916_G4STYLUSN_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8916_G4STYLUSN_MPCS_US) || defined(CONFIG_MACH_MSM8916_G4STYLUSN_RGS_CA) || \
+	defined(CONFIG_MACH_MSM8916_G4STYLUSN_TMO_US) || defined(CONFIG_MACH_MSM8916_G4STYLUSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8916_PH1_VZW) || defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_SPR_US) || \
+	defined(CONFIG_MACH_MSM8916_PH1_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_KR) || defined(CONFIG_MACH_MSM8916_PH1_CRK_US) || \
+    defined(CONFIG_MACH_MSM8916_K5)
+#if defined(CONFIG_TOUCHSCREEN_ATMEL_S540) || defined(CONFIG_TOUCHSCREEN_ATMEL_T1664) || defined(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191) || \
+	defined(CONFIG_TOUCHSCREEN_MELFAS_MIT300) || defined(CONFIG_TOUCHSCREEN_MELFAS_MIT300_PH1) || defined(CONFIG_TOUCHSCREEN_UNIFIED_MELFAS_MIT300_PH1)
 static int is_smart_cover_closed = 0; /* check status of smart cover to resize quick window area */
 int cradle_smart_cover_status(void)
 {
 	return is_smart_cover_closed;
 }
 #endif
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_MELFAS_MIT300_PH1)
+extern void MIT300_Set_BootCoverMode(int status);
+#endif
 #endif
 static void boot_cradle_det_func(void)
 {
 	int state;
-
+#if defined(CONFIG_STYLUS_PEN)
+	int pen_state;
+#endif
 	if (cradle->pdata->hallic_pouch_detect_pin)
 		cradle->pouch = !gpio_get_value(cradle->pdata->hallic_pouch_detect_pin);
 
 	printk("%s : boot pouch === > %d \n", __func__ , cradle->pouch);
 
+#if defined(CONFIG_STYLUS_PEN)
+	if (cradle->pdata->hallic_pen_detect_pin)
+		cradle->pen = !gpio_get_value(cradle->pdata->hallic_pen_detect_pin);
+
+	printk("%s : boot pen === > %d \n", __func__ , cradle->pen);
+
+	if (cradle->pouch == 1) {
+		if (cradle->pen == 1) {
+			state=SMARTCOVER_POUCH_CLOSED;
+			pen_state=SMARTCOVER_PEN_IN;
+		} else {
+			state=SMARTCOVER_POUCH_CLOSED;
+			pen_state=SMARTCOVER_PEN_OUT;
+		}
+	} else {
+		if (cradle->pen == 1) {
+			state=SMARTCOVER_POUCH_OPENED;
+			pen_state=SMARTCOVER_PEN_IN;
+		} else {
+			state=SMARTCOVER_POUCH_OPENED;
+			pen_state=SMARTCOVER_PEN_OUT;
+		}
+	}
+	printk("%s : [Cradle] boot cradle value : pouch_state is %d, pen_state is %d\n", __func__ , state, pen_state);
+	cradle->state = state;
+	wake_lock_timeout(&cradle->wake_lock, msecs_to_jiffies(3000));
+	switch_set_state(&cradle->sdev, cradle->state);
+	cradle->pen_state = pen_state;
+	wake_lock_timeout(&cradle->wake_lock, msecs_to_jiffies(3000));
+	switch_set_state(&cradle->pen_sdev, cradle->pen_state);
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_MELFAS_MIT300_PH1)
+	is_smart_cover_closed = cradle->pouch;
+	MIT300_Set_BootCoverMode(cradle->pouch);
+#endif
+#else
 	if(cradle->pouch == 1)
 		state = SMARTCOVER_POUCH_CLOSED;
 	else
@@ -78,8 +148,51 @@ static void boot_cradle_det_func(void)
 	cradle->state = state;
 	wake_lock_timeout(&cradle->wake_lock, msecs_to_jiffies(3000));
 	switch_set_state(&cradle->sdev, cradle->state);
+
+#if defined(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191)
+	is_smart_cover_closed = cradle->pouch;
+#endif
+#endif
 }
 
+#if defined(CONFIG_STYLUS_PEN)
+static void pm8xxx_pen_work_func(struct work_struct *work)
+{
+	int pen_state = 0;
+	unsigned long flags;
+
+	spin_lock_irqsave(&cradle->lock, flags);
+
+	if (cradle->pdata->hallic_pouch_detect_pin)
+		cradle->pouch = !gpio_get_value(cradle->pdata->hallic_pouch_detect_pin);
+
+	if (cradle->pdata->hallic_pen_detect_pin)
+		cradle->pen = !gpio_get_value(cradle->pdata->hallic_pen_detect_pin);
+
+
+	printk("%s : pouch === > %d \n", __func__ , cradle->pouch);
+	printk("%s : pen === > %d \n", __func__ , cradle->pen);
+
+
+	if (cradle->pen == 1) {
+		pen_state = SMARTCOVER_PEN_IN;
+	} else if (cradle->pen == 0) {
+		pen_state = SMARTCOVER_PEN_OUT;
+	} else {}
+
+	if (cradle->pen_state != pen_state) {
+		cradle->pen_state = pen_state;
+		spin_unlock_irqrestore(&cradle->lock, flags);
+		wake_lock_timeout(&cradle->wake_lock, msecs_to_jiffies(3000));
+		switch_set_state(&cradle->pen_sdev, cradle->pen_state);
+		printk("%s : [Cradle] pen value is %d\n", __func__ , pen_state);
+	} else {
+		spin_unlock_irqrestore(&cradle->lock, flags);
+		printk("%s : [Cradle] pen value is %d (no change)\n", __func__ , pen_state);
+	}
+}
+
+#endif
 static void pm8xxx_pouch_work_func(struct work_struct *work)
 {
 	int state = 0;
@@ -91,6 +204,12 @@ static void pm8xxx_pouch_work_func(struct work_struct *work)
 		cradle->pouch = !gpio_get_value(cradle->pdata->hallic_pouch_detect_pin);
 
 	printk("%s : pouch === > %d \n", __func__ , cradle->pouch);
+#if defined(CONFIG_STYLUS_PEN)
+	if (cradle->pdata->hallic_pen_detect_pin)
+		cradle->pen = !gpio_get_value(cradle->pdata->hallic_pen_detect_pin);
+
+	printk("%s : pen === > %d \n", __func__ , cradle->pen);
+#endif
 
 	if (cradle->pouch == 1)
 		state = SMARTCOVER_POUCH_CLOSED;
@@ -108,7 +227,7 @@ static void pm8xxx_pouch_work_func(struct work_struct *work)
 		spin_unlock_irqrestore(&cradle->lock, flags);
 		printk("%s : [Cradle] pouch value is %d (no change)\n", __func__ , state);
 	}
-#if defined(CONFIG_MACH_MSM8926_B2LN_KR) || defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+#if defined(CONFIG_MACH_MSM8926_B2LN_KR) || defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 #if defined(CONFIG_TOUCHSCREEN_ATMEL_S540) || defined(CONFIG_TOUCHSCREEN_ATMEL_T1664)
 	is_smart_cover_closed = state;
 #endif
@@ -126,8 +245,7 @@ void cradle_set_deskdock(int state)
 			spin_unlock_irqrestore(&cradle->lock, flags);
 			wake_lock_timeout(&cradle->wake_lock, msecs_to_jiffies(3000));
 			switch_set_state(&cradle->sdev, cradle->state);
-		}
-		else {
+		} else {
 			spin_unlock_irqrestore(&cradle->lock, flags);
 		}
 	} else {
@@ -157,8 +275,23 @@ static irqreturn_t pm8xxx_pouch_irq_handler(int irq, void *handle)
 	defined(CONFIG_MACH_MSM8226_E9WIFI) || defined(CONFIG_MACH_MSM8226_E9WIFIN) || \
 	defined(CONFIG_MACH_MSM8926_E7LTE_VZW_US) || defined(CONFIG_MACH_MSM8926_E7LTE_ATT_US) || \
 	defined(CONFIG_MACH_MSM8926_E7LTE_USC_US) || defined(CONFIG_MACH_MSM8926_B2LN_KR) || \
-	defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+	defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8916_G4STYLUS_CRK_US) || \
+	defined(CONFIG_MACH_MSM8916_STYLUSC_SPR_US) || defined(CONFIG_MACH_MSM8916_G4STYLUSDS_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8916_G4STYLUSN_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8916_G4STYLUSN_MPCS_US) || defined(CONFIG_MACH_MSM8916_G4STYLUSN_RGS_CA) || \
+	defined(CONFIG_MACH_MSM8916_G4STYLUSN_TMO_US) || defined(CONFIG_MACH_MSM8916_G4STYLUSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8916_G4STYLUSW_KT_KR) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR)|| \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8916_PH1_VZW) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_SPR_US) || \
+	defined(CONFIG_MACH_MSM8916_PH1_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_KR) || \
+    defined(CONFIG_MACH_MSM8916_K5) || defined(CONFIG_MACH_MSM8916_PH1_CRK_US)
+#if defined(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191) || defined(CONFIG_TOUCHSCREEN_UNIFIED_MELFAS_MIT300_PH1)
+	is_smart_cover_closed = !gpio_get_value(cradle->pdata->hallic_pouch_detect_pin);
+	v = 1 + 1*is_smart_cover_closed;
+#else
 	v = 1 + 1*(!gpio_get_value(cradle->pdata->hallic_pouch_detect_pin));
+#endif
 	wake_lock_timeout(&cradle->wake_lock, msecs_to_jiffies(POUCH_DETECT_DELAY*v+5));
 	queue_delayed_work(cradle_wq, &cradle_handle->pouch_work, msecs_to_jiffies(POUCH_DETECT_DELAY*v+5));
 #else
@@ -171,6 +304,16 @@ static irqreturn_t pm8xxx_pouch_irq_handler(int irq, void *handle)
 	return IRQ_HANDLED;
 }
 
+#if defined(CONFIG_STYLUS_PEN)
+static irqreturn_t pm8xxx_pen_irq_handler(int irq, void *handle)
+{
+	struct pm8xxx_cradle *cradle_handle = handle;
+	printk("pen irq!!!!\n");
+	wake_lock_timeout(&cradle->wake_lock, msecs_to_jiffies(HALL_DETECT_DELAY+5));
+	queue_delayed_work(cradle_wq, &cradle_handle->pen_work, msecs_to_jiffies(HALL_DETECT_DELAY));
+	return IRQ_HANDLED;
+}
+#endif
 static ssize_t
 cradle_pouch_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -192,6 +335,17 @@ cradle_sensing_show(struct device *dev, struct device_attribute *attr, char *buf
 	return len;
 }
 
+#if defined(CONFIG_STYLUS_PEN)
+static ssize_t
+cradle_pen_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int len;
+	struct pm8xxx_cradle *cradle = dev_get_drvdata(dev);
+	len = snprintf(buf, PAGE_SIZE, "pen : %d\n", cradle->pen);
+
+	return len;
+}
+#endif
 #ifdef CONFIG_MACH_MSM8926_VFP_KR
 static ssize_t
 cradle_sensing_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
@@ -215,6 +369,9 @@ cradle_sensing_store(struct device *dev, struct device_attribute *attr, const ch
 }
 #endif
 
+#if defined(CONFIG_STYLUS_PEN)
+static struct device_attribute cradle_pen_attr   = __ATTR(pen, S_IRUGO, cradle_pen_show, NULL);
+#endif
 #ifdef CONFIG_MACH_MSM8926_VFP_KR
 static struct device_attribute cradle_sensing_attr = __ATTR(sensing, S_IRUGO | S_IWUSR, cradle_sensing_show, cradle_sensing_store);
 #else
@@ -242,7 +399,11 @@ static void s5717_parse_dt(struct device *dev,
 	if ((pdata->hallic_pouch_detect_pin = of_get_named_gpio_flags(np, "hallic-pouch-irq-gpio", 0, NULL)) > 0)
 		pdata->hallic_pouch_irq = gpio_to_irq(pdata->hallic_pouch_detect_pin);
 	printk("[Hall IC] hallic_pouch_gpio: %d\n", pdata->hallic_pouch_detect_pin);
-
+#if defined(CONFIG_STYLUS_PEN)
+	if ((pdata->hallic_pen_detect_pin = of_get_named_gpio_flags(np, "hallic-pen-irq-gpio", 0, NULL)) > 0)
+		pdata->hallic_pen_irq = gpio_to_irq(pdata->hallic_pen_detect_pin);
+	printk("[Hall IC] hallic_pen_gpio: %d\n", pdata->hallic_pen_detect_pin);
+#endif
 	pdata->irq_flags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING;
 }
 #elif defined(CONFIG_BU52061NVX)
@@ -264,6 +425,9 @@ static int pm8xxx_cradle_probe(struct platform_device *pdev)
 {
 	int ret;
 	unsigned int hall_pouch_gpio_irq = 0;
+#if defined(CONFIG_STYLUS_PEN)
+	unsigned int hall_pen_gpio_irq = 0;
+#endif
 
 	struct pm8xxx_cradle_platform_data *pdata;
 
@@ -302,13 +466,22 @@ static int pm8xxx_cradle_probe(struct platform_device *pdev)
 #endif
 	cradle->sdev.print_name = cradle_print_name;
 	cradle->pouch = 0;
+#if defined(CONFIG_STYLUS_PEN)
+	cradle->pen = 0;
+	cradle->pen_sdev.name = "pen_state";
+	cradle->pen_sdev.print_name = cradle_print_name;
+#endif
 
 	spin_lock_init(&cradle->lock);
 
 	ret = switch_dev_register(&cradle->sdev);
 	if (ret < 0)
 		goto err_switch_dev_register;
-
+#if defined(CONFIG_STYLUS_PEN)
+	ret = switch_dev_register(&cradle->pen_sdev);
+	if (ret < 0)
+		goto err_switch_dev_register;
+#endif
 	if (pre_set_flag) {
 		cradle_set_deskdock(pre_set_flag);
 		cradle->state = pre_set_flag;
@@ -316,6 +489,9 @@ static int pm8xxx_cradle_probe(struct platform_device *pdev)
 	wake_lock_init(&cradle->wake_lock, WAKE_LOCK_SUSPEND, "hall_ic_wakeups");
 
 	INIT_DELAYED_WORK(&cradle->pouch_work, pm8xxx_pouch_work_func);
+#if defined(CONFIG_STYLUS_PEN)
+	INIT_DELAYED_WORK(&cradle->pen_work, pm8xxx_pen_work_func);
+#endif
 
 	printk("%s : init cradle\n", __func__);
 
@@ -341,6 +517,27 @@ static int pm8xxx_cradle_probe(struct platform_device *pdev)
 			printk("%s :enable_irq_wake failed(1)\n",__func__);
 	}
 
+#if defined(CONFIG_STYLUS_PEN)
+	if (cradle->pdata->hallic_pen_detect_pin > 0) {
+		hall_pen_gpio_irq = gpio_to_irq(cradle->pdata->hallic_pen_detect_pin);
+		printk("%s : hall_pen_gpio_irq = [%d]\n", __func__, hall_pen_gpio_irq);
+		if (hall_pen_gpio_irq < 0) {
+			printk("Failed : GPIO TO IRQ \n");
+			ret = hall_pen_gpio_irq;
+			goto err_request_irq;
+		}
+		ret = request_irq(hall_pen_gpio_irq, pm8xxx_pen_irq_handler, pdata->irq_flags, HALL_IC_DEV_NAME, cradle);
+		if (ret > 0) {
+			printk(KERN_ERR "%s: Can't allocate irq %d, ret %d\n", __func__, hall_pen_gpio_irq, ret);
+			goto err_request_irq;
+		}
+
+		if (enable_irq_wake(hall_pen_gpio_irq) == 0)
+			printk("%s :enable_irq_wake Enable(2)\n",__func__);
+		else
+			printk("%s :enable_irq_wake failed(2)\n",__func__);
+	}
+#endif
 	printk("%s : pdata->irq_flags = [%d]\n", __func__,(int)pdata->irq_flags);
 
 	printk("%s :boot_cradle_det_func START\n",__func__);
@@ -356,12 +553,23 @@ static int pm8xxx_cradle_probe(struct platform_device *pdev)
 			goto err_request_irq;
 	}
 
+#if defined(CONFIG_STYLUS_PEN)
+	if (cradle->pdata->hallic_pen_detect_pin > 0) {
+		ret = device_create_file(&pdev->dev, &cradle_pen_attr);
+		if (ret)
+			goto err_request_irq;
+	}
+#endif
 	platform_set_drvdata(pdev, cradle);
 	return 0;
 
 err_request_irq:
 	if (hall_pouch_gpio_irq)
 		free_irq(hall_pouch_gpio_irq, 0);
+#if defined(CONFIG_STYLUS_PEN)
+	if (hall_pen_gpio_irq)
+		free_irq(hall_pen_gpio_irq, 0);
+#endif
 
 err_switch_dev_register:
 	switch_dev_unregister(&cradle->sdev);
@@ -373,6 +581,9 @@ static int pm8xxx_cradle_remove(struct platform_device *pdev)
 {
 	struct pm8xxx_cradle *cradle = platform_get_drvdata(pdev);
 	cancel_delayed_work_sync(&cradle->pouch_work);
+#if defined(CONFIG_STYLUS_PEN)
+	cancel_delayed_work_sync(&cradle->pen_work);
+#endif
 	switch_dev_unregister(&cradle->sdev);
 	platform_set_drvdata(pdev, NULL);
 	kfree(cradle);
@@ -397,6 +608,7 @@ static const struct dev_pm_ops pm8xxx_cradle_pm_ops = {
 
 #ifdef CONFIG_OF
 static struct of_device_id pm8xxx_match_table[] = {
+	{ .compatible = "seiko,hall-s5712", },
 	{ .compatible = "seiko,hall-s5717", },
 	{ .compatible = "rohm,hall-bu52061nvx", },
 	{ },

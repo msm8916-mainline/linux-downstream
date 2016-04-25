@@ -38,9 +38,11 @@
 #define MAX14656_CONTROL_2          0x08
 #define MAX14656_CONTROL_3          0x09
 
-#define INT_EN_REG_MASK		BIT(4)
-#define CHG_TYPE_MASK       (BIT(3)|BIT(2)|BIT(1)|BIT(0))
-#define DCD_TIMEOUT_MASK	BIT(7)
+#define INT_EN_REG_MASK			BIT(4)
+#define CHG_TYPE_INT_MASK   	BIT(0)
+#define VB_VALID_STATUS_MASK   	BIT(4)
+#define CHG_TYPE_STATUS_MASK    (BIT(3)|BIT(2)|BIT(1)|BIT(0))
+#define DCD_TIMEOUT_MASK		BIT(7)
 
 #define NULL_CHECK(p, err)  \
 			if (!(p)) { \
@@ -51,6 +53,8 @@
 #define USB_SDP_CHARGER 1
 #define USB_DCP_CHARGER 2
 #define USB_CDP_CHARGER 3
+#define USB_PROPRIETARY_CHARGER 8
+int max14656_charger_type;
 
 enum reg_address_idx {
 	REG_00 			= 0,
@@ -110,16 +114,10 @@ static int max14656_read_block_reg(struct i2c_client *client, u8 reg,
 }
 
 #ifdef CONFIG_LGE_PM
-
-int max14656_charger_type = 0;
-#if defined(CONFIG_LGE_PM_CHARGING_VZW_POWER_REQ)
-int max14656_dcd_timeout = 0;
-#endif
-
-static int max14656_get_prop_chg_type(struct max14656_chip *chip)
+static int max14656_get_chg_type_status(struct max14656_chip *chip)
 {
 	u8 val;
-    int ret = 0;
+	int ret = 0;
 	enum max14656_chg_type type = NO_CHARGER;
 	
 	NULL_CHECK(chip, -EINVAL);
@@ -130,22 +128,101 @@ static int max14656_get_prop_chg_type(struct max14656_chip *chip)
 		return val;
 	}
 
-	val &= CHG_TYPE_MASK;
-	pr_err("%s : val = %d\n", __func__, val);
+	val &= CHG_TYPE_STATUS_MASK;
 
 	if (val == SDP_CHARGER)
 		type = USB_SDP_CHARGER;
 	else if (val == CDP_CHARGER)
 		type = USB_CDP_CHARGER;
-	else if (val == DCP_CHARGER)
+	else if ((val == DCP_CHARGER) || (val == APPLE_2A_CHARGER))
 		type = USB_DCP_CHARGER;
-	
-	max14656_charger_type = type;
+	else
+		type = USB_PROPRIETARY_CHARGER;
+
+
 	pr_err("%s : USB_CHG_TYPE = %d\n", __func__, type);
 
 	return type;
 }
 
+static int max14656_get_vb_valid_status(struct max14656_chip *chip)
+{
+	u8 val;
+#if defined(CONFIG_LGE_PM_FLOATED_CHARGER)
+	u8 manual;
+#endif
+	int ret = 0;
+
+	NULL_CHECK(chip, -EINVAL);
+	ret = max14656_read_reg(chip->client, MAX14656_STATUS_1, &val);
+	if (ret) {
+		pr_err("fail to read MAX14656_STATUS_1. ret=%d\n", ret);
+		return val;
+	}
+
+	val = (val & VB_VALID_STATUS_MASK) >> 4;
+	pr_debug("%s : val = %d\n", __func__, val);
+
+#if defined(CONFIG_LGE_PM_FLOATED_CHARGER)
+	ret = max14656_read_reg(chip->client, MAX14656_CONTROL_3, &manual);
+	if (ret) {
+		pr_err("fail to read MAX14656_CONTROL_3. ret=%d\n", ret);
+		return manual;
+	}
+	manual &= BIT(1);
+	if (manual) {
+		pr_info("manual charger detection is still working\n");
+		return 0;
+	}
+#endif
+
+	return val;
+}
+
+#if defined(CONFIG_LGE_PM_FLOATED_CHARGER)
+static int max14656_set_prop_chg_type_manual(struct max14656_chip *chip,
+					int manual) {
+
+	int ret = 0;
+	u8 val;
+
+	NULL_CHECK(chip, IRQ_NONE);
+
+	ret = max14656_read_reg(chip->client, MAX14656_CONTROL_3, &val);
+
+	pr_debug("%s : MAX14656_CONTROL_3 = 0x%0x\n", __func__, val);
+
+	manual = manual << 1;
+	val |= manual;
+
+	pr_debug("%s : after MAX14656_CONTROL_3 = 0x%0x\n", __func__, val);
+
+	ret = max14656_write_reg(chip->client, MAX14656_CONTROL_3, val);
+	if (ret) {
+		pr_err("failed to set MAX14656_CONTROL_3 ret=%d\n", ret);
+		return ret;
+        }
+
+	return ret;
+}
+
+static int max14656_get_prop_chg_type_manual(struct max14656_chip *chip)
+{
+	u8 val;
+	int ret = 0;
+
+NULL_CHECK(chip, -EINVAL);
+
+	ret = max14656_read_reg(chip->client, MAX14656_CONTROL_3, &val);
+	if (ret) {
+		pr_err("fail to read MAX14656_CONTROL_3. ret=%d\n", ret);
+		return ret;
+	}
+	val &= BIT(1);
+
+	return val;
+}
+#endif
 #endif
 
 static void max14656_irq_worker(struct work_struct *work)
@@ -160,68 +237,25 @@ static void max14656_irq_worker(struct work_struct *work)
 			REG_TOTAL_NUM, reg_address);
 
 	pr_err("%s : REG_01:0x%02X, REG_02:0x%02X, REG_03:0x%02X, REG_04:0x%02X\n",
-		__func__, reg_address[REG_01], reg_address[REG_02], reg_address[REG_03],
-		reg_address[REG_04]);
+			__func__, reg_address[REG_01], reg_address[REG_02], reg_address[REG_03],
+			reg_address[REG_04]);
 
-#if defined(CONFIG_LGE_PM_CHARGING_VZW_POWER_REQ)
-	if (reg_address[REG_01] != 0) {
-		max14656_dcd_timeout = (reg_address[REG_01] & DCD_TIMEOUT_MASK) ? 1:0;
-		pr_err("%s max14656_dcd_timeout = %d\n", __func__, max14656_dcd_timeout);
-	}
-#endif
+	if ((reg_address[REG_03] & VB_VALID_STATUS_MASK) &&
+			(reg_address[REG_03] & CHG_TYPE_STATUS_MASK)) {
+		chip->chg_detect_done = 1;
+		chip->chg_type = max14656_get_chg_type_status(chip);
+		max14656_charger_type = max14656_get_chg_type_status(chip);
+	} else
+		chip->chg_detect_done = 0;
+	pr_err("%s max14656_chg_detect_done = %d\n", __func__, chip->chg_detect_done);
 
-#if 0
-	u8 reg01, reg02, reg03, reg04, reg05, reg06, reg07, reg08, reg09;
-	int ret =0;
-
-	pr_err("%s : occured\n", __func__);
-
-	ret = max14656_read_reg(chip->client, MAX14656_INTERRUPT_1, &reg01);
-	if (ret)
-		return;
-
-	ret = max14656_read_reg(chip->client, MAX14656_INTERRUPT_2, &reg02);
-	if (ret)
-		return;
-
-	pr_err("INTERRUPT_1_REG_01:0x%02x, INTERRUPT_2_REG_02:0x%02x\n", reg01, reg02);
-	
-	ret = max14656_read_reg(chip->client, MAX14656_STATUS_1, &reg03);
-	if (ret)
-		return;
-
-	ret = max14656_read_reg(chip->client, MAX14656_STATUS_2, &reg04);
-	if (ret)
-		return;
-
-	ret = max14656_read_reg(chip->client, MAX14656_INTMASK_1, &reg05);
-	if (ret)
-		return;
-
-	ret = max14656_read_reg(chip->client, MAX14656_INTMASK_2, &reg06);
-	if (ret)
-		return;
-
-	ret = max14656_read_reg(chip->client, MAX14656_CONTROL_1, &reg07);
-	if (ret)
-		return;
-
-	ret = max14656_read_reg(chip->client, MAX14656_CONTROL_2, &reg08);
-	if (ret)
-		return;
-
-	ret = max14656_read_reg(chip->client, MAX14656_CONTROL_3, &reg09);
-	if (ret)
-		return;
-
-	pr_err("REG 03:0x%02x 04:0x%02x 05:0x%02x 06:0x%02x 07:0x%02x 08:0x%02x 09:0x%02x\n"
-			, reg03, reg04, reg05, reg06, reg07, reg08, reg09);
-#endif
+	chip->dcd_timeout = (reg_address[REG_01] & DCD_TIMEOUT_MASK) ? 1:0;
+	pr_err("%s max14656_dcd_timeout = %d\n", __func__, chip->dcd_timeout);
 
 #ifdef CONFIG_LGE_PM
 	power_supply_changed(&chip->detect_psy);
 #endif
-	pr_err("%s : end\n", __func__);
+	pr_debug("%s : end\n", __func__);
 }
 
 static irqreturn_t max14656_irq(int irq, void *dev_id)
@@ -239,17 +273,23 @@ static int max14656_hw_init(struct max14656_chip *chip)
 	int ret = 0;
 
 	NULL_CHECK(chip, IRQ_NONE);
-	ret= max14656_write_reg(chip->client, MAX14656_CONTROL_1, 0x19);
+	ret = max14656_write_reg(chip->client, MAX14656_CONTROL_1, 0x19);
 	if (ret) {
 		pr_err("failed to set MAX14656_CONTROL_1 ret=%d\n", ret);
 		return ret;
 	}
 
-	ret= max14656_write_reg(chip->client, MAX14656_INTMASK_1, 0xA1);
+	ret = max14656_write_reg(chip->client, MAX14656_INTMASK_1, 0xA3);
 	if (ret) {
 		pr_err("failed to set MAX14656_INTMASK_1 ret=%d\n", ret);
 		return ret;
 	}
+
+	ret =max14656_set_prop_chg_type_manual(chip, 1);
+	if (ret) {
+		pr_err("failed to set MAX14656_CONTROL_3 ret=%d\n", ret);
+		return ret;
+        }
 
 	return ret;
 }
@@ -266,13 +306,19 @@ static int max14656_get_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_USB_CHG_DETECT_DONE:
-		val->intval = max14656_get_prop_chg_type(chip) ? 1 : 0;
+		if (!max14656_get_vb_valid_status(chip))
+			chip->chg_detect_done = 0;
+		val->intval = chip->chg_detect_done;
+		pr_debug("max14656_chg_detect_done : %d\n", val->intval);
 		break;
 	case POWER_SUPPLY_PROP_USB_CHG_TYPE:
-		val->intval = max14656_get_prop_chg_type(chip);
+		val->intval = chip->chg_type;
 		break;
 	case POWER_SUPPLY_PROP_USB_DCD_TIMEOUT:
-		val->intval = max14656_dcd_timeout;
+		val->intval = chip->dcd_timeout;
+		break;
+	case POWER_SUPPLY_PROP_USB_CHG_TYPE_MANUAL:
+		val->intval = max14656_get_prop_chg_type_manual(chip);
 		break;
 	default:
 		return -EINVAL;
@@ -280,11 +326,35 @@ static int max14656_get_property(struct power_supply *psy,
 
 	return 0;
 }
+#if defined(CONFIG_LGE_PM_FLOATED_CHARGER)
+static int max14656_set_property(struct power_supply *psy,
+                            enum power_supply_property psp,
+                            const union power_supply_propval *val)
+{
+	struct max14656_chip *chip = container_of(psy,
+						struct max14656_chip, detect_psy);
+
+	NULL_CHECK(chip, -EINVAL);
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_USB_CHG_TYPE_MANUAL:
+		return max14656_set_prop_chg_type_manual(chip, val->intval);
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+#endif
 static enum power_supply_property max14656_battery_props[] = {
 	POWER_SUPPLY_PROP_USB_CHG_DETECT_DONE,
 	POWER_SUPPLY_PROP_USB_CHG_TYPE,
 	POWER_SUPPLY_PROP_USB_DCD_TIMEOUT,
+#if defined(CONFIG_LGE_PM_FLOATED_CHARGER)
+	POWER_SUPPLY_PROP_USB_CHG_TYPE_MANUAL,
+#endif
 };
+
 static char *pm_power_supplied_to[] = {
 	"battery",
 };
@@ -297,6 +367,9 @@ static struct power_supply max14656_ps = {
 	.properties = max14656_battery_props,
 	.num_properties = ARRAY_SIZE(max14656_battery_props),
 	.get_property = max14656_get_property,
+#if defined(CONFIG_LGE_PM_FLOATED_CHARGER)
+	.set_property = max14656_set_property,
+#endif
 };
 #endif
 
@@ -354,6 +427,12 @@ static int __devinit max14656_probe(struct i2c_client *client, const struct i2c_
 			goto error;
 		}
 	}
+
+#ifdef CONFIG_LGE_PM
+	chip->chg_detect_done = 0;
+	chip->chg_type = 0;
+	chip->dcd_timeout = 0;
+#endif
 
 	ret = gpio_request_one(chip->int_gpio, GPIOF_DIR_IN,
 			"max14656_int");

@@ -11,19 +11,27 @@
 
 #ifdef CONFIG_LGE_PM
 enum max14656_chg_type {
-        NO_CHARGER              = 0,
-        SDP_CHARGER,
-        CDP_CHARGER,
-        DCP_CHARGER,
+	NO_CHARGER 		 = 0,
+	SDP_CHARGER,
+	CDP_CHARGER,
+	DCP_CHARGER,
+	APPLE_500MA_CHARGER,
+	APPLE_1A_CHARGER,
+	APPLE_2A_CHARGER,
+	SPECIAL_500MA_CHARGER,
+	APPLE_12W,
 };
 #endif
 
 struct max14656_chip {
-        struct i2c_client               *client;
-        struct power_supply             *batt_psy;
-        struct power_supply             detect_psy;
-        struct delayed_work     irq_work;
+	struct i2c_client 		*client;
+	struct power_supply 	*batt_psy;
+	struct power_supply 	detect_psy;
+	struct delayed_work 	irq_work;
 
-        int irq;
-        int int_gpio;
+	int irq;
+	int int_gpio;
+	int chg_detect_done;
+	int chg_type;
+	int dcd_timeout;
 };

@@ -17,9 +17,67 @@ DEFINE_MSM_MUTEX(hi841_mut);
 
 static struct msm_sensor_ctrl_t hi841_s_ctrl;
 
-/////////////////////////////////////////////////////////////////
-// USE Model Feature: If you want to change the follow setting
-/////////////////////////////////////////////////////////////////
+#if defined(CONFIG_LGE_P1B_CAMERA)
+static struct msm_sensor_power_setting hi841_power_setting[] = {
+	/* Set GPIO_RESET to low to disable power on reset*/
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET,
+		.config_val = GPIO_OUT_LOW,
+		.delay = 1,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VIO,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+	{
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VANA,
+		.config_val = 0,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VDIG,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+#if defined(CONFIG_LG_PROXY)
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_LDAF_EN,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+#endif
+	{
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VAF,
+		.config_val = 0,
+		.delay = 1,
+	},
+	{
+		.seq_type = SENSOR_CLK,
+		.seq_val = SENSOR_CAM_MCLK,
+		.config_val = 23880000,
+		.delay = 1,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 10,
+	},
+	{
+		.seq_type = SENSOR_I2C_MUX,
+		.seq_val = 0,
+		.config_val = 0,
+		.delay = 0,
+	},
+};
+#else
 static struct msm_sensor_power_setting hi841_power_setting[] = {
 	/* Set GPIO_RESET to low to disable power on reset*/
 	{//[0]
@@ -63,7 +121,7 @@ static struct msm_sensor_power_setting hi841_power_setting[] = {
 	{//[5]
 		.seq_type = SENSOR_CLK,
 		.seq_val = SENSOR_CAM_MCLK,
-		.config_val = 0,
+		.config_val = 23880000,
 		.delay = 1,
 	},
 	{//[6]
@@ -79,6 +137,7 @@ static struct msm_sensor_power_setting hi841_power_setting[] = {
 		.delay = 0,
 	},
 };
+#endif
 
 static struct v4l2_subdev_info hi841_subdev_info[] = {
 	{
@@ -127,49 +186,6 @@ static struct platform_driver hi841_platform_driver = {
 	},
 };
 
-// hynix i2c clock init.
-static struct msm_camera_i2c_reg_array hynix_841_init_i2c_block[] = {
-	{0x8408,0x0a},
-	{0x0103,0x01},
-	{0x0103,0x00},
-	{0x8400,0x03},
-};
-
-int32_t hi841_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
-{
-	int32_t rc = 0;
-	uint16_t chipid = 0;
-
-	struct msm_camera_i2c_reg_setting boot_array;
-	int32_t write_rc = 0 ;
-	boot_array.reg_setting = &(hynix_841_init_i2c_block[0]);
-	boot_array.addr_type = MSM_CAMERA_I2C_WORD_ADDR;
-	boot_array.data_type = MSM_CAMERA_I2C_BYTE_DATA;
-	boot_array.delay = 0;
-	boot_array.size = 4;
-
-	write_rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write_table(s_ctrl->sensor_i2c_client, &boot_array);
-
-	rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_read(
-			s_ctrl->sensor_i2c_client,
-			s_ctrl->sensordata->slave_info->sensor_id_reg_addr,
-			&chipid, MSM_CAMERA_I2C_WORD_DATA);
-	if (rc < 0) {
-		pr_err("%s: %s: read id failed\n", __func__,
-			s_ctrl->sensordata->sensor_name);
-		return rc;
-	}
-
-	pr_info("%s: read id: %x expected id %x:\n", __func__, chipid,
-		s_ctrl->sensordata->slave_info->sensor_id);
-	if (chipid != s_ctrl->sensordata->slave_info->sensor_id) {
-		pr_err("hi841_sensor_match_id chip id doesnot match\n");
-		return -ENODEV;
-	}
-	pr_err("%s:%d success!\n", __func__, __LINE__);
-	return rc;
-}
-
 static int32_t hi841_platform_probe(struct platform_device *pdev)
 {
 	int32_t rc = 0;
@@ -201,7 +217,7 @@ static struct msm_sensor_fn_t hi841_sensor_func_tbl = {
 	.sensor_config = msm_sensor_config,
 	.sensor_power_up = msm_sensor_power_up,
 	.sensor_power_down = msm_sensor_power_down,
-	.sensor_match_id = hi841_sensor_match_id, //                     
+	.sensor_match_id = msm_sensor_match_id,
 };
 
 static void __exit hi841_exit_module(void)

@@ -479,7 +479,7 @@ static int dwc3_otg_set_power(struct usb_phy *phy, unsigned mA)
 	if (dotg->charger->max_power == mA)
 		return 0;
 
-	dev_info(phy->dev, "Avail curr from USB = %u\n", mA);
+	dev_info(phy->dev, "Avail curr from USB = %u[type:%d]\n", mA, dotg->charger->chg_type);
 
 	if (dotg->charger->max_power <= 2 && mA > 2) {
 		/* Enable charging */

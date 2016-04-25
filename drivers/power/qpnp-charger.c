@@ -1716,7 +1716,7 @@ qpnp_chg_usb_usbin_valid_irq_handler(int irq, void *_chip)
 		usb_present, host_mode);
 
 	/* In host mode notifications cmoe from USB supply */
-#ifndef CONFIG_LGE_STANDARD_USB_A_ALTEV2
+#ifndef CONFIG_LGE_USB_TYPE_A
 	if (host_mode)
 		return IRQ_HANDLED;
 #endif

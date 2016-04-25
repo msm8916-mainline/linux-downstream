@@ -21,4 +21,7 @@ int mmc_gpio_get_cd(struct mmc_host *host);
 int mmc_gpio_request_cd(struct mmc_host *host, unsigned int gpio);
 void mmc_gpio_free_cd(struct mmc_host *host);
 
+#ifdef CONFIG_LGE_SHOW_SDCARD_DETECT_PIN_STATUS
+int mmc_gpio_get_status(struct mmc_host *host);
+#endif
 #endif

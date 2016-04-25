@@ -17,7 +17,7 @@
 #include "msm8916-c70.dtsi"
 
 / {
-	model = "Qualcomm MSM 8916, C70 USC US";
+	model = "Qualcomm MSM 8916, C70 RGS CA";
 	compatible = "qcom,msm8916";
 	qcom,board-id = <100 0>;
 };

@@ -11,12 +11,12 @@
  *
  *    File  	: lgtp_common_driver.c
  *    Author(s)   : D3 BSP Touch Team < d3-bsp-touch@lge.com >
- *    Description : 
+ *    Description :
  *
  ***************************************************************************/
 #define LGTP_MODULE "[COMMON]"
 
-/****************************************************************************
+/******************************************`**********************************
 * Include Files
 ****************************************************************************/
 #include <linux/input/unified_driver_2/lgtp_common.h>
@@ -24,6 +24,12 @@
 #include <linux/input/unified_driver_2/lgtp_common_driver.h>
 #include <linux/input/unified_driver_2/lgtp_platform_api.h>
 #include <linux/input/unified_driver_2/lgtp_model_config.h>
+
+
+/****************************************************************************
+* Local Function Prototypes
+****************************************************************************/
+static void Device_Touch_Release(struct device *dev);
 
 
 /****************************************************************************
@@ -52,6 +58,14 @@ enum
 };
 
 int lockscreen_stat = 0;
+int debug_abs = 0;
+int wakeup_by_swipe_mit300;
+
+#if defined ( TOUCH_PLATFORM_QCT ) && !defined ( TOUCH_DEVICE_LU202X )
+atomic_t pm_state;
+#endif
+
+TouchReadData gReadData;
 /****************************************************************************
 * Variables
 ****************************************************************************/
@@ -82,6 +96,7 @@ static struct bus_type touch_subsys = {
 static struct device device_touch = {
 	.id    = 0,
 	.bus   = &touch_subsys,
+	.release = Device_Touch_Release,
 };
 
 
@@ -90,20 +105,26 @@ static struct device device_touch = {
 static struct i2c_board_info __initdata i2c_tpd = {I2C_BOARD_INFO(LGE_TOUCH_NAME, 0x20)};
 #endif
 
+int touch_maker_id = 0;
 
 /****************************************************************************
 * Extern Function Prototypes
 ****************************************************************************/
-
-
-/****************************************************************************
-* Local Function Prototypes
-****************************************************************************/
-
+#if defined ( Module_detection )
+extern int get_display_id(void);
+extern void mip_set_wakeup_by_swipe(struct i2c_client* client, u8 value);
+#endif
+#if defined(ENABLE_SWIPE_MODE)
+extern int wakeup_by_swipe;
+#endif
 
 /****************************************************************************
 * Local Functions
 ****************************************************************************/
+static void Device_Touch_Release(struct device *dev)
+{
+    return;
+}
 static void SetDriverState(TouchDriverData *pDriverData, TouchState newState )
 {
 	int ret = 0;
@@ -152,49 +173,117 @@ static void report_finger(TouchDriverData *pDriverData, TouchReadData *pReadData
 	u32 pressedFinger = 0;
 	u32 releasedFinger = 0;
 	int i = 0;
+	int j = 0;
 
-	for( i=0 ; i < pReadData->count ; i++ )
+	if( touch_maker_id == 0 )
 	{
-		input_mt_slot(pDriverData->input_dev, pReadData->fingerData[i].id);
- 
-		input_report_abs(pDriverData->input_dev, ABS_MT_TRACKING_ID, pReadData->fingerData[i].id);
-		input_report_abs(pDriverData->input_dev, ABS_MT_POSITION_X, pReadData->fingerData[i].x);
-		input_report_abs(pDriverData->input_dev, ABS_MT_POSITION_Y, pReadData->fingerData[i].y);
-		input_report_abs(pDriverData->input_dev, ABS_MT_PRESSURE, pReadData->fingerData[i].pressure);
-		input_report_abs(pDriverData->input_dev, ABS_MT_WIDTH_MAJOR, pReadData->fingerData[i].width_major);
-		input_report_abs(pDriverData->input_dev, ABS_MT_WIDTH_MINOR, pReadData->fingerData[i].width_minor);
-		input_report_abs(pDriverData->input_dev, ABS_MT_ORIENTATION, pReadData->fingerData[i].orientation);
-	}
+		for( i=0 ; i < pReadData->count ; i++ )
+		{
+			input_mt_slot(pDriverData->input_dev, pReadData->fingerData[i].id);
 
-	for(i=0 ; i < pReadData->count ; i++) {
-		newFinger |= 1 << pReadData->fingerData[i].id ;
-	}
-
-	changedFinger = reportedFinger ^ newFinger;
-	pressedFinger = newFinger & changedFinger;
-	releasedFinger = reportedFinger & changedFinger;
-
-	for(i=0 ; i < MAX_FINGER ; i++)
-	{
-		if((pressedFinger >> i) & 0x1) {
-            if(lockscreen_stat){
-                TOUCH_LOG("[FINGER] PRESS<%d> x = xxxx, y = xxxx, z= xxxx\n", i);
-            } else {
-                TOUCH_LOG("[FINGER] PRESS<%d> x = %d, y = %d, z= %d\n", i,
-				pReadData->fingerData[i].x,
-				pReadData->fingerData[i].y,
-				pReadData->fingerData[i].pressure);
-            }
+			input_report_abs(pDriverData->input_dev, ABS_MT_TRACKING_ID, pReadData->fingerData[i].id);
+			input_report_abs(pDriverData->input_dev, ABS_MT_POSITION_X, pReadData->fingerData[i].x);
+			input_report_abs(pDriverData->input_dev, ABS_MT_POSITION_Y, pReadData->fingerData[i].y);
+			input_report_abs(pDriverData->input_dev, ABS_MT_PRESSURE, pReadData->fingerData[i].pressure);
+			input_report_abs(pDriverData->input_dev, ABS_MT_WIDTH_MAJOR, pReadData->fingerData[i].width_major);
+			input_report_abs(pDriverData->input_dev, ABS_MT_WIDTH_MINOR, pReadData->fingerData[i].width_minor);
+			input_report_abs(pDriverData->input_dev, ABS_MT_ORIENTATION, pReadData->fingerData[i].orientation);
+			if(debug_abs){
+				TOUCH_DBG("<%d> pos[%4d,%4d] w_m[%2d] w_n[%2d] o[%2d] p[%3d]\n",
+					pReadData->fingerData[i].id, pReadData->fingerData[i].x, pReadData->fingerData[i].y,
+					pReadData->fingerData[i].width_major, pReadData->fingerData[i].width_minor,
+					pReadData->fingerData[i].orientation, pReadData->fingerData[i].pressure);
+			}
 		}
 
-		if((releasedFinger >> i) & 0x1) {
-			TOUCH_LOG("[FINGER] RELEASE<%d>\n", i);
-			input_mt_slot(pDriverData->input_dev, i);
-			input_report_abs(pDriverData->input_dev, ABS_MT_TRACKING_ID, -1);
+		for(i=0 ; i < pReadData->count ; i++) {
+			newFinger |= 1 << pReadData->fingerData[i].id ;
 		}
-	}
 
-	pDriverData->reportData.finger = newFinger;
+		changedFinger = reportedFinger ^ newFinger;
+		pressedFinger = newFinger & changedFinger;
+		releasedFinger = reportedFinger & changedFinger;
+
+		for(i=0 ; i < MAX_FINGER ; i++)
+		{
+			if((pressedFinger >> i) & 0x1) {
+				for (j = 0; j < pReadData->count; j++) {
+					if (pReadData->fingerData[j].id == i) {
+#if !defined ( TOUCH_MODEL_YG ) && !defined ( TOUCH_MODEL_C100N )
+						if (lockscreen_stat){
+							TOUCH_LOG("[FINGER] PRESS<%d> x = xxxx, y = xxxx, z= xxxx\n", pReadData->fingerData[j].id);
+						} else {
+							TOUCH_LOG("[FINGER] PRESS<%d> x = %d, y = %d, z= %d\n",
+							pReadData->fingerData[j].id,
+							pReadData->fingerData[j].x,
+							pReadData->fingerData[j].y,
+							pReadData->fingerData[j].pressure);
+						}
+#else
+						TOUCH_LOG("[FINGER] PRESS<%d> x = %d, y = %d, z= %d\n",
+						pReadData->fingerData[j].id,
+						pReadData->fingerData[j].x,
+						pReadData->fingerData[j].y,
+						pReadData->fingerData[j].pressure);
+#endif
+					}
+				}
+			}
+
+			if((releasedFinger >> i) & 0x1) {
+				TOUCH_LOG("[FINGER] RELEASE<%d>\n", i);
+				input_mt_slot(pDriverData->input_dev, i);
+				input_report_abs(pDriverData->input_dev, ABS_MT_TRACKING_ID, -1);
+			}
+		}
+
+		pDriverData->reportData.finger = newFinger;
+	}
+	else
+	{
+		for( i = 0 ; i < pDriverData->mConfig.max_id ; i++ )
+		{
+			if( pReadData->fingerData[i].status == 1 )
+			{
+				input_mt_slot(pDriverData->input_dev, pReadData->fingerData[i].id);
+				input_report_abs(pDriverData->input_dev, ABS_MT_TRACKING_ID, pReadData->fingerData[i].id);
+				input_report_abs(pDriverData->input_dev, ABS_MT_POSITION_X, pReadData->fingerData[i].x);
+				input_report_abs(pDriverData->input_dev, ABS_MT_POSITION_Y, pReadData->fingerData[i].y);
+				input_report_abs(pDriverData->input_dev, ABS_MT_PRESSURE, pReadData->fingerData[i].pressure);
+				input_report_abs(pDriverData->input_dev, ABS_MT_WIDTH_MAJOR, pReadData->fingerData[i].width_major);
+				input_report_abs(pDriverData->input_dev, ABS_MT_WIDTH_MINOR, pReadData->fingerData[i].width_minor);
+				input_report_abs(pDriverData->input_dev, ABS_MT_ORIENTATION, pReadData->fingerData[i].orientation);
+
+				pressedFinger =  1 << pReadData->fingerData[i].id;
+				if( !(pressedFinger & reportedFinger) )
+				{
+					if( lockscreen_stat )
+					{
+						TOUCH_LOG("[FINGER] PRESS<%d> x = xxxx, y = xxxx, z= xxxx\n", pReadData->fingerData[i].id);
+					}
+					else
+					{
+						TOUCH_LOG("[FINGER] PRESS<%d> x = %d, y = %d, z= %d\n",
+							pReadData->fingerData[i].id,
+							pReadData->fingerData[i].x,
+							pReadData->fingerData[i].y,
+							pReadData->fingerData[i].pressure);
+					}
+				}
+				reportedFinger |= pressedFinger;
+			}
+			else if( pReadData->fingerData[i].status == 0 )
+			{
+				pReadData->fingerData[i].status = 2;
+				input_mt_slot(pDriverData->input_dev, i);
+				input_report_abs(pDriverData->input_dev, ABS_MT_TRACKING_ID, -1);
+				releasedFinger |=  1 << pReadData->fingerData[i].id;
+				TOUCH_LOG("[FINGER] RELEASE<%d>\n", i);
+			}
+		}
+
+		pDriverData->reportData.finger = reportedFinger - releasedFinger;
+	}
 
 	input_sync(pDriverData->input_dev);
 
@@ -258,7 +347,7 @@ static void report_key(TouchDriverData *pDriverData, TouchReadData *pReadData)
 	pDriverData->reportData.key = reportedKeyIndex;
 
 	input_sync(pDriverData->input_dev);
-	
+
 }
 
 static void cancel_key(TouchDriverData *pDriverData)
@@ -272,7 +361,7 @@ static void cancel_key(TouchDriverData *pDriverData)
 		TOUCH_LOG("KEY REPORT : CANCEL KEY[%d]\n", reportedKeyCode);
 		reportedKeyIndex = 0;
 	}
-	
+
 	pDriverData->reportData.key = reportedKeyIndex;
 
 	input_sync(pDriverData->input_dev);
@@ -284,14 +373,14 @@ static void send_uevent(TouchDriverData *pDriverData, u8 eventIndex)
 	{
 		wake_lock_timeout(pWakeLockTouch, msecs_to_jiffies(3000));
 		kobject_uevent_env(&device_touch.kobj, KOBJ_CHANGE, touch_uevent[eventIndex]);
-		
+
 		if( eventIndex == UEVENT_KNOCK_ON ) {
 			pDriverData->reportData.knockOn = 1;
 		} else if( eventIndex == UEVENT_KNOCK_CODE ) {
 			pDriverData->reportData.knockCode = 1;
 #if defined(ENABLE_SWIPE_MODE)
 		} else if( eventIndex == UEVENT_SWIPE ) {
-			pDriverData->reportData.knockCode = 1;
+			pDriverData->reportData.swipe = 1;
 #endif
 		} else {
 			TOUCH_WARN("UEVENT_SIGNATURE is not supported\n");
@@ -302,7 +391,7 @@ static void send_uevent(TouchDriverData *pDriverData, u8 eventIndex)
 		TOUCH_ERR("Invalid event index ( index = %d )\n", eventIndex);
 	}
 
-#if 1 /*                                                 */
+#if 1 /* LGE_BSP_COMMON : branden.you@lge.com_20141013 : */
 #else
 	TouchDriverData *pDriverData = i2c_get_clientdata(client);
 
@@ -321,7 +410,7 @@ static void report_hover(TouchDriverData *pDriverData, TouchReadData *pReadData)
 	if( pDriverData->reportData.hover != pReadData->hoverState )
 	{
 		pDriverData->reportData.hover = pReadData->hoverState;
-		
+
 		if( pReadData->hoverState == HOVER_NEAR )
 		{
 			/* TBD */
@@ -337,7 +426,7 @@ static void report_hover(TouchDriverData *pDriverData, TouchReadData *pReadData)
 	{
 		TOUCH_WARN("Duplicated Hover Event from Device ( %d )\n", pReadData->hoverState);
 	}
-	
+
 }
 
 static void release_all_finger(TouchDriverData *pDriverData)
@@ -351,6 +440,11 @@ static void release_all_finger(TouchDriverData *pDriverData)
 		readData.type = DATA_FINGER;
 		readData.count = 0;
 		report_finger(pDriverData, &readData);
+
+		if (touch_maker_id == 1){
+			memcpy(&gReadData, &readData, sizeof(TouchReadData));
+		}
+
 		TOUCH_LOG("all finger released\n");
 	}
 }
@@ -362,11 +456,16 @@ static void release_all_key(TouchDriverData *pDriverData)
 		TouchReadData readData;
 
 		memset(&readData, 0x0, sizeof(TouchReadData));
-		
+
 		readData.type = DATA_KEY;
 		readData.keyData.index = pDriverData->reportData.key;
 		readData.keyData.pressed = KEY_RELEASED;
 		report_key(pDriverData, &readData);
+
+		if (touch_maker_id == 1){
+			memcpy(&gReadData, &readData, sizeof(TouchReadData));
+		}
+
 		TOUCH_LOG("all key released\n");
 	}
 }
@@ -374,7 +473,7 @@ static void release_all_key(TouchDriverData *pDriverData)
 static void release_all_touch_event(TouchDriverData *pDriverData)
 {
 	release_all_finger(pDriverData);
-	
+
 	if( pDriverData->mConfig.button_support ) {
 		release_all_key(pDriverData);
 	}
@@ -389,20 +488,25 @@ static void WqTouchInit(struct work_struct *work_init)
 
 	if( pDriverData->bootMode != BOOT_OFF_CHARGING )
 		TouchDisableIrq();
-	
+
+	if( touch_maker_id && wakeup_by_swipe_mit300 )
+		TOUCH_LOG("not touch release for swipe mode\n");
+	else
+		release_all_touch_event(pDriverData);
+
 	pDeviceSpecificFunc->Reset(pDriverData->client);
 	pDeviceSpecificFunc->InitRegister(pDriverData->client);
 	if( pDriverData->nextState == STATE_NORMAL_HOVER ) {
 		pDeviceSpecificFunc->SetLpwgMode(pDriverData->client, pDriverData->nextState, &pDriverData->lpwgSetting);
 	}
-	
+
 	SetDriverState(pDriverData, pDriverData->nextState);
-	
+
 	if( pDriverData->bootMode != BOOT_OFF_CHARGING )
 		TouchEnableIrq();
 
 	mutex_unlock(pMutexTouch);
-	
+
 }
 
 //==========================================================
@@ -411,6 +515,17 @@ static void WqTouchInit(struct work_struct *work_init)
 #if defined ( TOUCH_PLATFORM_QCT )
 static irqreturn_t TouchIrqHandler(int irq, void *dev_id)
 {
+
+#if !defined ( TOUCH_DEVICE_LU202X )
+	if (atomic_read(&pm_state) >= PM_SUSPEND) {
+		TOUCH_LOG("IRQ in suspend\n");
+		atomic_set(&pm_state, PM_SUSPEND_IRQ);
+		wake_lock_timeout(pWakeLockTouch, msecs_to_jiffies(3000));
+
+		return IRQ_HANDLED;
+	}
+#endif
+
 	if(pWorkTouch != NULL) {
 		/* trigger work queue to process interrupt */
 		queue_delayed_work(touch_wq, pWorkTouch, 0); /* It will call "WqTouchIrqHandler()" */
@@ -446,10 +561,18 @@ static void WqTouchIrqHandler(struct work_struct *work_irq)
 
 	/* TBD : init buffer */
 	memset(&readData, 0x0, sizeof(TouchReadData));
+	if (touch_maker_id == 1){
+		memcpy(&readData, &gReadData, sizeof(TouchReadData));
+	}
 	readData.type = DATA_UNKNOWN;
 
 	/* do TouchIC specific interrupt processing */
 	ret = pDeviceSpecificFunc->InterruptHandler(pDriverData->client, &readData);
+
+     if(ret == -1) {
+       	 TOUCH_LOG("WqTouchIrqHandler : goto error !!!\n");
+    	 goto error;
+     	}
 
 	/* do processing according to the data from TouchIC */
 	if( readData.type == DATA_FINGER )
@@ -460,9 +583,13 @@ static void WqTouchIrqHandler(struct work_struct *work_irq)
 			if( ( pDriverData->mConfig.button_support ) && ( readData.count != 0 ) ) {
 				cancel_key(pDriverData);
 			}
-			
+
 			/* report finger data to CFW */
 			report_finger(pDriverData, &readData);
+		}
+		else
+		{
+			memset(&readData, 0x0, sizeof(TouchReadData));
 		}
 	}
 	else if( readData.type == DATA_KEY )
@@ -478,7 +605,7 @@ static void WqTouchIrqHandler(struct work_struct *work_irq)
 				}
 				else
 				{
-					TOUCH_LOG("Finger event exist so key event was ignored\n"); 
+					TOUCH_LOG("Finger event exist so key event was ignored\n");
 				}
 			}
 			else
@@ -505,7 +632,7 @@ static void WqTouchIrqHandler(struct work_struct *work_irq)
 		{
 			pDriverData->reportData.knockCount = readData.count;
 			memcpy( pDriverData->reportData.knockData, readData.knockData, readData.count * sizeof(TouchPoint) );
-			
+
 			/* report knock-code event to CFW */
 			send_uevent(pDriverData, UEVENT_KNOCK_CODE);
 		}
@@ -513,12 +640,17 @@ static void WqTouchIrqHandler(struct work_struct *work_irq)
 #if defined(ENABLE_SWIPE_MODE)
 	else if( readData.type == DATA_SWIPE )
 	{
-		if(lockscreen_stat) {
+		if(lockscreen_stat)
+		{
 			pDriverData->reportData.knockCount = readData.count;
 			memcpy( pDriverData->reportData.knockData, readData.knockData, readData.count * sizeof(TouchPoint) );
 
 			/* report swipe event to CFW */
 			send_uevent(pDriverData, UEVENT_SWIPE);
+		}
+		else
+		{
+			wakeup_by_swipe_mit300 = 0;
 		}
 	}
 #endif
@@ -534,13 +666,24 @@ static void WqTouchIrqHandler(struct work_struct *work_irq)
 			TOUCH_WARN("Unmatched event from device ( event = HOVER )\n");
 		}
 	}
-	else
-	{
-		TOUCH_WARN("Unknown event from device ( event = %d, STATE = %d )\n", readData.type, pDriverData->currState);
+
+	if (touch_maker_id == 1){
+		memcpy(&gReadData, &readData, sizeof(TouchReadData));
 	}
 
+error:
+
 	mutex_unlock(pMutexTouch);
-	
+
+	if(ret == TOUCH_FAIL) {
+	   if(pDriverData->lpwgSetting.lcdState==1){
+		 TOUCH_ERR("Abnormal IC status. Touch IC will be reset\n");
+		 queue_delayed_work(touch_wq, &pDriverData->work_init, 0);
+		 }
+	   else{
+		 TOUCH_ERR("Abnormal IC status in LPWG mode. Skip Touch IC Reset\n");
+	   	}
+	}
 }
 
 
@@ -587,23 +730,23 @@ static void WqfirmwareUpgrade(struct work_struct *work_upgrade)
 	pDeviceSpecificFunc->Reset(pDriverData->client);
 	pDeviceSpecificFunc->InitRegister(pDriverData->client);
 	pDeviceSpecificFunc->ReadIcFirmwareInfo(pDriverData->client, &pDriverData->icFwInfo);
-	
+
 	SetDriverState(pDriverData, STATE_NORMAL);
 
 	TouchEnableIrq();
 
 	wake_unlock(pWakeLockTouch);
 	mutex_unlock(pMutexTouch);
-	
+
 }
 
-#if !defined ( TOUCH_MODEL_C70 ) && !defined ( TOUCH_MODEL_C90NAS ) /* TBD : temporally block ( C70 is not ready ) */
+#if !defined ( TOUCH_MODEL_C70 ) && !defined ( TOUCH_MODEL_C90NAS ) && !defined ( TOUCH_MODEL_P1B ) && !defined ( TOUCH_MODEL_P1C ) && !defined ( TOUCH_MODEL_YG ) && !defined ( TOUCH_MODEL_C100N )/* TBD : temporally block ( C70 is not ready ) */
 static void MftsTouchOnOff(TouchDriverData *pDriverData, int isOn)
 {
 	if( isOn == 1 )
 	{
 		TOUCH_LOG("Touch On in MFTS\n");
-		
+
 		/* turn on the power of touch */
 		TouchPower(1);
 
@@ -615,26 +758,26 @@ static void MftsTouchOnOff(TouchDriverData *pDriverData, int isOn)
 
 		/* clear interrupt */
 		pDeviceSpecificFunc->ClearInterrupt(pDriverData->client);
-		
+
 		SetDriverState(pDriverData, STATE_NORMAL);
-		
+
 		/* enable interrupt */
 		TouchEnableIrq();
-		
+
 	}
 	else
 	{
 		TOUCH_LOG("Touch Off in MFTS\n");
-		
+
 		/* disable interrupt */
 		TouchDisableIrq();
-		
+
 		SetDriverState(pDriverData, STATE_UNKNOWN);
-		
+
 		/* turn off the power of touch */
 		TouchPower(0);
 	}
-	
+
 }
 #endif
 
@@ -703,9 +846,9 @@ static void UpdateLpwgSetting ( LpwgSetting *pLpwgSetting, LpwgCmd lpwgCmd, int 
 		default:
 			TOUCH_ERR ( "Invalide LPWG Command ( Type = %d )\n", lpwgCmd );
 			break;
-			
+
 	}
-	
+
 	TOUCH_LOG("LPWG SETTING : CMD[%s] M[%d] L[%d] P[%d] Cover[%d] Call[%d]\n",
 		str, pLpwgSetting->mode, pLpwgSetting->lcdState, pLpwgSetting->proximityState, pLpwgSetting->coverState, pLpwgSetting->callState);
 
@@ -714,7 +857,7 @@ static void UpdateLpwgSetting ( LpwgSetting *pLpwgSetting, LpwgCmd lpwgCmd, int 
 static TouchState DecideNextDriverState( LpwgSetting *pLpwgSetting )
 {
 	TouchState nextState = STATE_UNKNOWN;
-	
+
 	if( pLpwgSetting->lcdState == 1 )
 	{
 		if( pLpwgSetting->callState == 2 ) {
@@ -722,7 +865,7 @@ static TouchState DecideNextDriverState( LpwgSetting *pLpwgSetting )
 		} else {
 			nextState = STATE_NORMAL;
 		}
-	} 
+	}
 	else
 	{
 		if( pLpwgSetting->callState == 2 )
@@ -748,7 +891,7 @@ static TouchState DecideNextDriverState( LpwgSetting *pLpwgSetting )
 	}
 
 	return nextState;
-	
+
 }
 
 
@@ -792,7 +935,7 @@ static ssize_t store_lpwg_notify(struct i2c_client *client, const char *buf, siz
 		return count;
 	}
 	#endif
-	
+
 	mutex_lock(pMutexTouch);
 
 	/* update new lpwg setting */
@@ -809,9 +952,9 @@ static ssize_t store_lpwg_notify(struct i2c_client *client, const char *buf, siz
 	/* apply it using device driver function */
 	if( ( nextState != STATE_UNKNOWN ) && ( pDriverData->currState != nextState ) )
 	{
-		
-		#if defined ( TOUCH_DEVICE_S3320 )	 || defined ( TOUCH_DEVICE_MIT200 )
-		
+
+		#if defined ( TOUCH_DEVICE_S3320 )	|| defined ( TOUCH_DEVICE_MIT300 )
+
 		if( ( pDriverData->currState != STATE_NORMAL ) && ( nextState != STATE_NORMAL ) )
 		{
 			pDeviceSpecificFunc->SetLpwgMode(pDriverData->client, nextState, &pDriverData->lpwgSetting);
@@ -819,11 +962,16 @@ static ssize_t store_lpwg_notify(struct i2c_client *client, const char *buf, siz
 		}
 		else
 		{
+			if (pDriverData->lpwgSetting.lcdState == 1) {
+				TOUCH_LOG("LCD on, but ststus is not STATE_NORMAL.\n");
+				pDeviceSpecificFunc->SetLpwgMode(pDriverData->client, nextState, &pDriverData->lpwgSetting);
+				SetDriverState(pDriverData, nextState);
+			}
 			/* store next state to use later ( suspend or resume ) */
 			pDriverData->nextState = nextState;
 			TOUCH_LOG("LPWG Setting will be processed on suspend or resume\n");
 		}
-		
+
 		#else /* General Add-on type touch */
 
 		if( nextState == STATE_NORMAL || nextState == STATE_NORMAL_HOVER )
@@ -847,13 +995,13 @@ static ssize_t store_lpwg_notify(struct i2c_client *client, const char *buf, siz
 		}
 
 		#endif
-		
+
 	}
 
 	mutex_unlock(pMutexTouch);
 
 	return count;
-	
+
 }
 
 //==========================================================
@@ -870,15 +1018,18 @@ static ssize_t show_lpwg_data(struct i2c_client *client, char *buf)
 
 	/* We already get the data on ISR, so we can return the data immediately */
 	for( i=0 ; i<pDriverData->reportData.knockCount ; i++ ) {
+		if ( pDriverData->reportData.knockData[i].x == -1 && pDriverData->reportData.knockData[i].y == -1 )
+			break;
+
 		ret += sprintf(buf+ret, "%d %d\n", pDriverData->reportData.knockData[i].x, pDriverData->reportData.knockData[i].y);
 	}
 
-	TOUCH_LOG("LPWG data was read by CFW\n"); 
+	TOUCH_LOG("LPWG data was read by CFW\n");
 
 	mutex_unlock(pMutexTouch);
 
 	return ret;
-	
+
 }
 
 //==========================================================
@@ -897,6 +1048,9 @@ static ssize_t store_lpwg_data(struct i2c_client *client, const char *buf, size_
 	{
 		TOUCH_LOG("LPWG result was informed by CFW ( Code is matched )\n");
 		/* Code is matched, do something for leaving "LPWG Mode" if you need. But normally "Resume" will be triggered soon. */
+        if (pDriverData->reportData.swipe == 0) {
+			wakeup_by_swipe = 0;
+        }
 	}
 	else
 	{
@@ -906,13 +1060,14 @@ static ssize_t store_lpwg_data(struct i2c_client *client, const char *buf, size_
 	/* clear knock data */
 	pDriverData->reportData.knockOn = 0;
 	pDriverData->reportData.knockCode = 0;
+	pDriverData->reportData.swipe = 0;
 	memset( pDriverData->reportData.knockData, 0x00, sizeof(pDriverData->reportData.knockData) );
 
 	wake_unlock(pWakeLockTouch);
 	mutex_unlock(pMutexTouch);
 
 	return count;
-	
+
 }
 
 //==========================================================
@@ -973,9 +1128,9 @@ static ssize_t show_atcmd_fw_ver(struct i2c_client *client, char *buf)
 			pDriverData->icFwInfo.modelID);
 
 	mutex_unlock(pMutexTouch);
-		
+
 	return ret;
-	
+
 }
 //==========================================================
 // "testmode" will use it to get firmware information of touch IC
@@ -994,9 +1149,9 @@ static ssize_t show_testmode_fw_ver(struct i2c_client *client, char *buf)
 			pDriverData->icFwInfo.modelID);
 
 	mutex_unlock(pMutexTouch);
-		
+
 	return ret;
-	
+
 }
 
 
@@ -1009,10 +1164,13 @@ static ssize_t show_sd_info(struct i2c_client *client, char *buf)
 	int channelStatus = 0;
 	int rawStatus = 0;
 	u8 *pBuf = NULL;
-	int bufSize = 2*1024;
+	int bufSize = 8*1024;
 	int dataLen = 0;
 
 	TouchDriverData *pDriverData = i2c_get_clientdata(client);
+	if (pDriverData == NULL){
+		TOUCH_ERR("failed to get pDriverData for self diagnosis\n");
+	}
 
 	mutex_lock(pMutexTouch);
 
@@ -1023,6 +1181,10 @@ static ssize_t show_sd_info(struct i2c_client *client, char *buf)
 		return ret;
 	}
 
+	#if defined ( TOUCH_DEVICE_S3320 )
+	release_all_touch_event(pDriverData);
+    #endif
+
 	TouchDisableIrq();
 
 	SetDriverState(pDriverData, STATE_SELF_DIAGNOSIS);
@@ -1031,7 +1193,7 @@ static ssize_t show_sd_info(struct i2c_client *client, char *buf)
 	pDeviceSpecificFunc->DoSelfDiagnosis(client, &rawStatus, &channelStatus, pBuf, bufSize, &dataLen);
 	pDeviceSpecificFunc->Reset(pDriverData->client);
 	pDeviceSpecificFunc->InitRegister(pDriverData->client);
-	
+
 	SetDriverState(pDriverData, STATE_NORMAL);
 
 	TouchEnableIrq();
@@ -1039,7 +1201,7 @@ static ssize_t show_sd_info(struct i2c_client *client, char *buf)
 	mutex_unlock(pMutexTouch);
 
 	/* basic information ( return data string format can't be changed ) */
-	ret = sprintf(buf, "========RESULT=======\n");
+	ret = sprintf(buf, "========RESULT========\n");
 	ret += sprintf(buf+ret, "Channel Status : %s", (channelStatus==TOUCH_SUCCESS) ? "Pass\n" : "Fail\n");
 	ret += sprintf(buf+ret, "Raw Data : %s", (rawStatus==TOUCH_SUCCESS) ? "Pass\n" : "Fail\n");
 
@@ -1048,7 +1210,7 @@ static ssize_t show_sd_info(struct i2c_client *client, char *buf)
 		kfree(pBuf);
 		return ret;
 	}
-	
+
 	/* addition information for debugging */
 	memcpy(buf+ret, pBuf, dataLen);
 	ret += dataLen;
@@ -1056,7 +1218,6 @@ static ssize_t show_sd_info(struct i2c_client *client, char *buf)
 	kfree(pBuf);
 
 	return ret;
-	
 }
 
 #if defined ( TOUCH_PLATFORM_MTK )
@@ -1074,9 +1235,9 @@ static ssize_t store_mfts_onoff(struct i2c_client *client, const char *buf, size
 	}
 
 	MftsTouchOnOff(pDriverData, isOn);
-	
+
 	return count;
-	
+
 }
 #endif
 
@@ -1100,16 +1261,34 @@ static ssize_t store_upgrade(struct i2c_client *client, const char *buf, size_t 
 	sscanf(buf, "%s", pDriverData->fw_image);
 
 	queue_delayed_work(touch_wq, &pDriverData->work_upgrade, 0);
-	
+
 	mutex_unlock(pMutexTouch);
 
 	return count;
-	
+
 }
 
 //==========================================================
 // Developer will use it to upgrade firmware with default firmware
 //==========================================================
+static ssize_t show_upgrade(struct i2c_client *client, char *buf)
+{
+	int ret = 0;
+	TouchDriverData *pDriverData = i2c_get_clientdata(client);
+
+	mutex_lock(pMutexTouch);
+
+	pDriverData->useDefaultFirmware = TOUCH_TRUE;
+
+	ret = sprintf(buf, "default firmware upgrade\n");
+
+	queue_delayed_work(touch_wq, &pDriverData->work_upgrade, 0);
+
+	mutex_unlock(pMutexTouch);
+
+	return ret;
+}
+
 static ssize_t store_rewrite_bin_fw(struct i2c_client *client, const char *buf, size_t count)
 {
 	TouchDriverData *pDriverData = i2c_get_clientdata(client);
@@ -1157,19 +1336,19 @@ static ssize_t show_ic_rw(struct i2c_client *client, char *buf)
 	TOUCH_DBG("Read IC Register ( Begin )\n");
 	TOUCH_DBG("%s\n", buf);
 	TOUCH_DBG("Read IC Register ( End )\n");
-	
+
 	return ret;
-	
+
 }
 
 static ssize_t store_ic_rw(struct i2c_client *client, const char *buf, size_t count)
 {
 	int ret = 0;
-	
+
 	u8 cmd[30] = {0};
 	int reg = 0;
 	int data = 0;
-	
+
 
 	sscanf(buf, "%s %d %d", cmd, &reg, &data);
 
@@ -1195,13 +1374,13 @@ static ssize_t store_ic_rw(struct i2c_client *client, const char *buf, size_t co
 		readCount = data;
 		if( readCount == 0 ) {
 			readCount = 1;
-		}			
+		}
 	}
 
 	mutex_unlock(pMutexTouch);
 
 	return count;
-	
+
 }
 
 static ssize_t store_keyguard_info(struct i2c_client *client,
@@ -1227,6 +1406,33 @@ static ssize_t store_keyguard_info(struct i2c_client *client,
 	return count;
 }
 
+//==========================================================
+// Developer will use it to debug touch coordinates in real time
+// debug_abs 1: on , 0: off
+//==========================================================
+static ssize_t store_debug_abs(struct i2c_client *client,
+		const char *buf, size_t count)
+{
+	int value;
+
+	sscanf(buf, "%d", &value);
+	switch (value) {
+	case 0:
+		debug_abs = 0;
+		TOUCH_DBG("debug_abs = %d\n", debug_abs);
+		break;
+	case 1:
+		debug_abs = 1;
+		TOUCH_DBG("debug_abs = %d\n", debug_abs);
+		break;
+    default:
+		    break;
+	}
+
+	return count;
+}
+
+
 static LGE_TOUCH_ATTR(keyguard, S_IRUGO | S_IWUSR, NULL, store_keyguard_info);
 static LGE_TOUCH_ATTR(knock_on_type, S_IRUGO | S_IWUSR, show_knock_on_type, NULL);
 static LGE_TOUCH_ATTR(lpwg_notify, S_IRUGO | S_IWUSR, NULL, store_lpwg_notify);
@@ -1236,9 +1442,11 @@ static LGE_TOUCH_ATTR(version, S_IRUGO | S_IWUSR, show_version, NULL);
 static LGE_TOUCH_ATTR(fw_ver, S_IRUGO | S_IWUSR, show_atcmd_fw_ver, NULL);
 static LGE_TOUCH_ATTR(testmode_ver, S_IRUGO | S_IWUSR, show_testmode_fw_ver, NULL);
 static LGE_TOUCH_ATTR(sd, S_IRUGO | S_IWUSR, show_sd_info, NULL);
-static LGE_TOUCH_ATTR(fw_upgrade, S_IRUGO | S_IWUSR, NULL, store_upgrade);
+static LGE_TOUCH_ATTR(fw_upgrade, S_IRUGO | S_IWUSR, show_upgrade, store_upgrade);
 static LGE_TOUCH_ATTR(rewrite_bin_fw, S_IRUGO | S_IWUSR, NULL, store_rewrite_bin_fw);
 static LGE_TOUCH_ATTR(ic_rw, S_IRUGO | S_IWUSR, show_ic_rw, store_ic_rw);
+static LGE_TOUCH_ATTR(debug_abs, S_IRUGO | S_IWUSR, NULL, store_debug_abs);
+
 
 static struct attribute *lge_touch_attribute_list[] = {
 	&lge_touch_attr_keyguard.attr,
@@ -1253,6 +1461,7 @@ static struct attribute *lge_touch_attribute_list[] = {
 	&lge_touch_attr_fw_upgrade.attr,
 	&lge_touch_attr_rewrite_bin_fw.attr,
 	&lge_touch_attr_ic_rw.attr,
+	&lge_touch_attr_debug_abs.attr,
 	NULL,
 };
 
@@ -1359,7 +1568,7 @@ static int sysfs_register(TouchDriverData *pDriverData,
 	}
 
 	return TOUCH_SUCCESS;
-		
+
 }
 
 static void sysfs_unregister(TouchDriverData *pDriverData)
@@ -1433,7 +1642,7 @@ static int register_input_dev(TouchDriverData *pDriverData)
 	input_set_drvdata(pDriverData->input_dev, pDriverData);
 
 	return TOUCH_SUCCESS;
-	
+
 }
 
 static void unregister_input_dev ( TouchDriverData *pDriverData)
@@ -1442,7 +1651,7 @@ static void unregister_input_dev ( TouchDriverData *pDriverData)
 		input_mt_destroy_slots(pDriverData->input_dev);
 	}
 	input_unregister_device(pDriverData->input_dev);
-	input_free_device(pDriverData->input_dev);
+
 }
 
 #if defined ( CONFIG_HAS_EARLYSUSPEND )
@@ -1452,7 +1661,7 @@ static void touch_early_suspend(struct early_suspend *h)
 	TouchDriverData *pDriverData = container_of(h, TouchDriverData, early_suspend);
 
 	mutex_lock(pMutexTouch);
-	
+
 	TOUCH_FUNC();
 
 	if( pDriverData->isSuspend == TOUCH_TRUE ) {
@@ -1469,22 +1678,22 @@ static void touch_early_suspend(struct early_suspend *h)
 	}
 	else /* NORMAL BOOT */
 	{
-		#if defined ( TOUCH_DEVICE_S3320 ) || defined ( TOUCH_DEVICE_MIT200 )
+		#if defined ( TOUCH_DEVICE_S3320 ) || defined ( TOUCH_DEVICE_MIT300 )
 		cancel_delayed_work_sync(&pDriverData->work_init);
 
 		release_all_touch_event(pDriverData);
-		
+
 		pDriverData->lpwgSetting.lcdState = 0;
 		pDriverData->nextState = DecideNextDriverState(&pDriverData->lpwgSetting);
 		pDeviceSpecificFunc->SetLpwgMode(pDriverData->client, pDriverData->nextState, &pDriverData->lpwgSetting);
 		SetDriverState(pDriverData, pDriverData->nextState);
 		#endif
 	}
-	
+
 	TOUCH_FUNC_EXT("Exit\n");
-	
+
 	mutex_unlock(pMutexTouch);
-	
+
 }
 
 static void touch_late_resume(struct early_suspend *h)
@@ -1514,11 +1723,11 @@ static void touch_late_resume(struct early_suspend *h)
 		pDriverData->nextState = DecideNextDriverState(&pDriverData->lpwgSetting);
 		pDeviceSpecificFunc->SetLpwgMode(pDriverData->client, pDriverData->nextState, &pDriverData->lpwgSetting);
 		SetDriverState(pDriverData, pDriverData->nextState);
-		
+
 		queue_delayed_work(touch_wq, &pDriverData->work_init, 0);
 		#endif
-		
-		#if defined ( TOUCH_DEVICE_MIT200 )
+
+		#if defined ( TOUCH_DEVICE_MIT300 )
 		queue_delayed_work(touch_wq, &pDriverData->work_init, 0);
 		#endif
 	}
@@ -1531,7 +1740,7 @@ static void touch_late_resume(struct early_suspend *h)
 
 #elif defined ( CONFIG_FB )
 
-#if defined ( TOUCH_PLATFORM_MSM8916 )
+#if defined ( TOUCH_PLATFORM_MSM8916 ) || defined ( TOUCH_PLATFORM_MSM8936 )
 //===========================================
 // 1. Sequence
 //    : FB_EARLY_EVENT_BLANK ==> LCD ==> FB_EVENT_BLANK
@@ -1610,14 +1819,14 @@ static int touch_fb_notifier_callback(struct notifier_block *self, unsigned long
 				if( skipCount >= 0 ) {
 					skipCount--;
 				}
-				
+
 				if( skipCount == 0 ) {
 					mutex_unlock(pMutexTouch);
 					return TOUCH_SUCCESS;
 				}
 			}
 			#endif
-			
+
 		}
 	}
 
@@ -1632,7 +1841,7 @@ static int touch_fb_notifier_callback(struct notifier_block *self, unsigned long
 	}
 	#endif
 
-	#if !defined ( TOUCH_MODEL_C70 ) && !defined ( TOUCH_MODEL_C90NAS ) /* TBD : temporally block ( C70 is not ready ) */
+	#if !defined ( TOUCH_MODEL_C70 ) && !defined ( TOUCH_MODEL_C90NAS ) && !defined ( TOUCH_MODEL_P1B ) && !defined ( TOUCH_MODEL_P1C ) && !defined ( TOUCH_MODEL_YG ) && !defined ( TOUCH_MODEL_C100N )/* TBD : temporally block ( C70 is not ready ) */
 	if( pDriverData->bootMode == BOOT_MINIOS ) /* MFTS BOOT */
 	{
 		TOUCH_DBG("MFTS\n");
@@ -1666,21 +1875,26 @@ static int touch_fb_notifier_callback(struct notifier_block *self, unsigned long
 		{
 			if (*blank == FB_BLANK_POWERDOWN)
 			{
-				#if defined ( TOUCH_DEVICE_S3320 ) || defined ( TOUCH_DEVICE_MIT200 )
+				#if defined ( TOUCH_DEVICE_S3320 ) || defined ( TOUCH_DEVICE_MIT300 )
 				cancel_delayed_work_sync(&pDriverData->work_init);
+
+				if ( touch_maker_id == 1 )
+				{
+					release_all_touch_event(pDriverData);
+					pDriverData->lpwgSetting.lcdState = 0;
+					pDriverData->nextState = DecideNextDriverState(&pDriverData->lpwgSetting);
+					pDeviceSpecificFunc->SetLpwgMode(pDriverData->client, pDriverData->nextState, &pDriverData->lpwgSetting);
+					SetDriverState(pDriverData, pDriverData->nextState);
+				}
 				#endif
 			}
 			else if(*blank == FB_BLANK_UNBLANK)
 			{
-				#if defined ( TOUCH_DEVICE_S3320 )
+				#if defined ( TOUCH_DEVICE_S3320 ) || defined ( TOUCH_DEVICE_MIT300 )
 				pDriverData->lpwgSetting.lcdState = 1;
 				pDriverData->nextState = DecideNextDriverState(&pDriverData->lpwgSetting);
 				pDeviceSpecificFunc->SetLpwgMode(pDriverData->client, pDriverData->nextState, &pDriverData->lpwgSetting);
 				SetDriverState(pDriverData, pDriverData->nextState);
-				#endif
-
-				#if defined ( TOUCH_DEVICE_MIT200 )
-				queue_delayed_work(touch_wq, &pDriverData->work_init, 0);
 				#endif
 			}
 		}
@@ -1688,18 +1902,25 @@ static int touch_fb_notifier_callback(struct notifier_block *self, unsigned long
 		{
 			if (*blank == FB_BLANK_POWERDOWN)
 			{
-				#if defined ( TOUCH_DEVICE_S3320 ) || defined ( TOUCH_DEVICE_MIT200 )
-				release_all_touch_event(pDriverData);
-				pDriverData->lpwgSetting.lcdState = 0;
-				pDriverData->nextState = DecideNextDriverState(&pDriverData->lpwgSetting);
-				pDeviceSpecificFunc->SetLpwgMode(pDriverData->client, pDriverData->nextState, &pDriverData->lpwgSetting);
-				SetDriverState(pDriverData, pDriverData->nextState);
+				#if defined ( TOUCH_DEVICE_S3320 ) || defined ( TOUCH_DEVICE_MIT300 )
+				if ( touch_maker_id == 0 )
+				{
+					release_all_touch_event(pDriverData);
+					pDriverData->lpwgSetting.lcdState = 0;
+					pDriverData->nextState = DecideNextDriverState(&pDriverData->lpwgSetting);
+					pDeviceSpecificFunc->SetLpwgMode(pDriverData->client, pDriverData->nextState, &pDriverData->lpwgSetting);
+					SetDriverState(pDriverData, pDriverData->nextState);
+				} else {
+					wakeup_by_swipe_mit300 = 0;
+					#if defined ( Module_detection )
+					mip_set_wakeup_by_swipe(pDriverData->client, wakeup_by_swipe_mit300);
+					#endif
+				}
 				#endif
-
 			}
 			else if (*blank == FB_BLANK_UNBLANK)
 			{
-				#if defined ( TOUCH_DEVICE_S3320 )
+				#if defined ( TOUCH_DEVICE_S3320 ) || defined ( TOUCH_DEVICE_MIT300 )
 				queue_delayed_work(touch_wq, &pDriverData->work_init, 0);
 				#endif
 			}
@@ -1728,7 +1949,7 @@ static int touch_fb_notifier_callback(struct notifier_block *self, unsigned long
 	} else {
 		return TOUCH_SUCCESS;
 	}
-		
+
 	mutex_lock(pMutexTouch);
 
 	if(event == FB_EVENT_BLANK)
@@ -1754,7 +1975,7 @@ static int touch_fb_notifier_callback(struct notifier_block *self, unsigned long
 			}
 		}
 	}
-	
+
 	if( pDriverData->bootMode == BOOT_MINIOS ) /* MFTS BOOT */
 	{
 		TOUCH_DBG("MFTS\n");
@@ -1784,13 +2005,13 @@ static int touch_fb_notifier_callback(struct notifier_block *self, unsigned long
 			}
 		}
 	}
-	
+
 	TOUCH_FUNC_EXT("Exit\n");
-	
+
 	mutex_unlock(pMutexTouch);
-	
+
 	return TOUCH_SUCCESS;
-	
+
 }
 #else
 #error "Platform should be defined"
@@ -1800,11 +2021,15 @@ static int touch_fb_notifier_callback(struct notifier_block *self, unsigned long
 
 static int touch_pm_suspend(struct device *dev)
 {
-	#if defined ( TOUCH_PLATFORM_MSM8210 )
+	#if defined ( TOUCH_DEVICE_LU202X )
 	mutex_lock(pMutexTouch);
 	#endif
 
 	TOUCH_FUNC();
+
+#if defined ( TOUCH_PLATFORM_QCT ) && !defined ( TOUCH_DEVICE_LU202X )
+	atomic_set(&pm_state, PM_SUSPEND);
+#endif
 
 	return TOUCH_SUCCESS;
 }
@@ -1813,10 +2038,32 @@ static int touch_pm_resume(struct device *dev)
 {
 	TOUCH_FUNC();
 
-	#if defined ( TOUCH_PLATFORM_MSM8210 )
+	#if defined ( TOUCH_DEVICE_LU202X )
 	mutex_unlock(pMutexTouch);
 	#endif
-	
+
+#if defined ( TOUCH_PLATFORM_QCT ) && !defined ( TOUCH_DEVICE_LU202X )
+	if (atomic_read(&pm_state) == PM_SUSPEND_IRQ) {
+		TouchDriverData *pDriverData = dev_get_drvdata(dev);
+		struct irq_desc *desc;
+
+		desc = irq_to_desc(pDriverData->client->irq);
+		if (desc == NULL) {
+			TOUCH_ERR("Null Pointer from irq_to_desc!\n");
+			return -ENOMEM;
+		}
+
+		atomic_set(&pm_state, PM_RESUME);
+
+		irq_set_pending(pDriverData->client->irq);
+		check_irq_resend(desc, pDriverData->client->irq);
+
+		return TOUCH_SUCCESS;
+	}
+
+	atomic_set(&pm_state, PM_RESUME);
+#endif
+
 	return TOUCH_SUCCESS;
 }
 
@@ -1887,15 +2134,19 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 	if( ret  == TOUCH_FAIL ) {
 		goto exit_device_init_fail;
 	}
-	
+
 	ret = pDeviceSpecificFunc->ReadIcFirmwareInfo(client, &pDriverData->icFwInfo);
 	if( ret  == TOUCH_FAIL ) {
 		goto exit_device_init_fail;
 	}
-	
+
 	ret = pDeviceSpecificFunc->GetBinFirmwareInfo(client, NULL, &pDriverData->binFwInfo);
 	if( ret  == TOUCH_FAIL ) {
 		goto exit_device_init_fail;
+	}
+
+	if (touch_maker_id == 1){
+		memset(&gReadData, 0x2, sizeof(TouchReadData));
 	}
 
 	if( pDriverData->bootMode != BOOT_OFF_CHARGING ){
@@ -1918,28 +2169,28 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 		TOUCH_LOG("power off charging mode so don't probe touch\n");
 
 		#if defined ( TOUCH_DEVICE_S3320 )
-		
+
 		/*
 		** we want lowest current consumption but there is no-way in MTK
 		** "suspend" and "resume" are not called at power off charing in MTK
 		*/
 		SetDriverState(pDriverData, STATE_NORMAL);
-		
+
 		#else
-		
+
 		/* lowest current consumption first ( so disable touch ) */
 		pDriverData->nextState = STATE_OFF;
 		pDeviceSpecificFunc->SetLpwgMode(pDriverData->client, pDriverData->nextState, &pDriverData->lpwgSetting);
 		SetDriverState(pDriverData, pDriverData->nextState);
-		
+
 		#endif
 
 		/* do not probe */
 		goto exit_device_init_fail;
-		
+
 	}
 	#endif
-	
+
 	/* set and register "suspend" and "resume" */
 	#if defined ( CONFIG_HAS_EARLYSUSPEND )
 	pDriverData->early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1;
@@ -1955,7 +2206,11 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 	SetDriverState(pDriverData, STATE_NORMAL);
 
 	/* Trigger firmware upgrade if needed */
-	if( pDriverData->icFwInfo.isOfficial )
+	if( touch_maker_id ){
+		pDriverData->useDefaultFirmware = TOUCH_TRUE;
+		queue_delayed_work(touch_wq, &pDriverData->work_upgrade, 0);
+	}
+	else if( pDriverData->icFwInfo.isOfficial )
 	{
 		if( pDriverData->binFwInfo.version != pDriverData->icFwInfo.version )
 		{
@@ -1969,19 +2224,19 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 	return TOUCH_SUCCESS;
 
 exit_device_init_fail:
-	
+
 	wake_lock_destroy(&pDriverData->lpwg_wake_lock);
-	
+
 	sysfs_unregister(pDriverData);
 
 exit_sysfs_register_fail:
-	
+
 	unregister_input_dev(pDriverData);
 
 exit_register_input_dev_fail:
-	
+
 	devm_kfree(&pDriverData->client->dev, pDriverData);
-	
+
 	return TOUCH_FAIL;
 
 }
@@ -2005,11 +2260,11 @@ static int touch_remove(struct i2c_client *client)
 	sysfs_unregister(pDriverData);
 
 	unregister_input_dev(pDriverData);
-	
+
 	devm_kfree(&pDriverData->client->dev, pDriverData);
 
 	return TOUCH_SUCCESS;
-	
+
 }
 
 
@@ -2025,6 +2280,8 @@ static struct dev_pm_ops touch_pm_ops = {
 static struct of_device_id match_table[] = {
 	{ .compatible = "unified_driver,ver2", },
 	{ },
+	{ .compatible = "unified_driver,ver2,mit300", },
+	{ },
 };
 
 static struct i2c_driver lge_touch_driver = {
@@ -2035,7 +2292,6 @@ static struct i2c_driver lge_touch_driver = {
 		.name = LGE_TOUCH_NAME,
 		.owner = THIS_MODULE,
 		.pm = &touch_pm_ops,
-		.of_match_table = &match_table[0],
 	},
 };
 
@@ -2047,6 +2303,12 @@ static int __init touch_init(void)
 	TouchDeviceSpecificFunction **pDeviceFunc = NULL;
 
 	TOUCH_FUNC();
+
+	#if defined ( Module_detection )
+	touch_maker_id = get_display_id();
+	idx = touch_maker_id;
+	TOUCH_LOG("Touch Module ID = %d\n", idx);
+	#endif
 
 	TouchGetDeviceSpecificDriver(&pDeviceFunc);
 
@@ -2063,7 +2325,7 @@ static int __init touch_init(void)
 	TouchPower(1);
 
 	/* reset */
-	pDeviceFunc[0]->Reset(NULL);
+	pDeviceFunc[idx]->Reset(NULL);
 
 	while( pDeviceFunc[idx] != NULL )
 	{
@@ -2088,6 +2350,7 @@ static int __init touch_init(void)
 		return -ENODEV;
 	}
 
+	lge_touch_driver.driver.of_match_table = &match_table[idx*2];
 	if( i2c_add_driver ( &lge_touch_driver ) ) {
 		TOUCH_ERR("failed at i2c_add_driver()\n" );
 		destroy_workqueue(touch_wq);
@@ -2095,7 +2358,7 @@ static int __init touch_init(void)
 	}
 
 	return TOUCH_SUCCESS;
-	
+
 }
 
 static void __exit touch_exit(void)
@@ -2117,4 +2380,3 @@ MODULE_DESCRIPTION("LGE Touch Unified Driver");
 MODULE_LICENSE("GPL");
 
 /* End Of File */
-

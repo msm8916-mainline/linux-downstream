@@ -51,9 +51,13 @@
 #include <asm/mmu_context.h>
 #include <asm/processor.h>
 #include <asm/stacktrace.h>
-#ifdef CONFIG_LGE_HANDLE_PANIC
-#include <soc/qcom/scm.h>
+
+#ifdef CONFIG_CC_STACKPROTECTOR
+#include <linux/stackprotector.h>
+unsigned long __stack_chk_guard __read_mostly;
+EXPORT_SYMBOL(__stack_chk_guard);
 #endif
+
 static void setup_restart(void)
 {
 	/*
@@ -182,14 +186,6 @@ void machine_power_off(void)
  */
 void machine_restart(char *cmd)
 {
-#ifdef CONFIG_LGE_HANDLE_PANIC
-	struct scm_desc desc = {
-		.args[0] = 0x10,
-		.args[1] = 0,
-		.arginfo = SCM_ARGS(2),
-	};
-#endif
-
 	/* Disable interrupts first */
 	local_irq_disable();
 	smp_send_stop();
@@ -202,26 +198,6 @@ void machine_restart(char *cmd)
 	 * Whoops - the architecture was unable to reboot.
 	 */
 	printk("Reboot failed -- System halted\n");
-#ifdef CONFIG_LGE_HANDLE_PANIC
-	#if 0
-	/* Set download mode for crash handler */
-	if (!is_scm_armv8()) {
-		scm_call_atomic2(SCM_SVC_BOOT, 0x10, 0x10, 0);
-	} else {
-		scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT, 0x10),
-			&desc);
-	}
-	#endif
-	/* treger secure watchdog reset */
-	desc.args[0] = 0;
-	desc.arginfo = SCM_ARGS(1);
-	if (!is_scm_armv8()) {
-		scm_call_atomic1(SCM_SVC_BOOT, 0x8, 0);
-	} else {
-		scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT, 0x8),
-			&desc);
-	}
-#endif
 	while (1);
 }
 

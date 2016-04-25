@@ -41,21 +41,21 @@
 #include "inv_mpu_dts.h"
 #endif
 
-/*             
-                                                                              
-                                
+/* LGE_CHANGE_S
+* Comment : Include Debug print header and gpio header, and define module name
+* 2013-12-21, jeongh.kim@lge.com
 */
 //#include <linux/platform_data/gpio-odin.h>
 #include <linux/gpio.h>
 #define MODULE_NAME "inv-mpu-iio"
 
-/*              */
+/* LGE_CHANGE_E */
 
 s64 get_time_ns(void)
 {
-/*           
-                        
-  
+/*LGE_CHANGES
+* porting to 64 bit ARM.
+* 
 */
 
 	struct timespec ts;
@@ -1228,6 +1228,9 @@ static ssize_t inv_attr_show(struct device *dev,
 #endif
 		mutex_unlock(&indio_dev->mlock);
 		return sprintf(buf, "%d\n", result);
+	case ATTR_RUN_CALIBRATION:
+		msleep(MPU6500_CALIBRATION_TIME);
+		return sprintf(buf, "%d\n", st->run_calibration_result);
 #ifdef LGE_LIGER_SELF_TEST_FLAG
 	case ATTR_SELF_TEST_EXEC_FLAG:
 		return sprintf(buf, "%d\n", st->self_test_exec_state);
@@ -1478,8 +1481,18 @@ static ssize_t _attr_store(struct device *dev,
 	int data;
 	u8 d, axis;
 	int result;
-
+	char *argv[] = { "/vendor/bin/selftest", "-w", NULL };
+	static char *envp[] = {
+		"HOME=/",
+		"PATH=/sbin:/bin:/usr/sbin:/usr/bin", NULL };
 	result = 0;
+
+	if( this_attr->address == ATTR_RUN_CALIBRATION)
+	{
+		call_usermodehelper( argv[0], argv, envp, UMH_WAIT_EXEC);
+		return count;
+	}
+
 	if (st->chip_config.enable)
 		return -EBUSY;
 	if (this_attr->address <= ATTR_MOTION_LPA_THRESHOLD) {
@@ -1520,6 +1533,12 @@ static ssize_t _attr_store(struct device *dev,
 		if (result)
 			goto attr_store_fail;
 		st->input_gyro_offset[axis] = data;
+		break;
+	case ATTR_RESULT_CALIBRATION:
+		result = kstrtoint(buf, 10, &data);
+		if (result)
+			goto attr_store_fail;
+		st->run_calibration_result = data; 
 		break;
 	case ATTR_ACCEL_X_OFFSET:
 	case ATTR_ACCEL_Y_OFFSET:
@@ -2206,6 +2225,10 @@ static IIO_DEVICE_ATTR(sampling_frequency, S_IRUGO | S_IWUSR, inv_attr_show,
 /* show method only sysfs but with power on/off */
 static IIO_DEVICE_ATTR(self_test, S_IRUGO, inv_attr_show, NULL,
 	ATTR_SELF_TEST);
+static IIO_DEVICE_ATTR(run_calibration, S_IRUGO | S_IWUSR, inv_attr_show, inv_attr_store,
+	ATTR_RUN_CALIBRATION);
+static IIO_DEVICE_ATTR(result_calibration, S_IWUSR, NULL, inv_attr_store,
+	ATTR_RESULT_CALIBRATION);
 
 #ifdef LGE_LIGER_SELF_TEST_FLAG
 static IIO_DEVICE_ATTR(self_test_exec_flag, S_IRUGO, inv_attr_show, NULL,
@@ -2320,6 +2343,8 @@ static const struct attribute *inv_gyro_attributes[] = {
 #ifdef LGE_LIGER_SELF_TEST_FLAG
 	&iio_dev_attr_self_test_exec_flag.dev_attr.attr,
 #endif
+	&iio_dev_attr_run_calibration.dev_attr.attr,
+	&iio_dev_attr_result_calibration.dev_attr.attr,
 };
 
 static const struct attribute *inv_mpu6xxx_attributes[] = {
@@ -2626,15 +2651,15 @@ static int inv_check_chip_type(struct inv_mpu_state *st,
 		return result;
 
 	if (conf->has_compass) {
-/*            
-                                
-                                   
+/*LGE_CHANGE_S
+* Comment : Compass Sensor Reset
+* 2014-08-20, chaesun.leem@lge.com 
 */
 		gpio_direction_output(st->plat_data.reset_gpio, 0);
 		mdelay(1);
 		gpio_direction_output(st->plat_data.reset_gpio, 1);
 		mdelay(1);
-/*            */
+/*LGE_CHANGE_S*/
 		result = inv_mpu_setup_compass_slave(st);
 		if (result) {
 			pr_err("compass setup failed\n");
@@ -2778,20 +2803,20 @@ static int inv_mpu_probe(struct i2c_client *client,
 	result = invensense_mpu_parse_dt(&client->dev, &st->plat_data);
 	if (result)
 		goto out_free;
-/*             
-                                            
-                                
+/* LGE_CHANGE_S
+* Comment : Add parsing irq setting from DTS
+* 2013-12-21, jeongh.kim@lge.com
 */
 	result = inv_parse_irqgpio(&client->dev, &st->plat_data);
 	if (result < 0)
 		goto out_free;
 
-/*             
-                                               
-                                
+/* LGE_CHANGE_S
+* Comment : Debouncing moved from kernel to SMS
+* 2014-01-08, jeongh.kim@lge.com
 */
 /*	gpio_set_debounce(st->plat_data.irq_gpio, 1); */
-/*              */
+/* LGE_CHANGE_E */
 	result = gpio_request(st->plat_data.irq_gpio, "inv_mpu");
 	if (result) {
 		dev_err(&client->dev, "unable to request gpio [%d]\n",
@@ -2804,7 +2829,7 @@ static int inv_mpu_probe(struct i2c_client *client,
 				st->plat_data.irq_gpio);
 	}
 	client->irq = gpio_to_irq(st->plat_data.irq_gpio);
-/*              */
+/* LGE_CHANGE_E */
 
 	result = gpio_request(st->plat_data.reset_gpio, "inv_reset");
 	if (result) {

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,6 +24,15 @@
 
 #include "mdss_dsi.h"
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+#include "lge/panel/oem_mdss_dsi_common.h"
+#endif // CONFIG_LGE_DISPLAY_CODE_REFACTORING
+
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+struct mdss_panel_data *pdata_base;
+extern int lge_lg4945_panel_mode_cmd_send(int switch_cmd, struct mdss_dsi_ctrl_pdata *ctrl);
+#endif
+
 #if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
 #include <linux/mutex.h>
 #include <linux/i2c.h>
@@ -36,13 +45,56 @@
 void qpnp_goto_suspend_for_chg_logo(void);
 #endif
 
-#if defined(CONFIG_LGE_LCD_TUNING)
-extern int tun_lcd[128];
-extern char read_cmd[128];
-extern int reg_num;
-int cmd_num;
-static struct mdss_panel_data *pdata_base;
+#ifdef CONFIG_LGD_PH1DONGBU_INCELL_VIDEO_HD_PANEL
+#include <mach/board_lge.h>
 #endif
+
+#ifdef CONFIG_LGE_DISPLAY_POWER_SEQUENCE
+#define PANEL_SEQUENCE(name, state) pr_info("[PanelSequence][%s] %d\n", name, state);
+#define DISPLAY_PIN_DDVDH "DDVDH"
+#define DISPLAY_PIN_RESET "RESET"
+#define DISPLAY_PIN_VCI "VCI_3V0"
+#define DISPLAY_PIN_VIO "VCI_1V8"
+#endif
+
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+struct mdss_panel_data *pdata_lut_update;
+extern void lm3632_set_knock_on_mode(void);
+extern void lm3632_unset_knock_on_mode(void);
+extern void lm3632_UVP_enable(void);
+extern void lm3632_bl_en_control(int enable);
+extern void lm3632_dsv_output_ctrl(int enable);
+/* for ESD protection : interrupt & UVP. */
+//#define TD4191_ESD_INTERRUPT 1
+//#define LM3632_UVP_ENABLE 1
+
+/* for power consumption */
+//#define LM3632_KNOCK_ON_MODE 1
+#endif
+
+#if defined (CONFIG_LGD_DONGBU_INCELL_VIDEO_HD_PANEL)
+extern void lm3632_set_knock_on_mode(void);
+extern void lm3632_unset_knock_on_mode(void);
+extern void lm3632_UVP_enable(void);
+extern void lm3632_dsv_output_ctrl(int enable);
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_C100N
+extern struct mit_data* ts_data;
+extern void reset_pin_ctrl(struct mit_data* ts, int on_off, int delay);
+#endif
+//#define LM3632_KNOCK_ON_MODE 1
+#endif
+
+
+#if defined (CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
+#if defined (CONFIG_MFD_SM5107)
+#include <linux/mfd/sm5107.h>
+#endif
+#ifdef CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4
+extern void MIT300_Reset(int status, int delay);
+extern int mfts_lpwg;
+#endif
+#endif
+
 #define DT_CMD_HDR 6
 
 /* NT35596 panel specific status variables */
@@ -51,10 +103,10 @@ static struct mdss_panel_data *pdata_base;
 #define NT35596_BUF_5_STATUS 0x80
 #define NT35596_MAX_ERR_CNT 2
 
-#define MIN_REFRESH_RATE 30
+#define MIN_REFRESH_RATE 48
 
 DEFINE_LED_TRIGGER(bl_led_trigger);
-#if defined(CONFIG_BACKLIGHT_LM3697)
+#if defined(CONFIG_BACKLIGHT_LM3697) || defined(CONFIG_BACKLIGHT_TI_LM3697)
 extern void lm3697_lcd_backlight_set_level(int level);
 #elif defined(CONFIG_BACKLIGHT_RT8542)
 extern void rt8542_lcd_backlight_set_level(int level);
@@ -62,10 +114,21 @@ extern void rt8542_lcd_backlight_set_level(int level);
 
 #if defined(CONFIG_BACKLIGHT_LM3632)
 extern void lm3632_lcd_backlight_set_level(int level);
+extern int lm3632_lcd_backlight_get_blmap(char *bl_map);
+extern int lm3632_lcd_backlight_get_blmap_size(int *bl_size);
+extern int lm3632_lcd_backlight_set_blmap(int bl_size, char *bl_map);
+
 #endif
 
 #if defined(CONFIG_BACKLIGHT_LM3630)
 extern void lm3630_lcd_backlight_set_level(int level);
+#endif
+
+#if defined(CONFIG_BACKLIGHT_LM3639)
+extern void lm3639_lcd_backlight_set_level(int level);
+extern int lm3639_lcd_backlight_get_blmap(char *bl_map);
+extern int lm3639_lcd_backlight_get_blmap_size(int *bl_size);
+extern int lm3639_lcd_backlight_set_blmap(int bl_size, char *bl_map);
 #endif
 
 #if defined(CONFIG_LGD_INCELL_VIDEO_WVGA_PT_PANEL)
@@ -82,9 +145,76 @@ extern int is_dsv_cont_splash_screening_f;
 extern int has_dsv_f;
 #elif defined (CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
 extern void lm3632_dsv_fd_ctrl(void);
+#if defined(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191)
 extern struct lge_touch_data *ts_data;
 extern struct synaptics_ts_data *syna_ts_data;
+extern bool wakeup_by_swipe;
 extern int print_tci_debug_result(struct synaptics_ts_data *ts, int num);
+#endif
+#ifdef CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL
+extern struct mutex		*mit_thread_lock;
+extern bool wakeup_by_swipe_mit300;
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_PH1
+extern void reset_pin_ctrl(int on_off, int delay);
+#endif
+#ifdef CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4
+extern void MIT300_Reset(int status, int delay);
+extern int mfts_lpwg;
+#endif
+
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_REFERENCE
+extern void mip_reset_ctrl(int on_off, int delay);
+#endif
+#endif
+#endif
+
+#ifdef CONFIG_LGD_DONGBU_INCELL_VIDEO_HD_PANEL
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_PH1
+extern struct mutex		*mit_thread_lock;
+extern bool wakeup_by_swipe_mit300;
+extern void reset_pin_ctrl(int on_off, int delay);
+#endif
+#ifdef CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4
+extern void MIT300_Reset(int status, int delay);
+extern int mfts_lpwg;
+#endif
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_REFERENCE
+extern void mip_reset_ctrl(int on_off, int delay);
+#endif
+#endif
+
+#ifdef CONFIG_LGE_DISPLAY_TUNING
+struct mdss_panel_data *pdata_base;
+#endif
+
+#if defined(CONFIG_MACH_MSM8916_C30_TRF_US) || defined(CONFIG_MACH_MSM8916_C30C_TRF_US)
+static int lcd_id;
+int get_lcd_id(void);
+int get_lcd_id(void)
+{
+	return lcd_id;
+}
+//EXPORT_SYMBOL(get_lcd_id);
+#endif
+
+#if defined(CONFIG_LGD_PH1DONGBU_INCELL_VIDEO_HD_PANEL)
+int lcd_maker_id = 0;	//default DB7400
+int get_display_id(void)
+{
+	return lcd_maker_id;
+}
+#endif
+
+#if defined(CONFIG_LGE_MODULE_DETECT)
+int lge_dual_panel = PRIMARY_MODULE;
+int get_display_id(void)
+{
+	return lge_dual_panel;
+}
+#endif
+
+#if defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL) && defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+extern void TouchResetCtrl( int isHigh );
 #endif
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
@@ -99,8 +229,11 @@ void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
 	}
 	ctrl->pwm_enabled = 0;
 }
-
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+void mdss_dsi_panel_bklt_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int level)
+#else
 static void mdss_dsi_panel_bklt_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int level)
+#endif
 {
 	int ret;
 	u32 duty;
@@ -197,8 +330,14 @@ u32 mdss_dsi_panel_cmd_read(struct mdss_dsi_ctrl_pdata *ctrl, char cmd0,
 	return 0;
 }
 
+#if defined(CONFIG_LGE_DISPLAY_TUNING) || IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
+			struct dsi_panel_cmds *pcmds)
+#else
 static void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 			struct dsi_panel_cmds *pcmds)
+#endif
+
 {
 	struct dcs_cmd_req cmdreq;
 	struct mdss_panel_info *pinfo;
@@ -217,6 +356,8 @@ static void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 	/*Panel ON/Off commands should be sent in DSI Low Power Mode*/
 	if (pcmds->link_state == DSI_LP_MODE)
 		cmdreq.flags  |= CMD_REQ_LP_MODE;
+	else if (pcmds->link_state == DSI_HS_MODE)
+		cmdreq.flags |= CMD_REQ_HS_MODE;
 
 #if defined(CONFIG_LGD_INCELL_VIDEO_FWVGA_PT_PANEL)
 	if (pcmds->link_state == DSI_HS_MODE)
@@ -309,7 +450,7 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 	is_first_request = 1;
 	}
 
-#elif defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#elif defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL) || defined (CONFIG_LGD_DONGBU_INCELL_VIDEO_HD_PANEL) || defined(CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
 // Do nothing
 #elif defined(CONFIG_LGD_INCELL_VIDEO_FWVGA_PT_PANEL)
 	if (is_first_request == 0) {
@@ -323,7 +464,7 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 		}
 		is_first_request = 1;
 	}
-#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL)
+#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL) || defined(CONFIG_JDI_INCELL_VIDEO_FHD_PANEL)
 	;	/* JDI don't request gpio */
 #else
 	if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
@@ -382,13 +523,13 @@ bklt_en_gpio_err:
 		gpio_free(ctrl_pdata->rst_gpio);
 rst_gpio_err:
 	return rc;
-#elif defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#elif defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL) || defined (CONFIG_LGD_DONGBU_INCELL_VIDEO_HD_PANEL) || defined(CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
 mode_gpio_err:
 	if (gpio_is_valid(ctrl_pdata->bklt_en_gpio))
 		gpio_free(ctrl_pdata->bklt_en_gpio);
 bklt_en_gpio_err:
 	return rc;
-#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL)|| defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL)|| defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL) || defined(CONFIG_JDI_INCELL_VIDEO_FHD_PANEL)
 mode_gpio_err:
 	if (gpio_is_valid(ctrl_pdata->bklt_en_gpio))
 		gpio_free(ctrl_pdata->bklt_en_gpio);
@@ -468,6 +609,11 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 #else
 int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 {
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+	if (lge_mdss_dsi.lge_mdss_dsi_panel_reset)
+		return lge_mdss_dsi.lge_mdss_dsi_panel_reset(pdata, enable);
+	else {
+#endif
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_panel_info *pinfo = NULL;
 	int i, rc = 0;
@@ -506,70 +652,341 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 #endif
 #if defined(CONFIG_LGD_INCELL_VIDEO_WVGA_PT_PANEL) || defined(CONFIG_LGD_INCELL_VIDEO_FWVGA_PT_PANEL)
 			//Do nothing
-#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL)
+#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL) || defined(CONFIG_JDI_INCELL_VIDEO_FHD_PANEL)
 			//Do nothing
 			//JDI always DSV on and already on in LK
+#if defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+			if (lge_dual_panel ==  SECONDARY_MODULE) {
+				pr_info("[LCD] Start LCD power down when LCD on\n");
+				if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
+					gpio_set_value((ctrl_pdata->rst_gpio), 0);
+				}
+				TouchResetCtrl(0);
+			}
+#endif
 #elif defined (CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#if defined (CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+			if(lge_dual_panel == SECONDARY_MODULE)
+			{
+				if (mit_thread_lock != NULL)
+					mutex_lock(mit_thread_lock);
+
+				pr_info("[LCD] Start LCD reset pin down when LCD on\n");
+				pr_info("[LCD] wakeup_by_swipe_mit300 = [%d]\n", wakeup_by_swipe_mit300);
+			if (wakeup_by_swipe_mit300== false) {
+				if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
+					gpio_set_value((ctrl_pdata->rst_gpio), 0);
+#ifdef CONFIG_LGE_DISPLAY_POWER_SEQUENCE
+					PANEL_SEQUENCE(DISPLAY_PIN_RESET, 0);
+#endif
+					}
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_PH1
+				reset_pin_ctrl(0, 2);
+#endif
+#ifdef CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4
+				MIT300_Reset(0, 2);
+#endif
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_REFERENCE
+				mip_reset_ctrl(0, 2);
+#endif
+				}
+				usleep(2 * 1000); //min 1ms
+			} else {
+#endif
 #if defined (LGD_INCELL_PHASE3_APPLY_POWER_SEQUENCE)
-			if (syna_ts_data != NULL) {
-				if (atomic_read(&syna_ts_data->state->upgrade_state) != UPGRADE_START) {
-					if (syna_ts_data->lpwg_ctrl.has_debug_module) {
-						print_tci_debug_result(syna_ts_data, 0);
-						print_tci_debug_result(syna_ts_data, 1);
-						pr_info("[Touch] TCI Fail Reason Report when LCD on\n");
+#if defined(CONFIG_LGE_TOUCH_LG4945)
+                pr_info("[Touch] Temporary do nothing\n");
+#else
+			if (ts_data != NULL) {
+				if (syna_ts_data != NULL) {
+					if (atomic_read(&syna_ts_data->state->upgrade_state) != UPGRADE_START) {
+						if (syna_ts_data->lpwg_ctrl.has_debug_module) {
+							print_tci_debug_result(syna_ts_data, 0);
+							print_tci_debug_result(syna_ts_data, 1);
+							pr_info("[Touch] TCI Fail Reason Report when LCD on\n");
+						}
 					}
 				}
+				mutex_lock(&ts_data->pdata->thread_lock);
 			}
-			if (ts_data != NULL)
-			    mutex_lock(&ts_data->thread_lock);
+#endif
+#if defined (TD4191_ESD_INTERRUPT)
+			if (ctrl_pdata->is_detected_esd)
+			{
+				/* msm_dss_enable_vreg(
+					ctrl_pdata->power_data[DSI_PANEL_PM].vreg_config,
+					ctrl_pdata->power_data[DSI_PANEL_PM].num_vreg, 1);
+				if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_3v0_gpio)) {
+					gpio_set_value((ctrl_pdata->disp_lcd_ldo_3v0_gpio), 1);
+				} */
+				lm3632_bl_en_control(1);
+				ctrl_pdata->is_detected_esd = 0;
+			}
+#endif
+#if defined (LM3632_KNOCK_ON_MODE)
+			lm3632_unset_knock_on_mode(); // initialize DSV voltage after exiting Knock on mode.
+#endif
+#if defined (LM3632_UVP_ENABLE)
+			lm3632_UVP_enable(); //LM3632 UVP(under volatage protection) enable.
+#endif
+#if defined(CONFIG_LGE_TOUCH_LG4945)
+                pr_info("[Touch] Temporary do nothing\n");
+#else
+			if (wakeup_by_swipe == false) {
+				pr_info("[LCD] Start LCD power down when LCD on\n");
+				if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
+				    gpio_set_value((ctrl_pdata->rst_gpio), 0);
+#ifdef CONFIG_LGE_DISPLAY_POWER_SEQUENCE
+					PANEL_SEQUENCE(DISPLAY_PIN_RESET, 0);
+#endif
+				}
+				msm_dss_enable_vreg(
+				    ctrl_pdata->power_data[DSI_PANEL_PM].vreg_config,
+				    ctrl_pdata->power_data[DSI_PANEL_PM].num_vreg, 0);
+				if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_3v0_gpio)) {
+				    gpio_set_value((ctrl_pdata->disp_lcd_ldo_3v0_gpio), 0);
+#ifdef CONFIG_LGE_DISPLAY_POWER_SEQUENCE
+					PANEL_SEQUENCE(DISPLAY_PIN_VCI, 0);
+#endif
+				}
+				if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_1v8_gpio)) {
+				    gpio_set_value((ctrl_pdata->disp_lcd_ldo_1v8_gpio), 0);
+#ifdef CONFIG_LGE_DISPLAY_POWER_SEQUENCE
+					PANEL_SEQUENCE(DISPLAY_PIN_VIO, 0);
+#endif
+				}
+				if (gpio_is_valid(ctrl_pdata->disp_dsv_en_gpio)) {
+				    gpio_set_value((ctrl_pdata->disp_dsv_en_gpio), 0);
+#ifdef CONFIG_LGE_DISPLAY_POWER_SEQUENCE
+					PANEL_SEQUENCE(DISPLAY_PIN_DDVDH, 0);
+#endif
+				}
+				lm3632_dsv_output_ctrl(0);
+				//lm3632_dsv_fd_ctrl();
+				pr_info("[LCD] End LCD power down when LCD on\n");
+				usleep(12 * 1000);
+				pr_info("[LCD] Start LCD power up when LCD on\n");
+				msm_dss_enable_vreg(
+					ctrl_pdata->power_data[DSI_PANEL_PM].vreg_config,
+					ctrl_pdata->power_data[DSI_PANEL_PM].num_vreg, 1);
+				if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_3v0_gpio)) {
+					gpio_set_value((ctrl_pdata->disp_lcd_ldo_3v0_gpio), 1);
+#ifdef CONFIG_LGE_DISPLAY_POWER_SEQUENCE
+					PANEL_SEQUENCE(DISPLAY_PIN_VCI, 1);
+#endif
+				}
+				if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_1v8_gpio)) {
+					gpio_set_value((ctrl_pdata->disp_lcd_ldo_1v8_gpio), 1);
+#ifdef CONFIG_LGE_DISPLAY_POWER_SEQUENCE
+					PANEL_SEQUENCE(DISPLAY_PIN_VIO, 1);
+#endif
+				}
+				usleep(10 * 1000);
+				if (gpio_is_valid(ctrl_pdata->disp_dsv_en_gpio)) {
+					gpio_set_value((ctrl_pdata->disp_dsv_en_gpio), 1);
+#ifdef CONFIG_LGE_DISPLAY_POWER_SEQUENCE
+					PANEL_SEQUENCE(DISPLAY_PIN_DDVDH, 1);
+#endif
+				}
+				lm3632_dsv_output_ctrl(1);
+				usleep(6 * 1000);
+				pr_info("[LCD] End LCD power up when LCD on\n");
+			} else {
+				pr_info("[LCD] Skip power control in case of wakeup_by_swipe \n");
+			}
+#endif
+#endif //LGD_INCELL_PHASE3_APPLY_POWER_SEQUENCE
+#if defined (CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+			}
+#endif
+#elif defined (CONFIG_LGD_DONGBU_INCELL_VIDEO_HD_PANEL)
+#if defined (LM3632_KNOCK_ON_MODE)
+			lm3632_unset_knock_on_mode(); // initialize DSV voltage after exiting Knock on mode.
+#endif
+			pr_info("[LCD] Start LCD reset pin down when LCD on\n");
+			if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
+				gpio_set_value((ctrl_pdata->rst_gpio), 0);
+			}
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_PH1
+				reset_pin_ctrl(0, 2);
+#endif
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4)
+			MIT300_Reset(0, 2);
+#endif
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_REFERENCE
+				mip_reset_ctrl(0, 2);
+#endif
+
+#if defined (CONFIG_LGD_PH1DONGBU_INCELL_VIDEO_HD_PANEL)
+			if(lge_get_mfts_mode()){
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4)
+				if (!mfts_lpwg) {
+#endif
+				pr_info("[LCD] Start LCD power up when LCD on\n");
+				msm_dss_enable_vreg(ctrl_pdata->power_data[DSI_PANEL_PM].vreg_config,
+						ctrl_pdata->power_data[DSI_PANEL_PM].num_vreg, 1);
+					pr_info("[LCD] VPNL to high in mfts mode\n");
+
+					if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_1v8_gpio)) {
+					pr_info("[LCD] VDDIO to high in mfts mode\n");
+					gpio_set_value((ctrl_pdata->disp_lcd_ldo_1v8_gpio), 1);
+				}
+					usleep(10 * 1000);
+					pr_info("[LCD] End LCD power up when LCD on\n");
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4)
+				}
+#endif
+			}
+#endif
+#elif defined(CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
 			pr_info("[LCD] Start LCD power down when LCD on\n");
 			if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
-			    gpio_set_value((ctrl_pdata->rst_gpio), 0);
+				gpio_set_value((ctrl_pdata->rst_gpio), 0);
 			}
-			msm_dss_enable_vreg(
-			    ctrl_pdata->power_data[DSI_PANEL_PM].vreg_config,
-			    ctrl_pdata->power_data[DSI_PANEL_PM].num_vreg, 0);
-			if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_3v0_gpio)) {
-			    gpio_set_value((ctrl_pdata->disp_lcd_ldo_3v0_gpio), 0);
+			if (gpio_is_valid(ctrl_pdata->disp_dsv_n_gpio)) {
+				gpio_set_value((ctrl_pdata->disp_dsv_n_gpio), 0);
 			}
-			if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_1v8_gpio)) {
-			    gpio_set_value((ctrl_pdata->disp_lcd_ldo_1v8_gpio), 0);
+			if (gpio_is_valid(ctrl_pdata->disp_dsv_p_gpio)) {
+				gpio_set_value((ctrl_pdata->disp_dsv_p_gpio), 0);
 			}
-			if (gpio_is_valid(ctrl_pdata->disp_dsv_en_gpio)) {
-			    gpio_set_value((ctrl_pdata->disp_dsv_en_gpio), 0);
+			if (lge_get_mfts_mode() && !mfts_lpwg){
+				usleep(5 * 1000);
+				msm_dss_enable_vreg(
+						ctrl_pdata->power_data[DSI_PANEL_PM].vreg_config,
+						ctrl_pdata->power_data[DSI_PANEL_PM].num_vreg, 1);
+				gpio_set_value((919), 1);
+				mdelay(10);
 			}
-			//lm3632_dsv_fd_ctrl();
 			pr_info("[LCD] End LCD power down when LCD on\n");
-			usleep(1 * 1000);
-			pr_info("[LCD] Start LCD power up when LCD on\n");
-			msm_dss_enable_vreg(
-				ctrl_pdata->power_data[DSI_PANEL_PM].vreg_config,
-				ctrl_pdata->power_data[DSI_PANEL_PM].num_vreg, 1);
-			if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_3v0_gpio)) {
-				gpio_set_value((ctrl_pdata->disp_lcd_ldo_3v0_gpio), 1);
-			}
-			if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_1v8_gpio)) {
-				gpio_set_value((ctrl_pdata->disp_lcd_ldo_1v8_gpio), 1);
-			}
-			usleep(10 * 1000);
-			if (gpio_is_valid(ctrl_pdata->disp_dsv_en_gpio)) {
-				gpio_set_value((ctrl_pdata->disp_dsv_en_gpio), 1);
-			}
-			usleep(5 * 1000);
-			pr_info("[LCD] End LCD power up when LCD on\n");
-#endif //LGD_INCELL_PHASE3_APPLY_POWER_SEQUENCE
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4)
+//			if (ts_data != NULL)
+			MIT300_Reset(0, 2);
+#endif
 #else
 			if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
 				gpio_set_value((ctrl_pdata->disp_en_gpio), 1);
 #endif
-			pr_info("[LCD] Start reset control when LCD on\n");
+#if defined (CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#if defined (CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+			if(lge_dual_panel != SECONDARY_MODULE) {
+#endif
+			pr_info("[LCD] Start reset pin high when LCD on\n");
+			for (i = 0; i < pdata->panel_info.rst_seq_len; ++i) {
+				gpio_set_value((ctrl_pdata->rst_gpio),
+					pdata->panel_info.rst_seq[i]);
+#ifdef CONFIG_LGE_DISPLAY_POWER_SEQUENCE
+				PANEL_SEQUENCE(DISPLAY_PIN_RESET, pdata->panel_info.rst_seq[i]);
+#endif
+				if (pdata->panel_info.rst_seq[++i])
+					usleep(pinfo->rst_seq[i] * 1000);
+			}
+#if defined (CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+			}
+#endif
+#else
+			pr_info("[LCD] Start reset pin high when LCD on\n");
 			for (i = 0; i < pdata->panel_info.rst_seq_len; ++i) {
 				gpio_set_value((ctrl_pdata->rst_gpio),
 					pdata->panel_info.rst_seq[i]);
 				if (pdata->panel_info.rst_seq[++i])
 					usleep(pinfo->rst_seq[i] * 1000);
 			}
+#endif
 			pr_info("[LCD] End reset control when LCD on\n");
+
+#if defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL) && defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+			if (lge_dual_panel ==  SECONDARY_MODULE) {
+				TouchResetCtrl(1);
+				mdelay(5);
+			}
+#endif
+#if defined (CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#if defined (CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+			if(lge_dual_panel == SECONDARY_MODULE) {
+		  if (wakeup_by_swipe_mit300 == false) {
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_PH1
+				reset_pin_ctrl(1, 50);
+#endif
+#ifdef CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4
+				MIT300_Reset( 1, 50);
+#endif
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_REFERENCE
+				mip_reset_ctrl(1, 50);
+#endif
+				usleep(2*1000);
+				if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
+					gpio_set_value((ctrl_pdata->rst_gpio), 0);
+					PANEL_SEQUENCE(DISPLAY_PIN_RESET, 0);
+				}
+				usleep(2*1000);
+				if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
+					gpio_set_value((ctrl_pdata->rst_gpio), 1);
+					PANEL_SEQUENCE(DISPLAY_PIN_RESET, 1);
+				}
+				usleep(2*1000);
+				if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
+					gpio_set_value((ctrl_pdata->rst_gpio), 0);
+					PANEL_SEQUENCE(DISPLAY_PIN_RESET, 0);
+				}
+				usleep(2*1000);
+				if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
+					gpio_set_value((ctrl_pdata->rst_gpio), 1);
+					PANEL_SEQUENCE(DISPLAY_PIN_RESET, 1);
+				}
+		  } else {
+			pr_info("[LCD] Skip power control in case of wakeup_by_swipe_mit300 \n");
+		  }
+				usleep(30*1000);
+			}
+
+			pr_info("[LCD] End LCD power up when LCD on\n");
+#endif
+#endif
+
+#if defined (CONFIG_LGD_PH1DONGBU_INCELL_VIDEO_HD_PANEL)
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_PH1
+				reset_pin_ctrl(1, 50);
+#endif
+#ifdef CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4
+				MIT300_Reset(1, 50);
+#endif
+#ifdef CONFIG_TOUCHSCREEN_MELFAS_MIT300_REFERENCE
+				mip_reset_ctrl(1, 50);
+#endif
+#if defined (CONFIG_LGD_PH1DONGBU_INCELL_VIDEO_HD_PANEL)
+			if(lge_get_mfts_mode()){
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4)
+				if (!mfts_lpwg) {
+#endif
+				 lm3632_dsv_output_ctrl(1);
+				 pr_info("[LCD] DSV to high in mfts mode\n");
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4)
+				}
+#endif
+			}
+			pr_info("[LCD] End LCD power up when LCD on\n");
+#endif
+#endif
+
+#if defined(CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4)
+//		if (ts_data != NULL)
+			MIT300_Reset( 1, 50);
+		usleep(3 * 1000);
+#endif
+		if (gpio_is_valid(ctrl_pdata->disp_dsv_n_gpio)) {
+			gpio_set_value((ctrl_pdata->disp_dsv_n_gpio), 1);
+		}
+		if (gpio_is_valid(ctrl_pdata->disp_dsv_p_gpio)) {
+			gpio_set_value((ctrl_pdata->disp_dsv_p_gpio), 1);
+		}
+#if defined (CONFIG_MFD_SM5107)
+		if (sm5107_ctrl(LCD_ON))
+			pr_err("[LCD] SM5107 power on setting fail\n");
+#endif
+		usleep(5 * 1000);
+		pr_info("[LCD] End LCD power up when LCD on\n");
+#endif
 
 			if (gpio_is_valid(ctrl_pdata->bklt_en_gpio))
 				gpio_set_value((ctrl_pdata->bklt_en_gpio), 1);
@@ -596,6 +1013,7 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 		if (gpio_is_valid(ctrl_pdata->disp_dsv_en_gpio)) {
 			gpio_set_value((ctrl_pdata->disp_dsv_en_gpio), 0);
 		}
+		lm3632_dsv_output_ctrl(0);
 		lm3632_dsv_fd_ctrl();
 		if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_3v0_gpio)) {
 			gpio_set_value((ctrl_pdata->disp_lcd_ldo_3v0_gpio), 0);
@@ -611,9 +1029,9 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 		}
 #if defined(CONFIG_LGD_INCELL_VIDEO_WVGA_PT_PANEL) || defined(CONFIG_LGD_INCELL_VIDEO_FWVGA_PT_PANEL)
 		//do nothing
-#elif defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#elif defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL) || defined (CONFIG_LGD_DONGBU_INCELL_VIDEO_HD_PANEL) || defined(CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
 		//do nothing
-#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL)
+#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL) || defined(CONFIG_JDI_INCELL_VIDEO_FHD_PANEL)
 		/* do nothing */
 #else	//qct org
 		if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
@@ -634,6 +1052,9 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			gpio_free(ctrl_pdata->mode_gpio);
 	}
 	return rc;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+	}
+#endif
 }
 #endif
 
@@ -839,7 +1260,7 @@ int e7ii_panel_power(struct mdss_panel_data *pdata, int enable)
 
 #endif
 
-#if defined(CONFIG_DSV_DW8768)
+#if defined(CONFIG_MFD_DW8768)
 int DSV_DW8768_CTRL(struct mdss_panel_data *pdata, int enable)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
@@ -856,7 +1277,7 @@ int DSV_DW8768_CTRL(struct mdss_panel_data *pdata, int enable)
 		gpio_set_value((ctrl_pdata->disp_dsv_n_gpio), 1); //DSV ENN
 		pr_info("%s:DSV_CTRL ON \n",__func__);
 	} else {
-		gpio_set_value(ctrl_pdata->disp_dsv_p_gpio, 0);
+		gpio_set_value(ctrl_pdata->disp_dsv_p_gpio, 0);// do we need it??if ENM is low, VNEG/VPOS are turned off.
 		gpio_set_value((ctrl_pdata->disp_dsv_n_gpio), 0);
 		pr_info("%s:DSV_CTRL OFF \n",__func__);
 	}
@@ -881,6 +1302,7 @@ int EXT_VDD_LDO_CTRL(struct mdss_panel_data *pdata, int enable)
 		gpio_set_value((ctrl_pdata->disp_ext_vdd_gpio), 1);
 		pr_info("%s:EXT_VDD_CTRL ON \n",__func__);
 	} else {
+		mdelay(12);
 		gpio_set_value((ctrl_pdata->disp_ext_vdd_gpio), 0);
 		pr_info("%s:EXT_VDD_CTRL OFF \n",__func__);
 	}
@@ -888,6 +1310,38 @@ int EXT_VDD_LDO_CTRL(struct mdss_panel_data *pdata, int enable)
 	return 0;
 }
 #endif
+
+#if defined(CONFIG_LCD_VDD_VDDIO_EXT_LDO)
+int EXT_VDD_VDDIO_LDO_CTRL(struct mdss_panel_data *pdata, int enable)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+
+	if (pdata == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
+
+	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+	if (enable) {
+		gpio_set_value((ctrl_pdata->disp_ext_vdd_gpio), 1);
+		pr_info("%s:EXT_VDD_CTRL ON \n",__func__);
+		mdelay(1); //jdi_incell_hd requests min 5.5us
+		gpio_set_value((ctrl_pdata->disp_ext_vddio_gpio), 1);
+		pr_info("%s:EXT_VDDIO_CTRL ON \n",__func__);
+		mdelay(2);//jdi_incell_hd requests min 1ms
+	} else {
+		mdelay(11);//jdi_incell_hd requests min 10ms
+		gpio_set_value((ctrl_pdata->disp_ext_vddio_gpio), 0);
+		pr_info("%s:EXT_VDDIO_CTRL OFF \n",__func__);
+		mdelay(1); //jdi_incell_hd requests min 5.5us
+		gpio_set_value((ctrl_pdata->disp_ext_vdd_gpio), 0);
+		pr_info("%s:EXT_VDD_CTRL OFF \n",__func__);
+	}
+	return 0;
+}
+#endif
+
 
 
 #if defined(CONFIG_LGD_INCELL_VIDEO_WVGA_PT_PANEL)
@@ -960,68 +1414,135 @@ void mdss_dsv_ctl(int mdss_dsv_en){
 }
 #endif
 
-#if defined(CONFIG_LGE_LCD_TUNING)
-int find_lcd_cmd(void)
+
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+void mdss_lcd_dsv_control(int enable)
 {
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-	int i,j;
-	char cmd[128]={0, };
-	memset(read_cmd,0,128*sizeof(char));
-	pr_info("reg_num=%x",reg_num);
-	if(pdata_base == NULL) {
+#if defined (TD4191_ESD_INTERRUPT)
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+	struct mdss_panel_info *pinfo;
+
+	if(pdata_lut_update == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
+		return;
 	}
 
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-	for(i=0;i<ctrl->on_cmds.cmd_cnt;i++)
-	{
-		pr_info("%s:cmd_cnt(find_lcd_cmd)[%d]=%x",__func__,i,ctrl->on_cmds.cmds[i].payload[0]);
-		if(ctrl->on_cmds.cmds[i].payload[0]==reg_num)
-		{
-			for(j=0;j<ctrl->on_cmds.cmds[i].dchdr.dlen;j++)
-			{
-				cmd[j] = ctrl->on_cmds.cmds[i].payload[j];
-			}
-			memcpy(read_cmd,cmd,128*sizeof(char));
-			cmd_num=ctrl->on_cmds.cmds[i].dchdr.dlen;
-			return cmd_num;
+	ctrl_pdata =  container_of(pdata_lut_update, struct mdss_dsi_ctrl_pdata,
+					panel_data);
+	pinfo = &ctrl_pdata->panel_data.panel_info;
+
+	if(ctrl_pdata == NULL) {
+		pr_err("%s : ctrl_pdata is NULL \n", __func__);
+		return;
+	}
+
+	if(pinfo->blank_state == MDSS_PANEL_BLANK_BLANK) {
+		pr_err("%s : Panel is in BLANK state, pinfo->blank_state = %d \n", __func__, pinfo->blank_state);
+		return;
+	}
+
+	if (ctrl_pdata->is_available_esd_recovery == 1){
+		ctrl_pdata->is_available_esd_recovery = 0;
+		pr_err("%s : ESD detection. is_available_esd_recovery = %d \n", __func__, ctrl_pdata->is_available_esd_recovery);
+	}
+	else {
+		pr_err("%s : ESD detection. but ESD Recovery is already Done. is_available_esd_recovery = %d \n", __func__, ctrl_pdata->is_available_esd_recovery);
+		return;
+	}
+
+	if (enable == 0) {
+		pr_err("%s: DSV Off\n", __func__);
+		if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
+		    gpio_set_value((ctrl_pdata->rst_gpio), 0);
 		}
-	}
-	return 0;
-}
-void put_lcd_cmd(void)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-	int i,j;
-	pr_info("reg_num=%x",reg_num);
-	if(pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-	}
-
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-	if(ctrl == NULL) {
-		pr_err("%s : ctrl value is Null\n", __func__);
-	} else {
-		for(i=0;i<ctrl->on_cmds.cmd_cnt;i++)
-		{
-			pr_info("%s:cmd_cnt[%d]=%x",__func__,i,ctrl->on_cmds.cmds[i].payload[0]);
-			if(ctrl->on_cmds.cmds[i].payload[0]==reg_num)
-			{
-				for(j=1;j<ctrl->on_cmds.cmds[i].dchdr.dlen;j++)
-				{
-					ctrl->on_cmds.cmds[i].payload[j]=tun_lcd[j];
-					pr_info("%s: cmds[%d].payload[%d]: %x",__func__,i,j,ctrl->on_cmds.cmds[i].payload[j]);
-				}
-				mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
-			}
+		ctrl_pdata->is_detected_esd = 1;
+		/* msm_dss_enable_vreg(
+		    ctrl_pdata->power_data[DSI_PANEL_PM].vreg_config,
+		    ctrl_pdata->power_data[DSI_PANEL_PM].num_vreg, 0);
+		if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_3v0_gpio)) {
+		    gpio_set_value((ctrl_pdata->disp_lcd_ldo_3v0_gpio), 0);
+		} */
+		if (gpio_is_valid(ctrl_pdata->disp_lcd_ldo_1v8_gpio)) {
+		    gpio_set_value((ctrl_pdata->disp_lcd_ldo_1v8_gpio), 0);
 		}
+		if (gpio_is_valid(ctrl_pdata->disp_dsv_en_gpio)) {
+			gpio_set_value((ctrl_pdata->disp_dsv_en_gpio), 0);
+		}
+		lm3632_dsv_output_ctrl(0);
+		lm3632_bl_en_control(0);
 	}
-}
-
+	else {
+		pr_err("%s: Invalid control \n", __func__);
+	}
+#else
+//	pr_err("%s : ESD detection. But, ESD Interrupt mode is disabled! \n", __func__);
 #endif
+}
+
+void mdss_lcd_lut_update(void)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+	struct mdss_panel_info *pinfo;
+
+	if(pdata_lut_update == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return;
+	}
+
+	ctrl_pdata =  container_of(pdata_lut_update, struct mdss_dsi_ctrl_pdata,
+					panel_data);
+	pinfo = &ctrl_pdata->panel_data.panel_info;
+
+	if(ctrl_pdata == NULL) {
+		pr_err("%s : ctrl_pdata is NULL \n", __func__);
+		return;
+	}
+
+	ctrl_pdata->do_lut_update = true;
+}
+
+void mdss_lcd_do_lut_update(void)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+	struct mdss_panel_info *pinfo;
+	int i = 0;
+
+	if(pdata_lut_update == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return;
+	}
+
+	ctrl_pdata =  container_of(pdata_lut_update, struct mdss_dsi_ctrl_pdata,
+					panel_data);
+	pinfo = &ctrl_pdata->panel_data.panel_info;
+
+	if(ctrl_pdata == NULL) {
+		pr_err("%s : ctrl_pdata is NULL \n", __func__);
+		return;
+	}
+	if (ctrl_pdata->do_lut_update == false)
+		return;
+	if(&ctrl_pdata->lut_update_cmds == NULL) {
+		pr_err("%s : ctrl_pdata->lut_update_cmds is NULL \n", __func__);
+		return;
+	}
+	if(pinfo->blank_state == MDSS_PANEL_BLANK_BLANK) {
+		pr_err("%s : Panel is in BLANK state, pinfo->blank_state = %d \n", __func__, pinfo->blank_state);
+		return;
+	}
+
+	for (i=0;i<5;i++)
+	{
+		usleep(1 * 1000);
+		pr_info("%s : LCD DCS TX : lut_update i=[%d]\n", __func__, i);
+		mdss_dsi_panel_cmds_send(ctrl_pdata, &ctrl_pdata->lut_update_cmds);
+	}
+	ctrl_pdata->do_lut_update = false;
+
+	return;
+}
+#endif
+
 static void mdss_dsi_panel_switch_mode(struct mdss_panel_data *pdata,
 							int mode)
 {
@@ -1062,10 +1583,10 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 		pr_err("%s: Invalid input data\n", __func__);
 		return;
 	}
-
-#if defined(CONFIG_LGE_LCD_TUNING)
-	pdata_base=pdata;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	pdata_base = pdata;
 #endif
+
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
@@ -1078,9 +1599,14 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 	if ((bl_level < pdata->panel_info.bl_min) && (bl_level != 0))
 		bl_level = pdata->panel_info.bl_min;
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+	if (lge_mdss_dsi.lge_mdss_dsi_panel_bl_ctrl) {
+		lge_mdss_dsi.lge_mdss_dsi_panel_bl_ctrl(pdata, bl_level);
+	} else {
+#endif
 	switch (ctrl_pdata->bklt_ctrl) {
 	case BL_WLED:
-#if defined(CONFIG_BACKLIGHT_LM3697)
+#if defined(CONFIG_BACKLIGHT_LM3697) || defined(CONFIG_BACKLIGHT_TI_LM3697)
 		lm3697_lcd_backlight_set_level(bl_level);
 #elif defined(CONFIG_BACKLIGHT_RT8542)
 		rt8542_lcd_backlight_set_level(bl_level);
@@ -1088,6 +1614,8 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 		lm3632_lcd_backlight_set_level(bl_level);
 #elif defined(CONFIG_BACKLIGHT_LM3630)
 		lm3630_lcd_backlight_set_level(bl_level);
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		lm3639_lcd_backlight_set_level(bl_level);
 #else
 		led_trigger_event(bl_led_trigger, bl_level);
 #endif
@@ -1125,6 +1653,10 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 		break;
 	}
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+	}
+#endif
+
 #ifdef CONFIG_LGE_PM_PWR_KEY_FOR_CHG_LOGO
 	if(lge_get_boot_mode() == LGE_BOOT_MODE_CHARGERLOGO && bl_level == 0)
 	{
@@ -1148,16 +1680,51 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	}
 
 	pinfo = &pdata->panel_info;
+#ifdef CONFIG_LGE_DISPLAY_TUNING
+	pdata_base = pdata;
+#endif
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
-	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+	pr_info("%s: + ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+
+	if (pinfo->dcs_cmd_by_left) {
+		if (ctrl->ndx != DSI_CTRL_LEFT)
+			goto end;
+	}
+
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	if (pinfo->lge_pan_info.lge_panel_send_on_cmd == false) {
+		pr_info("%s: skip panel  on cmd, ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+		goto end;
+	}
+#endif
 
 #if defined(CONFIG_LGD_INCELL_VIDEO_WVGA_PT_PANEL) || defined(CONFIG_LGD_INCELL_VIDEO_FWVGA_PT_PANEL)
 	pr_info("[LCD] %s: INCELL_PANEL", __func__);
-	if (/*!is_dsv_cont_splash_screening_f && */ctrl->on_cmds.cmd_cnt) //          
+	if (/*!is_dsv_cont_splash_screening_f && */ctrl->on_cmds.cmd_cnt) //LGE Change
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
 #elif defined (CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#if defined (CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+	if (lge_dual_panel == SECONDARY_MODULE)
+	{
+		msleep(30);//min 20ms (OTP auto read)
+	if (wakeup_by_swipe_mit300 == false) {
+		pr_info("[LCD] Start send on command\n");
+		if (ctrl->on_cmds.cmd_cnt)
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
+		pr_info("[LCD] End send on command\n");
+	} else {
+		pr_info("[LCD] Start send on command for GlanceView\n");
+		if (ctrl->on_cmds_for_glanceview.cmd_cnt)
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds_for_glanceview);
+		pr_info("[LCD] End send on command for GlanceView\n");
+		wakeup_by_swipe_mit300 = false;
+	}
+		if ((mit_thread_lock != NULL) && mutex_is_locked(mit_thread_lock))
+			mutex_unlock(mit_thread_lock);
+	} else {
+#endif
 #if defined (LGD_INCELL_PHASE3_APPLY_POWER_SEQUENCE)
 	msleep(150);
 #endif //LGD_INCELL_PHASE3_APPLY_POWER_SEQUENCE
@@ -1165,15 +1732,37 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	if (ctrl->on_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
 	pr_info("[LCD] End send on command\n");
-	if ((ts_data != NULL) && mutex_is_locked(&ts_data->thread_lock))
-		mutex_unlock(&ts_data->thread_lock);
+	ctrl->is_available_esd_recovery = 1;
+#if defined (LGD_INCELL_PHASE3_APPLY_POWER_SEQUENCE)
+#if defined (CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191)
+	if ((ts_data != NULL) && mutex_is_locked(&ts_data->pdata->thread_lock))
+		mutex_unlock(&ts_data->pdata->thread_lock);
+#endif
+#endif //LGD_INCELL_PHASE3_APPLY_POWER_SEQUENCE
+#if defined (CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+	}
+#endif
+#elif defined (CONFIG_LGD_DONGBU_INCELL_VIDEO_HD_PANEL) || defined(CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
+	msleep(30);//min 20ms (OTP auto read)
+	pr_info("[LCD] Start send on command\n");
+	if (ctrl->on_cmds.cmd_cnt)
+		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
+	pr_info("[LCD] End send on command\n");
+#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL) && defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+	pr_info("[LCD] Start send on command\n");
+	if (lge_dual_panel ==  SECONDARY_MODULE)
+		mdelay(30);
+	if (ctrl->on_cmds.cmd_cnt)
+		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
+	pr_info("[LCD] End send on command\n");
 #else
+    mdelay(100);
 	pr_info("[LCD] send on command\n");
 	if (ctrl->on_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
 #endif
 #if defined(CONFIG_LGD_LD083_VIDEO_WUXGA_PT_PANEL)
-	mdelay(200);
+	mdelay(150);
 	pr_info("%s:(Backlight) Enable \n", __func__);
 	if (gpio_is_valid(ctrl->bklt_en_gpio))
 	{
@@ -1211,7 +1800,49 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	}
 #endif
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+	if (lge_mdss_dsi.post_mdss_dsi_panel_on)
+		lge_mdss_dsi.post_mdss_dsi_panel_on(pdata);
+#endif
+
+end:
 	pinfo->blank_state = MDSS_PANEL_BLANK_UNBLANK;
+	pr_info("%s: -\n", __func__);
+	return 0;
+}
+
+static int mdss_dsi_post_panel_on(struct mdss_panel_data *pdata)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+	struct mdss_panel_info *pinfo;
+	struct dsi_panel_cmds *on_cmds;
+
+	if (pdata == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
+
+	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+
+	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+
+	pinfo = &pdata->panel_info;
+	if (pinfo->dcs_cmd_by_left) {
+		if (ctrl->ndx != DSI_CTRL_LEFT)
+			goto end;
+	}
+
+	on_cmds = &ctrl->post_panel_on_cmds;
+
+	pr_debug("%s: ctrl=%p cmd_cnt=%d\n", __func__, ctrl, on_cmds->cmd_cnt);
+
+	if (on_cmds->cmd_cnt) {
+		msleep(50);	/* wait for 3 vsync passed */
+		mdss_dsi_panel_cmds_send(ctrl, on_cmds);
+	}
+
+end:
 	pr_debug("%s:-\n", __func__);
 	return 0;
 }
@@ -1234,16 +1865,146 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
-	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+	pr_info("%s: + ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
 	if (pinfo->dcs_cmd_by_left) {
 		if (ctrl->ndx != DSI_CTRL_LEFT)
 			goto end;
 	}
 
-	if (ctrl->off_cmds.cmd_cnt)
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	if (pinfo->lge_pan_info.lge_panel_send_off_cmd == false) {
+		pr_debug("%s: skip panel off cmd, ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+		lge_lg4945_panel_mode_cmd_send(pinfo->lge_pan_info.switch_mode, NULL);
+		goto end;
+	}
+#endif
+
+	if (ctrl->off_cmds.cmd_cnt) {
+#if defined(CONFIG_BACKLIGHT_RT8542)
+		if (lge_get_boot_mode() == LGE_BOOT_MODE_CHARGERLOGO) {
+			rt8542_lcd_backlight_set_level(0);
+		}
+#endif
+#if defined (CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#if defined (CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+		if (lge_dual_panel == SECONDARY_MODULE)
+		{
+			if (mit_thread_lock != NULL)
+				mutex_lock(mit_thread_lock);
+			pr_info("[LCD] send off command\n");
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds);
+			if ((mit_thread_lock != NULL) && mutex_is_locked(mit_thread_lock))
+				mutex_unlock(mit_thread_lock);
+#if defined (LM3632_KNOCK_ON_MODE)
+			lm3632_set_knock_on_mode(); //change DSV voltage when Knock on mode for power consumption.
+#elif defined(CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
+		if (sm5107_ctrl(LCD_OFF_TOGGLE))
+			pr_err("[LCD] SM5107 Knock on mode setting fail\n");
+#endif
+			mdelay(140);//min 120
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds_extra);
+		} else {
+#endif
+#if defined (CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191)
+		if (ts_data != NULL) {
+			mutex_lock(&ts_data->pdata->thread_lock);
+		}
+#endif
 		pr_info("[LCD] send off command\n");
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds);
+#if defined (CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191)
+	        if ((ts_data != NULL) && mutex_is_locked(&ts_data->pdata->thread_lock))
+		        mutex_unlock(&ts_data->pdata->thread_lock);
+#endif
+#if defined (CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+		}
+#endif
+#elif defined(CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
+		pr_info("[LCD] send off command\n");
+		mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds);
+
+#if defined (CONFIG_MFD_SM5107)
+		if (sm5107_ctrl(LCD_OFF_TOGGLE))
+			pr_err("[LCD] SM5107 Knock on mode setting fail\n");
+#endif
+		mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds_extra);
+		if(lge_get_mfts_mode() && !mfts_lpwg){
+			if (gpio_is_valid(ctrl->disp_dsv_n_gpio)){
+				   pr_info("[LCD] dsv_n to low\n");
+				   gpio_set_value((ctrl->disp_dsv_n_gpio), 0);
+			}
+			if (gpio_is_valid(ctrl->disp_dsv_p_gpio)){
+				   pr_info("[LCD] dsv_p to low\n");
+				   gpio_set_value((ctrl->disp_dsv_p_gpio), 0);
+			}
+
+			if (gpio_is_valid(ctrl->rst_gpio)) {
+				   pr_info("[LCD] LCD reset to low\n");
+				   gpio_set_value((ctrl->rst_gpio), 0);
+			}
+			MIT300_Reset(0, 2);
+			pr_info("[LCD] LCD power source to low\n");
+			msm_dss_enable_vreg(
+				   ctrl->power_data[DSI_PANEL_PM].vreg_config,
+				   ctrl->power_data[DSI_PANEL_PM].num_vreg, 0);
+			gpio_set_value((919), 0);
+			mdelay(10);
+		}
+#elif defined (CONFIG_LGD_DONGBU_INCELL_VIDEO_HD_PANEL)
+		pr_info("[LCD] send off command\n");
+		mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds);
+#if defined (LM3632_KNOCK_ON_MODE)
+		lm3632_set_knock_on_mode(); //change DSV voltage when Knock on mode for power consumption.
+#endif
+#if !defined (CONFIG_LGD_PH1DONGBU_INCELL_VIDEO_HD_PANEL)
+		mdelay(140);//min 120
+#endif
+		mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds_extra);
+#if defined (CONFIG_LGD_PH1DONGBU_INCELL_VIDEO_HD_PANEL)
+		if(lge_get_mfts_mode()){
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4)
+			if (!mfts_lpwg) {
+#endif
+
+			lm3632_dsv_output_ctrl(0);
+			pr_info("[LCD] DSV to low in mfts mode\n");
+			mdelay(2);
+			if (gpio_is_valid(ctrl->rst_gpio)) {
+				pr_info("[LCD] reset to low in mfts mode\n");
+				gpio_set_value((ctrl->rst_gpio), 0);
+			}
+			mdelay(1);
+			if (gpio_is_valid(ctrl->disp_lcd_ldo_1v8_gpio)) {
+				pr_info("[LCD] VDDIO to low in mfts mode\n");
+				gpio_set_value((ctrl->disp_lcd_ldo_1v8_gpio), 0);
+			}
+			mdelay(5);
+			msm_dss_enable_vreg(
+					ctrl->power_data[DSI_PANEL_PM].vreg_config,
+					ctrl->power_data[DSI_PANEL_PM].num_vreg, 0);
+			pr_info("[LCD] VPNL to low in mfts mode\n");
+#if defined(CONFIG_TOUCHSCREEN_UNIFIED_DRIVER4)
+			}
+#endif
+		 }
+#endif
+
+#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL) && defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+		pr_info("[LCD] send off command\n");
+		if (lge_dual_panel == PRIMARY_MODULE) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds);
+		}
+		else if (lge_dual_panel == SECONDARY_MODULE) {
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds);
+			mdelay(120);
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds_extra);
+		}
+#else
+		pr_info("[LCD] send off command\n");
+		mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds);
+#endif
+        }
 #if defined(CONFIG_LGD_INCELL_VIDEO_WVGA_PT_PANEL)
 	if (/*!is_dsv_cont_splash_screening_f && */gpio_is_valid(ctrl->disp_en_gpio)){
 		if (gpio_is_valid(ctrl->disp_en_gpio)) {
@@ -1265,6 +2026,13 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 	}
 #endif
 
+#if defined (CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+	ctrl->is_available_esd_recovery = 0;
+#if defined (LM3632_KNOCK_ON_MODE)
+	lm3632_set_knock_on_mode(); //change DSV voltage when Knock on mode for power consumption.
+#endif
+#endif
+
 #if defined(CONFIG_LGD_INCELL_VIDEO_FWVGA_PT_PANEL)
 	ret = lm3632_dsv_ctrl(0);
 	if(ret){
@@ -1280,9 +2048,14 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
     pr_err("%s : dsv_control is available after this time. is_available_dsv_control = [%d]\n", __func__, is_available_dsv_control);
 #endif
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+	if (lge_mdss_dsi.post_mdss_dsi_panel_off)
+		lge_mdss_dsi.post_mdss_dsi_panel_off(pdata);
+#endif
+
 end:
 	pinfo->blank_state = MDSS_PANEL_BLANK_BLANK;
-	pr_debug("%s:-\n", __func__);
+	pr_info("%s: -\n", __func__);
 	return 0;
 }
 
@@ -1357,9 +2130,13 @@ static void mdss_dsi_parse_trigger(struct device_node *np, char *trigger,
 	}
 }
 
-
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+int mdss_dsi_parse_dcs_cmds(struct device_node *np,
+		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key)
+#else
 static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
 		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key)
+#endif
 {
 	const char *data;
 	int blen = 0, len;
@@ -1925,6 +2702,12 @@ static void mdss_dsi_parse_dfps_config(struct device_node *pan_node,
 	return;
 }
 
+void mdss_dsi_unregister_bl_settings(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+{
+	if (ctrl_pdata->bklt_ctrl == BL_WLED)
+		led_trigger_unregister_simple(bl_led_trigger);
+}
+
 static int mdss_panel_parse_dt(struct device_node *np,
 			struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
@@ -1949,6 +2732,43 @@ static int mdss_panel_parse_dt(struct device_node *np,
 		return -EINVAL;
 	}
 	pinfo->yres = (!rc ? tmp : 480);
+
+#if defined(CONFIG_MACH_MSM8916_C30_TRF_US) || defined(CONFIG_MACH_MSM8916_C30C_TRF_US)
+	pr_err("%s:%d, lge,lcd-maker-id\n", __func__, __LINE__);
+	rc = of_property_read_u32(np, "lge,lcd-maker-id", &tmp);
+	pr_err("%s:%d, rc : %d\n", __func__, __LINE__, rc);
+	lcd_id = tmp;
+	pr_err("%s:%d, lcd_id : %d\n", __func__, __LINE__, lcd_id);
+#endif
+
+#if defined(CONFIG_LGD_PH1DONGBU_INCELL_VIDEO_HD_PANEL)
+	{
+		u32 temp;
+		rc = of_property_read_u32(np, "lge,display_id", &temp);
+		if (rc) {
+			pr_err("%s: unable to get display_id %d", __func__, rc);
+			return rc;
+		}
+		lcd_maker_id = temp;
+		pr_err("%s:%d, display ID = [ %d ] \n", __func__, __LINE__, lcd_maker_id);
+	}
+#endif
+
+#if defined(CONFIG_LGE_MODULE_DETECT)
+	{
+		u32 temp;
+		rc = of_property_read_u32(np, "lge,display_id", &temp);
+		if(rc) {
+			pr_err("%s: unable to get display_id %d", __func__, rc);
+			return rc;
+		}
+		pr_info("display_id = %d\n", temp);
+		pinfo->display_id = temp;
+		lge_dual_panel = temp;
+		pr_err("%s:%d, display ID = [ %d ] \n",
+				__func__, __LINE__, lge_dual_panel);
+	}
+#endif
 
 	rc = of_property_read_u32(np,
 		"qcom,mdss-pan-physical-width-dimension", &tmp);
@@ -2043,7 +2863,6 @@ static int mdss_panel_parse_dt(struct device_node *np,
 		else if (!strcmp(data, "vflip"))
 			pinfo->panel_orientation = MDP_FLIP_UD;
 	}
-
 	ctrl_pdata->bklt_ctrl = UNKNOWN_CTRL;
 	data = of_get_property(np, "qcom,mdss-dsi-bl-pmic-control-type", NULL);
 	if (data) {
@@ -2102,7 +2921,12 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-bl-max-level", &tmp);
 	pinfo->bl_max = (!rc ? tmp : 255);
 	ctrl_pdata->bklt_max = pinfo->bl_max;
-
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+	if (lge_mdss_dsi.lge_mdss_panel_parse_dt)
+		rc = lge_mdss_dsi.lge_mdss_panel_parse_dt(np, ctrl_pdata);
+	if(rc)
+		goto error;
+#endif
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-interleave-mode", &tmp);
 	pinfo->mipi.interleave_mode = (!rc ? tmp : 0);
 
@@ -2217,6 +3041,9 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-init-delay-us", &tmp);
 	pinfo->mipi.init_delay = (!rc ? tmp : 0);
 
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-post-init-delay", &tmp);
+	pinfo->mipi.post_init_delay = (!rc ? tmp : 0);
+
 	mdss_dsi_parse_roi_alignment(np, pinfo);
 
 	mdss_dsi_parse_trigger(np, &(pinfo->mipi.mdp_trigger),
@@ -2234,13 +3061,110 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	mdss_dsi_parse_reset_seq(np, pinfo->rst_seq, &(pinfo->rst_seq_len),
 		"qcom,mdss-dsi-reset-sequence");
 
+#if defined(CONFIG_MACH_MSM8916_C100N_KR)
+	if (lge_get_board_revno() >= HW_REV_1_1){
+		pr_info("%s: Upper Rev.1.1, we apply new init code\n",
+			__func__);
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
+			"qcom,mdss-dsi-on-command-rev-1-1", "qcom,mdss-dsi-on-command-state");
+	}
+	else if (lge_get_board_revno() >= HW_REV_C){
+		pr_info("%s: Upper Rev.c, we don't control LCD VCOM set\n",
+			__func__);
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
+			"qcom,mdss-dsi-on-command-rev-c", "qcom,mdss-dsi-on-command-state");
+	}
+	else {
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
+			"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
+	}
+#elif defined(CONFIG_LGE_DIC_TRIPLE_DETECT)
+	if(lcd_maker_id == 0){								//DB7400
+		if(pinfo->db7400_cut == DB7400_CUT5) {
+			pr_err("%s: [LCD] DB7400 CUT 5 init code\n", __func__);
+			mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
+					"qcom,mdss-dsi-on-command-cut5", "qcom,mdss-dsi-on-command-state");
+			mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
+					"qcom,mdss-dsi-off-command1-cut5", "qcom,mdss-dsi-off-command-state");
+			mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds_extra,
+					"qcom,mdss-dsi-off-command2-cut5", "qcom,mdss-dsi-off-command-state");
+		}else if(pinfo->db7400_cut == DB7400_CUT6) {	//default CUT6
+			pr_err("%s: [LCD] DB7400 CUT 6 init code\n", __func__);
+			mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
+					"qcom,mdss-dsi-on-command-cut6", "qcom,mdss-dsi-on-command-state");
+			mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
+					"qcom,mdss-dsi-off-command1-cut6", "qcom,mdss-dsi-off-command-state");
+			mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds_extra,
+					"qcom,mdss-dsi-off-command2-cut6", "qcom,mdss-dsi-off-command-state");
+		}else { 				                        //default CUT7
+			pr_err("%s: [LCD] DB7400 CUT 7 init code\n", __func__);
+			mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
+					"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
+			mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
+					"qcom,mdss-dsi-off-command1", "qcom,mdss-dsi-off-command-state");
+			mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds_extra,
+					"qcom,mdss-dsi-off-command2", "qcom,mdss-dsi-off-command-state");
+		}
+	}else{												//LG4894
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
+				"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
+				"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
+	}
+#else
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
 		"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
+#endif
 
+#if defined(CONFIG_LGD_DONGBU_INCELL_VIDEO_HD_PANEL) || defined(CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
+#if !defined(CONFIG_LGE_DIC_TRIPLE_DETECT)
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
+		"qcom,mdss-dsi-off-command1", "qcom,mdss-dsi-off-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds_extra,
+		"qcom,mdss-dsi-off-command2", "qcom,mdss-dsi-off-command-state");
+#endif
+#elif defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#if defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+	if (lge_dual_panel == SECONDARY_MODULE) {
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds_for_glanceview,
+		"qcom,mdss-dsi-on-command-for-glanceview", "qcom,mdss-dsi-on-command-state");
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
+				"qcom,mdss-dsi-off-command1", "qcom,mdss-dsi-off-command-state");
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds_extra,
+				"qcom,mdss-dsi-off-command2", "qcom,mdss-dsi-off-command-state");
+	} else {
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
+				"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
+	}
+#else
+#if !defined(CONFIG_LGD_PH1DONGBU_INCELL_VIDEO_HD_PANEL)
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
 		"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
+#endif
+#endif
+#elif defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL) && defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+	if (lge_dual_panel == SECONDARY_MODULE) {
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
+				"qcom,mdss-dsi-off-command1", "qcom,mdss-dsi-off-command-state");
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds_extra,
+				"qcom,mdss-dsi-off-command2", "qcom,mdss-dsi-off-command-state");
+	} else {
+		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
+				"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
+	}
+#else
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
+		"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
+#endif
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->post_panel_on_cmds,
+		"qcom,mdss-dsi-post-panel-on-command", NULL);
 
 #if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->lut_update_cmds,
+		"qcom,mdss-dsi-lut-update-command", "qcom,mdss-dsi-lut-update-command-state");
+#endif
+#if defined (CONFIG_LGD_M2DONGBU_INCELL_VIDEO_HD_PANEL)
 	pinfo->mipi.force_clk_lane_hs =
 	                           of_property_read_bool(np, "qcom,mdss-force-hs-clk-always");
 #endif
@@ -2280,6 +3204,12 @@ static int mdss_panel_parse_dt(struct device_node *np,
 				pr_err("TE-ESD not valid for video mode\n");
 		}
 	}
+
+	pinfo->mipi.force_clk_lane_hs = of_property_read_bool(np,
+		"qcom,mdss-dsi-force-clock-lane-hs");
+
+	pinfo->mipi.always_on = of_property_read_bool(np,
+		"qcom,mdss-dsi-always-on");
 
 	rc = mdss_dsi_parse_panel_features(np, ctrl_pdata);
 	if (rc) {
@@ -2321,6 +3251,13 @@ int mdss_dsi_panel_init(struct device_node *node,
 	} else {
 		pr_info("%s: Panel Name = %s\n", __func__, panel_name);
 		strlcpy(&pinfo->panel_name[0], panel_name, MDSS_MAX_PANEL_LEN);
+#if defined(CONFIG_LGE_DIC_TRIPLE_DETECT)
+		pinfo->db7400_cut= lge_get_db7400_cut();
+#endif
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_CODE_REFACTORING)
+		if (lge_mdss_dsi.lge_mdss_dsi_panel_init)
+			rc = lge_mdss_dsi.lge_mdss_dsi_panel_init(node,ctrl_pdata,cmd_cfg_cont_splash);
+#endif
 	}
 	rc = mdss_panel_parse_dt(node, ctrl_pdata);
 	if (rc) {
@@ -2335,12 +3272,24 @@ int mdss_dsi_panel_init(struct device_node *node,
 
 	pinfo->dynamic_switch_pending = false;
 	pinfo->is_lpm_mode = false;
+	pinfo->esd_rdy = false;
 
 	ctrl_pdata->on = mdss_dsi_panel_on;
+	ctrl_pdata->post_panel_on = mdss_dsi_post_panel_on;
 	ctrl_pdata->off = mdss_dsi_panel_off;
 	ctrl_pdata->low_power_config = mdss_dsi_panel_low_power_config;
 	ctrl_pdata->panel_data.set_backlight = mdss_dsi_panel_bl_ctrl;
 	ctrl_pdata->switch_mode = mdss_dsi_panel_switch_mode;
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
+#if defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+	if (lge_dual_panel != SECONDARY_MODULE) {
+#endif
+	if(pinfo->cont_splash_enabled)
+		ctrl_pdata->is_available_esd_recovery = 1;
+#if defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+	}
+#endif
+#endif
 
 	return 0;
 }

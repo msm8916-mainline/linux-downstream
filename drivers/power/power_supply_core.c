@@ -26,7 +26,7 @@ EXPORT_SYMBOL_GPL(power_supply_class);
 
 static struct device_type power_supply_dev_type;
 
-#if defined(CONFIG_LGE_PM_CHARGING_VZW_POWER_REQ)
+#if defined(CONFIG_LGE_PM_FLOATED_CHARGER)
 int power_supply_set_floated_charger(struct power_supply *psy,
                                 int is_float)
 {
@@ -41,6 +41,22 @@ int power_supply_set_floated_charger(struct power_supply *psy,
 	return -ENXIO;
 }
 EXPORT_SYMBOL_GPL(power_supply_set_floated_charger);
+#endif
+#ifdef CONFIG_CHG_DETECTOR_MAX14656
+int power_supply_set_chg_type_manual(struct power_supply *psy,
+                                int manual)
+{
+        const union power_supply_propval ret = {manual,};
+
+        pr_err("%s manual = %d\n", __func__, manual);
+
+        if (psy->set_property)
+                return psy->set_property(psy, POWER_SUPPLY_PROP_USB_CHG_TYPE_MANUAL,
+                                                        &ret);
+
+        return -ENXIO;
+}
+EXPORT_SYMBOL_GPL(power_supply_set_chg_type_manual);
 #endif
 
 static bool __power_supply_is_supplied_by(struct power_supply *supplier,

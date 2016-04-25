@@ -15,7 +15,14 @@
 		secure_mem: secure_region@0 {
 			status = "disabled";
 		};
-	};
+        modem_adsp_mem: modem_adsp_region@0 {
+            linux,reserve-contiguous-region;
+            linux,reserve-region;
+            linux,remove-completely;
+            reg = <0x0 0x86800000 0x0 0x05000000>;
+            label = "modem_adsp_mem";
+        };
+    };
 	aliases {
 		serial0 = &blsp1_uart2;
 		i2c1 = &i2c_1; /* i2c_1 BLSP1 QUP1 */
@@ -24,8 +31,9 @@
 
 &blsp1_uart2 {
 	status = "disable";
-	pinctrl-names = "default";
-	pinctrl-0 = <&uart_console_sleep>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&uart_active>;
+	pinctrl-1 = <&uart_sleep>;
 };
 
 &soc {
@@ -79,6 +87,7 @@
 
 &sdhc_1 {
 	vdd-supply = <&pm8916_l8>;
+	qcom,vdd-always-on;
 	qcom,vdd-voltage-level = <2900000 2900000>;
 	qcom,vdd-current-level = <200 400000>;
 
@@ -203,7 +212,6 @@
 		status = "ok";
 		pm8916_l17: regulator-l17 {
 			status = "ok";
-			revision = "...rev_c";
 			regulator-always-on;
 		};
 
@@ -234,4 +242,3 @@
 #include "msm8916-stylusc-camera.dtsi"
 #include "msm8916-stylusc-connectivity.dtsi"
 #include "msm8916-stylusc-sound.dtsi"
-#include "msm8916-stylusc-nfc.dtsi"

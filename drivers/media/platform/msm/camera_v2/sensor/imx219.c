@@ -25,7 +25,7 @@
 DEFINE_MSM_MUTEX(imx219_mut);
 
 static struct msm_sensor_ctrl_t imx219_s_ctrl;
-#if defined(CONFIG_LGE_G4STYLUS_CAMERA)
+#if defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_K5_CAMERA)
 static struct msm_sensor_power_setting imx219_power_setting[] = {
 	 /* Set GPIO_RESET to low to disable power on reset*/
 	{
@@ -164,7 +164,7 @@ static int __init imx219_init_module(void)
 	pr_info("%s:%d\n", __func__, __LINE__);
 	rev_type = lge_get_board_revno();
 
-#if defined(CONFIG_LGE_G4STYLUS_CAMERA)
+#if defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_K5_CAMERA)
 	imx219_s_ctrl.power_setting_array.power_setting = imx219_power_setting;
 	imx219_s_ctrl.power_setting_array.size = ARRAY_SIZE(imx219_power_setting);
 

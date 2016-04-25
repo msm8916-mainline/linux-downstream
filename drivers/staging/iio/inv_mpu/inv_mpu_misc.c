@@ -66,6 +66,7 @@
 #define DEF_ST_ACCEL_FS_MG              8000UL
 #define DEF_ST_SCALE                    (1L << 15)
 #define DEF_ST_TRY_TIMES                2
+#define DEF_ST_FLAT_RESULT_SHIFT		3
 #define DEF_ST_COMPASS_RESULT_SHIFT     2
 #define DEF_ST_ACCEL_RESULT_SHIFT       1
 #define DEF_ST_OTP0_THRESH              60
@@ -109,8 +110,14 @@
 */
 #ifdef IKR_SELFTEST
 #define DEF_SELFTEST_ACCL_SENS            (32768 / 2)  /* 16384 LSB */
+#define BIAS_THRESH (DEF_GYRO_OFFSET_MAX*DEF_SELFTEST_GYRO_SENS)
+#define RMS_THRESH  (5 * DEF_SELFTEST_GYRO_SENS)
 #define ACCEL_Z_BIAS_THRESH (298)
 #define ACCEL_XY_BIAS_THRESH (224)
+#define ACCEL_Z_RMS_THRESH ((150*DEF_SELFTEST_ACCL_SENS)/1000)  //1.50m/s2 == 150mg
+#define ACCEL_XY_RMS_THRESH ((150*DEF_SELFTEST_ACCL_SENS)/1000)//1.50m/s2 == 150mg
+#define ACCEL_RMS_BIAS_THRESH RMS_THRESH*RMS_THRESH
+signed char _g_z_sign = -1;
 #endif
 
 /* Note: The ST_AL values are only used when ST_OTP = 0,
@@ -982,6 +989,13 @@ static int inv_do_test(struct inv_mpu_state *st, int self_test_flag,
 	int result, i, j, packet_size;
 	u8 data[BYTES_PER_SENSOR * 2], d;
 	bool has_accel;
+#ifdef IKR_SELFTEST
+	long accel_rms[3];
+	int Accel_x[INIT_RMS_SAMPLES] = {0};
+	int Accel_y[INIT_RMS_SAMPLES] = {0};
+	int Accel_z[INIT_RMS_SAMPLES] = {0};
+	int k;
+#endif // IKR_SELFTEST
 	int fifo_count, packet_count, ind, s;
 
 	reg = &st->reg;
@@ -1060,6 +1074,10 @@ static int inv_do_test(struct inv_mpu_state *st, int self_test_flag,
 	for (i = 0; i < THREE_AXIS; i++) {
 		gyro_result[i] = 0;
 		accel_result[i] = 0;
+#ifdef IKR_SELFTEST
+		accel_rms[i] = 0;
+#endif // IKR_SELFTEST
+
 	}
 	s = 0;
 	while (s < st->self_test.samples) {
@@ -1092,6 +1110,17 @@ static int inv_do_test(struct inv_mpu_state *st, int self_test_flag,
 					vals[j] = (short)be16_to_cpup(
 					    (__be16 *)(&data[ind + 2 * j]));
 					accel_result[j] += vals[j];
+#ifdef IKR_SELFTEST
+					if(s < INIT_RMS_SAMPLES)
+					{
+						if(j==0) 
+							Accel_x[s] = vals[j];
+						if(j==1) 
+							Accel_y[s] = vals[j];
+						if(j==2) 
+							Accel_z[s] = vals[j];
+					}
+#endif // IKR_SELFTEST
 				}
 				ind += BYTES_PER_SENSOR;
 				pr_debug(
@@ -1111,6 +1140,40 @@ static int inv_do_test(struct inv_mpu_state *st, int self_test_flag,
 			i++;
 		}
 	}
+#ifdef IKR_SELFTEST
+        k=0;
+        for (k = 0; k < INIT_RMS_SAMPLES; k++) {
+              accel_rms[0] += (long)((Accel_x[k] - accel_result[0]/s) * (Accel_x[k] - accel_result[0]/s));
+              accel_rms[1] += (long)((Accel_y[k] - accel_result[1]/s) * (Accel_y[k] - accel_result[1]/s));
+              accel_rms[2] += (long)((Accel_z[k] - accel_result[2]/s) * (Accel_z[k] - accel_result[2]/s));
+        }
+
+       if (accel_rms[0] == 0 || accel_rms[1] == 0 || accel_rms[2] == 0) {
+               result |= 1 << 6;
+               //goto gyro_test_fail;
+       }
+
+       for (j = 0; j < 3; j++) {
+
+		if(j == 2)
+		{
+       	     if (accel_rms[j]/s > ACCEL_Z_RMS_THRESH*ACCEL_Z_RMS_THRESH){
+		      printk(KERN_INFO "%d -Accel rms (%ld) exceeded threshold (threshold = %d LSB)\n", 
+			  	j, (long)accel_rms[j]/s, (int)ACCEL_Z_RMS_THRESH*ACCEL_Z_RMS_THRESH);
+                   return 1;
+       	     }
+		}
+		else
+		{			
+       	     if (accel_rms[j]/s > ACCEL_XY_RMS_THRESH*ACCEL_XY_RMS_THRESH){
+		      printk(KERN_INFO "%d -Accel rms (%ld) exceeded threshold (threshold = %d LSB)\n", 
+			  	j, (long)accel_rms[j]/s, (int)ACCEL_XY_RMS_THRESH*ACCEL_XY_RMS_THRESH);
+                   printk(KERN_INFO"result: %d ",result);
+                   return 1;
+             }
+        }
+       }
+#endif // IKR_SELFTEST
 
 	if (has_accel) {
 		for (j = 0; j < THREE_AXIS; j++) {
@@ -1181,7 +1244,7 @@ int inv_hw_self_test(struct inv_mpu_state *st)
 	int accel_bias_st[THREE_AXIS], accel_bias_regular[THREE_AXIS];
 	int test_times, i, j;
 
-	char compass_result, accel_result, gyro_result;
+	char compass_result, accel_result, gyro_result, flat_result;
 
 	result = inv_power_up_self_test(st);
 	if (result)
@@ -1192,6 +1255,7 @@ int inv_hw_self_test(struct inv_mpu_state *st)
 	compass_result = 0;
 	accel_result = 0;
 	gyro_result = 0;
+	flat_result = 0;
 	test_times = DEF_ST_TRY_TIMES;
 	while (test_times > 0) {
 		result = inv_do_test(st, 0, gyro_bias_regular,
@@ -1209,12 +1273,14 @@ int inv_hw_self_test(struct inv_mpu_state *st)
 			    pr_err("%d-accel XY bias (%ld) exceeded threshold %d\n ", j,
 					abs(accel_bias_regular[j]), ACCEL_XY_BIAS_THRESH * DEF_SELFTEST_ACCL_SENS);
 			    result |= 1 << (3 + j);
+				flat_result = 1;
 			}
         } else { /* Z bias check */
 		    if ((abs(abs(accel_bias_regular[j]) - DEF_SELFTEST_ACCL_SENS * 1000)) > (ACCEL_Z_BIAS_THRESH * DEF_SELFTEST_ACCL_SENS)) {
 			    pr_err("%d-accel Z bias (%ld) exceeded threshold %d\n ", j,
 					abs(accel_bias_regular[j]), ACCEL_Z_BIAS_THRESH * DEF_SELFTEST_ACCL_SENS);
 			    result |= 1 << (3 + j);
+				flat_result = 1;
 			}
 		}
 	}
@@ -1275,7 +1341,8 @@ int inv_hw_self_test(struct inv_mpu_state *st)
 test_fail:
 	inv_recover_setting(st);
 
-	return (compass_result << DEF_ST_COMPASS_RESULT_SHIFT) |
+	return (flat_result << DEF_ST_FLAT_RESULT_SHIFT) |
+		(compass_result << DEF_ST_COMPASS_RESULT_SHIFT) |
 		(accel_result << DEF_ST_ACCEL_RESULT_SHIFT) | gyro_result;
 }
 
@@ -1342,15 +1409,12 @@ static int inv_verify_firmware(struct inv_mpu_state *st,
 
 		if (result)
 		{
-			printk(KERN_ERR"[sx9500][debug_core] result==1 \n");
 			return result;
 		}
 		if (0 != memcmp(firmware, data, write_size))
 		{
-			printk(KERN_ERR"[sx9500][debug_core] memcmp !0 \n");
 			return -EINVAL;
 		} 
-		printk(KERN_ERR"debug_core verify_firmware remain size:%d",size);
 	}
 
 	return 0;

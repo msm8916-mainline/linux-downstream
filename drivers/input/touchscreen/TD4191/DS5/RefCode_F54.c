@@ -22,7 +22,7 @@
 #include "TestLimits.h"
 #endif
 
-#define TRX_mapping_max 54
+#define TRX_mapping_max 64
 #define LOWER_ABS_ADC_RANGE_LIMIT 60
 #define UPPER_ABS_ADC_RANGE_LIMIT 190
 #define LOWER_ABS_RAW_CAP_LIMIT 1000 /*fF*/
@@ -30,9 +30,13 @@
 #define REPORT_DATA_OFFEST 3
 #define VERSION "1.0"
 
+/* Log in terms of sensor speed/noise/e_e short test */
+//#define USE_FILE_LOGGING
 
 unsigned int count;
-const int DefaultTimeout = 10; /* In counts*/
+unsigned int sspeed_count = 0;
+unsigned short SavedIntegDuration;
+const int DefaultTimeout = 100; /* In counts*/
 
 int pageNum;
 int scanMaxPageCount = 5;
@@ -100,6 +104,8 @@ bool bHaveF54Query16;
 bool bHaveF54Query17;
 bool bHaveF54Query18;
 bool bHaveF54Query19;
+bool bHaveF54Query20;
+bool bHaveF54Query21;
 bool bHaveF54Query22;
 bool bHaveF54Query23;
 bool bHaveF54Query25;
@@ -119,11 +125,15 @@ unsigned char TouchControllerFamily;
 unsigned char CurveCompensationMode;
 unsigned char NumberOfSensingFrequencies;
 unsigned char F54Ctrl07Offset;
+unsigned char F54Ctrl08Offset;
 unsigned char F54Ctrl41Offset;
 unsigned char F54Ctrl57Offset;
+unsigned char F54Ctrl86Offset;
 unsigned char F54Ctrl88Offset;
 unsigned char F54Ctrl89Offset;
+unsigned char F54Ctrl96Offset;
 unsigned char F54Ctrl98Offset;
+unsigned char F54Ctrl99Offset;
 unsigned char F1AControlBase;
 unsigned char F12ControlBase;
 unsigned char F12QueryBase;
@@ -136,13 +146,20 @@ unsigned char F12Support;
 unsigned char F12ControlRegisterPresence;
 unsigned char mask;
 
+unsigned char IntegrationDurationOffset;
+
 /* Assuming Tx = 32 & Rx = 32 to accommodate any configuration*/
 short Image1[TRX_max][TRX_max];
 int ImagepF[TRX_max][TRX_max];
+int DeltaRatio[TRX_max][TRX_max];
+
+short Delta[TRX_max][TRX_max];
 int AbsSigned32Data[TRX_mapping_max];
 unsigned char AbsADCRangeData[TRX_mapping_max];
 unsigned char Data[TRX_max * TRX_max * 4];
 unsigned char TRxPhysical[TRX_mapping_max];
+short MedianTop[TRX_max];
+short MedianBottom[TRX_max];
 
 int MaxArrayLength;
 
@@ -163,8 +180,26 @@ int AbsRawRef[16] = {77, 11919, 14023, 15163, 16192, 18319, 19337, 21491,
 short NoiseDeltaMin[TRX_MAX][TRX_MAX];
 short NoiseDeltaMax[TRX_MAX][TRX_MAX];
 short NoiseLimitLow = -16;
-short NoiseLimitHigh = 16;
-unsigned short RT78Data[TRX_max][TRX_max];
+short NoiseLimitHigh = 20;
+short RT78Data[TRX_max][TRX_max];
+short RT78DataOrg[TRX_max][TRX_max];
+
+#define EE_SHORT_TEST_LIMIT 25
+unsigned char cbc[64] = {0};
+short firstImage[18][32] = {{0},};
+short normalizedImg[18][32] = {{0},};
+
+unsigned char quadrantRxList[4][16] =
+{
+	{ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15},
+	{16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31},
+	{35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 32, 33, 34},
+	{51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 48, 49, 50}
+};
+
+short g_maxDeltaValues[18][32] = {{0},};
+int g_maxDeltaArrInitialized = 0;
+
 
 enum {
 	STARTTIME,
@@ -344,7 +379,84 @@ int CompareHighResistance(int maxRxpF, int maxTxpF, int minpF)
 }
 
 
-/* Compare Report type #22 data against test limits*/
+#if defined(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191)
+/* Compare Report type #78 data against test limits */
+int CompareSensorSpeedReport(void)
+{
+	bool result = true;
+	int i, j = 0;
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-------------------------------------------"
+						"-------------------------------------------"
+						"-------------------------------------------"
+						"------------------------------------\n");
+
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+				"%4d ", DeltaRatio[i][j]);
+			if (DeltaRatio[i][j] > 20)  // delta ratio must <= 20
+			{
+				result = false;
+				TOUCH_INFO_MSG("Failed : Tx[%d] Rx[%d] -> DELTA RATIO : %d\n", i, j, DeltaRatio[i][j]);
+				//out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "Failed : Tx[%2d] Rx[%2d]\n", i, j);
+			}
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-------------------------------------------"
+						"-------------------------------------------"
+						"-------------------------------------------"
+						"------------------------------------\n");
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-------------------------------------------"
+						"-------------------------------------------"
+						"-------------------------------------------"
+						"------------------------------------\n");
+
+	/* store Failed array in touch_self_test.txt */
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+			if (DeltaRatio[i][j] > 20) { // delta ratio must <= 20
+				//out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "F(%2d,%2d)=%d\n", i, j, DeltaRatio[i][j]);
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4s ", " X,");
+			} else {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4s ", " ,");
+			}
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-------------------------------------------"
+						"-------------------------------------------"
+						"-------------------------------------------"
+						"------------------------------------\n");
+
+	if (result) {
+		TOUCH_INFO_MSG("Sensor Speed Test passed.\n");
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+				"Sensor Speed Test passed.\n\n");
+	} else {
+		TOUCH_INFO_MSG("Sensor Speed Test failed.\n");
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+				"Sensor Speed Test failed.\n\n");
+	}
+
+	return (result) ? 1 : 0;
+}
+#else
+/* Compare Report type #78 data against test limits*/
 int CompareSensorSpeedReport(void)
 {
 	bool result = true;
@@ -380,6 +492,7 @@ int CompareSensorSpeedReport(void)
 
 	return (result) ? 1 : 0;
 }
+#endif
 
 /* Compare Report type #23 data against test limits*/
 int CompareADCReport(void)
@@ -395,7 +508,7 @@ int CompareADCReport(void)
 					i, j, ADCLowerImageLimit[i][j],
 					ADCUpperImageLimit[i][j],
 					Image1[i][j]);
-				out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf,
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-out_buf,
 					"Failed : Tx[%2d] Rx[%2d] = %3u\n",
 					i, j, Image1[i][j]);
 				result = false;
@@ -405,11 +518,11 @@ int CompareADCReport(void)
 	}
 	if (result) {
 		TOUCH_INFO_MSG("ADC Range Test passed.\n");
-		out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf,
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-out_buf,
 				"\nADC Range Test passed.\n\n");
 	} else {
 		TOUCH_INFO_MSG("ADC Range Test failed.\n");
-		out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf,
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-out_buf,
 				"\nADC Range Test failed.\n\n");
 	}
 
@@ -479,18 +592,14 @@ int CompareRT78(char *buf)
 
 	for (i = 0; i < (unsigned int)F12_2DTxCount; i++) {
 		outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf,"%4d: ",i);
-
 		for (j = 0; j < (unsigned int)F12_2DRxCount; j++) {
 			if ((RT78Data[i][j] < RT78FullRawCapUpperLimit[i][j])
 				&&(RT78Data[i][j] > RT78FullRawCapLowerLimit[i][j])) {
-				//TOUCH_INFO_MSG("TX[%d]RX[%d] passed value:  %d\n",
-				//		i, j, RT78Data[i][j]);
-				//result = true;
 				outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf, "%4s ", " ,");
 			} else {
 				TOUCH_INFO_MSG("TX[%d]RX[%d] failed value:  %d\n",
 						i, j, RT78Data[i][j]);
-				outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf, "%4s ", "X,");
+				outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf, "%4s ", " X,");
 				result = false;
 			}
 		}
@@ -531,7 +640,6 @@ int CompareElectodeShortRT78(char *buf)
 
 	for (i = 0; i < (unsigned int)F12_2DTxCount; i++) {
 		outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf,"%4d: ",i);
-
 		for (j = 0; j < (unsigned int)F12_2DRxCount; j++) {
 			if ((RT78Data[i][j] < RT78ElectrodeShortUpper[i][j])
 				&&(RT78Data[i][j] > RT78ElectrodeShortLower[i][j])) {
@@ -539,7 +647,7 @@ int CompareElectodeShortRT78(char *buf)
 			} else {
 				TOUCH_INFO_MSG("TX[%d]RX[%d] failed value:  %d\n",
 						i, j, RT78Data[i][j]);
-				outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf, "%4s ", "X,");
+				outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf, "%4s ", " X,");
 				result = false;
 			}
 		}
@@ -698,30 +806,33 @@ int CompareNoiseReport(void)
 	bool result = true;
 	int i, j = 0;
 
-	TOUCH_INFO_MSG("\n\nNoise Test Data :\n");
-	out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf, "\nNoise Test Data :\n");
-	out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf, "==========================================================================================================\n         :");
+	TOUCH_INFO_MSG("\nNoise Test Delta :\n");
 
-	for (i = 0; i < (int)RxChannelCount; i++)
-		out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf, "%5d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+								"\n-----------------------------------------"
+								"-----------------------------------------"
+								"-----------------------------------------"
+								"------------------------------------------\n");
 
-	out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf,
-			"\n----------------------------------------------------------------------------------------------------------\n");
-	for (i = 0; i < TxChannelCount; i++) {
-		TOUCH_INFO_MSG("[Touch] Tx[%2d]: ", i);
-		out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf, "   %5d : ", i);
-		for (j = 0; j < RxChannelCount; j++) {
-			ImagepF[i][j] = NoiseDeltaMax[i][j] -
-				NoiseDeltaMin[i][j];
-			TOUCH_INFO_MSG("%3d,", ImagepF[i][j]);
-			out_buf += snprintf(wlog_buf+out_buf,
-					sizeof(f54_wlog_buf)-outbuf, "%5d ", ImagepF[i][j]);
+	for (i = 0; i < F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < F12_2DRxCount; j++) {
+			ImagepF[i][j] = (NoiseDeltaMax[i][j] - NoiseDeltaMin[i][j]) > 0 ?
+							(NoiseDeltaMax[i][j] - NoiseDeltaMin[i][j]):
+							(NoiseDeltaMin[i][j] - NoiseDeltaMax[i][j]);
+
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", ImagepF[i][j]);
 		}
-		TOUCH_INFO_MSG("\n");
-		out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf, "\n");
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
 	}
-	out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf,
-			"------------------------------------------------------------------------------------------------------------\n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+								"-----------------------------------------"
+								"-----------------------------------------"
+								"-----------------------------------------"
+								"------------------------------------------\n");
 
 	/*Compare 0D area*/
 	/*for (int32_t i = 1; i <= pdt.ButtonCount; i++){
@@ -736,29 +847,46 @@ int CompareNoiseReport(void)
 	}
 	*/
 	/*Compare 2D area*/
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+								"\n-----------------------------------------"
+								"-----------------------------------------"
+								"-----------------------------------------"
+								"------------------------------------------\n");
+
 	for (i = 0; i < F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
 		for (j = 0; j < F12_2DRxCount; j++) {
-			if ((ImagepF[i][j] < NoiseLimitLow) ||
-					(ImagepF[i][j] > NoiseLimitHigh)) {
+			if ( ImagepF[i][j] > NoiseLimitHigh) {
 				TOUCH_INFO_MSG(
-					"\tFailed: 2D area: Tx [%d] Rx [%d]\n",
-					i, j);
-				out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf,
-					"Failed Tx [%2d] Rx [%2d] = %3d\n",
+					"\tFailed: 2D area: Tx [%2d] Rx [%2d] = %3d\n",
 					i, j, ImagepF[i][j]);
+				//out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"F(%2d,%2d)=%3d\n", i, j, ImagepF[i][j]);
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4s ", " X,");
 				result = false;
+			} else {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4s ", " ,");
 			}
 		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
 	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+								"-----------------------------------------"
+								"-----------------------------------------"
+								"-----------------------------------------"
+								"------------------------------------------\n");
 
 	if (result == false) {
 		TOUCH_INFO_MSG("Noise Test failed.\n");
-		out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf,
-				"\nNoise Test failed.\n\n");
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+				"Noise Test failed.\n\n");
 	} else {
 		TOUCH_INFO_MSG("Noise Test passed.\n");
-		out_buf += snprintf(wlog_buf+out_buf, sizeof(f54_wlog_buf)-outbuf,
-				"\nNoise Test passed.\n\n");
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+				"Noise Test passed.\n\n");
 	}
 
 	return (result) ? 1 : 0;
@@ -851,9 +979,6 @@ int GetImageReport(char *buf)
 			"-------------------------------------------------"
 			"----------------------------------------------\n");
 
-	/*Reset Device*/
-	Reset();
-
 	return ret;
 }
 
@@ -862,27 +987,30 @@ int ReadNoiseReport(void)
 {
 	int ret = 0;
 	int i, j, k = 0;
+	int count = 0;
 
-	/*set FIFO index*/
-	unsigned char fifoIndex[2] = {0, 0};
-	Write8BitRegisters(F54DataBase + 1, fifoIndex, sizeof(fifoIndex));
+	for (count = 0; count < 20; count++) {
+		/*set FIFO index*/
+		unsigned char fifoIndex[2] = {0, 0};
+		Write8BitRegisters(F54DataBase + 1, fifoIndex, sizeof(fifoIndex));
 
-	Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST),
-			&Data[0], MaxArrayLength);
+		Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST),
+				&Data[0], MaxArrayLength*2);
 
-	for (i = 0; i < (int)TxChannelCount; i++) {
-		for (j = 0; j < (int)RxChannelCount; j++) {
-			Image1[i][j] = (short)Data[k]
-				| ((short)Data[k + 1] << 8);
-			ImagepF[i][j] = Image1[i][j];
+		k = 0;
+		for (i = 0; i < (int)F12_2DTxCount; i++) {
+			for (j = 0; j < (int)F12_2DRxCount; j++) {
+				Image1[i][j] = (short)Data[k]
+					| ((short)Data[k + 1] << 8);
+				ImagepF[i][j] = Image1[i][j];
+				if (ImagepF[i][j] < NoiseDeltaMin[i][j])
+					NoiseDeltaMin[i][j] = ImagepF[i][j];
 
-			if (ImagepF[i][j] < NoiseDeltaMin[i][j])
-				NoiseDeltaMin[i][j] = ImagepF[i][j];
+				if (ImagepF[i][j] > NoiseDeltaMax[i][j])
+					NoiseDeltaMax[i][j] = ImagepF[i][j];
 
-			if (ImagepF[i][j] > NoiseDeltaMax[i][j])
-				NoiseDeltaMax[i][j] = ImagepF[i][j];
-
-			k = k + 2;
+				k = k + 2;
+			}
 		}
 	}
 	ret = CompareNoiseReport();
@@ -1170,7 +1298,7 @@ int GetImageRT78(char *buf)
 
 	Read8BitRegisters((F54DataBase + REPORT_DATA_OFFEST),
 
-			&Data[0], (F12_2DRxCount * F12_2DTxCount * 2));
+			&Data[0], (F12_2DRxCount * F12_2DTxCount * 2 ));
 	*buf = 0;
 	ret += snprintf(buf+ret, PAGE_SIZE-ret, "\n\nInfo: Tx = %d Rx = %d\n\n",
 			(int)F12_2DTxCount, (int)F12_2DRxCount);
@@ -1192,7 +1320,7 @@ int GetImageRT78(char *buf)
 		ret += snprintf(buf+ret, PAGE_SIZE-ret, "   %2d : ", i);
 		for (j = 0; j < F12_2DRxCount; j++, k += 2) {
 			temp = Data[k] | (Data[k+1] << 8);
-			RT78Data[i][j] = temp;
+			RT78Data[i][j] = (short)temp;
 			ret += snprintf(buf + ret, PAGE_SIZE-ret, "%4d ", RT78Data[i][j]);
 		}
 		ret += snprintf(buf + ret, PAGE_SIZE-ret, "\n");
@@ -1222,14 +1350,17 @@ int GetRawImageRT78(char *buf)
 	for (i = 0; i < F12_2DRxCount; i++) {
 		for (j = 0; j < F12_2DTxCount; j++, k += 2) {
 			temp = Data[k] | (Data[k+1] << 8);
-			RT78Data[i][j] = temp;
+			RT78Data[i][j] = (short)temp;
 			//ret += snprintf(buf + ret, PAGE_SIZE-ret, "%4d ", RT78Data[i][j]);
 			outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf, "%4d ", RT78Data[i][j]);
 		}
 	}
 	outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf, "\n");
 
-	sprintf(file_path,"/mnt/sdcard/%s.csv", buf);
+	if (factory_boot)
+		sprintf(file_path, "/data/logger/%s.csv", buf);
+	else
+		sprintf(file_path, "/sdcard/%s.csv", buf);
 	TOUCH_INFO_MSG("buf = %s, file_path = %s", buf, file_path);
 	write_file(file_path, f54_wlog_buf);
 
@@ -1261,7 +1392,7 @@ int ReadRT78(char *buf)
 		outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf,"%4d: ",i);
 		for (j = 0; j < F12_2DRxCount; j++, k += 2) {
 			temp = Data[k] | (Data[k+1] << 8);
-			RT78Data[i][j] = temp;
+			RT78Data[i][j] = (short)temp;
 			outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf, "%4d ", RT78Data[i][j]);
 		}
 		outbuf += snprintf(f54_wlog_buf+outbuf, sizeof(f54_wlog_buf)-outbuf, "\n");
@@ -1292,7 +1423,7 @@ int ReadElectodeShortRT78(char *buf)
 	for (i = 0; i < F12_2DTxCount; i++) {
 		for (j = 0; j < F12_2DRxCount; j++, k += 2) {
 			temp = Data[k] | (Data[k+1] << 8);
-			RT78Data[i][j] = temp;
+			RT78Data[i][j] = (short)temp;
 		}
 	}
 	ret = CompareElectodeShortRT78(buf);
@@ -1347,24 +1478,451 @@ int ReadAbsRawShort(void)
 	return ret;
 }
 
-/* Construct data with Report Type #22 data*/
+#if defined(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191)
+void CalculateDeltaRatio(void)
+{
+	int startRow = 0;
+	int endRow = F12_2DTxCount / 2;
+	int row, col = 0 ;
+
+	for (row = startRow; row < F12_2DTxCount; row++) {
+		if (row < endRow) {
+			for (col = 0; col < F12_2DRxCount; col++) {
+				if (MedianTop[col] == 0) {
+				DeltaRatio[row][col] = -999;
+				} else {
+					if ((Delta[row][col] - MedianTop[col]) >= 0)
+						DeltaRatio[row][col] = (Delta[row][col] - MedianTop[col]) * 100 / MedianTop[col];
+					else
+						DeltaRatio[row][col] = (MedianTop[col] - Delta[row][col]) * 100 / MedianTop[col];
+				}
+			}
+		} else {
+			for (col = 0; col < F12_2DRxCount; col++) {
+				if (MedianBottom[col] == 0) {
+					DeltaRatio[row][col] = -999;
+				} else {
+					if ((Delta[row][col] - MedianBottom[col]) >= 0)
+						DeltaRatio[row][col] = (Delta[row][col] - MedianBottom[col]) * 100 / MedianBottom[col];
+					else
+						DeltaRatio[row][col] = (MedianBottom[col] - Delta[row][col]) * 100 / MedianBottom[col];
+				}
+			}
+		}
+	}
+}
+
+short FindMedian(short* pdata, int num)
+{
+	int i,j;
+	short temp;
+	short *value;
+	short median;
+
+	value = (short *)kzalloc( num * sizeof(short), GFP_KERNEL);
+
+	for(i=0; i < num; i++)
+		*(value+i) = *(pdata+i);
+
+#if defined(USE_FILE_LOGGING)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"FindMedian, value[]=");
+		for (i=0; i < num; i++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"%4d,", *(value + i));
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"\n");
+		write_log(NULL, wlog_buf);
+		memset(wlog_buf, 0, sizeof(wlog_buf));
+		out_buf = 0;
+#endif
+
+	//sorting
+	for ( i=1; i <= num-1; i++)	{
+		for ( j=1; j <= num-i; j++) {
+			if (*(value+j-1) <= *(value+j))	{
+			   temp = *(value+j-1);
+			   *(value+j-1)= *(value+j);
+			   *(value+j) = temp;
+			} else {
+				continue ;
+			}
+		}
+	}
+
+#if defined(USE_FILE_LOGGING)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"FindMedian, sort_value[] =");
+		for (i=0; i < num; i++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"%4d,", *(value + i));
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"\n");
+		write_log(NULL, wlog_buf);
+		memset(wlog_buf, 0, sizeof(wlog_buf));
+		out_buf = 0;
+#endif
+
+	//calculation of median
+	if ( num % 2 == 0)
+		median = ( *(value+(num/2 -1)) + *(value+(num/2)) )/2;
+	else
+		median = *(value+(num/2));
+
+#if defined(USE_FILE_LOGGING)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"FindMedian, return median = %d\n", median);
+		write_log(NULL, wlog_buf);
+		memset(wlog_buf, 0, sizeof(wlog_buf));
+		out_buf = 0;
+#endif
+
+	if(value)
+		kfree(value);
+
+	return median;
+}
+
+//calculate the median for Top or Bottom
+void CalculateMedianForSide(int toporBottom)
+{
+
+	short *DeltaColData;
+	unsigned char startRow;
+	unsigned char endRow;
+	int col, row = 0;
+	int i = 0;
+	short med;
+
+	if (toporBottom == 1) {//top = 0 bottom = 1
+		startRow = F12_2DTxCount/2;
+		endRow = F12_2DTxCount;
+	} else {
+		startRow = 0;
+		endRow = (F12_2DTxCount/2);
+	}
+
+	DeltaColData = (short *)kzalloc((F12_2DTxCount/2)* sizeof(short), GFP_KERNEL);
+
+	for (col = 0; col < (int)F12_2DRxCount; col++) {
+		memset(DeltaColData, 0x00, (F12_2DTxCount/2) * sizeof(short));
+		for (row = startRow, i = 0; row < endRow; row++, i++) {
+			*(DeltaColData + i) = Delta[row][col];
+		}
+
+#if defined(USE_FILE_LOGGING)
+		for (row = startRow, i = 0; row < endRow; row++, i++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"DeltaColData[%d]=%4d Before FindMedian\n", i, *(DeltaColData + i));
+		}
+		write_log(NULL, wlog_buf);
+		memset(wlog_buf, 0, sizeof(wlog_buf));
+		out_buf = 0;
+#endif
+		med = FindMedian(DeltaColData, (int)(F12_2DTxCount/2));
+
+		if (toporBottom == 1) //bottom
+			MedianBottom[col] = med;
+		else
+			MedianTop[col] = med;
+
+#if defined(USE_FILE_LOGGING)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"AfterFidMedian, MedianTop[]=");
+		for (row = startRow, i = 0; row < endRow; row++, i++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"%4d", MedianTop[i]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"\n");
+
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"AfterFidMedian, MedianBottom[]=");
+		for (row = startRow, i = 0; row < endRow; row++, i++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"%4d", MedianBottom[i]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,	"\n");
+		write_log(NULL, wlog_buf);
+		memset(wlog_buf, 0, sizeof(wlog_buf));
+		out_buf = 0;
+#endif
+		}
+
+	kfree(DeltaColData);
+}
+
+void Calculate2DArrayDelta (short* arr1, short* arr2, int cols, int rows)
+{
+	int i,j = 0;
+
+	for (i = 0; i < rows; i++) {
+		for (j = 0; j < cols; j++) {
+			Delta[i][j] = (arr1[i*cols + j]) - (arr2[i*cols + j]);
+		}
+	}
+}
+
+// Apply ForceUpdate.
+void SetForceUpdate (void)
+{
+	unsigned char data = 0;
+	unsigned char count = 0;
+	data = 0x04;
+	Write8BitRegisters(F54CommandBase, &data, 1);
+	do {
+		Read8BitRegisters(F54CommandBase, &data, 1);
+		msleep(20);
+		count++;
+	} while ((data & 0x04) && (count < DefaultTimeout));
+
+	if(count >= DefaultTimeout){
+		TOUCH_INFO_MSG("Forceupdate timeout -- in FW\n");
+		Reset();
+		return;
+	}
+}
+
+
+void SetIntegrationDuration (unsigned short val)
+{
+	unsigned char data[2] = {0,0};
+	data [0] =  (unsigned char)(val & 0x00FF);
+	data [1] =  (unsigned char)((val & 0xFF00) >> 8);
+
+	Write8BitRegisters((F54ControlBase + IntegrationDurationOffset), &data[0], 2);
+	msleep(20);
+
+	SetForceUpdate();
+}
+
+void CopyDataFromImageBuffer(void)
+{
+	int i, j = 0;
+	for (i = 0; i< TRX_MAX; i++) {
+		for (j = 0; j< TRX_MAX; j++) {
+			RT78DataOrg[i][j] = RT78Data[i][j];
+		}
+	}
+}
+
 int ReadSensorSpeedReport(void)
 {
 	int i, j, k = 0;
 	int ret = 0;
+	unsigned short temp;
+	unsigned char data;
 
-	Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST),
-			&Data[0], MaxArrayLength);
+	data = 0x00;
+	Write8BitRegisters(F54DataBase+1, &data, 1);
+	Write8BitRegisters(F54DataBase+2, &data, 1);
 
-	TOUCH_INFO_MSG("Sensor speed Test Data :\n");
-	for (i = 0; i < (int)TxChannelCount; i++) {
-		for (j = 0; j < (int)RxChannelCount; j++) {
-			Image1[i][j] = ((short)Data[k]
-					| (short)Data[k+1] << 8);
-			ImagepF[i][j] = Image1[i][j];
-			k = k + 2;
+	//1. read the report 78 => A0
+	Read8BitRegisters((F54DataBase + REPORT_DATA_OFFEST),
+			&Data[0], (F12_2DRxCount * F12_2DTxCount * 2));
+
+	for (i = 0; i < F12_2DTxCount; i++) {
+		for (j = 0; j < F12_2DRxCount; j++, k += 2) {
+			temp = Data[k] | (Data[k+1] << 8);
+			RT78Data[i][j] = (short)temp;
 		}
-		TOUCH_INFO_MSG("\n");
+	}
+
+	// read 2 times, result of first read is copied to RT78DataOrg by calling CopyDataFromImageBuffer()
+	if (sspeed_count < 1)
+		return ret;
+#if defined(USE_FILE_LOGGING)
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n RT78DataOrg in ReadSensorSpeedReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", RT78DataOrg[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n RT78Data in ReadSensorSpeedReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", RT78Data[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+#endif
+	//5. A1 - A0 => DeltaA (Delta array)
+	Calculate2DArrayDelta ((short*)RT78Data[0], (short*)RT78DataOrg[0], TRX_max, TRX_max );
+
+	//6. Calculate the median for Top and Bottom  => MedianTop and MedianBottom
+	CalculateMedianForSide(0); 	//top
+	CalculateMedianForSide(1); 	//bottom
+
+	//7. Apply the calculation for each pixel
+	CalculateDeltaRatio();			//result => DeltaRatio
+
+#if defined(USE_FILE_LOGGING)
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n Delta before handling CompareSensorSpeedReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", Delta[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n MedianTop before handling CompareSensorSpeedReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+	for (j = 0; j < (int)F12_2DRxCount; j++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+				"%4d, ", MedianTop[j]);
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n MedianBottom before handling CompareSensorSpeedReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+	for (j = 0; j < (int)F12_2DRxCount; j++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+				"%4d,", MedianBottom[j]);
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n DeltaRatio before handling CompareSensorSpeedReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", DeltaRatio[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+#endif
+	//8. Any data at ImagepF > 20 result in a failure
+	ret = CompareSensorSpeedReport();
+
+	//9. Write item 2 value back to the integration duration setting, and Force Update
+	SetIntegrationDuration (SavedIntegDuration);
+
+
+	write_log(NULL, wlog_buf);
+	msleep(20);
+
+	/*Reset Device*/
+	Reset();
+
+
+	return ret;
+}
+#else
+int ReadSensorSpeedReport(void)
+{
+	int i, j, k = 0;
+	int ret = 0;
+	unsigned short temp;
+
+	Read8BitRegisters((F54DataBase + REPORT_DATA_OFFEST),
+			&Data[0], (F12_2DRxCount * F12_2DTxCount * 2));
+
+	for (i = 0; i < F12_2DTxCount; i++) {
+		for (j = 0; j < F12_2DRxCount; j++, k += 2) {
+			temp = Data[k] | (Data[k+1] << 8);
+			RT78Data[i][j] = (short)temp;
+		}
 	}
 
 	ret = CompareSensorSpeedReport();
@@ -1376,6 +1934,9 @@ int ReadSensorSpeedReport(void)
 
 	return ret;
 }
+#endif
+
+/* Construct data with Report Type #78 data*/
 
 int pow_func(int x, int y)
 {
@@ -1493,15 +2054,15 @@ int ReadReport(unsigned char input, char *buf)
 	/*Set the GetReport bit to run the AutoScan*/
 	data = 0x01;
 	DO_SAFE(Write8BitRegisters(F54CommandBase, &data, 1), error);
-	
+
 	count = 0;
 	do {
 		DO_SAFE(Read8BitRegisters(F54CommandBase, &data, 1), error);
-		msleep(1);
+		msleep(20);
 		count++;
 	} while (data != 0x00 && (count < DefaultTimeout));
 	if (count >= DefaultTimeout) {
-		TOUCH_INFO_MSG("Timeout - Not supported Report Type in FW\n");
+		TOUCH_INFO_MSG("[%s] Timeout - Not supported Report Type in FW\n", __func__);
 		Reset();
 		return -EAGAIN;
 	}
@@ -1611,7 +2172,6 @@ void RunQueries(void)
 		Read8BitRegisters(cAddr, &cFunc, 1);
 		if (cFunc == 0)
 			break;
-
 		switch (cFunc) {
 		case 0x01:
 			if (!bHaveF01) {
@@ -1733,8 +2293,10 @@ void RunQueries(void)
 
 				/*Ctrl 08*/
 				if (TouchControllerFamily == 0x0 ||
-						TouchControllerFamily == 0x01)
+						TouchControllerFamily == 0x01) {
+					F54Ctrl08Offset = offset;
 					offset += 2;
+				}
 				/*Ctrl 09*/
 				if (TouchControllerFamily == 0x0 ||
 						TouchControllerFamily
@@ -1952,16 +2514,17 @@ void RunQueries(void)
 						((Data[13] & 0x02) == 0x02));
 				bHaveCtrl88 = ((Data[12] & 0x40) == 0x40);
 
-				if (bHaveCtrl86)
+				if (bHaveCtrl86) {
+					F54Ctrl86Offset = offset;
 					offset += 1; /*Ctrl 86*/
+				}
 				if (bHaveCtrl87)
 					offset += 1; /*Ctrl 87*/
 				if (bHaveCtrl88) {
 					F54Ctrl88Offset = offset;
 					offset++; /*Ctrl 88;*/
 				}
-				bHaveCtrl89 = ((Data[query_offset]
-							& 0x20) == 0x20);
+				bHaveCtrl89 = ((Data[query_offset] & 0x20) == 0x20) || ((Data[query_offset] & 0x40) == 0x40);
 				if (bHaveCtrl89)
 					offset++;
 				bHaveF54Query15 = ((Data[12] & 0x80)
@@ -1975,6 +2538,10 @@ void RunQueries(void)
 					offset++;
 				bHaveF54Query16 = ((Data[query_offset]
 							& 0x8) == 0x8);
+				bHaveF54Query20 = ((Data[query_offset]
+							& 0x10) == 0x10);
+				bHaveF54Query21 = ((Data[query_offset]
+							& 0x20) == 0x20);
 				bHaveF54Query22 = ((Data[query_offset]
 							& 0x40) == 0x40);
 				bHaveF54Query25 = ((Data[query_offset]
@@ -2003,9 +2570,10 @@ void RunQueries(void)
 					query_offset++; /*query_offset = 17*/
 				if (bHaveF54Query19)
 					query_offset++; /*query_offset = 18*/
-
-				/*query 20, 21 query_offset = 20*/
-				query_offset = query_offset + 2;
+				if (bHaveF54Query20)
+					query_offset++; /*query_offset = 19*/
+				if (bHaveF54Query21)
+					query_offset++; /*query_offset = 20*/
 				bHaveCtrl91 = ((Data[query_offset]
 							& 0x4) == 0x4);
 				bHaveCtrl96  = ((Data[query_offset]
@@ -2036,20 +2604,29 @@ void RunQueries(void)
 					offset++;
 				if (bHaveCtrl95)
 					offset++;
-				if (bHaveCtrl96)
+				if (bHaveCtrl96) {
+					F54Ctrl96Offset = offset;
 					offset++;
+				}
 				if (bHaveCtrl97)
 					offset++;
 				if (bHaveCtrl98) {
 					F54Ctrl98Offset = offset;
 					offset++;
 				}
-				if (bHaveCtrl99)
+				if (bHaveCtrl99) {
+					F54Ctrl99Offset = offset;
 					offset++;
+				}
 				if (bHaveCtrl100)
 					offset++;
 				if (bHaveCtrl101)
 					offset++;
+
+				if (TouchControllerFamily == 0x02)
+					IntegrationDurationOffset = F54Ctrl99Offset;
+				else
+					IntegrationDurationOffset = F54Ctrl08Offset;
 			}
 			break;
 		case 0x55:
@@ -2234,7 +2811,7 @@ int diffnode(unsigned short *ImagepTest)
 			count++;
 		} while (data != 0x00 && (count < DefaultTimeout));
 		if (count >= DefaultTimeout) {
-			TOUCH_INFO_MSG("Timeout -- Not supported Report Type in FW\n");
+			TOUCH_INFO_MSG("[%s] Timeout - Not supported Report Type in FW\n", __func__);
 			Reset();
 			return -EAGAIN;
 		}
@@ -2315,7 +2892,274 @@ int DeltaTest(char *buf)
 
 }
 
+#if defined(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191)
+int ReadNoiseReport2(unsigned char input, char *buf)
+{
+	int ret = 0;
+	unsigned char data;
+	int i, j, k = 0;
+	int count,wcount = 0;
 
+	for (count = 0; count < 20; count++) {
+
+		// set fifo index to 0
+		data = 0;
+		Write8BitRegisters(F54DataBase +1, &data, 1);
+		Write8BitRegisters(F54DataBase +2, &data, 1);
+
+		/*Set the GetReport bit to run the AutoScan*/
+		data = 0x01;
+		DO_SAFE(Write8BitRegisters(F54CommandBase, &data, 1), error);
+
+		wcount = 0;
+		do {
+			DO_SAFE(Read8BitRegisters(F54CommandBase, &data, 1), error);
+			msleep(20);
+			wcount++;
+		} while (data != 0x00 && (wcount < DefaultTimeout));
+		if (count >= DefaultTimeout) {
+			TOUCH_INFO_MSG("[%s] Timeout - Not supported Report Type in FW\n", __func__);
+			Reset();
+			return -EAGAIN;
+		}
+
+		Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST),
+				&Data[0], MaxArrayLength*2);
+
+#if defined(USE_FILE_LOGGING)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"\n count[%d], MaxArrayLength*2=%d, Data in ReadNoiseReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n", count, MaxArrayLength*2);
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+		for (i = 0; i < (int)F12_2DRxCount; i++)
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"\n-----------------------------------------"
+							"-------------------------------------------------"
+							"-------------------------------------------------"
+							"-----------------------------\n");
+
+		for (i = 0; i < (int)F12_2DTxCount*2; i++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+			for (j = 0; j < (int)F12_2DRxCount; j++) {
+					out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"%4d,", Data[i*F12_2DRxCount + j]);
+			}
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"-----------------------------------------"
+							"-------------------------------------------------"
+							"-------------------------------------------------"
+							"-----------------------------\n");
+
+		write_log(NULL, wlog_buf);
+		memset(wlog_buf, 0, sizeof(wlog_buf));
+		out_buf = 0;
+#if defined(USE_FILE_LOGGING)
+		Read8BitRegisters((F54DataBase+REPORT_DATA_OFFEST),
+					&Data[0], MaxArrayLength*2);
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"\n count[%d], MaxArrayLength*2=%d, Data in ReadNoiseReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n", count, MaxArrayLength*2);
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"-----------------------------------------"
+							"-------------------------------------------------"
+							"-------------------------------------------------"
+							"-----------------------------\n");
+		for (i = 0; i < (int)F12_2DTxCount*2; i++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+			for (j = 0; j < (int)F12_2DRxCount; j++) {
+					out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"%4d,", Data[i*F12_2DRxCount + j]);
+			}
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"-----------------------------------------"
+							"-------------------------------------------------"
+							"-------------------------------------------------"
+							"-----------------------------\n");
+
+		write_log(NULL, wlog_buf);
+		memset(wlog_buf, 0, sizeof(wlog_buf));
+		out_buf = 0;
+#endif
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"\n count[%d], Image1 in ReadNoiseReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n", count);
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+		for (i = 0; i < (int)F12_2DRxCount; i++)
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"\n-----------------------------------------"
+							"-------------------------------------------------"
+							"-------------------------------------------------"
+							"-----------------------------\n");
+
+		for (i = 0; i < (int)F12_2DTxCount; i++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+			for (j = 0; j < (int)F12_2DRxCount; j++) {
+					out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"%4d,", Image1[i][j]);
+			}
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"-----------------------------------------"
+							"-------------------------------------------------"
+							"-------------------------------------------------"
+							"-----------------------------\n");
+
+		write_log(NULL, wlog_buf);
+		memset(wlog_buf, 0, sizeof(wlog_buf));
+		out_buf = 0;
+
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"\n count[%d], ImagepF in ReadNoiseReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n", count);
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+		for (i = 0; i < (int)F12_2DRxCount; i++)
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"\n-----------------------------------------"
+							"-------------------------------------------------"
+							"-------------------------------------------------"
+							"-----------------------------\n");
+
+		for (i = 0; i < (int)F12_2DTxCount; i++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+			for (j = 0; j < (int)F12_2DRxCount; j++) {
+					out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"%4d,", ImagepF[i][j]);
+			}
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"-----------------------------------------"
+							"-------------------------------------------------"
+							"-------------------------------------------------"
+							"-----------------------------\n");
+
+		write_log(NULL, wlog_buf);
+		memset(wlog_buf, 0, sizeof(wlog_buf));
+		out_buf = 0;
+#endif
+
+		k = 0;
+		for (i = 0; i < (int)F12_2DTxCount; i++) {
+			for (j = 0; j < (int)F12_2DRxCount; j++) {
+				Image1[i][j] = (short)Data[k]
+					| ((short)Data[k + 1] << 8);
+				ImagepF[i][j] = Image1[i][j];
+				if (ImagepF[i][j] < NoiseDeltaMin[i][j])
+					NoiseDeltaMin[i][j] = ImagepF[i][j];
+
+				if (ImagepF[i][j] > NoiseDeltaMax[i][j])
+					NoiseDeltaMax[i][j] = ImagepF[i][j];
+
+				k = k + 2;
+			}
+		}
+	}
+#if defined(USE_FILE_LOGGING)
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n count[%d], ImagepF after calc with NoiseDeltaMin Max in ReadNoiseReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n", count);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", ImagepF[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n count[%d], NoiseDeltaMin in ReadNoiseReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n", count);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", NoiseDeltaMin[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n count[%d], NoiseDeltaMax in ReadNoiseReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n", count);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+	for (i = 0; i < (int)F12_2DRxCount; i++)
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d ", i);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", NoiseDeltaMax[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+#endif
+
+	ret = CompareNoiseReport();
+	write_log(NULL, wlog_buf);
+	msleep(30);
+
+	Reset();
+
+	return ret;
+
+error:
+	TOUCH_ERR_MSG("[%s] ReadNoiseReport2 fail\n", __func__);
+	return -EAGAIN;
+}
+#endif
 int NoiseDeltaTest(char *buf)
 {
 	unsigned char data;
@@ -2330,12 +3174,55 @@ int NoiseDeltaTest(char *buf)
 
 	Write8BitRegisters(F54DataBase, &data, 1);
 
-	data = 'm';/*rawdata display modie*/
+	data = 'm';/*rawdata display mode*/
 
+#if defined(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191)
+	return ReadNoiseReport2(data, buf);
+#else
 	return ReadReport(data, buf);
-
+#endif
 }
 
+
+#if defined(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_TD4191)
+int SensorSpeed(char *buf)
+{
+	unsigned char data;
+	unsigned char val[2];
+	unsigned short IntegDurationUsed;
+
+	do_gettimeofday(&t_interval[STARTTIME]);
+
+	// 1. Retrieve RT78 data first ==> A0
+	data = 78;
+	Write8BitRegisters(F54DataBase, &data, 1);
+	data = 'c';
+	ReadReport(data, buf);
+	//copy the data to anther place RT78DataOrg
+	CopyDataFromImageBuffer();
+
+	sspeed_count++;
+
+	//2. read integration duration value => I0, assume the F54_ANALOG_CTRL08.00/F54_ANALOG_CTRL08.01 used for integer
+	Read8BitRegisters((F54ControlBase + IntegrationDurationOffset), &val[0], 2);
+	SavedIntegDuration = (unsigned short)val [0] | ((unsigned short)val[1] << 8);
+
+	//3. Increase 6% for the integration duration, then do Force Update
+	IntegDurationUsed = SavedIntegDuration * 110;
+	IntegDurationUsed = IntegDurationUsed / 100;
+	SetIntegrationDuration(IntegDurationUsed);
+
+	//4. Retrieve RT78 data one more time ==> A1
+	data = 78;
+	Write8BitRegisters(F54DataBase, &data, 1);
+	data = 'c';
+	return ReadReport(data, buf);
+
+	// Do the rest of flow in ReadReport();
+	//return 0;
+
+}
+#else
 /*
  * The following funtion illustrates the steps in getting
  a sensor speed test report (report #22) by Function $54.
@@ -2359,6 +3246,7 @@ int SensorSpeed(char *buf)
 	return ReadReport(data, buf);
 
 }
+#endif
 
 /* The following funtion illustrates
  the steps in getting a ADC Range report (report #23) by Function $54.
@@ -2503,6 +3391,594 @@ int RT78_ElectodeShort_test(char *buf)
 	return ReadReport(data, buf);
 }
 
+/* EE test */
+void NormalizeDataCollected(short *retArray, short *data, int limit, bool lessIsBad)
+{
+    // for the bad cases, the item is set to 1, otherwise set to 0
+	int i, j = 0;
+	int numTx = 18;
+	int numRx = 32;
+
+    for (i = 0; i < numTx; i++) {
+        for (j = 0; j < numRx; ++j) {
+			if (lessIsBad) {
+				*(retArray + i*numRx + j) = *(data + i*numRx + j) <= limit
+					? 1
+					: 0;
+			} else {
+				*(retArray + i*numRx + j) = *(data + i*numRx + j) > limit
+					? 1
+					: 0;
+			}
+        }
+    }
+#if defined(USE_FILE_LOGGING)
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n data in NormalizeDataCollected func !!!!!!!!!!!!!!!!!!!!!!!!! \n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", *(data + i*numRx + j));
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+#endif
+}
+
+void CheckRowShort(short *retArray, short *data, int limit)
+{
+    bool lessBad = false;
+    NormalizeDataCollected(retArray, data, limit, lessBad);
+}
+
+void IgnoreColumnData(short *delta)
+{
+	int i, j = 0;
+	int numTx = 18;
+	int numRx = 32;
+	short absDelta = 0;
+
+	for (i = 0; i < numTx; ++i) {
+		for (j = 0; j < numRx; ++j) {
+			absDelta =  *(delta + i*numRx + j );
+			absDelta = absDelta > 0 ? absDelta: -absDelta;		// convert to abs value
+
+            if (absDelta >= 410 && absDelta < 660) {
+                *(delta + i*numRx + j ) = 0;
+            }
+        }
+    }
+}
+
+void MaxCombined(short *arr1, short *arr2)
+{
+	int numTx = 18;
+	int numRx = 32;
+	int i, j = 0;
+
+	for (i = 0; i < numTx; i++) {
+		for (j = 0; j < numRx; j++) {
+			if (*(arr1 + i*numRx + j) > *(arr2 + i*numRx + j)) {
+				*(arr2 + i*numRx + j) = *(arr1 + i*numRx + j);
+			}
+		}
+	}
+}
+
+void EEShortTestCalcImgMinus(short * delta, short *source, short *para)
+{
+	int i = 0;
+	int numTx = 18;
+	int numRx = 32;
+
+	for (i = 0; i < numTx*numRx; ++i) {
+		*(delta+i) = (*(source+i)- *(para+i)) > 0 ? (*(source+i)- *(para+i)) : (*(para+i) - *(source+i));	// take absolute value
+	}
+}
+
+void EEShortTestReadImg(short *image_buf)
+{
+	unsigned char data  = 0;
+	unsigned short temp = 0;
+	int numTx = 18;
+	int numRx = 32;
+	int i,j,k = 0;
+
+	Read8BitRegisters(F54CommandBase, &data, 1);
+	if (data & 0x01)
+		TOUCH_INFO_MSG("Getreport = 1\n");
+
+	/* Set report Type 78 */
+	data = 78;
+	Write8BitRegisters(F54DataBase, &data, 1);
+
+	/* Set the GetReport bit to run the AutoScan */
+	data = 0x01;
+	Write8BitRegisters(F54CommandBase, &data, 1);
+
+	msleep(20);
+
+	count = 0;
+	do {
+		Read8BitRegisters(F54CommandBase, &data, 1);
+		msleep(20);
+		count++;
+	} while ((data & 0x01) && (count < DefaultTimeout));
+	if (count >= DefaultTimeout) {
+		TOUCH_INFO_MSG("[%s] Timeout - Not supported Report Type in FW\n", __func__);
+		Reset();
+		return ;
+	}
+
+	/* Set FIFO index to 0 */
+	data = 0;
+	Write8BitRegisters(F54DataBase +1, &data, 1);
+	Write8BitRegisters(F54DataBase +2, &data, 1);
+
+	Read8BitRegisters(F54DataBase + REPORT_DATA_OFFEST, &Data[0], MaxArrayLength*2);
+
+	for (i = 0; i < numTx; i++) {
+		for (j = 0; j < numRx; j++, k += 2) {
+			temp = Data[k] | (Data[k+1] << 8);
+			image_buf[i*numRx+j] = (short)temp;
+		}
+	}
+}
+
+short image[18][32];
+short delta[18][32];
+void CheckDeltaImageShort(short *retArray, int rx, int limit)
+{
+    int numTx = 18;
+    int numRx = 32;
+	int i, j = 0;
+
+	memset(image, 0, numTx*numRx*sizeof(short));
+	memset(delta, 0, numTx*numRx*sizeof(short));
+
+	//store image in image[][]
+    EEShortTestReadImg(&image[0][0]);
+
+	// calculate diff between firstimage[][] and  image[][], store in delta[][]
+	EEShortTestCalcImgMinus(&delta[0][0], &firstImage[0][0], &image[0][0]);
+
+	// should only be initialized one time per test
+	if (!g_maxDeltaArrInitialized) {
+		for(i = 0 ; i < numTx; i++) {
+			for(j = 0; j < numRx; j++)
+				g_maxDeltaValues[i][j] = -32768;
+		}
+		g_maxDeltaArrInitialized = 1;
+	}
+
+	//changed from image to delta (hq)
+    IgnoreColumnData(&delta[0][0]);
+
+    MaxCombined(&delta[0][0], &g_maxDeltaValues[0][0]); //g_maxDeltaValues initialized as -32768 above
+
+	//store result in retArray passed from caller
+	CheckRowShort(retArray, &delta[0][0], limit);
+}
+
+void SetCBCForTest(int rxIndexInQ1)
+{
+	unsigned char step = 6; //per spec
+	unsigned char revCBC[64] = {0};
+	unsigned char val = 0;
+	unsigned char force_update = 0;
+	int i = 0;
+	int indexOfRx = 0;
+
+	for (i = 0; i < sizeof(cbc)/sizeof(char); ++i) {
+		revCBC[i] = cbc[i];
+	}
+
+	for (i = 0; i < 4; i++) {
+		indexOfRx = quadrantRxList[i][rxIndexInQ1];
+		if (indexOfRx != -1) {
+			val = (cbc[indexOfRx] + step) < 31 ? cbc[indexOfRx] + step : 31;
+			revCBC[indexOfRx] = val;
+		}
+	}
+
+	// write back to control registers
+    Write8BitRegisters(F54ControlBase + F54Ctrl96Offset, &revCBC[0], 64);
+    msleep(20);
+
+	// do force update
+    Read8BitRegisters(F54CommandBase, &force_update, sizeof(force_update));
+    force_update |= 0x04;
+    Write8BitRegisters(F54CommandBase, &force_update, sizeof(force_update));
+	msleep (20); //hq add delay here
+
+	count = 0;
+	do {
+		Read8BitRegisters(F54CommandBase, &force_update, sizeof(force_update));
+		msleep(20);
+		count++;
+	} while ((force_update & 0x04) && (count < DefaultTimeout));
+	if (count >= DefaultTimeout) {
+		TOUCH_INFO_MSG("[%s] Timeout - Force update not completed\n", __func__);
+	}
+}
+
+void ArrayOr(short *outArr, short *inArr)
+{
+	int numTx = 18;
+	int numRx = 32;
+	int i, j = 0;
+
+	for (i = 0; i < numTx; ++i) {
+		for (j = 0; j < numRx; ++j) {
+			if ( (*(outArr + i*numRx + j) >= 1) || (*(inArr + i*numRx + j) >= 1) )
+				*(outArr + i*numRx + j) = 1;
+			else
+				*(outArr + i*numRx + j) = 0;
+		}
+    }
+}
+
+int CompareEEShortResult(short *resultArr, bool verbose)
+{
+	int i ,j, txIdx, rxIdx = 0;
+	int numTx = 18;
+	int numRx = 32;
+	int side = 0;
+	bool noFail = true;
+	unsigned char F55CtrlInfo[36] = {0};
+	unsigned char colum2Mux[18] = {0};
+	unsigned char column2FirstADC[18] = {0};
+
+	TOUCH_INFO_MSG("[Touch][%s] \n", __func__);
+
+	for (i = 0; i < numTx; ++i) {
+		for (j = 0; j < numRx; ++j) {
+			if (*(resultArr + i*numRx +j) >= 1) {
+				noFail = false;
+				break;
+			}
+		}
+		if (!noFail)
+			break;
+	}
+
+	if (verbose) {
+		//hard code address of f55_ctrl30 as 0x0305 here
+		if (switchPage(0x03) != true) {
+			TOUCH_INFO_MSG("switchPage failed\n");
+			/*Reset Device*/
+			return false;
+		}
+		Read8BitRegisters((F55ControlBase + 5), &F55CtrlInfo[0], sizeof(F55CtrlInfo)/sizeof(char));
+		if (switchPage(0x01) != true) {
+			TOUCH_INFO_MSG("switchPage failed\n");
+			/*Reset Device*/
+			return false;
+		}
+
+		for (i = 0; i < numTx; ++i) {
+			colum2Mux[i] = F55CtrlInfo[i];
+			//out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "colum2Mux[%2d]=%d \n", i, colum2Mux[i]);
+		}
+
+		for (j = 0; j < numTx; ++j) {
+			column2FirstADC[j] = F55CtrlInfo[j + numTx];
+			//out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "column2FirstADC[%2d]=%2d \n", j, column2FirstADC[j]);
+		}
+
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%s","      ");
+		for (i = 0; i < numRx; i++) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,"%4d ",i);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+							"\n-----------------------------------------"
+							"-------------------------------------------------"
+							"-------------------------------------------------"
+							"--------------------------\n");
+		for (txIdx = 0; txIdx < numTx; ++txIdx) {
+			// 0 -> left, 1 -> right
+			side = column2FirstADC[txIdx] == 0
+				? 0
+				: 1;
+
+			if(side) {
+				out_buf += snprintf(wlog_buf+out_buf,
+					sizeof(wlog_buf)-out_buf, "RT%2d: ", colum2Mux[txIdx]);
+			} else {
+				out_buf += snprintf(wlog_buf+out_buf,
+					sizeof(wlog_buf)-out_buf, "LT%2d: ", colum2Mux[txIdx]);
+			}
+			for (rxIdx = 0; rxIdx < numRx; ++rxIdx) {
+				if (*(resultArr + txIdx*numRx + rxIdx) >= 1)
+					out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4s ", " X,");
+				else
+					out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4s ", " ,");
+			}
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+		}
+
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"--------------------------\n");
+
+		for (rxIdx = 0; rxIdx < numRx/2; ++rxIdx) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "R%2d/%2d ", TRxPhysical[rxIdx], TRxPhysical[rxIdx + numRx]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+		for (rxIdx = numRx/2; rxIdx < numRx; ++rxIdx) {
+			out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "R%2d/%2d ", TRxPhysical[rxIdx], TRxPhysical[rxIdx + numRx]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+
+	if(noFail == true) {
+		TOUCH_INFO_MSG("E-E short test passed.\n");
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "E-E short test passed.\n");
+	} else {
+		TOUCH_INFO_MSG("E-E short test failed.\n");
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "E-E short test failed.\n");
+	}
+
+	return (int)noFail;
+}
+
+short resultData[18][32] = {{0},};
+short tmp[18][32] = {{0},};
+int ReadEtoEReport(void)
+{
+	int ret = 0;
+	int numTx = 18;
+	int numRx = 32;
+	int i, j = 0;
+	unsigned short val = 0;
+	int rxIdx = 0;
+	int limit = EE_SHORT_TEST_LIMIT;
+	unsigned char data = 0;
+
+	memset(resultData, 0, numTx*numRx*sizeof(short));
+	memset(tmp, 0, numTx*numRx*sizeof(short));
+	memset(firstImage, 0, numTx*numRx*sizeof(short));
+
+	// set report type to 78
+	data = 78;
+	Write8BitRegisters(F54DataBase, &data, 1);
+
+	/*Set the GetReport bit to run the AutoScan*/
+	data = 0x01;
+	Write8BitRegisters(F54CommandBase, &data, 1);
+
+	msleep(20);
+
+	count = 0;
+	do {
+		Read8BitRegisters(F54CommandBase, &data, 1);
+		msleep(20);
+		count++;
+	} while ((data & 0x01) && (count < DefaultTimeout));
+	if (count >= DefaultTimeout) {
+		TOUCH_INFO_MSG("[%s] Timeout - Not supported Report Type in FW\n", __func__);
+		Reset();
+		return -1;
+	}
+
+	// set FIFO index to 0
+	data = 0x00;
+	Write8BitRegisters(F54DataBase+1, &data, 1);
+	Write8BitRegisters(F54DataBase+2, &data, 1);
+
+	// read RT78 result
+	Read8BitRegisters(F54DataBase + REPORT_DATA_OFFEST, &Data[0], MaxArrayLength*2);
+
+	for (i = 0; i < numTx; ++i) {
+		for (j = 0; j < numRx; ++j) {
+			val = (unsigned short)(Data[(i*numRx + j) *2]) |
+					(unsigned short)(Data[(i*numRx+ j) * 2 + 1] << 8);
+
+			firstImage[i][j] = (short)val;  // first RT78 image
+		}
+	}
+
+#if defined(USE_FILE_LOGGING)
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n Data in ReadEtoEReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	for (i = 0; i < (int)F12_2DTxCount*2; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", Data[i*F12_2DRxCount + j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n firstImage in ReadEtoEReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", firstImage[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+#endif
+	// construct normalized image from first image before changeing cbc
+	for (i = 0; i < numTx; ++i)	{
+		for (j = 0; j < numRx; ++j) {
+			if (firstImage[i][j] <= 0) {
+				normalizedImg[i][j] = 1;
+			} else {
+				normalizedImg[i][j] = 0;
+			}
+		}
+	}
+#if defined(USE_FILE_LOGGING)
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n normalizedImg in ReadEtoEReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n");
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", normalizedImg[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+#endif
+	g_maxDeltaArrInitialized = 0;
+
+	//generate and initizlized in quadrantRxList[4][16];
+    for (rxIdx = 0; rxIdx < 16; ++rxIdx) {
+        SetCBCForTest(rxIdx);
+        if (rxIdx == 0) {
+			//evaluate result and store in resultData[][]
+            CheckDeltaImageShort(&resultData[0][0], rxIdx, limit);
+        } else {
+            CheckDeltaImageShort(&tmp[0][0], rxIdx, limit);
+            ArrayOr(&resultData[0][0], &tmp[0][0]);
+        }
+#if defined(USE_FILE_LOGGING)
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n rxIdx[%d], resultData in ReadEtoEReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n", rxIdx);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", resultData[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"\n rxIdx[%d], tmp in ReadEtoEReport func !!!!!!!!!!!!!!!!!!!!!!!!! \n", rxIdx);
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	for (i = 0; i < (int)F12_2DTxCount; i++) {
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "%4d: ", i);
+		for (j = 0; j < (int)F12_2DRxCount; j++) {
+				out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+					"%4d,", tmp[i][j]);
+		}
+		out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf, "\n");
+	}
+	out_buf += snprintf(wlog_buf+out_buf, sizeof(wlog_buf)-out_buf,
+						"-----------------------------------------"
+						"-------------------------------------------------"
+						"-------------------------------------------------"
+						"-----------------------------\n");
+
+	write_log(NULL, wlog_buf);
+	memset(wlog_buf, 0, sizeof(wlog_buf));
+	out_buf = 0;
+#endif
+    }
+
+	ArrayOr(&resultData[0][0], &normalizedImg[0][0]);
+
+	ret = CompareEEShortResult(&resultData[0][0], true);
+
+	write_log(NULL, wlog_buf);
+	msleep(30);
+	//restore the CBC
+	Write8BitRegisters(F54ControlBase + F54Ctrl96Offset, &cbc[0], sizeof(cbc)/sizeof(char));
+	msleep(20);
+	SetForceUpdate();
+	msleep(20);	//hq add delay here
+
+	//Reset();
+	return ret;
+}
+
+int EtoEShortTest(char *buf)
+{
+	// 1. Read CBC and backup
+	Read8BitRegisters(F54ControlBase + F54Ctrl96Offset, &cbc[0], sizeof(cbc)/sizeof(char));
+	msleep(20);
+//	SetForceUpdate();
+//	msleep(5);	//hq add delay here
+
+	return ReadEtoEReport();
+}
 
 /* The following funtion illustrates the steps
  in getting a TRex-Opens(No sensor) report (report #24) by Function $54.
@@ -2558,7 +4034,7 @@ int TRexShortTest(char *buf)
 		data = 'f';
 		ret = ReadReport(data, buf);
 	}
-	
+
 	return ret;
 }
 
@@ -2579,7 +4055,7 @@ int HighResistanceTest(char *buf)
 		data = 'g';
 		ret = ReadReport(data, buf);
 	}
-	
+
 	return ret;
 }
 
@@ -2764,9 +4240,21 @@ retry:
 		ret = ADCRange(buf);
 		break;
 	case 'c':
+		Read8BitRegisters(F54ControlBase + F54Ctrl86Offset, &temp, 1);
+		msleep(80);
+		/* Set display freq to 60Hz */
+		data &= 0xf9;
+		data |= 0x02;
+		Write8BitRegisters(F54ControlBase + F54Ctrl86Offset, &data, 1);
+
 		strlcpy(wlog_buf, "c - Sensor Speed Test\n",
 				sizeof(wlog_buf));
+
+		sspeed_count = 0;
 		ret = SensorSpeed(buf);
+
+		/* Restore to original setting after test */
+		Write8BitRegisters(F54ControlBase + F54Ctrl86Offset, &temp, 1);
 		break;
 	case 'd':
 		strlcpy(f54_wlog_buf, "d - TRex Open Test\n",
@@ -2816,7 +4304,22 @@ retry:
 		CheckCrash(buf, mode);
 		break;
 	case 'm':
+		strlcpy(f54_wlog_buf,
+				"p - TD4191 Report Type 02 delta Test\n",
+				sizeof(f54_wlog_buf));
+
+		Read8BitRegisters(F54ControlBase + F54Ctrl86Offset, &temp, 1);
+		msleep(80);
+
+		/* Set display freq to 60Hz */
+		data &= 0xf9;
+		data |= 0x02;
+		Write8BitRegisters(F54ControlBase + F54Ctrl86Offset, &data, 1);
+
 		ret = DeltaTest(buf);
+
+		/* Restore to original setting after test */
+		Write8BitRegisters(F54ControlBase + F54Ctrl86Offset, &temp, 1);
 		break;
 	case 'n':
 		strlcpy(f54_wlog_buf,
@@ -2835,30 +4338,44 @@ retry:
 				"p - TD4191 Report Type 78 Test\n",
 				sizeof(f54_wlog_buf));
 
-		/* Set dispaly freq to 60Hz */
-		Read8BitRegisters(F54ControlBase + 0x20, &temp, 1);
+		Read8BitRegisters(F54ControlBase + F54Ctrl86Offset, &temp, 1);
 		msleep(80);
+
+		/* Set display freq to 60Hz */
+		data &= 0xf9;
+		data |= 0x02;
+		Write8BitRegisters(F54ControlBase + F54Ctrl86Offset, &data, 1);
 
 		ret = RT78_test(mode, buf);
 
-		Write8BitRegisters(F54ControlBase + 0x20, &temp, 1);
+		/* Restore to original setting after test */
+		Write8BitRegisters(F54ControlBase + F54Ctrl86Offset, &temp, 1);
 		break;
 	case 'q':
 		strlcpy(f54_wlog_buf,
 				"q - TD4191 Electode Short Test\n",
 				sizeof(f54_wlog_buf));
 
-		/* Set dispaly freq to 60Hz */
-		Read8BitRegisters(F54ControlBase + 0x20, &temp, 1);
+		Read8BitRegisters(F54ControlBase + F54Ctrl86Offset, &temp, 1);
 		msleep(80);
+
+		/* Set display freq to 60Hz */
+		data &= 0xf9;
+		data |= 0x02;
+		Write8BitRegisters(F54ControlBase + F54Ctrl86Offset, &data, 1);
 
 		ret = RT78_ElectodeShort_test(buf);
 
-		Write8BitRegisters(F54ControlBase + 0x20, &temp, 1);
+		/* Restore to original setting after test */
+		Write8BitRegisters(F54ControlBase + F54Ctrl86Offset, &temp, 1);
 		break;
 	case 'x':
 		strlcpy(wlog_buf, "x - Noise Delta Test\n", sizeof(wlog_buf));
 		ret = NoiseDeltaTest(buf);
+		break;
+	case 'u':
+		strlcpy(wlog_buf, "u - E to E short Test\n", sizeof(wlog_buf));
+		ret = EtoEShortTest(buf);
 		break;
 	case 'z':
 		TOUCH_INFO_MSG("Version: %s\n", VERSION);
@@ -2878,5 +4395,6 @@ retry:
 		goto retry;
 	} else
 		return ret;
-		
+
 }
+

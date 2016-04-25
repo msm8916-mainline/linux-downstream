@@ -10,10 +10,10 @@
  * GNU General Public License for more details.
  */
 /*
-                                                                         
-                                                    
-                                                                                          
-                                                                             
+	Last updated : 2014/06/23, by sungmin.woo@lge.com, seonyoung.kim@lge.com
+	change description : fix wrap around problem, 03/18
+				       cover non-proxy sensor case, abnormal camera close by kill qcamera-daemon 04/12
+				       non-calibration module error, increased max-convergence time 05/06
 */
 
 #define pr_fmt(fmt) "%s:%d " fmt, __func__, __LINE__
@@ -78,7 +78,10 @@ DEFINE_MSM_MUTEX(msm_proxy_mutex);
 #define IT_EEP_REG								0x800
 #define FJ_EEP_REG								0x8B0
 #define IM_EEP_REG								0x800
+#define CW_EEP_REG								0x7BE
 #define COMPLEX_FILTER
+
+extern int32_t msm_eeprom_find(const char *name, enum camb_position_t position);
 
 static struct v4l2_file_operations msm_proxy_v4l2_subdev_fops;
 static struct i2c_driver msm_proxy_i2c_driver;
@@ -141,7 +144,7 @@ static int32_t msm_proxy_get_subdev_id(struct msm_proxy_ctrl_t *proxy_ctrl,
 									   void *arg)
 {
 	uint32_t *subdev_id = (uint32_t *)arg;
-	pr_err("Enter\n");
+	pr_info("Enter\n");
 	if (!subdev_id) {
 		pr_err("failed\n");
 		return -EINVAL;
@@ -262,15 +265,28 @@ int32_t proxy_i2c_read_seq(uint32_t addr, uint8_t *data, uint16_t num_byte)
 int32_t proxy_i2c_e2p_write(uint16_t addr, uint16_t data, enum msm_camera_i2c_data_type data_type)
 {
 	int32_t ret = 0;
-	struct msm_camera_cci_client *cci_client = NULL;
+	struct msm_camera_cci_client *cci_client = msm_proxy_t.i2c_client.cci_client;
 
-	cci_client = msm_proxy_t.i2c_client.cci_client;
-	cci_client->sid = 0xA0 >> 1;
 	cci_client->retries = 3;
 	cci_client->id_map = 0;
 	cci_client->cci_i2c_master = msm_proxy_t.cci_master;
-	msm_proxy_t.i2c_client.addr_type = MSM_CAMERA_I2C_WORD_ADDR;
-	ret = msm_proxy_t.i2c_client.i2c_func_tbl->i2c_write(&msm_proxy_t.i2c_client, addr, data, data_type);
+
+	if(msm_eeprom_find("zc533", BACK_CAMERA_B)) {
+		cci_client->sid = 0xB0 >> 1;
+		msm_proxy_t.i2c_client.addr_type = MSM_CAMERA_I2C_WORD_ADDR;
+		ret = msm_proxy_t.i2c_client.i2c_func_tbl->i2c_write(&msm_proxy_t.i2c_client, ((0x8000 | addr) & 0xFFC0), 0, data_type);
+		if(ret < 0) {
+			pr_err("i2c write failed\n");
+			return ret;
+		}
+		msleep(3);
+		ret = msm_proxy_t.i2c_client.i2c_func_tbl->i2c_write(&msm_proxy_t.i2c_client, (0x4000 | addr), data, data_type);
+		msleep(3);
+	} else {
+		cci_client->sid = 0xA0 >> 1;
+		msm_proxy_t.i2c_client.addr_type = MSM_CAMERA_I2C_WORD_ADDR;
+		ret = msm_proxy_t.i2c_client.i2c_func_tbl->i2c_write(&msm_proxy_t.i2c_client, addr, data, data_type);
+	}
 
 	return ret;
 }
@@ -278,15 +294,21 @@ int32_t proxy_i2c_e2p_write(uint16_t addr, uint16_t data, enum msm_camera_i2c_da
 int32_t proxy_i2c_e2p_read(uint16_t addr, uint16_t *data, enum msm_camera_i2c_data_type data_type)
 {
 	int32_t ret = 0;
-	struct msm_camera_cci_client *cci_client = NULL;
+	struct msm_camera_cci_client *cci_client =
+				msm_proxy_t.i2c_client.cci_client;
 
-	cci_client = msm_proxy_t.i2c_client.cci_client;
-	cci_client->sid = 0xA0 >> 1;
 	cci_client->retries = 3;
 	cci_client->id_map = 0;
 	cci_client->cci_i2c_master = msm_proxy_t.cci_master;
+	if(msm_eeprom_find("zc533", BACK_CAMERA_B)) {
+		cci_client->sid = 0xB0 >> 1;
 	msm_proxy_t.i2c_client.addr_type = MSM_CAMERA_I2C_WORD_ADDR;
 	ret = msm_proxy_t.i2c_client.i2c_func_tbl->i2c_read(&msm_proxy_t.i2c_client, addr, data, data_type);
+	} else {
+		cci_client->sid = 0xA0 >> 1;
+		msm_proxy_t.i2c_client.addr_type = MSM_CAMERA_I2C_WORD_ADDR;
+		ret = msm_proxy_t.i2c_client.i2c_func_tbl->i2c_read(&msm_proxy_t.i2c_client, addr, data, data_type);
+	}
 	return ret;
 
 }
@@ -302,7 +324,7 @@ int16_t OffsetCalibration(void)
 	uint16_t statusCode = 0;
 	uint16_t distance = 0;
 
-	pr_err("OffsetCalibration start!\n");
+	pr_info("OffsetCalibration start!\n");
 
 	proxy_i2c_write(SYSRANGE__PART_TO_PART_RANGE_OFFSET, 0, 1);
 	proxy_i2c_write(SYSRANGE__CROSSTALK_COMPENSATION_RATE, 0, 1);
@@ -327,7 +349,7 @@ int16_t OffsetCalibration(void)
 	measuredDistance = measuredDistance / 10;
 	measuredOffset = (realDistance - measuredDistance) / 3;
 
-	pr_err("OffsetCalibration end!\n");
+	pr_info("OffsetCalibration end!\n");
 
 	return measuredOffset;
 }
@@ -467,40 +489,66 @@ static void get_proxy(struct work_struct *work)
 	int16_t finVal = 0;
 	uint16_t moduleId = 0;
 	uint8_t shiftModuleId = 0;
+	uint16_t addr = 0;
 
 	while (1) {
 		if (!proxy_struct->pause_workqueue) {
 			if (proxy_struct->proxy_cal) {
 				proxy_struct->proxy_stat.cal_done = 0;  //cal done
 				offset = OffsetCalibration();
-				pr_err("write offset = %x to eeprom\n", offset);
+				pr_info("write offset = %x to eeprom\n", offset);
 
 				proxy_i2c_e2p_read(0x700, &moduleId, 2);
 				shiftModuleId = moduleId >> 8;
 
 
 				if ((offset < 11) && (offset > (-21))) {
-					if ((shiftModuleId == 0x01) || (shiftModuleId == 0x02) || (shiftModuleId == 0x14)) {
-						proxy_i2c_e2p_read(IT_EEP_REG, &finVal, 2);
+					switch(shiftModuleId) {
+						case 0x01:
+						case 0x02:
+						case 0x05:
+						case 0x06:
+						case 0x07:
+							addr = IT_EEP_REG;
+							break;
+
+						case 0x03:
+							addr = FJ_EEP_REG;
+							break;
+
+						case 0x10:
+						case 0x11:
+						case 0x12:
+						case 0x13:
+							addr = CW_EEP_REG;
+							break;
+
+						case 0x14:
+						case 0x15:
+						case 0x16:
+						case 0x17:
+							addr = IM_EEP_REG;
+							break;
+
+						default:
+							addr = 0;
+							pr_info("eeprom address set failed. id = 0x%x\n",
+									shiftModuleId);
+							break;
+
+					}
+
+					if(addr > 0) {
+						proxy_i2c_e2p_read(addr, &finVal, 2);
 						calCount = finVal >> 8;
 
 						calCount++;
 						finVal = (calCount << 8) | (0x00FF & offset);
-						proxy_i2c_e2p_write(IT_EEP_REG, finVal, 2);
+						proxy_i2c_e2p_write(addr, finVal, 2);
 
-						pr_err("KSY read inot cal count = %x to eeprom\n", finVal);
+						pr_info("write count = %x to eeprom\n", finVal);
 					}
 
-					else if (shiftModuleId == 0x03) {
-						proxy_i2c_e2p_read(FJ_EEP_REG, &finVal, 2);
-						calCount = finVal >> 8;
-
-						calCount++;
-						finVal = (calCount << 8) | (0x00FF & offset);
-						proxy_i2c_e2p_write(FJ_EEP_REG, finVal, 2);
-
-						pr_err("KSY read fj cal count = %x to eeprom\n", finVal);
-					}
 					proxy_struct->proxy_stat.cal_count = calCount;
 					proxy_struct->proxy_cal = 0;
 					proxy_struct->proxy_stat.cal_done = 1;  //cal done
@@ -520,38 +568,38 @@ static void get_proxy(struct work_struct *work)
 		if (proxy_struct->exit_workqueue)
 			break;
 	}
-	pr_err("end workqueue!\n");
+	pr_info("end workqueue!\n");
 }
 int16_t stop_proxy(void)
 {
-	pr_err("stop_proxy!\n");
+	pr_info("stop_proxy!\n");
 	if (msm_proxy_t.exit_workqueue == 0) {
 		if (msm_proxy_t.wq_init_success) {
 			msm_proxy_t.exit_workqueue = 1;
 			destroy_workqueue(msm_proxy_t.work_thread);
 			msm_proxy_t.work_thread = NULL;
-			pr_err("destroy_workqueue!\n");
+			pr_info("destroy_workqueue!\n");
 		}
 	}
 	return 0;
 }
 int16_t pause_proxy(void)
 {
-	pr_err("pause_proxy!\n");
+	pr_info("pause_proxy!\n");
 	msm_proxy_t.pause_workqueue = 1;
-	pr_err("pause_workqueue = %d\n", msm_proxy_t.pause_workqueue);
+	pr_info("pause_workqueue = %d\n", msm_proxy_t.pause_workqueue);
 	return 0;
 }
 int16_t restart_proxy(void)
 {
-	pr_err("restart_proxy!\n");
+	pr_info("restart_proxy!\n");
 	msm_proxy_t.pause_workqueue = 0;
-	pr_err("pause_workqueue = %d\n", msm_proxy_t.pause_workqueue);
+	pr_info("pause_workqueue = %d\n", msm_proxy_t.pause_workqueue);
 	return 0;
 }
 uint16_t msm_proxy_thread_start(void)
 {
-	pr_err("msm_proxy_thread_start\n");
+	pr_info("msm_proxy_thread_start\n");
 
 	if (msm_proxy_t.exit_workqueue) {
 		msm_proxy_t.exit_workqueue = 0;
@@ -564,31 +612,31 @@ uint16_t msm_proxy_thread_start(void)
 		msm_proxy_t.wq_init_success = 1;
 
 		INIT_WORK(&msm_proxy_t.proxy_work, get_proxy);
-		pr_err("INIT_WORK done!\n");
+		pr_info("INIT_WORK done!\n");
 
 		queue_work(msm_proxy_t.work_thread, &msm_proxy_t.proxy_work);
-		pr_err("queue_work done!\n");
+		pr_info("queue_work done!\n");
 	}
 	return 0;
 }
 uint16_t msm_proxy_thread_end(void)
 {
 	uint16_t ret = 0;
-	pr_err("msm_proxy_thread_end\n");
+	pr_info("msm_proxy_thread_end\n");
 	ret = stop_proxy();
 	return ret;
 }
 uint16_t msm_proxy_thread_pause(void)
 {
 	uint16_t ret = 0;
-	pr_err("msm_proxy_thread_pause\n");
+	pr_info("msm_proxy_thread_pause\n");
 	ret = pause_proxy();
 	return ret;
 }
 uint16_t msm_proxy_thread_restart(void)
 {
 	uint16_t ret = 0;
-	pr_err("msm_proxy_thread_restart\n");
+	pr_info("msm_proxy_thread_restart\n");
 	msm_proxy_t.i2c_fail_cnt = 0;
 	ret = restart_proxy();
 	return ret;
@@ -596,7 +644,7 @@ uint16_t msm_proxy_thread_restart(void)
 uint16_t msm_proxy_cal(void)
 {
 	uint16_t ret = 0;
-	pr_err("msm_proxy_cal\n");
+	pr_info("msm_proxy_cal\n");
 	msm_proxy_t.proxy_cal = 1;
 	return ret;
 }
@@ -628,25 +676,27 @@ int32_t msm_init_proxy(void)
 	uint16_t ambpart2partCalib2 = 0;
 	uint16_t moduleId = 0;
 	uint8_t shiftModuleId = 0;
+	uint16_t addr = 0;
 
-	pr_err("msm_init_proxy ENTER!\n");
+	pr_info("msm_init_proxy ENTER!\n");
 
 	proxy_i2c_read(RESULT__RANGE_STATUS, &proxyStatus, 1);
 	proxy_i2c_read(0x290, &proxyFatal, 1);
 
 	if ((proxyStatus & 0x01) && ((proxyStatus >> 4) == 0) && (proxyFatal == 0))
-		pr_err("init proxy alive!\n");
+		pr_info("init proxy alive!\n");
 
 	else {
-		pr_err("init proxy fail!, no proxy sensor found!\n");
+		pr_err("init proxy fail!, no proxy sensor found!, stats = %d, fatal = %d\n",
+			proxyStatus, proxyFatal);
 		return -1;
 	}
 
 	proxy_i2c_read(IDENTIFICATION__MODEL_ID, &modelID, 1);
 	proxy_i2c_read(IDENTIFICATION__REVISION_ID, &revID, 1);
-	pr_err("Model ID : 0x%X, REVISION ID : 0x%X\n", modelID, revID);   //if revID == 2;(not calibrated), revID == 3 (calibrated)
+	pr_info("Model ID : 0x%X, REVISION ID : 0x%X\n", modelID, revID);   //if revID == 2;(not calibrated), revID == 3 (calibrated)
 	if (revID != REVISION_CALIBRATED) {
-		pr_err("not calibrated!\n");
+		pr_info("not calibrated!\n");
 		//return -1;
 	}
 
@@ -755,34 +805,53 @@ int32_t msm_init_proxy(void)
 	//readRangeOffset
 	proxy_i2c_e2p_read(0x700, &moduleId, 2);
 	shiftModuleId = moduleId >> 8;
-	pr_err("KSY module ID : %d\n", shiftModuleId);
+	pr_info("KSY module ID : %d\n", shiftModuleId);
 
-	if ((shiftModuleId == 0x01) || (shiftModuleId == 0x02) || (shiftModuleId == 0x14)) {
-		proxy_i2c_e2p_read(IT_EEP_REG, &finVal, 2);
+	switch(shiftModuleId) {
+		case 0x01:
+		case 0x02:
+		case 0x05:
+		case 0x06:
+		case 0x07:
+			addr = IT_EEP_REG;
+			break;
+
+		case 0x03:
+			addr = FJ_EEP_REG;
+			break;
+
+		case 0x10:
+		case 0x11:
+		case 0x12:
+		case 0x13:
+			addr = CW_EEP_REG;
+			break;
+
+		case 0x14:
+		case 0x15:
+		case 0x16:
+		case 0x17:
+			addr = IM_EEP_REG;
+			break;
+
+		default:
+			addr = 0;
+			pr_err("eeprom address set failed. id = 0x%x\n",
+					shiftModuleId);
+			break;
+	}
+
+	if(addr > 0) {
+		proxy_i2c_e2p_read(addr, &finVal, 2);
 		offsetByte = 0x00FF & finVal;
 		calCount = (0xFF00 & finVal) >> 8;
 		if ((offsetByte <= -21) || (offsetByte >= 11) || (calCount >= 100)) {
-			proxy_i2c_e2p_write(IT_EEP_REG, 0, 2);
+			proxy_i2c_e2p_write(addr, 0, 2);
 			calCount = 0;
 			offsetByte = 0;
 		}
 		msm_proxy_t.proxy_stat.cal_count = calCount;
-		pr_err("inot read offset = %d from eeprom\n", offsetByte);
-		proxy_i2c_write(SYSRANGE__PART_TO_PART_RANGE_OFFSET, offsetByte, 1);
-
-	} else if (shiftModuleId == 0x03) {
-		//fj module
-		proxy_i2c_e2p_read(FJ_EEP_REG, &finVal, 2);
-		offsetByte = 0x00FF & finVal;
-		calCount = (0xFF00 & finVal) >> 8;
-		if ((offsetByte <= -21) || (offsetByte >= 11) || (calCount >= 100)) {
-			proxy_i2c_e2p_write(FJ_EEP_REG, 0, 2);
-			calCount = 0;
-			offsetByte = 0;
-		}
-		//	offsetByte -= 255;
-		msm_proxy_t.proxy_stat.cal_count = calCount;
-		pr_err("fj read offset = %d from eeprom\n", offsetByte);
+		pr_info("offset = %d from eeprom\n", offsetByte);
 		proxy_i2c_write(SYSRANGE__PART_TO_PART_RANGE_OFFSET, offsetByte, 1);
 
 	}

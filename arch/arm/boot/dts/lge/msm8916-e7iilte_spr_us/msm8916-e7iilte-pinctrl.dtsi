@@ -1104,9 +1104,9 @@
 		};
 
 		tlmm_gpio_key {
-			qcom,pins = <&gp 107>, <&gp 108>, <&gp 117>;
+			qcom,pins = <&gp 107>, <&gp 108>;
 			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <3>;
+			qcom,num-grp-pins = <2>;
 			label = "tlmm_gpio_key";
 			gpio_key_active: gpio_key_active {
 				drive-strength = <2>;
@@ -1131,9 +1131,9 @@
 
 		/* add pingrp for touchscreen */
 		pmx_ts_ldo {
-			qcom,pins = <&gp 8>;
+			qcom,pins = <&gp 32>, <&gp 34>, <&gp 36>;
 			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <1>;
+			qcom,num-grp-pins = <3>;
 			label = "pmx_ts_ldo_active";
 
 			ts_ldo_active: ts_ldo_active {

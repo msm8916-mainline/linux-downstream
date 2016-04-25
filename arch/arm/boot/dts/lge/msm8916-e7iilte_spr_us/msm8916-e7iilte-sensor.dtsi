@@ -140,6 +140,6 @@
 		Adsemicon,vdd_ana_load_ua = <15000>;
 		Adsemicon,chip_enable = <&msm_gpio 62 0x00>;
 		Adsemicon,InputPinsNum = <1>;
-		Adsemicon,fw_name = "atmf04/atmf04_E7_0_30.fw";
+		Adsemicon,fw_name = "atmf04/atmf04_T7_1_00.fw";
 	};
 };

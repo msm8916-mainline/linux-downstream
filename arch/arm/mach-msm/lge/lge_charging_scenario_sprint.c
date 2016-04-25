@@ -18,7 +18,7 @@
 #include <mach/lge_charging_scenario.h>
 #include <linux/string.h>
 
-/*                                 */
+/* For LGE charging scenario debug */
 #ifdef DEBUG_LCS
 /* For fake battery temp' debug */
 #ifdef DEBUG_LCS_DUMMY_TEMP
@@ -30,12 +30,30 @@ static int time_order = 1;
 #define CHG_MAXIDX	5
 
 static struct batt_temp_table chg_temp_table[CHG_MAXIDX] = {
-#ifdef CONFIG_MACH_MSM8916_E7IILTE_SPR_US
+#if defined (CONFIG_MACH_MSM8916_E7IILTE_SPR_US)
 	{INT_MIN,        -7,    CHG_BATTEMP_BL_M5},
 	{     -6,        44,    CHG_BATTEMP_M4_41},
 	{     45,        46,    CHG_BATTEMP_42_44},
 	{     47,        51,    CHG_BATTEMP_45_52},
 	{     52,   INT_MAX,    CHG_BATTEMP_AB_OT},
+#elif defined (CONFIG_MACH_MSM8916_C50_SPR_US)
+	{INT_MIN,        -6,    CHG_BATTEMP_BL_M5},
+	{     -5,        44,    CHG_BATTEMP_M4_41},
+	{     44,        46,    CHG_BATTEMP_42_44},
+	{     46,        51,    CHG_BATTEMP_45_52},
+	{     52,   INT_MAX,    CHG_BATTEMP_AB_OT},
+#elif defined (CONFIG_MACH_MSM8916_C90NAS_SPR_US)
+	{INT_MIN,        -6,    CHG_BATTEMP_BL_M5},
+	{     -5,        44,    CHG_BATTEMP_M4_41},
+	{     45,        46,    CHG_BATTEMP_42_44},
+	{     47,        52,    CHG_BATTEMP_45_52},
+	{     53,   INT_MAX,    CHG_BATTEMP_AB_OT},
+#elif defined (CONFIG_MACH_MSM8916_STYLUSC_SPR_US)
+	{INT_MIN,        -4,    CHG_BATTEMP_BL_M5},
+	{     -3,        41,    CHG_BATTEMP_M4_41},
+	{     42,        45,    CHG_BATTEMP_42_44},
+	{     46,        53,    CHG_BATTEMP_45_52},
+	{     54,   INT_MAX,    CHG_BATTEMP_AB_OT},
 #else
 	{INT_MIN,        -5,    CHG_BATTEMP_BL_M5},
 	{     -4,        41,    CHG_BATTEMP_M4_41},
@@ -219,6 +237,12 @@ void lge_monitor_batt_temp(struct charging_info req, struct charging_rsp *res)
 			res->force_update = false;
 	} else {
 		res->force_update = false;
+#ifdef CONFIG_LGE_PM_CHARGING_BQ24262_CHARGER
+		if (!req.is_charger_changed) {
+			charging_state = CHG_BATT_NORMAL_STATE;
+			change_charger = req.is_charger;
+		}
+#endif
 	}
 
 	pre_state = charging_state;

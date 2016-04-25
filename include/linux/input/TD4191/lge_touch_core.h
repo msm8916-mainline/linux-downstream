@@ -19,7 +19,7 @@
 #define LGE_TOUCH_CORE_H
 #include <linux/wakelock.h>
 
-//                            
+//#define LGE_TOUCH_TIME_DEBUG
 
 #define MAX_FINGER	10
 #define MAX_BUTTON	4
@@ -131,9 +131,11 @@ struct touch_operation_role {
 	u32	reset_delay;
 	u32	wake_up_by_touch;
 	u32	use_sleep_mode; // Yes = 1, No = 0
-	u32     use_lpwg_all;
-	u32     use_security_mode;
-	u32     thermal_check;
+	u32	use_lpwg_all;
+	u32	use_debug_reason;
+	u32	use_security_mode;
+	u32	use_security_all;
+	u32	thermal_check;
 	u32	use_hover_finger;
 	u32	use_rmi_dev;
 	u32	palm_ctrl_mode;
@@ -178,6 +180,7 @@ struct touch_platform_data {
 	u32	int_pin;
 	u32	reset_pin;
 	u32 fw_version[FW_VER_INFO_NUM];
+	struct mutex			thread_lock;
 	struct touch_device_caps	*caps;
 	struct touch_operation_role	*role;
 	//struct touch_power_module	*pwr;
@@ -369,7 +372,7 @@ enum window_status {
 
 struct touch_device_driver {
 	enum error_type (*probe) (struct i2c_client *client,
-		const struct touch_platform_data *lge_ts_data,
+		struct touch_platform_data *lge_ts_data,
 		const struct state_info *state,
 		struct attribute ***attribute_list);
 	enum error_type (*remove) (struct i2c_client *client);
@@ -416,7 +419,7 @@ struct lge_touch_data {
 	struct delayed_work		work_trigger_handle;
 	struct delayed_work             work_thermal;
 	struct delayed_work             work_crack;
-	struct mutex			thread_lock;
+	struct delayed_work             work_charger;
 	struct bouncing_filter_info	bouncing_filter;
 	struct grip_filter_info		grip_filter;
 	struct accuracy_filter_info	accuracy_filter;
@@ -547,6 +550,7 @@ enum {
 	IC_CTRL_BASELINE_REBASE,
 	IC_CTRL_REPORT_MODE,
 	IC_CTRL_THERMAL,
+	IC_CTRL_USB_TA_DETECT,
 };
 
 enum {
@@ -560,9 +564,10 @@ enum {
 
 enum {
 	LPWG_NONE = 0,
-	LPWG_DOUBLE_TAP   = (1U << 0),  /* 1 */
-	LPWG_PASSWORD     = (1U << 1),  /* 2 */
-	LPWG_SIGNATURE    = (1U << 2),  /* 4 */
+	LPWG_DOUBLE_TAP,
+	LPWG_PASSWORD,
+	LPWG_SIGNATURE,
+	LPWG_SWIPE_DOWN,
 };
 
 enum {
@@ -581,6 +586,7 @@ enum {
 	LPWG_DOUBLE_TAP_CHECK,
 	LPWG_REPLY,
 	LPWG_UPDATE_ALL,
+	LPWG_DEBUG_CTRL,
 };
 
 enum {
@@ -773,6 +779,7 @@ struct lge_touch_attribute {
 struct lge_touch_attribute lge_touch_attr_##_name 	\
 	= __ATTR(_name, _mode, _show, _store)
 
+extern int factory_boot;
 
 int  touch_driver_register(struct touch_device_driver *driver,
 	struct of_device_id *match_table);
@@ -781,7 +788,7 @@ void touch_driver_unregister(void);
 void set_touch_handle(struct i2c_client *client, void *h_touch);
 void *get_touch_handle(struct i2c_client *client);
 void send_uevent(struct device *dev, char *string[2]);
-void send_uevent_lpwg(struct i2c_client *client, int type);
+int send_uevent_lpwg(struct i2c_client *client, int type);
 int touch_i2c_read(struct i2c_client *client, u8 reg, int len, u8 *buf);
 int touch_i2c_write(struct i2c_client *client, u8 reg, int len, u8 *buf);
 int touch_i2c_write_byte(struct i2c_client *client, u8 reg, u8 data);

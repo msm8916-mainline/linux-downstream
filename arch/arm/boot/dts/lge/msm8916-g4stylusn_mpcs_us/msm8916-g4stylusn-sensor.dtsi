@@ -51,8 +51,8 @@
 		Avago,vddio_i2c_load_ua = <10000>;
 		Avago,ppcount = <8>;
 		Avago,pdrive = <0>;
-		Avago,near_offset = <500>;
-		Avago,far_offset = <180>;
+		Avago,near_offset = <300>;
+		Avago,far_offset = <100>;
 		Avago,crosstalk_max = <770>;
 		Avago,bright_threshold = <2000>;
 		Avago,dark_threshold = <1000>;
@@ -96,6 +96,7 @@
 		Bosch,vddio_i2c_supply_max = <1800000>;
 		Bosch,vddio_i2c_load_ua = <10000>;
 		place = <5>;
+		cal_range = <3>; //RANGE 2G:3 4G:5 8G:8 16G:12
 	};
 
 	ak09911@0c {
@@ -136,5 +137,22 @@
 		Bosch,vddio_i2c_supply_max = <1800000>;
 		Bosch,vddio_i2c_load_ua = <10000>;
 		place = <5>;
+	};
+};
+
+/*sysfs node for unified usercal*/
+/{
+	lge,sensor-sysfs {
+		compatible = "lge,sensor-sysfs";
+
+		sysfs,node =
+			/* group , user_node,  kernel node */
+			"accelerometer", "run_calibration",  "/sys/devices/virtual/input/lge_accelerometer/run_fast_calibration",
+			"accelerometer", "selftest",         "/sys/devices/virtual/input/lge_accelerometer/selftest",
+//			"gyroscope",     "run_calibration",  "/sys/devices/virtual/input/lge_gyroscope/run_calibration",
+//			"gyroscope",     "selftest",         "/sys/devices/virtual/input/lge_gyroscope/selftest",
+			"proximity",     "run_calibration",  "/sys/devices/virtual/input/lge_proximity/run_calibration",
+			"proximity",     "calibration_data", "/sys/devices/virtual/input/lge_proximity/prox_cal_data"
+			;
 	};
 };

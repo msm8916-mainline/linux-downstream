@@ -60,7 +60,7 @@ qcom,pm8916@0 {
 			linux,default-trigger = "none";
 			qcom,default-state = "on";
 			qcom,max-current = <40>;
-			qcom,current-setting = <40>;
+			qcom,current-setting = <5>;
 			charge-current = <5>;
 			qcom,id = <6>;
 			qcom,mode = "pwm";

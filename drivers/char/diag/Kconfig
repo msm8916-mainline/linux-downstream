@@ -41,7 +41,7 @@ endmenu
 
 menu "LGE Diag Enable for SPR"
 
-config LGE_DIAG_USB_ACCESS_LOCK
+config LGE_USB_DIAG_LOCK
 	bool "feature for usb diag access lock"
 	default n
 	help
@@ -51,6 +51,11 @@ config LGE_DIAG_ENABLE_SYSFS
 	default n
 	help
 	 diag enable sysfs value can define diag enable or disable
+config LGE_USB_DIAG_LOCK_SPR
+	bool "feautre for usb diag access lock for SPR"
+	default n
+	help
+	 only SPR operator enable this feautre
 endmenu
 
 menu "LGE DM APP Support"

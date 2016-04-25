@@ -22,3 +22,10 @@ obj-$(CONFIG_CRYPTO_DEV_NX) += nx/
 obj-$(CONFIG_CRYPTO_DEV_ATMEL_AES) += atmel-aes.o
 obj-$(CONFIG_CRYPTO_DEV_ATMEL_TDES) += atmel-tdes.o
 obj-$(CONFIG_CRYPTO_DEV_ATMEL_SHA) += atmel-sha.o
+ifndef CONFIG_CRYPTO_DEV_KFIPS_PERF
+ifdef CONFIG_CRYPTO_DEV_KFIPS
+obj-$(CONFIG_CRYPTO_DEV_KFIPS) += kfips.o
+endif
+else
+obj-$(CONFIG_CRYPTO_DEV_KFIPS_PERF) += kfips_perf.o
+endif

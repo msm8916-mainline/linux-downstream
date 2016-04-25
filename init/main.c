@@ -393,63 +393,6 @@ static noinline void __init_refok rest_init(void)
 	cpu_startup_entry(CPUHP_ONLINE);
 }
 
-#ifdef CONFIG_LGE_PM_SMPL_COUNT
-#define PWR_ON_EVENT_KEYPAD			0x80
-#define PWR_ON_EVENT_CABLE			0x40
-#define PWR_ON_EVENT_PON1			0x20
-#define PWR_ON_EVENT_USB            0x10
-#define PWR_ON_EVENT_DC  			0x08
-#define PWR_ON_EVENT_RTC			0x04
-#define PWR_ON_EVENT_SMPL			0x02
-#define PWR_ON_EVENT_HARD_RESET		0x01
-
-
-extern struct file *fget(unsigned int fd);
-extern void fput(struct file *);
-extern uint16_t power_on_status_info_get(void);
-
-static void write_file(char *filename, char* data)
-{
-	int fd = -1;
-	loff_t pos = 0;
-	struct file* file;
-	mm_segment_t old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	fd = sys_open((const char __user *)filename, O_WRONLY | O_CREAT, 0644);
-	printk("[SMPL_CNT] ===> write() : fd is %d\n", fd);
-	if (fd >= 0) {
-		file = fget(fd);
-		if (file) {
-			vfs_write(file, data, strlen(data), &pos);
-			fput(file);
-		}
-		sys_close(fd);
-	} else {
-		printk("[SMPL_CNT] === > write : sys_open error!!!!\n");
-	}
-	set_fs(old_fs);
-}
-
-
-static void smpl_count(void)
-{
-	char* file_name = "/smpl_boot";
-	uint16_t boot_cause = 0;
-
-	boot_cause = power_on_status_info_get();
-	printk("[BOOT_CAUSE] %d \n", boot_cause);
-
-	if (boot_cause == PWR_ON_EVENT_SMPL) {
-		printk("[SMPL_CNT] ===> is smpl boot\n");
-		write_file(file_name, "1");
-	} else {
-		write_file(file_name, "0");
-		printk("[SMPL_CNT] ===> not smpl boot!!!!!\n");
-	}
-}
-#endif
-
 /* Check for early params. */
 static int __init do_early_param(char *param, char *val, const char *unused)
 {
@@ -881,10 +824,6 @@ static int __ref kernel_init(void *unused)
 	numa_default_policy();
 
 	flush_delayed_fput();
-
-#ifdef CONFIG_LGE_PM_SMPL_COUNT
-	smpl_count();
-#endif
 
 	if (ramdisk_execute_command) {
 		if (!run_init_process(ramdisk_execute_command))

@@ -33,4 +33,4 @@ void ts_enable_irq(unsigned int irq_num);
 void ts_disable_irq(unsigned int irq_num);
 int ts_register_irq(struct lge_touch_data *ts, void* handler, void* threaded_handler);
 
-#endif //                   
+#endif //LGE_TOUCH_PLAFORM_H

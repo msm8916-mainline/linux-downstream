@@ -50,6 +50,8 @@
 		/* change AVDD(MIT-200) power control - L16 independent power - Rev.B */
 
 		lge,fw_image = "melfas/mit200/c50n_global_com/L0M45P1CY5_01_02.fw";
+		lge,p5_product = "L0M45P5CY5";
+		lge,p5_fw_image = "melfas/mit200/c50n_global_com/L0M45P5CY5_01_06.fw";
 
 		/* platform_data->pwr*/
 		/* type 0: none(default) */

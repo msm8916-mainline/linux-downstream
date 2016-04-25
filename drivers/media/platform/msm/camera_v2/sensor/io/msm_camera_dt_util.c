@@ -17,7 +17,7 @@
 
 #define CAM_SENSOR_PINCTRL_STATE_SLEEP "cam_suspend"
 #define CAM_SENSOR_PINCTRL_STATE_DEFAULT "cam_default"
-#define CONFIG_MSM_CAMERA_DT_DEBUG
+/*#define CONFIG_MSM_CAMERA_DT_DEBUG*/
 
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
@@ -29,7 +29,7 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 	uint16_t i = 0;
 	int      j = 0;
 
-/*                                                            */
+/* LGE_CHANGE_S, sensor bring-up, 2014-08-27, yt.jeon@lge.com */
 	/* Validate input parameters */
 	if (!power_setting) {
 		pr_err("%s:%d failed: cam_vreg %p power_setting %p", __func__,
@@ -40,7 +40,7 @@ int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 		pr_err("cam_vreg is NULL, There is no vreg setting!!");
 		return 0;
 	}
-/*                                                            */
+/* LGE_CHANGE_E, sensor bring-up, 2014-08-27, yt.jeon@lge.com */
 
 	/* Validate size of num_vreg */
 	if (num_vreg <= 0) {
@@ -140,7 +140,7 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 	struct device_node *src_node = NULL;
 	struct msm_sensor_info_t *sensor_info;
 
-#if defined(CONFIG_LGE_G4STYLUS_CAMERA)
+#if defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_CAMERA_USE_MAKER_ID) || defined(CONFIG_LGE_K5_CAMERA)
 	int32_t maker_id = 0;
 	int32_t gpio_maker = 0;
 	hw_rev_type rev_type = 0;
@@ -206,7 +206,23 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 		src_node = NULL;
 	}
 #endif
-
+#if defined(CONFIG_LG_TCS)
+	src_node = of_parse_phandle(of_node, "qcom,tcs-src", 0);
+        if (!src_node) {
+                pr_err("%s:%d src_node NULL\n", __func__, __LINE__);
+        } else {
+                rc = of_property_read_u32(src_node, "cell-index", &val);
+                CDBG("%s qcom,tcs cell index %d, rc %d\n", __func__,
+                        val, rc);
+                if (rc < 0) {
+                        pr_err("%s failed %d\n", __func__, __LINE__);
+                        goto ERROR;
+                }
+                sensor_info->subdev_id[SUB_MODULE_TCS] = val;
+                of_node_put(src_node);
+                src_node = NULL;
+        }
+#endif
 	src_node = of_parse_phandle(of_node, "qcom,eeprom-src", 0);
 	if (!src_node) {
 		CDBG("%s:%d eeprom src_node NULL\n", __func__, __LINE__);
@@ -222,6 +238,24 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 		of_node_put(src_node);
 		src_node = NULL;
 	}
+
+#if defined(CONFIG_MSM_OTP)
+	src_node = of_parse_phandle(of_node, "qcom,otp-src", 0);
+	if (!src_node) {
+		CDBG("%s:%d otp src_node NULL\n", __func__, __LINE__);
+	} else {
+		rc = of_property_read_u32(src_node, "cell-index", &val);
+		CDBG("%s qcom,otp cell index %d, rc %d\n", __func__,
+			val, rc);
+		if (rc < 0) {
+			pr_err("%s failed %d\n", __func__, __LINE__);
+			goto ERROR;
+		}
+		sensor_info->subdev_id[SUB_MODULE_OTP] = val;
+		of_node_put(src_node);
+		src_node = NULL;
+	}
+#endif
 
 	rc = of_property_read_u32(of_node, "qcom,eeprom-sd-index", &val);
 	if (rc != -EINVAL) {
@@ -335,11 +369,14 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 		goto ERROR;
 	}
 
-#if defined(CONFIG_LGE_G4STYLUS_CAMERA)
+#if defined(CONFIG_LGE_YG_CAMERA)
+	if(sensor_info->subdev_id[SUB_MODULE_CSIPHY] == 1)
+		memcpy(sensor_info->maker_name, "cowell", 6);
+#elif defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_CAMERA_USE_MAKER_ID) || defined(CONFIG_LGE_K5_CAMERA)
 /* Check module maker */
 	rev_type = lge_get_board_revno();
 
-#if defined(CONFIG_MACH_MSM8916_G4STYLUSW_KT_KR)
+#if defined(CONFIG_MACH_MSM8916_G4STYLUSW_KT_KR) || defined(CONFIG_LGE_CAMERA_USE_MAKER_ID)
 	if(1) {
 #else
 	if(rev_type >= HW_REV_B) {
@@ -1136,10 +1173,10 @@ int msm_camera_get_dt_vreg_data(struct device_node *of_node,
 	struct camera_vreg_t **cam_vreg, int *num_vreg)
 {
 	int rc = 0, i = 0;
-	//                                                                                               
+	//LGE_CHANGE_S, defensive code for no cam-vreg-name item exist, 2014-05-02, jongkwon.chae@lge.com
 	//uint32_t count = 0;
 	int32_t count = 0;
-	//                                                                                               
+	//LGE_CHANGE_E, defensive code for no cam-vreg-name item exist, 2014-05-02, jongkwon.chae@lge.com
 	uint32_t *vreg_array = NULL;
 	struct camera_vreg_t *vreg = NULL;
 	bool custom_vreg_name =  false;
@@ -1147,7 +1184,7 @@ int msm_camera_get_dt_vreg_data(struct device_node *of_node,
 	count = of_property_count_strings(of_node, "qcom,cam-vreg-name");
 	CDBG("%s qcom,cam-vreg-name count %d\n", __func__, count);
 
-	//                                                                                               
+	//LGE_CHANGE_S, defensive code for no cam-vreg-name item exist, 2014-05-02, jongkwon.chae@lge.com
 #if 0
 	if (!count)
 		return 0;
@@ -1156,7 +1193,7 @@ int msm_camera_get_dt_vreg_data(struct device_node *of_node,
 		return 0;
 	}
 #endif
-	//                                                                                               
+	//LGE_CHANGE_E, defensive code for no cam-vreg-name item exist, 2014-05-02, jongkwon.chae@lge.com
 
 	vreg = kzalloc(sizeof(*vreg) * count, GFP_KERNEL);
 	if (!vreg) {
@@ -1382,7 +1419,15 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 		case SENSOR_GPIO:
 			if (no_gpio) {
 				pr_err("%s: request gpio failed\n", __func__);
+
+				//LGE_CHANGE_S, goto 'power up fail routine' before return error, jongkwon.chae@lge.com
+			#if defined (CONFIG_MACH_MSM8916_C70W_KR) || defined(CONFIG_MSM8916_C90) || defined(CONFIG_MACH_MSM8916_C90_GLOBAL_COM)
+				rc = no_gpio;
+				goto power_up_failed;
+			#else
 				return no_gpio;
+			#endif
+				//LGE_CHANGE_E, goto 'power up fail routine' before return error, jongkwon.chae@lge.com
 			}
 			if (power_setting->seq_val >= SENSOR_GPIO_MAX ||
 				!ctrl->gpio_conf->gpio_num_info) {
@@ -1587,7 +1632,7 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
 			gpio_set_value_cansleep(
 				ctrl->gpio_conf->gpio_num_info->gpio_num
 				[pd->seq_val],
-				0); //                                                                                 
+				0); //pd->config_val); //LGE_CHANGE, 2014-06-05, temp fix for power down, jongkwon.chae
 			break;
 		case SENSOR_VREG:
 			if (pd->seq_val >= CAM_VREG_MAX) {

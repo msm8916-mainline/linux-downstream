@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2008 Google, Inc.
  * Author: Brian Swetland <swetland@google.com>
- * Copyright (c) 2009-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2015, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -27,7 +27,7 @@
 #include <linux/hrtimer.h>
 #include <linux/power_supply.h>
 #include <linux/cdev.h>
-#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
+#ifdef CONFIG_LGE_USB_G_MSM_OTG_ENABLE
 #include <linux/qpnp/qpnp-adc.h>
 #endif
 /*
@@ -107,6 +107,7 @@ enum msm_usb_phy_type {
 	SNPS_FEMTO_PHY,
 };
 
+#define IDEV_CHG_PROPRIETARY	1000
 #define IDEV_CHG_MAX	1500
 #define IDEV_CHG_MIN	500
 #define IUNIT		100
@@ -195,7 +196,7 @@ enum usb_vdd_value {
 	VDD_VAL_MAX,
 };
 
-#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
+#ifdef CONFIG_LGE_USB_G_MSM_OTG_ENABLE
 enum msm_otg_id_state {
 	MSM_OTG_ID_GROUND = 0,
 	MSM_OTG_ID_FLOAT,
@@ -275,11 +276,15 @@ enum usb_ctrl {
  * @bool disable_retention_with_vdd_min: Indicates whether to enable
 		allowing VDDmin without putting PHY into retention.
  * @usb_id_gpio: Gpio used for USB ID detection.
+ * @hub_reset_gpio: Gpio used for hub reset.
+ * @switch_sel_gpio: Gpio used for controlling switch that
+		routing D+/D- from the USB HUB to the USB jack type B
+		for peripheral mode.
  * @bool phy_dvdd_always_on: PHY DVDD is supplied by always on PMIC LDO.
  */
 struct msm_otg_platform_data {
 	int *phy_init_seq;
-#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
+#if defined(CONFIG_LGE_USB_G_MSM_OTG_ENABLE) || defined(CONFIG_LGE_USB_TYPE_A)
 	int *phy_init_host_seq;
 #endif
 	int (*vbus_power)(bool on);
@@ -310,11 +315,14 @@ struct msm_otg_platform_data {
 	bool enable_ahb2ahb_bypass;
 	bool disable_retention_with_vdd_min;
 	int usb_id_gpio;
-#ifdef CONFIG_LGE_STANDARD_USB_A_ALTEV2
+#ifdef CONFIG_LGE_USB_TYPE_A
 	int hub_en_gpio;
 	int hub_res_gpio;
 #endif
+	int hub_reset_gpio;
+	int switch_sel_gpio;
 	bool phy_dvdd_always_on;
+	struct clk *system_clk;
 };
 
 /* phy related flags */
@@ -372,6 +380,8 @@ struct msm_otg_platform_data {
  * @pdata: otg device platform data.
  * @irq: IRQ number assigned for HSUSB controller.
  * @async_irq: IRQ number used by some controllers during low power state
+ * @phy_irq: IRQ number assigned for PHY to notify events like id and line
+		state changes.
  * @pclk: clock struct of iface_clk.
  * @core_clk: clock struct of core_bus_clk.
  * @sleep_clk: clock struct of sleep_clk for USB PHY.
@@ -395,6 +405,7 @@ struct msm_otg_platform_data {
  * @in_lpm: indicates low power mode (LPM) state.
  * @async_int: IRQ line on which ASYNC interrupt arrived in LPM.
  * @cur_power: The amount of mA available from downstream port.
+ * @otg_wq: Strict order otg workqueue for OTG works (SM/ID/SUSPEND).
  * @chg_work: Charger detection work.
  * @chg_state: The state of charger detection process.
  * @chg_type: The type of charger attached.
@@ -421,12 +432,17 @@ struct msm_otg_platform_data {
 	     the charger detection starts. When USB is disconnected and in lpm
 	     pm_done is set to true.
  * @ext_id_irq: IRQ for ID interrupt.
+ * @phy_irq_pending: Gets set when PHY IRQ arrives in LPM.
+ * @dbg_idx: Dynamic debug buffer Index.
+ * @dbg_lock: Dynamic debug buffer Lock.
+ * @buf: Dynamic Debug Buffer.
  */
 struct msm_otg {
 	struct usb_phy phy;
 	struct msm_otg_platform_data *pdata;
 	int irq;
 	int async_irq;
+	int phy_irq;
 	struct clk *xo_clk;
 	struct clk *pclk;
 	struct clk *core_clk;
@@ -466,12 +482,18 @@ struct msm_otg {
 	struct notifier_block pm_notify;
 	atomic_t in_lpm;
 	atomic_t set_fpr_with_lpm_exit;
+	bool err_event_seen;
 	int async_int;
 	unsigned cur_power;
+	struct workqueue_struct *otg_wq;
 	struct delayed_work chg_work;
 #if defined(CONFIG_CHG_DETECTOR_MAX14656)
 	struct delayed_work lge_chg_work;
 	int chg_det_cnt;
+#endif
+#if defined(CONFIG_LGE_PM_FLOATED_CHARGER)
+	int dcd_timeout_cnt;
+	bool dcd_timeout;
 #endif
 	struct delayed_work id_status_work;
 	struct delayed_work suspend_work;
@@ -561,13 +583,22 @@ struct msm_otg {
 	bool pm_done;
 	struct qpnp_vadc_chip	*vadc_dev;
 	int ext_id_irq;
-#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
+#ifdef CONFIG_LGE_USB_G_MSM_OTG_ENABLE
 	struct qpnp_adc_tm_btm_param adc_param;
 	struct delayed_work init_adc_work;
 	enum msm_otg_id_state id_state;
 	struct qpnp_adc_tm_chip *adc_tm_dev;
 	bool id_adc_detect;
 #endif
+	bool phy_irq_pending;
+	wait_queue_head_t	host_suspend_wait;
+/* Maximum debug message length */
+#define DEBUG_MSG_LEN   128UL
+/* Maximum number of messages */
+#define DEBUG_MAX_MSG   256UL
+	unsigned int dbg_idx;
+	rwlock_t dbg_lock;
+	char (buf[DEBUG_MAX_MSG])[DEBUG_MSG_LEN];   /* buffer */
 };
 
 struct ci13xxx_platform_data {
@@ -580,6 +611,7 @@ struct ci13xxx_platform_data {
 	void *prv_data;
 	bool l1_supported;
 	bool enable_ahb2ahb_bypass;
+	struct clk *system_clk;
 };
 
 /**
@@ -700,6 +732,16 @@ void msm_hw_bam_disable(bool bam_disable);
 static inline void msm_hw_bam_disable(bool bam_disable)
 {
 }
+#endif
+
+/* CONFIG_PM_RUNTIME */
+#ifdef CONFIG_PM_RUNTIME
+static inline int get_pm_runtime_counter(struct device *dev)
+{
+	return atomic_read(&dev->power.usage_count);
+}
+#else /* !CONFIG_PM_RUNTIME */
+static inline int get_pm_runtime_counter(struct device *dev) { return -ENOSYS; }
 #endif
 
 #ifdef CONFIG_USB_DWC3_MSM

@@ -21,31 +21,42 @@
 #include "../cci/msm_cci.h"
 #include <linux/debugfs.h>
 
-#define FLASH_PORTING_TEMP
-//#define USE_GPIO
-
 #define FLASH_NAME "camera-led-flash"
 #define CAM_FLASH_PINCTRL_STATE_SLEEP "cam_flash_suspend"
 #define CAM_FLASH_PINCTRL_STATE_DEFAULT "cam_flash_default"
-/*#define CONFIG_MSMB_CAMERA_DEBUG*/
+//#define CONFIG_MSMB_CAMERA_DEBUG
 #undef CDBG
 #define CDBG(fmt, args...) pr_err(fmt, ##args)
 
-#ifdef FLASH_PORTING_TEMP
+#ifdef CONFIG_MACH_LGE
 
-/*                                                           */
 unsigned char strobe_ctrl;
 unsigned char  flash_ctrl;
 
-/*                                                                          */
+// LGE_CHANGE_S, yt.jeon@lge.com, To fix an issue of flash widget 2013-10-30
 #if defined(CONFIG_BACKLIGHT_LM3632)
 extern void lm3632_led_enable(void);
 extern void lm3632_led_disable(void);
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+extern void lm3639_led_enable(void);
+extern void lm3639_led_disable(void);
 #elif defined(CONFIG_BACKLIGHT_RT8542)
 extern void rt8542_led_enable(void);
 extern void rt8542_led_disable(void);
 #endif
-/*                                                                          */
+// LGE_CHANGE_E, yt.jeon@lge.com, To fix an issue of flash widget 2013-10-30
+
+// LGE_CHANGE_S, jongkwon.chae@lge.com, Flash Alert Issue Fix, 2015-01-07
+unsigned char torch_toggle = 0;
+extern int get_backlight_status(void);
+
+#define POWER_OFF   0x00
+#define BOTH_ON     0xFF
+#define BL_ON       0xF0
+#define FLASH_ON    0x0F
+// LGE_CHANGE_E, jongkwon.chae@lge.com, Flash Alert Issue Fix, 2015-01-07
+
+// LGE_CHANGE_S, yt.jeon@lge.com, Flash driver B/U 2013-10-04
 static int flash_read_reg(struct msm_camera_i2c_client *client, unsigned char reg, unsigned char *data)
 {
 	int err;
@@ -82,8 +93,54 @@ static int flash_write_reg(struct msm_camera_i2c_client *client, unsigned char r
 	}
 	return 0;
 }
-/*                                                           */
+// LGE_CHANGE_E, yt.jeon@lge.com, Flash driver B/U 2013-10-04
 #endif
+
+#if defined(CONFIG_BACKLIGHT_LM3632)
+/* Set current & voltage limit for low temperature*/
+int lm3632_led_set_limit(struct msm_led_flash_ctrl_t *fctrl)
+{
+	int rc = 0;
+	unsigned char val = 0;
+
+	/* Set VIN Monitor threshold level */
+	val = 0;
+	rc = flash_read_reg(fctrl->flash_i2c_client, 0x08, &val);
+	if(rc < 0) {
+		pr_err("%s %d failed\n", __func__, __LINE__);
+	}
+
+	val = val & 0xF8;
+	val = val | 0x03;
+	rc = flash_write_reg(fctrl->flash_i2c_client, 0x08, val);
+	if(rc < 0) {
+		pr_err("%s %d failed\n", __func__, __LINE__);
+	}
+
+	return rc;
+}
+
+void lm3632_led_status_check(struct msm_led_flash_ctrl_t *fctrl)
+{
+	int rc = 0;
+	unsigned char val[2] = {0};
+
+	rc = flash_read_reg(fctrl->flash_i2c_client, 0x0B, &val[0]);
+	if(rc < 0) {
+		pr_err("%s %d failed\n", __func__, __LINE__);
+	}
+
+	rc = flash_read_reg(fctrl->flash_i2c_client, 0x10, &val[1]);
+	if(rc < 0) {
+		pr_err("%s %d failed\n", __func__, __LINE__);
+	}
+
+	pr_info("status = 0x%.2x, 0x%.2x\n", val[0], val[1]);
+
+	return;
+}
+#endif
+
 
 int32_t msm_led_i2c_trigger_get_subdev_id(struct msm_led_flash_ctrl_t *fctrl,
 	void *arg)
@@ -124,13 +181,21 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 			cfg->torch_current[i] =
 				fctrl->torch_max_current[i];
 		}
+#if defined(CONFIG_BACKLIGHT_LM3632)
+		rc = lm3632_led_set_limit(fctrl);
+		if(rc < 0)
+			pr_err("%s %d failed\n", __func__, __LINE__);
+#endif
 		break;
 
 	case MSM_CAMERA_LED_RELEASE:
 #if defined(CONFIG_BACKLIGHT_LM3632)
-		lm3632_led_disable();/*                                                                        */
+		// LGE_CHANGE, yt.jeon@lge.com, To fix an issue of flash widget 2013-10-30
+		lm3632_led_disable();
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		lm3639_led_disable();
 #elif defined(CONFIG_BACKLIGHT_RT8542)
-		rt8542_led_disable();/*                                                                        */
+		rt8542_led_disable();
 #endif
 		if (fctrl->func_tbl->flash_led_release)
 			rc = fctrl->func_tbl->
@@ -139,9 +204,11 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 
 	case MSM_CAMERA_LED_OFF:
 #if defined(CONFIG_BACKLIGHT_LM3632)
-		lm3632_led_disable();/*                                                                        */
+		lm3632_led_disable();
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		lm3639_led_disable();
 #elif defined(CONFIG_BACKLIGHT_RT8542)
-		rt8542_led_disable();/*                                                                        */
+		rt8542_led_disable();
 #endif
 		if (fctrl->func_tbl->flash_led_off)
 			rc = fctrl->func_tbl->flash_led_off(fctrl);
@@ -149,9 +216,11 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 
 	case MSM_CAMERA_LED_LOW:
 #if defined(CONFIG_BACKLIGHT_LM3632)
-		lm3632_led_enable();/*                                                                        */
+		lm3632_led_enable();
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		lm3639_led_enable();
 #elif defined(CONFIG_BACKLIGHT_RT8542)
-		rt8542_led_enable();/*                                                                        */
+		rt8542_led_enable();
 #endif
 		for (i = 0; i < fctrl->torch_num_sources; i++) {
 			if (fctrl->torch_max_current[i] > 0) {
@@ -164,13 +233,19 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 		}
 		if (fctrl->func_tbl->flash_led_low)
 			rc = fctrl->func_tbl->flash_led_low(fctrl);
+
+#if defined(CONFIG_BACKLIGHT_LM3632)
+		lm3632_led_status_check(fctrl);
+#endif
 		break;
 
 	case MSM_CAMERA_LED_HIGH:
 #if defined(CONFIG_BACKLIGHT_LM3632)
-		lm3632_led_enable();/*                                                                        */
+		lm3632_led_enable();
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		lm3639_led_enable();
 #elif defined(CONFIG_BACKLIGHT_RT8542)
-		rt8542_led_enable();/*                                                                        */
+		rt8542_led_enable();
 #endif
 		for (i = 0; i < fctrl->flash_num_sources; i++) {
 			if (fctrl->flash_max_current[i] > 0) {
@@ -183,6 +258,10 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 		}
 		if (fctrl->func_tbl->flash_led_high)
 			rc = fctrl->func_tbl->flash_led_high(fctrl);
+
+#if defined(CONFIG_BACKLIGHT_LM3632)
+		lm3632_led_status_check(fctrl);
+#endif
 		break;
 	default:
 		rc = -EFAULT;
@@ -231,60 +310,8 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 
 	CDBG("%s:%d called\n", __func__, __LINE__);
 
-#ifdef USE_GPIO
-	struct msm_camera_sensor_board_info *flashdata = NULL;
-	struct msm_camera_power_ctrl_t *power_info = NULL;
-	CDBG("%s:%d called\n", __func__, __LINE__);
 
-	flashdata = fctrl->flashdata;
-	power_info = &flashdata->power_info;
-	fctrl->led_state = MSM_CAMERA_LED_RELEASE;
-	if (power_info->gpio_conf->cam_gpiomux_conf_tbl != NULL) {
-		pr_err("%s:%d mux install\n", __func__, __LINE__);
-	}
-
-	/* CCI Init */
-	if (fctrl->flash_device_type == MSM_CAMERA_PLATFORM_DEVICE) {
-		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_util(
-			fctrl->flash_i2c_client, MSM_CCI_INIT);
-		if (rc < 0) {
-			pr_err("cci_init failed\n");
-			return rc;
-		}
-	}
-	rc = msm_camera_request_gpio_table(
-		power_info->gpio_conf->cam_gpio_req_tbl,
-		power_info->gpio_conf->cam_gpio_req_tbl_size, 1);
-	if (rc < 0) {
-		pr_err("%s: request gpio failed\n", __func__);
-		return rc;
-	}
-
-	if (fctrl->pinctrl_info.use_pinctrl == true) {
-		CDBG("%s:%d PC:: flash pins setting to active state",
-				__func__, __LINE__);
-		rc = pinctrl_select_state(fctrl->pinctrl_info.pinctrl,
-				fctrl->pinctrl_info.gpio_state_active);
-		if (rc < 0) {
-			devm_pinctrl_put(fctrl->pinctrl_info.pinctrl);
-			pr_err("%s:%d cannot set pin to active state",
-					__func__, __LINE__);
-		}
-	}
-	msleep(20);
-
-	pr_err("before FL_RESET\n");
-#endif
-
-#ifdef FLASH_PORTING_TEMP
-
-	#ifdef USE_GPIO
-	gpio_set_value_cansleep(
-		power_info->gpio_conf->gpio_num_info->
-		gpio_num[SENSOR_GPIO_FL_EN],
-		GPIO_OUT_HIGH);
-	#endif
-
+#ifdef CONFIG_MACH_LGE
 #else
 	CDBG("before FL_RESET\n");
 	if (power_info->gpio_conf->gpio_num_info->
@@ -305,7 +332,7 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 		GPIO_OUT_HIGH);
 #endif
 
-#ifdef FLASH_PORTING_TEMP
+#ifdef CONFIG_MACH_LGE
 #else
 	if (fctrl->flash_i2c_client && fctrl->reg_setting) {
 		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
@@ -316,6 +343,11 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 	}
 #endif
 	fctrl->led_state = MSM_CAMERA_LED_INIT;
+
+	//LGE_CHANGE, jongkwon.chae@lge.com, Flash Alert Issue Fix, 2015-01-07
+	torch_toggle = 0;
+	CDBG("[CHECK] torch_toggle: %d\n", torch_toggle);
+
 	return rc;
 }
 
@@ -325,47 +357,42 @@ int msm_flash_led_release(struct msm_led_flash_ctrl_t *fctrl)
 
 	CDBG("%s:%d called\n", __func__, __LINE__);
 
-#ifdef USE_GPIO
-	int ret = 0;
-	struct msm_camera_sensor_board_info *flashdata = NULL;
-	struct msm_camera_power_ctrl_t *power_info = NULL;
-
-	flashdata = fctrl->flashdata;
-	power_info = &flashdata->power_info;
-#endif
-
 	if (!fctrl) {
 		pr_err("%s:%d fctrl NULL\n", __func__, __LINE__);
 		return -EINVAL;
 	}
 
-#ifdef FLASH_PORTING_TEMP
+#ifdef CONFIG_MACH_LGE
 	if (fctrl->flash_i2c_client) {
 
 #if defined(CONFIG_BACKLIGHT_LM3632)
 
-	#if defined(CONFIG_LGE_G4STYLUS_CAMERA)
+	#if defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_P1B_CAMERA) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) || defined(CONFIG_LGE_K5_CAMERA) || defined(CONFIG_LGE_PH1_CAMERA)
 		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x09);
 	#else
 		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x11);
 	#endif
 
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x15);
 #else
-		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x1D);
+		flash_ctrl = 0;
+		rc = flash_read_reg(fctrl->flash_i2c_client, 0x0A, &flash_ctrl);
+		if (rc < 0) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+		}
+		flash_ctrl &= 0x1D;
+		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, flash_ctrl); //clear bit1,5,6
 #endif
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
+		//LGE_CHANGE, jongkwon.chae@lge.com, Flash Alert Issue Fix, 2015-01-07
+		torch_toggle = 0;
+		CDBG("[CHECK] torch_toggle: %d\n", torch_toggle);
 	}
 #endif
 
-#ifdef FLASH_PORTING_TEMP
-
-	#ifdef USE_GPIO
-	gpio_set_value_cansleep(
-		power_info->gpio_conf->gpio_num_info->
-		gpio_num[SENSOR_GPIO_FL_EN],
-		GPIO_OUT_LOW);
-	#endif
+#ifdef CONFIG_MACH_LGE
 
 #else
 	if (fctrl->led_state != MSM_CAMERA_LED_INIT) {
@@ -388,34 +415,6 @@ int msm_flash_led_release(struct msm_led_flash_ctrl_t *fctrl)
 			GPIO_OUT_LOW);
 #endif
 
-#ifdef USE_GPIO
-	if (fctrl->pinctrl_info.use_pinctrl == true) {
-		ret = pinctrl_select_state(fctrl->pinctrl_info.pinctrl,
-				fctrl->pinctrl_info.gpio_state_suspend);
-		if (ret < 0) {
-			devm_pinctrl_put(fctrl->pinctrl_info.pinctrl);
-			pr_err("%s:%d cannot set pin to suspend state",
-				__func__, __LINE__);
-		}
-	}
-	rc = msm_camera_request_gpio_table(
-		power_info->gpio_conf->cam_gpio_req_tbl,
-		power_info->gpio_conf->cam_gpio_req_tbl_size, 0);
-	if (rc < 0) {
-		pr_err("%s: request gpio failed\n", __func__);
-		return rc;
-	}
-
-	fctrl->led_state = MSM_CAMERA_LED_RELEASE;
-	/* CCI deInit */
-	if (fctrl->flash_device_type == MSM_CAMERA_PLATFORM_DEVICE) {
-		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_util(
-			fctrl->flash_i2c_client, MSM_CCI_RELEASE);
-		if (rc < 0)
-			pr_err("cci_deinit failed\n");
-	}
-#endif
-
 	return 0;
 }
 
@@ -424,39 +423,44 @@ int msm_flash_led_off(struct msm_led_flash_ctrl_t *fctrl)
 	int rc = 0;
 	CDBG("%s:%d called\n", __func__, __LINE__);
 
-#ifdef USE_GPIO
-	struct msm_camera_sensor_board_info *flashdata = NULL;
-	struct msm_camera_power_ctrl_t *power_info = NULL;
-
-	flashdata = fctrl->flashdata;
-	power_info = &flashdata->power_info;
-#endif
-
 	if (!fctrl) {
 		pr_err("%s:%d fctrl NULL\n", __func__, __LINE__);
 		return -EINVAL;
 	}
 
-#ifdef FLASH_PORTING_TEMP
+#ifdef CONFIG_MACH_LGE
 	if(fctrl->flash_i2c_client == NULL) {
 		pr_err("%s:%d fctrl->flash_i2c_client NULL\n", __func__, __LINE__);
 		return -EINVAL;
 	}
 
 	if (fctrl->flash_i2c_client) {
+
 #if defined(CONFIG_BACKLIGHT_LM3632)
 
-	#if defined(CONFIG_LGE_G4STYLUS_CAMERA)
+	#if defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_P1B_CAMERA) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) || defined(CONFIG_LGE_K5_CAMERA) || defined(CONFIG_LGE_PH1_CAMERA)
 		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x09);
 	#else
 		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x11);
 	#endif
 
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x15);
 #else
-		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x1D);
+		flash_ctrl = 0;
+		rc = flash_read_reg(fctrl->flash_i2c_client, 0x0A, &flash_ctrl);
+		if (rc < 0) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+		}
+		flash_ctrl &= 0x1D;
+		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, flash_ctrl); //clear bit1,5,6
 #endif
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
+
+		//LGE_CHANGE, jongkwon.chae@lge.com, Flash Alert Issue Fix, 2015-01-07
+		torch_toggle = 0;
+		CDBG("[CHECK] torch_toggle: %d\n", torch_toggle);
 	}
 #else
 	if (fctrl->flash_i2c_client && fctrl->reg_setting) {
@@ -481,11 +485,6 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 	unsigned char status = 0;
 	CDBG("%s:%d called\n", __func__, __LINE__);
 
-#ifdef USE_GPIO
-	struct msm_camera_sensor_board_info *flashdata = NULL;
-	struct msm_camera_power_ctrl_t *power_info = NULL;
-#endif
-
     if(fctrl == NULL) {
         pr_err("%s:%d fctrl\n", __func__, __LINE__);
 		return -EINVAL;
@@ -496,11 +495,17 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 		return -EINVAL;
     }
 
-    //                                                                                                                    
+    //LGE_CHANGE_S, fix live-shot make flicker issue when video recording with torch on, jongkwon.chae@lge.com, 2014-07-18
     //Check if current status is strobe on -> then skip
     rc = flash_read_reg(fctrl->flash_i2c_client, 0x09, &status);
     if (rc < 0) {
 		pr_err("%s:%d failed\n", __func__, __LINE__);
+    }
+    //LGE_CHANGE, jongkwon.chae@lge.com, Flash Alert Issue Fix, 2015-01-07
+    else if (torch_toggle == 0) {
+        //torch field in Addr 0x0A has reset-value of 1, so we cannot check bit field if LCD backlight is not set yet.
+        //this else-if part is defensive code for torch-request before lcd is on case.
+        CDBG("[CHECK] Do not skip torch. (if torch_toggle is disabled.)");
     }
     else {
 		//1. Check if (Strobe Enabled is On)
@@ -515,6 +520,8 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 			//2. Check if (FLED1 Enabled bit On, Flash Enabled is On)
 #if defined(CONFIG_BACKLIGHT_LM3632)
 			if ((status & 0x02) == 0x02) {
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+			if ((status & 0x42) == 0x42) {
 #else
 			if ((status & 0x42) == 0x42) {
 #endif
@@ -525,16 +532,8 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 		}
 #endif
     }
-    //                                                                                                                    
+    //LGE_CHANGE_E, fix live-shot make flicker issue when video recording with torch on, jongkwon.chae@lge.com, 2014-07-18
 
-#ifdef USE_GPIO
-	flashdata = fctrl->flashdata;
-	power_info = &flashdata->power_info;
-	gpio_set_value_cansleep(
-		power_info->gpio_conf->gpio_num_info->
-		gpio_num[SENSOR_GPIO_FL_EN],
-		GPIO_OUT_HIGH);
-#else
 	/* Configuration of frequency, current limit and timeout, default 2Mhz, 1.7A, 1024ms */
 	rc =flash_write_reg(fctrl->flash_i2c_client,	0x07, 0x0F);
 	if (rc < 0)
@@ -543,42 +542,54 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 #if defined(CONFIG_BACKLIGHT_LM3632)
 	/* Configuration of current, torch : 200mA, strobe : 100mA */
 	rc =flash_write_reg(fctrl->flash_i2c_client, 0x06, 0x40);
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+	/* Configuration of current, torch : 84.375mAx2, strobe : 93.75mAx2 */
+	rc =flash_write_reg(fctrl->flash_i2c_client, 0x06, 0x21);
 #else //rt8542
 	/* Configuration of current, torch : 84.375mAx2, strobe : 103.125mAx2 */
 	rc =flash_write_reg(fctrl->flash_i2c_client, 0x06, 0x21);
 #endif
 	if (rc < 0)
 		pr_err("%s:%d failed\n", __func__, __LINE__);
-#endif
-
-#ifdef USE_GPIO
-
-	gpio_set_value_cansleep(
-		power_info->gpio_conf->gpio_num_info->
-		gpio_num[SENSOR_GPIO_FL_NOW],
-		GPIO_OUT_HIGH);
-
-
-	if (fctrl->flash_i2c_client && fctrl->reg_setting) {
-		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
-			fctrl->flash_i2c_client,
-			fctrl->reg_setting->low_setting);
-		if (rc < 0)
-			pr_err("%s:%d failed\n", __func__, __LINE__);
-	}
-#else
 
 	/* Control of I/O register */
 #if defined(CONFIG_BACKLIGHT_LM3632)
 
-	#if defined(CONFIG_LGE_G4STYLUS_CAMERA)
+	#if defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_K5_CAMERA) || defined(CONFIG_LGE_PH1_CAMERA)
 		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x09);
+	#elif defined(CONFIG_LGE_P1B_CAMERA) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
+		flash_ctrl = 0;
+		rc = flash_read_reg(fctrl->flash_i2c_client, 0x0A, &flash_ctrl);
+		if (rc < 0) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+		}
+
+		flash_ctrl |= 0x09;
+
+		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, flash_ctrl);
 	#else
 		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x11);
 	#endif
 
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x15);
 #else
-		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x1D);
+	flash_ctrl = 0;
+	rc = flash_read_reg(fctrl->flash_i2c_client, 0x0A, &flash_ctrl);
+	if (rc < 0) {
+		pr_err("%s:%d failed\n", __func__, __LINE__);
+	}
+
+	//LGE_CHANGE, jongkwon.chae@lge.com, Flash Alert Issue Fix, 2015-01-07
+	if ( (get_backlight_status() & BL_ON) == BL_ON) {
+		flash_ctrl &= 0x1D;
+	}
+	else {
+		CDBG("[CHECK] Currently, Backlight is Off (status: 0x%X)", get_backlight_status());
+		flash_ctrl &= 0x04;
+	}
+
+	rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, flash_ctrl); //clear bit1,5,6
 #endif
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
@@ -591,6 +602,9 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 
 #if defined(CONFIG_BACKLIGHT_LM3632)
 	strobe_ctrl &= 0xEF; /* 1110 1111 */
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+	strobe_ctrl &= 0xDF; /* 1101 1111 */
+	strobe_ctrl |= 0x10; /* 0001 0000 */
 #else
 	strobe_ctrl &= 0xDF; /* 1101 1111 */
 	strobe_ctrl |= 0x10; /* 0001 0000 */
@@ -611,15 +625,22 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 	flash_ctrl &= 0xFB; /* 1111 1011 */
 #if defined(CONFIG_BACKLIGHT_LM3632)
 	flash_ctrl |= 0x02; /* 0000 0010 */
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+	flash_ctrl |= 0x62; /* 0110 0010 */
 #else
 	flash_ctrl |= 0x62; /* 0110 0010 */
 #endif
-	//                                                                                          
+	//jongho3.lee@lge.com[2013-06-05] : Since default is FLASH(0x04) mode after rt8542 power on,
 	// we must set the third bit 0 to set TORCH mode.
 	rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, flash_ctrl);
 	if (rc < 0)
 		pr_err("%s:%d failed\n", __func__, __LINE__);
-#endif
+	CDBG("[CHECK] [Addr: 0x0A] Write Data: 0x%X\n", flash_ctrl);
+
+	//LGE_CHANGE, jongkwon.chae@lge.com, Flash Alert Issue Fix, 2015-01-07
+	torch_toggle = 1;
+	CDBG("[CHECK] torch_toggle: %d\n", torch_toggle);
+
 	return rc;
 }
 
@@ -627,14 +648,9 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 {
 	int rc = 0;
 
-#ifdef USE_GPIO
-	struct msm_camera_sensor_board_info *flashdata = NULL;
-	struct msm_camera_power_ctrl_t *power_info = NULL;
-#endif
-
 	CDBG("%s:%d called\n", __func__, __LINE__);
 
-#ifdef FLASH_PORTING_TEMP
+#ifdef CONFIG_MACH_LGE
     if(fctrl == NULL) {
         pr_err("%s:%d fctrl\n", __func__, __LINE__);
 		return -EINVAL;
@@ -645,28 +661,6 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 		return -EINVAL;
     }
 #endif
-
-#ifdef USE_GPIO
-	flashdata = fctrl->flashdata;
-	power_info = &flashdata->power_info;
-	gpio_set_value_cansleep(
-		power_info->gpio_conf->gpio_num_info->
-		gpio_num[SENSOR_GPIO_FL_EN],
-		GPIO_OUT_HIGH);
-
-	gpio_set_value_cansleep(
-		power_info->gpio_conf->gpio_num_info->
-		gpio_num[SENSOR_GPIO_FL_NOW],
-		GPIO_OUT_HIGH);
-
-	if (fctrl->flash_i2c_client && fctrl->reg_setting) {
-		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
-			fctrl->flash_i2c_client,
-			fctrl->reg_setting->high_setting);
-		if (rc < 0)
-			pr_err("%s:%d failed\n", __func__, __LINE__);
-	}
-#else
 
 	/* Configuration of frequency, current limit and timeout, default 2Mhz, 2.5A, 1024ms */
 	rc =flash_write_reg(fctrl->flash_i2c_client,	0x07, 0x1F);
@@ -687,18 +681,26 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 		defined(CONFIG_MACH_MSM8916_C70N_MPCS_US) || \
 		defined(CONFIG_MACH_MSM8916_C70N_SKT_KR) || \
 		defined(CONFIG_MACH_MSM8916_C70N_TMO_US) || \
-		defined(CONFIG_MACH_MSM8916_C90N_GLOBAL_COM)
+		defined(CONFIG_MACH_MSM8916_C90_GLOBAL_COM) || \
+		defined(CONFIG_MACH_MSM8916_C70W_KR) || \
+		defined(CONFIG_MACH_MSM8916_C70_RGS_CA)
 
 		/* Configuration of current, torch : 50mA, strobe :900mA */
 		rc =flash_write_reg(fctrl->flash_i2c_client,	0x06, 0x18);
+	#elif defined(CONFIG_MACH_MSM8916_PH1)
+	    /* Configuration of current, torch : 50mA, strobe :1.1A */
+	    rc =flash_write_reg(fctrl->flash_i2c_client,    0x06, 0x1A);
 	#else
 		/* Configuration of current, torch : 50mA, strobe :800mA */
 		rc =flash_write_reg(fctrl->flash_i2c_client,	0x06, 0x17);
 	#endif
 
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+	/* Configuration of current, torch : 56.25mA, strobe : 515.625x2mA */
+	rc =flash_write_reg(fctrl->flash_i2c_client,	0x06, 0x1A);
 #else //rt8542
-	/* Configuration of current, torch : 56.25mA, strobe : 384.375mA */
-	rc =flash_write_reg(fctrl->flash_i2c_client,	0x06, 0x17);
+	/* Configuration of current, torch : 56.25mA, strobe : 431.25mA */
+	rc =flash_write_reg(fctrl->flash_i2c_client,	0x06, 0x18);
 #endif
 	if (rc < 0)
 		pr_err("%s:%d failed\n", __func__, __LINE__);
@@ -706,14 +708,32 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 	/* Control of I/O register */
 #if defined(CONFIG_BACKLIGHT_LM3632)
 
-	#if defined(CONFIG_LGE_G4STYLUS_CAMERA)
+	#if defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_K5_CAMERA) || defined(CONFIG_LGE_PH1_CAMERA)
 		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x09);
+	#elif defined(CONFIG_LGE_P1B_CAMERA) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
+		flash_ctrl = 0;
+		rc = flash_read_reg(fctrl->flash_i2c_client, 0x0A, &flash_ctrl);
+		if (rc < 0) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+		}
+
+		flash_ctrl |= 0x09;
+
+		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, flash_ctrl);
 	#else
 		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x11);
 	#endif
 
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x15);
 #else
-		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, 0x1D);
+		flash_ctrl = 0;
+		rc = flash_read_reg(fctrl->flash_i2c_client, 0x0A, &flash_ctrl);
+		if (rc < 0) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+		}
+		flash_ctrl &= 0x1D;
+		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A, flash_ctrl); //clear bit1,5,6
 #endif
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
@@ -725,9 +745,17 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 		}
 #if defined(CONFIG_BACKLIGHT_LM3632)
 		strobe_ctrl &= 0xEF; /* 1110 1111 */
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		strobe_ctrl &= 0xDF; /* 1101 1111 */
+		strobe_ctrl |= 0x10; /* 0001 0000 */
 #else
 		strobe_ctrl &= 0xDF; /* 1101 1111 */
 		strobe_ctrl |= 0x10; /* 0001 0000 */
+#endif
+
+#if defined(CONFIG_BACKLIGHT_LM3632)
+		strobe_ctrl &= 0xFC;
+		strobe_ctrl |= 0x01;
 #endif
 
 		rc =flash_write_reg(fctrl->flash_i2c_client,	0x09, strobe_ctrl);
@@ -743,6 +771,15 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 
 #if defined(CONFIG_BACKLIGHT_LM3632)
 		flash_ctrl |= 0x06; /* 0000 0110*/
+#elif defined(CONFIG_BACKLIGHT_LM3639)
+		flash_ctrl &= 0xFD; /* clear bit1*/
+		flash_ctrl |= 0x04; /* set bit2*/
+
+		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A,	flash_ctrl);
+		if (rc < 0)
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+
+		flash_ctrl |= 0x66; /* 0110 0110*/
 #else
 		flash_ctrl &= 0xFD; /* clear bit1*/
 		flash_ctrl |= 0x04; /* set bit2*/
@@ -753,12 +790,10 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 
 		flash_ctrl |= 0x66; /* 0110 0110*/
 #endif
+
 		rc =flash_write_reg(fctrl->flash_i2c_client, 0x0A,	flash_ctrl);
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
-#endif
-
-
 	return rc;
 }
 
@@ -1133,6 +1168,8 @@ int msm_flash_probe(struct platform_device *pdev,
 		(struct msm_led_flash_ctrl_t *)data;
 	struct device_node *of_node = pdev->dev.of_node;
 	struct msm_camera_cci_client *cci_client = NULL;
+	//LGE_CHANGE, jongkwon.chae@lge.com, Flash Alert Issue Fix, 2015-01-07
+	torch_toggle = 0;
 
 	if (!of_node) {
 		pr_err("of_node NULL\n");
@@ -1152,6 +1189,7 @@ int msm_flash_probe(struct platform_device *pdev,
 	/* Assign name for sub device */
 	snprintf(fctrl->msm_sd.sd.name, sizeof(fctrl->msm_sd.sd.name),
 			"%s", fctrl->flashdata->sensor_name);
+	CDBG("[CHECK] msm_sd.sd.name: %s\n", fctrl->msm_sd.sd.name);
 	/* Set device type as Platform*/
 	fctrl->flash_device_type = MSM_CAMERA_PLATFORM_DEVICE;
 

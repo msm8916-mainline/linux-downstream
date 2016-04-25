@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,6 +29,14 @@
 #include <soc/qcom/clock-local2.h>
 
 #include <dt-bindings/clock/msm-cpu-clocks-8939.h>
+
+#if defined (CONFIG_LGE_PM_FACTORY_CABLE)
+#ifdef CONFIG_64BIT
+#include <soc/qcom/lge/board_lge.h>
+#else
+#include <mach/board_lge.h>
+#endif
+#endif
 
 DEFINE_VDD_REGS_INIT(vdd_cpu_bc, 1);
 DEFINE_VDD_REGS_INIT(vdd_cpu_lc, 1);
@@ -171,8 +179,8 @@ static void get_speed_bin(struct platform_device *pdev, int *bin,
 								int *version)
 {
 	struct resource *res;
-	void __iomem *base;
-	u32 pte_efuse;
+	void __iomem *base, *base1, *base2;
+	u32 pte_efuse, pte_efuse1, pte_efuse2;
 
 	*bin = 0;
 	*version = 0;
@@ -196,6 +204,43 @@ static void get_speed_bin(struct platform_device *pdev, int *bin,
 
 	*bin = (pte_efuse >> 2) & 0x7;
 
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "efuse1");
+	if (!res) {
+		dev_info(&pdev->dev,
+			 "No PVS version available. Defaulting to 0!\n");
+		goto out;
+	}
+
+	base1 = devm_ioremap(&pdev->dev, res->start, resource_size(res));
+	if (!base1) {
+		dev_warn(&pdev->dev,
+			 "Unable to read efuse1 data. Defaulting to 0!\n");
+		goto out;
+	}
+
+	pte_efuse1 = readl_relaxed(base1);
+	devm_iounmap(&pdev->dev, base1);
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "efuse2");
+	if (!res) {
+		dev_info(&pdev->dev,
+			 "No PVS version available. Defaulting to 0!\n");
+		goto out;
+	}
+
+	base2 = devm_ioremap(&pdev->dev, res->start, resource_size(res));
+	if (!base2) {
+		dev_warn(&pdev->dev,
+			 "Unable to read efuse2 data. Defaulting to 0!\n");
+		goto out;
+	}
+
+	pte_efuse2 = readl_relaxed(base2);
+	devm_iounmap(&pdev->dev, base2);
+
+	*version = ((pte_efuse1 >> 29 & 0x1) | ((pte_efuse2 >> 18 & 0x3) << 1));
+
+out:
 	dev_info(&pdev->dev, "Speed bin: %d PVS Version: %d\n", *bin,
 								*version);
 }
@@ -331,13 +376,45 @@ static int clock_a53_probe(struct platform_device *pdev)
 		rc = cpu_parse_devicetree(pdev, mux_id);
 		if (rc)
 			return rc;
-
+#if defined (CONFIG_LGE_PM_FACTORY_CABLE) && \
+	defined (CONFIG_LGE_PM_CPU_CLOCK_DOWN_FACTORY_CABLE)
+		if (LGE_BOOT_MODE_QEM_910K == lge_get_boot_mode()
+				|| LGE_BOOT_MODE_QEM_130K == lge_get_boot_mode()
+				|| LGE_BOOT_MODE_QEM_56K == lge_get_boot_mode()
+				|| LGE_BOOT_MODE_PIF_910K == lge_get_boot_mode()
+				|| LGE_BOOT_MODE_PIF_130K == lge_get_boot_mode()
+				|| LGE_BOOT_MODE_PIF_56K == lge_get_boot_mode() )
+                {
+			snprintf(prop_name, ARRAY_SIZE(prop_name),
+									"lge,factory-bin-%s",
+									mux_names[mux_id]);
+			rc = of_get_fmax_vdd_class(pdev, &a53ssmux[mux_id]->c,
+								prop_name);
+			if (rc)
+			{
+				snprintf(prop_name, ARRAY_SIZE(prop_name),
+					"qcom,speed%d-bin-v%d-%s",
+					speed_bin, version, mux_names[mux_id]);
+				rc = of_get_fmax_vdd_class(pdev, &a53ssmux[mux_id]->c,
+								prop_name);
+			}
+		}
+		else
+		{
+			snprintf(prop_name, ARRAY_SIZE(prop_name),
+								"qcom,speed%d-bin-v%d-%s",
+								speed_bin, version, mux_names[mux_id]);
+			rc = of_get_fmax_vdd_class(pdev, &a53ssmux[mux_id]->c,
+								prop_name);
+		}
+#else
 		snprintf(prop_name, ARRAY_SIZE(prop_name),
 					"qcom,speed%d-bin-v%d-%s",
 					speed_bin, version, mux_names[mux_id]);
-
 		rc = of_get_fmax_vdd_class(pdev, &a53ssmux[mux_id]->c,
 								prop_name);
+#endif
+
 		if (rc) {
 			/* Fall back to most conservative PVS table */
 			dev_err(&pdev->dev, "Unable to load voltage plan %s!\n",

@@ -131,6 +131,8 @@ struct mmc_blk_data {
 #define MMC_BLK_WRITE		BIT(1)
 #define MMC_BLK_DISCARD		BIT(2)
 #define MMC_BLK_SECDISCARD	BIT(3)
+#define MMC_BLK_FLUSH		BIT(4)
+
 
 	/*
 	 * Only set in main mmc_blk_data associated
@@ -736,6 +738,10 @@ static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 	mmc_rpm_hold(card->host, &card->dev);
 	mmc_claim_host(card->host);
 
+#ifdef CONFIG_ARCH_MSM
+	if (card->ext_csd.bkops_en)
+		mmc_stop_bkops(card);
+#endif
 	err = mmc_blk_part_switch(card, md);
 	if (err)
 		goto cmd_rel_host;
@@ -878,6 +884,10 @@ static int mmc_blk_ioctl_rpmb_cmd(struct block_device *bdev,
 	mmc_rpm_hold(card->host, &card->dev);
 	mmc_claim_host(card->host);
 
+#ifdef CONFIG_ARCH_MSM
+	if (card->ext_csd.bkops_en)
+		mmc_stop_bkops(card);
+#endif
 	err = mmc_blk_part_switch(card, md);
 	if (err)
 		goto cmd_rel_host;
@@ -1141,18 +1151,21 @@ static int mmc_blk_cmd_error(struct request *req, const char *name, int error,
 	switch (error) {
 	case -EILSEQ:
 		/* response crc error, retry the r/w cmd */
-		pr_err("%s: %s sending %s command, card status %#x\n",
-			req->rq_disk->disk_name, "response CRC error",
+		pr_err_ratelimited(
+			"%s: response CRC error sending %s command, card status %#x\n",
+			req->rq_disk->disk_name,
 			name, status);
 		return ERR_RETRY;
 
 	case -ETIMEDOUT:
-		pr_err("%s: %s sending %s command, card status %#x\n",
-			req->rq_disk->disk_name, "timed out", name, status);
+		pr_err_ratelimited(
+			"%s: timed out sending %s command, card status %#x\n",
+			req->rq_disk->disk_name, name, status);
 
 		/* If the status cmd initially failed, retry the r/w cmd */
 		if (!status_valid) {
-			pr_err("%s: status not valid, retrying timeout\n", req->rq_disk->disk_name);
+			pr_err_ratelimited("%s: status not valid, retrying timeout\n",
+				req->rq_disk->disk_name);
 			return ERR_RETRY;
 		}
 		/*
@@ -1161,17 +1174,22 @@ static int mmc_blk_cmd_error(struct request *req, const char *name, int error,
 		 * have corrected the state problem above.
 		 */
 		if (status & (R1_COM_CRC_ERROR | R1_ILLEGAL_COMMAND)) {
-			pr_err("%s: command error, retrying timeout\n", req->rq_disk->disk_name);
+			pr_err_ratelimited(
+				"%s: command error, retrying timeout\n",
+				req->rq_disk->disk_name);
 			return ERR_RETRY;
 		}
 
 		/* Otherwise abort the command */
-		pr_err("%s: not retrying timeout\n", req->rq_disk->disk_name);
+		pr_err_ratelimited(
+			"%s: not retrying timeout\n",
+			req->rq_disk->disk_name);
 		return ERR_ABORT;
 
 	default:
 		/* We don't understand the error code the driver gave us */
-		pr_err("%s: unknown error %d sending read/write command, card status %#x\n",
+		pr_err_ratelimited(
+			"%s: unknown error %d sending read/write command, card status %#x\n",
 		       req->rq_disk->disk_name, error, status);
 		return ERR_ABORT;
 	}
@@ -1312,6 +1330,20 @@ static int mmc_blk_reset(struct mmc_blk_data *md, struct mmc_host *host,
 
 	md->reset_done |= type;
 	err = mmc_hw_reset(host);
+/* LGE_CHANGE_S
+ * Author : D3-5T-FS@lge.com
+ * Change : eMMC can recover itself, but if it fails during re-init, recover routine does not activated. (eMMC is not accessible)
+ */
+#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
+    /* in case that eMMC failed to re-initialize, retry five times and crash if it is eMMC. */
+    if (err == -ETIMEDOUT && host->caps & MMC_CAP_NONREMOVABLE) /* Only for eMMC (NONREMOVABLE) */
+    {
+        err = mmc_hw_reset(host);
+        pr_info("%s:%s: retry mmc_blk_reset() %d\n",
+                    mmc_hostname(host), __func__, err);
+    }
+#endif
+
 	if (err && err != -EOPNOTSUPP) {
 		/* We failed to reset so we need to abort the request */
 		pr_err("%s: %s: failed to reset %d\n", mmc_hostname(host),
@@ -1334,13 +1366,13 @@ static int mmc_blk_reset(struct mmc_blk_data *md, struct mmc_host *host,
 		}
 	}
 
-/*             
-                                         
-                                                                    
+/* LGE_CHANGE_S
+ * Author : bohyun.jung, D3-5T-FS@lge.com
+ * Change : Log eMMC CMD/ARG/RESP if mmc_blk_reset() fails for eMMC.
  */
 #if defined(CONFIG_LGE_MMC_DEBUG)
     /* Only for eMMC (NONREMOVABLE) */
-    if (host->card->type == MMC_TYPE_MMC && (host->caps & MMC_CAP_NONREMOVABLE))
+    if (host->card && host->card->type == MMC_TYPE_MMC && (host->caps & MMC_CAP_NONREMOVABLE))
         print_mmc_cmd_info(host);
 #endif
 
@@ -1454,13 +1486,6 @@ retry:
 			goto out;
 	}
 
-	if (mmc_can_sanitize(card)) {
-		trace_mmc_blk_erase_start(EXT_CSD_SANITIZE_START, 0, 0);
-		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
-				 EXT_CSD_SANITIZE_START, 1,
-				 MMC_SANITIZE_REQ_TIMEOUT);
-		trace_mmc_blk_erase_end(EXT_CSD_SANITIZE_START, 0, 0);
-	}
 out_retry:
 	if (err && !mmc_blk_reset(md, card->host, type))
 		goto retry;
@@ -1478,41 +1503,21 @@ static int mmc_blk_issue_flush(struct mmc_queue *mq, struct request *req)
 	struct request_queue *q = mq->queue;
 	struct mmc_card *card = md->queue.card;
 	int ret = 0;
-#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
-	int err=0;
-	static int timeout_count = 0;
-	static int reset_count = 0;
-#endif
 
 	ret = mmc_flush_cache(card);
-	if (ret == -ETIMEDOUT) {
-        pr_info("%s: %s: requeue flush request after timeout.\n",
+	if (ret == -ENODEV) {
+		pr_err("%s: %s: restart mmc card",
 				req->rq_disk->disk_name, __func__);
+		if (mmc_blk_reset(md, card->host, MMC_BLK_FLUSH))
+			pr_err("%s: %s: fail to restart mmc",
+				req->rq_disk->disk_name, __func__);
+		else
+			mmc_blk_reset_success(md, MMC_BLK_FLUSH);
+	}
 
-#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
-	/*             
-                             
-                                                                                                                                        
-                                                        
-  */
-		if (card->type == MMC_TYPE_MMC && (card->host->caps & MMC_CAP_NONREMOVABLE) && timeout_count > 3) /* Only for eMMC (NONREMOVABLE) */
-		{
-			do
-			{
-				reset_count++;
-				err = mmc_blk_reset(md, card->host, 0);	/* mmc_blk_reset() return zero if re-init is done successfully. do force reset. */
-				pr_info("%s:%s: mmc_flush_cache() fails:%d:%d, call mmc_blk_reset() again:%d.\n",
-						mmc_hostname(card->host), __func__, ret, err, reset_count);
-			} while (err<0 && reset_count < 3);
-			if (err < 0)
-			{
-				pr_info("%s:%s: retry mmc_blk_reset() fails three times. abort it otherwise phone is hang:%d.\n",
-						mmc_hostname(card->host), __func__, err);
-				panic("eMMC is un-accessible");
-			}
-		}
-		timeout_count++;
-#endif /*                              */
+	if (ret == -ETIMEDOUT) {
+		pr_info("%s: %s: requeue flush request after timeout",
+				req->rq_disk->disk_name, __func__);
 		spin_lock_irq(q->queue_lock);
 		blk_requeue_request(q, req);
 		spin_unlock_irq(q->queue_lock);
@@ -1523,12 +1528,6 @@ static int mmc_blk_issue_flush(struct mmc_queue *mq, struct request *req)
 				req->rq_disk->disk_name, __func__);
 		ret = -EIO;
 	}
-#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
-	else {
-		timeout_count = 0;
-		reset_count = 0;
-	}
-#endif
 	blk_end_request_all(req, ret);
 exit:
 	return ret ? 0 : 1;
@@ -2525,11 +2524,18 @@ static int mmc_blk_end_packed_req(struct mmc_queue_req *mq_rq)
 {
 	struct request *prq;
 	struct mmc_packed *packed = mq_rq->packed;
+#if 0 //QCT original
 	int idx = packed->idx_failure, i = 0;
 	int ret = 0;
 
 	BUG_ON(!packed);
+#else
+	int idx, i = 0;
+	int ret = 0;
 
+	BUG_ON(!packed);
+	idx = packed->idx_failure;
+#endif
 	while (!list_empty(&packed->list)) {
 		prq = list_entry_rq(packed->list.next);
 		if (idx == i) {
@@ -2605,9 +2611,6 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 	struct mmc_async_req *areq;
 	const u8 packed_nr = 2;
 	u8 reqs = 0;
-#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
-	int err = 0;
-#endif
 
 	if (!rqc && !mq->mqrq_prev->req)
 		return 0;
@@ -2728,9 +2731,7 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 			err = mmc_blk_reset(md, card->host, type);
 			if (!err)
 				break;
-
 			goto cmd_abort;
-
 		}
 		case MMC_BLK_ECC_ERR:
 			if (brq->data.blocks > 1) {
@@ -2782,10 +2783,6 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 	return 1;
 
  cmd_abort:
-#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
-	pr_debug("%s: %s - cmd_abort: \n", mmc_hostname(card->host), __func__);
-	err = -ERR_ABORT;
-#endif
 	if (mmc_packed_cmd(mq_rq->cmd_type)) {
 		mmc_blk_abort_packed_req(mq_rq);
 	} else {
@@ -2814,45 +2811,8 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 		}
 	}
 
-#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
-	return (err != 0) ? err : 0;
-#else
-	return 0;
-#endif
-}
-
-/*             
-                            
-                                                                                                                                       
-                                                       
- */
-#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
-static int mmc_blk_reset_if_hang(struct mmc_queue *mq, struct mmc_card *card)
-{
-	struct mmc_blk_data *md = mq->data;
-	int err = 0, reset_count = 0;
-
-	/* in case that eMMC failed to re-initialize, retry five times and crash if it is eMMC. */
-	if (card->host->caps & MMC_CAP_NONREMOVABLE) /* Only for eMMC (NONREMOVABLE) */
-	{
-		do
-		{
-			reset_count++;
-			err = mmc_blk_reset(md, card->host, 0);	/* mmc_blk_reset() return zero if re-init is done successfully. do force reset. */
-			pr_info("%s:%s: mmc_blk_issue_rw_rq() fail:%d, call mmc_blk_reset() again:%d.\n",
-					mmc_hostname(card->host), __func__,  err, reset_count);
-		} while (err < 0 && reset_count < 3);
-		if (err < 0)
-		{
-			pr_info("%s:%s: retry mmc_blk_reset() fails three times. abort it otherwise phone is hang:%d.\n",
-					mmc_hostname(card->host), __func__, err);
-			panic("eMMC is un-accessible");
-		}
-	}
-
 	return 0;
 }
-#endif /*                              */
 
 static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 {
@@ -2891,13 +2851,7 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 	if (cmd_flags & REQ_DISCARD) {
 		/* complete ongoing async transfer before issuing discard */
 		if (card->host->areq)
-#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
-			ret = mmc_blk_issue_rw_rq(mq, NULL);
-			if (ret == -ERR_ABORT)
-				mmc_blk_reset_if_hang(mq, card);
-#else
 			mmc_blk_issue_rw_rq(mq, NULL);
-#endif
 		if (cmd_flags & REQ_SECURE &&
 			!(card->quirks & MMC_QUIRK_SEC_ERASE_TRIM_BROKEN))
 			ret = mmc_blk_issue_secdiscard_rq(mq, req);
@@ -2906,13 +2860,7 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 	} else if (cmd_flags & REQ_FLUSH) {
 		/* complete ongoing async transfer before issuing flush */
 		if (card->host->areq)
-#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
-			ret = mmc_blk_issue_rw_rq(mq, NULL);
-			if (ret == -ERR_ABORT)
-				mmc_blk_reset_if_hang(mq, card);
-#else
 			mmc_blk_issue_rw_rq(mq, NULL);
-#endif
 		ret = mmc_blk_issue_flush(mq, req);
 	} else {
 		if (!req && host->areq) {
@@ -2921,10 +2869,6 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 			spin_unlock_irqrestore(&host->context_info.lock, flags);
 		}
 		ret = mmc_blk_issue_rw_rq(mq, req);
-#if defined (CONFIG_LGE_MMC_RESET_IF_HANG)
-		if (ret == -ERR_ABORT)
-			mmc_blk_reset_if_hang(mq, card);
-#endif
 	}
 
 out:
@@ -3456,7 +3400,14 @@ static void mmc_blk_shutdown(struct mmc_card *card)
 		mmc_claim_host(card->host);
 		mmc_stop_bkops(card);
 		mmc_release_host(card->host);
+#if defined(CONFIG_LGE_MMC_PON_SHORT)
+        if (card->issue_long_pon)
+            mmc_send_long_pon(card);
+        else
+            mmc_send_short_pon(card);
+#else
 		mmc_send_long_pon(card);
+#endif
 		mmc_rpm_release(card->host, &card->dev);
 	}
 	return;

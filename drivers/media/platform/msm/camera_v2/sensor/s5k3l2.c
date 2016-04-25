@@ -17,6 +17,114 @@ DEFINE_MSM_MUTEX(s5k3l2_mut);
 
 static struct msm_sensor_ctrl_t s5k3l2_s_ctrl;
 
+#if defined(CONFIG_LGE_P1B_CAMERA)
+static struct msm_sensor_power_setting s5k3l2_power_setting[] = {
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VIO,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VANA,
+		.config_val = 0,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VDIG,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+#if defined(CONFIG_LG_PROXY)
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_LDAF_EN,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+#endif
+	{
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VAF,
+		.config_val = 0,
+		.delay = 1,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET, //-----> CIS_XSD
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+	{
+		.seq_type = SENSOR_CLK,
+		.seq_val = SENSOR_CAM_MCLK,
+		.config_val = 23880000,
+		.delay = 2,
+	},
+	{
+		.seq_type = SENSOR_I2C_MUX,
+		.seq_val = 0,
+		.config_val = 0,
+		.delay = 0,
+	},
+};
+#elif defined(CONFIG_LGE_YG_CAMERA)
+static struct msm_sensor_power_setting s5k3l2_power_setting[] = {
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VIO,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VANA,
+		.config_val = 0,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VDIG,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 0,
+	},
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VAF,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+#if defined(CONFIG_LG_PROXY)
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_LDAF_EN,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+#endif
+	{
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET, //-----> CIS_XSD
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+	{
+		.seq_type = SENSOR_CLK,
+		.seq_val = SENSOR_CAM_MCLK,
+		.config_val = 23880000,
+		.delay = 2,
+	},
+	//S5K3L2 has no external-RESET-pin control
+	{
+		.seq_type = SENSOR_I2C_MUX,
+		.seq_val = 0,
+		.config_val = 0,
+		.delay = 0,
+	},
+};
+#else
 static struct msm_sensor_power_setting s5k3l2_power_setting[] = {
 	{
 		.seq_type = SENSOR_VREG,
@@ -59,8 +167,8 @@ static struct msm_sensor_power_setting s5k3l2_power_setting[] = {
 	{
 		.seq_type = SENSOR_CLK,
 		.seq_val = SENSOR_CAM_MCLK,
-		.config_val = 0,
-		.delay = 10,
+		.config_val = 23880000,
+		.delay = 2,
 	},
 	//S5K3L2 has no external-RESET-pin control
 	{
@@ -70,6 +178,7 @@ static struct msm_sensor_power_setting s5k3l2_power_setting[] = {
 		.delay = 0,
 	},
 };
+#endif
 
 static struct v4l2_subdev_info s5k3l2_subdev_info[] = {
 	{
