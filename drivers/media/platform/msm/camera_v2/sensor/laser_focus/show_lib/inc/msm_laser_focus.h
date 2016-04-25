@@ -196,7 +196,7 @@ struct msm_laser_focus {
 #define	DEVICE_DUMP_DEBUG_VALUE_MODE 0777	/* Dump register value right for vl6180x debug */
 #define	DEVICE_ENFORCE_MODE	0777	/* Laser focus disable right */
 #define	DEVICE_LOG_CTRL_MODE	0777	/* Log contorl right */
-#define DEVICE_DEBUG_VALUE_MODE	0777	/* Debug node righe */
+#define DEVICE_DEBUG_VALUE_MODE 0777	/* Debug node right */
 #else
 #define	STATUS_PROC_FILE_MODE 0660	/* Status right */
 #define	STATUS_PROC_FILE_FOR_CAMERA_MODE 0660	/* Status (check on prob only) right */
@@ -215,6 +215,7 @@ struct msm_laser_focus {
 #define DEFAULT_DELAY_TIME 1000 /* us */
 #define MCPU_DELAY_TIME 700	/* us */
 #define READ_DELAY_TIME 500	/* us */
+#define ATOMIC_DELAY 1	/* us */
 
 /* Check device verify number */
 int match_id(struct msm_laser_focus_ctrl_t *dev_t, int chip_id_size);

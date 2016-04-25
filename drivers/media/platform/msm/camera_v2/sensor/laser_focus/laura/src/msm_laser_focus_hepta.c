@@ -812,6 +812,7 @@ static const struct file_operations dump_laser_focus_debug_value6_fops = {
 };
 /*----------CSC Debug----------*/
 
+
 static void Laura_create_proc_file(void)
 {
 	LOG_Handler(LOG_CDBG, "%s: Enter Create Proc File\n", __func__);
@@ -973,7 +974,7 @@ static int32_t Laura_platform_probe(struct platform_device *pdev)
 		goto probe_failure;
 
 	/* Init mutex */
-	mutex_ctrl(laura_t, MUTEX_ALLOCATE);
+	//mutex_ctrl(laura_t, MUTEX_ALLOCATE);
 	mutex_ctrl(laura_t, MUTEX_INIT);
 
 	ATD_status = 2;

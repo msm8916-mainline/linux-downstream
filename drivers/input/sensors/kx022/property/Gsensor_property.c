@@ -30,6 +30,7 @@ static DEVICE_ATTR(Gsensor_status, 0440, gsensor_status_show, NULL);
 static DEVICE_ATTR(Gsensor_raw, 0440, gsensor_read_raw, NULL);
 static DEVICE_ATTR(Gsensor_dump_reg, 0440, gsensor_dump_reg, NULL);
 
+static DEVICE_ATTR(ZenMotion_set_flush, 0660, zenmotion_get_flush, zenmotion_set_flush);
 static DEVICE_ATTR(ZenMotion_double_tap, 0660, read_gsensor_double_tap, init_gsensor_double_tap);
 static DEVICE_ATTR(ZenMotion_flip, 0660, read_gsensor_flip, init_gsensor_flip);
 static DEVICE_ATTR(ZenMotion_flick, 0660, read_gsensor_flick, init_gsensor_flick);
@@ -50,6 +51,7 @@ static struct attribute *kx022_attributes[] = {
 	&dev_attr_Gsensor_dump_reg.attr,
 	&dev_attr_Gsensor_debug_message.attr,
 
+	&dev_attr_ZenMotion_set_flush.attr,
 	&dev_attr_ZenMotion_double_tap.attr,
 	&dev_attr_ZenMotion_flip.attr,
 	&dev_attr_ZenMotion_flick_detection_force.attr,

@@ -140,7 +140,7 @@ static bool disable_tp_flag;
 int focal_init_success = 0;
 bool FOCAL_IRQ_DISABLE = true;
 int TPID = -1;
-int Focal_hw_id = -1;
+// int Focal_hw_id = -1; not support in Android M branch
 unsigned char IC_FW;
 u8 B_VenderID;
 u8 F_VenderID;
@@ -193,10 +193,10 @@ static int IICErrorCountor = 0;
 #define FTXXXX_RESET_PIN_NAME	"ft5x46-rst"
 /*#define FTXXXX_INT_PIN	62//EXYNOS4_GPJ0(3) //S5PV210_GPB(2)*/
 #define FTXXXX_INT_PIN_NAME	"ft5x46-int"
-
+#ifdef CONFIG_FT5X46_FC
 extern bool proximity_check_status(void);
 extern int get_audiomode(void);
-
+#endif
 /*
 *ftxxxx_i2c_Read-read data and write data by i2c
 *@client: handle of i2c
@@ -265,7 +265,9 @@ int ftxxxx_i2c_Read(struct i2c_client *client, char *writebuf, int writelen, cha
 		if (IICErrorCountor >= 10) {
 			dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: i2c read/write error over 10 times !! \n", __func__);
 			dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: excute reset IC process !! \n", __func__);
+#ifdef CONFIG_FT5X46_FC
 			ASUSEvtlog("[Touch] touch i2c read/write error over 10 times, reset IC \n");
+#endif
 			queue_work(ftxxxx_ts->reset_wq, &ftxxxx_ts->reset_ic_work);
 			return ret;
 		}
@@ -309,7 +311,9 @@ int ftxxxx_i2c_Write(struct i2c_client *client, char *writebuf, int writelen)
 		if (IICErrorCountor >= 10) {
 			dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: i2c read/write error over 10 times !! \n", __func__);
 			dev_err(&client->dev, "[Focal][TOUCH_ERR] %s: excute reset IC process !! \n", __func__);
+#ifdef CONFIG_FT5X46_FC
 			ASUSEvtlog("[Touch] touch i2c read/write error over 10 times, reset IC \n");			
+#endif
 			queue_work(ftxxxx_ts->reset_wq, &ftxxxx_ts->reset_ic_work);
 			return ret;
 		}
@@ -400,9 +404,10 @@ static void check_gesture(struct ftxxxx_ts_data *data, int gesture_id)
 
 	printk("[Focal][Touch] %s :  gesture_id = 0x%x\n ", __func__, gesture_id);
 
+#ifdef CONFIG_FT5X46_FC
 	if ((EnableProximityCheck && !ftxxxx_ts->cover_mode_eable) && !(get_audiomode() == 2))
 		Ps_status = proximity_check_status();
-
+#endif
 	if (!Ps_status) {
 		switch (gesture_id) {
 		/* ++++ touch gesture mode support part in ZE500CL ++++ */
@@ -918,7 +923,7 @@ int ftxxxx_read_tp_id(void)
 
 	return B_VenderID;
 }
-
+/*	+++ not support in Android M branch +++
 int focal_get_HW_ID(void)
 {
 	Focal_hw_id = g_ASUS_hwID;
@@ -926,6 +931,9 @@ int focal_get_HW_ID(void)
 
 	return Focal_hw_id;
 }
+	--- not support in Android M branch ---
+*/
+
 void asus_check_touch_mode(void)
 {
 	uint8_t buf[2] = {0};	
@@ -1267,6 +1275,8 @@ static void focal_suspend_work(struct work_struct *work)
 			if (ftxxxx_ts->dclick_mode_eable == 1) {
 				printk("[Focal][Touch] %s : open dclick mode \n", __func__);
 				ftxxxx_write_reg(ts->client, 0xd1, 0x10);
+				ftxxxx_write_reg(ts->client, 0xe2, 0x19);
+
 				if (ReConfigDoubleTap) {
 					if (g_touch_slop) {
 						ftxxxx_write_reg(ts->client, 0xe2, g_touch_slop);
@@ -1501,10 +1511,6 @@ static void focal_init_check_ic_work(struct work_struct *work)
 
 	printk("[Progress][Focal-Touch] WQ Start !\n");
 
-	printk("[Focal][Touch] ftxxxx_create_sysfs Start !\n");
-	ftxxxx_create_sysfs(ftxxxx_ts->client);
-	printk("[Focal][Touch] ftxxxx_create_sysfs End !\n");
-
 	/*get some register information */
 	uc_reg_addr = FTXXXX_REG_FW_VER;
 	tmp_err = ftxxxx_i2c_Read(ftxxxx_ts->client, &uc_reg_addr, 1, &uc_reg_value, 1);
@@ -1553,7 +1559,7 @@ static void focal_init_check_ic_work(struct work_struct *work)
 
 	if (ftxxxx_ts->init_success == 1) {
 		focal_init_success = 1;
-		if (g_ASUS_hwID >= ZE500KL_SR1 )
+//		if (g_ASUS_hwID >= ZE500KL_SR1 ) not support in Android M branch
 			FOCAL_IRQ_DISABLE = false;
 	}
 
@@ -1562,8 +1568,9 @@ static void focal_init_check_ic_work(struct work_struct *work)
 	ftxxxx_irq_enable(ftxxxx_ts->client);
 
 	if (tmp_err) {
-		
+#ifdef CONFIG_FT5X46_FC
 		ASUSEvtlog("[Touch][ERROR] FW update error, reset IC \n");
+#endif
 		queue_work(ftxxxx_ts->reset_wq, &ftxxxx_ts->reset_ic_work);
 
 	}
@@ -1944,6 +1951,10 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 	}
 	/*make sure CTP already finish startup process */
 
+	printk("[Focal][Touch] ftxxxx_create_sysfs Start !\n");
+	ftxxxx_create_sysfs(ftxxxx_ts->client);
+	printk("[Focal][Touch] ftxxxx_create_sysfs End !\n");
+
 #ifdef SYSFS_DEBUG
 /*
 	printk("[Focal][Touch] ftxxxx_create_sysfs Start !\n");
@@ -2142,7 +2153,7 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 
 	if (ftxxxx_ts->init_success == 1) {
 		focal_init_success = 1;
-		if (g_ASUS_hwID >= ZE500KL_SR1 )
+//		if (g_ASUS_hwID >= ZE500KL_SR1 )
 			FOCAL_IRQ_DISABLE = false;
 	}
 

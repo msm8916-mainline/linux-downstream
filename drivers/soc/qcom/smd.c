@@ -47,6 +47,9 @@
 
 #include "smd_private.h"
 #include "smem_private.h"
+#ifdef ASUS_ZC550KL_PROJECT
+#include <linux/oem_functions.h>//asus-bsp-jeewu read sku_id+++
+#endif
 
 #define SMSM_SNAPSHOT_CNT 64
 #define SMSM_SNAPSHOT_SIZE ((SMSM_NUM_ENTRIES + 1) * 4 + sizeof(uint64_t))
@@ -59,6 +62,11 @@ uint32_t SMSM_NUM_HOSTS = 3;
 
 /* Legacy SMSM interrupt notifications */
 #define LEGACY_MODEM_SMSM_MASK (SMSM_RESET | SMSM_INIT | SMSM_SMDINIT)
+
+#ifdef ASUS_ZC550KL_PROJECT
+static int modemsku = 0;//asus-bsp-jeewu read sku_id+++
+module_param(modemsku, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);//asus-bsp-jeewu read sku_id+++
+#endif
 
 struct smsm_shared_info {
 	uint32_t *state;
@@ -1435,6 +1443,7 @@ static void smd_state_change(struct smd_channel *ch,
 			ch->half_ch->set_tail(ch->recv, 0);
 			ch->half_ch->set_head(ch->send, 0);
 			ch->half_ch->set_fBLOCKREADINTR(ch->send, 0);
+			ch->current_packet = 0;
 			ch_set_state(ch, SMD_SS_OPENING);
 		}
 		break;
@@ -1451,7 +1460,6 @@ static void smd_state_change(struct smd_channel *ch,
 	case SMD_SS_CLOSED:
 		if (ch->half_ch->get_state(ch->send) == SMD_SS_OPENED) {
 			ch_set_state(ch, SMD_SS_CLOSING);
-			ch->current_packet = 0;
 			ch->pending_pkt_sz = 0;
 			ch->notify(ch->priv, SMD_EVENT_CLOSE);
 		}
@@ -2061,6 +2069,16 @@ int smd_named_open_on_edge(const char *name, uint32_t edge,
 		ch = smd_get_channel(name, edge);
 		if (!ch)
 			return -ENODEV;
+	}
+
+	if (ch->half_ch->get_fSTATE(ch->send)) {
+		/* remote side hasn't acknowledged our last state transition */
+		SMD_INFO("%s: ch %d valid, waiting for remote to ack state\n",
+				__func__, ch->n);
+		msleep(250);
+		if (ch->half_ch->get_fSTATE(ch->send))
+			SMD_INFO("%s: ch %d - no remote ack, continuing\n",
+					__func__, ch->n);
 	}
 
 	if (notify == 0)
@@ -3367,6 +3385,10 @@ int __init msm_smd_init(void)
 			__func__, rc);
 		return rc;
 	}
+
+#ifdef ASUS_ZC550KL_PROJECT
+	modemsku = get_rf_sku_id();//asus-bsp-jeewu read sku_id+++
+#endif
 	return 0;
 }
 

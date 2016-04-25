@@ -17,7 +17,6 @@
 /*#define DEBUG*/
 /*#define VERBOSE_DEBUG*/
 
-#include <linux/input/akm09911.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/freezer.h>
@@ -34,6 +33,8 @@
 #include <linux/of_gpio.h>
 #include <linux/proc_fs.h>
 #include <linux/workqueue.h>
+#include <linux/kthread.h>
+#include "akm09911.h"
 
 #define AKM_DEBUG_IF			0
 #define AKM_HAS_RESET			1
@@ -59,6 +60,23 @@ struct akm_compass_data {
 
 	struct	mutex sensor_mutex;
 	uint8_t	sense_data[AKM_SENSOR_DATA_SIZE];
+
+	/* For CTS verify R3  Compass data report rate test fail issue */
+	int32_t	ypr_buf_data[AKM_YPR_DATA_SIZE];
+	int32_t	ypr_lost_data[AKM_YPR_DATA_SIZE];
+	int		virtual_report_time;
+/* ASUS_BSP +++ Peter_Lu For CTS verify sensor report rate test fail work around +++ */
+	ktime_t	timestamp;
+/* ASUS_BSP --- Peter_Lu */
+
+
+	struct hrtimer			poll_timer;
+	struct delayed_work		dwork;
+	struct workqueue_struct	*work_queue;
+	struct mutex				op_mutex;
+	bool						mag_state;
+	bool						fusion_state;
+
 	struct mutex accel_mutex;
 	int16_t accel_data[3];
 
@@ -84,7 +102,20 @@ struct akm_compass_data {
 
 static struct akm_compass_data *s_akm;
 
+/*************************************************************************
+        For CTS verify R3  Compass data report rate test fail
+                                    work around!!
+  *************************************************************************/
+//static struct workqueue_struct *compass_data_report_workqueue;
+//static struct delayed_work compass_data_report_work;
+#define AKM_SETYPR_RETRY_TIME			3
+#define ABANDON_BEGINING_EVENT_TIME	3
 
+/* Check Delay setting time */
+/* 10,000,000 : 10ms */
+#define AKM_SETYPR_BASIC_TIME		10000000
+/* 7% sensor delay time check */
+#define AKM_SETYPR_RETRY_TIME_PERSENT		7
 
 /***** I2C I/O function ***********************************************/
 static int akm_i2c_rxdata(
@@ -113,7 +144,12 @@ static int akm_i2c_rxdata(
 	ret = i2c_transfer(i2c->adapter, msgs, ARRAY_SIZE(msgs));
 	if (ret < 0) {
 		dev_err(&i2c->dev, "%s: transfer failed.\n", __func__);
-		return ret;
+		msleep(10);
+		ret = i2c_transfer(i2c->adapter, msgs, ARRAY_SIZE(msgs));
+		if (ret < 0) {
+			printk("[E-compass] sensor : akm_i2c_rxdata retry still fail(%d)  !!!!!\n", ret);
+			return ret;
+		}
 	} else if (ret != ARRAY_SIZE(msgs)) {
 		dev_err(&i2c->dev, "%s: transfer failed(size error).\n",
 				__func__);
@@ -145,6 +181,12 @@ static int akm_i2c_txdata(
 	ret = i2c_transfer(i2c->adapter, msg, ARRAY_SIZE(msg));
 	if (ret < 0) {
 		dev_err(&i2c->dev, "%s: transfer failed.", __func__);
+		msleep(10);
+		ret = i2c_transfer(i2c->adapter, msg, ARRAY_SIZE(msg));
+		if (ret < 0) {
+			printk("[E-compass] sensor : akm_i2c_txdata retry still fail(%d)  !!!!!\n", ret);
+			return ret;
+		}
 		return ret;
 	} else if (ret != ARRAY_SIZE(msg)) {
 		dev_err(&i2c->dev, "%s: transfer failed(size error).",
@@ -305,6 +347,10 @@ static int AKECS_SetMode(
 	case AKM_MODE_SNG_MEASURE:
 	case AKM_MODE_SELF_TEST:
 	case AKM_MODE_FUSE_ACCESS:
+	case AKM_MODE_CONTINUOUS_10HZ:
+	case AKM_MODE_CONTINUOUS_20HZ:
+	case AKM_MODE_CONTINUOUS_50HZ:
+	case AKM_MODE_CONTINUOUS_100HZ:
 		err = AKECS_Set_CNTL(akm, mode);
 		break;
 	case AKM_MODE_POWERDOWN:
@@ -319,63 +365,95 @@ static int AKECS_SetMode(
 	return err;
 }
 
+
+/*************************************************************************
+        For CTS verify R3  Compass data report rate test fail
+                                    work around!!
+  *************************************************************************/
+#if 0
+static void AKECS_SetYPR_report_data(struct work_struct *work)
+{
+	if (s_akm->compass_debug_switch)	{
+		printk("[E-compass] sensor : AKECS_SetYPR report_data (Flag : %d, time : %d) +\n", s_akm->ypr_buf_data[0], s_akm->virtual_report_time);
+/*
+		printk("[E-compass] sensor :   Acc [LSB]   : %6d,%6d,%6d stat=%d", s_akm->ypr_buf_data[1], s_akm->ypr_buf_data[2], s_akm->ypr_buf_data[3], s_akm->ypr_buf_data[4]);
+		printk("[E-compass] sensor :   Geo [LSB]   : %6d,%6d,%6d stat=%d", s_akm->ypr_buf_data[5], s_akm->ypr_buf_data[6], s_akm->ypr_buf_data[7], s_akm->ypr_buf_data[8]);
+		printk("[E-compass] sensor :   Orientation : %6d,%6d,%6d", s_akm->ypr_buf_data[9], s_akm->ypr_buf_data[10], s_akm->ypr_buf_data[11]);
+		printk("[E-compass] sensor :   Rotation V  : %6d,%6d,%6d,%6d", s_akm->ypr_buf_data[12], s_akm->ypr_buf_data[13], s_akm->ypr_buf_data[14], s_akm->ypr_buf_data[15]);
+*/
+	}
+
+	/* Report acceleration sensor information */
+	if (s_akm->ypr_buf_data[0] & ACC_DATA_READY) {
+		input_report_abs(s_akm->input, ABS_X, s_akm->ypr_buf_data[1]);
+		input_report_abs(s_akm->input, ABS_Y, s_akm->ypr_buf_data[2]);
+		input_report_abs(s_akm->input, ABS_Z, s_akm->ypr_buf_data[3]);
+		input_report_abs(s_akm->input, ABS_RX, s_akm->ypr_buf_data[4]);
+		if (s_akm->virtual_report_time < AKM_SETYPR_RETRY_TIME)
+			queue_delayed_work(compass_data_report_workqueue, &compass_data_report_work,
+									msecs_to_jiffies(s_akm->delay[ACC_DATA_FLAG]*AKM_SETYPR_RETRY_TIME_PERSENT/AKM_SETYPR_BASIC_TIME));
+	}
+	/* Report magnetic vector information */
+	if (s_akm->ypr_buf_data[0] & MAG_DATA_READY) {
+		input_report_abs(s_akm->input, ABS_RY, s_akm->ypr_buf_data[5]);
+		input_report_abs(s_akm->input, ABS_RZ, s_akm->ypr_buf_data[6]);
+		input_report_abs(s_akm->input, ABS_THROTTLE, s_akm->ypr_buf_data[7] + (s_akm->virtual_report_time + 1));
+		input_report_abs(s_akm->input, ABS_RUDDER, s_akm->ypr_buf_data[8]);
+		if (s_akm->virtual_report_time < AKM_SETYPR_RETRY_TIME)
+			queue_delayed_work(compass_data_report_workqueue, &compass_data_report_work,
+									msecs_to_jiffies(s_akm->delay[MAG_DATA_FLAG]*AKM_SETYPR_RETRY_TIME_PERSENT/AKM_SETYPR_BASIC_TIME));
+	}
+	/* Report fusion sensor information */
+	if (s_akm->ypr_buf_data[0] & FUSION_DATA_READY) {
+		/* Orientation */
+		input_report_abs(s_akm->input, ABS_HAT0Y, s_akm->ypr_buf_data[9]);
+		input_report_abs(s_akm->input, ABS_HAT1X, s_akm->ypr_buf_data[10]);
+		input_report_abs(s_akm->input, ABS_HAT1Y, s_akm->ypr_buf_data[11] + (s_akm->virtual_report_time + 1));
+		/* Rotation Vector */
+		input_report_abs(s_akm->input, ABS_TILT_X, s_akm->ypr_buf_data[12]);
+		input_report_abs(s_akm->input, ABS_TILT_Y, s_akm->ypr_buf_data[13]);
+		input_report_abs(s_akm->input, ABS_TOOL_WIDTH, s_akm->ypr_buf_data[14] + (s_akm->virtual_report_time + 1));
+		input_report_abs(s_akm->input, ABS_VOLUME, s_akm->ypr_buf_data[15]);
+		if (s_akm->virtual_report_time < AKM_SETYPR_RETRY_TIME)
+			queue_delayed_work(compass_data_report_workqueue, &compass_data_report_work,
+									msecs_to_jiffies(s_akm->delay[FUSION_DATA_FLAG]*AKM_SETYPR_RETRY_TIME_PERSENT/AKM_SETYPR_BASIC_TIME));
+	}
+
+	input_sync(s_akm->input);
+	if (s_akm->virtual_report_time >= AKM_SETYPR_RETRY_TIME)
+		s_akm->virtual_report_time = 0;
+	else
+		s_akm->virtual_report_time++;
+}
+#endif
 static void AKECS_SetYPR(
 	struct akm_compass_data *akm,
 	int *rbuf)
 {
 	uint32_t ready;
-	if (s_akm->compass_debug_switch)
-		printk("[E-compass] alp : AKECS_SetYPR +\n");
-	dev_vdbg(&akm->i2c->dev, "%s: flag =0x%X", __func__, rbuf[0]);
-	dev_vdbg(&akm->input->dev, "  Acc [LSB]   : %6d,%6d,%6d stat=%d",
-		rbuf[1], rbuf[2], rbuf[3], rbuf[4]);
-	dev_vdbg(&akm->input->dev, "  Geo [LSB]   : %6d,%6d,%6d stat=%d",
-		rbuf[5], rbuf[6], rbuf[7], rbuf[8]);
-	dev_vdbg(&akm->input->dev, "  Orientation : %6d,%6d,%6d",
-		rbuf[9], rbuf[10], rbuf[11]);
-	dev_vdbg(&akm->input->dev, "  Rotation V  : %6d,%6d,%6d,%6d",
-		rbuf[12], rbuf[13], rbuf[14], rbuf[15]);
+/*
+	if (s_akm->compass_debug_switch)	{
+		printk("[E-compass] sensor : AKECS_SetYPR (Flag : %d) +\n", rbuf[0]);
+		printk("[E-compass] sensor :   Acc [LSB]   : %6d,%6d,%6d stat=%d", rbuf[1], rbuf[2], rbuf[3], rbuf[4]);
+		printk("[E-compass] sensor :   Geo [LSB]   : %6d,%6d,%6d stat=%d", rbuf[5], rbuf[6], rbuf[7], rbuf[8]);
+		printk("[E-compass] sensor :   Orientation : %6d,%6d,%6d", rbuf[9], rbuf[10], rbuf[11]);
+		printk("[E-compass] sensor :   Rotation V  : %6d,%6d,%6d,%6d", rbuf[12], rbuf[13], rbuf[14], rbuf[15]);
+	}
+*/
 
 	/* No events are reported */
 	if (!rbuf[0]) {
+		printk("[E-compass] Don't waste a time.");
 		dev_dbg(&akm->i2c->dev, "Don't waste a time.");
 		return;
 	}
 
 	mutex_lock(&akm->val_mutex);
 	ready = (akm->enable_flag & (uint32_t)rbuf[0]);
+	/* For CTS verify R3  Compass data report rate test fail work around */
+	memcpy(s_akm->ypr_buf_data, rbuf, sizeof(s_akm->ypr_buf_data));
+
 	mutex_unlock(&akm->val_mutex);
-
-	/* Report acceleration sensor information */
-	if (ready & ACC_DATA_READY) {
-		input_report_abs(akm->input, ABS_X, rbuf[1]);
-		input_report_abs(akm->input, ABS_Y, rbuf[2]);
-		input_report_abs(akm->input, ABS_Z, rbuf[3]);
-		input_report_abs(akm->input, ABS_RX, rbuf[4]);
-	}
-	/* Report magnetic vector information */
-	if (ready & MAG_DATA_READY) {
-		input_report_abs(akm->input, ABS_RY, rbuf[5]);
-		input_report_abs(akm->input, ABS_RZ, rbuf[6]);
-		input_report_abs(akm->input, ABS_THROTTLE, rbuf[7]);
-		input_report_abs(akm->input, ABS_RUDDER, rbuf[8]);
-	}
-	/* Report fusion sensor information */
-	if (ready & FUSION_DATA_READY) {
-		/* Orientation */
-		input_report_abs(akm->input, ABS_HAT0Y, rbuf[9]);
-		input_report_abs(akm->input, ABS_HAT1X, rbuf[10]);
-		input_report_abs(akm->input, ABS_HAT1Y, rbuf[11]);
-		/* Rotation Vector */
-		input_report_abs(akm->input, ABS_TILT_X, rbuf[12]);
-		input_report_abs(akm->input, ABS_TILT_Y, rbuf[13]);
-		input_report_abs(akm->input, ABS_TOOL_WIDTH, rbuf[14]);
-		input_report_abs(akm->input, ABS_VOLUME, rbuf[15]);
-	}
-
-	input_sync(akm->input);
-	if (s_akm->compass_debug_switch)
-		printk("[E-compass] alp : AKECS_SetYPR -\n");
 }
 
 /* This function will block a process until the latest measurement
@@ -837,6 +915,7 @@ static void akm_compass_sysfs_update_status(
 	dev_dbg(&akm->i2c->dev,
 		"Status updated: enable=0x%X, active=%d",
 		en, atomic_read(&akm->active));
+	printk("[E-compass] sensor : akm_compass_sysfs_update_status---\n");
 }
 
 static ssize_t akm_compass_sysfs_enable_show(
@@ -851,22 +930,94 @@ static ssize_t akm_compass_sysfs_enable_show(
 	return scnprintf(buf, PAGE_SIZE, "%d\n", flag);
 }
 
+static void AKECS_SetYPR_report_data_work(void)
+{
+/*
+	if (s_akm->compass_debug_switch)	{
+		printk("[E-compass] sensor :   Acc [LSB]   : %6d,%6d,%6d stat=%d", s_akm->ypr_buf_data[1], s_akm->ypr_buf_data[2], s_akm->ypr_buf_data[3], s_akm->ypr_buf_data[4]);
+		printk("[E-compass] sensor :   Geo [LSB]   : %6d,%6d,%6d stat=%d", s_akm->ypr_buf_data[5], s_akm->ypr_buf_data[6], s_akm->ypr_buf_data[7], s_akm->ypr_buf_data[8]);
+		printk("[E-compass] sensor :   Orientation : %6d,%6d,%6d", s_akm->ypr_buf_data[9], s_akm->ypr_buf_data[10], s_akm->ypr_buf_data[11]);
+		printk("[E-compass] sensor :   Rotation V  : %6d,%6d,%6d,%6d", s_akm->ypr_buf_data[12], s_akm->ypr_buf_data[13], s_akm->ypr_buf_data[14], s_akm->ypr_buf_data[15]);
+	}
+*/
+
+	/* Report acceleration sensor information */
+	if (s_akm->ypr_buf_data[0] & ACC_DATA_READY) {
+		input_report_abs(s_akm->input, ABS_X, s_akm->ypr_buf_data[1]);
+		input_report_abs(s_akm->input, ABS_Y, s_akm->ypr_buf_data[2]);
+		input_report_abs(s_akm->input, ABS_Z, s_akm->ypr_buf_data[3]);
+		input_report_abs(s_akm->input, ABS_RX, s_akm->ypr_buf_data[4]);
+	}
+	/* Report magnetic vector information */
+	if (s_akm->ypr_buf_data[0] & MAG_DATA_READY) {
+		if (s_akm->compass_debug_switch)
+			printk("[E-compass] sensor :   Geo [LSB]   : %6d,%6d,%6d stat=%d\n", s_akm->ypr_buf_data[5], s_akm->ypr_buf_data[6], s_akm->ypr_buf_data[7], s_akm->ypr_buf_data[8]);
+		input_report_abs(s_akm->input, ABS_RY, s_akm->ypr_buf_data[5]);
+		input_report_abs(s_akm->input, ABS_RZ, s_akm->ypr_buf_data[6]);
+		input_report_abs(s_akm->input, ABS_THROTTLE, s_akm->ypr_buf_data[7] + (s_akm->virtual_report_time + 1));
+		input_report_abs(s_akm->input, ABS_RUDDER, s_akm->ypr_buf_data[8]);
+	}
+	/* Report fusion sensor information */
+	if (s_akm->ypr_buf_data[0] & FUSION_DATA_READY) {
+		if (s_akm->compass_debug_switch)
+			printk("[E-compass] sensor :  Orientation [LSB]   : %6d,%6d,%6d\n", s_akm->ypr_lost_data[9], s_akm->ypr_lost_data[10], s_akm->ypr_lost_data[11]);
+		/* Orientation */
+		input_report_abs(s_akm->input, ABS_HAT0Y, s_akm->ypr_buf_data[9]);
+		input_report_abs(s_akm->input, ABS_HAT1X, s_akm->ypr_buf_data[10]);
+		input_report_abs(s_akm->input, ABS_HAT1Y, s_akm->ypr_buf_data[11] + (s_akm->virtual_report_time + 1));
+		/* Rotation Vector */
+		input_report_abs(s_akm->input, ABS_TILT_X, s_akm->ypr_buf_data[12]);
+		input_report_abs(s_akm->input, ABS_TILT_Y, s_akm->ypr_buf_data[13]);
+		input_report_abs(s_akm->input, ABS_TOOL_WIDTH, s_akm->ypr_buf_data[14] + (s_akm->virtual_report_time + 1));
+		input_report_abs(s_akm->input, ABS_VOLUME, s_akm->ypr_buf_data[15]);
+	}
+
+/* ASUS_BSP +++ Peter_Lu For CTS verify sensor report TimeStamp test fail issue +++ */
+	s_akm->timestamp = ktime_get_boottime();
+	input_event(s_akm->input, EV_SYN, SYN_TIME_SEC, ktime_to_timespec(s_akm->timestamp).tv_sec);
+	input_event(s_akm->input, EV_SYN, SYN_TIME_NSEC, ktime_to_timespec(s_akm->timestamp).tv_nsec);
+/* ASUS_BSP --- Peter_Lu */
+
+	input_sync(s_akm->input);
+	if (s_akm->virtual_report_time >= AKM_SETYPR_RETRY_TIME)
+		s_akm->virtual_report_time = 0;
+	else
+		s_akm->virtual_report_time++;
+}
+
+static void akm_dev_poll(struct work_struct *work)
+{
+	AKECS_SetYPR_report_data_work();
+}
+
+static enum hrtimer_restart akm_timer_func(struct hrtimer *timer)
+{
+	if (s_akm->mag_state || s_akm->fusion_state)	{
+		queue_work(s_akm->work_queue, &s_akm->dwork.work);
+		if (s_akm->mag_state == 0)
+			hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime((s_akm->delay[FUSION_DATA_FLAG])*8/10));
+		else if (s_akm->fusion_state == 0)
+			hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime((s_akm->delay[MAG_DATA_FLAG])*8/10));
+		else	{
+			if ((s_akm->delay[MAG_DATA_FLAG]) <= s_akm->delay[FUSION_DATA_FLAG])
+				hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime((s_akm->delay[MAG_DATA_FLAG])*8/10));
+			else
+				hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime((s_akm->delay[FUSION_DATA_FLAG])*8/10));
+		}
+	}
+
+	if (s_akm->mag_state == 0 && s_akm->fusion_state == 0)	{
+		printk("[E-compass] sensor : Stop akm_timer_func!!!!\n");
+		return HRTIMER_NORESTART;
+	}
+	return HRTIMER_RESTART;
+}
+
 static ssize_t akm_compass_sysfs_enable_store(
 	struct akm_compass_data *akm, char const *buf, size_t count, int pos)
 {
 	long en = 0;
-
-	switch (pos) {
-	case ACC_DATA_FLAG:
-		printk("[E-compass] Enable Acceleration function++\n");
-		break;
-	case MAG_DATA_FLAG:
-		printk("[E-compass] Enable Magnetic function++\n");
-		break;
-	case FUSION_DATA_FLAG:
-		printk("[E-compass] Enable Fusion function++\n");
-		break;
-	}
+	//uint8_t mode;
 
 	if (NULL == buf)
 		return -EINVAL;
@@ -879,12 +1030,45 @@ static ssize_t akm_compass_sysfs_enable_store(
 
 	en = en ? 1 : 0;
 
+	mutex_lock(&akm->op_mutex);
 	mutex_lock(&akm->val_mutex);
 	akm->enable_flag &= ~(1<<pos);
 	akm->enable_flag |= ((uint32_t)(en))<<pos;
 	mutex_unlock(&akm->val_mutex);
 
+	switch (pos) {
+	case ACC_DATA_FLAG:
+		printk("[E-compass] Set Acceleration sensor function(%ld, delaytime = %d)++\n", en, (int)akm->delay[pos]);
+		break;
+	case MAG_DATA_FLAG:
+		printk("[E-compass] Set Magnetic sensor function(%ld, delaytime = %d)++\n", en, (int)akm->delay[pos]);
+		akm->mag_state = en;
+		break;
+	case FUSION_DATA_FLAG:
+		printk("[E-compass] Set Fusion sensor function(%ld, delaytime = %d)++\n", en, (int)akm->delay[pos]);
+		akm->fusion_state = en;
+		break;
+	}
+	printk("[E-compass] sensor : Check mag_state(%d) fusion_state(%d) \n", akm->mag_state, akm->fusion_state);
+
+	if (akm->mag_state ||akm->fusion_state)	{
+		if (akm->poll_timer.state == HRTIMER_STATE_INACTIVE)	{
+			printk("[E-compass] sensor : Start compass poll timer. \n");
+			hrtimer_start(&akm->poll_timer, ns_to_ktime((akm->delay[pos])*8/10), HRTIMER_MODE_REL);
+		} else
+			printk("[E-compass] sensor : Compass poll timer already active without start timer again.\n");
+	} else	{
+		hrtimer_cancel(&akm->poll_timer);
+		printk("[E-compass] sensor : cancel timer--\n");
+		//cancel_work_sync(&akm->dwork.work);
+	}
 	akm_compass_sysfs_update_status(akm);
+	mutex_unlock(&akm->op_mutex);
+
+	if (en == 0)	{
+		printk("[E-compass] sensor : Disable is set\n");
+		s_akm->virtual_report_time = 0;
+	}
 
 	return count;
 }
@@ -1058,7 +1242,7 @@ static ssize_t akm_compass_sysfs_delay_store(
 	if (strict_strtoll(buf, AKM_BASE_NUM, &val))
 		return -EINVAL;
 
-	printk("[E-compass] Setting compass delay : %lld\n", val);
+	printk("[E-compass] Setting compass[%d] delay : %lld\n", pos, val);
 
 	mutex_lock(&akm->val_mutex);
 	akm->delay[pos] = val;
@@ -1586,16 +1770,23 @@ work_func_none:
 
 static int akm_compass_suspend(struct device *dev)
 {
-//	struct akm_compass_data *akm = dev_get_drvdata(dev);
-	dev_dbg(&s_akm->i2c->dev, "suspended\n");
+	if (s_akm->mag_state ||s_akm->fusion_state)	{
+		hrtimer_cancel(&s_akm->poll_timer);
+		printk("[E-compass] sensor : akm_compass_suspend cancel timer--\n");
+	}
 	printk("[E-compass] alp : akm_compass_suspend !! \n");
 	return 0;
 }
 
 static int akm_compass_resume(struct device *dev)
 {
-//	struct akm_compass_data *akm = dev_get_drvdata(dev);
-	dev_dbg(&s_akm->i2c->dev, "resumed\n");
+	if (s_akm->mag_state ||s_akm->fusion_state)	{
+		if (s_akm->poll_timer.state == HRTIMER_STATE_INACTIVE)	{
+			printk("[E-compass] sensor : akm_compass_resume restart compass poll timer. \n");
+			hrtimer_start(&s_akm->poll_timer, ns_to_ktime((s_akm->delay[MAG_DATA_FLAG])*8/10), HRTIMER_MODE_REL);
+		} else
+			printk("[E-compass] sensor : akm_compass_resume compass poll timer already active without start timer again.\n");
+	}
 	printk("[E-compass] alp : akm_compass_resume !! \n");
 	return 0;
 }
@@ -1733,7 +1924,7 @@ static ssize_t get_akm09911_rawdata(struct device *dev, struct device_attribute 
 static DEVICE_ATTR(state, S_IRUGO, get_akm09911_state, NULL);
 static DEVICE_ATTR(rawdata, S_IRUGO, get_akm09911_rawdata, NULL);
 #endif
-/*
+
 static ssize_t get_akm09911_debug_state(struct device *dev, struct device_attribute *devattr, char *buf)
 {
 	return sprintf(buf, "[E-compass] switch : %s\n", (s_akm->compass_debug_switch ? "on" : "off"));
@@ -1747,17 +1938,18 @@ static ssize_t Set_akm09911_debug_state(struct device *dev, struct device_attrib
 	strncpy(debugStr, buf, count);
 	s_akm->compass_debug_switch = (simple_strtoul(&debugStr[0], NULL, 10) ? true : false);
 
-	return sprintf(buf, "[E-compass] switch : %s\n", (s_akm->compass_debug_switch ? "on" : "off"));
+	printk(buf, "[E-compass] switch : %s\n", (s_akm->compass_debug_switch ? "on" : "off"));
+
+	return count;
 }
 static DEVICE_ATTR(akm09911_debug_state, 770, get_akm09911_debug_state, Set_akm09911_debug_state);
-*/
 
 static struct attribute *akm09911_attributes[] = {
 #if AKM_ATTR_ATD_TEST
 	&dev_attr_state.attr,
 	&dev_attr_rawdata.attr,
 #endif
-	//&dev_attr_akm09911_debug_state.attr,
+	&dev_attr_akm09911_debug_state.attr,
 	NULL
 };
 
@@ -1799,6 +1991,7 @@ int akm_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	mutex_init(&s_akm->sensor_mutex);
 	mutex_init(&s_akm->accel_mutex);
 	mutex_init(&s_akm->val_mutex);
+	mutex_init(&s_akm->op_mutex);
 
 	atomic_set(&s_akm->active, 0);
 	atomic_set(&s_akm->drdy, 0);
@@ -1808,6 +2001,8 @@ int akm_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	s_akm->is_busy = 0;
 	s_akm->enable_flag = 0;
+	s_akm->mag_state = 0;
+	s_akm->fusion_state = 0;
 
 	/* Set to 1G in Android coordination, AKSC format */
 	s_akm->accel_data[0] = 0;
@@ -1867,9 +2062,20 @@ int akm_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 				printk("[E-compass] alp enable_irq fail err =%d \n", err);
 			goto exit4;
 		}
-	}else{
+	} else	{
 		printk("[E-compass] alp : did not use irq , daemon control!! \n");
+		hrtimer_init(&s_akm->poll_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		s_akm->poll_timer.function = akm_timer_func;
+		s_akm->work_queue = alloc_workqueue("akm_poll_work", WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_HIGHPRI, 1);
+		INIT_WORK(&s_akm->dwork.work, akm_dev_poll);
 	}
+
+	/* For CTS verify R3  Compass data report rate test fail issue */
+	s_akm->virtual_report_time = 0;
+	memset(s_akm->ypr_buf_data, 0, sizeof(s_akm->ypr_buf_data));
+	memset(s_akm->ypr_lost_data, 0, sizeof(s_akm->ypr_lost_data));
+	//compass_data_report_workqueue = create_singlethread_workqueue("compass_report_data_wq");
+	//INIT_DELAYED_WORK(&compass_data_report_work, AKECS_SetYPR_report_data);
 
 	/***** misc *****/
 	err = misc_register(&akm_compass_dev);

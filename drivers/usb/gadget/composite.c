@@ -24,6 +24,7 @@
 static bool detectMACByConfig = 0;
 static bool hostTypeChanged = 0;
 
+//ASUS_BSP+++ "[ZE500KL][USB][NA][Other]Add ECM support for MAC"
 extern int getMACConnect(void){
 	return detectMACByConfig;
 }
@@ -35,6 +36,7 @@ extern int getHostTypeChanged(void){
 extern void resetHostTypeChanged(void){
 	hostTypeChanged = 0;
 }
+//ASUS_BSP--- "[ZE500KL][USB][NA][Other]Add ECM support for MAC"
 
 /*
  * The code in this file is utility code, used to build a gadget driver
@@ -383,9 +385,7 @@ static int usb_func_wakeup_int(struct usb_function *func,
 {
 	int ret;
 	int interface_id;
-	unsigned long flags;
 	struct usb_gadget *gadget;
-	struct usb_composite_dev *cdev;
 
 	pr_debug("%s - %s function wakeup, use pending: %u\n",
 		__func__, func->name ? func->name : "", use_pending_flag);
@@ -404,12 +404,8 @@ static int usb_func_wakeup_int(struct usb_function *func,
 		return -ENOTSUPP;
 	}
 
-	cdev = get_gadget_data(gadget);
-	spin_lock_irqsave(&cdev->lock, flags);
-
 	if (use_pending_flag && !func->func_wakeup_pending) {
 		pr_debug("Pending flag is cleared - Function wakeup is cancelled.\n");
-		spin_unlock_irqrestore(&cdev->lock, flags);
 		return 0;
 	}
 
@@ -419,7 +415,6 @@ static int usb_func_wakeup_int(struct usb_function *func,
 			"Function %s - Unknown interface id. Canceling USB request. ret=%d\n",
 			func->name ? func->name : "", ret);
 
-		spin_unlock_irqrestore(&cdev->lock, flags);
 		return ret;
 	}
 
@@ -433,30 +428,31 @@ static int usb_func_wakeup_int(struct usb_function *func,
 			func->func_wakeup_pending = true;
 	}
 
-	spin_unlock_irqrestore(&cdev->lock, flags);
-
 	return ret;
 }
 
 int usb_func_wakeup(struct usb_function *func)
 {
 	int ret;
+	unsigned long flags;
 
 	pr_debug("%s function wakeup\n",
 		func->name ? func->name : "");
 
+	spin_lock_irqsave(&func->config->cdev->lock, flags);
 	ret = usb_func_wakeup_int(func, false);
 	if (ret == -EAGAIN) {
 		DBG(func->config->cdev,
 			"Function wakeup for %s could not complete due to suspend state. Delayed until after bus resume.\n",
 			func->name ? func->name : "");
 		ret = 0;
-	} else if (ret < 0) {
+	} else if (ret < 0 && ret != -ENOTSUPP) {
 		ERROR(func->config->cdev,
 			"Failed to wake function %s from suspend state. ret=%d. Canceling USB request.\n",
 			func->name ? func->name : "", ret);
 	}
 
+	spin_unlock_irqrestore(&func->config->cdev->lock, flags);
 	return ret;
 }
 
@@ -527,12 +523,13 @@ static int config_buf(struct usb_configuration *config,
 
 		if (!descriptors)
 			continue;
-
-		if (detectMACByConfig && !strcmp(f->name,"Mass Storage Function")){
+		//ASUS_BSP+++ "[ZE500KL][USB][NA][Other]Add ECM support for MAC"
+		if (detectMACByConfig && !strcmp(f->name,"Mass Storage Function"))
+		{
 			printk("[USB] ingore mass storage\n");
 			continue;
 		}
-
+		//ASUS_BSP--- "[ZE500KL][USB][NA][Other]Add ECM support for MAC"
 		status = usb_descriptor_fillbuf(next, len,
 			(const struct usb_descriptor_header **) descriptors);
 		if (status < 0)
@@ -804,6 +801,12 @@ static int set_config(struct usb_composite_dev *cdev,
 		 */
 		switch (gadget->speed) {
 		case USB_SPEED_SUPER:
+			if (!f->ss_descriptors) {
+				pr_err("%s(): No SS desc for function:%s\n",
+							__func__, f->name);
+				usb_gadget_set_state(gadget, USB_STATE_ADDRESS);
+				return -EINVAL;
+			}
 			descriptors = f->ss_descriptors;
 			break;
 		case USB_SPEED_HIGH:
@@ -1412,12 +1415,14 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		switch (w_value >> 8) {
 
 		case USB_DT_DEVICE:
+			//ASUS_BSP+++ "[ZE500KL][USB][NA][Other]Add ECM support for MAC"
 			if(w_length==0x40){
 				if(detectMACByConfig==1){
 					hostTypeChanged=1;
 				}
 				detectMACByConfig=0;
 			}
+			//ASUS_BSP--- "[ZE500KL][USB][NA][Other]Add ECM support for MAC"
 			cdev->desc.bNumConfigurations =
 				count_configs(cdev, USB_DT_DEVICE);
 			cdev->desc.bMaxPacketSize0 =
@@ -1451,12 +1456,14 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 				break;
 			/* FALLTHROUGH */
 		case USB_DT_CONFIG:
+			//ASUS_BSP+++ "[ZE500KL][USB][NA][Other]Add ECM support for MAC"
 			if(w_length==0x4){
 				if(detectMACByConfig==0){
 					hostTypeChanged=1;
 				}
 				detectMACByConfig=1;
 			}
+			//ASUS_BSP--- "[ZE500KL][USB][NA][Other]Add ECM support for MAC"
 			value = config_desc(cdev, w_value);
 			if (value >= 0)
 				value = min(w_length, (u16) value);
@@ -1939,6 +1946,7 @@ composite_resume(struct usb_gadget *gadget)
 	struct usb_function		*f;
 	u8				maxpower;
 	int ret;
+	unsigned long			flags;
 
 	/* REVISIT:  should we have config level
 	 * suspend/resume callbacks?
@@ -1947,6 +1955,7 @@ composite_resume(struct usb_gadget *gadget)
 	if (cdev->driver->resume)
 		cdev->driver->resume(cdev);
 
+	spin_lock_irqsave(&cdev->lock, flags);
 	if (cdev->config) {
 		list_for_each_entry(f, &cdev->config->functions, list) {
 			ret = usb_func_wakeup_int(f, true);
@@ -1956,7 +1965,7 @@ composite_resume(struct usb_gadget *gadget)
 						"Function wakeup for %s could not complete due to suspend state.\n",
 						f->name ? f->name : "");
 					break;
-				} else {
+				} else if (ret != -ENOTSUPP) {
 					ERROR(f->config->cdev,
 						"Failed to wake function %s from suspend state. ret=%d. Canceling USB request.\n",
 						f->name ? f->name : "",
@@ -1974,6 +1983,7 @@ composite_resume(struct usb_gadget *gadget)
 			maxpower : CONFIG_USB_GADGET_VBUS_DRAW);
 	}
 
+	spin_unlock_irqrestore(&cdev->lock, flags);
 	cdev->suspended = 0;
 }
 

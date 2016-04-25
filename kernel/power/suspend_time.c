@@ -22,6 +22,15 @@
 #include <linux/syscore_ops.h>
 #include <linux/time.h>
 
+//ASUS_BSP +++ jeff_gu add for trace suspend time
+unsigned int pwrcs_time;
+static int64_t delta;
+static int64_t time_before_suspend;
+static int64_t time_after_suspend;
+extern s64 get_ns_from_hw(void);
+//ASUS_BSP --- jeff_gu add for trace suspend time
+
+
 static struct timespec suspend_time_before;
 static unsigned int time_in_suspend_bins[32];
 
@@ -72,7 +81,11 @@ late_initcall(suspend_time_debug_init);
 
 static int suspend_time_syscore_suspend(void)
 {
-	read_persistent_clock(&suspend_time_before);
+	if (has_persistent_clock()) {
+		read_persistent_clock(&suspend_time_before);
+	} else {
+		time_before_suspend = get_ns_from_hw();
+	}
 
 	return 0;
 }
@@ -81,14 +94,22 @@ static void suspend_time_syscore_resume(void)
 {
 	struct timespec after;
 
-	read_persistent_clock(&after);
+	if (has_persistent_clock()) {
 
-	after = timespec_sub(after, suspend_time_before);
+		read_persistent_clock(&after);
 
-	time_in_suspend_bins[fls(after.tv_sec)]++;
+		after = timespec_sub(after, suspend_time_before);
 
-	pr_info("Suspended for %lu.%03lu seconds\n", after.tv_sec,
-		after.tv_nsec / NSEC_PER_MSEC);
+		time_in_suspend_bins[fls(after.tv_sec)]++;
+
+		pr_info("Suspended for %lu.%03lu seconds\n", after.tv_sec,
+			after.tv_nsec / NSEC_PER_MSEC);
+	} else {
+		time_after_suspend = get_ns_from_hw();
+		delta = time_after_suspend - time_before_suspend;
+		do_div(delta, NSEC_PER_SEC / 100);
+		pwrcs_time = delta;
+	}
 }
 
 static struct syscore_ops suspend_time_syscore_ops = {

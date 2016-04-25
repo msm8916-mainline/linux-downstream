@@ -1043,7 +1043,8 @@ static ssize_t asus_get_tpid(struct device *dev, struct device_attribute *attr, 
 
 static ssize_t asus_get_hwid_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", focal_get_HW_ID());
+//	return sprintf(buf, "%d\n", focal_get_HW_ID());
+	return sprintf(buf, "not support  in Android M branch ! \n");
 }
 
 static ssize_t asus_itr_status_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -1584,7 +1585,7 @@ static ssize_t DoubleTapConfig_store(struct device *dev, struct device_attribute
 
 	mutex_lock(&ftxxxx_ts->g_device_mutex);
 
-	printk("[Focal][Touch] %s : Input char num = %ld ! \n", __func__, count);
+	printk("[Focal][Touch] %s : DoubleTapConfig_store ! \n", __func__);
 
 	if (count/LoopBaseNum) {
 		for (i = 0; i < (count/LoopBaseNum); i++) {
@@ -1722,9 +1723,11 @@ static ssize_t ftxxxx_fwupgradeapp_store(struct device *dev, struct device_attri
 
 	err_tmp = fts_ctpm_fw_upgrade_with_app_file(ftxxxx_ts->client, fwname);
 
-	if (err_tmp != 0)
+	if (err_tmp != 0) {
+#ifdef CONFIG_FT5X46_FC
 		ASUSEvtlog("[Touch] touch update fw fail ! \n");
-
+#endif
+	}
 	asus_check_touch_mode();
 
 	ftxxxx_irq_enable(ftxxxx_ts->client);
@@ -2127,7 +2130,6 @@ static ssize_t ftxxxx_ftsscaptest_store(struct device *dev, struct device_attrib
 	return count;
 }
 #endif
-
 /****************************************/
 /* sysfs */
 /*get the fw version
@@ -2615,7 +2617,7 @@ int focal_fw_auto_update(struct i2c_client *client)
 //	int tar_fw_ver = 0;
 //	int tar_vendor_config = 0;
 	u8 tar_vendor_id = 0;
-	
+
 	/* 1. get touch ic tp vendor */
 	g_vendor_id = ftxxxx_read_tp_id();
 	if (g_vendor_id == 0xFF) {

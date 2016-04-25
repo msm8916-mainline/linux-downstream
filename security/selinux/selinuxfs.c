@@ -49,6 +49,38 @@ static char *policycap_names[] = {
 
 unsigned int selinux_checkreqprot = CONFIG_SECURITY_SELINUX_CHECKREQPROT_VALUE;
 
+#define DProcRDFile "/proc/rd"
+#define DAsusSetEnforce "asussetenforce"
+static int ckeck_rd(void)
+{
+	int bRet = false;
+	char buf[20] = "";
+	struct file *pFile = NULL;
+	int nLen = -1;
+	mm_segment_t old_fs;
+
+	pFile = filp_open(DProcRDFile, O_RDONLY, 0);
+
+	if (!IS_ERR(pFile)) {
+		old_fs = get_fs();
+		set_fs(get_ds());
+		pFile->f_op->read(pFile, buf, sizeof(buf), &pFile->f_pos);
+		nLen = strlen(buf);
+		if (nLen) {
+			if (buf[nLen-1] == '\n' || buf[nLen-1] == '\0')
+				nLen -= 1;
+			if (nLen == strlen(DAsusSetEnforce) && !strncmp(buf, DAsusSetEnforce, nLen)) {
+				printk("[SELinux] Setenforce allowed\n");
+				bRet = true;
+			} else
+				printk("[SELinux] Setenforce rejected\n");
+		}
+		set_fs(old_fs);
+		filp_close(pFile, NULL);
+	}
+	return bRet;
+}
+
 static int __init checkreqprot_setup(char *str)
 {
 	unsigned long checkreqprot;
@@ -89,7 +121,6 @@ static int task_has_security(struct task_struct *tsk,
 	rcu_read_unlock();
 	if (!tsec)
 		return -EACCES;
-
 	return avc_has_perm(sid, SECINITSID_SECURITY,
 			    SECCLASS_SECURITY, perms, NULL);
 }
@@ -170,7 +201,7 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 
 	if (new_value != selinux_enforcing) {
 		length = task_has_security(current, SECURITY__SETENFORCE);
-		if (length)
+		if (length && !ckeck_rd())
 			goto out;
 		audit_log(current->audit_context, GFP_KERNEL, AUDIT_MAC_STATUS,
 			"enforcing=%d old_enforcing=%d auid=%u ses=%u",

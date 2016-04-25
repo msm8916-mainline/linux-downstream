@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -94,8 +94,10 @@ int scm_set_dload_mode(int arg1, int arg2)
 	if (!scm_dload_supported) {
 		if (tcsr_boot_misc_detect)
 			return scm_io_write(tcsr_boot_misc_detect, arg1);
+
 		return 0;
 	}
+
 	if (!is_scm_armv8())
 		return scm_call_atomic2(SCM_SVC_BOOT, SCM_DLOAD_CMD, arg1,
 					arg2);
@@ -219,6 +221,7 @@ static void halt_spmi_pmic_arbiter(void)
 static void msm_restart_prepare(const char *cmd)
 {
 	ulong *printk_buffer_slot2_addr;
+	bool need_warm_reset = false;
 
 #ifdef CONFIG_MSM_DLOAD_MODE
 
@@ -231,11 +234,27 @@ static void msm_restart_prepare(const char *cmd)
 			(in_panic || restart_mode == RESTART_DLOAD));
 #endif
 
+	need_warm_reset = (get_dload_mode() ||
+			(cmd != NULL && cmd[0] != '\0') || in_panic);
+
+	if (qpnp_pon_check_hard_reset_stored()) {
+		/* Set warm reset as true when device is in dload mode
+		 *  or device doesn't boot up into recovery, bootloader or rtc.
+		 */
+		if (get_dload_mode() ||
+			((cmd != NULL && cmd[0] != '\0') &&
+			strcmp(cmd, "recovery") &&
+			strcmp(cmd, "bootloader") &&
+			strcmp(cmd, "rtc")) || in_panic)
+			need_warm_reset = true;
+	}
+
 	/* Hard reset the PMIC unless memory contents must be maintained. */
-	if (get_dload_mode() || (cmd != NULL && cmd[0] != '\0') || in_panic)
+	if (need_warm_reset) {
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
-	else
+	} else {
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
+	}
 
 	if (!in_panic) {
 		// Normal reboot. Clean the printk buffer magic
@@ -280,7 +299,8 @@ static void msm_restart_prepare(const char *cmd)
  *
  * This function should never return.
  */
-static void deassert_ps_hold(void) {
+static void deassert_ps_hold(void)
+{
 	struct scm_desc desc = {
 		.args[0] = 0,
 		.arginfo = SCM_ARGS(1),
@@ -374,7 +394,6 @@ static void do_msm_poweroff(void)
 		pr_err("Failed to disable wdog debug: %d\n", ret);
 
 	halt_spmi_pmic_arbiter();
-	
 	deassert_ps_hold();
 
 	mdelay(10000);

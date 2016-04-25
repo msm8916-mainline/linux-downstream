@@ -182,7 +182,7 @@ static void of_pwmchip_add(struct pwm_chip *chip)
 {
 	if (!chip->dev || !chip->dev->of_node)
 		return;
-	
+
 	if (!chip->of_xlate) {
 		chip->of_xlate = of_pwm_simple_xlate;
 		chip->of_pwm_n_cells = 2;
@@ -367,8 +367,8 @@ struct pwm_device *pwm_request_from_chip(struct pwm_chip *chip,
 	struct pwm_device *pwm;
 	int err;
 
-	if (!chip || index >= chip->npwm){
-		return ERR_PTR(-EINVAL);}
+	if (!chip || index >= chip->npwm)
+		return ERR_PTR(-EINVAL);
 
 	mutex_lock(&pwm_lock);
 	pwm = &chip->pwms[index];

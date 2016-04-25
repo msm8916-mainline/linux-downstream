@@ -16,7 +16,6 @@ Optional Properties:
       the reset type shall be configured by means of a call to the secure
       environment.
 
-
 Example:
 
 	restart@fc4ab000 {

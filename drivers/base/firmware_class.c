@@ -292,7 +292,8 @@ static const char * const fw_path[] = {
 	"/lib/firmware/updates/" UTS_RELEASE,
 	"/lib/firmware/updates",
 	"/lib/firmware/" UTS_RELEASE,
-	"/lib/firmware"
+	"/lib/firmware",
+	"/firmware/image"
 };
 
 /*
@@ -356,6 +357,7 @@ static bool fw_get_filesystem_firmware(struct device *device,
 	int i;
 	bool success = false;
 	char *path = __getname();
+	dev_dbg(device, "[wlan]: %s +++\n", __func__);
 
 	for (i = 0; i < ARRAY_SIZE(fw_path); i++) {
 		struct file *file;
@@ -367,6 +369,7 @@ static bool fw_get_filesystem_firmware(struct device *device,
 		snprintf(path, PATH_MAX, "%s/%s", fw_path[i], buf->fw_id);
 
 		file = filp_open(path, O_RDONLY, 0);
+		dev_dbg(device, "[wlan]: %s: fw_path[%d] = %s\n", __func__, i, path);
 		if (IS_ERR(file))
 			continue;
 		success = fw_read_file_contents(file, buf);
@@ -385,6 +388,7 @@ static bool fw_get_filesystem_firmware(struct device *device,
 		mutex_unlock(&fw_lock);
 	}
 
+	dev_dbg(device, "[wlan]: %s ---\n", __func__);
 	return success;
 }
 
@@ -1021,7 +1025,6 @@ static int _request_firmware_load(struct firmware_priv *fw_priv, bool uevent,
 	}
 
 	wait_for_completion(&buf->completion);
-
 	cancel_delayed_work_sync(&fw_priv->timeout_work);
 
 	if (!buf->data && buf->is_paged_buf)
@@ -1041,6 +1044,7 @@ static int fw_load_from_user_helper(struct firmware *firmware,
 				    struct fw_desc *desc, long timeout)
 {
 	struct firmware_priv *fw_priv;
+	dev_dbg(desc->device, "[wlan]: %s Entered\n", __func__);
 
 	fw_priv = fw_create_instance(firmware, desc);
 	if (IS_ERR(fw_priv))
@@ -1183,6 +1187,9 @@ static int _request_firmware(struct fw_desc *desc)
 	struct firmware *fw;
 	long timeout;
 	int ret;
+	// ASUS_BSP+++ "Load wcnss firmware from /system/etc/firmware instead of /firmware/image"
+	struct firmware_buf *buf;
+	// ASUS_BSP--- "Load wcnss firmware from /system/etc/firmware instead of /firmware/image"
 
 	if (!desc->firmware_p)
 		return -EINVAL;
@@ -1210,9 +1217,27 @@ static int _request_firmware(struct fw_desc *desc)
 		}
 	}
 
-	if (!fw_get_filesystem_firmware(desc->device, fw->priv,
-					desc->dest_addr, desc->dest_size))
+	// ASUS_BSP+++ "Load wcnss firmware from /system/etc/firmware instead of /firmware/image"
+	buf = fw->priv;
+
+	if (strncmp(buf->fw_id, "wcnss", 5) == 0) {
+		/* load firmware from user helper first for wcnss firmware */
+		dev_err(desc->device, "[wlan]: %s: firmware name = %s\n", __func__, buf->fw_id);
 		ret = fw_load_from_user_helper(fw, desc, timeout);
+		if (!ret)
+			dev_err(desc->device, "[wlan]: %s: loading wcnss fw from fw_load_from_user_helper\n"
+				, __func__);
+		else { /* fw_load_from_user_helper failed */
+			dev_err(desc->device, "[wlan]: %s: loading wcnss fw from fw_get_filesystem_firmware\n"
+				, __func__);
+			fw_get_filesystem_firmware(desc->device, fw->priv,
+				desc->dest_addr, desc->dest_size);
+		}
+	} else if (!fw_get_filesystem_firmware(desc->device, fw->priv,
+				desc->dest_addr, desc->dest_size)) {
+		ret = fw_load_from_user_helper(fw, desc, timeout);
+	}
+	// ASUS_BSP--- "Load wcnss firmware from /system/etc/firmware instead of /firmware/image"
 	if (!ret)
 		ret = assign_firmware_buf(fw, desc->device, desc->nocache);
 

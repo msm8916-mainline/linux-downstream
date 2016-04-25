@@ -33,7 +33,7 @@ static LIST_HEAD(clk_list);
 static DEFINE_MUTEX(clk_list_lock);
 
 static struct dentry *debugfs_base;
-static u32 debug_suspend=1;
+static u32 debug_suspend = 1;
 
 static int clock_debug_rate_set(void *data, u64 val)
 {
@@ -275,15 +275,15 @@ do {							\
 	else						\
 		pr_info(fmt, ##__VA_ARGS__);		\
 } while (0)
-
+extern  bool printk_time;
 static int clock_debug_print_clock(struct clk *c, struct seq_file *m)
 {
 	char *start = "";
 
 	if (!c || !c->prepare_count)
 		return 0;
-
 	clock_debug_output(m, 0, "\t");
+	printk_time = 0;
 	do {
 		if (c->vdd_class)
 			clock_debug_output(m, 1, "%s%s:%u:%u [%ld, %d]", start,
@@ -297,6 +297,7 @@ static int clock_debug_print_clock(struct clk *c, struct seq_file *m)
 	} while ((c = clk_get_parent(c)));
 
 	clock_debug_output(m, 1, "\n");
+	printk_time = 1;
 
 	return 1;
 }

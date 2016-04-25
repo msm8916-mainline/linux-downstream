@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -97,6 +97,7 @@ static void create_rear_otp_proc_file(void);
 static void tsb_otp_read(void);
 //ASUS_BSP Stimber_Hsueh ---
 static void imx219_otp_read(void); //ASUS_BSP PJ_Ma +++
+static void create_gc2155_obvalue_proc_file(void);
 static void mn34150_otp_read(void); //ASUS_BSP PJ_Ma +++
 
 static int msm_sensor_platform_remove(struct platform_device *pdev)
@@ -118,7 +119,6 @@ static int msm_sensor_platform_remove(struct platform_device *pdev)
 	g_sctrl[pdev->id] = NULL;
 
 	remove_proc_file();	//ASUS_BSP Stimber_Hsueh "Implement for ATD interface"
-
 	return 0;
 }
 
@@ -839,6 +839,22 @@ int read_front_otp(struct msm_sensor_ctrl_t *s_ctrl ) {
 	return 0;	
 }
 //ASUS_BSP--- CR_0 Randy_Change@asus.com.tw [2015/3/3] Modify End
+int32_t msm_sensor_driver_is_special_support(
+	struct msm_sensor_ctrl_t *s_ctrl,
+	char* sensor_name)
+{
+	int32_t rc = FALSE;
+	int32_t i = 0;
+	struct msm_camera_sensor_board_info *sensordata = s_ctrl->sensordata;
+	for (i = 0; i < sensordata->special_support_size; i++) {
+		if (!strcmp(sensordata->special_support_sensors[i],
+			sensor_name)) {
+			rc = TRUE;
+			break ;
+		}
+	}
+	return rc;
+}
 
 int32_t msm_sensor_driver_probe(void *setting,
 	struct msm_sensor_info_t *probed_info, char *entity_name)
@@ -850,6 +866,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 	struct msm_camera_slave_info        *camera_info = NULL;
 
 	unsigned long                        mount_pos = 0;
+	uint32_t                             is_yuv;
 
 	/* Validate input parameters */
 	if (!setting) {
@@ -910,6 +927,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 			setting32.is_init_params_valid;
 		slave_info->sensor_init_params = setting32.sensor_init_params;
 		slave_info->is_flash_supported = setting32.is_flash_supported;
+		slave_info->output_format = setting32.output_format;
 	} else
 #endif
 	{
@@ -992,6 +1010,16 @@ int32_t msm_sensor_driver_probe(void *setting,
 
 		rc = 0;
 		goto free_slave_info;
+	}
+
+	if (s_ctrl->sensordata->special_support_size > 0) {
+		if (!msm_sensor_driver_is_special_support(s_ctrl,
+			slave_info->sensor_name)) {
+			pr_err("%s:%s is not support on this board\n",
+				__func__, slave_info->sensor_name);
+			rc = 0;
+			goto free_slave_info;
+		}
 	}
 
 	rc = msm_sensor_get_power_settings(setting, slave_info,
@@ -1164,6 +1192,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 		g_front_module = "GC2155";
 		snprintf(front_module_otp, sizeof(front_module_otp),"0");
 		create_front_otp_proc_file();
+		create_gc2155_obvalue_proc_file();
 	}
 	//ASUS_BSP Stimber_Hsueh ---
 
@@ -1212,9 +1241,12 @@ int32_t msm_sensor_driver_probe(void *setting,
 		goto free_camera_info;
 	}
 	/* Update sensor mount angle and position in media entity flag */
-	mount_pos = s_ctrl->sensordata->sensor_info->position << 16;
-	mount_pos = mount_pos | ((s_ctrl->sensordata->sensor_info->
-		sensor_mount_angle / 90) << 8);
+	is_yuv = (slave_info->output_format == MSM_SENSOR_YCBCR) ? 1 : 0;
+	mount_pos = is_yuv << 25 |
+		(s_ctrl->sensordata->sensor_info->position << 16) |
+		((s_ctrl->sensordata->
+		sensor_info->sensor_mount_angle / 90) << 8);
+
 	s_ctrl->msm_sd.sd.entity.flags = mount_pos | MEDIA_ENT_FL_DEFAULT;
 
 	/*Save sensor info*/
@@ -1302,7 +1334,8 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 	int32_t                              rc = 0;
 	struct msm_camera_sensor_board_info *sensordata = NULL;
 	struct device_node                  *of_node = s_ctrl->of_node;
-	uint32_t cell_id;
+	uint32_t                             cell_id;
+	int32_t                              i;
 
 	s_ctrl->sensordata = kzalloc(sizeof(*sensordata), GFP_KERNEL);
 	if (!s_ctrl->sensordata) {
@@ -1335,6 +1368,34 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 		pr_err("failed: sctrl already filled for cell_id %d", cell_id);
 		rc = -EINVAL;
 		goto FREE_SENSOR_DATA;
+	}
+
+	sensordata->special_support_size =
+		of_property_count_strings(of_node, "qcom,special-support-sensors");
+
+	if (sensordata->special_support_size < 0)
+		sensordata->special_support_size = 0;
+
+	if (sensordata->special_support_size > MAX_SPECIAL_SUPPORT_SIZE) {
+		pr_err("%s:support_size exceed max support size\n",__func__);
+		sensordata->special_support_size = MAX_SPECIAL_SUPPORT_SIZE;
+	}
+
+	if (sensordata->special_support_size) {
+		for( i = 0; i < sensordata->special_support_size; i++) {
+			rc = of_property_read_string_index(of_node,
+				"qcom,special-support-sensors", i,
+				&(sensordata->special_support_sensors[i]));
+			if(rc < 0 ) {
+				/* if read sensor support names failed,
+				*   set support all sensors, break;
+				*/
+				sensordata->special_support_size = 0;
+				break ;
+			}
+			CDBG("%s special_support_sensors[%d] = %s\n", __func__,
+				i, sensordata->special_support_sensors[i]);
+		}
 	}
 
 	/* Read subdev info */
@@ -1602,7 +1663,6 @@ static int __init msm_sensor_driver_init(void)
 	int32_t rc = 0;
 
 	CDBG("Enter");
-	msm_sensor_create_workqueue();
 	rc = platform_driver_probe(&msm_sensor_platform_driver,
 		msm_sensor_driver_platform_probe);
 	if (!rc) {
@@ -1620,7 +1680,6 @@ static int __init msm_sensor_driver_init(void)
 static void __exit msm_sensor_driver_exit(void)
 {
 	CDBG("Enter");
-	msm_sensor_destroy_workqueue();
 	platform_driver_unregister(&msm_sensor_platform_driver);
 	i2c_del_driver(&msm_sensor_driver_i2c);
 	return;
@@ -2202,7 +2261,7 @@ static u16 PLLsetting2[3][2]={
 	{ 0x300A, 0x08 },
 };
 
-static int __mn34150_otp_read(void)
+int __mn34150_otp_read(void)
 {
 	int ret;
 	u8 i;
@@ -2367,7 +2426,63 @@ static void create_front_otp_proc_file(void)
 }
 //ASUS_BSP--- CR_0 Randy_Change@asus.com.tw [2015/3/5] Modify End
 
+//ASUS_BSP +++ bill_chen "Implement gc2155 control OB interface"
+#define	GC2155_OBVALUE_PROC_FILE	"driver/gc2155_obvalue"
+static struct proc_dir_entry *obvalue_gc2155_proc_file;
 
+static ssize_t gc2155_obvalue_proc_wrtie(struct file *filp, const char __user *buff, size_t len, loff_t *data)
+{
+	int DarkMode, rc = 0;
+	char messages[8];
+	struct msm_sensor_ctrl_t *s_ctrl = g_sctrl[CAMERA_1];
+	if (len > 8) {
+		len = 8;
+	}
+	if (copy_from_user(messages, buff, len)) {
+		printk("[OB] %s commond fail !!\n", __func__);
+		return -EFAULT;
+	}
+
+	DarkMode = (int)simple_strtol(messages, NULL, 10);
+
+    rc = sensor_write_reg(s_ctrl, 0xfe, 0x00);
+    rc = sensor_write_reg(s_ctrl, 0x5c, DarkMode);
+
+	printk("[OB] %s: val = %d", __func__, DarkMode);
+
+	return len;
+}
+
+static int gc2155_obvalue_proc_read(struct seq_file *buf, void *v)
+{
+    seq_printf(buf, "%s\n", "0");
+    return 0;
+}
+
+static int gc2155_obvalue_proc_open(struct inode *inode, struct  file *file)
+{
+    return single_open(file, gc2155_obvalue_proc_read, NULL);
+}
+
+static const struct file_operations gc2155_obvalue_fops = {
+	.owner = THIS_MODULE,
+	.open = gc2155_obvalue_proc_open,
+	//.read = seq_read,
+	.write = gc2155_obvalue_proc_wrtie,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static void create_gc2155_obvalue_proc_file(void)
+{
+	obvalue_gc2155_proc_file = proc_create(GC2155_OBVALUE_PROC_FILE, 0776, NULL, &gc2155_obvalue_fops);
+	if (obvalue_gc2155_proc_file) {
+		printk("[OB] %s sucessed!\n", __func__);
+	} else {
+		printk("[OB] %s failed!\n", __func__);
+	}
+}
+//ASUS_BSP --- bill_chen "Implement gc2155 control OB interface"
 
 module_init(msm_sensor_driver_init);
 module_exit(msm_sensor_driver_exit);

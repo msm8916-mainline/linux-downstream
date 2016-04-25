@@ -35,8 +35,8 @@
 #define ACTIVITY_STATE_MOVING			10
 #define ACTIVITY_STATE_NOT_MOVING		11
 
-#define FUNSTAT_ON  1
-#define FUNSTAT_OFF 0
+#define FUNSTAT_ON		1
+#define FUNSTAT_OFF		0
 
 /*************************************************
  *                      Event state                        *

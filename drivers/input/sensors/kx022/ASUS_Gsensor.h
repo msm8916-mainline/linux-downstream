@@ -25,14 +25,15 @@
 #include <linux/moduleparam.h>
 #include <linux/slab.h>
 #include <linux/version.h>
-#include <linux/input/kionix_gsensor.h>
 #include <linux/input-polldev.h>
 #include <linux/miscdevice.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/proc_fs.h>
+#include <linux/kthread.h>
 #include "sysfs/Gsensor_sysfs.h"
 #include "property/Gsensor_property.h"
+#include "kionix_gsensor.h"
 #include "motion_detection/Gsensor_motion_detection.h"
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -82,6 +83,10 @@ struct ASUS_Gsensor_data	{
 	int		irq;
 	int		event_irq_status;
 	int		event_irq;
+
+/* ASUS_BSP +++ Peter_Lu For CTS verify sensor report rate test fail work around +++ */
+	ktime_t	timestamp;
+/* ASUS_BSP --- Peter_Lu */
 
 	/* For Gsensor motion detection */
 	struct delayed_work		flick_work;
@@ -165,4 +170,10 @@ extern ssize_t read_gsensor_flip(struct device *dev, struct device_attribute *at
 extern ssize_t read_gsensor_hands(struct device *dev, struct device_attribute *attr, char *buf);
 extern ssize_t read_gsensor_flick(struct device *dev, struct device_attribute *attr, char *buf);
 extern ssize_t read_gsensor_moving_detection(struct device *dev, struct device_attribute *attr, char *buf);
+
+/* ASUS_BSP +++ Peter_Lu "For CTS verify Zen-Motion flush test faul issue " */
+extern ssize_t zenmotion_get_flush(struct device *dev, struct device_attribute *attr, char *buf);
+extern ssize_t zenmotion_set_flush(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
+/* ASUS_BSP --- Peter_Lu */
+
 #endif

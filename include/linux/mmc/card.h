@@ -111,6 +111,8 @@ struct mmc_ext_csd {
 	u8			raw_bkops_status;	/* 246 */
 	u8			raw_sectors[4];		/* 212 - 4 bytes */
 	u8          raw_fw_version[8];  /* 254 - 8 bytes */	//ASUS_BSP Deeo : add for fw version +++
+	u8			pre_eol_info;	/* 267 */				//ASUS_BSP Deeo : add for PRE_EOL_INFO
+	u8          device_life_time[2];/* 268  269*/       //ASUS_BSP Deeo : add for life time of eMMC
 	unsigned int            feature_support;
 #define MMC_DISCARD_FEATURE	BIT(0)                  /* CMD38 feature */
 };

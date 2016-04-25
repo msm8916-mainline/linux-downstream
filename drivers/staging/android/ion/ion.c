@@ -118,6 +118,8 @@ struct ion_handle {
 	int id;
 };
 
+static struct ion_device *ion_dev;
+
 bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
 {
 	return (buffer->flags & ION_FLAG_CACHED) &&
@@ -741,7 +743,30 @@ EXPORT_SYMBOL(ion_unmap_kernel);
 static int ion_debug_client_show(struct seq_file *s, void *unused)
 {
 	struct ion_client *client = s->private;
-	struct rb_node *n;
+	struct rb_node *n, *cnode;
+	bool found = false;
+
+	down_write(&ion_dev->lock);
+
+	if (!client || (client->dev != ion_dev)) {
+		up_write(&ion_dev->lock);
+		return -EINVAL;
+	}
+
+	cnode = rb_first(&ion_dev->clients);
+	for ( ; cnode; cnode = rb_next(cnode)) {
+		struct ion_client *c = rb_entry(cnode,
+				struct ion_client, node);
+		if (client == c) {
+			found = true;
+			break;
+		}
+	}
+
+	if (!found) {
+		up_write(&ion_dev->lock);
+		return -EINVAL;
+	}
 
 	seq_printf(s, "%16.16s: %16.16s : %16.16s : %12.12s\n",
 			"heap_name", "size_in_bytes", "handle refcount",
@@ -761,6 +786,7 @@ static int ion_debug_client_show(struct seq_file *s, void *unused)
 		seq_printf(s, "\n");
 	}
 	mutex_unlock(&client->lock);
+	up_write(&ion_dev->lock);
 	return 0;
 }
 
@@ -1477,14 +1503,9 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
-atomic_t  ION_Counter;
 static int ion_release(struct inode *inode, struct file *file)
 {
 	struct ion_client *client = file->private_data;
-
-	atomic_dec(&ION_Counter);
-	if (atomic_read(&ION_Counter) > 300)
-		printk("[ION_Debug]ion_release PID=%d process = %s ION_Counter:%d \n",current->pid ,current->comm,atomic_read(&ION_Counter));
 
 	pr_debug("%s: %d\n", __func__, __LINE__);
 	ion_client_destroy(client);
@@ -1497,10 +1518,6 @@ static int ion_open(struct inode *inode, struct file *file)
 	struct ion_device *dev = container_of(miscdev, struct ion_device, dev);
 	struct ion_client *client;
 	char debug_name[64];
-
-	atomic_inc(&ION_Counter);
-	if (atomic_read(&ION_Counter) > 300)
-		printk("[ION_Debug]ion_open PID=%d process = %s ION_Counter:%d\n",current->pid ,current->comm,atomic_read(&ION_Counter));
 
 	pr_debug("%s: %d\n", __func__, __LINE__);
 	snprintf(debug_name, 64, "%u", task_pid_nr(current->group_leader));
@@ -1736,7 +1753,7 @@ void show_ion_usage(struct ion_device *dev)
 			heap->debug_show(heap, NULL, 0);
 
 	}
-	up_write(&dev->lock);
+	up_read(&dev->lock);
 }
 
 #ifdef DEBUG_HEAP_SHRINKER
@@ -1895,6 +1912,7 @@ debugfs_done:
 	init_rwsem(&idev->lock);
 	plist_head_init(&idev->heaps);
 	idev->clients = RB_ROOT;
+	ion_dev = idev;
 	return idev;
 }
 

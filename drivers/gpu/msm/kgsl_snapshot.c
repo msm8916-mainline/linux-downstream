@@ -388,7 +388,11 @@ err_put:
 	return ret;
 }
 EXPORT_SYMBOL(kgsl_snapshot_get_object);
-
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt+++
+#ifdef ASUS_ZC550KL_PROJECT
+extern void asus_pet_watchdog(void);
+#endif
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt---
 /**
  * kgsl_snapshot_dump_regs - helper function to dump device registers
  * @device - the device to dump registers from
@@ -479,6 +483,11 @@ size_t kgsl_snapshot_dump_regs(struct kgsl_device *device, u8 *buf,
 				*data++ = k;
 				*data++ = val;
 			}
+			//ASUSBSP: breeze, forece pet watchdog to avoid wdt+++
+#ifdef ASUS_ZC550KL_PROJECT
+			asus_pet_watchdog();
+#endif
+			//ASUSBSP: breeze, forece pet watchdog to avoid wdt---
 		}
 	}
 

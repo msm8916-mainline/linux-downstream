@@ -26,6 +26,9 @@
 #define TIMEOUT_VAL 80
 #endif
 
+/* big time out value (30s) */
+#define BIG_TIMEOUT_VAL 30000
+
 /* Read retry flag */
 #define READ_RETRY_FLAG 0
 

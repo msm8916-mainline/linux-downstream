@@ -111,9 +111,9 @@
 		/* <Speed_bits PVS_version CPR_Rev - - -> */
 			<3 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff>;
 		qcom,cpr-init-voltage-adjustment =
-					<0 0 (-50000)>; /* TURBO - 50mV */
+			<0 0 (-50000)>; /* TURBO - 50mV */
 		qcom,cpr-quotient-adjustment =
-					<0 0 (-104)>; /* TURBO - 50mV */
+			<0 0 (-104)>; /* TURBO - 50mV */
 		qcom,cpr-enable;
 	};
 };

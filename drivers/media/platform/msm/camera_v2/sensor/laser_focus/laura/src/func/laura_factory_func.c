@@ -56,7 +56,7 @@ uint16_t Laura_device_read_range2(struct msm_laser_focus_ctrl_t *dev_t)
              		}
 
 			/* Delay: waitting laser sensor sample ready */
-			//usleep(DEFAULT_DELAY_TIME);
+			usleep(ATOMIC_DELAY);
 			
        	}
 
@@ -126,6 +126,7 @@ int Laura_device_calibration(struct msm_laser_focus_ctrl_t *dev_t, int16_t *cal_
 	uint16_t distance = 0;
 	int16_t cal_data[CAL_MSG_LEN];
 	uint16_t i2c_read_data;
+	struct timeval start, now;
 
 	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
 
@@ -135,6 +136,8 @@ int Laura_device_calibration(struct msm_laser_focus_ctrl_t *dev_t, int16_t *cal_
 		return -EBUSY;
 	}
 
+	start = get_current_time();
+	
 	while(1){
 		status = CCI_I2C_RdWord(dev_t, 0x06, &i2c_read_data);
 		if (status < 0){
@@ -145,17 +148,17 @@ int Laura_device_calibration(struct msm_laser_focus_ctrl_t *dev_t, int16_t *cal_
 		if(i2c_read_data == 0x01F8){
 			break;
 		}
-#if 0
+
 		/* Check if time out */
 		now = get_current_time();
-       	if(is_timeout(start,now,TIMEOUT_VAL)){
+       	if(is_timeout(start,now,BIG_TIMEOUT_VAL)){
 			LOG_Handler(LOG_ERR, "%s: Wait MCPU on time out - register(0x06): 0x%x\n", __func__, i2c_read_data);
              		return -TIMEOUT_VAL;
             	}
-#endif
+
 		LOG_Handler(LOG_DBG, "%s: register(0x06):0x%x!!\n", __func__,i2c_read_data);
 
-		//usleep(DEFAULT_DELAY_TIME);
+		usleep(ATOMIC_DELAY);
 
 	}
 

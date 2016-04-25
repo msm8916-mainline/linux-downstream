@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -530,8 +530,10 @@ int map_and_register_buf(struct msm_vidc_inst *inst, struct v4l2_buffer *b)
 		if (rc < 0)
 			goto exit;
 
-		same_fd_handle = get_same_fd_buffer(&inst->registeredbufs,
-					b->m.planes[i].reserved[0]);
+		if (!is_dynamic_output_buffer_mode(b, inst))
+			same_fd_handle = get_same_fd_buffer(
+						&inst->registeredbufs,
+						b->m.planes[i].reserved[0]);
 
 		populate_buf_info(binfo, b, i);
 		if (same_fd_handle) {
@@ -739,11 +741,8 @@ int msm_vidc_prepare_buf(void *instance, struct v4l2_buffer *b)
 		return -EINVAL;
 	}
 
-	if (is_dynamic_output_buffer_mode(b, inst)) {
-		dprintk(VIDC_ERR, "%s: not supported in dynamic buffer mode\n",
-				__func__);
-		return -EINVAL;
-	}
+	if (is_dynamic_output_buffer_mode(b, inst))
+		return 0;
 
 	/* Map the buffer only for non-kernel clients*/
 	if (b->m.planes[0].reserved[0]) {
@@ -1203,6 +1202,12 @@ static int setup_event_queue(void *inst,
 	int rc = 0;
 	struct msm_vidc_inst *vidc_inst = (struct msm_vidc_inst *)inst;
 
+	if (!inst || !pvdev) {
+		dprintk(VIDC_ERR, "%s Invalid params inst %p pvdev %p\n",
+					__func__, inst, pvdev);
+		return -EINVAL;
+	}
+
 	v4l2_fh_init(&vidc_inst->event_handler, pvdev);
 	v4l2_fh_add(&vidc_inst->event_handler);
 
@@ -1340,9 +1345,18 @@ void *msm_vidc_open(int core_id, int session_type)
 	inst->debugfs_root =
 		msm_vidc_debugfs_init_inst(inst, core->debugfs_root);
 
-	setup_event_queue(inst, &core->vdev[session_type].vdev);
+	rc = setup_event_queue(inst, &core->vdev[session_type].vdev);
+	if (rc) {
+		dprintk(VIDC_ERR,
+			"%s Failed to set up event queue\n", __func__);
+		goto fail_setup;
+	}
 
 	return inst;
+
+fail_setup:
+	debugfs_remove_recursive(inst->debugfs_root);
+
 fail_init:
 	vb2_queue_release(&inst->bufq[OUTPUT_PORT].vb2_bufq);
 

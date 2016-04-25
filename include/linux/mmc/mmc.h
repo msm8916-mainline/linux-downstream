@@ -278,6 +278,11 @@ struct _mmc_csd {
 #define EXT_CSD_BKOPS_SUPPORT		502	/* RO */
 #define EXT_CSD_HPI_FEATURES		503	/* RO */
 
+//ASUS_BSP Deeo : Add eMMC Device Life Time & EOL register +++
+#define EXT_CSD_PRE_EOL_INFO	267 /* 267 */
+#define EXT_CSD_DEVICE_LIFE_TIME_EST_TYP_A	268 /* 268 */
+#define EXT_CSD_DEVICE_LIFE_TIME_EST_TYP_B	269 /* 268 */
+//ASUS_BSP Deeo : Add eMMC Device Life Time & EOL register ---
 /*
  * EXT_CSD field definitions
  */

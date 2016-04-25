@@ -52,6 +52,8 @@ source "drivers/i2c/Kconfig"
 
 source "drivers/slimbus/Kconfig"
 
+source "drivers/soundwire/Kconfig"
+
 source "drivers/spi/Kconfig"
 
 source "drivers/spmi/Kconfig"
@@ -189,12 +191,12 @@ source "drivers/soc/Kconfig"
 source "drivers/firmware/Kconfig"
 
 config TEXURA_USERDEBUG
-	bool "Texura userdebug module for ASUS ZE500KL"
+	bool "Texura userdebug module for ASUS ZE500KL/ZC550KL"
 	depends on NLS_UTF8
 	default n
 	help
-	  Say Y here if you want support Texura userdebug module at ZE500KL
-	  Say N here if you want support Texura user module at ZE500KL
+	  Say Y here if you want support Texura userdebug module at ZE500KL/ZC550KL
+	  Say N here if you want support Texura user module at ZE500KL/ZC550KL
 
 config TEXURA_ARM64
 	bool "Texura userdebug module for QCOM ARM64"

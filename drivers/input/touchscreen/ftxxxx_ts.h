@@ -125,7 +125,7 @@ u8 get_focal_tp_fw(void);
 void focal_glove_switch(bool plugin);
 void focal_cover_switch(bool plugin);
 void ftxxxx_Enable_IRQ(struct i2c_client *client, int enable);
-int focal_get_HW_ID(void);
+// int focal_get_HW_ID(void); not support in Android M branch
 void ftxxxx_nosync_irq_disable(struct i2c_client *client);
 void ftxxxx_irq_disable(struct i2c_client *client);
 void ftxxxx_irq_enable(struct i2c_client *client);

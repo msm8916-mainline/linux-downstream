@@ -16,6 +16,7 @@
 #include <linux/mmc/slot-gpio.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/delay.h> //ASUS_BSP Allen_Zhuang +++ avoid card detect fail when fast insert/remove
 
 struct mmc_gpio {
 	int ro_gpio;
@@ -63,16 +64,17 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 		goto out;
 
 	if (status ^ ctx->status) {
-	/*
-		pr_info("%s: slot status change detected (%d -> %d), GPIO_ACTIVE_%s\n",
+
+		pr_info("%s: slot status change detected (%d -> %d), GPIO_ACTIVE_%s, cd_delay %dms\n",
 				mmc_hostname(host), ctx->status, status,
 				(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
-				"HIGH" : "LOW");
-	*/
+				"HIGH" : "LOW",
+				host->cd_delay);
 		ctx->status = status;
+		host->sd_status = status; //ASUS_BSP +++ Allen_Zhuang "sd status for ATD"
 
 		/* Schedule a card detection after a debounce timeout */
-		mmc_detect_change(host, msecs_to_jiffies(200));
+		mmc_detect_change(host, msecs_to_jiffies(host->cd_delay));  //ASUS_BSP +++ Allen_Zhuang "card detect config"
 	}
 out:
 

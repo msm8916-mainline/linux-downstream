@@ -21,6 +21,8 @@
 #include <linux/mmc/host.h>
 #include "queue.h"
 
+#include <linux/delay.h>
+
 #define MMC_QUEUE_BOUNCESZ	65536
 
 /*
@@ -508,6 +510,10 @@ int mmc_queue_suspend(struct mmc_queue *mq, int wait)
 		blk_stop_queue(q);
 		spin_unlock_irqrestore(q->queue_lock, flags);
 
+		if(!strcmp(mq->card->mmc_total_size, "8")){
+			msleep(80);//workaround for eMMC suspend add by lei_guo
+			printk("[eMMC] 8G eMMC need to sleep 80ms workaround for eMMC suspend\n");
+		}
 		rc = down_trylock(&mq->thread_sem);
 		if (rc && !wait) {
 			/*

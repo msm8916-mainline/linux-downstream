@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -33,7 +33,8 @@ static struct mutex 								flashlight_lock;
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
-struct msm_led_flash_ctrl_t *g_fctrl = NULL;
+static void *g_fctrl;
+struct msm_led_flash_ctrl_t *ASUS_g_fctrl = NULL;
 int msm_flash_led_low_current_set(struct msm_led_flash_ctrl_t *fctrl, int intensity1, int intensity2);
 int msm_flash_led_high_current_set(struct msm_led_flash_ctrl_t *fctrl, int intensity1, int intensity2);
 //int msm_flash_led_high_timer_set(struct msm_led_flash_ctrl_t * fctrl, int timer1, int timer2);
@@ -67,10 +68,10 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 
 	case MSM_CAMERA_LED_INIT:
 		mutex_lock(&flashlight_lock);
-		if (g_fctrl->flashlight_state == MSM_CAMERA_LED_INIT) {
+		if (ASUS_g_fctrl->flashlight_state == MSM_CAMERA_LED_INIT) {
 			printk("PJflash now flashlight already init, so release it first\n");
-			msm_flash_led_release(g_fctrl);
-			g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
+			msm_flash_led_release(ASUS_g_fctrl);
+			ASUS_g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
 		}
 		if (fctrl->func_tbl->flash_led_init)
 			rc = fctrl->func_tbl->flash_led_init(fctrl);
@@ -82,7 +83,7 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 			cfg->torch_current[i] =
 				fctrl->torch_max_current[i];
 		}*/
-		g_fctrl->led_state = MSM_CAMERA_LED_INIT;
+		ASUS_g_fctrl->led_state = MSM_CAMERA_LED_INIT;
 		fctrl->led_state = MSM_CAMERA_LED_INIT;
 		mutex_unlock(&flashlight_lock);
 		break;
@@ -91,7 +92,7 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 		if (fctrl->func_tbl->flash_led_release)
 			rc = fctrl->func_tbl->
 				flash_led_release(fctrl);
-		g_fctrl->led_state = MSM_CAMERA_LED_RELEASE;
+		ASUS_g_fctrl->led_state = MSM_CAMERA_LED_RELEASE;
 		fctrl->led_state = MSM_CAMERA_LED_RELEASE;
 		break;
 
@@ -101,15 +102,14 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 		break;
 
 	case MSM_CAMERA_LED_LOW:
-		/*for (i = 0; i < torch_num_sources; i++) {
+		/*for (i = 0; i < fctrl->torch_num_sources; i++) {
 			if (fctrl->torch_max_current[i] > 0) {
 				fctrl->torch_op_current[i] =
 					(cfg->torch_current[i] < fctrl->torch_max_current[i]) ?
 					cfg->torch_current[i] : fctrl->torch_max_current[i];
 				CDBG("torch source%d: op_current %d max_current %d\n",
 					i, fctrl->torch_op_current[i], fctrl->torch_max_current[i]);
-			}
-		}*/
+			}*/
 		msm_flash_led_low_current_set(fctrl,cfg->torch_current[0],cfg->torch_current[1]);
 		if (cfg->torch_current[0] != 0 && cfg->torch_current[1] != 0) {
 			if (fctrl->func_tbl->flash_led_low)
@@ -126,8 +126,12 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 		} else {
 			if (fctrl->func_tbl->flash_led_off)
 				rc = fctrl->func_tbl->flash_led_off(fctrl);
-			break;		
+			break;
 		}
+		if (fctrl->func_tbl->flash_led_low)
+			rc = fctrl->func_tbl->flash_led_low(fctrl);
+		break;
+
 	case MSM_CAMERA_LED_HIGH:
 		/*for (i = 0; i < fctrl->flash_num_sources; i++) {
 			if (fctrl->flash_max_current[i] > 0) {
@@ -168,12 +172,14 @@ static int msm_flash_pinctrl_init(struct msm_led_flash_ctrl_t *ctrl)
 {
 	struct msm_pinctrl_info *flash_pctrl = NULL;
 
-	pr_info("%s entry\n", __func__);
-
 	flash_pctrl = &ctrl->pinctrl_info;
-	flash_pctrl->pinctrl = devm_pinctrl_get(&ctrl->pdev->dev);
 
-
+	if (ctrl->pdev != NULL)
+		flash_pctrl->pinctrl = devm_pinctrl_get(&ctrl->pdev->dev);
+	else
+		flash_pctrl->pinctrl = devm_pinctrl_get(&ctrl->
+					flash_i2c_client->
+					client->dev);
 	if (IS_ERR_OR_NULL(flash_pctrl->pinctrl)) {
 		pr_err("%s:%d Getting pinctrl handle failed\n",
 			__func__, __LINE__);
@@ -225,7 +231,6 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 	power_info = &flashdata->power_info;
 	fctrl->led_state = MSM_CAMERA_LED_RELEASE;
 	fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
-	
 	if (power_info->gpio_conf->cam_gpiomux_conf_tbl != NULL) {
 		pr_err("%s:%d mux install\n", __func__, __LINE__);
 	}
@@ -240,7 +245,6 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 			return rc;
 		}
 	}
-
 	rc = msm_camera_request_gpio_table(
 		power_info->gpio_conf->cam_gpio_req_tbl,
 		power_info->gpio_conf->cam_gpio_req_tbl_size, 1);
@@ -262,14 +266,15 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 		}
 	}
 	msleep(20);
+
 /*
-       CDBG("before FL_RESET\n");
-       if (power_info->gpio_conf->gpio_num_info->
-                       valid[SENSOR_GPIO_FL_RESET] == 1)
-               gpio_set_value_cansleep(
-                       power_info->gpio_conf->gpio_num_info->
-                       gpio_num[SENSOR_GPIO_FL_RESET],
-                       GPIO_OUT_HIGH);
+	CDBG("before FL_RESET\n");
+	if (power_info->gpio_conf->gpio_num_info->
+			valid[SENSOR_GPIO_FL_RESET] == 1)
+		gpio_set_value_cansleep(
+			power_info->gpio_conf->gpio_num_info->
+			gpio_num[SENSOR_GPIO_FL_RESET],
+			GPIO_OUT_HIGH);
 */
 	gpio_set_value_cansleep(
 		power_info->gpio_conf->gpio_num_info->
@@ -282,14 +287,12 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 		GPIO_OUT_HIGH);
 
 	if (fctrl->flash_i2c_client && fctrl->reg_setting) {
-		//CDBG("%s:%d flash_i2c_client&& fctrl->reg_setting = true\n", __func__, __LINE__);
 		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
 			fctrl->flash_i2c_client,
 			fctrl->reg_setting->init_setting);
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
-
 	//fctrl->led_state = MSM_CAMERA_LED_INIT;
 	mutex_unlock(&flash_lock);
 	CDBG("%s:%d end\n", __func__, __LINE__);
@@ -317,7 +320,6 @@ int msm_flash_led_release(struct msm_led_flash_ctrl_t *fctrl)
 		mutex_unlock(&flash_lock);
 		return -EINVAL;
 	}
-	
 	gpio_set_value_cansleep(
 		power_info->gpio_conf->gpio_num_info->
 		gpio_num[SENSOR_GPIO_FL_EN],
@@ -343,7 +345,6 @@ int msm_flash_led_release(struct msm_led_flash_ctrl_t *fctrl)
 				__func__, __LINE__);
 		}
 	}
-
 	rc = msm_camera_request_gpio_table(
 		power_info->gpio_conf->cam_gpio_req_tbl,
 		power_info->gpio_conf->cam_gpio_req_tbl_size, 0);
@@ -361,6 +362,7 @@ int msm_flash_led_release(struct msm_led_flash_ctrl_t *fctrl)
 		if (rc < 0)
 			pr_err("cci_deinit failed\n");
 	}
+
 	mutex_unlock(&flash_lock);
 	CDBG("%s:%d end\n", __func__, __LINE__);
 	return 0;
@@ -376,12 +378,17 @@ int msm_flash_led_off(struct msm_led_flash_ctrl_t *fctrl)
 		pr_err("%s:%d fctrl NULL\n", __func__, __LINE__);
 		return -EINVAL;
 	}
+
+	if (fctrl->led_state != MSM_CAMERA_LED_INIT && fctrl->flashlight_state != MSM_CAMERA_LED_INIT) {
+		pr_err("%s:%d invalid led state\n", __func__, __LINE__);
+		return -EINVAL;
+	}
+
 	flashdata = fctrl->flashdata;
 	power_info = &flashdata->power_info;
 	CDBG("%s:%d called\n", __func__, __LINE__);
 	mutex_lock(&flash_lock);
 	if (fctrl->flash_i2c_client && fctrl->reg_setting) {
-		//CDBG("%s:%d flash_i2c_client&& fctrl->reg_setting = true\n", __func__, __LINE__);
 		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
 			fctrl->flash_i2c_client,
 			fctrl->reg_setting->off_setting);
@@ -406,11 +413,12 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 	CDBG("%s:%d called\n", __func__, __LINE__);
 	mutex_lock(&flash_lock);
 
-	if (!fctrl) {
-		pr_err("%s:%d fctrl NULL\n", __func__, __LINE__);
+	if (fctrl->led_state != MSM_CAMERA_LED_INIT) {
+		pr_err("%s:%d invalid led state\n", __func__, __LINE__);
 		mutex_unlock(&flash_lock);
 		return -EINVAL;
 	}
+
 	flashdata = fctrl->flashdata;
 	power_info = &flashdata->power_info;
 	gpio_set_value_cansleep(
@@ -425,13 +433,13 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 
 
 	if (fctrl->flash_i2c_client && fctrl->reg_setting) {
-		//CDBG("%s:%d flash_i2c_client&& fctrl->reg_setting = true\n", __func__, __LINE__);
 		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
 			fctrl->flash_i2c_client,
 			fctrl->reg_setting->low_setting);
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
+
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -682,17 +690,20 @@ int msm_flash_led_high_timer_set(struct msm_led_flash_ctrl_t *fctrl, int timer1,
 	}
 	return rc;
 }
-static unsigned long  Zenflash_time;  //ASUS_BSP Deka "Implement Zenflash delay time"
+
 /*For ASUS FLASH---*/
 
 int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 {
 	int rc = 0;
-       struct timeval begin_zenflash; //ASUS_BSP Deka "Implement Zenflash delay time"
-
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
 	CDBG("%s:%d called\n", __func__, __LINE__);
+
+	if (fctrl->led_state != MSM_CAMERA_LED_INIT) {
+		pr_err("%s:%d invalid led state\n", __func__, __LINE__);
+		return -EINVAL;
+	}
 	mutex_lock(&flash_lock);
 
 	flashdata = fctrl->flashdata;
@@ -708,7 +719,6 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 		GPIO_OUT_HIGH);
 
 	if (fctrl->flash_i2c_client && fctrl->reg_setting) {
-		//CDBG("%s:%d flash_i2c_client&& fctrl->reg_setting = true\n", __func__, __LINE__);
 		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
 			fctrl->flash_i2c_client,
 			fctrl->reg_setting->high_setting);
@@ -716,10 +726,6 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
 
-        //ASUS_BSP +++ Deka "Implement Zenflash delay time"
-        do_gettimeofday(&begin_zenflash);
-        Zenflash_time = begin_zenflash.tv_sec* 1000 + begin_zenflash.tv_usec / 1000;
-        //ASUS_BSP --- Deka "Implement Zenflash delay time"
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -728,7 +734,7 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 {
 	int rc = 0;
-       struct timeval begin_zenflash; //ASUS_BSP Deka "Implement Zenflash delay time"
+
     
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
@@ -755,10 +761,7 @@ int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
-        //ASUS_BSP +++ Deka "Implement Zenflash delay time"
-       do_gettimeofday(&begin_zenflash);
-       Zenflash_time = begin_zenflash.tv_sec* 1000 + begin_zenflash.tv_usec / 1000;
-        //ASUS_BSP --- Deka "Implement Zenflash delay time"
+
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -766,7 +769,7 @@ int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 int msm_flash_led_high_second(struct msm_led_flash_ctrl_t *fctrl)
 {
 	int rc = 0;
-       struct timeval begin_zenflash; //ASUS_BSP Deka "Implement Zenflash delay time"
+
        
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
@@ -793,22 +796,18 @@ int msm_flash_led_high_second(struct msm_led_flash_ctrl_t *fctrl)
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
-        //ASUS_BSP +++ Deka "Implement Zenflash delay time"
-       do_gettimeofday(&begin_zenflash);
-       Zenflash_time = begin_zenflash.tv_sec * 1000 + begin_zenflash.tv_usec / 1000;
-        //ASUS_BSP --- Deka "Implement Zenflash delay time"
+
 	mutex_unlock(&flash_lock);
 	return rc;
 }
-
 #define	FLASH_BRIGHTNESS_PROC_FILE	"driver/asus_flash_brightness"
 #define	STATUS_PROC_FILE	"driver/flash_status"
 #define	DUMP_PROC_FILE	"driver/flash_dump_reg"
-#define	ZENFLASH_PROC_FILE	"driver/zenflash"  //ASUS_BSP Deka "Implement Zenflash delay time"
+
 static struct proc_dir_entry *flash_brightness_proc_file;
 static struct proc_dir_entry *status_proc_file;
 static struct proc_dir_entry *dump_proc_file;
-static struct proc_dir_entry *zenflash_proc_file;  //ASUS_BSP Deka "Implement Zenflash delay time"
+
 static int last_flash_brightness_value;
 static int ATD_status;
 static bool asus_flash_status;
@@ -842,24 +841,26 @@ static ssize_t flash_brightness_proc_write(struct file *filp, const char __user 
 	set_val = now_flash_brightness_value * MAX_FLASHLIGHT_CURRENT / 99;
 	mutex_lock(&flashlight_lock);
 	pr_info("[AsusFlashBrightness]flash brightness value=%d now_flash_brightness_value=%d\n", set_val,now_flash_brightness_value);
-	if (g_fctrl->led_state == MSM_CAMERA_LED_INIT) {
+	if (ASUS_g_fctrl->led_state == MSM_CAMERA_LED_INIT) {
 		printk(KERN_INFO "[AsusFlashBrightness] CameraFlash already init, so donothing\n");
 		last_flash_brightness_value = now_flash_brightness_value;
 		mutex_unlock(&flashlight_lock);
 		return len;
 	}
 	if (last_flash_brightness_value == 0&&(now_flash_brightness_value>0&&now_flash_brightness_value<=99)) {
-		rc = msm_flash_led_init(g_fctrl);
-		g_fctrl->flashlight_state = MSM_CAMERA_LED_INIT;
+		rc = msm_flash_led_init(ASUS_g_fctrl);
+		ASUS_g_fctrl->flashlight_state = MSM_CAMERA_LED_INIT;
 		if (rc  < 0) {
 			printk(KERN_INFO "[AsusFlashBrightness] msm_flash_led_init fail\n");
-			msm_flash_led_release(g_fctrl);
-			g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
+			msm_flash_led_release(ASUS_g_fctrl);
+			ASUS_g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
+			last_flash_brightness_value = now_flash_brightness_value;
 			mutex_unlock(&flashlight_lock);
 			return rc;
 		}
-	} else if (last_flash_brightness_value == now_flash_brightness_value||(now_flash_brightness_value<0||now_flash_brightness_value>99) || (g_fctrl->flashlight_state == MSM_CAMERA_LED_RELEASE)) {
+	} else if (last_flash_brightness_value == now_flash_brightness_value||(now_flash_brightness_value<0||now_flash_brightness_value>99) || (ASUS_g_fctrl->flashlight_state == MSM_CAMERA_LED_RELEASE)) {
 		printk(KERN_INFO "[AsusFlashBrightness] now_flash_brightness_value = last_flash_brightness_value or now_flash_brightness_value out range or flashlight_state invalid so donothing\n");
+		last_flash_brightness_value = now_flash_brightness_value;
 		mutex_unlock(&flashlight_lock);
 		return len;
 	}
@@ -867,31 +868,31 @@ static ssize_t flash_brightness_proc_write(struct file *filp, const char __user 
 	last_flash_brightness_value = now_flash_brightness_value;
 
 	if (set_val > MAX_FLASHLIGHT_CURRENT) {
-		msm_flash_led_low_current_set(g_fctrl, MAX_FLASHLIGHT_CURRENT, MAX_FLASHLIGHT_CURRENT);
-		msm_flash_led_low_first(g_fctrl);
+		msm_flash_led_low_current_set(ASUS_g_fctrl, MAX_FLASHLIGHT_CURRENT, MAX_FLASHLIGHT_CURRENT);
+		msm_flash_led_low_first(ASUS_g_fctrl);
 		//map_num = SKY81296_TORCH_CURRENT_200MA;
 	} else if (set_val <= 0) {
-		if (g_fctrl->flashlight_state == MSM_CAMERA_LED_RELEASE) {
+		if (ASUS_g_fctrl->flashlight_state == MSM_CAMERA_LED_RELEASE) {
 			printk(KERN_INFO "[AsusFlashBrightness] flashlight already release, so don't need release again\n");
 			mutex_unlock(&flashlight_lock);
 			return len;
 		}
-		msm_flash_led_off(g_fctrl);
-		msm_flash_led_release(g_fctrl);
-		g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
+		msm_flash_led_off(ASUS_g_fctrl);
+		msm_flash_led_release(ASUS_g_fctrl);
+		ASUS_g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
 	} else if (0 < set_val && set_val < (MAX_FLASHLIGHT_CURRENT + 1)) {
 		printk(KERN_INFO "[AsusFlashBrightness] current now in 1~%d", MAX_FLASHLIGHT_CURRENT);
-		msm_flash_led_low_current_set(g_fctrl, set_val,set_val);
-		msm_flash_led_low_first(g_fctrl);
+		msm_flash_led_low_current_set(ASUS_g_fctrl, set_val,set_val);
+		msm_flash_led_low_first(ASUS_g_fctrl);
 	} else {
-		if (g_fctrl->flashlight_state == MSM_CAMERA_LED_RELEASE) {
+		if (ASUS_g_fctrl->flashlight_state == MSM_CAMERA_LED_RELEASE) {
 			printk(KERN_INFO "[AsusFlashBrightness] flashlight already release, so don't need release again\n");
 			mutex_unlock(&flashlight_lock);
 			return len;
 		}
-		msm_flash_led_off(g_fctrl);
-		msm_flash_led_release(g_fctrl);
-		g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
+		msm_flash_led_off(ASUS_g_fctrl);
+		msm_flash_led_release(ASUS_g_fctrl);
+		ASUS_g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
 		mutex_unlock(&flashlight_lock);
 		return -1;
 	}
@@ -914,13 +915,13 @@ static int dump_proc_read(struct seq_file *buf, void *v)
     uint16_t i,value;
     int rc;
     uint16_t flash_i2c_interface[12]={0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B};
-    if (g_fctrl->led_state != MSM_CAMERA_LED_INIT&&g_fctrl->flashlight_state != MSM_CAMERA_LED_INIT) {
+    if (ASUS_g_fctrl->led_state != MSM_CAMERA_LED_INIT&&ASUS_g_fctrl->flashlight_state != MSM_CAMERA_LED_INIT) {
 	    seq_printf(buf, "Please open Camera or Flashlight then try again\n");
 	    return 0;
     }
     for (i=0;i<sizeof(flash_i2c_interface)/sizeof(uint16_t);i++) {
-	    rc = g_fctrl->flash_i2c_client->i2c_func_tbl->i2c_read(
-		g_fctrl->flash_i2c_client,	flash_i2c_interface[i], &value,
+	    rc = ASUS_g_fctrl->flash_i2c_client->i2c_func_tbl->i2c_read(
+		ASUS_g_fctrl->flash_i2c_client,	flash_i2c_interface[i], &value,
 		MSM_CAMERA_I2C_BYTE_DATA);
 	    if (rc < 0)
 		pr_err("%s:%d failed\n", __func__, __LINE__);
@@ -934,7 +935,6 @@ static int dump_proc_open(struct inode *inode, struct  file *file)
 {
     return single_open(file, dump_proc_read, NULL);
 }
-
 
 static const struct file_operations dump_fops = {
 	.owner = THIS_MODULE,
@@ -957,7 +957,6 @@ static int status_proc_open(struct inode *inode, struct  file *file)
     return single_open(file, status_proc_read, NULL);
 }
 
-
 static const struct file_operations status_fops = {
 	.owner = THIS_MODULE,
 	.open = status_proc_open,
@@ -966,30 +965,8 @@ static const struct file_operations status_fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
-//ASUS_BSP +++ Deka "Implement Zenflash delay time"
-static int zenflash_proc_read(struct seq_file *buf, void *v)
-{
-    seq_printf(buf, "%lu\n", Zenflash_time);
-    Zenflash_time=0;
-    return 0;
-}
-
-static int zenflash_proc_open(struct inode *inode, struct  file *file)
-{
-    return single_open(file, zenflash_proc_read, NULL);
-}
 
 
-static const struct file_operations zenflash_fops = {
-	.owner = THIS_MODULE,
-	.open = zenflash_proc_open,
-	.read = seq_read,
-	//.write = status_proc_write,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
-
-//ASUS_BSP --- Deka "Implement Zenflash delay time"
 static void create_proc_file(void)
 {
     ATD_status = 0;
@@ -1013,14 +990,6 @@ static void create_proc_file(void)
     } else {
 	printk("%s failed!\n", __func__);
     }
-    //ASUS_BSP +++ Deka "Implement Zenflash delay time"
-    zenflash_proc_file = proc_create(ZENFLASH_PROC_FILE, 0664, NULL, &zenflash_fops);
-    if (zenflash_proc_file) {
-	printk("%s sucessed!\n", __func__);
-    } else {
-	printk("%s failed!\n", __func__);
-    }
-    //ASUS_BSP --- Deka "Implement Zenflash delay time"
 }
 
 static ssize_t asus_flash_show(struct file *dev, char *buffer, size_t count, loff_t *ppos)
@@ -1099,7 +1068,7 @@ static ssize_t asus_flash_store(struct file *dev, const char *buf, size_t count,
 				//msm_flash_led_off(fctrl);
 				asus_flash_status = true;
 				msm_flash_led_low_current_set(g_fctrl, SKY81296_TORCH_CURRENT_125MA, SKY81296_TORCH_CURRENT_125MA);
-				msm_flash_led_low(g_fctrl);
+				msm_flash_led_low_first(g_fctrl);
 			} else if (set_val2 == 0 ) {
 			       asus_flash_status = false;
 				msm_flash_led_off(g_fctrl);
@@ -1109,7 +1078,7 @@ static ssize_t asus_flash_store(struct file *dev, const char *buf, size_t count,
 				//msm_flash_led_off(fctrl);
 				asus_flash_status = true;
 				msm_flash_led_low_current_set(g_fctrl,set_val2, set_val2);
-				msm_flash_led_low(g_fctrl);
+				msm_flash_led_low_first(g_fctrl);
 			} else {
 			       asus_flash_status = false;
 				msm_flash_led_off(g_fctrl);
@@ -1128,10 +1097,6 @@ static const struct file_operations asus_flash_proc_fops = {
 	.read = asus_flash_show,
 	.write = asus_flash_store,
 };
-
-/*#define	ASUS_FLASH_PROC_FILE	"driver/asus_flash"
-static struct proc_dir_entry *asus_flash_proc_file;
-static int asus_flash_value;*/
 
 static ssize_t asus_flash_second_show(struct file *dev, char *buffer, size_t count, loff_t *ppos)
 {
@@ -1501,9 +1466,27 @@ static int set_led_status(void *data, u64 val)
 	if (val == 0) {
 		pr_debug("set_led_status: val is disable");
 		rc = msm_flash_led_off(fctrl);
+		if (rc < 0) {
+			pr_err("%s led_off failed line %d\n", __func__, __LINE__);
+			return rc;
+		}
+		rc = msm_flash_led_release(fctrl);
+		if (rc < 0) {
+			pr_err("%s led_release failed line %d\n", __func__, __LINE__);
+			return rc;
+		}
 	} else {
 		pr_debug("set_led_status: val is enable");
+		rc = msm_flash_led_init(fctrl);
+		if (rc < 0) {
+			pr_err("%s led_init failed line %d\n", __func__, __LINE__);
+			return rc;
+		}
 		rc = msm_flash_led_low(fctrl);
+		if (rc < 0) {
+			pr_err("%s led_low failed line %d\n", __func__, __LINE__);
+			return rc;
+		}
 	}
 
 	return rc;
@@ -1512,6 +1495,49 @@ static int set_led_status(void *data, u64 val)
 DEFINE_SIMPLE_ATTRIBUTE(ledflashdbg_fops,
 	NULL, set_led_status, "%llu\n");
 #endif
+
+static void msm_led_i2c_torch_brightness_set(struct led_classdev *led_cdev,
+				enum led_brightness value)
+{
+	struct msm_led_flash_ctrl_t *fctrl = NULL;
+
+	if (g_fctrl == NULL)
+		return;
+
+	fctrl = (struct msm_led_flash_ctrl_t *) g_fctrl;
+
+	if (value > LED_OFF) {
+		if (fctrl->func_tbl->flash_led_init)
+			fctrl->func_tbl->flash_led_init(fctrl);
+		if (fctrl->func_tbl->flash_led_low)
+			fctrl->func_tbl->flash_led_low(fctrl);
+	} else {
+		if (fctrl->func_tbl->flash_led_off)
+			fctrl->func_tbl->flash_led_off(fctrl);
+		if (fctrl->func_tbl->flash_led_release)
+			fctrl->func_tbl->flash_led_release(fctrl);
+	}
+};
+
+static struct led_classdev msm_torch_i2c_led = {
+	.name			= "torch-light0",
+	.brightness_set	= msm_led_i2c_torch_brightness_set,
+	.brightness		= LED_OFF,
+};
+
+static int32_t msm_i2c_torch_create_classdev(struct device *dev ,
+				void *data)
+{
+	int rc;
+	msm_led_i2c_torch_brightness_set(&msm_torch_i2c_led, LED_OFF);
+	rc = led_classdev_register(dev, &msm_torch_i2c_led);
+	if (rc) {
+		pr_err("Failed to register led dev. rc = %d\n", rc);
+		return rc;
+	}
+
+	return 0;
+};
 
 int msm_flash_i2c_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
@@ -1523,7 +1549,7 @@ int msm_flash_i2c_probe(struct i2c_client *client,
 	void* dummy2 = NULL;
 	/*For ASUS FLASH---*/
 	int rc = 0;
-	
+	struct msm_led_flash_ctrl_t *fctrl = NULL;
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *dentry;
 #endif
@@ -1532,34 +1558,34 @@ int msm_flash_i2c_probe(struct i2c_client *client,
 	create_proc_file();
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		pr_err("i2c_check_functionality failed\n");
-		rc = -35;
 		goto probe_failure;
 	}
 
-	g_fctrl = (struct msm_led_flash_ctrl_t *)(id->driver_data);
-	if (g_fctrl->flash_i2c_client)
-		g_fctrl->flash_i2c_client->client = client;
+	fctrl = (struct msm_led_flash_ctrl_t *)(id->driver_data);
+	ASUS_g_fctrl = (struct msm_led_flash_ctrl_t *)(id->driver_data);
+	if (fctrl->flash_i2c_client)
+		fctrl->flash_i2c_client->client = client;
 	/* Set device type as I2C */
-	g_fctrl->flash_device_type = MSM_CAMERA_I2C_DEVICE;
+	fctrl->flash_device_type = MSM_CAMERA_I2C_DEVICE;
 
 	/* Assign name for sub device */
-	snprintf(g_fctrl->msm_sd.sd.name, sizeof(g_fctrl->msm_sd.sd.name),
+	snprintf(fctrl->msm_sd.sd.name, sizeof(fctrl->msm_sd.sd.name),
 		"%s", id->name);
 
-	rc = msm_led_get_dt_data(client->dev.of_node, g_fctrl);
+	rc = msm_led_get_dt_data(client->dev.of_node, fctrl);
 	if (rc < 0) {
 		pr_err("%s failed line %d\n", __func__, __LINE__);
 		return rc;
 	}
 
-	if (g_fctrl->pinctrl_info.use_pinctrl == true)
-		msm_flash_pinctrl_init(g_fctrl);
+	if (fctrl->pinctrl_info.use_pinctrl == true)
+		msm_flash_pinctrl_init(fctrl);
 
-	if (g_fctrl->flash_i2c_client != NULL) {
-		g_fctrl->flash_i2c_client->client = client;
-		if (g_fctrl->flashdata->slave_info->sensor_slave_addr)
-			g_fctrl->flash_i2c_client->client->addr =
-				g_fctrl->flashdata->slave_info->
+	if (fctrl->flash_i2c_client != NULL) {
+		fctrl->flash_i2c_client->client = client;
+		if (fctrl->flashdata->slave_info->sensor_slave_addr)
+			fctrl->flash_i2c_client->client->addr =
+				fctrl->flashdata->slave_info->
 				sensor_slave_addr;
 	} else {
 		pr_err("%s %s sensor_i2c_client NULL\n",
@@ -1568,38 +1594,42 @@ int msm_flash_i2c_probe(struct i2c_client *client,
 		return rc;
 	}
 
-	if (!g_fctrl->flash_i2c_client->i2c_func_tbl)
-		g_fctrl->flash_i2c_client->i2c_func_tbl =
+	if (!fctrl->flash_i2c_client->i2c_func_tbl)
+		fctrl->flash_i2c_client->i2c_func_tbl =
 			&msm_sensor_qup_func_tbl;
 
-	rc = msm_led_i2c_flash_create_v4lsubdev(g_fctrl);
-	if (rc < 0) {
-		pr_err("%s msm_led_i2c_flash_create_v4lsubdev failed line %d\n", __func__, __LINE__);
-		return rc;
-	}
+	rc = msm_led_i2c_flash_create_v4lsubdev(fctrl);
 #ifdef CONFIG_DEBUG_FS
-	dentry = debugfs_create_file("ledflash", S_IRUGO, NULL, (void *)g_fctrl,
+	dentry = debugfs_create_file("ledflash", S_IRUGO, NULL, (void *)fctrl,
 		&ledflashdbg_fops);
 	if (!dentry)
 		pr_err("Failed to create the debugfs ledflash file");
 #endif
+	/* Assign Global flash control sturcture for local usage */
+	g_fctrl = (void *) fctrl;
+	rc = msm_i2c_torch_create_classdev(&(client->dev), NULL);
+	if (rc) {
+		pr_err("%s failed to create classdev %d\n", __func__, __LINE__);
+		return rc;
+	}
 	/*For ASUS FLASH+++*/
 	proc_entry_flash = proc_create_data("driver/asus_flash", 0666, NULL, &asus_flash_proc_fops, dummy);
 	proc_set_user(proc_entry_flash, 1000, 1000);
 	proc_entry_flash_second = proc_create_data("driver/asus_flash2", 0666, NULL, &asus_flash_second_proc_fops, dummy2);
 	proc_set_user(proc_entry_flash_second, 1000, 1000);
 	/*For ASUS FLASH---*/
-	pr_info("%s:%d probe success\n", __func__, __LINE__);
+	CDBG("%s:%d probe success\n", __func__, __LINE__);
 	return 0;
 
 probe_failure:
-	pr_info("%s:%d probe failed\n", __func__, __LINE__);
+	CDBG("%s:%d probe failed\n", __func__, __LINE__);
 	return rc;
 }
 
 int msm_flash_probe(struct platform_device *pdev,
 	const void *data)
 {
+
 	/*For ASUS FLASH+++*/
 	struct proc_dir_entry* proc_entry_flash;
 	struct proc_dir_entry* proc_entry_flash_second;
@@ -1607,75 +1637,81 @@ int msm_flash_probe(struct platform_device *pdev,
 	void* dummy2 = NULL;
 	/*For ASUS FLASH---*/
 	int rc = 0;
-	/*struct msm_led_flash_ctrl_t *fctrl =
-		(struct msm_led_flash_ctrl_t *)data;*/
+	struct msm_led_flash_ctrl_t *fctrl =
+		(struct msm_led_flash_ctrl_t *)data;
 	struct device_node *of_node = pdev->dev.of_node;
 	struct msm_camera_cci_client *cci_client = NULL;
 
 	pr_info("%s entry\n", __func__);
 	create_proc_file();
-
 	if (!of_node) {
 		pr_err("of_node NULL\n");
 		goto probe_failure;
 	}
-	g_fctrl = (struct msm_led_flash_ctrl_t *)data;
-	g_fctrl->pdev = pdev;
+	mutex_init(&flash_lock);
+	mutex_init(&flashlight_lock);
+	fctrl->pdev = pdev;
 
-	rc = msm_led_get_dt_data(pdev->dev.of_node, g_fctrl);
+	rc = msm_led_get_dt_data(pdev->dev.of_node, fctrl);
 	if (rc < 0) {
 		pr_err("%s failed line %d rc = %d\n", __func__, __LINE__, rc);
 		return rc;
 	}
 
-	if (g_fctrl->pinctrl_info.use_pinctrl == true)
-		msm_flash_pinctrl_init(g_fctrl);
+	if (fctrl->pinctrl_info.use_pinctrl == true)
+		msm_flash_pinctrl_init(fctrl);
 
 	/* Assign name for sub device */
-	snprintf(g_fctrl->msm_sd.sd.name, sizeof(g_fctrl->msm_sd.sd.name),
-			"%s", g_fctrl->flashdata->sensor_name);
+	snprintf(fctrl->msm_sd.sd.name, sizeof(fctrl->msm_sd.sd.name),
+			"%s", fctrl->flashdata->sensor_name);
 	/* Set device type as Platform*/
-	g_fctrl->flash_device_type = MSM_CAMERA_PLATFORM_DEVICE;
+	fctrl->flash_device_type = MSM_CAMERA_PLATFORM_DEVICE;
 
-	if (NULL == g_fctrl->flash_i2c_client) {
+	if (NULL == fctrl->flash_i2c_client) {
 		pr_err("%s flash_i2c_client NULL\n",
 			__func__);
 		rc = -EFAULT;
 		goto probe_failure;
 	}
 
-	g_fctrl->flash_i2c_client->cci_client = kzalloc(sizeof(
+	fctrl->flash_i2c_client->cci_client = kzalloc(sizeof(
 		struct msm_camera_cci_client), GFP_KERNEL);
-	if (!g_fctrl->flash_i2c_client->cci_client) {
+	if (!fctrl->flash_i2c_client->cci_client) {
 		pr_err("%s failed line %d kzalloc failed\n",
 			__func__, __LINE__);
 		return rc;
 	}
 
-	cci_client = g_fctrl->flash_i2c_client->cci_client;
+	cci_client = fctrl->flash_i2c_client->cci_client;
 	cci_client->cci_subdev = msm_cci_get_subdev();
-	cci_client->cci_i2c_master = g_fctrl->cci_i2c_master;
-	if (g_fctrl->flashdata->slave_info->sensor_slave_addr)
+	cci_client->cci_i2c_master = fctrl->cci_i2c_master;
+	if (fctrl->flashdata->slave_info->sensor_slave_addr)
 		cci_client->sid =
-			g_fctrl->flashdata->slave_info->sensor_slave_addr >> 1;
+			fctrl->flashdata->slave_info->sensor_slave_addr >> 1;
 	cci_client->retries = 3;
 	cci_client->id_map = 0;
-	cci_client->i2c_freq_mode = I2C_FAST_MODE;
 
-	if (!g_fctrl->flash_i2c_client->i2c_func_tbl)
-		g_fctrl->flash_i2c_client->i2c_func_tbl =
+	if (!fctrl->flash_i2c_client->i2c_func_tbl)
+		fctrl->flash_i2c_client->i2c_func_tbl =
 			&msm_sensor_cci_func_tbl;
 
-	rc = msm_led_flash_create_v4lsubdev(pdev, g_fctrl);
-
+	rc = msm_led_flash_create_v4lsubdev(pdev, fctrl);
+	fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
+	fctrl->led_state = MSM_CAMERA_LED_RELEASE;
+	/* Assign Global flash control sturcture for local usage */
+	g_fctrl = (void *)fctrl;
+	ASUS_g_fctrl = (struct msm_led_flash_ctrl_t *)fctrl;
+	rc = msm_i2c_torch_create_classdev(&(pdev->dev), NULL);
+	if (rc) {
+		pr_err("%s failed to create classdev %d\n", __func__, __LINE__);
+		return rc;
+	}
 	/*For ASUS FLASH+++*/
 	proc_entry_flash = proc_create_data("driver/asus_flash", 0666, NULL, &asus_flash_proc_fops, dummy);
 	proc_set_user(proc_entry_flash, 1000, 1000);
 	proc_entry_flash_second = proc_create_data("driver/asus_flash2", 0666, NULL, &asus_flash_second_proc_fops, dummy2);
 	proc_set_user(proc_entry_flash_second, 1000, 1000);
 	/*For ASUS FLASH---*/
-	mutex_init(&flash_lock);
-	mutex_init(&flashlight_lock);
 	CDBG("%s: probe success\n", __func__);
 	return 0;
 

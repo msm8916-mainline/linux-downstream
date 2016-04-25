@@ -232,9 +232,9 @@ int64_t battID = SMB358_BATTID_INITIAL;
 int g_Iqc = SMB358_FAST_CHG_CURRENT_VALUE_2000mA;
 extern int g_charge_full;
 
-//ASUS_BSP Clay: Get HW_ID +++
-extern enum DEVICE_HWID g_ASUS_hwID;
-//ASUS_BSP Clay: Get HW_ID ---
+//ASUS_BSP WeiYu: prev g_ASUS_hwID is not supported +++
+int g_ASUS_hwID_M=0xff;
+//ASUS_BSP WeiYu: prev g_ASUS_hwID is not supported ---
 extern bool Batt_ID_Change;
 bool Batt_ID_ERROR=false;
 
@@ -245,6 +245,8 @@ static bool fast_chg_flag = false;
 // ASUS_BSP Clay: reset fast_chg_flag in JEITA ---
 // bsp  WeiYu +++
 extern bool thermal_abnormal;
+
+bool charger_is_probed = false;
 
 enum {
 	USER	= BIT(0),
@@ -320,7 +322,6 @@ struct smb358_charger {
 	int			usb_suspended;
 
 	/* power supply */
-	struct power_supply	*usb_psy;
 	struct power_supply	*bms_psy;
 	struct power_supply	batt_psy;
 
@@ -789,7 +790,7 @@ void SET_VCH_VALUE(struct work_struct *dat){
 		return;
 	}
 	/*BSP Clay: ER2 hwID = 4*/
-	if( (g_ASUS_hwID & 0x0f) >=4){
+	if( (g_ASUS_hwID_M & 0x0f) >=4){
 		if( battID <= 900000 && battID >= 500000 ){
 			VCH_VALUE=(BIT(1)|BIT(3)|BIT(5));
 			BAT_DBG("BAT_ID=BAT3, VCH=4.34V\n");
@@ -1657,7 +1658,7 @@ int asus_battery_update_status(void)
 	u32 cable_status; 
 	cable_status = get_charger_type();
 	charging_toggle = get_sw_charging_toggle();
-	if( Prevent_Unknown == true && (g_ASUS_hwID & 0x0f) >=4){
+	if( Prevent_Unknown == true && (g_ASUS_hwID_M & 0x0f) >=4){
 		BAT_DBG("The back door is on, report fake capacity and status\n");
 		status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 	} else {
@@ -2240,6 +2241,10 @@ int setSMB358Charger(int usb_state)
 		"UNKNOWN_IN",
 		"SE1_IN",
 	};
+	/*
+	printk("WWW\n");
+	usb_state = USB_IN;
+	*/
 	if( usb_state != CABLE_OUT )
 		g_usb_state = usb_state;
 	if (usb_state >= 0 && usb_state <= 7) {
@@ -2766,17 +2771,13 @@ static int smb358_charger_probe(struct i2c_client *client,
 	int usb_state;
 	char chargerReg[128]="";
 	struct smb358_charger *chip;
-	struct power_supply *usb_psy;
 	struct device *dev = &client->dev;
 	struct device_node *np = dev->of_node;
 
 	printk("%s++\n", __FUNCTION__);
-	usb_psy = power_supply_get_by_name("usb");
-	if (!usb_psy) {
-		dev_dbg(&client->dev, "USB psy not found; deferring probe\n");
-		return -EPROBE_DEFER;
+	if (g_Charger_mode){
+		ASUSEvtlog("[Charger] ===== enter charger mode ====\n");
 	}
-
 	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip) {
 		dev_err(&client->dev, "Couldn't allocate memory\n");
@@ -2785,7 +2786,6 @@ static int smb358_charger_probe(struct i2c_client *client,
 
 	chip->client = client;
 	chip->dev = &client->dev;
-	chip->usb_psy = usb_psy;
 	chip->fake_battery_soc = -EINVAL;
 	ret = smb358_register_power_supply(&client->dev);
 	if (ret < 0)
@@ -2794,7 +2794,6 @@ static int smb358_charger_probe(struct i2c_client *client,
 	wake_lock_init(&bat_alarm_wake_lock, WAKE_LOCK_SUSPEND, "bat_alarm_wake");
 	alarm_init(&bat_alarm, ALARM_REALTIME, batAlarm_handler);
 	smb358_dev = chip;
-
 	mutex_init(&chip->irq_complete);
 	mutex_init(&chip->read_write_lock);
 	mutex_init(&chip->path_suspend_lock);
@@ -2824,6 +2823,10 @@ static int smb358_charger_probe(struct i2c_client *client,
 	if (ret < 0) {
 		printk("%s: set direction of CHG_OTG gpio fail!\n", __FUNCTION__);
 	}
+	ret = of_property_read_u32(np,"qcom,asus-hwid",&g_ASUS_hwID_M);
+	printk("get_hwid:%d\n",g_ASUS_hwID_M);
+
+
 	
 	wake_lock_init(&inok_wakelock,
 			WAKE_LOCK_SUSPEND, "smb358_wakelock");
@@ -2876,6 +2879,8 @@ static int smb358_charger_probe(struct i2c_client *client,
 	smb358_polling_battery_data_work(0);
 	ChargerRegDump(chargerReg, 128);
 	BAT_DBG("Reg:%s\n", chargerReg);
+
+	charger_is_probed=true;
 	printk("%s--\n", __FUNCTION__);
 	return 0;
 }

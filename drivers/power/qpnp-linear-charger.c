@@ -630,8 +630,12 @@ static int qpnp_lbc_is_usb_chg_plugged_in(struct qpnp_lbc_chip *chip)
 int is_usb_chg_plugged_in(void)
 {
 	int rc;
-	rc = qpnp_lbc_is_usb_chg_plugged_in(g_lbc_chip);
-	return rc;
+	if (g_lbc_chip != NULL) {
+		rc = qpnp_lbc_is_usb_chg_plugged_in(g_lbc_chip);
+		return rc;
+	} else{
+		return 0;
+	}
 }
 EXPORT_SYMBOL_GPL(is_usb_chg_plugged_in);
 

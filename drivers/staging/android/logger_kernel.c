@@ -170,10 +170,11 @@ static void write_console(struct work_struct *work)
 
 	update_log_from_bottom(log_bot, log_out);
 }
+#ifndef ASUS_ZC550KL_PROJECT
 extern int get_Kmsgconfig(void);
 extern int selinux_enforcing;
 extern bool selinux_is_enabled(void);
-
+#endif
 static void
 logger_console_write(struct console *console, const char *s, unsigned int count)
 {
@@ -186,11 +187,11 @@ logger_console_write(struct console *console, const char *s, unsigned int count)
 		return;
 
 	flush_to_bottom_log(log_bot, s, count);
-	
+#ifndef ASUS_ZC550KL_PROJECT	
 	if (!get_Kmsgconfig() && selinux_enforcing) {
 		 return;
 	}
-
+#endif
 	if (unlikely(!log_out))
 		return;
 	if (unlikely(!keventd_up()))

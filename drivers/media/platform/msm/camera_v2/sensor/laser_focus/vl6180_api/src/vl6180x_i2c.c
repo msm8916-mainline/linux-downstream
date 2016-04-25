@@ -101,3 +101,11 @@ int  VL6180x_RdDWord(VL6180xDev_t dev, uint32_t index, uint32_t *data){
   
     return status;
 }
+
+int  VL6180x_RdMulti(VL6180xDev_t dev, uint16_t index, uint8_t *data, int nData){
+	int status = 1;
+	
+	status = ASUS_VL6180x_RdMulti(index, data, nData);
+	
+	return status;
+}

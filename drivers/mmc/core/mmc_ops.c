@@ -365,6 +365,63 @@ int mmc_send_ext_csd(struct mmc_card *card, u8 *ext_csd)
 }
 EXPORT_SYMBOL_GPL(mmc_send_ext_csd);
 
+//ASUS_BSP Deeo : get Hynix eMMC erase count +++
+static unsigned int
+mmc_send_CMD60(struct mmc_card *card, unsigned int cmd_arg)
+{
+	struct mmc_command cmd = {0};
+	unsigned int err = 0;
+
+	/* basic check */
+	if (card == NULL) {
+		return -1;
+	}
+
+	memset((struct mmc_command *)&cmd, 0,
+	       sizeof(struct mmc_command));
+
+	cmd.opcode = 60;//CMD60
+	cmd.arg = cmd_arg;
+	//cmd.cmd_type = 0; //SDHCI_CMD_TYPE_NORMAL 0
+	cmd.flags = 0;// SDHCI_CMD_RESP_R1 BIT(0)
+
+	err = mmc_wait_for_cmd(card->host, &cmd, 0);
+	if (err)
+		return err;
+	msleep(1);
+	return 0;
+}
+
+unsigned int emmc_get_erase_count(struct mmc_card *card)
+{
+	unsigned int err = 0;
+
+	if (card->cid.manfid != 0x90) {
+		printk("[eMMC] %s:Error: Not Hynix's eMMC\n",__func__);
+		return 0;
+	}
+
+	err = mmc_send_CMD60(card, 0x534D4900);
+	if (err != 0) {
+		pr_err("%s:Error No.%d: Failure to do step 1\n",__func__, err);
+		return err;
+	} else {
+		pr_info("mmc_send_CMD60(card, 0x534D4900); success!\n");
+	}
+
+	err = mmc_send_CMD60(card, 0x48525054);
+	if (err != 0) {
+		pr_err("%s:Error No.%d: Failure to do step 2\n",__func__, err);
+		return err;
+	} else {
+		pr_info("mmc_send_CMD60(card, 0x48525054); success!\n");
+	}
+
+	return err;
+}
+EXPORT_SYMBOL_GPL(emmc_get_erase_count);
+//ASUS_BSP Deeo : get Hynix eMMC erase count ---
+
 int mmc_spi_read_ocr(struct mmc_host *host, int highcap, u32 *ocrp)
 {
 	struct mmc_command cmd = {0};

@@ -403,8 +403,9 @@ static struct attribute_group gpio_keys_attr_group = {
 	.attrs = gpio_keys_attrs,
 };
 
-
+#ifndef ASUS_ZC550KL_PROJECT
 unsigned int b_press = 0;
+#endif
 
 static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 {
@@ -429,6 +430,10 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 				printk("[Gpio_keys]Wakelock 3 sec for vol_key \n");
 			}
 			//ASUS BSP Austin_T--- : Fix DoubleClickVolumeKey sometimes can't bring up panel
+		}
+
+#ifndef ASUS_ZC550KL_PROJECT
+		if (state) {
 			if(button->code == 114)
 				b_press |= 0x01;
 
@@ -442,6 +447,7 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 			if(button->code == 115)
 				b_press &= ~(0x02);
 		}
+#endif
 	}
 	input_sync(input);
 }
@@ -737,7 +743,6 @@ gpio_keys_get_devtree_pdata(struct device *dev)
 		error = -ENODEV;
 		goto err_out;
 	}
-	
 
 	pdata = kzalloc(sizeof(*pdata) + nbuttons * (sizeof *button),
 			GFP_KERNEL);

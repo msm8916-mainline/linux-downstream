@@ -255,6 +255,35 @@ int ASUS_VL6180x_RdDWord(uint32_t register_addr, uint32_t *i2c_read_data, uint16
 	return status;
 }
 
+int ASUS_VL6180x_RdMulti(uint32_t register_addr, uint8_t *i2c_read_data, uint16_t num_byte)
+{
+	int status;
+	struct msm_camera_i2c_seq_reg_array reg_setting;
+	
+	/* Setting i2c client */
+	struct msm_camera_i2c_client *sensor_i2c_client;
+	sensor_i2c_client = vl6180x_t->i2c_client;
+	if (!sensor_i2c_client) {
+		pr_err("%s:%d failed: %p \n", __func__, __LINE__, sensor_i2c_client);
+		return -EINVAL;
+	}
+
+	reg_setting.reg_data_size = num_byte;
+
+	status = (int)sensor_i2c_client->i2c_func_tbl->i2c_read_seq(sensor_i2c_client, register_addr, 
+		i2c_read_data, reg_setting.reg_data_size);
+	
+	if (status < 0) {
+		pr_err("%s: read register(0x%x) failed\n", __func__, register_addr);
+		return status;
+	}
+	
+	//*i2c_read_data=reg_setting.reg_data;
+	REG_RW_DBG("%s: read register(0x%x) : 0x%x \n", __func__, register_addr, *i2c_read_data);
+
+	return status;
+}
+
 int ASUS_VL6180x_UpdateByte(uint32_t register_addr, uint8_t AndData, uint8_t OrData){
 	int status;
 	uint16_t i2c_read_data, i2c_write_data;

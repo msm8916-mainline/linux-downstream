@@ -29,6 +29,7 @@
 #include <soc/qcom/scm.h>
 #include <soc/qcom/memory_dump.h>
 #include <soc/qcom/watchdog.h>
+#include <linux/kmemleak.h>
 
 #define MODULE_NAME "msm_watchdog"
 #define WDT0_ACCSCSSNBARK_INT 0
@@ -48,6 +49,12 @@
 
 static struct workqueue_struct *wdog_wq;
 static struct msm_watchdog_data *wdog_data;
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt+++
+#ifdef ASUS_ZC550KL_PROJECT
+struct msm_watchdog_data *g_wdog_dd = NULL;
+struct mutex g_pet_lock;
+#endif
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt---
 
 static int cpu_idle_pc_state[NR_CPUS];
 
@@ -290,6 +297,7 @@ static void keep_alive_response(void *info)
 	struct msm_watchdog_data *wdog_dd = (struct msm_watchdog_data *)info;
 	cpumask_set_cpu(cpu, &wdog_dd->alive_mask);
 	smp_mb();
+	//printk("cpu %d respond\n", cpu);
 }
 
 /*
@@ -303,11 +311,18 @@ static void ping_other_cpus(struct msm_watchdog_data *wdog_dd)
 	smp_mb();
 	for_each_cpu(cpu, cpu_online_mask) {
 		if (!cpu_idle_pc_state[cpu])
+		{
+			printk("pinging cpu %d\n", cpu);
 			smp_call_function_single(cpu, keep_alive_response,
 						 wdog_dd, 1);
+		}
 	}
 }
-
+//ASUSBSP: Jeffery, add watchdog_test+++
+#ifdef ASUS_ZC550KL_PROJECT
+extern int watchdog_test; 
+#endif
+//ASUSBSP: Jeffery, add watchdog_test---
 static void pet_watchdog_work(struct work_struct *work)
 {
 	unsigned long delay_time;
@@ -315,11 +330,34 @@ static void pet_watchdog_work(struct work_struct *work)
 	struct msm_watchdog_data *wdog_dd = container_of(delayed_work,
 						struct msm_watchdog_data,
 							dogwork_struct);
+//ASUSBSP: Jeffery, add watchdog_test+++
+#ifdef ASUS_ZC550KL_PROJECT
+	if (watchdog_test){
+		printk("test watchdog function...\r\n");
+		printk("Wdog - STS: 0x%x, CTL: 0x%x, BARK TIME: 0x%x, BITE TIME: 0x%x",
+		__raw_readl(wdog_dd->base + WDT0_STS),
+		__raw_readl(wdog_dd->base + WDT0_EN),
+		__raw_readl(wdog_dd->base + WDT0_BARK_TIME),
+		__raw_readl(wdog_dd->base + WDT0_BITE_TIME));
+		return;
+	} 
+#endif 
+//ASUSBSP: Jeffery, add watchdog_test---
 	delay_time = msecs_to_jiffies(wdog_dd->pet_time);
 	if (enable) {
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt+++
+#ifdef ASUS_ZC550KL_PROJECT
+		mutex_lock(&g_pet_lock);
+#endif
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt---
 		if (wdog_dd->do_ipi_ping)
 			ping_other_cpus(wdog_dd);
 		pet_watchdog(wdog_dd);
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt+++
+#ifdef ASUS_ZC550KL_PROJECT
+		mutex_unlock(&g_pet_lock);
+#endif
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt---
 	}
 	/* Check again before scheduling *
 	 * Could have been changed on other cpu */
@@ -344,7 +382,7 @@ static int wdog_cpu_pm_notify(struct notifier_block *self,
 		cpu_idle_pc_state[cpu] = 0;
 		break;
 	}
-
+	//printk("wdog_cpu_pm_notify cpu%d, %ld\n ", cpu, action);
 	return NOTIFY_OK;
 }
 
@@ -376,6 +414,11 @@ static int msm_watchdog_remove(struct platform_device *pdev)
 	printk(KERN_INFO "MSM Watchdog Exit - Deactivated\n");
 	destroy_workqueue(wdog_wq);
 	kfree(wdog_dd);
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt+++
+#ifdef ASUS_ZC550KL_PROJECT
+	g_wdog_dd = NULL;
+#endif
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt---
 	return 0;
 }
 
@@ -482,13 +525,14 @@ static void configure_bark_dump(struct msm_watchdog_data *wdog_dd)
 			pr_err("cpu dump data structure allocation failed\n");
 			goto out0;
 		}
+		kmemleak_not_leak(cpu_data);
 		cpu_buf = kzalloc(MAX_CPU_CTX_SIZE * num_present_cpus(),
 				  GFP_KERNEL);
 		if (!cpu_buf) {
 			pr_err("cpu reg context space allocation failed\n");
 			goto out1;
 		}
-
+		kmemleak_not_leak(cpu_buf);
 		for_each_cpu(cpu, cpu_present_mask) {
 			cpu_data[cpu].addr = virt_to_phys(cpu_buf +
 							cpu * MAX_CPU_CTX_SIZE);
@@ -691,6 +735,12 @@ static int msm_watchdog_probe(struct platform_device *pdev)
 	wdog_dd->dev = &pdev->dev;
 	platform_set_drvdata(pdev, wdog_dd);
 	cpumask_clear(&wdog_dd->alive_mask);
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt+++
+#ifdef ASUS_ZC550KL_PROJECT
+	g_wdog_dd = wdog_dd;
+	mutex_init(&g_pet_lock);
+#endif
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt---
 	INIT_WORK(&wdog_dd->init_dogwork_struct, init_watchdog_work);
 	INIT_DELAYED_WORK(&wdog_dd->dogwork_struct, pet_watchdog_work);
 	queue_work(wdog_wq, &wdog_dd->init_dogwork_struct);
@@ -701,6 +751,25 @@ err:
 	return ret;
 }
 
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt+++
+#ifdef ASUS_ZC550KL_PROJECT
+void asus_pet_watchdog(void) {
+	if(g_wdog_dd && enable) {
+		mutex_lock(&g_pet_lock);
+		if (g_wdog_dd->do_ipi_ping)
+			ping_other_cpus(g_wdog_dd);
+		pet_watchdog(g_wdog_dd);
+		mutex_unlock(&g_pet_lock);
+	}else {
+		if(!enable)
+			pr_err("watchdog was disabled\n");
+		else
+			pr_err("watchdog driver probe failed\n");
+	}	
+}
+EXPORT_SYMBOL(asus_pet_watchdog);
+#endif
+//ASUSBSP: breeze, forece pet watchdog to avoid wdt---
 static const struct dev_pm_ops msm_watchdog_dev_pm_ops = {
 	.suspend_noirq = msm_watchdog_suspend,
 	.resume_noirq = msm_watchdog_resume,

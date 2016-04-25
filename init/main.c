@@ -135,16 +135,13 @@ static char *static_command_line;
 static char *execute_command;
 static char *ramdisk_execute_command;
 
-//+++ ASUS_BSP : miniporting
+#if 0
 enum DEVICE_HWID g_ASUS_hwID=ZE500KL_UNKNOWN;
 char hwid_info[32]={0};
-
 EXPORT_SYMBOL(g_ASUS_hwID);
-
  static int set_hardware_id(char *str)
  {
 	strcpy(hwid_info,"HW ID : ");
-	// ZE500KL
 	if ( strcmp("ZE500KL_EVB", str) == 0 )
 	{
 		g_ASUS_hwID = ZE500KL_EVB;
@@ -345,7 +342,7 @@ EXPORT_SYMBOL(g_ASUS_hwID);
 	return 0;
 }
  __setup("HW_ID=", set_hardware_id);
-
+#endif
 //--- ASUS_BSP : miniporting
 
 //+++ ASUS_BSP : add for parse soc id
@@ -409,6 +406,46 @@ __setup("LASER_ID=", set_laser_id);
 EXPORT_SYMBOL(g_ASUS_laserID);
 //--- ASUS_BSP : Add for LASER ID
 
+#ifdef ASUS_ZC550KL_PROJECT
+//+++ ASUS_BSP : miniporting : Add for uart / kernel log
+int g_user_klog_mode = 0;
+EXPORT_SYMBOL(g_user_klog_mode);
+
+static int set_user_klog_mode(char *str)
+{
+    if ( strcmp("y", str) == 0 )
+    {
+        g_user_klog_mode = 1;
+    }
+    else
+    {
+        g_user_klog_mode = 0;
+    }
+
+    //printk("Kernel log mode = %d\n", g_user_klog_mode);
+    return 0;
+}
+early_param("klog", set_user_klog_mode);
+int g_uart_dbg_mode = 0;
+EXPORT_SYMBOL(g_uart_dbg_mode);
+
+static int set_uart_dbg_mode(char *str)
+{
+    if ( strcmp("y", str) == 0 )
+    {
+        g_uart_dbg_mode = 1;
+    }
+    else
+    {
+        g_uart_dbg_mode = 0;
+    }
+
+    //printk("Kernel uart dbg mode = %d\n", g_uart_dbg_mode);
+    return 0;
+}
+early_param("dbg", set_uart_dbg_mode);
+//--- ASUS_BSP : miniporting : Add for uart / kernel log
+#else
 //+++ ASUS_BSP : miniporting : Add for audio dbg mode
 int g_user_dbg_mode = 1;
 EXPORT_SYMBOL(g_user_dbg_mode);
@@ -429,13 +466,56 @@ static int set_user_dbg_mode(char *str)
 }
 __setup("dbg=", set_user_dbg_mode);
 //--- ASUS_BSP : miniporting : Add for audio dbg mode
+#endif
+
+//add for UNLOCKED judgement ++++
+int unlocked_judgement = -1;
+EXPORT_SYMBOL(unlocked_judgement);
+
+static int set_unlocked_judgement(char *str)
+{
+    if ( strcmp("Y", str) == 0 )
+    {
+        unlocked_judgement = 1;
+    }
+    else
+    {
+        unlocked_judgement = 0;
+    }
+
+    printk("Kernel unlocked_judgement = %d\n", unlocked_judgement);
+    return 0;
+}
+__setup("UNLOCKED=", set_unlocked_judgement);
+//add for UNLOCKED judgement ----
+
+//add for SB judgement ++++
+int SB_judgement = -1;
+EXPORT_SYMBOL(SB_judgement);
+
+static int set_SB_judgement(char *str)
+{
+    if ( strcmp("Y", str) == 0 )
+    {
+        SB_judgement = 1;
+    }
+    else
+    {
+        SB_judgement = 0;
+    }
+
+    printk("Kernel SB_judgement = %d\n", SB_judgement);
+    return 0;
+}
+__setup("SB=", set_SB_judgement);
+//add for SB judgement ----
 
 //ASUS_BSP Austin_T : add for kernel charger mode. +++
 bool g_Charger_mode = false;
 
 static int set_charger_mode(char *str)
 {
-    if ( strcmp("charger", str) == 0 )
+    if ( strncmp("charger", str, 7) == 0 )
         g_Charger_mode = true;
     else
         g_Charger_mode = false;
@@ -472,6 +552,80 @@ static int set_lcd_id(char *str)
 }
 __setup("PANEL=", set_lcd_id);
 //--- ASUS_BSP: Louis
+
+//+++ ASUS_BSP: Enter_Zhang
+static uint32_t g_rf_sku_id = (uint32_t)-1;
+static int set_rf_sku_id(char *str)
+{
+	g_rf_sku_id = simple_strtoul(str, NULL, 16);
+	printk("rf_sku_id = 0x%X\n" , g_rf_sku_id);
+    return 0;
+}
+__setup("androidboot.rf.sku.id=", set_rf_sku_id);
+
+uint32_t get_rf_sku_id(void)
+{
+	return g_rf_sku_id;
+}
+
+static char g_oem_ssn_str[64];
+static int set_oem_ssn(char *str)
+{
+	strncpy(g_oem_ssn_str, str, sizeof(g_oem_ssn_str) - 1);
+	printk("SSN = %s\n" , g_oem_ssn_str);
+    return 0;
+}
+__setup("androidboot.serialno=", set_oem_ssn);
+
+const char* get_oem_ssn(void)
+{
+	return g_oem_ssn_str;
+}
+//--- ASUS_BSP: Enter_Zhang
+
+//+++ ASUS_BSP : Younger
+enum BOOT_MODE g_ASUS_bootmode=BOOTMODE_UNKNOWN;
+
+EXPORT_SYMBOL(g_ASUS_bootmode);
+
+ static int set_boot_mode(char *str)
+ {
+
+	if (!strncmp(str,"user",4) )
+	{
+		g_ASUS_bootmode = USER_MODE;
+		printk("androidboot.mode=user\n");
+	}
+	else if(!strncmp(str,"ffbm-",5))
+	{
+		g_ASUS_bootmode = FFBM_MODE;
+		printk("androidboot.mode=ffbm-01\n");
+	}
+	else if(!strncmp(str,"shipping",8))
+	{
+		g_ASUS_bootmode = SHIPPING_MODE;
+		printk("androidboot.mode=shipping\n");
+	}
+	else if(!strncmp(str,"charger_factory",15))
+	{
+		g_ASUS_bootmode = CHARGER_FACTORY_MODE;
+		printk("androidboot.mode=charger_factory\n");
+	}
+	else if(!strncmp(str,"charger_shipping",16))
+	{
+		g_ASUS_bootmode = CHARGER_SHIPPING_MODE;
+		printk("androidboot.mode=charger_shipping\n");
+	}
+	else
+	{
+		g_ASUS_bootmode = SHIPPING_MODE;
+		printk("androidboot.mode=shipping\n");
+	}
+	printk("g_ASUS_bootmode = %d\n", g_ASUS_bootmode);
+	return 0;
+}
+__setup("androidboot.mode=", set_boot_mode);
+//--- ASUS_BSP : Younger
 
 //+++ ASUS_BSP: Louis, parsing lcd unique id from aboot
 char lcd_unique_id[64] = {0};
@@ -520,7 +674,6 @@ static int get_mcp_id(char *str)
 }
 __setup("MCP_ID=", get_mcp_id);
 //--- ASUS_BSP: Deeo add for MCP_ID
-
 /*
  * If set, this is an indication to the drivers that reset the underlying
  * device before going ahead with the initialization otherwise driver might

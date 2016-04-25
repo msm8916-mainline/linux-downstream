@@ -176,7 +176,10 @@ extern int mmc_detect_card_removed(struct mmc_host *host);
 extern void mmc_blk_init_bkops_statistics(struct mmc_card *card);
 extern void mmc_rpm_hold(struct mmc_host *host, struct device *dev);
 extern void mmc_rpm_release(struct mmc_host *host, struct device *dev);
+extern unsigned int emmc_get_erase_count(struct mmc_card *card);	// ASUS_BSP Deeo : for dump hynix erase count
 
+
+#define EMMC_STATUS //ASUS_BSP Deeo : define dump eMMC health check feature +++
 /**
  *	mmc_claim_host - exclusively claim a host
  *	@host: mmc host to claim

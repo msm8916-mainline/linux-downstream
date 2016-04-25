@@ -419,6 +419,7 @@ unsigned int conn_gadget_poll(struct file* fp, poll_table *wait)
 	return mask;
 }
 
+//http://stackoverflow.com/questions/12875571/format-d-expects-argument-of-type-int-but-argument-2-has-type-size-t-w
 static ssize_t conn_gadget_read(struct file *fp, char __user *buf,
 				size_t count, loff_t *pos)
 {

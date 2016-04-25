@@ -4,8 +4,11 @@
 *	Time:	2015-05
 *
 */
+
 #include "msm_laser_focus.h"
 #include "show_log.h"
+
+static struct mutex _mutex;
 
 /** @brief Check device verify number
 *	
@@ -255,7 +258,6 @@ int dev_I2C_status_check(struct msm_laser_focus_ctrl_t *dev_t, int chip_id_size)
 		
 		return 0;
 	}
-
 	/* Deinitialize device */
 	rc = dev_deinit(dev_t);
 	if (rc < 0) {
@@ -297,16 +299,17 @@ int mutex_ctrl(struct msm_laser_focus_ctrl_t *dev_t, int ctrl)
 
 	switch(ctrl){
 		/* Allocate mutex */
-		case MUTEX_ALLOCATE:
+		/*case MUTEX_ALLOCATE:
 			rc = _mutex_allocate(&dev_t->laser_focus_mutex);
 			if(rc < 0){
 				LOG_Handler(LOG_ERR, "%s: fail mutex_allocate\n", __func__);
 				return rc;
 			}
 			break;
+		*/
 		/* Initialize mutex */
 		case MUTEX_INIT:
-			_mutex_init(dev_t->laser_focus_mutex);
+			mutex_init(&_mutex);
 			if(rc < 0){
 				LOG_Handler(LOG_ERR, "%s: fail mutex_init\n", __func__);
 				return rc;
@@ -314,7 +317,7 @@ int mutex_ctrl(struct msm_laser_focus_ctrl_t *dev_t, int ctrl)
 			break;
 		/* Lock mutex */
 		case MUTEX_LOCK:
-			_mutex_lock(dev_t->laser_focus_mutex);
+			mutex_lock(&_mutex);
 			if(rc < 0){
 				LOG_Handler(LOG_ERR, "%s: fail mutex_lock\n", __func__);
 				return rc;
@@ -322,7 +325,7 @@ int mutex_ctrl(struct msm_laser_focus_ctrl_t *dev_t, int ctrl)
 			break;
 		/* Try lock mutex*/
 		case MUTEX_TRYLOCK:
-			_mutex_trylock(dev_t->laser_focus_mutex);
+			mutex_trylock(&_mutex);
 			if(rc < 0){
 				LOG_Handler(LOG_ERR, "%s: fail mutex_trylock\n", __func__);
 				return rc;
@@ -330,7 +333,7 @@ int mutex_ctrl(struct msm_laser_focus_ctrl_t *dev_t, int ctrl)
 			break;
 		/* Unlock mutex */
 		case MUTEX_UNLOCK:
-			_mutex_unlock(dev_t->laser_focus_mutex);
+			 mutex_unlock(&_mutex);
 			if(rc < 0){
 				LOG_Handler(LOG_ERR, "%s: fail mutex_unlock\n", __func__);
 				return rc;
@@ -338,7 +341,7 @@ int mutex_ctrl(struct msm_laser_focus_ctrl_t *dev_t, int ctrl)
 			break;
 		/* Destroy mutex */
 		case MUTEX_DESTROY:
-			_mutex_destroy(dev_t->laser_focus_mutex);
+			mutex_destroy(&_mutex);
 			if(rc < 0){
 				LOG_Handler(LOG_ERR, "%s: fail mutex_destroy\n", __func__);
 				return rc;

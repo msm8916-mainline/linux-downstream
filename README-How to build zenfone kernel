@@ -1,0 +1,24 @@
+How to build zenfone kernel
+
+#1 download qcom open source code
+	cd [working dir]
+	repo init -u git://codeaurora.org/platform/manifest -b release -m LA.BR.1.1.3-00810-8x16.0.xml
+	repo sync -c
+
+#2 remove some folder
+	rm -rf kernel external/sepolicy/  device/qcom/sepolicy/
+
+#3 extract kernel source code to working dir
+	tar -zxvf [kernel-source].tar.gz
+
+#4 merge source code in device/, external/, and system/ into [working dir]
+
+#5 build kernel image and modules
+#build ze500kl
+	rm -rf out
+	source build/envsetup.sh
+	lunch Z00E-user
+	m -j4 bootimage
+# if your PC has more cores, for example, 8 cores, you can use following command to speed up build process
+	m -j8 bootimage
+

@@ -23,6 +23,7 @@
 #include <trace/events/sched.h>
 
 //ASUS Joy_Lin +++
+#ifdef CONFIG_ASUS_PERF
 #include <asm/uaccess.h>
 #include <linux/proc_fs.h>
 #include <linux/cpufreq.h>
@@ -33,6 +34,7 @@ unsigned int asus_preformance_boost = 0;
 static int readflag = 0;
 static int boost_thermal_core_flag = 1;
 static DEFINE_MUTEX(boost_core_control_mutex);
+#endif
 //ASUS Joy_Lin ---
 
 #include "smpboot.h"
@@ -382,18 +384,19 @@ out_release:
 int __ref asus_cpu_down(unsigned int cpu)
 {
 	int err;
+#ifdef CONFIG_ASUS_PERF
 	struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
 
-	if(( boost_thermal_core_flag == 1) || 
+	if(( boost_thermal_core_flag == 1) ||
 		(boost_thermal_core_flag == 0 && asus_preformance_boost == 1 && policy->max > 800000)){
 		if( cpu == 1 )
 		{
-			printk("[POWER_HINT_CAM] Therml flag(%d) Freq max(%d), boost(%d), ignore cpu_down\n", 
+			printk("[POWER_HINT_CAM] Therml flag(%d) Freq max(%d), boost(%d), ignore cpu_down\n",
 				boost_thermal_core_flag, policy->max, asus_preformance_boost);
 		}
 		return 0;
 	}
-
+#endif
 	cpu_maps_update_begin();
 
 	if (cpu_hotplug_disabled) {
@@ -413,6 +416,7 @@ int __ref cpu_down(unsigned int cpu)
 {
 	int err = 0;
 	//ASUS Joy_Lin +++
+#ifdef CONFIG_ASUS_PERF
 	mutex_lock(&boost_core_control_mutex);
 	boost_thermal_core_flag = 0;
 	if( cpu == 1)
@@ -420,6 +424,9 @@ int __ref cpu_down(unsigned int cpu)
 
 	err = asus_cpu_down(cpu);
 	mutex_unlock(&boost_core_control_mutex);
+#else
+	err = asus_cpu_down(cpu);
+#endif
 	//ASUS Joy_Lin ---
 	return err;
 }
@@ -454,9 +461,11 @@ static int __cpuinit _cpu_up(unsigned int cpu, int tasks_frozen)
 	ret = __cpu_notify(CPU_UP_PREPARE | mod, hcpu, -1, &nr_calls);
 
 	//ASUS Joy_Lin +++
+#ifdef CONFIG_ASUS_PERF
 	if( asus_preformance_boost == 1){
 		ret = 0;
 	}
+#endif
 	//ASUS Joy_Lin ---
 
 	if (ret) {
@@ -492,6 +501,7 @@ out:
 int __cpuinit asus_cpu_up(unsigned int cpu)
 {
 	int err = 0;
+#ifdef CONFIG_ASUS_PERF
 	struct cpufreq_policy *policy = cpufreq_cpu_get(0);
 
 #ifdef	CONFIG_MEMORY_HOTPLUG
@@ -507,6 +517,7 @@ int __cpuinit asus_cpu_up(unsigned int cpu)
 		}
 		return 0;
 	}
+#endif
 
 	if (!cpu_possible(cpu)) {
 		printk(KERN_ERR "can't online cpu %d because it is not "
@@ -559,6 +570,7 @@ int __cpuinit cpu_up(unsigned int cpu)
 {
 	int err = 0;
 	//ASUS Joy_Lin +++
+#ifdef CONFIG_ASUS_PERF
 	mutex_lock(&boost_core_control_mutex);
 	if( cpu == 1 ){
 		boost_thermal_core_flag = 1;
@@ -568,11 +580,16 @@ int __cpuinit cpu_up(unsigned int cpu)
 
 	err = asus_cpu_up(cpu);
 	mutex_unlock(&boost_core_control_mutex);
+#else
+	err = asus_cpu_up(cpu);
+#endif
+
 	return err;
 }
 EXPORT_SYMBOL_GPL(cpu_up);
 
 //ASUS Joy_Lin +++
+#ifdef CONFIG_ASUS_PERF
 static ssize_t asus_proc_file_read_file(struct file *filp, char __user *buff, size_t len, loff_t *off)
 {
 	char print_buf[32];
@@ -643,7 +660,7 @@ static int __init camera_boost_init(void)
 	return 0;
 }
 module_init(camera_boost_init);
-
+#endif
 //ASUS Joy_Lin ---
 
 #ifdef CONFIG_PM_SLEEP_SMP

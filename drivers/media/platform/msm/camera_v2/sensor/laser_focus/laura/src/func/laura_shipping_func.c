@@ -50,7 +50,7 @@ uint16_t swap_data(uint16_t register_data){
 int Mailbox_Command(struct msm_laser_focus_ctrl_t *dev_t, int16_t cal_data[]){
 	int status = 0, msg_len = 0, M2H_Msg_Len = 0;
 	uint16_t i2c_read_data, i2c_read_data2;
-	struct timeval start;//, now;
+	struct timeval start, now;
 
 	start = get_current_time();
 	while(1){
@@ -72,15 +72,15 @@ int Mailbox_Command(struct msm_laser_focus_ctrl_t *dev_t, int16_t cal_data[]){
        	}
 		i2c_read_data2 = swap_data(i2c_read_data2);
 		LOG_Handler(LOG_ERR, "%s: register(0x00, 0x10): (0x%x, 0x%x)\n", __func__,  i2c_read_data, i2c_read_data2);
-#if 0
+
 		/* Check if time out */
 		now = get_current_time();
-              if(is_timeout(start,now,TIMEOUT_VAL)){
+              if(is_timeout(start,now,BIG_TIMEOUT_VAL)){
 			LOG_Handler(LOG_ERR, "%s: Verify ICSR(2:1) time out - register(0x10): 0x%x\n", __func__, i2c_read_data);
                     	return -TIMEOUT_VAL;
               }
-#endif
-		//usleep(DEFAULT_DELAY_TIME);
+
+		usleep(ATOMIC_DELAY);
 	}
 
 	status = CCI_I2C_WrWord(dev_t, 0x10, swap_data(0x0004));
@@ -88,6 +88,7 @@ int Mailbox_Command(struct msm_laser_focus_ctrl_t *dev_t, int16_t cal_data[]){
                return status;
        }
 
+	start = get_current_time();
 	while(1){
 		status = CCI_I2C_RdWord(dev_t, 0x00, &i2c_read_data);
 		if (status < 0){
@@ -99,15 +100,14 @@ int Mailbox_Command(struct msm_laser_focus_ctrl_t *dev_t, int16_t cal_data[]){
 			break;
 		}
 
-#if 0
 		/* Check if time out */
 		now = get_current_time();
-              if(is_timeout(start,now,TIMEOUT_VAL)){
+              if(is_timeout(start,now,BIG_TIMEOUT_VAL)){
 			LOG_Handler(LOG_ERR, "%s: Verify ICSR(2:1) time out - register(0x10): 0x%x\n", __func__, i2c_read_data);
                     	return -TIMEOUT_VAL;
               }
-#endif
-		//usleep(DEFAULT_DELAY_TIME);
+			  
+		usleep(ATOMIC_DELAY);
 	}
 
 
@@ -135,15 +135,15 @@ int Mailbox_Command(struct msm_laser_focus_ctrl_t *dev_t, int16_t cal_data[]){
 				if((i2c_read_data&0x20) != 0x00){
 					break;
 				}
-#if 0
+
 				/* Check if time out */
 				now = get_current_time();
-              		if(is_timeout(start,now,TIMEOUT_VAL)){
+              		if(is_timeout(start,now,BIG_TIMEOUT_VAL)){
 					LOG_Handler(LOG_ERR, "%s: Verify ICSR(1) time out - register(0x00): 0x%x\n", __func__, i2c_read_data);
                     			return -TIMEOUT_VAL;
               		}
-#endif
-		 		//usleep(DEFAULT_DELAY_TIME);
+
+		 		usleep(ATOMIC_DELAY);
 			}
 
 			/* Read M2H_MBX */
@@ -294,6 +294,8 @@ int16_t Laura_device_read_range(struct msm_laser_focus_ctrl_t *dev_t, int *errSt
               	return status;
         	}
 
+		start = get_current_time();
+
 		/* Wait until data ready */
        	while(1){
 			status = CCI_I2C_RdWord(dev_t, 0x00, &i2c_read_data);
@@ -353,13 +355,13 @@ int16_t Laura_device_read_range(struct msm_laser_focus_ctrl_t *dev_t, int *errSt
 				* or distance = 0,
 				* then ignored this distance measurement.
 				* */
-                if((realRange <= 400 && confidence_level < (11*400/realRange))
+                		if((realRange <= 400 && confidence_level < (11*400/realRange))
 				  || (realRange > 400 && confidence_level < 11)
 				  || realRange == 0){
 					LOG_Handler(LOG_DBG, "%s: Read range fail (range,confidence level): (%d,%d)\n", __func__,realRange,confidence_level);
 					*errStatus = 0;
 					realRange = OUT_OF_RANGE;
-                }
+               		 }
 				else{
 					*errStatus = 0;
 				}
@@ -578,13 +580,12 @@ int Laura_device_UpscaleRegInit(struct msm_laser_focus_ctrl_t *dev_t, uint16_t *
 int Laura_WaitDeviceStandby(struct msm_laser_focus_ctrl_t *dev_t){
 	int status = 0;
 	uint16_t i2c_read_data = 0;
-#if 1
 	struct timeval start, now;
-#endif
+
 	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
-#if 1
+
 	start = get_current_time();
-#endif
+
 	/* Wait chip standby */
 	while(1){
 		/* Go MCPU to standby mode */
@@ -603,16 +604,14 @@ int Laura_WaitDeviceStandby(struct msm_laser_focus_ctrl_t *dev_t){
 			break;
 		}
 
-#if 1
 		/* Check if time out */
 		now = get_current_time();
              	if(is_timeout(start,now,1000)){
 			LOG_Handler(LOG_ERR, "%s: Wait chip standby time out - register(0x06): 0x%x\n", __func__, i2c_read_data);
               		return -TIMEOUT_VAL;
              	}
-#endif
 		
-		//usleep(DEFAULT_DELAY_TIME);
+		usleep(ATOMIC_DELAY);
 	}
 
 	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
@@ -654,11 +653,6 @@ int Laura_Power_Up_Init_No_Apply_Calibration(struct msm_laser_focus_ctrl_t *dev_
 	/* Wake up MCPU to ON mode */
 	Laura_MCPU_Controller(dev_t, MCPU_ON);
 
-#if 0
-	/* wait hardware booting(least 500us) */
-	//usleep(MCPU_DELAY_TIME);
-#endif
-
 	LOG_Handler(LOG_FUN, "%s: Exit\n", __func__);
 
 	return status;
@@ -672,16 +666,14 @@ int Laura_Power_Up_Init_No_Apply_Calibration(struct msm_laser_focus_ctrl_t *dev_
 int Laura_Power_Up_Init_Apply_Calibration(struct msm_laser_focus_ctrl_t *dev_t){
 	int status = 0;
 	uint16_t i2c_read_data = 0;
+	struct timeval start, now;
 	
 	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
 
 	/* Go MCPU to OFF status */
 	Laura_MCPU_Controller(dev_t, MCPU_OFF);
 
-#if 0
-	/* wait hardware handling (least 500us) */
-	usleep(MCPU_DELAY_TIME);
-#endif
+	start = get_current_time();
 
 	while(1){
 		/* Verify status is MCPU off */
@@ -696,7 +688,14 @@ int Laura_Power_Up_Init_Apply_Calibration(struct msm_laser_focus_ctrl_t *dev_t){
 			break;
 		}
 
-		//usleep(DEFAULT_DELAY_TIME);
+		/* Check if time out */
+		now = get_current_time();
+             	if(is_timeout(start,now,BIG_TIMEOUT_VAL)){
+			LOG_Handler(LOG_ERR, "%s: Wait MCPU OFF time out - register(0x06): 0x%x\n", __func__, i2c_read_data);
+              		return -TIMEOUT_VAL;
+             	}
+
+		usleep(ATOMIC_DELAY);
 	}
 	
 	/* Load calibration data */
@@ -832,11 +831,6 @@ bool Laura_FirmWare_Verify(struct msm_laser_focus_ctrl_t *dev_t){
 	LOG_Handler(LOG_FUN, "%s: Enter\n", __func__);
 	
 	Laura_MCPU_Controller(dev_t, MCPU_OFF);
-
-#if 0
-	/* wait hardware handling (least 500us) */
-	usleep(MCPU_DELAY_TIME);
-#endif
 
 	status = CCI_I2C_WrByte(dev_t, 0x18, 0xC0);
 	status = CCI_I2C_WrByte(dev_t, 0x19, 0xFF);

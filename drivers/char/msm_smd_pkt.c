@@ -379,6 +379,13 @@ static long smd_pkt_ioctl(struct file *file, unsigned int cmd,
 	case SMD_PKT_IOCTL_BLOCKING_WRITE:
 		ret = get_user(smd_pkt_devp->blocking_write, (int *)arg);
 		break;
+//ASUS_BSP Ken_Gan +++ [ZC550KL][SSR][N/A][Modify]fix modem reset notification ignored because of wrong errno
+	case SMD_PKT_IOCTL_RESET_QUERY:
+		pr_err("%s SMD_PKT_IOCTL_RESET_QUERY,has_reset:%d\n",
+			__func__, smd_pkt_devp->has_reset);
+		ret = put_user(smd_pkt_devp->has_reset, (int *)arg);
+		break;
+//ASUS_BSP Ken_Gan --- [ZC550KL][SSR][N/A][Modify]fix modem reset notification ignored because of wrong errno
 	default:
 		pr_err_ratelimited("%s: Unrecognized ioctl command %d\n",
 			__func__, cmd);

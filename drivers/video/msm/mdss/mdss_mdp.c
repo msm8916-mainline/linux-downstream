@@ -58,7 +58,7 @@
 #include "mdss_mdp_trace.h"
 
 #define AXI_HALT_TIMEOUT_US	0x4000
-#define AUTOSUSPEND_TIMEOUT_MS	200
+#define AUTOSUSPEND_TIMEOUT_MS	50
 
 struct mdss_data_type *mdss_res;
 
@@ -587,13 +587,8 @@ int MdpBoostUp = 0;
 
 void mdss_set_mdp_max_clk(bool boostup)
 {
-    if (boostup) {
-		if (!g_max_clk_en)
-			g_max_clk_en = 1;
-    } else {
-        if (g_max_clk_en)
-            g_max_clk_en = 0;
-    }
+    g_max_clk_en = boostup;
+
 	schedule_work(&mdp_clk_work);
 
     return;
@@ -612,25 +607,21 @@ static void clk_ctrl_work(struct work_struct *work)
 
     if (clk) {
         if (g_max_clk_en) {
-            if (MdpBoostUp) {
-                printk("[Display] Start Mdp_Clk boost\n");
-                clk_rate = mdata->max_mdp_clk_rate;
-                if (clk_rate != clk_get_rate(clk)) {
-                    if (IS_ERR_VALUE(clk_set_rate(clk, clk_rate)))
-                        pr_err("clk_set_rate failed\n");
-                }
+            printk("[Display] Start Mdp_Clk boost\n");
+            clk_rate = mdata->max_mdp_clk_rate;
+            if (clk_rate != clk_get_rate(clk)) {
+                if (IS_ERR_VALUE(clk_set_rate(clk, clk_rate)))
+                    pr_err("clk_set_rate failed\n");
             }
-        } else {
-            if (!MdpBoostUp) {
-                printk("[Display] Stop Mdp_Clk boost\n");
-                clk_rate = mdp_clk_rate_restore;
-                clk_rate = clk_round_rate(clk, clk_rate);
-                if (IS_ERR_VALUE(clk_rate)) {
-                    pr_err("unable to round rate err=%ld\n", clk_rate);
-                } else if (clk_rate != clk_get_rate(clk)) {
-                    if (IS_ERR_VALUE(clk_set_rate(clk, clk_rate)))
-                        pr_err("clk_set_rate failed\n");
-                }
+        } else if (!g_max_clk_en) {
+            printk("[Display] Stop Mdp_Clk boost\n");
+            clk_rate = mdp_clk_rate_restore;
+            clk_rate = clk_round_rate(clk, clk_rate);
+            if (IS_ERR_VALUE(clk_rate)) {
+                pr_err("unable to round rate err=%ld\n", clk_rate);
+            } else if (clk_rate != clk_get_rate(clk)) {
+                if (IS_ERR_VALUE(clk_set_rate(clk, clk_rate)))
+                    pr_err("clk_set_rate failed\n");
             }
         }
     } else {
@@ -738,7 +729,7 @@ int mdss_iommu_ctrl(int enable)
 
 	if (enable) {
 		if (mdata->iommu_ref_cnt == 0) {
-			mdss_bus_scale_set_quota(MDSS_HW_IOMMU, SZ_1M, SZ_1M);
+			mdss_bus_scale_set_quota(MDSS_IOMMU_RT, SZ_1M, SZ_1M);
 			rc = mdss_iommu_attach(mdata);
 		}
 		mdata->iommu_ref_cnt++;
@@ -747,7 +738,7 @@ int mdss_iommu_ctrl(int enable)
 			mdata->iommu_ref_cnt--;
 			if (mdata->iommu_ref_cnt == 0) {
 				rc = mdss_iommu_dettach(mdata);
-				mdss_bus_scale_set_quota(MDSS_HW_IOMMU, 0, 0);
+				mdss_bus_scale_set_quota(MDSS_IOMMU_RT, 0, 0);
 			}
 		} else {
 			pr_err("unbalanced iommu ref\n");
@@ -1197,6 +1188,10 @@ int mdss_hw_init(struct mdss_data_type *mdata)
 	struct mdss_mdp_pipe *vig;
 
 	mdss_hw_rev_init(mdata);
+
+	/* Restoring Secure configuration during boot-up */
+	if (mdss_mdp_req_init_restore_cfg(mdata))
+		__mdss_restore_sec_cfg(mdata);
 
 	/* disable hw underrun recovery */
 	writel_relaxed(0x0, mdata->mdp_base +

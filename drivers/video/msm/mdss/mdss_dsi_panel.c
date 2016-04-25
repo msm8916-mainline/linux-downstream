@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -21,6 +21,7 @@
 #include <linux/leds.h>
 #include <linux/qpnp/pwm.h>
 #include <linux/err.h>
+#include <linux/string.h>
 
 #include "mdss_dsi.h"
 
@@ -32,7 +33,8 @@
 #define NT35596_BUF_5_STATUS 0x80
 #define NT35596_MAX_ERR_CNT 2
 
-#define MIN_REFRESH_RATE 30
+#define MIN_REFRESH_RATE 48
+#define DEFAULT_MDP_TRANSFER_TIME 14000
 
 //ASUS_BSP: Louis +++
 #include <linux/msm_mdp.h>
@@ -40,39 +42,45 @@
 
 
 #define PANEL_CABC_MASK	0x3
-
+#ifndef ASUS_ZC550KL_PROJECT
 extern void rt4532_suspend(void);
 extern void rt4532_resume(void);
 extern void ftxxxx_ts_suspend(void);
 extern void ftxxxx_ts_resume(void);
-extern struct mdss_panel_data *g_mdss_pdata;
-extern char lcd_unique_id[64];
-
-void set_tcon_cabc(int mode);
-void set_dimming_cmd(void);
-void set_bklt_cmd(int mode);
-static struct mutex cmd_mutex;
-static char ctrl_display[2] = {0x53, 0x2C};
-
-#ifndef ASUS_FACTORY_BUILD
-static char cabc_mode[2] = {0x55, Still_MODE};
 #else
-static char cabc_mode[2] = {0x55, OFF_MODE};
+//ASUS_BSP:Freeman +++
+extern void ftxxxx_ts_suspend(void);
+extern void ftxxxx_ts_resume(void);
+//ASUS_BSP:Freeman ---
 #endif
 
-static char led_pwm1[2] = {0x51, 0x64};	/* DTYPE_DCS_WRITE1 */
-static struct dsi_cmd_desc backlight_cmd[] = {
-    { {DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(led_pwm1)},led_pwm1},
-};
+extern struct mdss_panel_data *g_mdss_pdata;
+#ifndef ASUS_ZC550KL_PROJECT
+extern char lcd_unique_id[64];
+#else
 
-static struct dsi_cmd_desc panel_dimming_cmd[] = {
-    { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(ctrl_display)}, ctrl_display}, /*short package*/
-};
+extern int g_CHG_mode;
+#endif
+void set_tcon_cmd(char *cmd, short len);
+void get_tcon_cmd(char cmd, int rlen);
+static struct mutex cmd_mutex;
+char bl_cmd[2] = {0x51, 0x3A};
+#ifndef ASUS_ZC550KL_PROJECT
+char dimming_cmd[2] = {0x53, 0x2C};
 
-static struct dsi_cmd_desc tcon_cabc_cmd[] = {
-    { {DTYPE_DCS_WRITE1, 1, 0, 0, 0, sizeof(cabc_mode)}, cabc_mode}, /*short package*/
-};
+#endif
+#ifndef ASUS_ZC550KL_PROJECT
+#ifndef ASUS_FACTORY_BUILD
+char cabc_mode[2] = {0x55, Still_MODE};
+#else
+char cabc_mode[2] = {0x55, OFF_MODE};
+#endif
+#else
+char cabc_mode[2] = {0x55, Still_MODE};
 
+#endif
+
+#ifndef ASUS_ZC550KL_PROJECT
 static struct panel_list supp_panels[] = {
 	{"AUO", ZE500KL_LCD_AUO},
 	{"TM", ZE500KL_LCD_TIANMA},
@@ -82,11 +90,12 @@ static struct panel_list supp_panels[] = {
 //ASUS_BSP: Louis ---
 
 //Bernard, dynamic calibration backlight +++
+#endif
 #include <linux/syscalls.h>
 #include <linux/proc_fs.h>
 #include <linux/file.h>
 #include <linux/uaccess.h>
-
+#ifndef ASUS_ZC550KL_PROJECT
 #define BL_DEFAULT 450
 #define BL_BOUNDARY_VAL 12
 #define LCD_CALIBRATION_PATH "/factory/lcd_calibration.ini"
@@ -99,7 +108,7 @@ int g_asus_lcdID_verify = 0;
 int g_calibrated_bl = -1;
 int g_actual_bl = -1;
 int g_adjust_bl = 0;
-int g_dcs_bl_value = 0;
+int g_dcs_bl_value = 0x3A; //default bl value
 
 static mm_segment_t oldfs;
 
@@ -268,9 +277,7 @@ static ssize_t lcd_info_write(struct file *filp, const char *buff, size_t len, l
 
     pr_info("[Dislay] ### %s ###\n", __func__);
 
-    initKernelEnv();
     lcd_write(messages);
-    deinitKernelEnv();
 
     return len;
 }
@@ -298,7 +305,7 @@ static struct file_operations lcd_info_proc_ops = {
     .read = lcd_info_read,
 };
 //ASUS BSP Bernard, dynamic calibration backlight ---
-
+#endif
 DEFINE_LED_TRIGGER(bl_led_trigger);
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
@@ -431,6 +438,8 @@ static void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 	/*Panel ON/Off commands should be sent in DSI Low Power Mode*/
 	if (pcmds->link_state == DSI_LP_MODE)
 		cmdreq.flags  |= CMD_REQ_LP_MODE;
+	else if (pcmds->link_state == DSI_HS_MODE)
+		cmdreq.flags |= CMD_REQ_HS_MODE;
 
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
@@ -443,25 +452,43 @@ extern int display_commit_cnt; //ASUS BSP Bernard: frame commit count
 static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct mdss_panel_info *pinfo;
+#ifndef ASUS_ZC550KL_PROJECT
 	//ASUS BSP Bernard +++
     int tmp_level = 0;
 #ifndef ASUS_FACTORY_BUILD
 	static bool g_bl_first_bootup = true;
     int rc;
 #endif
+#else
 
+	int calc_res = 100000;
+	int phone_min_value =12;
+	int phone_max_value =255 ;
+	int phone_min_index = 16;
+	int phone_max_index = 255;
+	int tmp_level = 0;
+
+#endif
+#ifndef ASUS_ZC550KL_PROJECT
     if (level == 0) {
-        printk("[BL] Set %s brightness (%d) return func.\n", supp_panels[g_asus_lcdID].name, level);
+        printk("[Display] Set %s brightness (%d) return func.\n", supp_panels[g_asus_lcdID].name, level);
         return;
     }
 	//ASUS BSP Bernard ---
 
+#else
+	int div = ((phone_max_index-phone_min_index)*calc_res/(phone_max_value-phone_min_value));
+
+	int shift = phone_min_index -phone_min_value*calc_res/div;
+	tmp_level = level;
+
+#endif
 	pinfo = &(ctrl->panel_data.panel_info);
 	if (pinfo->dcs_cmd_by_left) {
 		if (ctrl->ndx != DSI_CTRL_LEFT)
 			return;
 	}
-
+#ifndef ASUS_ZC550KL_PROJECT
     //ASUS BSP Bernard +++
 #ifndef ASUS_FACTORY_BUILD
     if (g_bl_first_bootup) {
@@ -471,11 +498,30 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
         g_bl_first_bootup = false;
     }
 #endif
+
     //ASUS BSP Bernard ---
 
     pr_debug("%s: level=%d\n", __func__, level);
     tmp_level = level;
 
+#else
+	if (level == 0) {
+		//printk("[BL] %s turn off Phone backlight\n",__func__);
+		level = 0;
+		}
+	else if (level >= phone_max_value)
+			level = phone_max_index;
+	else if (level > 0 && level <= phone_min_value)
+		level = phone_min_index;
+	else if (level > phone_min_value && level < phone_max_value)
+		{
+			level = level*calc_res/div + shift;
+			if(level >= phone_max_index)
+				level = phone_max_index;
+		}
+
+#endif
+#ifndef ASUS_ZC550KL_PROJECT
 #ifndef ASUS_FACTORY_BUILD
     if ((g_adjust_bl < g_calibrated_bl) && (g_adjust_bl > 0))
         level = level * g_adjust_bl / g_calibrated_bl;
@@ -484,13 +530,19 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
     if (level < BL_BOUNDARY_VAL)
         level = BL_BOUNDARY_VAL;
 
-    printk("[BL] Set %s brightness (Actual:%d) (Adjust:%d)\n", supp_panels[g_asus_lcdID].name, tmp_level, level);
- 
+    printk("[Display] Set %s brightness (Actual:%d) (Adjust:%d)\n", supp_panels[g_asus_lcdID].name, tmp_level, level);
+
+    bl_cmd[1] = level;
 	if(display_commit_cnt <= 4)
-    	set_bklt_cmd(level);
+        set_tcon_cmd(bl_cmd, ARRAY_SIZE(bl_cmd));
 
     if (tmp_level >= BL_BOUNDARY_VAL)
         g_dcs_bl_value = level;
+#else
+//	printk("[Hyde][BL] Setbrightness (Actual:%d) (Adjust:%d)\n", level, tmp_level);
+	bl_cmd[1] = level;
+	set_tcon_cmd(bl_cmd, ARRAY_SIZE(bl_cmd));
+#endif
 }
 
 static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
@@ -844,8 +896,11 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 
 	pr_debug("[Display] %s: bl_level=%d\n" ,__func__, bl_level);	/*ASUS_BSP: Louis ++ */
 
+#ifndef ASUS_ZC550KL_PROJECT
+
 	if ((bl_level < pdata->panel_info.bl_min) && (bl_level != 0))
 		bl_level = pdata->panel_info.bl_min;
+#endif
 
 	switch (ctrl_pdata->bklt_ctrl) {
 	case BL_WLED:
@@ -884,10 +939,12 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 		break;
 	}
 }
+
 #ifdef CONFIG_QPNP_VM_BMS_SUSPEND_PREDICT
 void bms_modify_soc_early_suspend(void);
 void bms_modify_soc_late_resume(void);
 #endif
+
 static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
@@ -910,22 +967,64 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 			goto end;
 	}
 
-	if (ctrl->on_cmds.cmd_cnt) {
+	if (ctrl->on_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
-	}
+#ifndef ASUS_ZC550KL_PROJECT
+    set_tcon_cmd(cabc_mode, ARRAY_SIZE(cabc_mode)); //ASUS_BSP: Louis+++, restore cabc level
+	
+	rt4532_resume();/*Austin+++*/
 
-    set_tcon_cabc(cabc_mode[1]);	//ASUS_BSP: Louis+++, restore cabc level
-
-    rt4532_resume();/*Austin+++*/
-    ftxxxx_ts_resume();/*Jacob+++*/
+	ftxxxx_ts_resume();/*Jacob+++*/
 
 #ifdef CONFIG_QPNP_VM_BMS_SUSPEND_PREDICT
 	bms_modify_soc_late_resume();
 #endif
+#else
+
+	ftxxxx_ts_resume();		//Freeman +++
+
+#endif
+
 end:
 	pinfo->blank_state = MDSS_PANEL_BLANK_UNBLANK;
 	pr_debug("%s:-\n", __func__);
 	printk("[Display] %s: --\n", __func__);
+	return 0;
+}
+
+static int mdss_dsi_post_panel_on(struct mdss_panel_data *pdata)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+	struct mdss_panel_info *pinfo;
+	struct dsi_panel_cmds *on_cmds;
+
+	if (pdata == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
+
+	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+
+	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+
+	pinfo = &pdata->panel_info;
+	if (pinfo->dcs_cmd_by_left) {
+		if (ctrl->ndx != DSI_CTRL_LEFT)
+			goto end;
+	}
+
+	on_cmds = &ctrl->post_panel_on_cmds;
+
+	pr_debug("%s: ctrl=%p cmd_cnt=%d\n", __func__, ctrl, on_cmds->cmd_cnt);
+
+	if (on_cmds->cmd_cnt) {
+		msleep(50);	/* wait for 3 vsync passed */
+		mdss_dsi_panel_cmds_send(ctrl, on_cmds);
+	}
+
+end:
+	pr_debug("%s:-\n", __func__);
 	return 0;
 }
 
@@ -945,12 +1044,20 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 
 	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
 	printk("[Display] %s: ++\n", __func__);
+#ifndef ASUS_ZC550KL_PROJECT
 
 	rt4532_suspend();/*Austin+++*/
+
 	ftxxxx_ts_suspend();/*jacob+++*/
+
 #ifdef CONFIG_QPNP_VM_BMS_SUSPEND_PREDICT
 	bms_modify_soc_early_suspend();
 #endif
+#else
+
+	ftxxxx_ts_suspend();		//Freeman +++
+#endif
+
 	if (pinfo->dcs_cmd_by_left) {
 		if (ctrl->ndx != DSI_CTRL_LEFT)
 			goto end;
@@ -958,7 +1065,6 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 
 	if (ctrl->off_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds);
-	
 
 end:
 	pinfo->blank_state = MDSS_PANEL_BLANK_BLANK;
@@ -996,7 +1102,10 @@ static int mdss_dsi_panel_low_power_config(struct mdss_panel_data *pdata,
 }
 
 //Louis, Panel debug control interface +++
+#define LCD_REGISTER_RW         "driver/panel_reg_rw"
 #define CABC_PROC_FILE   		"driver/cabc"
+
+#ifndef ASUS_ZC550KL_PROJECT
 #define DUMP_LCD_REGISTER       "driver/panel_reg"
 #define DUMP_CALIBRATION_INFO   "driver/panel_info"
 #define PANEL_REG_FILE       	"/data/data/ze500kl_panel_reg.txt"
@@ -1137,11 +1246,26 @@ static struct file_operations lcd_id_proc_ops = {
     .read = id_proc_read,
 };
 // read lcd id info ---
+#endif
 
-void set_dimming_cmd()
+static void dump_register_cb(int len) {
+}
+
+#define PANEL_CMD 0
+
+void set_tcon_cmd(char *cmd, short len)
 {
     struct dcs_cmd_req cmdreq;
     struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+    struct dsi_cmd_desc tcon_cmd = {
+        {DTYPE_DCS_WRITE1, 1, 0, 0, 1, len}, cmd};
+    int i=0;
+
+    if(len > 2)
+        tcon_cmd.dchdr.dtype = DTYPE_GEN_LWRITE;
+
+    for(i=0; i<len && PANEL_CMD; i++)
+         pr_info("[Display] cmd%d (0x%02x)\n", i, cmd[i]);
 
     ctrl_pdata = container_of(g_mdss_pdata, struct mdss_dsi_ctrl_pdata,
                 panel_data);
@@ -1149,81 +1273,58 @@ void set_dimming_cmd()
     mutex_lock(&cmd_mutex);
 
     if (g_mdss_pdata->panel_info.panel_power_state == MDSS_PANEL_POWER_ON) {
-        pr_info("[Display] Panel Dimming on\n");
-
+        pr_info("[Display] write parameter: 0x%02x = 0x%02x\n", cmd[0], cmd[1]);
         memset(&cmdreq, 0, sizeof(cmdreq));
-        cmdreq.cmds = panel_dimming_cmd;
-        cmdreq.cmds_cnt = ARRAY_SIZE(panel_dimming_cmd);
+        cmdreq.cmds = &tcon_cmd;
+        cmdreq.cmds_cnt = 1;
         cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
         cmdreq.rlen = 0;
         cmdreq.cb = NULL;
         mdss_dsi_cmdlist_put(ctrl_pdata, &cmdreq);
     } else {
-        pr_err("[Display] Panel Dimming on failed\n");
+        pr_err("[Display] write parameter failed\n");
     }
-
     mutex_unlock(&cmd_mutex);
 }
-EXPORT_SYMBOL(set_dimming_cmd);
+EXPORT_SYMBOL(set_tcon_cmd);
 
-void set_tcon_cabc(int mode)
+void get_tcon_cmd(char cmd, int rlen)
 {
     struct dcs_cmd_req cmdreq;
     struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+    char des_cmd[2] = {cmd, 0x00};
+    struct dsi_cmd_desc tcon_cmd = {
+        {DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(des_cmd)}, des_cmd};
+    char *rbuffer;
+    int i = 0;
+
+    if(PANEL_CMD)
+        pr_info("[Display] cmd (0x%02x)\n", des_cmd[0]);
 
     ctrl_pdata = container_of(g_mdss_pdata, struct mdss_dsi_ctrl_pdata,
                 panel_data);
 
     mutex_lock(&cmd_mutex);
 
-	cabc_mode[1] &= ~PANEL_CABC_MASK;
-	cabc_mode[1] |= (mode & PANEL_CABC_MASK);
     if (g_mdss_pdata->panel_info.panel_power_state == MDSS_PANEL_POWER_ON) {
-        pr_info("[Display] write cabc mode = 0x%x\n", cabc_mode[1]);
-
         memset(&cmdreq, 0, sizeof(cmdreq));
-        cmdreq.cmds = tcon_cabc_cmd;
-        cmdreq.cmds_cnt = ARRAY_SIZE(tcon_cabc_cmd);
-        cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
-        cmdreq.rlen = 0;
-        cmdreq.cb = NULL;
+        rbuffer = kmalloc(sizeof(ctrl_pdata->rx_buf.len), GFP_KERNEL);
+
+        cmdreq.cmds = &tcon_cmd;
+        cmdreq.cmds_cnt = 1;
+        cmdreq.flags = CMD_REQ_RX | CMD_REQ_COMMIT;
+        cmdreq.rlen = rlen;   //read back rlen byte
+        cmdreq.rbuf = rbuffer;
+        cmdreq.cb = dump_register_cb;  //fxn; /* call back */
         mdss_dsi_cmdlist_put(ctrl_pdata, &cmdreq);
+        for(i=0; i<rlen; i++)
+            pr_info("[Display] read parameter: 0x%02x = 0x%02x\n", des_cmd[0], *(cmdreq.rbuf+i));
     } else {
-        pr_err("CABC Set Fail: mode=%d\n", mode);
+        pr_err("[Display] read parameter failed\n");
     }
 
     mutex_unlock(&cmd_mutex);
 }
-EXPORT_SYMBOL(set_tcon_cabc);
-
-void set_bklt_cmd(int mode)
-{
-    struct dcs_cmd_req cmdreq;
-    struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
-
-    ctrl_pdata = container_of(g_mdss_pdata, struct mdss_dsi_ctrl_pdata,
-                panel_data);
-
-    mutex_lock(&cmd_mutex);
-
-    led_pwm1[1] = (unsigned char)mode;
-    if (g_mdss_pdata->panel_info.panel_power_state == MDSS_PANEL_POWER_ON) {
-        pr_info("[Display] write bklt mode = 0x%x\n", led_pwm1[1]);
-
-        memset(&cmdreq, 0, sizeof(cmdreq));
-        cmdreq.cmds = backlight_cmd;
-        cmdreq.cmds_cnt = ARRAY_SIZE(backlight_cmd);
-        cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
-        cmdreq.rlen = 0;
-        cmdreq.cb = NULL;
-        mdss_dsi_cmdlist_put(ctrl_pdata, &cmdreq);
-    } else {
-        pr_err("[Display] write bklt mode failed\n");
-    }
-
-    mutex_unlock(&cmd_mutex);
-}
-EXPORT_SYMBOL(set_bklt_cmd);
 
 static ssize_t cabc_proc_write(struct file *filp, const char *buff, size_t len, loff_t *off)
 {
@@ -1236,18 +1337,17 @@ static ssize_t cabc_proc_write(struct file *filp, const char *buff, size_t len, 
     if (copy_from_user(messages, buff, len))
         return -EFAULT;
 
-    initKernelEnv();
-
 	if(strncmp(messages, "0", 1) == 0)  //off
-		set_tcon_cabc(0);
+        cabc_mode[1] = 0x0;
 	else if(strncmp(messages, "1", 1) == 0) //ui
-		set_tcon_cabc(1);
+        cabc_mode[1] = 0x1;
 	else if(strncmp(messages, "2", 1) == 0) //still
-		set_tcon_cabc(2);
-	else if(strncmp(messages, "3", 1) == 0) //moving
-		set_tcon_cabc(3);
+        cabc_mode[1] = 0x2;
+    else if(strncmp(messages, "3", 1) == 0) //moving
+        cabc_mode[1] = 0x3;
 
-    deinitKernelEnv(); 
+    set_tcon_cmd(cabc_mode, ARRAY_SIZE(cabc_mode));
+
     return len;
 }
 
@@ -1255,7 +1355,7 @@ static struct file_operations cabc_proc_ops = {
     .write = cabc_proc_write,
 };
 
-
+#ifndef ASUS_ZC550KL_PROJECT
 //////////////////  dump panel reg  //////////////////
 static char dsi_num_err_r[2] = {0x05, 0x00};
 static char power_mode_r[2] = {0x0A, 0x00};
@@ -1312,9 +1412,6 @@ static bool write_lcd_reg_val(char *dump_result)
     filp_close(fp, NULL);
 
     return true;
-}
-
-static void dump_register_cb(int len) {
 }
 
 static ssize_t dump_asus_panel_register(char *dump_result)
@@ -1400,6 +1497,121 @@ static ssize_t lcd_reg_read(struct file *file, char __user *buf,
 static struct file_operations lcd_reg_proc_ops = {
 	.write = lcd_reg_write,
 	.read = lcd_reg_read,
+};
+//Louis, Panel debug control interface ---
+#endif
+
+#define MIN_LEN 2
+#define MAX_LEN 4
+
+static ssize_t lcd_reg_rw(struct file *filp, const char *buff, size_t len, loff_t *off)
+{
+    char *messages, *tmp, *cur;
+    char *token, *token_par;
+    char *put_cmd;
+    bool flag = 0;
+    int *store;
+    int i = 0, cnt = 0, cmd_cnt = 0;
+    int ret = 0;
+    uint8_t str_len = 0;
+
+    messages = (char*) kmalloc(len*sizeof(char), GFP_KERNEL);
+    if(!messages)
+        return -EFAULT;
+
+    tmp = (char*) kmalloc(len*sizeof(char), GFP_KERNEL);
+    memset(tmp, 0, len*sizeof(char));
+    store =  (int*) kmalloc((len/MIN_LEN)*sizeof(int), GFP_KERNEL);
+    put_cmd = (char*) kmalloc((len/MIN_LEN)*sizeof(char), GFP_KERNEL);
+
+    if (copy_from_user(messages, buff, len)) {
+        ret = -1;
+        goto error;
+    }
+    cur = messages;
+    *(cur+len-1) = '\0';
+
+    pr_info("[Display] %s +++\n", __func__);
+
+    if (strncmp(cur, "w", 1) == 0) //write
+        flag = true;
+    else if(strncmp(cur, "r", 1) == 0) //read
+        flag = false;
+    else {
+        ret = -1;
+        goto error;
+    }
+
+    while ((token = strsep(&cur, "wr")) != NULL) {
+        str_len = strlen(token);
+
+        if(str_len > 0) { /*filter zero length*/
+            if(!(strncmp(token, ",", 1) == 0) || (str_len < MAX_LEN)) {
+                ret = -1;
+                goto error;
+            }
+
+            memset(store, 0, (len/MIN_LEN)*sizeof(int));
+            memset(put_cmd, 0, (len/MIN_LEN)*sizeof(char));
+            cmd_cnt++;
+
+            while ((token_par = strsep(&token, ",")) != NULL) {
+                if(strlen(token_par) > MIN_LEN) {
+                    ret = -1;
+                    goto error;
+                }
+                if(strlen(token_par)) {
+                    sscanf(token_par, "%x", &(store[cnt]));
+                    cnt++;
+                }
+            }
+
+            for(i=0; i<cnt; i++)
+                put_cmd[i] = store[i]&0xff;
+
+            if(flag) {
+                pr_info("[Display] write panel command\n");
+                set_tcon_cmd(put_cmd, cnt);
+            }
+            else {
+                pr_info("[Display] read panel command\n");
+                get_tcon_cmd(put_cmd[0], store[1]);
+            }
+
+            if(cur != NULL) {
+                if (*(tmp+str_len) == 'w') 
+                    flag = true;
+                else if (*(tmp+str_len) == 'r')
+                    flag = false;
+            }
+            cnt = 0;
+        }
+
+        memset(tmp, 0, len*sizeof(char));
+
+        if(cur != NULL)
+            strcpy(tmp, cur);
+    }
+
+    if(cmd_cnt == 0) {
+        ret = -1;
+        goto error;
+    }
+
+    ret = len;
+
+error:
+    pr_err("[Display] %s(%d)  --\n", __func__, ret);
+    kfree(messages);
+    kfree(tmp);
+    kfree(store);
+    kfree(put_cmd);
+    return ret;
+
+}
+
+static struct file_operations lcd_reg_rw_ops = {
+    .write = lcd_reg_rw,
 };
 //Louis, Panel debug control interface ---
 
@@ -2014,6 +2226,133 @@ static void mdss_dsi_parse_dfps_config(struct device_node *pan_node,
 	return;
 }
 
+void mdss_dsi_unregister_bl_settings(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+{
+	if (ctrl_pdata->bklt_ctrl == BL_WLED)
+		led_trigger_unregister_simple(bl_led_trigger);
+}
+
+
+/**
+ * get_mdss_dsi_even_lane_clam_mask() - Computest DSI lane 0 & 2 clamps mask
+ * @dlane_swap: dsi_lane_map_type
+ * @lane_id: DSI lane (DSI_LANE_0)/(DSI_LANE_2)
+ *
+ * Return DSI lane 0 & 2 clamp mask based on lane swap configuration.
+ * Clamp Bit for Physical lanes
+ *      Lane Num        Bit     Mask
+ *      Lane0           Bit 7   0x80
+ *      Lane1           Bit 5   0x20
+ *      Lane2           Bit 3   0x08
+ *      Lane3           Bit 2   0x02
+ */
+u32 get_mdss_dsi_even_lane_clam_mask(char dlane_swap,
+				     enum dsi_lane_ids lane_id)
+{
+	u32 lane0_mask = 0;
+	u32 lane2_mask = 0;
+
+	switch (dlane_swap) {
+	case DSI_LANE_MAP_0123:
+	case DSI_LANE_MAP_0321:
+		lane0_mask = 0x80;
+		lane2_mask = 0x08;
+		break;
+	case DSI_LANE_MAP_3012:
+	case DSI_LANE_MAP_1032:
+		lane0_mask = 0x20;
+		lane2_mask = 0x02;
+		break;
+	case DSI_LANE_MAP_2301:
+	case DSI_LANE_MAP_2103:
+		lane0_mask = 0x08;
+		lane2_mask = 0x80;
+		break;
+	case DSI_LANE_MAP_1230:
+	case DSI_LANE_MAP_3210:
+		lane0_mask = 0x02;
+		lane2_mask = 0x20;
+		break;
+	default:
+		lane0_mask = 0x00;
+		lane2_mask = 0x00;
+		break;
+	}
+	if (lane_id == DSI_LANE_0)
+		return lane0_mask;
+	else if (lane_id == DSI_LANE_2)
+		return lane2_mask;
+	else
+		return 0;
+}
+
+/**
+ * get_mdss_dsi_odd_lane_clam_mask() - Computest DSI lane 1 & 3 clamps mask
+ * @dlane_swap: dsi_lane_map_type
+ * @lane_id: DSI lane (DSI_LANE_1)/(DSI_LANE_3)
+ *
+ * Return DSI lane 1 & 3 clamp mask based on lane swap configuration.
+ */
+u32 get_mdss_dsi_odd_lane_clam_mask(char dlane_swap,
+					enum dsi_lane_ids lane_id)
+{
+	u32 lane1_mask = 0;
+	u32 lane3_mask = 0;
+
+	switch (dlane_swap) {
+	case DSI_LANE_MAP_0123:
+	case DSI_LANE_MAP_2103:
+		lane1_mask = 0x20;
+		lane3_mask = 0x02;
+		break;
+	case DSI_LANE_MAP_3012:
+	case DSI_LANE_MAP_3210:
+		lane1_mask = 0x08;
+		lane3_mask = 0x80;
+		break;
+	case DSI_LANE_MAP_2301:
+	case DSI_LANE_MAP_0321:
+		lane1_mask = 0x02;
+		lane3_mask = 0x20;
+		break;
+	case DSI_LANE_MAP_1230:
+	case DSI_LANE_MAP_1032:
+		lane1_mask = 0x80;
+		lane3_mask = 0x08;
+		break;
+	default:
+		lane1_mask = 0x00;
+		lane3_mask = 0x00;
+		break;
+	}
+	if (lane_id == DSI_LANE_1)
+		return lane1_mask;
+	else if (lane_id == DSI_LANE_3)
+		return lane3_mask;
+	else
+		return 0;
+}
+static void mdss_dsi_set_lane_clamp_mask(struct mipi_panel_info *mipi)
+{
+	u32 mask = 0;
+
+	if (mipi->data_lane0)
+		mask = get_mdss_dsi_even_lane_clam_mask(mipi->dlane_swap,
+					DSI_LANE_0);
+	if (mipi->data_lane1)
+		mask |= get_mdss_dsi_odd_lane_clam_mask(mipi->dlane_swap,
+					DSI_LANE_1);
+	if (mipi->data_lane2)
+		mask |= get_mdss_dsi_even_lane_clam_mask(mipi->dlane_swap,
+					DSI_LANE_2);
+	if (mipi->data_lane3)
+		mask |= get_mdss_dsi_odd_lane_clam_mask(mipi->dlane_swap,
+					DSI_LANE_3);
+
+	mipi->phy_lane_clamp_mask = mask;
+}
+
+
 static int mdss_panel_parse_dt(struct device_node *np,
 			struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
@@ -2292,6 +2631,8 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	pinfo->mipi.frame_rate = (!rc ? tmp : 60);
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-clockrate", &tmp);
 	pinfo->clk_rate = (!rc ? tmp : 0);
+	rc = of_property_read_u32(np, "qcom,mdss-mdp-transfer-time-us", &tmp);
+	pinfo->mdp_transfer_time_us = (!rc ? tmp : DEFAULT_MDP_TRANSFER_TIME);
 	data = of_get_property(np, "qcom,mdss-dsi-panel-timings", &len);
 	if ((!data) || (len != 12)) {
 		pr_err("%s:%d, Unable to read Phy timing settings",
@@ -2305,6 +2646,9 @@ static int mdss_panel_parse_dt(struct device_node *np,
 					"qcom,mdss-dsi-lp11-init");
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-init-delay-us", &tmp);
 	pinfo->mipi.init_delay = (!rc ? tmp : 0);
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-post-init-delay", &tmp);
+	pinfo->mipi.post_init_delay = (!rc ? tmp : 0);
 
 	mdss_dsi_parse_roi_alignment(np, pinfo);
 
@@ -2325,6 +2669,9 @@ static int mdss_panel_parse_dt(struct device_node *np,
 
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
 		"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->post_panel_on_cmds,
+		"qcom,mdss-dsi-post-panel-on-command", NULL);
 
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
 		"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
@@ -2360,6 +2707,12 @@ static int mdss_panel_parse_dt(struct device_node *np,
 				pr_err("TE-ESD not valid for video mode\n");
 		}
 	}
+
+	pinfo->mipi.force_clk_lane_hs = of_property_read_bool(np,
+		"qcom,mdss-dsi-force-clock-lane-hs");
+
+	pinfo->mipi.always_on = of_property_read_bool(np,
+		"qcom,mdss-dsi-always-on");
 
 	rc = mdss_dsi_parse_panel_features(np, ctrl_pdata);
 	if (rc) {
@@ -2408,6 +2761,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 		return rc;
 	}
 
+	mdss_dsi_set_lane_clamp_mask(&pinfo->mipi);
 	if (!cmd_cfg_cont_splash)
 		pinfo->cont_splash_enabled = false;
 	pr_info("%s: Continuous splash %s\n", __func__,
@@ -2415,8 +2769,9 @@ int mdss_dsi_panel_init(struct device_node *node,
 
 	pinfo->dynamic_switch_pending = false;
 	pinfo->is_lpm_mode = false;
-
+	pinfo->esd_rdy = false;
 	ctrl_pdata->on = mdss_dsi_panel_on;
+	ctrl_pdata->post_panel_on = mdss_dsi_post_panel_on;
 	ctrl_pdata->off = mdss_dsi_panel_off;
 	ctrl_pdata->low_power_config = mdss_dsi_panel_low_power_config;
 	ctrl_pdata->panel_data.set_backlight = mdss_dsi_panel_bl_ctrl;
@@ -2424,15 +2779,19 @@ int mdss_dsi_panel_init(struct device_node *node,
 
 	//ASUS_BSP: Louis ++
 	mutex_init(&cmd_mutex);
+#ifndef ASUS_ZC550KL_PROJECT
 	proc_create(ZE500KL_LCD_UNIQUE_ID, 0444, NULL, &lcd_uniqueID_proc_ops);
 	proc_create(ZE500KL_LCD_ID, 0444, NULL, &lcd_id_proc_ops);
+#endif
 	proc_create(CABC_PROC_FILE, 0666, NULL, &cabc_proc_ops);
+	proc_create(LCD_REGISTER_RW, 0640, NULL, &lcd_reg_rw_ops);
+#ifndef ASUS_ZC550KL_PROJECT
 	proc_create(DUMP_LCD_REGISTER, 0644, NULL, &lcd_reg_proc_ops);
 	//ASUS_BSP: Louis --
 
     //ASUS BSP Bernard +++
     proc_create(DUMP_CALIBRATION_INFO, 0666, NULL, &lcd_info_proc_ops);
     //ASUS BSP Bernard ---
-
+#endif
 	return 0;
 }

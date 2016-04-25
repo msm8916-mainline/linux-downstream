@@ -166,9 +166,6 @@
 #define TLMMV4_QDSD_PULL_OFFSET			0x3
 #define TLMMV4_QDSD_CONFIG_WIDTH		0x5
 #define TLMMV4_QDSD_DRV_MASK			0x7
-//[+++][Power]Add for wakeup debug
-int gpio_irq_cnt, gpio_resume_irq[8];
-//[---][Power]Add for wakeup debug
 
 /*ASUS_BSP Deeo: add for debug mask +++ */
 /* Debug levels */
@@ -190,6 +187,9 @@ MODULE_PARM_DESC(debug, "Activate debugging output");
 static struct msm_pintype_info *d_pinfo;
 /*ASUS_BSP Deeo: add for debug mask --- */
 
+//ASUS_BSP [+++][Power] jeff_gu Add for wakeup debug
+int gpio_irq_cnt, gpio_resume_irq[8];
+//ASUS_BSP [---][Power] jeff_gu Add for wakeup debug
 struct msm_sdc_regs {
 	unsigned long pull_mask;
 	unsigned long pull_shft;
@@ -826,9 +826,9 @@ static irqreturn_t msm_tlmm_gp_handle_irq(int irq, struct msm_tlmm_irq_chip *ic)
 				dev_dbg(ic->dev, "invalid virq\n");
 				return IRQ_NONE;
 			}
-
 			generic_handle_irq(virq);
 		}
+
 	}
 	chained_irq_exit(chip, desc);
 	return IRQ_HANDLED;
@@ -999,11 +999,11 @@ static void msm_tlmm_gp_irq_resume(void)
 	unsigned long i,j,k;
 	struct msm_tlmm_irq_chip *ic = &msm_tlmm_gp_irq;
 	int num_irqs = ic->num_irqs;
-	//[+++]Add GPIO wakeup information
+//ASUS_BSP [+++] jeff_gu Add GPIO wakeup information
 	for(j = 0; j < 8; j++)
 		gpio_resume_irq[j] = 0;
 	gpio_irq_cnt=0;
-	//[---]Add GPIO wakeup information
+//ASUS_BSP [---] jeff_gu Add GPIO wakeup information
 
 	spin_lock_irqsave(&ic->irq_lock, irq_flags);
 	for_each_set_bit(i, ic->wake_irqs, num_irqs)
@@ -1012,7 +1012,7 @@ static void msm_tlmm_gp_irq_resume(void)
 	for_each_set_bit(i, ic->enabled_irqs, num_irqs)
 		msm_tlmm_set_intr_cfg_enable(ic, i, 1);
 	mb();
-	//[+++]Add GPIO wakeup information
+//ASUS_BSP [+++] jeff_gu Add GPIO wakeup information
 	for_each_set_bit(k, ic->enabled_irqs, ic->num_irqs)
 	{
 		if (msm_tlmm_get_intr_status(ic, k)) {
@@ -1024,7 +1024,7 @@ static void msm_tlmm_gp_irq_resume(void)
 	}
 	if(gpio_irq_cnt >= 8)
 		gpio_irq_cnt = 7;
-	//[---]Add GPIO wakeup information
+//ASUS_BSP [---] jeff_gu Add GPIO wakeup information
 	spin_unlock_irqrestore(&ic->irq_lock, irq_flags);
 }
 

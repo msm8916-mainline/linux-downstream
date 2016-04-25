@@ -191,7 +191,7 @@ do { \
 #define SPMI_LPG_REG_ADDR(b, n)	(b + SPMI_LPG_REG_BASE_OFFSET + (n))
 #define SPMI_MAX_BUF_LEN	8
 
-#define QPNP_PWM_LUT_NOT_SUPPORTED	0x1 
+#define QPNP_PWM_LUT_NOT_SUPPORTED	0x1
 
 /* Supported PWM sizes */
 #define QPNP_PWM_SIZE_6_BIT		6
@@ -1557,7 +1557,7 @@ int pwm_config_us(struct pwm_device *pwm, int duty_us, int period_us)
 	int rc;
 	unsigned long flags;
 	struct qpnp_pwm_chip *chip;
-	
+
 	if (pwm == NULL || IS_ERR(pwm) ||
 		duty_us > period_us ||
 		(unsigned)period_us > PM_PWM_PERIOD_MAX ||

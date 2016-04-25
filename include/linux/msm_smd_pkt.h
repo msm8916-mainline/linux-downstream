@@ -19,5 +19,9 @@
 
 #define SMD_PKT_IOCTL_BLOCKING_WRITE \
 	_IOR(SMD_PKT_IOCTL_MAGIC, 0, unsigned int)
+//ASUS_BSP Ken_Gan +++ [ZC550KL][SSR][N/A][Modify]fix modem reset notification ignored because of wrong errno
+#define SMD_PKT_IOCTL_RESET_QUERY \
+        _IOR(SMD_PKT_IOCTL_MAGIC, 1, unsigned int)
+//ASUS_BSP Ken_Gan --- [ZC550KL][SSR][N/A][Modify]fix modem reset notification ignored because of wrong errno
 
 #endif /* __LINUX_MSM_SMD_PKT_H */

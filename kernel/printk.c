@@ -230,6 +230,7 @@ static char *asus_log_buf = NULL;
 static bool is_logging_to_asus_buffer = false;
 
 void *memset_nc(void *s, int c, size_t count);
+static int IRQcount = 1;//For IRQ200 issue debug
 
 /* this memcpy_nc() is for non cached memory */
 static void *memcpy_nc(void *dest, const void *src, size_t n)
@@ -1076,9 +1077,9 @@ static inline void boot_delay_msec(int level)
 #endif
 
 #if defined(CONFIG_PRINTK_TIME)
-static bool printk_time = 1;
+ bool printk_time = 1;
 #else
-static bool printk_time;
+ bool printk_time;
 #endif
 module_param_named(time, printk_time, bool, S_IRUGO | S_IWUSR);
 #include <linux/rtc.h>
@@ -1129,7 +1130,13 @@ static size_t print_time(u64 ts, char *buf)
 			current->pid,
 			current->comm,
 			tm.tm_hour, tm.tm_min, tm.tm_sec, timespec.tv_nsec);
-	} else {
+	} 
+	else if(nSuspendInProgress)
+	{
+		return sprintf(buf, "[%5lu.%06lu] ", (unsigned long)ts, rem_nsec / 1000);
+	}
+	else
+	{
 		if (current) {
 			return sprintf(buf, "[%5lu.%06lu] (CPU:%d-pid:%d:%s)",
 				(unsigned long)ts, rem_nsec / 1000,
@@ -1655,7 +1662,6 @@ SYSCALL_DEFINE3(syslog, int, type, char __user *, buf, int, len)
 	return do_syslog(type, buf, len, SYSLOG_FROM_READER);
 }
 
-
 /*
  * Call the console drivers, asking them to write out
  * log_buf[start] to log_buf[end - 1].
@@ -1985,12 +1991,13 @@ asmlinkage int vprintk_emit(int facility, int level,
 	printascii(text1);
 #endif
 
+
 	ts = local_clock();
 	time_size = print_time(ts, time_buf);
 	strncpy(text, time_buf, time_size);
 	strncpy(text+time_size, text1, text_len);
 	text_len += time_size;
-
+	
 	if (level == -1)
 		level = default_message_loglevel;
 
@@ -2074,7 +2081,9 @@ asmlinkage int printk_emit(int facility, int level,
 }
 EXPORT_SYMBOL(printk_emit);
 
+#ifndef ASUS_ZC550KL_PROJECT
 extern int g_user_dbg_mode;
+#endif
 extern unsigned int asusdebug_enable;
 /**
  * printk - print a kernel message
@@ -2104,10 +2113,13 @@ asmlinkage int printk(const char *fmt, ...)
 
 	if (asusdebug_enable==0x11223344)
 		return 0;
-
+#ifdef ASUS_ZC550KL_PROJECT
+	if ( g_user_klog_mode==0 )
+		return 0;
+#else
 	if (g_user_dbg_mode==0)
 		return 0;
-
+#endif
 #ifdef CONFIG_KGDB_KDB
 	if (unlikely(kdb_trap_printk)) {
 		va_start(args, fmt);
@@ -2116,6 +2128,7 @@ asmlinkage int printk(const char *fmt, ...)
 		return r;
 	}
 #endif
+
 	va_start(args, fmt);
 	r = vprintk_emit(0, -1, NULL, 0, fmt, args);
 	va_end(args);
@@ -2298,6 +2311,7 @@ int update_console_cmdline(char *name, int idx, char *name_new, int idx_new, cha
 }
 
 bool console_suspend_enabled = 1;
+bool is_ramdump_enabled = 0;//Used for IRQ200 issue
 EXPORT_SYMBOL(console_suspend_enabled);
 
 static int __init console_suspend_disable(char *str)
@@ -2311,6 +2325,10 @@ module_param_named(console_suspend, console_suspend_enabled,
 MODULE_PARM_DESC(console_suspend, "suspend console during suspend"
 	" and hibernate operations");
 
+//[+++] Create a file node to get the status of getting RAMDUMP
+module_param_named(ramdump_enabled, is_ramdump_enabled,
+		bool, S_IRUGO | S_IWUSR);
+//[---] Create a file node to get the status of getting RAMDUMP
 /**
  * suspend_console - suspend the console subsystem
  *
@@ -2318,7 +2336,7 @@ MODULE_PARM_DESC(console_suspend, "suspend console during suspend"
  */
 void suspend_console(void)
 {
-	ASUSEvtlog("[UTS] System Suspend");
+	ASUSEvtlog("[UTS] System Suspend\n");
 	nSuspendInProgress = 1;
 	if (!console_suspend_enabled)
 		return;
@@ -2332,23 +2350,39 @@ void resume_console(void)
 {
 	int i;
 	nSuspendInProgress = 0;
-	ASUSEvtlog("[UTS] System Resume");
+	ASUSEvtlog("[UTS] System Resume\n");
+	printk("[PM]The status of RAMDUMP : %d\n", is_ramdump_enabled);
 
-	//[+++]Add GPIO wakeup information
+//ASUS_BSP [+++] jeff_gu Add GPIO wakeup information
 	if (pm_pwrcs_ret) {
+
+		ASUSEvtlog("[PM] Suspended for %d.%02d secs \n", pwrcs_time/100,pwrcs_time%100);
+
 		if (gpio_irq_cnt>0) {
 			for (i=0;i<gpio_irq_cnt;i++)
-				ASUSEvtlog("[PM] GPIO triggered: %d", gpio_resume_irq[i]);
+				ASUSEvtlog("[PM] GPIO triggered: %d\n", gpio_resume_irq[i]);
 			gpio_irq_cnt=0; //clear log count
 		}
 		if (gic_irq_cnt>0) {
 			for (i=0;i<gic_irq_cnt;i++)
-				ASUSEvtlog("[PM] IRQs triggered: %d", gic_resume_irq[i]);
+				ASUSEvtlog("[PM] IRQs triggered: %d\n", gic_resume_irq[i]);
+			//[+++]Add for IRQ200 issue debug
+			if ((gic_irq_cnt == 1) && (is_ramdump_enabled == 1)) {
+				if (IRQcount < 3000) {
+					IRQcount++;
+				} else {
+					ASUSEvtlog("[PM] IRQ200 issue is triggered\n");
+					BUG_ON(1);
+				}
+			} else {
+				IRQcount = 1;
+			}
+			//[---]Add for IRQ200 issue debug
 			gic_irq_cnt=0;  //clear log count
 		}
 		pm_pwrcs_ret=0;
 	}
-	//[---]Add GPIO wakeup information
+//ASUS_BSP [---] jeff_gu Add GPIO wakeup information
 
 	if (!console_suspend_enabled)
 		return;
