@@ -1689,8 +1689,12 @@ static int wcnss_wlan_suspend(struct device *dev)
 {
 	if (penv && dev && (dev == &penv->pdev->dev) &&
 	    penv->smd_channel_ready &&
-	    penv->pm_ops && penv->pm_ops->suspend)
-		return penv->pm_ops->suspend(dev);
+	    penv->pm_ops && penv->pm_ops->suspend) {
+
+	    wcnss_ldo18_off();
+	    pr_err("wcnss: wcnss_ldo18_off!!\n");
+	    return penv->pm_ops->suspend(dev);
+	}
 	return 0;
 }
 
@@ -1698,8 +1702,12 @@ static int wcnss_wlan_resume(struct device *dev)
 {
 	if (penv && dev && (dev == &penv->pdev->dev) &&
 	    penv->smd_channel_ready &&
-	    penv->pm_ops && penv->pm_ops->resume)
-		return penv->pm_ops->resume(dev);
+	    penv->pm_ops && penv->pm_ops->resume) {
+
+	    wcnss_ldo18_on();
+	    pr_err("wcnss: wcnss_ldo18_on!!\n");
+	    return penv->pm_ops->resume(dev);
+	}
 	return 0;
 }
 

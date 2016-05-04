@@ -86,6 +86,7 @@ struct bma2x2_data {
 	struct delayed_work work;
 	struct work_struct irq_work;
 	int IRQ;
+	u64 old_timestamp;
 
 	int bma_mode_enabled;
 	atomic_t reactive_enable;
@@ -1002,12 +1003,39 @@ static void bma2x2_work_func(struct work_struct *work)
 			struct bma2x2_data, work);
 	static struct bma2x2_v acc;
 	unsigned long delay = msecs_to_jiffies(atomic_read(&bma2x2->delay));
+	struct timespec ts = ktime_to_timespec(ktime_get_boottime());
+	u64 timestamp_new = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	u64 timestamp ;
+	int time_hi, time_lo;
 
 	bma2x2_read_accel_xyz(bma2x2->bma2x2_client, bma2x2->sensor_type, &acc);
+
+	if (((timestamp_new - bma2x2->old_timestamp) > atomic_read(&bma2x2->delay)*1800000LL)\
+		&& (bma2x2->old_timestamp != 0))
+	{
+	        timestamp = (timestamp_new + bma2x2->old_timestamp) >>  1;
+		time_hi = (int)((timestamp & TIME_HI_MASK) >> TIME_HI_SHIFT);
+		time_lo = (int)(timestamp & TIME_LO_MASK);
+
+		input_report_rel(bma2x2->input, REL_X, acc.x);
+		input_report_rel(bma2x2->input, REL_Y, acc.y);
+		input_report_rel(bma2x2->input, REL_Z, acc.z);
+		input_report_rel(bma2x2->input, REL_DIAL, time_hi);
+		input_report_rel(bma2x2->input, REL_MISC, time_lo);
+		input_sync(bma2x2->input);
+	}
+	time_hi = (int)((timestamp_new & TIME_HI_MASK) >> TIME_HI_SHIFT);
+	time_lo = (int)(timestamp_new & TIME_LO_MASK);
+
 	input_report_rel(bma2x2->input, REL_X, acc.x);
 	input_report_rel(bma2x2->input, REL_Y, acc.y);
 	input_report_rel(bma2x2->input, REL_Z, acc.z);
+	input_report_rel(bma2x2->input, REL_DIAL, time_hi);
+	input_report_rel(bma2x2->input, REL_MISC, time_lo);
 	input_sync(bma2x2->input);
+
+	bma2x2->old_timestamp = timestamp_new;
+
 	mutex_lock(&bma2x2->value_mutex);
 	bma2x2->value = acc;
 	mutex_unlock(&bma2x2->value_mutex);
@@ -1054,16 +1082,19 @@ static ssize_t bma2x2_delay_store(struct device *dev,
 
 	data = data / 1000000L;
 
-	if (data > BMA2X2_MAX_DELAY)
-		data = BMA2X2_MAX_DELAY;
 	pr_info("%s [%d]\n", __func__, (int)data);
 
+	if (data > BMA2X2_MAX_DELAY)
+		data = BMA2X2_MAX_DELAY;
+	else if (data < BMA2X2_MIN_DELAY)
+		data = BMA2X2_MIN_DELAY;
 	atomic_set(&bma2x2->delay, (unsigned int) data);
 
 	/*set bandwidth */
 	switch (data) {
 	case 0:
 	case 1:
+	case 5:
 	case 10:
 		bw = 0x0b; /*100Hz*/
 		break;
@@ -1113,6 +1144,7 @@ static void bma2x2_set_enable(struct device *dev, int enable)
 	mutex_lock(&bma2x2->enable_mutex);
 	if (enable) {
 		if (pre_enable == 0) {
+			bma2x2->old_timestamp = 0LL;
 			bma2x2_set_mode(bma2x2->bma2x2_client,
 					BMA2X2_MODE_NORMAL, BMA_ENABLED_INPUT);
 			schedule_delayed_work(&bma2x2->work,
@@ -1838,6 +1870,8 @@ static int bma2x2_probe(struct i2c_client *client,
 	input_set_capability(dev, EV_REL, REL_X);
 	input_set_capability(dev, EV_REL, REL_Y);
 	input_set_capability(dev, EV_REL, REL_Z);
+	input_set_capability(dev, EV_REL, REL_DIAL);
+	input_set_capability(dev, EV_REL, REL_MISC);
 
 	input_set_drvdata(dev, data);
 	err = input_register_device(dev);

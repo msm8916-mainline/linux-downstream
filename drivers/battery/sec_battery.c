@@ -3718,6 +3718,11 @@ static int sec_bat_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_ONLINE:
 			current_cable_type = val->intval;
 
+#if defined(CONFIG_CHARGER_RT5033) && defined(CONFIG_SM5504_MUIC)
+                if(current_cable_type != POWER_SUPPLY_TYPE_UNKNOWN &&
+                        current_cable_type != POWER_SUPPLY_TYPE_BATTERY)
+			msleep(150);
+#endif
 		if (current_cable_type < 0) {
 			dev_info(battery->dev,
 					"%s: ignore event(%d)\n",
@@ -3745,13 +3750,6 @@ static int sec_bat_set_property(struct power_supply *psy,
 			SEC_BATTERY_CABLE_SOURCE_EXTERNAL)) {
 
 			wake_lock(&battery->cable_wake_lock);
-#if defined(CONFIG_CHARGER_RT5033)
-                if(current_cable_type != POWER_SUPPLY_TYPE_UNKNOWN &&
-                        current_cable_type != POWER_SUPPLY_TYPE_BATTERY)
-			queue_delayed_work(battery->monitor_wqueue,
-					&battery->cable_work,msecs_to_jiffies(150));
-                else
-#endif
 			queue_delayed_work(battery->monitor_wqueue,
 					&battery->cable_work,0);
 		} else {

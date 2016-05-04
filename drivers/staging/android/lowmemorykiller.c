@@ -169,6 +169,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	static DEFINE_RATELIMIT_STATE(lmk_rs, DEFAULT_RATELIMIT_INTERVAL, 1);
 #endif
 	unsigned long nr_cma_free;
+	struct reclaim_state *reclaim_state = current->reclaim_state;
 
 	if (nr_to_scan > 0) {
 		if (mutex_lock_interruptible(&scan_mutex) < 0)
@@ -343,6 +344,9 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 #endif
 		/* give the system time to free up the memory */
 		msleep_interruptible(20);
+
+		if(reclaim_state)
+			reclaim_state->reclaimed_slab = selected_tasksize;
 	} else
 		rcu_read_unlock();
 

@@ -1372,6 +1372,7 @@
 		qcom,pronto-vddmx-supply = <&pm8916_l3>;
 		qcom,pronto-vddcx-supply = <&pm8916_s1_corner>;
 		qcom,pronto-vddpx-supply = <&pm8916_l7>;
+		qcom,pronto-ldo18-supply = <&pm8916_l18>;
 		qcom,iris-vddxo-supply   = <&pm8916_l7>;
 		qcom,iris-vddrfa-supply  = <&pm8916_s3>;
 		qcom,iris-vddpa-supply   = <&pm8916_l9>;

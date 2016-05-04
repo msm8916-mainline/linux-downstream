@@ -143,6 +143,7 @@ struct bmm_client_data {
 	struct regulator *reg_vio;
 	struct regulator *reg_vdd;
 	int place;
+	u64 old_timestamp;
 #if defined(CONFIG_CHARGER_NOTIFY_SENSOR)
 	int offset_ta_x;
 	int offset_ta_y;
@@ -478,6 +479,11 @@ static void bmm_work_func(struct work_struct *work)
 	unsigned long delay =
 		msecs_to_jiffies(atomic_read(&client_data->delay));
 	struct bmm050_mdata_s32 value = {0,0,0,0,0};
+	struct timespec ts;
+	u64 timestamp_new;
+	u64 timestamp ;
+	int time_hi, time_lo;
+
 	int i = 0;
 	mutex_lock(&client_data->mutex_value);
 	while ( i++ < 3)
@@ -514,13 +520,38 @@ static void bmm_work_func(struct work_struct *work)
 
 	mutex_unlock(&client_data->mutex_op_mode);
 
+	ts = ktime_to_timespec(ktime_get_boottime());
+	timestamp_new = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	if ((timestamp_new - client_data->old_timestamp) > atomic_read(&client_data->delay)* 1800000LL\
+		&& (client_data->old_timestamp != 0))
+	{
+		timestamp = (timestamp_new + client_data->old_timestamp) >>  1;
+
+		time_hi = (int)((timestamp & TIME_HI_MASK) >> TIME_HI_SHIFT);
+		time_lo = (int)(timestamp & TIME_LO_MASK);
+
+		input_report_rel(client_data->input, REL_X, client_data->value.datax);
+		input_report_rel(client_data->input, REL_Y, client_data->value.datay);
+		input_report_rel(client_data->input, REL_Z, client_data->value.dataz);
+		input_report_rel(client_data->input, REL_RX, time_hi);
+		input_report_rel(client_data->input, REL_RY, time_lo);
+		input_sync(client_data->input);
+	}
+
+	time_hi = (int)((timestamp_new & TIME_HI_MASK) >> TIME_HI_SHIFT);
+	time_lo = (int)(timestamp_new & TIME_LO_MASK);
+
 	input_report_rel(client_data->input, REL_X, client_data->value.datax);
 	input_report_rel(client_data->input, REL_Y, client_data->value.datay);
 	input_report_rel(client_data->input, REL_Z, client_data->value.dataz);
+	input_report_rel(client_data->input, REL_RX, time_hi);
+	input_report_rel(client_data->input, REL_RY, time_lo);
+	input_sync(client_data->input);
+
+	client_data->old_timestamp = timestamp_new;
 
 	mutex_unlock(&client_data->mutex_value);
 
-	input_sync(client_data->input);
 
 	schedule_delayed_work(&client_data->work, delay);
 }
@@ -1068,6 +1099,7 @@ static ssize_t bmm_store_enable(struct device *dev,
 	mutex_lock(&client_data->mutex_enable);
 	if (data != client_data->enable) {
 		if (data) {
+			client_data->old_timestamp = 0LL;
 			schedule_delayed_work(
 					&client_data->work,
 					msecs_to_jiffies(atomic_read(
@@ -1112,8 +1144,11 @@ static ssize_t bmm_store_delay(struct device *dev,
 	}
 
 	data = data / 1000000L;
+	pr_info("%s [%d]\n", __func__, (int)data);
 
-	if (data < BMM_DELAY_MIN)
+	if (data > BMM_DELAY_DEFAULT)
+		data = BMM_DELAY_DEFAULT;
+	else if (data < BMM_DELAY_MIN)
 		data = BMM_DELAY_MIN;
 	pr_info("%s [%d]\n", __func__, (int)data);
 	atomic_set(&client_data->delay, data);
@@ -1428,6 +1463,8 @@ static int bmm_input_init(struct bmm_client_data *client_data)
 	input_set_capability(dev, EV_REL, REL_X);
 	input_set_capability(dev, EV_REL, REL_Y);
 	input_set_capability(dev, EV_REL, REL_Z);
+	input_set_capability(dev, EV_REL, REL_RX);
+	input_set_capability(dev, EV_REL, REL_RY);
 
 	input_set_capability(dev, EV_ABS, ABS_MISC);
 	input_set_abs_params(dev, ABS_X, MAG_VALUE_MIN, MAG_VALUE_MAX, 0, 0);

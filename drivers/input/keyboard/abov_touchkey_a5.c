@@ -71,9 +71,9 @@
 
 static struct device *sec_touchkey;
 
-#define FW_VERSION 0xC
-#define FW_CHECKSUM_H 0x4A
-#define FW_CHECKSUM_L 0x74
+#define FW_VERSION 0xE
+#define FW_CHECKSUM_H 0x95
+#define FW_CHECKSUM_L 0x98
 
 /* L OS support Screen Pinning concept
   * separate report of recent key and back key

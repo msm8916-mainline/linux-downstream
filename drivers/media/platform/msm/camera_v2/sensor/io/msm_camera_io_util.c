@@ -38,6 +38,11 @@
 #endif
 #endif
 
+#if defined(CONFIG_MACH_A5_CHN_CTC) || defined(CONFIG_MACH_A5_CHN_OPEN) || defined(CONFIG_MACH_A5_CHN_ZH) || defined(CONFIG_MACH_A5_CHN_ZT)
+extern unsigned int system_rev;
+#define RESET_REV_CHECK_NUM 10
+#endif
+
 void msm_camera_io_w(u32 data, void __iomem *addr)
 {
 	CDBG("%s: 0x%p %08x\n", __func__,  (addr), (data));
@@ -551,7 +556,12 @@ int msm_camera_config_single_vreg(struct device *dev,
 #ifdef CONFIG_MFD_RT5033_RESET_WA
 		if (!strncmp(cam_vreg->reg_name, RT5033_RESET_WA_VREG_NAME, 8)){
 			rt_rc = regulator_get_status(*reg_ptr);
-			if((rt_rc == 2) || (rt_rc == 8)){
+#if defined(CONFIG_MACH_A5_CHN_CTC) || defined(CONFIG_MACH_A5_CHN_OPEN) || defined(CONFIG_MACH_A5_CHN_ZH) || defined(CONFIG_MACH_A5_CHN_ZT)
+			if ((system_rev > RESET_REV_CHECK_NUM && rt_rc==2) || rt_rc==8)
+#else
+			if((rt_rc == 2) || (rt_rc == 8))
+#endif
+			{
 				BUG_ON(1);
 			} else {
 				pr_err("[RT5033] result : 0x%x\n", rt_rc);
