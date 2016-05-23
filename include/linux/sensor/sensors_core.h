@@ -27,5 +27,9 @@ void sensors_unregister(struct device *, struct device_attribute *[]);
 void destroy_sensor_class(void);
 void remap_sensor_data(s16 *, u32);
 void remap_sensor_data_32(int *, u32);
-
+/* report timestamp from kernel (for Android L) */
+#define TIME_LO_MASK 0x00000000FFFFFFFF
+#define TIME_HI_MASK 0xFFFFFFFF00000000
+#define TIME_HI_SHIFT 32
+#include <linux/alarmtimer.h>
 #endif

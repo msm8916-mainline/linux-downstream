@@ -61,7 +61,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #define LCD_DEBUG(X, ...) pr_info("[MDSS]%s:"X, __func__, ## __VA_ARGS__);
 
 #define MAX_PANEL_NAME_SIZE 100
-#define DEFAULT_BRIGHTNESS 180
+#define DEFAULT_BRIGHTNESS 255
 
 #define SUPPORT_PANEL_COUNT 2
 #define SUPPORT_PANEL_REVISION 20
@@ -483,7 +483,6 @@ struct samsung_display_driver_data {
 	int bl_level;
 	int candela_level;
 	int cmd_idx;
-	int init_bl_level;
 
 	int acl_status;
 	int siop_status;

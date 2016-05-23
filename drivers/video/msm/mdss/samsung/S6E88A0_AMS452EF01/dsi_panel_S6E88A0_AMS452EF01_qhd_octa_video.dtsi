@@ -65,9 +65,13 @@
 
 			/* ETC */
 			39 01 00 00 00 00 02 55 00 /* ACL set */
+
+			39 01 00 00 00 00 02 F7 03
+			39 01 00 00 00 00 02 F7 00
+
 			39 01 00 00 00 00 03 fc a5 a5
-			05 01 00 00 00 00 02 29 00 /* Display on */
-			39 01 00 00 00 00 02 F7 03];
+			39 01 00 00 00 00 03 f0 a5 a5
+			];
 
 		qcom,mdss-dsi-off-command = [05 01 00 00 23 00 02 28 00
 				 05 01 00 00 78 00 02 10 00];
@@ -91,8 +95,9 @@
 		qcom,mdss-pan-physical-height-dimension = <100>;
 		qcom,mdss-dsi-lp11-init;
 		qcom,mdss-dsi-init-delay-us = <2000>;
+		qcom,mdss-dsi-tx-eot-append = <1>;
 
-		samsung,display_on_tx_cmds_revA = [39 01 00 00 00 00 02 F7 03];
+		samsung,display_on_tx_cmds_revA = [05 01 00 00 00 00 02 29 00];
 		samsung,manufacture_id0_rx_cmds_revA = [ 06 01 00 00 00 00 01 da 01 00];
 		samsung,manufacture_id1_rx_cmds_revA = [ 06 01 00 00 00 00 01 db 01 00];
 		samsung,manufacture_id2_rx_cmds_revA = [ 06 01 00 00 00 00 01 dc 01 00];
@@ -167,6 +172,7 @@
 			80 80 80 80 80 80 80 80
 			80 80 80 80 80 00 00 00
 			39 00 00 00 00 00 02 F7 03
+			39 01 00 00 00 00 02 F7 00
 		];
 		samsung,mdnie_read_rx_cmds_revA = [ 06 01 00 00 00 00 01 B5 04 13];
 
