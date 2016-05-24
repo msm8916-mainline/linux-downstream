@@ -22,7 +22,7 @@
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
 extern int32_t msm_led_torch_create_classdev(
-				struct platform_device *pdev, void *data);
+				struct platform_device *pdev, void *data, uint32_t index);
 
 static enum flash_type flashtype;
 static struct msm_led_flash_ctrl_t fctrl;
@@ -304,7 +304,7 @@ static int32_t msm_led_trigger_probe(struct platform_device *pdev)
 
 	rc = msm_led_flash_create_v4lsubdev(pdev, &fctrl);
 	if (!rc)
-		msm_led_torch_create_classdev(pdev, &fctrl);
+		msm_led_torch_create_classdev(pdev, &fctrl, 0);
 
 	return rc;
 }

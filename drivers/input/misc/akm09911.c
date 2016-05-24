@@ -124,7 +124,7 @@ static struct sensors_classdev sensors_cdev = {
 	.version = 1,
 	.handle = SENSORS_MAGNETIC_FIELD_HANDLE,
 	.type = SENSOR_TYPE_MAGNETIC_FIELD,
-	.max_range = "1228.8",
+	.max_range = "4912.0",
 	.resolution = "0.6",
 	.sensor_power = "0.35",
 	.min_delay = 10000,
@@ -1427,6 +1427,9 @@ static int akm_compass_input_init(
 
 	/* Set name */
 	(*input)->name = AKM_INPUT_DEVICE_NAME;
+	(*input)->id.bustype = BUS_I2C;
+	(*input)->dev.parent = &s_akm->i2c->dev;
+	input_set_drvdata(*input, s_akm);
 
 	/* Register */
 	err = input_register_device(*input);
@@ -1785,44 +1788,29 @@ static int akm_pinctrl_init(struct akm_compass_data *akm)
 static int akm_report_data(struct akm_compass_data *akm)
 {
 	uint8_t dat_buf[AKM_SENSOR_DATA_SIZE];/* for GET_DATA */
-	int ret;
 	int mag_x, mag_y, mag_z;
 	int tmp;
-	ktime_t timestamp;
+	struct timespec ts;
 
-	ret = AKECS_GetData_Poll(akm, dat_buf, AKM_SENSOR_DATA_SIZE);
-	if (ret) {
+	if (unlikely(AKECS_GetData_Poll(akm, dat_buf, AKM_SENSOR_DATA_SIZE))) {
 		dev_err(&akm->i2c->dev, "Get data failed.\n");
 		return -EIO;
 	}
 
-	if (STATUS_ERROR(dat_buf[8])) {
+	if (unlikely(STATUS_ERROR(dat_buf[8]))) {
 		dev_warn(&akm->i2c->dev, "Status error. Reset...\n");
 		AKECS_Reset(akm, 0);
 		return -EIO;
 	}
 
-	timestamp = ktime_get_boottime();
-
 	tmp = (int)((int16_t)(dat_buf[2]<<8)+((int16_t)dat_buf[1]));
-	tmp = tmp * akm->sense_conf[0] / 128 + tmp;
-	mag_x = tmp;
+	mag_x = tmp * akm->sense_conf[0] / 128 + tmp;
 
 	tmp = (int)((int16_t)(dat_buf[4]<<8)+((int16_t)dat_buf[3]));
-	tmp = tmp * akm->sense_conf[1] / 128 + tmp;
-	mag_y = tmp;
+	mag_y = tmp * akm->sense_conf[1] / 128 + tmp;
 
 	tmp = (int)((int16_t)(dat_buf[6]<<8)+((int16_t)dat_buf[5]));
-	tmp = tmp * akm->sense_conf[2] / 128 + tmp;
-	mag_z = tmp;
-
-	dev_dbg(&akm->i2c->dev, "mag_x:%d mag_y:%d mag_z:%d\n",
-			mag_x, mag_y, mag_z);
-	dev_dbg(&akm->i2c->dev, "raw data: %d %d %d %d %d %d %d %d\n",
-			dat_buf[0], dat_buf[1], dat_buf[2], dat_buf[3],
-			dat_buf[4], dat_buf[5], dat_buf[6], dat_buf[7]);
-	dev_dbg(&akm->i2c->dev, "asa: %d %d %d\n", akm->sense_conf[0],
-			akm->sense_conf[1], akm->sense_conf[2]);
+	mag_z = tmp * akm->sense_conf[2] / 128 + tmp;
 
 	switch (akm->layout) {
 	case 0:
@@ -1868,17 +1856,14 @@ static int akm_report_data(struct akm_compass_data *akm)
 	input_report_abs(akm->input, ABS_X, mag_x);
 	input_report_abs(akm->input, ABS_Y, mag_y);
 	input_report_abs(akm->input, ABS_Z, mag_z);
-	input_event(akm->input,
-		EV_SYN, SYN_TIME_SEC,
-		ktime_to_timespec(timestamp).tv_sec);
-	input_event(akm->input,
-		EV_SYN, SYN_TIME_NSEC,
-		ktime_to_timespec(timestamp).tv_nsec);
-
+	get_monotonic_boottime(&ts);
+	input_event(akm->input, EV_SYN, SYN_TIME_SEC, ts.tv_sec);
+	input_event(akm->input, EV_SYN, SYN_TIME_NSEC, ts.tv_nsec);
+/*
 	akm->last_x = mag_x;
 	akm->last_y = mag_y;
 	akm->last_z = mag_z;
-
+*/
 	input_sync(akm->input);
 
 	return 0;
@@ -1887,13 +1872,11 @@ static int akm_report_data(struct akm_compass_data *akm)
 static void akm_dev_poll(struct work_struct *work)
 {
 	struct akm_compass_data *akm;
-	int ret;
 
 	akm = container_of((struct delayed_work *)work,
 			struct akm_compass_data,  dwork);
 
-	ret = akm_report_data(akm);
-	if (ret < 0)
+	if (unlikely(akm_report_data(akm) < 0))
 		dev_warn(&akm->i2c->dev, "Failed to report data\n");
 
 	if (!akm->use_hrtimer)

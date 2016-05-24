@@ -31,17 +31,106 @@ DEFINE_MSM_MUTEX(msm_ois_mutex);
 static struct v4l2_file_operations msm_ois_v4l2_subdev_fops;
 static int32_t msm_ois_power_up(struct msm_ois_ctrl_t *o_ctrl);
 static int32_t msm_ois_power_down(struct msm_ois_ctrl_t *o_ctrl);
+static int32_t msm_ois_write_settings(struct msm_ois_ctrl_t *o_ctrl, uint16_t size, struct reg_settings_ois_t *settings);
 
 static struct i2c_driver msm_ois_i2c_driver;
+static struct msm_ois_ctrl_t *o_ctrl_debug;
+static struct class *ois_class = NULL;
+static char *ois_status="default";
+static uint8_t ois_test_stop=0;
+
+static ssize_t ois_debug_show(struct class *class,
+				     struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "[msm_ois_ctrl_t:%p] ois_status:%s\n", o_ctrl_debug, ois_status);
+}
+
+static void set_ois(int32_t i)
+{
+		uint8_t data[4];
+		if(o_ctrl_debug == NULL)
+			return;
+	if(i == 0){
+		data[0]=data[1]=data[2]=data[3]= 0x00;
+		o_ctrl_debug->i2c_client.i2c_func_tbl->i2c_write(&o_ctrl_debug->i2c_client, 0x0170,	0x02,	1);
+		o_ctrl_debug->i2c_client.i2c_func_tbl->i2c_write_seq(&o_ctrl_debug->i2c_client, 0x1477, data, 4);
+		o_ctrl_debug->i2c_client.i2c_func_tbl->i2c_write(&o_ctrl_debug->i2c_client, 0x0171,	0x02,	1);
+		o_ctrl_debug->i2c_client.i2c_func_tbl->i2c_write_seq(&o_ctrl_debug->i2c_client, 0x14F7, data, 4);
+		msleep(300);
+		pr_err("servo_off!!!\n");
+	}else if(i == 1){
+		data[0]=data[1]=data[2]=data[3]= 0x00;
+		o_ctrl_debug->i2c_client.i2c_func_tbl->i2c_write(&o_ctrl_debug->i2c_client, 0x0170,	0x03,	1);
+		o_ctrl_debug->i2c_client.i2c_func_tbl->i2c_write_seq(&o_ctrl_debug->i2c_client, 0x1477, data, 4);
+		o_ctrl_debug->i2c_client.i2c_func_tbl->i2c_write(&o_ctrl_debug->i2c_client, 0x0171,	0x03,	1);
+		o_ctrl_debug->i2c_client.i2c_func_tbl->i2c_write_seq(&o_ctrl_debug->i2c_client, 0x14F7, data, 4);
+		msleep(300);
+		pr_err("servo_on!!!\n");
+	}
+}
+
+static ssize_t ois_debug_store(struct class *class, struct class_attribute *attr,
+			     const char *buf, size_t count)
+{
+	char *p;
+	char buffer[32];
+	int32_t i = 100;
+	p = buffer;
+	memset(p, 0, 32);
+
+	if(o_ctrl_debug == NULL){
+			pr_err("o_ctrl_debug NULLL !!!\n");
+			return count;
+	}
+
+	memcpy(p, buf, strlen(buf));
+	pr_err("buffer:[%s] size[%d]\n", p, (int)strlen(buf));
+
+	if(!strncmp(buf,"ois_off" , 7))
+	{
+		ois_status = "ois_off";
+		set_ois(0);
+	}else if(!strncmp(buf,"ois_on", 6))
+	{
+		ois_status = "ois_on";
+		set_ois(1);
+	}else if(!strncmp(buf,"ois_test", 8)){
+		pr_err("ois_test!!!\n");
+		while(i-- > 0){
+			if(o_ctrl_debug != NULL && !ois_test_stop){
+				printk("ois_test [%d]!!!\n", i);
+				ois_status = "ois_on";
+				set_ois(1);
+				msleep(5000);
+				ois_status = "ois_off";
+				set_ois(0);
+				msleep(5000);
+			}else{
+				printk("o_ctrl_debug %p, ois_test_stop:%d \n", o_ctrl_debug, ois_test_stop);
+				break;
+			}
+		}
+	}else if(strncmp(buf,"ois_stop", 8) == 0){
+		pr_err("ois_stop!!!\n");
+		ois_test_stop=1;
+	}
+
+ return count;
+}
+
+static CLASS_ATTR(ois_debug, 0644, ois_debug_show, ois_debug_store);
 
 static int32_t msm_ois_write_settings(struct msm_ois_ctrl_t *o_ctrl,
 	uint16_t size, struct reg_settings_ois_t *settings)
 {
 	int32_t rc = -EFAULT;
 	int32_t i = 0;
-	struct msm_camera_i2c_seq_reg_array reg_setting;
-	CDBG("Enter\n");
+	int32_t j = 0;
 
+	struct msm_camera_i2c_seq_reg_array reg_setting;
+	j= size;
+	pr_err("Enter [size:%d]\n", j);
+	o_ctrl_debug = o_ctrl;
 	for (i = 0; i < size; i++) {
 		switch (settings[i].i2c_operation) {
 		case MSM_OIS_WRITE: {
@@ -110,6 +199,9 @@ static int32_t msm_ois_write_settings(struct msm_ois_ctrl_t *o_ctrl,
 				break;
 			}
 		}
+		  break;
+		 default:
+		  CDBG("Enter [i2c_operation:%d]\n", settings[i].i2c_operation);
 		}
 
 		if (settings[i].delay > 20)
@@ -254,6 +346,7 @@ static int32_t msm_ois_config(struct msm_ois_ctrl_t *o_ctrl,
 	struct msm_ois_cfg_data *cdata =
 		(struct msm_ois_cfg_data *)argp;
 	int32_t rc = 0;
+	int i, j;
 	mutex_lock(o_ctrl->ois_mutex);
 	CDBG("Enter\n");
 	CDBG("%s type %d\n", __func__, cdata->cfgtype);
@@ -302,6 +395,7 @@ static int32_t msm_ois_config(struct msm_ois_ctrl_t *o_ctrl,
 			rc = -EFAULT;
 			break;
 		}
+		pr_err("CFG_OIS_I2C_WRITE_SEQ_TABLE [size:%d]\n", conf_array.size);
 		reg_setting = kzalloc(conf_array.size *
 			(sizeof(struct msm_camera_i2c_seq_reg_array)),
 			GFP_KERNEL);
@@ -323,6 +417,14 @@ static int32_t msm_ois_config(struct msm_ois_ctrl_t *o_ctrl,
 		rc = o_ctrl->i2c_client.i2c_func_tbl->
 			i2c_write_seq_table(&o_ctrl->i2c_client,
 			&conf_array);
+
+		for(i=0; i< conf_array.size; i++)
+		{
+			for(j=0; j< conf_array.reg_setting[i].reg_data_size; j++){
+				;
+				}
+		}
+
 		kfree(reg_setting);
 		break;
 	}
@@ -394,7 +496,7 @@ static int msm_ois_close(struct v4l2_subdev *sd,
 		if (rc < 0)
 			pr_err("cci_init failed\n");
 	}
-
+	o_ctrl_debug  = NULL;
 	CDBG("Exit\n");
 	return rc;
 }
@@ -642,7 +744,7 @@ static int32_t msm_ois_platform_probe(struct platform_device *pdev)
 	rc = of_property_read_u32((&pdev->dev)->of_node, "qcom,cci-master",
 		&msm_ois_t->cci_master);
 	CDBG("qcom,cci-master %d, rc %d\n", msm_ois_t->cci_master, rc);
-	if (rc < 0) {
+	if (rc < 0 || msm_ois_t->cci_master >= MASTER_MAX) {
 		kfree(msm_ois_t);
 		pr_err("failed rc %d\n", rc);
 		return rc;
@@ -679,7 +781,7 @@ static int32_t msm_ois_platform_probe(struct platform_device *pdev)
 
 	cci_client = msm_ois_t->i2c_client.cci_client;
 	cci_client->cci_subdev = msm_cci_get_subdev();
-	cci_client->cci_i2c_master = MASTER_MAX;
+	cci_client->cci_i2c_master = msm_ois_t->cci_master;
 	v4l2_subdev_init(&msm_ois_t->msm_sd.sd,
 		msm_ois_t->ois_v4l2_subdev_ops);
 	v4l2_set_subdevdata(&msm_ois_t->msm_sd.sd, msm_ois_t);
@@ -742,6 +844,12 @@ static struct platform_driver msm_ois_platform_driver = {
 static int __init msm_ois_init_module(void)
 {
 	int32_t rc = 0;
+
+	ois_class = class_create(THIS_MODULE, "ois");
+	if (IS_ERR(ois_class))
+		return PTR_ERR(ois_class);
+	rc = class_create_file(ois_class, &class_attr_ois_debug);
+
 	CDBG("Enter\n");
 	rc = platform_driver_register(&msm_ois_platform_driver);
 	if (!rc)
@@ -752,6 +860,8 @@ static int __init msm_ois_init_module(void)
 
 static void __exit msm_ois_exit_module(void)
 {
+	class_remove_file(ois_class, &class_attr_ois_debug);
+	class_destroy(ois_class);
 	platform_driver_unregister(&msm_ois_platform_driver);
 	i2c_del_driver(&msm_ois_i2c_driver);
 	return;

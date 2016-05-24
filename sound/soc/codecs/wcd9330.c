@@ -4099,12 +4099,31 @@ err:
 	return ret;
 }
 
+static unsigned int tomtom_hph_get_gain(int imped)
+{
+    unsigned int value = 0;
+	
+    if(imped <=36000)
+	   value = 0;
+	else if((imped > 36000)&&(imped <= 60000))
+	   value = 2;
+	else if((imped > 60000)&&(imped <= 200000))
+	   value = 5;
+	else if(imped > 200000)
+	   value = 5;
+
+	pr_debug("imped = %d ,  value = %d \n",imped,value);
+
+    return value;
+}
+
+
 static int tomtom_hphl_dac_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
 	struct snd_soc_codec *codec = w->codec;
 	struct tomtom_priv *tomtom_p = snd_soc_codec_get_drvdata(codec);
-	uint32_t impedl, impedr;
+	uint32_t impedl, impedr,lgain=0;
 	int ret = 0;
 
 	pr_debug("%s %s %d\n", __func__, w->name, event);
@@ -4129,8 +4148,13 @@ static int tomtom_hphl_dac_event(struct snd_soc_dapm_widget *w,
 		}
 		ret = wcd9xxx_mbhc_get_impedance(&tomtom_p->mbhc,
 					&impedl, &impedr);
-		if (!ret)
+		if (!ret){
 			wcd9xxx_clsh_imped_config(codec, impedl);
+			lgain=tomtom_hph_get_gain(impedl);
+		    if(lgain){
+		       snd_soc_write(codec,TOMTOM_A_CDC_RX1_VOL_CTL_B2_CTL,lgain);
+		    }
+		}
 		else
 			dev_dbg(codec->dev, "%s: Failed to get mbhc impedance %d\n",
 						__func__, ret);
@@ -4155,6 +4179,8 @@ static int tomtom_hphl_dac_event(struct snd_soc_dapm_widget *w,
 						WCD9XXX_CLSAB_STATE_HPHL,
 						WCD9XXX_CLSAB_REQ_DISABLE);
 		}
+		//set digtal volume gain to 0 dB
+		snd_soc_write(codec,TOMTOM_A_CDC_RX1_VOL_CTL_B2_CTL,0);
 		break;
 	}
 	return 0;
@@ -4165,6 +4191,8 @@ static int tomtom_hphr_dac_event(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_codec *codec = w->codec;
 	struct tomtom_priv *tomtom_p = snd_soc_codec_get_drvdata(codec);
+	uint32_t impedl, impedr,rgain=0;
+	int ret = 0;
 
 	pr_debug("%s %s %d\n", __func__, w->name, event);
 
@@ -4187,6 +4215,18 @@ static int tomtom_hphr_dac_event(struct snd_soc_dapm_widget *w,
 						WCD9XXX_CLSAB_STATE_HPHR,
 						WCD9XXX_CLSAB_REQ_ENABLE);
 		}
+
+		ret = wcd9xxx_mbhc_get_impedance(&tomtom_p->mbhc,
+					&impedl, &impedr);
+		if (!ret){
+			rgain=tomtom_hph_get_gain(impedr);
+		    if(rgain){
+		       snd_soc_write(codec,TOMTOM_A_CDC_RX2_VOL_CTL_B2_CTL,rgain);
+		    }
+		}
+		else
+			dev_dbg(codec->dev, "%s: Failed to get mbhc impedance %d\n",
+						__func__, ret);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		snd_soc_update_bits(codec, TOMTOM_A_CDC_RX2_B3_CTL, 0xBC, 0x94);
@@ -4209,6 +4249,8 @@ static int tomtom_hphr_dac_event(struct snd_soc_dapm_widget *w,
 						WCD9XXX_CLSAB_STATE_HPHR,
 						WCD9XXX_CLSAB_REQ_DISABLE);
 		}
+		
+		snd_soc_write(codec,TOMTOM_A_CDC_RX2_VOL_CTL_B2_CTL,0);
 		break;
 	}
 	return 0;

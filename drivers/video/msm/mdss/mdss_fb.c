@@ -248,6 +248,16 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
 
+#ifdef NAMEK_PWM_ADJUST    //lower pwm to 5.6% for NameK project by yong.bo on 2016/03/25
+	 #define GAP_VALUE 5
+	 if(value >= 10) {
+		value +=  GAP_VALUE - (value*GAP_VALUE)/mfd->panel_info->brightness_max;
+	 }
+	 else if(value > 0){
+		value = (value*(10 + GAP_VALUE))/10;
+	 }
+#endif
+
 	/* This maps android backlight level 0 to 255 into
 	   driver backlight level 0 to bl_max with rounding */
 	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
@@ -1405,7 +1415,7 @@ static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 	if (mdss_panel_is_power_off(cur_power_state)) {
 		mutex_lock(&mfd->bl_lock);
 		if (!mfd->bl_updated) {
-			mfd->bl_updated = 1;
+			//mfd->bl_updated = 1;
 			/*
 			 * If in AD calibration mode then frameworks would not
 			 * be allowed to update backlight hence post unblank

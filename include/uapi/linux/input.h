@@ -412,6 +412,7 @@ struct input_keymap_entry {
 #define KEY_F22			192
 #define KEY_F23			193
 #define KEY_F24			194
+#define KEY_DOUBLE_TAP  195   //added by yong.bo on 2015/11/23 for double tap wake up.
 
 #define KEY_PLAYCD		200
 #define KEY_PAUSECD		201

@@ -59,7 +59,7 @@
 #define I2S_PCM_SEL           1
 #define I2S_PCM_SEL_OFFSET    1
 
-#define WCD9XXX_MBHC_DEF_BUTTONS    8
+#define WCD9XXX_MBHC_DEF_BUTTONS    3
 #define WCD9XXX_MBHC_DEF_RLOADS     5
 #define CODEC_EXT_CLK_RATE         9600000
 
@@ -123,9 +123,9 @@ static struct wcd9xxx_mbhc_config wcd9xxx_mbhc_cfg = {
 	.enable_anc_mic_detect = false,
 	.hw_jack_type = FOUR_POLE_JACK,
 	.key_code[0] = KEY_MEDIA,
-	.key_code[1] = KEY_VOICECOMMAND,
-	.key_code[2] = KEY_VOLUMEUP,
-	.key_code[3] = KEY_VOLUMEDOWN,
+	.key_code[1] = KEY_VOLUMEUP,
+	.key_code[2] = KEY_VOLUMEDOWN,
+	.key_code[3] = 0,
 	.key_code[4] = 0,
 	.key_code[5] = 0,
 	.key_code[6] = 0,
@@ -182,21 +182,12 @@ static void *def_codec_mbhc_cal(void)
 	btn_high = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg,
 					       MBHC_BTN_DET_V_BTN_HIGH);
 	btn_low[0] = -50;
-	btn_high[0] = 90;
-	btn_low[1] = 130;
-	btn_high[1] = 220;
-	btn_low[2] = 235;
-	btn_high[2] = 335;
-	btn_low[3] = 375;
-	btn_high[3] = 655;
-	btn_low[4] = 656;
-	btn_high[4] = 660;
-	btn_low[5] = 661;
-	btn_high[5] = 670;
-	btn_low[6] = 671;
-	btn_high[6] = 680;
-	btn_low[7] = 681;
-	btn_high[7] = 690;
+	btn_high[0] = 120;
+	btn_low[1] = 121;
+	btn_high[1] = 320;
+	btn_low[2] = 321;
+	btn_high[2] = 700;
+    
 	n_ready = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg, MBHC_BTN_DET_N_READY);
 	n_ready[0] = 80;
 	n_ready[1] = 12;
@@ -2449,23 +2440,6 @@ enum codecs {
 static struct snd_soc_card snd_soc_card_msm[MAX_CODECS];
 static struct snd_soc_card snd_card_msm;
 
-static bool msm8939_swap_gnd_mic(struct snd_soc_codec *codec)
-{
-	struct snd_soc_card *card = codec->card;
-	struct msm8939_asoc_mach_data *pdata = NULL;
-	int value = 0;
-
-	pdata = snd_soc_card_get_drvdata(card);
-	if (!gpio_is_valid(pdata->us_euro_gpio)) {
-		pr_err("%s: Invalid gpio: %d", __func__, pdata->us_euro_gpio);
-		return false;
-	}
-	value = gpio_get_value_cansleep(pdata->us_euro_gpio);
-	pr_debug("%s: swap select switch %d to %d\n", __func__, value, !value);
-	gpio_set_value_cansleep(pdata->us_euro_gpio, !value);
-	return true;
-}
-
 static int cdc_slim_get_pinctrl(struct platform_device *pdev,
 			struct msm8939_asoc_mach_data *pdata)
 {
@@ -2748,22 +2722,7 @@ static int msm8939_asoc_machine_probe(struct platform_device *pdev)
 		pr_err("failed to get the pdm gpios\n");
 		goto err;
 	}
-	/* Parse US-Euro gpio info from DT. Report no error if us-euro
-	 * entry is not found in DT file as some targets do not support
-	 * US-Euro detection
-	 */
-	pdata->us_euro_gpio = of_get_named_gpio(pdev->dev.of_node,
-				"qcom,cdc-us-euro-gpios", 0);
-	if (pdata->us_euro_gpio < 0) {
-		dev_err(&pdev->dev, "property %s not detected in node %s",
-			"qcom,us-euro-gpios",
-			pdev->dev.of_node->full_name);
-	} else {
-		dev_dbg(&pdev->dev, "%s detected %d",
-			"qcom,us-euro-gpios", pdata->us_euro_gpio);
-		wcd9xxx_mbhc_cfg.swap_gnd_mic = msm8939_swap_gnd_mic;
-	}
-
+	
 	return 0;
 err:
 	cancel_delayed_work_sync(&pdata->hs_detect_dwork);

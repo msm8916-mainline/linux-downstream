@@ -331,6 +331,7 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 	unsigned int type = button->type ?: EV_KEY;
 	int state = (gpio_get_value_cansleep(button->gpio) ? 1 : 0) ^ button->active_low;
 
+	dev_info(&bdata->input->dev, "report button[%s], state[%d]\n", button->desc, state);
 	if (type == EV_ABS) {
 		if (state)
 			input_event(input, type, button->code, button->value);
@@ -522,7 +523,7 @@ fail:
 
 static void gpio_keys_report_state(struct gpio_keys_drvdata *ddata)
 {
-	struct input_dev *input = ddata->input;
+	//struct input_dev *input = ddata->input;
 	int i;
 
 	for (i = 0; i < ddata->pdata->nbuttons; i++) {
@@ -530,7 +531,7 @@ static void gpio_keys_report_state(struct gpio_keys_drvdata *ddata)
 		if (gpio_is_valid(bdata->button->gpio))
 			gpio_keys_gpio_report_event(bdata);
 	}
-	input_sync(input);
+//	input_sync(input);
 }
 
 static int gpio_keys_pinctrl_configure(struct gpio_keys_drvdata *ddata,
@@ -931,7 +932,7 @@ static int gpio_keys_resume(struct device *dev)
 	if (error)
 		return error;
 
-	gpio_keys_report_state(ddata);
+//	gpio_keys_report_state(ddata);
 	return 0;
 }
 #endif

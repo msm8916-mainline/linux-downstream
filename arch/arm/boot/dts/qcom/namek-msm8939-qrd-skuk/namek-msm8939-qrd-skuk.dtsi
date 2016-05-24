@@ -1,0 +1,181 @@
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "namek-msm8939-qrd.dtsi"
+#include "namek-msm8939-camera-sensor-qrd.dtsi"
+#include "namek-msm8939-touchpanel-qrd-skui.dtsi"
+
+&soc {
+	i2c@78b9000 { /* BLSP1 QUP5 */
+		focaltech@38 {
+			compatible = "focaltech,5x06";
+			reg = <0x38>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <13 0x2008>;
+			vdd-supply = <&pm8916_l17>;
+			vcc_i2c-supply = <&pm8916_l6>;
+			/* pins used by touchscreen */
+			pinctrl-names = "pmx_ts_active","pmx_ts_suspend","pmx_ts_release";
+			pinctrl-0 = <&ts_int_active &ts_reset_active>;
+			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+			pinctrl-2 = <&ts_release>;
+			focaltech,name = "ft5336";
+			focaltech,family-id = <0x14>;
+			focaltech,reset-gpio = <&msm_gpio 12 0x0>;
+			focaltech,irq-gpio = <&msm_gpio 13 0x2008>;
+			focaltech,display-coords = <0 0 1080 1920>;
+			focaltech,panel-coords = <0 0 1080 2098>;
+			focaltech,button-map= <139 102 158>;
+			focaltech,no-force-update;
+			focaltech,i2c-pull-up;
+			focaltech,group-id = <1>;
+			focaltech,hard-reset-delay-ms = <20>;
+			focaltech,soft-reset-delay-ms = <200>;
+			focaltech,num-max-touches = <5>;
+			focaltech,fw-delay-aa-ms = <30>;
+			focaltech,fw-delay-55-ms = <30>;
+			focaltech,fw-upgrade-id1 = <0x11>;
+			focaltech,fw-upgrade-id2 = <0x11>;
+			focaltech,fw-delay-readid-ms = <10>;
+			focaltech,fw-delay-era-flsh-ms = <2000>;
+			focaltech,fw-auto-cal;
+			focaltech,ignore-id-check;
+		};
+	};
+
+	gen-vkeys {
+		compatible = "qcom,gen-vkeys";
+		label = "ft5x06_ts";
+		qcom,disp-maxx = <1080>;
+		qcom,disp-maxy = <1920>;
+		qcom,panel-maxx = <1080>;
+		qcom,panel-maxy = <2098>;
+		qcom,key-codes = <139 172 158>;
+		qcom,y-offset = <0>;
+	};
+
+};
+
+
+&tlmm_pinmux {
+	bma2x2_int1_pin {
+		qcom,pins = <&gp 112>;
+		qcom,num-grp-pins = <1>;
+		label = "bma2x2_int1_pin";
+		bma2x2_int1_default: int1_default {
+			  drive-strength = <6>;
+			  bias-pull-up;
+		};
+		bma2x2_int1_sleep: int1_sleep {
+			  drive-strength = <2>;
+			  bias-pull-down;
+		};
+	};
+
+	bma2x2_int2_pin {
+		qcom,pins = <&gp 114>;
+		qcom,num-grp-pins = <1>;
+		label = "bma2x2_int2_pin";
+		bma2x2_int2_default: int2_default {
+			  drive-strength = <6>;
+			  bias-pull-up;
+		};
+		bma2x2_int2_sleep: int2_sleep {
+			  drive-strength = <2>;
+			  bias-pull-down;
+		};
+	};
+};
+
+&i2c_0 { /* BLSP1 QUP2 */
+	//add by zhou
+	lsm6ds3@6B {
+		compatible = "st,lsm6ds3";
+		reg = <0x6B>;
+		pinctrl-names = "default","sleep";
+		pinctrl-0 = <&lsm6ds3_default>;
+		pinctrl-1 = <&lsm6ds3_sleep>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <115 0x2>;
+		vdd-supply = <&pm8916_l17>;
+		vio-supply = <&pm8916_l6>;
+		rot-matrix = /bits/ 16 <(1) (0) (0)
+					(0) (1) (0)
+					(0) (0) (1)>;
+		 g-poll-interval = <5>;
+		 g-min-interval = <1>;
+		 g-fs-range = <0x0C>;
+		 x-poll-interval = <5>;
+		 x-min-interval = <1>;
+		 x-fs-range = <0>;
+		 aa-filter-bw = <0>;
+		 st,drdy-int-pin = <1>;
+		 st,intr1 = <&msm_gpio 115 0x2>;
+	};
+
+	liteon@23 { //Add p-sensor and l-sensor
+		compatible = "liteon,ltr559";
+        reg = <0x23>;
+        pinctrl-names = "default","sleep";
+        pinctrl-0 = <&ltr559_default>;
+        pinctrl-1 = <&ltr559_sleep>;
+        interrupt-parent = <&msm_gpio>;
+        interrupts = <113 0x2002>;
+        vdd-supply = <&pm8916_l17>;
+        vio-supply = <&pm8916_l6>;
+        liteon,intr = <&msm_gpio 113 0x2002>;
+        liteon,highthr = <190>;
+        liteon,lowthr = <80>;
+	};
+
+	akm@d {
+		compatible = "ak,ak09911";
+		reg = <0xd>;
+		pinctrl-names = "default","sleep";
+		pinctrl-0 = <&akm_default>;
+		pinctrl-1 = <&akm_sleep>;
+		vdd-supply = <&pm8916_l17>;
+		vio-supply = <&pm8916_l6>;
+		akm,layout = <0x8>;
+		akm,gpio_rstn = <&msm_gpio 3 0x2002>;
+		akm,auto-report;
+		akm,use-hrtimer;
+	};
+
+   ktd20xx@30 {
+	   compatible = "ktd,ktd20xx";
+	   reg = <0x30>;
+	   ktd,gpio = <&msm_gpio 9 0x2002>;
+   };
+};
+
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+};
+
+&pmx_mdss {
+	qcom,num-grp-pins = <2>;
+	qcom,pins = <&gp 1>, <&gp 25>;
+};
+
+&pmx_mdss_te {
+	qcom,num-grp-pins = <1>;
+	qcom,pins = <&gp 24>;
+};
+
+&mdss_dsi0 {
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
+	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+};
+

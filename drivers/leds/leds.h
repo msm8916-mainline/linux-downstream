@@ -26,6 +26,31 @@ static inline void __led_set_brightness(struct led_classdev *led_cdev,
 	if (!(led_cdev->flags & LED_SUSPENDED))
 		led_cdev->brightness_set(led_cdev, value);
 }
+/*wubo add star for led blink 2014-8-1 13:43:33*/
+static inline int __led_set_blink(struct led_classdev *led_cdev,
+					int blink_brightness,int ontime,int offtime)
+{
+	//if (value > led_cdev->max_brightness)
+	//	value = led_cdev->max_brightness;
+	//led_cdev->brightness = value;
+	unsigned long blink = (unsigned long)blink_brightness;
+	unsigned long on_time = (unsigned long)ontime;
+	unsigned long off_time = (unsigned long)offtime;
+	if(blink){
+	if (!(led_cdev->flags & LED_SUSPENDED))
+		{
+		if(led_cdev->blink_set){
+#ifdef BLINK_BRIGHTNESS
+		if(blink > led_cdev->max_brightness)
+			blink = led_cdev->max_brightness;
+		led_cdev->blink_brightness = blink;
+#endif
+		 return led_cdev->blink_set(led_cdev, &on_time,&off_time);
+		   }
+		}
+	}
+	return 0;
+}
 
 static inline int led_get_brightness(struct led_classdev *led_cdev)
 {

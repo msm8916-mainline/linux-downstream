@@ -850,5 +850,63 @@ config SENSORS_BMI058
 	 If you say yes here, you get support for Bosch Sensortec's
 	 sensor driver of BMI058.
 
+config INPUT_LTR559
+	tristate "LTR559 light/proximity sensor support"
+	depends on I2C
+	default n
+	help
+	 Driver for LTR559 light/proximity sensor.
+
+config INPUT_LTR553
+	tristate "LTR553 light/proximity sensor support"
+    depends on I2C
+    default n
+    help
+	  Driver for LTR553 light/proximity sensor.
+
+config INPUT_LSM6DX0
+     tristate "STMicroelectronics LSM6DS0 and LSM6DL0"
+     depends on INPUT
+     depends on I2C
+     help
+         Say Y here to enable STMicroelectronics LSM6DS0 or LSM6DL0inertial
+         module.
+
+         To compile this driver as a module, choose M here: the
+         module will be called lsm6dx0.
+
+config INPUT_LSM6DS3
+         tristate "STMicroelectronics LSM6DS3 sensor"
+         depends on I2C && SYSFS
+         help
+           This driver support the STMicroelectronics LSM6DS3 sensor.
+
+           To compile this driver as a module, choose M here. The module
+	   will be called lsm6ds3.
+
+if INPUT_LSM6DS3
+choice
+	prompt "LSM6DS3 bus selection"
+	default INPUT_LSM6DS3_I2C
+
+config INPUT_LSM6DS3_I2C
+	bool "I2C"
+
+config INPUT_LSM6DS3_SPI
+	bool "SPI"
+endchoice
+
+choice
+	prompt "LSM6DS3 mode selection"
+	default LSM6DS3_POLLING_MODE
+
+config LSM6DS3_POLLING_MODE
+	bool "Polling"
+
+config LSM6DS3_FIFO_MODE
+	bool "FIFO trigger"
+endchoice
+
+endif
 endif
 

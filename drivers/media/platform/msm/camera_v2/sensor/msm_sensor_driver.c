@@ -624,6 +624,27 @@ static void msm_sensor_fill_sensor_info(struct msm_sensor_ctrl_t *s_ctrl,
 	strlcpy(entity_name, s_ctrl->msm_sd.sd.entity.name, MAX_SENSOR_NAME);
 }
 
+static struct class *camera_class = NULL;
+char *main_camera_info = NULL;
+char *sub_camera_info = NULL;
+
+static ssize_t main_camera_info_show(struct class *class,
+				     struct class_attribute *attr, char *buf)
+{
+    if (main_camera_info != NULL)
+	return snprintf(buf, 32, "%s\n", main_camera_info);
+    return 0;
+}
+
+static ssize_t sub_camera_info_show(struct class *class,
+				     struct class_attribute *attr, char *buf)
+{
+    if (sub_camera_info != NULL)
+	return snprintf(buf, 32, "%s\n", sub_camera_info);
+    return 0;
+}
+static CLASS_ATTR(main_camera_info, 0644, main_camera_info_show, NULL);
+static CLASS_ATTR(sub_camera_info, 0644, sub_camera_info_show, NULL);
 /* static function definition */
 int32_t msm_sensor_driver_is_special_support(
 	struct msm_sensor_ctrl_t *s_ctrl,
@@ -908,7 +929,14 @@ int32_t msm_sensor_driver_probe(void *setting,
 	 * probed on this slot
 	 */
 	s_ctrl->is_probe_succeed = 1;
-
+        if (slave_info->camera_id == 0)
+        {
+            main_camera_info = slave_info->sensor_name;
+        }
+        if (slave_info->camera_id == 1)
+        {
+            sub_camera_info = slave_info->sensor_name;
+        }
 	/*
 	 * Update the subdevice id of flash-src based on availability in kernel.
 	 */
@@ -1369,6 +1397,12 @@ static int __init msm_sensor_driver_init(void)
 {
 	int32_t rc = 0;
 
+        int sys_ret = 0;
+	camera_class = class_create(THIS_MODULE, "camera");
+	if (IS_ERR(camera_class))
+		return PTR_ERR(camera_class);
+        sys_ret = class_create_file(camera_class, &class_attr_main_camera_info);
+        sys_ret = class_create_file(camera_class, &class_attr_sub_camera_info);
 	CDBG("Enter");
 	rc = platform_driver_probe(&msm_sensor_platform_driver,
 		msm_sensor_driver_platform_probe);
@@ -1389,6 +1423,9 @@ static void __exit msm_sensor_driver_exit(void)
 	CDBG("Enter");
 	platform_driver_unregister(&msm_sensor_platform_driver);
 	i2c_del_driver(&msm_sensor_driver_i2c);
+        class_remove_file(camera_class, &class_attr_main_camera_info);
+        class_remove_file(camera_class, &class_attr_sub_camera_info);
+        class_destroy(camera_class);
 	return;
 }
 

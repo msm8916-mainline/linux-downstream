@@ -54,10 +54,56 @@ static ssize_t led_brightness_store(struct device *dev,
 		return ret;
 
 	__led_set_brightness(led_cdev, state);
+	led_cdev->blink_delay_on = 0;
+	led_cdev->blink_delay_off = 0;
+	led_cdev->blink_brightness = 0;
 
 	return size;
 }
+/*wubo add start for led blink 2014-8-1 13:43:33*/
+static ssize_t led_blink_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	//int state;
+	int ontime;
+	int offtime;
+	int blink_brightness; 
+	ssize_t ret = -EINVAL;
+    
+	if (sscanf(buf,"%d %d %d",&blink_brightness,&ontime,&offtime) < 0) {
+		dev_err(led_cdev->dev, "%s fail\n", __FUNCTION__);
+		return ret;
+	}
 
+	ret = __led_set_blink(led_cdev, blink_brightness,ontime,offtime);
+	if (ret)
+		return ret;
+
+	led_cdev->blink_delay_on = ontime;
+	led_cdev->blink_delay_off = offtime;
+	led_cdev->brightness = 0;
+	return size;
+}
+static ssize_t led_blink_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+/*	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	unsigned long state;
+	ssize_t ret = -EINVAL;
+
+	ret = kstrtoul(buf, 10, &state);
+	if (ret)
+		return ret;
+
+	__led_set_blink(led_cdev, state);*/
+	//add by zhou for namek
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	return snprintf(buf, LED_BUFF_SIZE, "%u %lu %lu\n", 
+						led_cdev->blink_brightness, 
+						led_cdev->blink_delay_on, 
+						led_cdev->blink_delay_off);
+}
 static ssize_t led_max_brightness_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -89,6 +135,7 @@ static struct device_attribute led_class_attrs[] = {
 	__ATTR(brightness, 0644, led_brightness_show, led_brightness_store),
 	__ATTR(max_brightness, 0644, led_max_brightness_show,
 			led_max_brightness_store),
+	__ATTR(blink, 0644, led_blink_show, led_blink_store),/*wubo add start for led blink 2014-8-1 13:43:33*/
 #ifdef CONFIG_LEDS_TRIGGERS
 	__ATTR(trigger, 0644, led_trigger_show, led_trigger_store),
 #endif

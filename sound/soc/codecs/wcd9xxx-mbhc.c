@@ -35,6 +35,7 @@
 #include <linux/kernel.h>
 #include <linux/gpio.h>
 #include <linux/input.h>
+#include <linux/switch.h>
 #include "wcd9320.h"
 #include "wcd9306.h"
 #include "wcd9xxx-mbhc.h"
@@ -126,10 +127,10 @@
 /* RX_HPH_CNP_WG_TIME increases by 0.24ms */
 #define WCD9XXX_WG_TIME_FACTOR_US	240
 
-#define WCD9XXX_V_CS_HS_MAX 500
+#define WCD9XXX_V_CS_HS_MAX 750
 #define WCD9XXX_V_CS_NO_MIC 5
 #define WCD9XXX_MB_MEAS_DELTA_MAX_MV 80
-#define WCD9XXX_CS_MEAS_DELTA_MAX_MV 12
+#define WCD9XXX_CS_MEAS_DELTA_MAX_MV 20
 
 #define WCD9XXX_ZDET_ZONE_1 80000
 #define WCD9XXX_ZDET_ZONE_2 800000
@@ -140,6 +141,34 @@
 #define WCD9XXX_IS_IN_ZDET_ZONE_3(x) (x > WCD9XXX_ZDET_ZONE_2 ? 1 : 0)
 #define WCD9XXX_BOX_CAR_AVRG_MIN 1
 #define WCD9XXX_BOX_CAR_AVRG_MAX 10
+
+#if 0
+
+#ifdef pr_fmt 
+#undef pr_fmt
+#define pr_fmt(fmt) "<audio log> %s, %d :" fmt, __func__,__LINE__
+#else
+#define pr_fmt(fmt) "<audio log> %s, %d :" fmt, __func__,__LINE__
+#endif
+#ifdef  pr_debug
+#undef pr_debug
+#define pr_debug(fmt,...)  printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__) 
+#else
+#define pr_debug(fmt,...)  printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__) 
+#endif
+#endif
+
+//add for FFBM
+struct _headset {
+	struct switch_dev sdev;
+};
+
+static struct _headset headset = {
+	.sdev = {
+	.name = "h2w",
+	.state = 0,
+	},
+};
 
 static int impedance_detect_en;
 module_param(impedance_detect_en, int,
@@ -598,6 +627,11 @@ static void wcd9xxx_jack_report(struct wcd9xxx_mbhc *mbhc,
 	}
 
 	snd_soc_jack_report_no_dapm(jack, status, mask);
+
+	if((jack->jack->type & SND_JACK_HEADSET)||(jack->jack->type & SND_JACK_HEADPHONE))
+	{
+		switch_set_state(&headset.sdev, status);
+	}
 }
 
 static void __hphocp_off_report(struct wcd9xxx_mbhc *mbhc, u32 jack_status,
@@ -1083,9 +1117,9 @@ static short __wcd9xxx_codec_sta_dce(struct wcd9xxx_mbhc *mbhc, int dce,
 			snd_soc_update_bits(codec, WCD9XXX_A_CDC_MBHC_CLK_CTL,
 					    0x2, 0x2);
 		usleep_range(mbhc->mbhc_data.t_sta_dce,
-			     mbhc->mbhc_data.t_sta_dce + 50);
+			     mbhc->mbhc_data.t_sta_dce + 1000);
 		snd_soc_write(codec, WCD9XXX_A_CDC_MBHC_EN_CTL, 0x4);
-		usleep_range(mbhc->mbhc_data.t_dce, mbhc->mbhc_data.t_dce + 50);
+		usleep_range(mbhc->mbhc_data.t_dce, mbhc->mbhc_data.t_dce + 1000);
 		bias_value = wcd9xxx_read_dce_result(codec);
 	} else {
 		snd_soc_update_bits(codec, WCD9XXX_A_CDC_MBHC_CLK_CTL, 0x8,
@@ -1883,6 +1917,7 @@ wcd9xxx_codec_cs_get_plug_type(struct wcd9xxx_mbhc *mbhc, bool highhph)
 	rt[0].vddio = false;
 	rt[0].hwvalue = true;
 	rt[0].hphl_status = wcd9xxx_hphl_status(mbhc);
+	usleep_range(300000, 300100);
 	rt[0].dce = wcd9xxx_mbhc_setup_hs_polling(mbhc, &mbhc->mbhc_bias_regs,
 						  true);
 	rt[0].mic_bias = false;
@@ -5400,6 +5435,7 @@ int wcd9xxx_mbhc_init(struct wcd9xxx_mbhc *mbhc, struct wcd9xxx_resmgr *resmgr,
 {
 	int ret;
 	void *core_res;
+       struct _headset *hs = &headset;
 
 	pr_debug("%s: enter\n", __func__);
 	memset(&mbhc->mbhc_bias_regs, 0, sizeof(struct mbhc_micbias_regs));
@@ -5447,16 +5483,7 @@ int wcd9xxx_mbhc_init(struct wcd9xxx_mbhc *mbhc, struct wcd9xxx_resmgr *resmgr,
 			pr_err("Failed to create new jack\n");
 			return ret;
 		}
-
-		ret = snd_jack_set_key(mbhc->button_jack.jack,
-				       SND_JACK_BTN_0,
-				       KEY_MEDIA);
-		if (ret) {
-			pr_err("%s: Failed to set code for btn-0\n",
-				__func__);
-			return ret;
-		}
-
+        
 		INIT_DELAYED_WORK(&mbhc->mbhc_firmware_dwork,
 				  wcd9xxx_mbhc_fw_read);
 		INIT_DELAYED_WORK(&mbhc->mbhc_btn_dwork, wcd9xxx_btn_lpress_fn);
@@ -5544,6 +5571,12 @@ int wcd9xxx_mbhc_init(struct wcd9xxx_mbhc *mbhc, struct wcd9xxx_resmgr *resmgr,
 
 	wcd9xxx_regmgr_cond_register(resmgr, 1 << WCD9XXX_COND_HPH_MIC |
 					     1 << WCD9XXX_COND_HPH);
+
+	ret = switch_dev_register(&hs->sdev);
+	if(ret){
+		pr_err("%s: Failed to register switch\n", __func__);
+		goto err_hphr_ocp_irq;
+	}
 
 	pr_debug("%s: leave ret %d\n", __func__, ret);
 	return ret;

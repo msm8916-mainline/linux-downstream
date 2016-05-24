@@ -999,7 +999,9 @@ int mdss_mdp_cmd_stop(struct mdss_mdp_ctl *ctl, int panel_power_state)
 		 ctx->panel_power_state, panel_power_state);
 
 	mutex_lock(&ctl->offlock);
-	if (__mdss_mdp_cmd_is_panel_power_on_interactive(ctx)) {
+	if (__mdss_mdp_cmd_is_panel_power_on_interactive(ctx)
+		|| ctx->panel_power_state == MDSS_PANEL_POWER_LP1
+		|| ctx->panel_power_state == MDSS_PANEL_POWER_LP2) {
 		if (mdss_panel_is_power_on_lp(panel_power_state)) {
 			/*
 			* If we are transitioning from interactive to low

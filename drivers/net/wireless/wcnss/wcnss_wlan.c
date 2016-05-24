@@ -58,6 +58,8 @@
 #define IS_CAL_DATA_PRESENT     0
 #define WAIT_FOR_CBC_IND	2
 
+const char *chip_name = NULL;
+
 /* module params */
 #define WCNSS_CONFIG_UNSPECIFIED (-1)
 #define UINT32_MAX (0xFFFFFFFFU)
@@ -539,6 +541,17 @@ static ssize_t wcnss_version_show(struct device *dev,
 
 static DEVICE_ATTR(wcnss_version, S_IRUSR,
 		wcnss_version_show, NULL);
+
+static ssize_t wcnss_name_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	if (!penv)
+		return -ENODEV;
+	return scnprintf(buf, PAGE_SIZE, "%s\n", chip_name);
+}
+
+static DEVICE_ATTR(wcnss_name, S_IRUSR,
+		wcnss_name_show, NULL);
 
 void wcnss_riva_dump_pmic_regs(void)
 {
@@ -1157,6 +1170,10 @@ static int wcnss_create_sysfs(struct device *dev)
 		goto remove_serial;
 
 	ret = device_create_file(dev, &dev_attr_wcnss_version);
+	if (ret)
+		goto remove_thermal;
+
+	ret = device_create_file(dev, &dev_attr_wcnss_name);
 	if (ret)
 		goto remove_thermal;
 
@@ -3054,7 +3071,14 @@ wcnss_trigger_config(struct platform_device *pdev)
 	if (of_property_read_bool(pdev->dev.of_node,
 		"qcom,wlan-indication-enabled"))
 		wcnss_en_wlan_led_trigger();
-
+	chip_name = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!chip_name)
+		printk("[%s]:Failed to alloc chip_name.\n", __func__);
+		rc = of_property_read_string(pdev->dev.of_node, "qcom,chip_name",&chip_name);
+		if (rc) {
+			printk("Error reading qcom,chip_name rc=%d\n", rc);
+			chip_name = NULL;
+	}
 	return 0;
 
 fail_ioremap2:
