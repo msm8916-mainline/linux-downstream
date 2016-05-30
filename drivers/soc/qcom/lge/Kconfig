@@ -1,0 +1,113 @@
+config MACH_LGE
+	bool
+
+menu "LGE Board Selection"
+
+
+config MACH_MSM8939_ALTEV2_VZW
+        bool "MSM8939 ALTEV2_VZW"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+	select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8939 ALTEV2 VZW device.
+
+config MACH_MSM8939_P1BDSN_GLOBAL_COM
+        bool "MSM8939 P1BDSN_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8939 P1BDSN GLOBAL COM device.
+
+config MACH_MSM8939_P1BSSN_SKT_KR
+        bool "MSM8939 P1BSSN_SKT_KR"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8939 P1BSSN SKT KR device.
+
+endmenu
+
+menu "LGE Specific Patches"
+
+config LGE_BOOTLOADER_LOG
+	tristate "Support LGE bootloader log"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE bootloader log
+
+config LGE_HANDLE_PANIC
+	tristate "Support LGE Kernel Panic Handler"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE Error handler
+
+config LGE_BOOTLOADER_TIME_CHECKER
+	bool "Show bootloader(LK, SBL) time"
+	default n
+	depends on MACH_LGE
+	help
+	  This shows the lk and sbl1 booting time in MSM8974.
+	  If this feature is enabled, it should be check by adb shell.
+	  Device Node : sys/module/lge_bootloader_time_checker/
+
+config LGE_HANDLE_PANIC
+	tristate "Support LGE Kernel Panic Handler"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE Crash Handler
+
+config LCD_KCAL
+        bool "Enable sysfs for LCD KCAL"
+        default n
+
+config PRE_SELF_DIAGNOSIS
+	tristate "Support LGE self diagnosis for factory"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE self diagnosis
+
+config LGE_ENABLE_THERMAL_CORE_CONTROL
+        bool "Thermal Core Control"
+        default n
+        help
+          Enable Thermal Core control to prevent hot temperature (Temporal)
+
+config LGE_QSDL_SUPPORT
+    tristate "Support for Quality Statistics Data Logging"
+	default n
+	depends on MACH_LGE
+	help
+	  QSDL is a feature which notify infomation for quality statistics data logging of device.
+
+config LGE_KSWITCH
+    tristate "Support LGE Kill Switch"
+    default n
+    depends on MACH_LGE
+    help
+	  LGE Kill Switch
+
+endmenu
+
+menu "LGE QFPROM Values"
+
+config LGE_QFPROM_INTERFACE
+	bool "Support qfprom interface"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE QFPROM DRIVER.
+
+config LGE_QFPROM_SECHASH
+	string "Support qfprom sec hash"
+	default 0x0
+	depends on LGE_QFPROM_INTERFACE
+	help
+	  LGE QFPROM DRIVER-SEC partition's hash value.
+endmenu

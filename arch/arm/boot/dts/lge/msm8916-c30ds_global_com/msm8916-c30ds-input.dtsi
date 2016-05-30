@@ -1,0 +1,44 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_5 {
+
+	lge_touch@34 {
+		revision = "rev_a...rev_c";
+	};
+
+	lge_touch_rev10@34 {
+		revision = "rev_10...";
+	};
+
+	lu201x@0e {
+		status = "ok";
+
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend";		/*Touch GPIO pin name setting*/
+		/*pinctrl-0 = <&ts_int_active &ts_reset_active &ts_gpio_ldo_enable_evb_active>;*/	/*Touch GPIO pin active setting*/
+		/*pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_gpio_ldo_enable_evb_suspend>;*/	/*Touch GPIO pin suspend setting*/
+		pinctrl-0 = <&ts_int_active &ts_reset_active &ts_gpio_ldo_enable_active>;/*Touch GPIO pin active setting*/
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_gpio_ldo_enable_suspend>;	/*Touch GPIO pin suspend setting*/
+
+	};
+};
+&soc {
+	gpio_keys {
+		vol_up {
+			gpios = <&msm_gpio 107 0x1>;
+		};
+
+		vol_down {
+			gpios = <&msm_gpio 108 0x1>;
+		};
+	};
+};

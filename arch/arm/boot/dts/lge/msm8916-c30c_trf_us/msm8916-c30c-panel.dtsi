@@ -1,0 +1,72 @@
+/* Copyright (c) 2013, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../msm8916-lge-common/dsi-panel-byd_ili9806e-480p-video.dtsi"
+#include "../msm8916-lge-common/dsi-panel-tianma_ili9806e-480p-video.dtsi"
+
+&mdss_mdp {
+       qcom,mdss-pref-prim-intf = "dsi";
+       qcom,mdss-ab-factor = <1 1>;
+       qcom,mdss-ib-factor = <2 1>;
+};
+
+/*
+&dsi_byd_ili9806e_vid {
+       qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+};
+*/
+
+&pmx_mdss {
+       qcom,num-grp-pins = <2>;
+       qcom,pins = <&gp 25>, <&gp 10>;
+};
+
+&mdss_dsi0 {
+	//qcom,dsi-pref-prim-pan = <&dsi_byd_ili9806e_vid>;
+       //qcom,dsi-pref-secondary-pan = <&dsi_tianma_ili9806e_vid>;
+       pinctrl-names = "mdss_default", "mdss_sleep";
+       pinctrl-0 = <&mdss_dsi_active>;
+       pinctrl-1 = <&mdss_dsi_suspend>;
+
+       qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+       qcom,platform-iovcc-gpio =<&msm_gpio 10 0>;
+       qcom,regulator-ldo-mode;
+
+	vdd-supply = <&pm8916_l10>;
+	vddio-supply = <&pm8916_l6>;
+	vdda-supply = <&pm8916_l2>;
+	qcom,panel-supply-entries {
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vdd";
+			qcom,supply-min-voltage = <2800000>;
+			qcom,supply-max-voltage = <2800000>;
+			qcom,supply-enable-load = <100000>;
+			qcom,supply-disable-load = <100>;
+
+		};
+	};
+};
+
+/*
+&mdss_dsi0 {
+       //qcom,dsi-pref-prim-pan = <&dsi_byd_ili9806e_vid>;
+       //qcom,dsi-pref-secondary-pan = <&dsi_tianma_ili9806e_vid>;
+       pinctrl-names = "mdss_default", "mdss_sleep";
+       pinctrl-0 = <&mdss_dsi_active>;
+       pinctrl-1 = <&mdss_dsi_suspend>;
+
+       qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+       qcom,platform-iovcc-gpio =<&msm_gpio 10 0>;
+	   qcom,regulator-ldo-mode;
+};
+*/

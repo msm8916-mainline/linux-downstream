@@ -1,0 +1,109 @@
+&mdss_mdp {
+	dsi_lgd_phase3_hd_incell_vid: qcom,mdss_dsi_lgd_incell_phase3_hd_video{
+		lge,has-dsv;
+		compatible = "qcom,mdss-dsi-panel";
+		status = "disable";
+		qcom,cont-splash-enabled;
+		qcom,mdss-dsi-panel-name = "LGD INCELL PHASE3 HD video mode dsi panel";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,mdss-dsi-panel-destination = "display_1";
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-force-hs-clk-always;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-lp11-init;
+		qcom,suspend-ulps-enabled;
+		qcom,mdss-dsi-panel-width = <720>;
+		qcom,mdss-dsi-panel-height = <1280>;
+		qcom,mdss-dsi-h-front-porch = <84>;
+		qcom,mdss-dsi-h-back-porch = <88>;
+		qcom,mdss-dsi-h-pulse-width = <4>;
+		qcom,mdss-dsi-h-sync-skew = <0>;
+		qcom,mdss-dsi-v-front-porch = <7>;
+		qcom,mdss-dsi-v-back-porch = <417>;
+		qcom,mdss-dsi-v-pulse-width = <4>;
+		qcom,mdss-dsi-h-left-border = <0>;
+		qcom,mdss-dsi-h-right-border = <0>;
+		qcom,mdss-dsi-v-top-border = <0>;
+		qcom,mdss-dsi-v-bottom-border = <0>;
+		qcom,mdss-pan-physical-width-dimension = < 71 >;
+		qcom,mdss-pan-physical-height-dimension = < 126 >;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-underflow-color = <0>;
+		qcom,mdss-dsi-border-color = <0>;
+		qcom,mdss-dsi-on-command = [
+			05 01 00 00 78 00 02
+			11 00
+			29 01 00 00 00 00 04
+			90 00 43 01
+			29 01 00 00 00 00 04
+			01 00 65 02
+			29 01 00 00 00 00 04
+			92 00 13 01
+			29 01 00 00 00 00 04
+			03 07 6a 01
+			05 01 00 00 00 00 02
+			29 00
+		];
+		qcom,mdss-dsi-off-command = [
+			05 01 00 00 10 00 02
+			28 00
+			05 01 00 00 C8 00 02
+			10 00
+		];
+		qcom,mdss-dsi-lut-update-command = [
+			05 01 00 00 00 00 02
+			26 00
+		];
+		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-lut-update-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-h-sync-pulse = <0>;
+		qcom,mdss-dsi-traffic-mode = "non_burst_sync_event";
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+		//qcom,mdss-dsi-hfp-power-mode;
+		//qcom,mdss-dsi-hbp-power-mode;
+		//qcom,mdss-dsi-hsa-power-mode;
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		//qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-panel-timings = [9B 22 16 00 4A 4E 1A 26 35 03 04 00];
+		qcom,mdss-dsi-t-clk-post = <0x04>;
+		qcom,mdss-dsi-t-clk-pre = <0x22>;
+
+
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <255>;
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-mdp-trigger = "none";
+		//qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+		qcom,mdss-dsi-reset-sequence = <1 1>, <1 1>, <1 1>, <1 1>;
+	};
+};
+
+&mdss_dsi0 {
+    vdd-supply = <&pm8916_l16>;
+    vddio-supply = <&pm8916_l6>;
+    vdda-supply = <&pm8916_l2>;
+    qcom,panel-supply-entries {
+        qcom,panel-supply-entry@0 {
+            reg = <0>;
+            qcom,supply-name = "vdd";
+            qcom,supply-min-voltage = <3000000>;
+            qcom,supply-max-voltage = <3000000>;
+            qcom,supply-enable-load = <100000>;
+            qcom,supply-disable-load = <100>;
+            qcom,supply-post-on-sleep = <0>;
+        };
+        qcom,panel-supply-entry@1 {
+            qcom,supply-name = "vddio";
+            qcom,supply-post-on-sleep = <0>;
+        };
+    };
+};
+

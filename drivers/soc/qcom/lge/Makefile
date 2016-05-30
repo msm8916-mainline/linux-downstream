@@ -1,0 +1,16 @@
+obj-$(CONFIG_MACH_LGE) += devices_lge.o
+
+
+obj-$(CONFIG_LGE_PM) += lge_charging_scenario.o
+#obj-$(CONFIG_LGE_PM) += lge_gpio_debug.o
+obj-$(CONFIG_LGE_PM) += lge_monitor_thermal.o
+obj-$(CONFIG_LGE_BOOTLOADER_LOG) += lge_bootloader_log.o
+obj-$(CONFIG_LGE_BOOTLOADER_TIME_CHECKER) += lge_bootloader_time_checker.o
+obj-$(CONFIG_LGE_QSDL_SUPPORT) += lge_qsdl.o
+obj-$(CONFIG_LGE_QFPROM_INTERFACE) += lge_qfprom_access.o
+
+obj-$(CONFIG_LGE_HANDLE_PANIC) += lge_handle_panic.o
+obj-$(CONFIG_LCD_KCAL) += lge_kcal_ctrl.o
+obj-$(CONFIG_MACH_LGE) += lge_lcd_misc_ctrl.o
+obj-$(CONFIG_PRE_SELF_DIAGNOSIS) += lge_pre_selfd.o
+CFLAGS_lge_bootloader_log.o += -I$(srctree)/arch/arm/mach-msm/include

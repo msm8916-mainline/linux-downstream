@@ -1,0 +1,40 @@
+/* Copyright (c) 2013, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "dsi-panel-lgd-ld083-1200p-video.dtsi"
+&mdss_mdp {
+       qcom,mdss-pref-prim-intf = "dsi";
+       qcom,mdss-ab-factor = <1 1>;
+       qcom,mdss-ib-factor = <2 1>;
+};
+
+&dsi_lgd_ld083_wuxga_vid {
+       qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+};
+
+&pmx_mdss {
+	status = "ok";
+       qcom,num-grp-pins = <1>;
+       //qcom,pins = <&gp 98>, <&gp 20>;
+       qcom,pins = <&gp 20>;
+};
+
+&mdss_dsi0 {
+	status = "ok";
+       qcom,dsi-pref-prim-pan = <&dsi_lgd_ld083_wuxga_vid>;
+       pinctrl-names = "mdss_default", "mdss_sleep";
+       pinctrl-0 = <&mdss_dsi_active>;
+       pinctrl-1 = <&mdss_dsi_suspend>;
+
+	//qcom,platform-bklight-en-gpio = <&msm_gpio 98 0>;
+       qcom,platform-lcd-ldo-gpio =<&msm_gpio 20 0>;   //LCD_LDO_EN
+};

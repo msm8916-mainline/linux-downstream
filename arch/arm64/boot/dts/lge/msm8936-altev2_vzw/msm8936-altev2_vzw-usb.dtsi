@@ -1,0 +1,45 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
+&usb_otg {
+        qcom,hsusb-otg-mode = <3>;
+        qcom,hsusb-otg-otg-control = <2>;
+/*
+	qcom,hsusb-otg-default_mode = <1>;
+*/
+	qcom,hsusb-otg-mpm-dpsehv-int = <49>;
+	qcom,hsusb-otg-mpm-dmsehv-int = <58>;
+
+	qcom,hubres-gpio = <&msm_gpio 49 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&hubres_default>;
+
+	qcom,huben-gpio = <&msm_gpio 50 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&huben_default>;
+
+/*
+	qcom,vbus-flt-n = <&msm_gpio 109 0>;
+	pintctrl-name = "default";
+	pinctrl-0 = <&vbus_flt_default>;
+*/
+
+	qcom,hsusb-otg-phy-init-seq =
+		<0x44 0x80 0x75 0x81 0x70 0x82 0x0F 0x83 0xffffffff>;
+
+/*
+	qcom,hsusb-otg-phy-init-host-seq =
+		<0x44 0x80 0x75 0x81 0x70 0x82 0x0F 0x83 0xffffffff>;
+*/
+
+	qcom,phy-vadc = <&pm8916_vadc>;
+};

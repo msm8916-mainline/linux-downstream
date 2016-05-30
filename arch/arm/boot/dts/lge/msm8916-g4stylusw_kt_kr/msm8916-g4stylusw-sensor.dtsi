@@ -1,0 +1,140 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_0{
+	 /* BLSP1 QUP2, LGP-s19 sensor devices */
+	apds9130@39 {
+		compatible = "avago,apds9130";
+		status = "disable";
+		reg = <0x39>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <113 0x1>;
+		sensor_vdd-supply = <&pm8916_l17_sns>;
+		sensor_vcc_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&apds9130_int_active>;
+		pinctrl-1 = <&apds9130_int_suspend>;
+		avago,gpio-int = <&msm_gpio 113 0x1>;
+	};
+
+	/* Proximity sensor */
+	avago_apds9130@39 {
+		compatible = "avago,apds9130";
+		status ="ok";
+		reg = <0x39>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <113 0x2>;
+		Avago,vdd_ana-supply = <&pm8916_l17_sns>;
+		Avago,vddio_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&apds9130_int_active>;
+		pinctrl-1 = <&apds9130_int_suspend>;
+		Avago,irq-gpio = <&msm_gpio 113 0x0>;
+		Avago,i2c-pull-up;
+		Avago,vdd_ana_supply_min = <2850000>;
+		Avago,vdd_ana_supply_max = <3300000>;
+		Avago,vdd_ana_load_ua = <15000>;
+		Avago,vddio_dig_supply_min = <1800000>;
+		Avago,vddio_dig_supply_max = <1800000>;
+		Avago,vddio_dig_load_ua = <10000>;
+		Avago,vddio_i2c_supply_min = <1800000>;
+		Avago,vddio_i2c_supply_max = <1800000>;
+		Avago,vddio_i2c_load_ua = <10000>;
+		Avago,ppcount = <8>;
+		Avago,pdrive = <0>;
+		Avago,near_offset = <500>;
+		Avago,far_offset = <180>;
+		Avago,crosstalk_max = <770>;
+		Avago,bright_threshold = <2000>;
+		Avago,dark_threshold = <1000>;
+	};
+
+	k2dh0@18 {
+		status = "disable";
+		reg = <0x18>;
+		compatible = "st,k2dh";
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <115 0x0>;
+		sensor_vdd-supply = <&pm8916_l17_sns>;
+		sensor_vcc_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&k2dh_int_active>;
+		pinctrl-1 = <&k2dh_int_suspend>;
+		st,gpio-int = <&msm_gpio 115 0x0>;
+	};
+
+	/* Acceleration sensor */
+	bosch_bma2x2@11 {
+		compatible = "bosch,bma2x2";
+		status = "ok";
+		reg = <0x11>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <115 0x2>;
+		Bosch,vdd_ana-supply = <&pm8916_l17_sns>;
+		Bosch,vddio_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bma2x2_int_active>;
+		pinctrl-1 = <&bma2x2_int_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 115 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <2850000>;
+		Bosch,vdd_ana_supply_max = <3300000>;
+		Bosch,vdd_ana_load_ua = <15000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <5>;
+	};
+
+	ak09911@0c {
+		status = "disable";
+		reg = <0x0c>;
+		compatible = "ak,ak09911";
+		sensor_vdd-supply = <&pm8916_l17_sns>;
+		sensor_vcc_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+				pinctrl-0 = <&akm09911_active>;
+				pinctrl-1 = <&akm09911_suspend>;
+		akm,gpio_rstn = <&msm_gpio 69 0x0>;
+				akm,layout = <0x0>;
+				akm,auto-report;
+	};
+
+	/* Magnetic Sensor Driver */
+	bosch_bmm050@13 {
+		compatible = "bosch,bmm050";
+		status = "ok";
+		reg = <0x13>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <69 0x2>;
+		Bosch,vdd_ana-supply = <&pm8916_l17_sns>;
+		Bosch,vddio_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bmm_drdy_active>;
+		pinctrl-1 = <&bmm_drdy_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 69 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <2850000>;
+		Bosch,vdd_ana_supply_max = <3300000>;
+		Bosch,vdd_ana_load_ua = <15000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <5>;
+	};
+};

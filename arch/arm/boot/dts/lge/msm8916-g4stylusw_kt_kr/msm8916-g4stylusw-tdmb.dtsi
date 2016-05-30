@@ -1,0 +1,67 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	aliases {
+		spi1 = &spi_tdmb;
+	};
+	soc {
+		  spi_tdmb: spi_tdmb@78b7000 {	/*BLSP-1 QUP3*/
+			status = "ok";
+			compatible = "qcom,spi-qup-v2";
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			reg-names = "spi_physical";
+			reg = <0x78b7000 0x1000>;
+			interrupt-names = "spi_irq";
+			interrupts = <0 97 0>;
+
+			spi-max-frequency = <15000000>;
+
+			qcom,master-id = <86>; //Keep AHB clocks ON
+			clock-names = "iface_clk", "core_clk";
+			clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+				<&clock_gcc clk_gcc_blsp1_qup3_spi_apps_clk>;
+
+			/* Assign runtime functions to pins */
+			qcom,use-pinctrl;
+			pinctrl-names = "default","sleep";
+			pinctrl-0 = <&spi_tdmb_active>;
+			pinctrl-1 = <&spi_tdmb_suspend>;
+
+			qcom,gpio-mosi = <&msm_gpio 8 0>;
+			qcom,gpio-miso = <&msm_gpio 9 0>;
+			qcom,gpio-cs0 = <&msm_gpio 10 0>;
+			qcom,gpio-clk = <&msm_gpio 11 0>;
+		};
+	};
+};
+&spi_tdmb {
+	tdmb@0 {
+		compatible = "lge,tdmb";
+		reg = <0>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <12 0x0>;
+		spi-max-frequency = <15000000>;
+
+		/* TDMB CLK */
+		clock-names = "tdmb_xo";
+		clocks = <&clock_rpm clk_rf_clk2>;
+
+		pinctrl-names = "gpio_tdmb_suspend";
+		pinctrl-0 = <&tdmb_int &tdmb_ctrl>;
+		tdmb-fc8080,irq-gpio = <&msm_gpio 12 0x00>;
+		tdmb-fc8080,en-gpio = <&msm_gpio 16 0x00>;
+	};
+};

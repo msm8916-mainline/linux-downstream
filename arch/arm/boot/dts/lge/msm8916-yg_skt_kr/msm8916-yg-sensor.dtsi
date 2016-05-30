@@ -1,0 +1,148 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_0{
+	 /* BLSP1 QUP2, LGP-s19 sensor devices */
+	apds9130@39 {
+		compatible = "avago,apds9130";
+		status = "disable";
+		reg = <0x39>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <113 0x1>;
+		sensor_vdd-supply = <&pm8916_l17_sns>;
+		sensor_vcc_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&apds9130_int_active>;
+		pinctrl-1 = <&apds9130_int_suspend>;
+		avago,gpio-int = <&msm_gpio 113 0x1>;
+	};
+
+	avago9930@39 {
+		 compatible = "avago,apds9930";
+		 status = "ok";
+		 reg = <0x39>;
+		 pinctrl-names = "default","sleep";
+		 pinctrl-0 = <&apds9930_int_active>;
+		 pinctrl-1 = <&apds9930_int_suspend>;
+		 interrupt-parent = <&msm_gpio>;
+		 interrupts = <113 0x2>;
+		 avago,vdd_ana-supply = <&pm8916_l17_sns>;
+		 avago,vddio_i2c-supply = <&pm8916_l6>;
+		 avago,irq-gpio = <&msm_gpio 113 0x2>;
+		 avago,ps_threshold = <300>;
+		 avago,ps_hysteresis_threshold = <220>;
+		 avago,ps_pulse = <6>;
+		 avago,ps_pgain = <0x08>;
+		 avago,als_B = <186>;
+		 avago,als_C = <74>;
+		 avago,als_D = <132>;
+		 avago,ga_value = <223>;
+		 avago,default-cal;
+		 avago,i2c-pull-up;
+	 };
+
+	/* Proximity sensor */
+	avago_apds9130@39 {
+		compatible = "avago,apds9130";
+		status ="disable";
+		reg = <0x39>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <113 0x2>;
+		Avago,vdd_ana-supply = <&pm8916_l17_sns>;
+		Avago,vddio_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&apds9130_int_active>;
+		pinctrl-1 = <&apds9130_int_suspend>;
+		Avago,irq-gpio = <&msm_gpio 113 0x0>;
+		Avago,i2c-pull-up;
+		Avago,vdd_ana_supply_min = <2850000>;
+		Avago,vdd_ana_supply_max = <3300000>;
+		Avago,vdd_ana_load_ua = <15000>;
+		Avago,vddio_dig_supply_min = <1800000>;
+		Avago,vddio_dig_supply_max = <1800000>;
+		Avago,vddio_dig_load_ua = <10000>;
+		Avago,vddio_i2c_supply_min = <1800000>;
+		Avago,vddio_i2c_supply_max = <1800000>;
+		Avago,vddio_i2c_load_ua = <10000>;
+		Avago,ppcount = <8>;
+		Avago,pdrive = <0>;
+		Avago,near_offset = <500>;
+		Avago,far_offset = <180>;
+		Avago,crosstalk_max = <770>;
+		Avago,bright_threshold = <2000>;
+		Avago,dark_threshold = <1000>;
+	};
+
+	k2dh0@18 {
+		status = "disable";
+		reg = <0x18>;
+		compatible = "st,k2dh";
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <115 0x0>;
+		sensor_vdd-supply = <&pm8916_l17_sns>;
+		sensor_vcc_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&k2dh_int_active>;
+		pinctrl-1 = <&k2dh_int_suspend>;
+		st,gpio-int = <&msm_gpio 115 0x0>;
+	};
+
+	ak09911@0d {
+		revision = "rev_a...";
+		status = "ok";
+		reg = <0x0d>;
+		compatible = "ak,ak09911";
+		sensor_vdd-supply = <&pm8916_l17_sns>;
+		sensor_vcc_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+				pinctrl-0 = <&akm09911_active>;
+				pinctrl-1 = <&akm09911_suspend>;
+		akm,gpio_rstn = <&msm_gpio 69 0x0>;
+				akm,layout = <0x0>;
+				akm,auto-report;
+	};
+
+	/* Acceleration sensor */
+	st_k303c_acc@1d {
+		revision = "rev_0";
+		compatible = "st,k303c_acc";
+		reg = <0x1d>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <115 0x2>;
+		st,vdd_ana-supply = <&pm8916_l17_sns>;
+		st,vddio_i2c-supply = <&pm8916_l6>;
+		st,irq-gpio = <&msm_gpio 115 0x00>;
+		st,i2c-pull-up = <1>;
+	};
+
+	/* Magnetic Sensor Driver */
+	st_k303c_mag@1e {
+		revision = "rev_0";
+		compatible = "st,k303c_mag";
+		reg = <0x1e>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <69 0x2>;
+		st,vdd_ana-supply = <&pm8916_l17_sns>;
+		st,vddio_i2c-supply = <&pm8916_l6>;
+		st,irq-gpio = <&msm_gpio 69 0x00>;
+		st,i2c-pull-up = <1>;
+	};
+
+	/* Acceleration sensor */
+	bmi160@68 {
+		revision = "rev_a...";
+		compatible = "bosch,bmi160";
+		status = "ok";
+		reg = <0x68>;
+	};
+
+};

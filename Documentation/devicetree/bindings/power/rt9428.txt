@@ -1,0 +1,67 @@
+Richtek RT9428 fuelgauge battery
+
+The RT9428 interface is via I2C bus.
+The i2c slave 7-bit address is programmable at manufacture.
+
+Node required properties:
+- compatible:	Must be "rt,rt9428".
+- reg:		Now the address is 0x36, The device 7-bit I2C address.
+- rt,alert_gpio:Used as the battery low alert irq.
+- rt,vgpara_hcap:	vgpara hcap for battery soc calculation.
+- rt,vgpara_lcap:	vgpara lcap for battery soc calculation.
+- rt,r1_gain_hcap:   temp region 1 hcap compensation.
+- rt,r2_gain_hcap:	temp region 2 hcap compensation.
+- rt,r3_gain_hcap:	temp region 3 hcap compensation.
+- rt,r4_gain_hcap:	temp region 4 hcap compensation.
+- rt,r1_gain_lcap:   temp region 1 lcap compensation.
+- rt,r2_gain_lcap:	temp region 2 lcap compensation.
+- rt,r3_gain_lcap:	temp region 3 lcap compensation.
+- rt,r4_gain_lcap:	temp region 4 lcap compensation.
+- rt,temp_base: temp region base.
+- rt,soc_comp:	0% soc compensation value.
+		for 4.2V battery <-> 4.35V battery
+		3.2V -> 0	|    3.2V -> 0
+		3.3V -> 8	|    3.3V -> 7
+		3.4V -> 17	|    3.4V -> 14
+		3.5V -> 30	|    3.5V -> 23
+		3.6V -> 45	|    3.6V -> 38
+- rt,full_design: full design capacity mAH.
+- rt,low_cut_off_gain: Adjust battery voltage less than 3.2V @ 0% SOC.
+	The gain is smaller, the battery voltage is lower.
+	Range: 0 ~ 10, Default: 10 (No adjustment)
+	richtek suggestion for cutoff 3.1V is '5'
+	richtek suggestion for cutoff 3.0V is '3'
+
+Optional properties:
+- rt,vgcomp0:	vgcom for soc calculation.
+- revision:	revision note.
+
+Example:
+	i2c@f9967000 {
+		rt9428@36 {
+			compatible = "rt,rt9428";
+			status = "ok";
+			reg = <0x36>;
+			interrupt-parent = <&msmgpio>;
+			interrupts = <66 0x0>;
+			rt,alert_gpio = <&msmgpio 66 0x00>;
+			rt,alert_threshold = <2>;
+			revision = "rev_a...";
+			rt,full_design = <2540>;
+			rt,vgcomp0 = <0xAB>;
+			rt,vgpara_hcap = <0x8132 0x8237 0x8323 0x84E1 0x8501>;
+			rt,vgpara_lcap = <0x8132 0x8237 0x8323 0x84E1 0x8501>;
+			rt,r1_gain_hcap = < 0 125 0 350 1 160>;
+			rt,r2_gain_hcap = < 1 50 1 75 0 280>;
+			rt,r3_gain_hcap = < 0 0 0 300 0 0>;
+			rt,r4_gain_hcap = < 1 800 1 200 1 640>;
+			rt,r1_gain_lcap = < 0 125 0 350 1 160>;
+			rt,r2_gain_lcap = < 1 50 1 75 0 280>;
+			rt,r3_gain_lcap = < 0 0 0 300 0 0>;
+			rt,r4_gain_lcap = < 1 800 1 200 1 640>;
+			rt,temp_base = <0 10 25 40>;
+			rt,soc_comp = <0>;
+			rt,low_cut_off_gain = <10>;
+		};
+	};
+

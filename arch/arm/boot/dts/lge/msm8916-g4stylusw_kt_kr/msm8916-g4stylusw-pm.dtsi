@@ -1,0 +1,269 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
+&pm8916_chg {
+	status = "ok";
+
+	lge,no-init-cable = <0 0 0>;
+	lge,cable-mhl-1k = <5000 500 500>;
+	lge,cable-u-28p7k = <5500 1200 500>;
+	lge,cable-28p7k = <6000 1200 500>;
+	lge,cable-56k = <200000 1500 1500>;
+	lge,cable-100k = <239000 1200 500>;
+	lge,cable-130k = <340000 1500 1500>;
+	lge,cable-180k = <400000 1200 500>;
+	lge,cable-200k = <410000 1200 500>;
+	lge,cable-220k = <485000 1200 500>;
+	lge,cable-270k = <560000 1200 500>;
+	lge,cable-330k = <735000 1200 500>;
+	lge,cable-620k = <955000 1200 500>;
+	lge,cable-910k = <1140000 1500 1500>;
+	lge,cable-none = <1900000 1200  500>;
+
+	qcom,vddmax-mv = <4350>;
+	qcom,vddsafe-mv = <4380>;
+	qcom,vinmin-mv = <4470>;
+	qcom,tchg-mins = <480>;
+	qcom,btc-disabled = <1>;
+	qcom,resume-soc = <98>;
+	qcom,disable-vbatdet-based-recharge;
+};
+
+&soc {
+	qcom,msm-thermal {
+		qcom,freq-control-mask = <0xf>;
+		qcom,core-control-mask = <0xe>;
+		qcom,hotplug-temp = <110>;
+		qcom,hotplug-temp-hysteresis = <20>;
+		qcom,freq-mitigation-temp = <110>;
+		qcom,freq-mitigation-temp-hysteresis = <20>;
+		qcom,freq-mitigation-value = <960000>;
+		};
+};
+
+&spmi_bus {
+qcom,pm8916@0 {
+	qcom,leds@a100 {
+		status = "okay";
+		qcom,led_mpp_2 {
+			label = "mpp";
+			linux,name = "red";
+			linux,default-trigger = "none";
+			qcom,default-state = "on";
+			qcom,max-current = <40>;
+			qcom,current-setting = <5>;
+			charge-current = <5>;
+			qcom,id = <6>;
+			qcom,mode = "pwm";
+			qcom,pwm-us = <1000>;
+			qcom,source-sel = <8>;
+			qcom,mode-ctrl = <0x60>;
+			pwms = <&pm8916_pwm_1 0 0>;
+		};
+	};
+
+	pm8916_pon: qcom,power-on@800 {
+			qcom,pon_1 {
+				qcom,support-reset = <0>;
+			};
+		};
+	qcom,power-on,lge@800{
+			 qcom,pon_1 {
+				qcom,support-reset = <0>;
+			};
+		};
+	};
+};
+
+&pm8916_mpps {
+	mpp@a100 {
+		status = "okay";
+		qcom,mode = <6>;
+		qcom,invert = <0>;
+		qcom,src-sel = <4>;
+		qcom,cs-out = <7>;
+		qcom,master-en = <1>;
+		reg = <0xa100 0x100>;
+		qcom,pin-num = <2>;
+	};
+};
+
+/ {
+	lge_lgc_2100mah_batterydata: qcom,lgc-battery-data {
+		qcom,rpull-up-kohm = <150>;
+		qcom,vref-batt-therm = <1800000>;
+
+		#include "../msm8916-lge-common/batterydata_LGE_lgc_2100mAh.dtsi"
+	};
+
+	lge_tocad_2100mah_batterydata: qcom,tocad-battery-data {
+		qcom,rpull-up-kohm = <150>;
+		qcom,vref-batt-therm = <1800000>;
+
+		#include "../msm8916-lge-common/batterydata_LGE_tocad_2100mAh.dtsi"
+	};
+};
+
+/ {
+	BL51YF_LGC_3000MAH_BATTERY: rt,lgc-battery-data {
+		rt,vgpara_hcap = <0x8155 0x825A 0x8337 0x8455 0x8501>;
+		rt,vgpara_lcap = <0x8141 0x8225 0x8337 0x8455 0x8501>;
+		rt,r1_gain_hcap = < 1 150 0 100 1 150>;
+		rt,r2_gain_hcap = < 1 375 0 550 1 375>;
+		rt,r3_gain_hcap = < 1 150 0 100 0 150>;
+		rt,r4_gain_hcap = < 1 150 0 0   1 150>;
+		rt,r1_gain_lcap = < 1 75  0 200 1 75>;
+		rt,r2_gain_lcap = < 1 110 1 10  1 110>;
+		rt,r3_gain_lcap = < 1 150 0 100 1 150>;
+		rt,r4_gain_lcap = < 1 150 0 0   1 150>;
+	};
+
+	BL51YF_DEFAULT_3000MAH_BATTERY: rt,default-battery-data {
+		rt,vgpara_hcap = <0x8155 0x825A 0x8337 0x8455 0x8501>;
+		rt,vgpara_lcap = <0x8141 0x8225 0x8337 0x8455 0x8501>;
+		rt,r1_gain_hcap = < 1 150 0 100 1 150>;
+		rt,r2_gain_hcap = < 1 375 0 550 1 375>;
+		rt,r3_gain_hcap = < 1 150 0 100 0 150>;
+		rt,r4_gain_hcap = < 1 150 0 0   1 150>;
+		rt,r1_gain_lcap = < 1 75  0 200 1 75>;
+		rt,r2_gain_lcap = < 1 110 1 10  1 110>;
+		rt,r3_gain_lcap = < 1 150 0 100 1 150>;
+		rt,r4_gain_lcap = < 1 150 0 0   1 150>;
+	};
+};
+
+&pm8916_bms {
+	status = "ok";
+	qcom,v-cutoff-uv = <3200000>;
+	qcom,max-voltage-uv = <4350000>;
+	qcom,low-voltage-threshold = <3250000>;
+	qcom,s2-fifo-length = <8>;
+	qcom,shutdown-soc-valid-limit = <20>;
+	qcom,force-bms-active-on-charger;
+	qcom,lgc-battery-data = <&lge_lgc_2100mah_batterydata>;
+	qcom,tocad-battery-data = <&lge_tocad_2100mah_batterydata>;
+};
+
+&pm8916_vadc {
+	chan@10 {
+		label = "usb_id";
+		reg = <0x10>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+	};
+};
+
+&i2c_1 {
+	rt9428@36 {
+		compatible = "rt,rt9428";
+		status = "ok";
+		reg = <0x36>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <0x1 0x0>;
+		rt,full_design= <3000>;
+		rt,alert_gpio = <&msm_gpio 0x1 0x0>;
+		rt,alert_threshold = <1>;
+		/* Pins config setting */
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&rt9428_int_active>;
+		pinctrl-1 = <&rt9428_int_sleep>;
+		rt,soc_comp = <0>;
+		rt,vgcomp0 = <0xAB>;
+		rt,temp_base = <5 5 25 45>;
+		rt,lgc-battery-data = <&BL51YF_LGC_3000MAH_BATTERY>;
+		rt,default-battery-data = <&BL51YF_DEFAULT_3000MAH_BATTERY>;
+	};
+
+	bq24262@6b {
+		status = "ok";
+		compatible = "ti,bq24262-charger";
+		reg = <0x6b>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <36 0x0>;
+		ti,stat-gpio = <&msm_gpio 114 0>;
+		ti,int-gpio = <&msm_gpio 36 0>;
+		ti,ext-chg-disen-gpio = <&msm_gpio 17 0>;
+		ti,term-current-ma = <150>;
+		ti,vbat-max-mv = <4400>;		/* Step unit 20 mV, battery available voltage(x = 4.375) : x-0.025 ~ x ~ x+0.025 */
+		ti,vin-limit-mv = <4540>;
+		/* Pins config setting */
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bq24262_int_active &bq24262_ext_stat_active>;
+		pinctrl-1 = <&bq24262_int_sleep &bq24262_ext_stat_sleep>;
+
+/* Each model is defferently value */
+		lge,no-init-cable = <0 0 0>;
+		lge,cable-mhl-1k = <5000 500 500>;
+		lge,cable-u-28p7k = <5500 1200 500>;
+		lge,cable-28p7k = <6000 1200 500>;
+		lge,cable-56k = <200000 1500 1500>;
+		lge,cable-100k = <239000 1200 500>;
+		lge,cable-130k = <340000 1500 1500>;
+		lge,cable-180k = <400000 1200 500>;
+		lge,cable-200k = <410000 1200 500>;
+		lge,cable-220k = <485000 1200 500>;
+		lge,cable-270k = <560000 1200 500>;
+		lge,cable-330k = <735000 1200 500>;
+		lge,cable-620k = <955000 1200 500>;
+		lge,cable-910k = <1140000 1500 1500>;
+		lge,cable-none = <1900000 1200  500>;
+
+		qcom,bq24262-vadc = <&pm8916_vadc>;
+	};
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa6 {
+		status = "okay";
+		pm8916_l6: regulator-l6 {
+			regulator-always-on;
+			status = "okay";
+		};
+	};
+
+	rpm-regulator-ldoa10 {
+		status = "okay";
+		pm8916_l10: regulator-l10 {
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+			qcom,init-voltage = <2800000>;
+			//regulator-always-on;
+			status = "okay";
+		};
+	};
+
+	rpm-regulator-ldoa16 {
+		status = "okay";
+		pm8916_l16: regulator-l16 {
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3000000>;
+			qcom,init-voltage = <3000000>;
+		//	regulator-always-on;
+			status = "okay";
+		};
+	};
+
+	rpm-regulator-ldoa17 {
+		status = "okay";
+		pm8916_l17: regulator-l17 {
+			regulator-min-microvolt = <2850000>;
+			regulator-max-microvolt = <2850000>;
+			qcom,init-voltage = <2850000>;
+			//regulator-always-on;
+			status = "okay";
+		};
+	};
+};

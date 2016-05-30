@@ -1,0 +1,600 @@
+config MACH_LGE
+	bool
+
+menu "LGE Board Selection"
+
+config MACH_MSM8916_LGPS19
+	bool "MSM8916 LGPS19"
+	depends on ARCH_MSM8916
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8916 LGPS19 device.
+
+config MACH_MSM8916_E2_GLOBAL_COM
+        bool "MSM8916 E2_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        help
+          Support for the Qualcomm MSM8916 E2 Global device.
+
+config MACH_MSM8916_C50DS_GLOBAL_COM
+        bool "MSM8916 C50DS_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C50DS Global device.
+
+config MACH_MSM8916_C50N_GLOBAL_COM
+        bool "MSM8916 C50N_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C50N Global device.
+
+config MACH_MSM8916_C50_GLOBAL_COM
+        bool "MSM8916 C50_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C50 Global device.
+
+config MACH_MSM8916_C70N_GLOBAL_COM
+        bool "MSM8916 C70N_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 E2DS Global device.
+
+config MACH_MSM8916_C70W_SKT_KR
+        bool "MSM8916 C70W_SKT_KR"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 E2DS SKT device.
+
+config MACH_MSM8916_C70W_KT_KR
+        bool "MSM8916 C70W_KT_KR"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 E2DS KT device.
+
+config MACH_MSM8916_C70W_LGU_KR
+        bool "MSM8916 C70W_LGU_KR"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 E2DS LGU device.
+
+config MACH_MSM8916_C70_GLOBAL_COM
+        bool "MSM8916 C70_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 E2DS Global device.
+	  
+config MACH_MSM8916_STYLUSC_SPR_US
+        bool "MSM8916 STYLUSC_SPR_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 STYLUSC SPR device.
+          
+config MACH_MSM8916_G4STYLUS_CRK_US
+        bool "MSM8916 G4STYLUS_CRK_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 E2DS Global device.
+
+config MACH_MSM8916_C70DS_GLOBAL_COM
+        bool "MSM8916 C70DS_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 E2DS Global device.
+
+config MACH_MSM8916_C30DS_GLOBAL_COM
+        bool "MSM8916 C30DS_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C30DS Global device.
+
+config MACH_MSM8916_C30_GLOBAL_COM
+        bool "MSM8916 C30_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C30 Global device.
+
+config MACH_MSM8916_C70N_ATT_US
+        bool "MSM8916 C70N_ATT_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_USE_6GBIT_CS_N_SDRAM
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C70N ATT device.
+
+config MACH_MSM8916_YG_SKT_KR
+        bool "MSM8916 YG_SKT_KR"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        help
+          Support for the Qualcomm MSM8916 YG SKT device.
+
+config MACH_MSM8916_C70N_CRK_US
+        bool "MSM8916 C70N_CRK_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_USE_6GBIT_CS_N_SDRAM
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C70N CRK device.
+
+config MACH_MSM8916_C70_USC_US
+        bool "MSM8916 C70_USC_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_USE_6GBIT_CS_N_SDRAM
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C70 USC device.
+
+config MACH_MSM8916_C70N_TMO_US
+        bool "MSM8916 C70N_TMO_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_USE_6GBIT_CS_N_SDRAM
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C70N TMO device.
+
+config MACH_MSM8916_C70N_MPCS_US
+        bool "MSM8916 C70N_MPCS_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_USE_6GBIT_CS_N_SDRAM
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C70N MPCS device.
+		  
+config MACH_MSM8916_C50_TRF_US
+        bool "MSM8916 C50_TRF_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C50 TRF device.
+
+config MACH_MSM8916_C50_CRK_US
+        bool "MSM8916 C50_CRK_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C50 CRK device.
+
+config MACH_MSM8916_C30_TRF_US
+        bool "MSM8916 C30_TRF_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C30 TRF device.
+
+config MACH_MSM8916_C30C_TRF_US
+        bool "MSM8916 C30C_TRF_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C30C TRF device.
+
+config MACH_MSM8916_C50_TMO_US
+        bool "MSM8916 C50_TMO_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C50 TMO device.
+
+config MACH_MSM8916_C50_SPR_US
+        bool "MSM8916 C50_SPR_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C50 SPR device.
+
+config MACH_MSM8916_C50_MPCS_US
+        bool "MSM8916 C50_MPCS_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C50 MPCS device.
+
+config MACH_MSM8916_C50C_VZW
+        bool "MSM8916 C50C_VZW"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C50C VZW device.
+
+config MACH_MSM8916_E2N_GLOBAL_COM
+        bool "MSM8916 E2N_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        help
+          Support for the Qualcomm MSM8916 E2N Global device.     
+
+config MACH_MSM8916_G4STYLUSN_TMO_US
+        bool "MSM8916 G4STYLUSN_TMO_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 G4STYLUSN TMO device.
+		  
+config MACH_MSM8916_G4STYLUSN_MPCS_US
+        bool "MSM8916 G4STYLUSN_MPCS_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 G4STYLUSN MPCS device.
+
+config MACH_MSM8916_G4STYLUSN_RGS_CA
+        bool "MSM8916 G4STYLUSN_RGS_CA"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 G4STYLUSN RGS device.
+
+config MACH_MSM8916_G4STYLUSN_VTR_CA
+        bool "MSM8916 G4STYLUSN_VTR_CA"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 G4STYLUSN VTR device.
+
+config MACH_MSM8916_G4STYLUSN_GLOBAL_COM
+        bool "MSM8916 G4STYLUSN_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 G4STYLUSN GLOBAL device.
+
+config MACH_MSM8916_G4STYLUSW_KT_KR
+        bool "MSM8916 G4STYLUSW_KT_KR"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 G4STYLUSN KT KR device.
+
+config MACH_MSM8916_YG_SKT_KR
+        bool "MSM8916 YG_SKT_KR"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 YG SKT KR device.
+          
+config MACH_MSM8916_G4STYLUSDSN_GLOBAL_COM
+        bool "MSM8916 G4STYLUSDSN_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 G4STYLUSDSN GLOBAL device.
+
+config MACH_MSM8916_Y50_TRF_US
+        bool "MSM8916 Y50_TRF_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 Y50 TRF device.
+
+config MACH_MSM8916_Y50C_TRF_US
+        bool "MSM8916 Y50C_TRF_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 Y50C TRF device.
+
+config MACH_MSM8916_E7IILTE_SPR_US
+        bool "MSM8916 E7IILTE_SPR_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+	select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 E7II SPR device.
+
+config MACH_MSM8916_C90NAS_SPR_US
+        bool "MSM8916 C90NAS_SPR_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+		select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 E2DS Global device.
+
+config MACH_MSM8916_C70_RGS_CA
+        bool "MSM8916 C70_RGS_CA"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_USE_6GBIT_CS_N_SDRAM
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 C70 RGS device.
+
+config MACH_MSM8916_C90N_GLOBAL_COM
+         bool "MSM8916 C90N_GLOBAL_COM"
+         depends on ARCH_MSM8916
+         select MACH_LGE
+         select LGE_ENABLE_THERMAL_CORE_CONTROL
+         help
+           Support for the Qualcomm MSM8916 E2DS Global device.
+
+config MACH_MSM8939_P1BC_SPR_US
+        bool "MSM8939 P1BC_SPR_US"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_USE_6GBIT_CS_N_SDRAM
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 P1BC_SPR_US device.
+
+config MACH_MSM8939_P1BSSN_BELL_CA
+        bool "MSM8939 P1BSSN_BELL_CA"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_USE_6GBIT_CS_N_SDRAM
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 P1BSSN_BELL_CA device.
+
+config MACH_MSM8939_P1BSSN_VTR_CA
+        bool "MSM8939 P1BSSN_VTR_CA"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_USE_6GBIT_CS_N_SDRAM
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8916 P1BSSN_VTR_CA device.
+
+config MACH_MSM8939_P1BDSN_GLOBAL_COM
+		bool "MSM8939 P1BDSN_GLOBAL_COM"
+		depends on ARCH_MSM8916
+		select MACH_LGE
+		select LGE_USE_6GBIT_CS_N_SDRAM
+		select LGE_ENABLE_THERMAL_CORE_CONTROL
+		help
+			Support for the Qualcomm MSM8916 P1BDSN_GLOBAL_COM device.
+
+config MACH_MSM8939_P1BSSN_SKT_KR
+                bool "MSM8939 P1BSSN_SKT_KR"
+                depends on ARCH_MSM8916
+                select MACH_LGE
+                select LGE_USE_6GBIT_CS_N_SDRAM
+                select LGE_ENABLE_THERMAL_CORE_CONTROL
+                help
+                        Support for the Qualcomm MSM8916 P1BSSN_SKT_KR device.
+endmenu
+
+config DTS_TARGET
+	string "DTS target dir"
+	default "msm8916-lgps19" if MACH_MSM8916_LGPS19
+	default "msm8916-e2_global_com" if MACH_MSM8916_E2_GLOBAL_COM
+	default "msm8916-c50_global_com" if MACH_MSM8916_C50_GLOBAL_COM
+	default "msm8916-c50ds_global_com" if MACH_MSM8916_C50DS_GLOBAL_COM
+	default "msm8916-c70n_global_com" if MACH_MSM8916_C70N_GLOBAL_COM
+	default "msm8916-c70w_kr_com" if MACH_MSM8916_C70W_SKT_KR
+	default "msm8916-c70w_kr_com" if MACH_MSM8916_C70W_KT_KR
+	default "msm8916-c70w_kr_com" if MACH_MSM8916_C70W_LGU_KR
+	default "msm8916-c70_global_com" if MACH_MSM8916_C70_GLOBAL_COM
+	default "msm8916-c70ds_global_com" if MACH_MSM8916_C70ds_GLOBAL_COM
+	default "msm8916-c50n_global_com" if MACH_MSM8916_C50N_GLOBAL_COM
+	default "msm8916-yg_skt_kr" if MACH_MSM8916_YG_SKT_KR
+    default "msm8916-c30_global_com" if MACH_MSM8916_C30_GLOBAL_COM
+    default "msm8916-c30ds_global_com" if MACH_MSM8916_C30DS_GLOBAL_COM
+	default "msm8916-c70_usc_us" if MACH_MSM8916_C70_USC_US
+	default "msm8916-c70n_crk_us" if MACH_MSM8916_C70N_CRK_US
+    default "msm8916-c70n_att_us" if MACH_MSM8916_C70N_ATT_US
+	default "msm8916-c70n_tmo_us" if MACH_MSM8916_C70N_TMO_US
+	default "msm8916-c70n_mpcs_us" if MACH_MSM8916_C70N_MPCS_US
+	default "msm8916-c50_trf_us" if MACH_MSM8916_C50_TRF_US
+	default "msm8916-c50_crk_us" if MACH_MSM8916_C50_CRK_US
+	default "msm8916-c30_trf_us" if MACH_MSM8916_C30_TRF_US
+	default "msm8916-c30c_trf_us" if MACH_MSM8916_C30C_TRF_US
+	default "msm8916-c50_tmo_us" if MACH_MSM8916_C50_TMO_US
+	default "msm8916-c50_mpcs_us" if MACH_MSM8916_C50_MPCS_US
+	default "msm8916-c50_spr_us" if MACH_MSM8916_C50_SPR_US
+	default "msm8916-c50c_vzw" if MACH_MSM8916_C50C_VZW
+	default "msm8916-e2n_global_com" if MACH_MSM8916_E2N_GLOBAL_COM	
+	default "msm8916-g4stylusn_tmo_us" if MACH_MSM8916_G4STYLUSN_TMO_US
+	default "msm8916-g4stylusn_mpcs_us" if MACH_MSM8916_G4STYLUSN_MPCS_US
+	default "msm8916-g4stylusn_rgs_ca" if MACH_MSM8916_G4STYLUSN_RGS_CA
+	default "msm8916-g4stylusn_rgs_ca" if MACH_MSM8916_G4STYLUSN_VTR_CA
+	default "msm8916-g4stylusn_global_com" if MACH_MSM8916_G4STYLUSN_GLOBAL_COM
+	default "msm8916-g4stylusw_kt_kr" if MACH_MSM8916_G4STYLUSW_KT_KR
+	default "msm8916-yg_skt_kr" if MACH_MSM8916_YG_SKT_KR
+    default "msm8916-g4stylusdsn_global_com" if MACH_MSM8916_G4STYLUSDSN_GLOBAL_COM
+	default "msm8916-g4stylus_crk_us" if MACH_MSM8916_G4STYLUS_CRK_US
+	default "msm8916-y50_trf_us" if MACH_MSM8916_Y50_TRF_US
+	default "msm8916-y50c_trf_us" if MACH_MSM8916_Y50C_TRF_US
+	default "msm8916-e7iilte_spr_us" if MACH_MSM8916_E7IILTE_SPR_US
+	default "msm8916-c70_rgs_ca" if MACH_MSM8916_C70_RGS_CA
+	default "msm8916-c90n_global_com" if MACH_MSM8916_C90N_GLOBAL_COM
+	default "msm8939-p1bc_spr_us" if MACH_MSM8939_P1BC_SPR_US
+	default "msm8939-p1bssn_bell_ca" if MACH_MSM8939_P1BSSN_BELL_CA
+	default "msm8939-p1bssn_vtr_ca" if MACH_MSM8939_P1BSSN_VTR_CA
+	default "msm8939-p1bdsn_global_com" if MACH_MSM8939_P1BDSN_GLOBAL_COM
+	default "msm8939-p1bssn_skt_kr" if MACH_MSM8939_P1BSSN_SKT_KR
+
+	help
+	  CONFIG_DTS_TARGET should be set to support appended dts.
+	  ex) CONFIG_DTS_TARGET="msm8974-g2-kr".
+
+menu "LGE Specific Patches"
+
+config LGE_BOOTLOADER_LOG
+	tristate "Support LGE bootloader log"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE bootloader log
+
+config LGE_HANDLE_PANIC
+	tristate "Support LGE Kernel Panic Handler"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE Error handler
+
+config LGE_BOOTLOADER_TIME_CHECKER
+	bool "Show bootloader(LK, SBL) time"
+	default n
+	depends on MACH_LGE
+	help
+	  This shows the lk and sbl1 booting time in MSM8974.
+	  If this feature is enabled, it should be check by adb shell.
+	  Device Node : sys/module/lge_bootloader_time_checker/
+
+config LGE_LMK_EXCLUDE_FILE_MAPPED
+	bool "exclude NR_FILE_MAPPED in other_file"
+	default n
+	depends on MACH_LGE
+	help
+	  This feature will exclude NR_FILE_MAPPED in calculating other_file.
+	  So, it makes LMK kill processes eariler.
+
+config LCD_KCAL
+        bool "Enable sysfs for LCD KCAL"
+        default n
+
+config PRE_SELF_DIAGNOSIS
+	tristate "Support LGE self diagnosis for factory"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE self diagnosis
+
+config LGE_USE_6GBIT_CS_N_SDRAM
+        bool "MSM8916 6Gbit CS 0, 1 SDRAM"
+        default n
+        help
+          Support for the 6Gbit, 6Gbit x 2 SDRAM, enable this feature for cross download
+
+config LGE_ENABLE_THERMAL_CORE_CONTROL
+        bool "Thermal Core Control"
+        default n
+        help
+          Enable Thermal Core control to prevent hot temperature (Temporal)
+
+config LGE_PM_CONTROL_TSENS_CRITICAL_TEMPERATURE
+	bool "Support tsens critical temperature contorol"
+	default n
+	help
+	  change tsens critical temperature for Accelerated High Temperature & Humidity Test
+
+config LGE_FORCE_SHOW_EXTRA_REGS
+	bool "Display memory around registers when displaying regs"
+	default n
+	help
+	  always call show_extra_register_data() in __show_regs()
+
+config LGE_USE_DEFAULT_HARD_RESET
+	bool "On reboot, apply hard reset unless memory contents must be maintained"
+	default n
+	help
+	  Nobody can guarantee stablity upon continuous warm resets.
+
+config LGE_DEFAULT_DISABLE_DLOAD_MODE
+	bool "set default value of download_mode to 0"
+	default n
+	help
+	  If some crash occurs on boot-up, 
+	  device enters into ramdump mode even though user build.
+	  (because default value of download_mode is 1)
+
+menu "LGE Battery Profile"
+
+config LGE_PM_BATTERY_CAPACITY_1900mAh
+	bool "Support Battery Capacity : 1900mAh"
+	default n
+	depends on LGE_PM_BATTERY_PROFILE_DATA
+	help
+	  LGE battery capacity for 1900mAh
+
+config LGE_PM_BATTERY_CAPACITY_2100mAh
+	bool "Support Battery Capacity : 2100mAh"
+	default n
+	depends on LGE_PM_BATTERY_PROFILE_DATA
+	help
+	  LGE battery capacity for 2100mAh
+
+config LGE_PM_BATTERY_CAPACITY_2540mAh
+	bool "Support Battery Capacity : 2540mAh"
+	default n
+	depends on LGE_PM_BATTERY_PROFILE_DATA
+	help
+	  LGE battery capacity for 2540mAh
+
+config LGE_PM_BATTERY_CAPACITY_4V4_2300mAh
+	bool "Support Battery Capacity : 2300mAh"
+	default n
+	depends on LGE_PM_BATTERY_PROFILE_DATA
+	help
+	  LGE battery capacity for 2300mAh
+
+config LGE_LCD_OFF_DIMMING
+	tristate "Support LGE LCD off dimming reboot"
+	default n
+	depends on MACH_LGE
+	help
+	  Support lcd off or dimming reboot when reboot reason is "LCD off".
+	  lcd stay dimming until lcd is off and on again.
+
+endmenu
+
+endmenu
+
+menu "LGE QFPROM Values"
+
+config LGE_QFPROM_INTERFACE
+	bool "Support qfprom interface"
+	default n
+	depends on MACH_LGE
+	help
+	  LGE QFPROM DRIVER.
+
+config LGE_QFPROM_SECHASH
+    string "Support qfprom sec hash"
+    default 0x0
+    depends on LGE_QFPROM_INTERFACE
+    help
+      LGE QFPROM DRIVER-SEC partition's hash value.
+
+endmenu

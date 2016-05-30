@@ -1,0 +1,81 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../msm8916-lge-common/touch-melfas-incell-c50.dtsi"
+
+&i2c_5 {
+
+	lge_touch_rev_a@34 {
+		status = "ok";
+		revision = "rev_a";
+
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend";		/*Touch GPIO pin name setting*/
+		pinctrl-0 = <&ts_int_active &ts_reset_active &ts_evdd_ldo_active>;	/*Touch GPIO pin active setting*/
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_evdd_ldo_suspend>;	/*Touch GPIO pin suspend setting*/
+		/*change AVDD(MIT-200) power control - L6 always power - only use for Rev.A(C50_Global)*/
+
+		lge,fw_image = "melfas/mit200/c50ds_global_com/L0M45P1CY5_01_02.fw";
+
+		/* platform_data->pwr*/
+		/* type 0: none(default) */
+		/*      1: gpio */
+		/*      2: regulator */
+		/* name if type == 1, gpio active condition "low" or "high" */
+		/*      if type == 2, sypply name for regulator */
+		/* value if type == 1, gpio pin no. */
+		/*       if type == 2, regulator voltage */
+		vdd_type0 = <0>;
+		vdd_name0 = "NULL";
+		vdd_value0 = <0>;
+		vdd-supply = <0>;
+		/*change AVDD(MIT-200) power control - L6 always power - only use for Rev.A(C50_Global)*/
+	};
+
+	lge_touch_rev_b@34 {
+		status = "ok";
+		revision = "rev_b...";
+
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend";		/*Touch GPIO pin name setting*/
+		pinctrl-0 = <&ts_int_active &ts_reset_active &ts_evdd_ldo_active>;	/*Touch GPIO pin active setting*/
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_evdd_ldo_suspend>;	/*Touch GPIO pin suspend setting*/
+		/* change AVDD(MIT-200) power control - L16 independent power - Rev.B */
+
+		lge,fw_image = "melfas/mit200/c50ds_global_com/L0M45P1CY5_01_02.fw";
+		lge,p5_product = "L0M45P5CY5";
+		lge,p5_fw_image = "melfas/mit200/c50ds_global_com/L0M45P5CY5_01_06.fw";
+
+		/* platform_data->pwr*/
+		/* type 0: none(default) */
+		/*      1: gpio */
+		/*      2: regulator */
+		/* name if type == 1, gpio active condition "low" or "high" */
+		/*      if type == 2, sypply name for regulator */
+		/* value if type == 1, gpio pin no. */
+		/*       if type == 2, regulator voltage */
+		vdd_type0 = <2>;
+		vdd_name0 = "vdd";
+		vdd_value0 = <1800000>;
+		vdd-supply = <&pm8916_l16>;
+		/* change AVDD(MIT-200) power control - L16 independent power - Rev.B */
+	};
+};
+&soc {
+	gpio_keys {
+		vol_up {
+			gpios = <&msm_gpio 108 0x1>;
+		};
+
+		vol_down {
+			gpios = <&msm_gpio 107 0x1>;
+		};
+	};
+};

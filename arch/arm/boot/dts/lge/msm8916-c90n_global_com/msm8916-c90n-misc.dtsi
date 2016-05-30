@@ -1,0 +1,48 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	hall-s5717 {
+		compatible = "seiko,hall-s5717";
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <117 0x0>;
+		hallic-pouch-irq-gpio = <&msm_gpio 117 0x00>;
+		status = "okay";
+	};
+};
+
+&spmi_bus {
+	qcom,pm8916@1 {
+		qcom,vibrator@c000 {
+			status = "ok";
+			qcom,vib-timeout-ms = <15000>;
+			qcom,vib-vtg-level-mV = <3100>;
+		};
+
+	        qcom,pwm@bc00 {
+			status = "okay";
+			compatible = "qcom,qpnp-pwm";
+			reg = <0xbc00 0x100>;
+			reg-names = "qpnp-lpg-channel-base";
+			qcom,channel-id = <0>;
+			qcom,supported-sizes = <6>, <9>;
+			qcom,period = <6000000>;
+			qcom,mode-select = <0>;
+			qcom,lpg-dtest-line = <1>;
+			qcom,dtest-output = <1>;
+			qcom,pwm {
+				qcom,duty = <4000000>;
+				label = "pwm";
+			};
+		};
+	};
+};

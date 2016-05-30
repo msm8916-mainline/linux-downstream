@@ -1,0 +1,109 @@
+config FB_MSM_MDSS_WRITEBACK
+	bool "MDSS Writeback Panel"
+	---help---
+	The MDSS Writeback Panel provides support for routing the output of
+	MDSS frame buffer driver and MDP processing to memory.
+
+config FB_MSM_MDSS_HDMI_PANEL
+	depends on FB_MSM_MDSS
+	bool "MDSS HDMI Tx Panel"
+	default n
+	---help---
+	The MDSS HDMI Panel provides support for transmitting TMDS signals of
+	MDSS frame buffer data to connected hdmi compliant TVs, monitors etc.
+
+config FB_MSM_MDSS_HDMI_MHL_SII8334
+	depends on FB_MSM_MDSS_HDMI_PANEL
+	bool 'MHL SII8334 support '
+	default n
+	---help---
+	  Support the HDMI to MHL conversion.
+	  MHL (Mobile High-Definition Link) technology
+	  uses USB connector to output HDMI content
+
+config FB_MSM_MDSS_DSI_CTRL_STATUS
+	tristate "DSI controller status check feature"
+	---help---
+	  Check DSI controller status periodically (default period is 5
+	  seconds) by sending Bus-Turn-Around (BTA) command. If DSI controller
+	  fails to acknowledge the BTA command, it sends PANEL_ALIVE=0 status
+	  to HAL layer to reset the controller.
+
+config FB_MSM_MDSS_EDP_PANEL
+	depends on FB_MSM_MDSS
+	bool "MDSS eDP Panel"
+	---help---
+	The MDSS eDP Panel provides support for eDP host controller driver
+	which runs in Video mode only and is responsible for transmitting
+	frame buffer from host SOC to eDP display panel.
+
+config FB_MSM_MDSS_MDP3
+	depends on FB_MSM_MDSS
+	bool "MDP3 display controller"
+	---help---
+	The MDP3 provides support for an older version display controller
+	included in latest display sub-system, known as MDSS.
+config LCD_KCAL
+        bool "Enable sysfs for LCD KCAL"
+        default n
+config LGE_LCD_TUNING
+	bool "Enable sysfs for LCD TUNING"
+	default n
+config LGE_BW_CLK_TUNING
+	bool "Enable sysfs for MDP Bandwidth and core clock Tuning"
+	default n
+	---help---
+	Tuning AB/IB value and MDP core clock value.
+config LGE_LCD_ESD
+	bool "Enable sysfs for LCD ESD Recovery"
+	default n
+config LGD_INCELL_VIDEO_WVGA_PT_PANEL
+	bool "Enable LGD INCELL panel"
+	default n
+config LGD_INCELL_VIDEO_FWVGA_PT_PANEL
+	bool "Enable LGD INCELL FWVGA panel"
+	default n
+config LGD_LD083_VIDEO_WUXGA_PT_PANEL
+	bool "Enable LGD LD083 WUXGA panel"
+	default n
+config JDI_INCELL_VIDEO_HD_PANEL
+	bool "Enable JDI INCELL panel"
+	default n
+config LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL
+	bool "Enable LGD INCELL PHASE3 HD panel"
+	default n
+
+config LGE_MIPI_DSI_BYD_ILI9806E_WVGA
+	bool "Enable BYD ILI9806E panel"
+	default n
+
+config LGE_VSYNC_SKIP
+	bool "MDSS VSYNC Skip scheme"
+	---help---
+	This feature provides VSYNC skip scheme.
+
+config LGE_MIPI_DSI_LGD_NT35521_E7II_WXGA
+	bool "Enable LGD NT35521 E7II WXGA panel"
+	default n
+
+config LGE_MANUAL_FUDGE_FACTOR
+	bool "Enable change fudge factor in mdss mdp manually"
+	default n
+
+config JDI_INCELL_VIDEO_FHD_PANEL
+	bool "Enable JDI FHD INCELL panel"
+	default n
+
+config LCD_LGE_IOVCC_EXT_LDO
+	bool "Ext IOVCC LDO"
+	default n
+
+config LCD_VDD_VDDIO_EXT_LDO
+	bool "Ext VDD VDDIO LDO"
+	default n
+config LGE_DYNAMIC_FPS
+	bool "LGE Dynamic FPS feature"
+	default n
+config LGE_UNDERRUN
+	bool "LGE UNDERRUN feature to prevent 8916-user-underrun"
+	default n
