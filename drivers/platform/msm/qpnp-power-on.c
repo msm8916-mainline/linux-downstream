@@ -24,10 +24,8 @@
 #include <linux/input.h>
 #include <linux/log2.h>
 #include <linux/qpnp/power-on.h>
-/////COBB ++ : for keypad test/////
-unsigned int pwr_keycode ;
-/////COBB -- : for keypad test/////
 
+ulong *printk_buffer_slot2_addr;
 #define CREATE_MASK(NUM_BITS, POS) \
 	((unsigned char) (((1 << (NUM_BITS)) - 1) << (POS)))
 #define PON_MASK(MSB_BIT, LSB_BIT) \
@@ -262,7 +260,7 @@ int qpnp_pon_set_restart_reason(enum pon_restart_reason reason)
 		return 0;
 
 	rc = qpnp_pon_masked_write(pon, QPNP_PON_SOFT_RB_SPARE(pon->base),
-					PON_MASK(7, 5), (reason << 5));
+					PON_MASK(7, 2), (reason << 2));
 	if (rc)
 		dev_err(&pon->spmi->dev,
 				"Unable to write to addr=%x, rc(%d)\n",
@@ -608,7 +606,6 @@ void set_vib_enable(int value)
 
 #define TIMEOUT_COUNT 55
 static struct work_struct __wait_for_power_key_6s_work;
-static struct work_struct __wait_for_power_key_6s_reboot_work;
 static unsigned long press_time;
 static int slow_ok;
 void wait_for_power_key_6s_work(struct work_struct *work)
@@ -616,6 +613,9 @@ void wait_for_power_key_6s_work(struct work_struct *work)
 	static int power_key_6s_running = 0;
 	int i, duration;
 	unsigned long timeout, startime;
+	printk_buffer_slot2_addr = (ulong *)PRINTK_BUFFER_SLOT2;
+	*printk_buffer_slot2_addr = (ulong)PRINTK_BUFFER_MAGIC;
+	printk(KERN_EMERG "%s \n",__func__);
 
 	if (!power_key_6s_running) {
 		if (!is_holding_power_key()) {
@@ -652,46 +652,11 @@ void wait_for_power_key_6s_work(struct work_struct *work)
 		power_key_6s_running = 0;
 	}
 }
-void wait_for_power_key_6s_reboot_work(struct work_struct *work)
-{
-	static int power_key_6s_running = 0;
-	int i;
-	unsigned long timeout, startime;
-
-	printk(KERN_EMERG "%s \n",__func__);
-
-	if (!power_key_6s_running) {
-		if (!is_holding_power_key()) {
-			return;
-		}
-		power_key_6s_running = 1;
-		startime = press_time;
-		timeout = startime + HZ*TIMEOUT_COUNT/10;
-		for (i = 0; i < TIMEOUT_COUNT &&
-				time_before(jiffies, timeout) ; i++) {
-			if (is_holding_power_key()) {
-				msleep(100);
-			} else {
-				break;
-			}
-		}
-
-		if (((i == TIMEOUT_COUNT) ||
-				time_after_eq(jiffies, timeout)) &&
-				(is_holding_power_key()) && (i > 0)) {
-			printk("force reset device!!\n");
-			kernel_restart("hardreset");
-		}
-
-		power_key_6s_running = 0;
-	}
-}
-
 /* ASUS_BSP + [ASDF]long press power key 6sec,reset device.. -- */
 
-/*//<remove before debug ok> 
 #define TIMEOUT_SLOW 30
 static struct work_struct __wait_for_slowlog_work;
+extern int boot_after_60sec;
 void wait_for_slowlog_work(struct work_struct *work)
 {
 	static int one_slowlog_instance_running = 0;
@@ -735,47 +700,7 @@ void wait_for_slowlog_work(struct work_struct *work)
 		one_slowlog_instance_running = 0;
 	}
 }
-*/
 
-/////COBB ++ : for keypad test/////
-/* node: sys/module/intel_mid_powerbtn/parameter/pwrkey_mode */
-static int pwrkey_mode ;
-
-static int pwrkeyMode_function(const char *val, struct kernel_param *kp)
-{
-	int ret = 0;
-	int old_val = pwrkey_mode;
-
-	if (ret)
-		return ret;
-
-	if (pwrkey_mode > 0xf) {
-		pwrkey_mode = old_val;
-		return -EINVAL;
-	}
-
-	ret = param_set_int(val, kp);
-
-	if (pwrkey_mode == 0) {
-		pwr_keycode = KEY_POWER;
-		printk("[mid_powerbtn] Normal_Mode! \n");
-		printk("[mid_powerbtn] PwrKeyCode = %d\n", pwr_keycode);
-
-	} else if (pwrkey_mode == 1) {
-		pwr_keycode = KEY_A;
-		printk("[mid_powerbtn] Debug_Mode! \n");
-		printk("[mid_powerbtn] PwrKeyCode = %d\n", pwr_keycode);
-
-	}
-
-
-	return 0;
-}
-
-module_param_call(pwrkey_mode, pwrkeyMode_function, param_get_int, &pwrkey_mode, 0644);
-/////COBB -- : for keypad test/////
-
-extern int boot_after_60sec;
 static int
 qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 {
@@ -813,15 +738,8 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 		if (boot_after_60sec) {
 			if (is_holding_power_key()) {
 				press_time = jiffies;
-				//<remove before debug ok> schedule_work(&__wait_for_slowlog_work);
+				schedule_work(&__wait_for_slowlog_work);
 				schedule_work(&__wait_for_power_key_6s_work);
-			} else {
-				press_time = 0xFFFFFFFF;
-			}
-		}else{
-			if (is_holding_power_key()) {
-				press_time = jiffies;
-				schedule_work(&__wait_for_power_key_6s_reboot_work);
 			} else {
 				press_time = 0xFFFFFFFF;
 			}
@@ -847,14 +765,13 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 	/* simulate press event in case release event occured
 	 * without a press event
 	 */
-/////COBB ++ : for keypad test/////
 	if (!cfg->old_state && !key_status) {
-		input_report_key(pon->pon_input, pwr_keycode, 1);
+		input_report_key(pon->pon_input, cfg->key_code, 1);
 		input_sync(pon->pon_input);
 	}
-	input_report_key(pon->pon_input, pwr_keycode, key_status);
+
+	input_report_key(pon->pon_input, cfg->key_code, key_status);
 	input_sync(pon->pon_input);
-/////COBB -- : for keypad test/////
 
 	cfg->old_state = !!key_status;
 
@@ -1174,14 +1091,6 @@ qpnp_pon_request_irqs(struct qpnp_pon *pon, struct qpnp_pon_config *cfg)
 				return rc;
 			}
 		}
-
-		/* check the RT status to get the current status of power key wigman++*/
-		pon_for_powerkey = pon;
-	    if(is_holding_power_key()){
-			press_time = jiffies;
-			schedule_work(&__wait_for_power_key_6s_reboot_work);
-	    }
-		/* check the RT status to get the current status of power key wigman--*/
 		break;
 	case PON_RESIN:
 		rc = devm_request_irq(&pon->spmi->dev, cfg->state_irq,
@@ -1262,11 +1171,7 @@ qpnp_pon_config_input(struct qpnp_pon *pon,  struct qpnp_pon_config *cfg)
 
 	/* don't send dummy release event when system resumes */
 	__set_bit(INPUT_PROP_NO_DUMMY_RELEASE, pon->pon_input->propbit);
-	/////COBB ++ : for keypad test/////
-	input_set_capability(pon->pon_input, EV_KEY, KEY_POWER);
-	input_set_capability(pon->pon_input, EV_KEY, KEY_A);
-	pwr_keycode = KEY_POWER;
-	/////COBB -- : for keypad test/////
+	input_set_capability(pon->pon_input, EV_KEY, cfg->key_code);
 
 	return 0;
 }
@@ -1984,11 +1889,9 @@ static struct spmi_driver qpnp_pon_driver = {
 static int __init qpnp_pon_init(void)
 {
 	/* ASUS_BSP : [ASDF] long press power key 3sec, to save slow log */
-	//<remove before debug ok> INIT_WORK(&__wait_for_slowlog_work, wait_for_slowlog_work);
+	INIT_WORK(&__wait_for_slowlog_work, wait_for_slowlog_work);
 	/* ASUS_BSP : [ASDF] long press power key 6sec,reset device */
 	INIT_WORK(&__wait_for_power_key_6s_work, wait_for_power_key_6s_work);
-	/* ASUS_BSP : long press power key 6sec when boot before 60s,only reset device */
-	INIT_WORK(&__wait_for_power_key_6s_reboot_work, wait_for_power_key_6s_reboot_work);
 
 	return spmi_driver_register(&qpnp_pon_driver);
 }

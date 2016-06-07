@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,39 +22,29 @@
 
 &soc {
 	i2c@78b9000 { /* BLSP1 QUP5 */
-		focaltech@38 {
-			compatible = "focaltech,5x06";
-			reg = <0x38>;
+		synaptics@20 {
+			compatible = "synaptics,rmi4";
+			reg = <0x20>;
 			interrupt-parent = <&msm_gpio>;
 			interrupts = <13 0x2008>;
 			vdd-supply = <&pm8916_l17>;
 			vcc_i2c-supply = <&pm8916_l6>;
 			/* pins used by touchscreen */
-			pinctrl-names = "pmx_ts_active","pmx_ts_suspend","pmx_ts_release";
+			pinctrl-names = "pmx_ts_active","pmx_ts_suspend","pmx_ts_suspend";
 			pinctrl-0 = <&ts_int_active &ts_reset_active>;
 			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
 			pinctrl-2 = <&ts_release>;
-			focaltech,name = "ft5346";
-			focaltech,family-id = <0x54>;
-			focaltech,reset-gpio = <&msm_gpio 12 0x0>;
-			focaltech,irq-gpio = <&msm_gpio 13 0x2008>;
-			focaltech,display-coords = <0 0 720 1280>;
-			focaltech,panel-coords = <0 0 720 1400>;
-			focaltech,button-map= <139 102 158>;
-			focaltech,no-force-update;
-			focaltech,i2c-pull-up;
-			focaltech,group-id = <1>;
-			focaltech,hard-reset-delay-ms = <20>;
-			focaltech,soft-reset-delay-ms = <200>;
-			focaltech,num-max-touches = <5>;
-			focaltech,fw-delay-aa-ms = <30>;
-			focaltech,fw-delay-55-ms = <30>;
-			focaltech,fw-upgrade-id1 = <0x79>;
-			focaltech,fw-upgrade-id2 = <0x18>;
-			focaltech,fw-delay-readid-ms = <10>;
-			focaltech,fw-delay-era-flsh-ms = <2000>;
-			focaltech,fw-auto-cal;
-			focaltech,ignore-id-check;
+			synaptics,display-coords = <0 0 1079 1919>;
+			synaptics,panel-coords = <0 0 1079 2084>;
+			synaptics,irq-gpio = <&msm_gpio 13 0x2008>;
+			synaptics,reset-gpio = <&msm_gpio 12 0x0>;
+			synaptics,i2c-pull-up;
+			synaptics,power-down;
+			synaptics,disable-gpios;
+			/* Underlying clocks used by secure touch */
+			clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp1_qup5_i2c_apps_clk>;
+			clock-names = "iface_clk", "core_clk";
 		};
 	};
 
@@ -75,17 +65,17 @@
 			qcom,bl-en-gpio = <&msm_gpio 21 0x00>;
 		};
                 /* ASUS_BSP: David: charger i2c ++*/
-		qcom_smb358_i2c@6a {
-			compatible = "qcom,smb358-charger";
-			reg = <0x6a>;
-			pinctrl-names = "smb358_nfc_disable_active","smb358_nfc_disable_suspend";
-			pinctrl-0 = <&nfc_disable_active>;
-			pinctrl-1 = <&nfc_disable_suspend>;
-			qcom,otg-gpio = <&msm_gpio 121 0x0>;
-			qcom,inok-gpio = <&msm_gpio 20 0x0>;
-		};
-		/* ASUS_BSP: David: charger i2c --*/
-		/*nfc-nci@e {
+               qcom_smb358_i2c@6a {
+                       compatible = "qcom,smb358-charger";
+                       reg = <0x6a>;
+                       pinctrl-names = "smb358_nfc_disable_active","smb358_nfc_disable_suspend";
+                       pinctrl-0 = <&nfc_disable_active>;
+                       pinctrl-1 = <&nfc_disable_suspend>;
+                       qcom,otg-gpio = <&msm_gpio 121 0x0>;
+                       qcom,inok-gpio = <&msm_gpio 20 0x0>;
+               };
+               /* ASUS_BSP: David: charger i2c --*/
+/*		nfc-nci@e {
 			compatible = "qcom,nfc-nci";
 			reg = <0x0e>;
 			qcom,irq-gpio = <&msm_gpio 21 0x00>;
@@ -105,8 +95,7 @@
 	};
 
 	i2c@78b6000 { /* BLSP1 QUP2 */
-
-		/*mpu6050@68 { // Gyroscope and accelerometer sensor combo 
+		mpu6050@68 { /* Gyroscope and accelerometer sensor combo */
 			compatible = "invn,mpu6050";
 			reg = <0x68>;
 			pinctrl-names = "mpu_default","mpu_sleep";
@@ -121,7 +110,7 @@
 			invn,place = "Portrait Down Back Side";
 		};
 
-		avago@39 { // Ambient light and proximity sensor 
+		avago@39 { /* Ambient light and proximity sensor */
 			compatible = "avago,apds9900";
 			reg = <0x39>;
 			pinctrl-names = "default","sleep";
@@ -155,63 +144,6 @@
 			ak,layout = <0x6>;
 			ak,auto-report;
 		};
-*/
-
-		kionix@1f {
-			compatible = "kionix,kxtj9";
-			reg = <0x1f>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <36 0x2>;
-			//vdd-supply = <&pm8916_l17>;
-			//vio-supply = <&pm8916_l6>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&kxtj9_default>;
-			kionix,interrupt-gpio = <&msm_gpio 36 0x2>;
-			kionix,min-interval = <5>;
-			kionix,init-interval = <200>;
-			kionix,axis-map-x = <1>;
-			kionix,axis-map-y = <0>;
-			kionix,axis-map-z = <2>;
-			kionix,g-range = <2>;
-			kionix,negate-x;
-			kionix,negate-y;
-			kionix,negate-z;
-			kionix,res-12bit;
-		};
-
-		capella@60 {
-			compatible = "capella,cm36283";
-			reg = <0x60>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <113 0x2>;
-			//vdd-supply = <&pm8916_l17>;
-			//vio-supply = <&pm8916_l6>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&cm36283_default>;
-			capella,use-polling;
-			capella,interrupt-gpio = <&msm_gpio 113 0x2>;
-			capella,levels = <0x0A 0xA0 0xE1 0x140 0x280 0x500 0xA28 0x16A8 0x1F40
-				0x2800>;
-			capella,ps_close_thd_set = <0xa>;
-			capella,ps_away_thd_set = <0x5>;
-			capella,ls_cmd = <0x04>; /* ALS_IT=80ms, INT_PERS=2*/
-			capella,ps_conf1_val = <0x0006>;
-			capella,ps_conf3_val = <0x3010>;
-		};
-
-		akm@c {
-			compatible = "ak,ak09911";
-			reg = <0x0c>;
-			pinctrl-names = "default","sleep";
-			pinctrl-0 = <&akm_default1>;
-			pinctrl-1 = <&akm_sleep1>;
-			//vdd-supply = <&pm8916_l8>;
-			//vio-supply = <&pm8916_l6>;
-			akm,layout = <0x3>;
-			akm,gpio_rstn = <&msm_gpio 112 0x0>;
-			akm,auto-report;
-		};
-		
 
 	};
 
@@ -222,7 +154,7 @@
 		qcom,msm-codec-type = "internal";
 		qcom,msm-ext-pa = "primary";
 		qcom,msm-mclk-freq = <9600000>;
-		qcom,msm-mbhc-hphl-swh = <1>;
+		qcom,msm-mbhc-hphl-swh = <0>;
 		qcom,msm-mbhc-gnd-swh = <0>;
 		qcom,msm-micbias1-ext-cap;
 		qcom,msm-hs-micbias-type = "internal";
@@ -254,7 +186,7 @@
 						&cdc_ext_pa_ws_sus>;
 		pinctrl-4 = <&cross_conn_det_act>;
 		pinctrl-5 = <&cross_conn_det_sus>;
-		/*qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;*/
+		qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;
 		asoc-platform = <&pcm0>, <&pcm1>, <&voip>, <&voice>,
 				<&loopback>, <&compress>, <&hostless>,
 				<&afe>, <&lsm>, <&routing>, <&lpa>;
@@ -266,7 +198,8 @@
 				<&dai_mi2s0>, <&dai_mi2s1>, <&dai_mi2s2>, <&dai_mi2s3>,
 				<&sb_0_rx>, <&sb_0_tx>, <&sb_1_rx>, <&sb_1_tx>,
 				<&sb_3_rx>, <&sb_3_tx>, <&sb_4_rx>, <&sb_4_tx>,
-				<&bt_sco_rx>, <&bt_sco_tx>, <&int_fm_rx>, <&int_fm_tx>,
+				<&bt_sco_rx>, <&bt_sco_tx>, <&bt_a2dp_rx>,
+				<&int_fm_rx>, <&int_fm_tx>,
 				<&afe_pcm_rx>, <&afe_pcm_tx>, <&afe_proxy_rx>, <&afe_proxy_tx>,
 				<&incall_record_rx>, <&incall_record_tx>, <&incall_music_rx>,
 				<&incall_music_2_rx>;
@@ -278,15 +211,14 @@
 				"msm-dai-q6-dev.16390", "msm-dai-q6-dev.16391",
 				"msm-dai-q6-dev.16392", "msm-dai-q6-dev.16393",
 				"msm-dai-q6-dev.12288", "msm-dai-q6-dev.12289",
-				"msm-dai-q6-dev.12292", "msm-dai-q6-dev.12293",
-				"msm-dai-q6-dev.224", "msm-dai-q6-dev.225",
-				"msm-dai-q6-dev.241", "msm-dai-q6-dev.240",
-				"msm-dai-q6-dev.32771", "msm-dai-q6-dev.32772",
-				"msm-dai-q6-dev.32773", "msm-dai-q6-dev.32770";
+				"msm-dai-q6-dev.12290", "msm-dai-q6-dev.12292",
+				"msm-dai-q6-dev.12293",	"msm-dai-q6-dev.224",
+				"msm-dai-q6-dev.225", "msm-dai-q6-dev.241",
+				"msm-dai-q6-dev.240", "msm-dai-q6-dev.32771",
+				"msm-dai-q6-dev.32772", "msm-dai-q6-dev.32773",
+				"msm-dai-q6-dev.32770";
 		asoc-codec = <&stub_codec>, <&pm8916_tombak_dig>;
 		asoc-codec-names = "msm-stub-codec.1", "tombak_codec";
-
-		AUDIO_DEBUG = <&msm_gpio 119 0x00>; /* steve_chen ++ */
 	};
 };
 

@@ -173,7 +173,7 @@ static int ak09911_init(struct inv_ak09911_state_s *st)
 
 int ak09911_read(struct inv_ak09911_state_s *st, short rawfixed[3])
 {
-	unsigned char regs[8];
+	unsigned char regs[9];
 	unsigned char *stat = &regs[0];
 	unsigned char *stat2 = &regs[8];
 	int result = 0;
@@ -235,11 +235,10 @@ int ak09911_read(struct inv_ak09911_state_s *st, short rawfixed[3])
 
 	if (status)
 		pr_err("%s, line=%d, status=%d\n", __func__, __LINE__, status);
-
 #if 0
 	return status;
 #else
-    return 0;
+	return 0;
 #endif
 }
 

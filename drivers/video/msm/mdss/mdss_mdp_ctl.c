@@ -530,7 +530,7 @@ int mdss_mdp_perf_calc_pipe(struct mdss_mdp_pipe *pipe,
 	 * no need to account for these lines in MDP clock or request bus
 	 * bandwidth to fetch them.
 	 */
-	src_h = src.h >> pipe->vert_deci;
+	src_h = DECIMATED_DIMENSION(src.h, pipe->vert_deci);
 
 	quota = fps * src.w * src_h;
 
@@ -684,13 +684,19 @@ static void mdss_mdp_perf_calc_mixer(struct mdss_mdp_mixer *mixer,
 		perf->mdp_clk_rate =
 			mdss_mdp_clk_fudge_factor(mixer, perf->mdp_clk_rate);
 
-		if (!pinfo)	/* perf for bus writeback */
+		if (!pinfo) {	/* perf for bus writeback */
 			perf->bw_overlap =
 				fps * mixer->width * mixer->height * 3;
-		/* for command mode, run as fast as the link allows us */
-		else if ((pinfo->type == MIPI_CMD_PANEL) &&
-			 (pinfo->mipi.dsi_pclk_rate > perf->mdp_clk_rate))
-			perf->mdp_clk_rate = pinfo->mipi.dsi_pclk_rate;
+		} else if (pinfo->type == MIPI_CMD_PANEL) {
+			u32 dsi_transfer_rate = mixer->width * v_total;
+
+			/* adjust transfer time from micro seconds */
+			dsi_transfer_rate = mult_frac(dsi_transfer_rate,
+				1000000, pinfo->mdp_transfer_time_us);
+
+			if (dsi_transfer_rate > perf->mdp_clk_rate)
+				perf->mdp_clk_rate = dsi_transfer_rate;
+		}
 	}
 
 	/*
@@ -2470,11 +2476,12 @@ int mdss_mdp_ctl_stop(struct mdss_mdp_ctl *ctl, int power_state)
 		mdss_mdp_ctl_write(ctl, off, 0);
 	}
 
-	ctl->power_state = power_state;
 	ctl->play_cnt = 0;
 	mdss_mdp_ctl_perf_update(ctl, 0);
 
 end:
+	if (!ret)
+		ctl->power_state = power_state;
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
 
 	mutex_unlock(&ctl->lock);
@@ -3453,8 +3460,8 @@ int mdss_mdp_get_ctl_mixers(u32 fb_num, u32 *mixer_id)
 	mdata = mdss_mdp_get_mdata();
 	for (i = 0; i < mdata->nctl; i++) {
 		ctl = mdata->ctl_off + i;
-		if ((mdss_mdp_ctl_is_power_on(ctl)) && (ctl->mfd) &&
-			(ctl->mfd->index == fb_num)) {
+		if ((mdss_mdp_ctl_is_power_on(ctl) || mdata->handoff_pending) &&
+				(ctl->mfd) && (ctl->mfd->index == fb_num)) {
 			if (ctl->mixer_left) {
 				mixer_id[mixer_cnt] = ctl->mixer_left->num;
 				mixer_cnt++;

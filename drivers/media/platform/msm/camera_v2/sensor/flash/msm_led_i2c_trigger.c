@@ -31,12 +31,14 @@
 static struct mutex 								flash_lock;
 static struct mutex 								flashlight_lock;
 
+static bool asus_flash_status;
+
 enum led_direction_t {
 	REAR_LED = 0,
 	FRONT_LED = 1,
 };
 
-static enum led_direction_t led_direction = REAR_LED;   // 
+static enum led_direction_t led_direction = REAR_LED;   //
 #define ENABLE_FLASH_SELECT_PROC 1
 #define	FLASH_SELECT_PROC_FILE "driver/Flash_Select"
 static struct proc_dir_entry *flash_select_proc_file;
@@ -58,16 +60,16 @@ bool is_ZD550KL( void )
             printk("ASUS_ZE550KL platform_data\n");
             return false;
         case 1://ASUS_ZE600KL
-        	printk("ASUS_ZE600KL platform_data\n");
+		printk("ASUS_ZE600KL platform_data\n");
             return false;
         case 2://ASUS_ZX550KL
-        	printk("ASUS_ZX550KL platform_data\n");
+		printk("ASUS_ZX550KL platform_data\n");
             return false;
         case 3://ASUS_ZD550KL
-        	printk("ASUS_ZD550KL platform_data\n");
+		printk("ASUS_ZD550KL platform_data\n");
             return true;
         default:
-        	printk("default platform_data\n");
+		printk("default platform_data\n");
             return false;
     }
 
@@ -77,7 +79,7 @@ bool is_ZD550KL( void )
 	if(property_get("ro.product.model", prop, NULL) > 0) {
 		printk("%s\t %s leong_p", __FUNCTION__, prop );
         if((strncmp(prop, "ASUS_Z00UD", 10) == 0 ){
-        	printk( "is ZD500 leong_p\n" );
+		printk( "is ZD500 leong_p\n" );
 			return true;
 		}
     }
@@ -265,7 +267,7 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 		} else {
 			if (fctrl->func_tbl->flash_led_off)
 				rc = fctrl->func_tbl->flash_led_off(fctrl);
-			break;		
+			break;
 		}
 	case MSM_CAMERA_LED_HIGH:
 		/*for (i = 0; i < fctrl->flash_num_sources; i++) {
@@ -294,7 +296,7 @@ int32_t msm_led_i2c_trigger_config(struct msm_led_flash_ctrl_t *fctrl,
 		} else {
 			if (fctrl->func_tbl->flash_led_off)
 				rc = fctrl->func_tbl->flash_led_off(fctrl);
-			break;		
+			break;
 		}
 	default:
 		rc = -EFAULT;
@@ -333,7 +335,7 @@ static int msm_flash_pinctrl_init(struct msm_led_flash_ctrl_t *ctrl)
 				__func__, __LINE__);
 		return -EINVAL;
 	}
-	
+
 	//asus-Andrew
      if(is_ZE600KL_ZE601KL()) {
           #define CAM_FLASH_PINCTRL_STATE_INIT "flash_err_default"
@@ -343,7 +345,7 @@ static int msm_flash_pinctrl_init(struct msm_led_flash_ctrl_t *ctrl)
              CAM_FLASH_PINCTRL_STATE_INIT);
           pinctrl_select_state(flash_pctrl->pinctrl, init_flash_pin);
      }
-	
+
 	return 0;
 }
 
@@ -445,13 +447,13 @@ int msm_flash_led_init(struct msm_led_flash_ctrl_t *fctrl)
 				GPIO_OUT_LOW);
 		}
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
 
-//<asus-leong_un20150401<<<<<<<<<+ 
+//<asus-leong_un20150401<<<<<<<<<+
 	gpio_set_value_cansleep(
 		power_info->gpio_conf->gpio_num_info->
 		gpio_num[SENSOR_GPIO_FL_NOW],
@@ -501,14 +503,14 @@ int msm_flash_led_release(struct msm_led_flash_ctrl_t *fctrl)
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_1_EN],
 				GPIO_OUT_LOW);
-				
+
 			gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_LOW);
 
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
@@ -551,6 +553,9 @@ int msm_flash_led_release(struct msm_led_flash_ctrl_t *fctrl)
 		if (rc < 0)
 			pr_err("cci_deinit failed\n");
 	}
+
+	asus_flash_status = false;
+
 	mutex_unlock(&flash_lock);
 	CDBG("%s:%d end\n", __func__, __LINE__);
 	return 0;
@@ -579,7 +584,9 @@ int msm_flash_led_off(struct msm_led_flash_ctrl_t *fctrl)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
 
-/*	
+	asus_flash_status = false;
+
+/*
 	if( is_ZD550KL() )
 	{
 		gpio_set_value_cansleep(
@@ -593,7 +600,7 @@ int msm_flash_led_off(struct msm_led_flash_ctrl_t *fctrl)
 			GPIO_OUT_LOW);
 
 	}
-	
+
 
 	gpio_set_value_cansleep(
 		power_info->gpio_conf->gpio_num_info->
@@ -640,12 +647,12 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 				GPIO_OUT_HIGH);
 		}
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
-//<asus-leong_un20150401<<<<<<<<<+ 
+//<asus-leong_un20150401<<<<<<<<<+
 
 	gpio_set_value_cansleep(
 		power_info->gpio_conf->gpio_num_info->
@@ -662,6 +669,9 @@ int msm_flash_led_low(struct msm_led_flash_ctrl_t *fctrl)
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
+
+	asus_flash_status = true;
+
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -704,12 +714,12 @@ int msm_flash_led_low_first(struct msm_led_flash_ctrl_t *fctrl)
 
 		}
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
-//<asus-leong_un20150401<<<<<<<<<+ 
+//<asus-leong_un20150401<<<<<<<<<+
 
 	gpio_set_value_cansleep(
 		power_info->gpio_conf->gpio_num_info->
@@ -726,6 +736,9 @@ int msm_flash_led_low_first(struct msm_led_flash_ctrl_t *fctrl)
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
+
+	asus_flash_status = true;	
+
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -764,12 +777,12 @@ int msm_flash_led_low_second(struct msm_led_flash_ctrl_t *fctrl)
 				GPIO_OUT_HIGH);
 		}
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
-//<asus-leong_un20150401<<<<<<<<<+ 
+//<asus-leong_un20150401<<<<<<<<<+
 
 	gpio_set_value_cansleep(
 		power_info->gpio_conf->gpio_num_info->
@@ -786,6 +799,9 @@ int msm_flash_led_low_second(struct msm_led_flash_ctrl_t *fctrl)
 		if (rc < 0)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
+
+	asus_flash_status = true;
+
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -845,7 +861,7 @@ int msm_flash_led_low_current_set(struct msm_led_flash_ctrl_t *fctrl, int intens
 				GPIO_OUT_LOW);
 		}
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
@@ -950,7 +966,7 @@ int msm_flash_led_high_current_set(struct msm_led_flash_ctrl_t *fctrl, int inten
 				GPIO_OUT_LOW);
 		}
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
@@ -961,7 +977,7 @@ int msm_flash_led_high_current_set(struct msm_led_flash_ctrl_t *fctrl, int inten
 		gpio_num[SENSOR_GPIO_FL_NOW],
 		//GPIO_OUT_HIGH);
 		GPIO_OUT_LOW);
-    
+
     if( is_ZD550KL() )
 	{
 		if (fctrl->flash_i2c_client && fctrl->reg_setting) {
@@ -973,7 +989,7 @@ int msm_flash_led_high_current_set(struct msm_led_flash_ctrl_t *fctrl, int inten
 				pr_err("%s:%d failed\n", __func__, __LINE__);
 		}
 	}
-    
+
 	printk("[AsusFlash] Set Dual Flash current %u %u \n", val[0],val[1] );
 	if (fctrl->flash_i2c_client) {
 		//CDBG("%s:%d flash_i2c_client = true\n", __func__, __LINE__);
@@ -1004,7 +1020,7 @@ int msm_flash_led_high_timer_set(struct msm_led_flash_ctrl_t *fctrl, int timer1,
 	int flash_timeout_map_offset = 95;
 	//struct msm_camera_sensor_board_info *flashdata = NULL;
 	//struct msm_camera_power_ctrl_t *power_info = NULL;
-	
+
 	CDBG("%s:%d called\n", __func__, __LINE__);
 	val[0] = timer1;
 	val[1] = timer2;
@@ -1040,7 +1056,7 @@ int msm_flash_led_high_timer_set(struct msm_led_flash_ctrl_t *fctrl, int timer1,
 				GPIO_OUT_HIGH);
 		}
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
@@ -1077,7 +1093,7 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 
 	flashdata = fctrl->flashdata;
 	power_info = &flashdata->power_info;
-	
+
 //<asus-leong_un20150401>>>>>>>>>+
 	if( is_ZD550KL() )
 	{
@@ -1100,7 +1116,7 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 
 		}
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
@@ -1122,6 +1138,8 @@ int msm_flash_led_high(struct msm_led_flash_ctrl_t *fctrl)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
 
+	asus_flash_status = true;
+
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -1137,7 +1155,7 @@ int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 
 	flashdata = fctrl->flashdata;
 	power_info = &flashdata->power_info;
-	
+
 //<asus-leong_un20150401>>>>>>>>>+
 	if( is_ZD550KL() )
 	{
@@ -1159,13 +1177,13 @@ int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 
 		}
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
 
-//<asus-leong_un20150401<<<<<<<<<+ 
+//<asus-leong_un20150401<<<<<<<<<+
 
 	gpio_set_value_cansleep(
 		power_info->gpio_conf->gpio_num_info->
@@ -1182,6 +1200,8 @@ int msm_flash_led_high_first(struct msm_led_flash_ctrl_t *fctrl)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
 
+	asus_flash_status = true;
+
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -1196,7 +1216,7 @@ int msm_flash_led_high_second(struct msm_led_flash_ctrl_t *fctrl)
 
 	flashdata = fctrl->flashdata;
 	power_info = &flashdata->power_info;
-	
+
 //<asus-leong_un20150401>>>>>>>>>+
 	if( is_ZD550KL() )
 	{
@@ -1218,12 +1238,12 @@ int msm_flash_led_high_second(struct msm_led_flash_ctrl_t *fctrl)
 
 		}
 	}
-	else 
+	else
 		gpio_set_value_cansleep(
 				power_info->gpio_conf->gpio_num_info->
 				gpio_num[SENSOR_GPIO_FL_EN],
 				GPIO_OUT_HIGH);
-//<asus-leong_un20150401<<<<<<<<<+ 
+//<asus-leong_un20150401<<<<<<<<<+
 
 	gpio_set_value_cansleep(
 		power_info->gpio_conf->gpio_num_info->
@@ -1240,6 +1260,8 @@ int msm_flash_led_high_second(struct msm_led_flash_ctrl_t *fctrl)
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 	}
 
+	asus_flash_status = true;
+
 	mutex_unlock(&flash_lock);
 	return rc;
 }
@@ -1253,7 +1275,7 @@ static struct proc_dir_entry *status_proc_file;
 static struct proc_dir_entry *dump_proc_file;
 static int last_flash_brightness_value;
 static int ATD_status;
-static bool asus_flash_status;
+//static bool asus_flash_status;
 
 static int flash_brightness_proc_read(struct seq_file *buf, void *v)
 {
@@ -1268,7 +1290,7 @@ static int flash_brightness_proc_open(struct inode *inode, struct  file *file)
 
 static ssize_t flash_brightness_proc_write(struct file *filp, const char __user *buff, size_t len, loff_t *data)
 {
-	int set_val = -1,now_flash_brightness_value = -1;
+	int set_val = -1,now_flash_brightness_value = -1,rc;
 	int MAX_FLASHLIGHT_CURRENT = 100;
 	char messages[8];
         int i =0;
@@ -1289,20 +1311,33 @@ static ssize_t flash_brightness_proc_write(struct file *filp, const char __user 
 	}
 */
 	now_flash_brightness_value = (int)simple_strtol(messages, NULL, 10);
+	if(now_flash_brightness_value > 99) now_flash_brightness_value = 99;
 	set_val = now_flash_brightness_value * MAX_FLASHLIGHT_CURRENT / 99;
 	mutex_lock(&flashlight_lock);
 	pr_info("[AsusFlashBrightness]flash brightness value=%d now_flash_brightness_value=%d\n", set_val,now_flash_brightness_value);
 	if (g_fctrl->led_state == MSM_CAMERA_LED_INIT) {
 		printk(KERN_INFO "[AsusFlashBrightness] CameraFlash already init, so donothing\n");
 		last_flash_brightness_value = now_flash_brightness_value;
+		asus_flash_status = false;
 		mutex_unlock(&flashlight_lock);
 		return len;
 	}
 	if (last_flash_brightness_value == 0&&(now_flash_brightness_value>0&&now_flash_brightness_value<=99)) {
-		msm_flash_led_init(g_fctrl);
+		rc = msm_flash_led_init(g_fctrl);
+		asus_flash_status = true;
 		g_fctrl->flashlight_state = MSM_CAMERA_LED_INIT;
-	} else if (last_flash_brightness_value == now_flash_brightness_value||(now_flash_brightness_value<0||now_flash_brightness_value>99)) {
-		printk(KERN_INFO "[AsusFlashBrightness] now_flash_brightness_value = last_flash_brightness_value or now_flash_brightness_value out range so donothing\n");
+		if (rc  < 0) {
+			printk(KERN_INFO "[AsusFlashBrightness] msm_flash_led_init fail\n");
+			msm_flash_led_release(g_fctrl);
+			g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
+			last_flash_brightness_value = now_flash_brightness_value;
+			mutex_unlock(&flashlight_lock);
+			return rc;
+		}
+	} else if (last_flash_brightness_value == now_flash_brightness_value||(now_flash_brightness_value<0||now_flash_brightness_value>99) || (g_fctrl->flashlight_state == MSM_CAMERA_LED_RELEASE)) {
+		printk(KERN_INFO "[AsusFlashBrightness] now_flash_brightness_value = last_flash_brightness_value or now_flash_brightness_value out range or flashlight_state invalid so donothing\n");
+		last_flash_brightness_value = now_flash_brightness_value;
+		asus_flash_status = true;
 		mutex_unlock(&flashlight_lock);
 		return len;
 	}
@@ -1310,23 +1345,25 @@ static ssize_t flash_brightness_proc_write(struct file *filp, const char __user 
 	last_flash_brightness_value = now_flash_brightness_value;
 
 	if (set_val > MAX_FLASHLIGHT_CURRENT) {
-		msm_flash_led_low_current_set(g_fctrl, MAX_FLASHLIGHT_CURRENT,MAX_FLASHLIGHT_CURRENT);
-		//msm_flash_led_low(g_fctrl);
-		 msm_flash_led_low_first(g_fctrl);
+		msm_flash_led_low_current_set(g_fctrl, MAX_FLASHLIGHT_CURRENT, MAX_FLASHLIGHT_CURRENT);
+		msm_flash_led_low_first(g_fctrl);
+		asus_flash_status = true;
 		//map_num = SKY81296_TORCH_CURRENT_200MA;
 	} else if (set_val <= 0) {
 		if (g_fctrl->flashlight_state == MSM_CAMERA_LED_RELEASE) {
 			printk(KERN_INFO "[AsusFlashBrightness] flashlight already release, so don't need release again\n");
+			asus_flash_status = false;
 			mutex_unlock(&flashlight_lock);
 			return len;
 		}
 		msm_flash_led_off(g_fctrl);
 		msm_flash_led_release(g_fctrl);
 		g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
-	} else if (0 < set_val && set_val < MAX_FLASHLIGHT_CURRENT + 1) {
-		printk(KERN_INFO "[AsusFlashBrightness] current now in 1~%d",MAX_FLASHLIGHT_CURRENT);
+	} else if (0 < set_val && set_val < (MAX_FLASHLIGHT_CURRENT + 1)) {
+		printk(KERN_INFO "[AsusFlashBrightness] current now in 1~%d", MAX_FLASHLIGHT_CURRENT);
 		msm_flash_led_low_current_set(g_fctrl, set_val,set_val);
 		//msm_flash_led_low(g_fctrl);
+		asus_flash_status = true;
 		msm_flash_led_low_first(g_fctrl);
 	} else {
 		if (g_fctrl->flashlight_state == MSM_CAMERA_LED_RELEASE) {
@@ -1335,6 +1372,7 @@ static ssize_t flash_brightness_proc_write(struct file *filp, const char __user 
 			return len;
 		}
 		msm_flash_led_off(g_fctrl);
+		asus_flash_status = false;
 		msm_flash_led_release(g_fctrl);
 		last_flash_brightness_value = 0;
 		g_fctrl->flashlight_state = MSM_CAMERA_LED_RELEASE;
@@ -1393,8 +1431,9 @@ static const struct file_operations dump_fops = {
 
 static int status_proc_read(struct seq_file *buf, void *v)
 {
-    seq_printf(buf, "%d\n", ATD_status);
-	ATD_status = 0;
+//    seq_printf(buf, "%d\n", ATD_status);
+//	ATD_status = 0;
+    seq_printf(buf, "%d\n", asus_flash_status);
     return 0;
 }
 
@@ -1426,9 +1465,9 @@ static void create_proc_file(void)
     last_flash_brightness_value = 0;
     flash_brightness_proc_file = proc_create(FLASH_BRIGHTNESS_PROC_FILE, 0666, NULL, &flash_brightness_fops);
     if (flash_brightness_proc_file) {
-    	printk("%s sucessed!\n", __func__);
+	printk("%s sucessed!\n", __func__);
     } else {
-    	printk("%s failed!\n", __func__);
+	printk("%s failed!\n", __func__);
     }
     dump_proc_file = proc_create(DUMP_PROC_FILE, 0666, NULL, &dump_fops);
     if (dump_proc_file) {

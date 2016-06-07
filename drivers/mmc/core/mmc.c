@@ -327,8 +327,13 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		}
 	}
 
+	/*
+	 * The EXT_CSD format is meant to be forward compatible. As long
+	 * as CSD_STRUCTURE does not change, all values for EXT_CSD_REV
+	 * are authorized, see JEDEC JESD84-B50 section B.8.
+	 */
 	card->ext_csd.rev = ext_csd[EXT_CSD_REV];
-	if (card->ext_csd.rev > 8) {
+	if (card->ext_csd.rev > 8) { // <asus-olaf20151119+>
 		pr_err("%s: unrecognised EXT_CSD revision %d\n",
 			mmc_hostname(card->host), card->ext_csd.rev);
 		err = -EINVAL;
@@ -606,6 +611,17 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		card->ext_csd.data_sector_size = 512;
 	}
 
+	/* eMMC v5.0 or later */
+	if (card->ext_csd.rev > 6) {
+		card->ext_csd.health[0] = ext_csd[EXT_CSD_HEALTH + 0];
+		card->ext_csd.health[1] = ext_csd[EXT_CSD_HEALTH + 1];
+		card->ext_csd.health[2] = ext_csd[EXT_CSD_HEALTH + 2];
+	}else{
+		card->ext_csd.health[0] = -1;
+		card->ext_csd.health[1] = -1;
+		card->ext_csd.health[2] = -1;
+	}
+
 out:
 	return err;
 }
@@ -695,7 +711,7 @@ MMC_DEV_ATTR(raw_rpmb_size_mult, "%#x\n", card->ext_csd.raw_rpmb_size_mult);
 MMC_DEV_ATTR(rel_sectors, "%#x\n", card->ext_csd.rel_sectors);
 
 MMC_DEV_ATTR(sector_count, "0x%x\n", card->ext_csd.sectors);
-
+MMC_DEV_ATTR(health,"0x%x 0x%x 0x%x\n",card->ext_csd.health[0],card->ext_csd.health[1],card->ext_csd.health[2]);
 static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_cid.attr,
 	&dev_attr_csd.attr,
@@ -713,7 +729,7 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_enhanced_area_size.attr,
 	&dev_attr_raw_rpmb_size_mult.attr,
 	&dev_attr_rel_sectors.attr,
-
+	&dev_attr_health.attr,
 	&dev_attr_sector_count.attr,
 	NULL,
 };

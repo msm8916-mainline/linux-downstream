@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,7 +27,7 @@
 			pinctrl-0 = <&ts_int_active &ts_reset_active>;
 			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
 			pinctrl-2 = <&ts_release>;
-			focaltech,name = "ft5346";
+				focaltech,name = "ft5346";
 			focaltech,family-id = <0x54>;
 			focaltech,reset-gpio = <&msm_gpio 12 0x0>;
 			focaltech,irq-gpio = <&msm_gpio 13 0x2008>;
@@ -51,8 +51,8 @@
 		};
 	};
 
-	i2c@78b8000 { /* BLSP1 QUP4 */
-	        bkl-pwr@22 {
+	i2c@78b8000 { /* BLSP1 QUP6 */
+		 bkl-pwr@22 {
 			compatible = "qcom,bkl-pwr";
 			reg = <0x22>;
 			qcom,bl-en-gpio = <&msm_gpio 21 0x00>;
@@ -83,7 +83,6 @@
 			clocks = <&clock_rpm clk_bb_clk2_pin>;
 			clock-names = "ref_clk";
 		};*/
-		
 	};
 	gpio_keys {
 		compatible = "gpio-keys";
@@ -130,7 +129,8 @@
 	};
 
 	i2c@78b6000 { /* BLSP1 QUP2 */
-		/*mpu6050@68 { // Gyroscope and accelerometer sensor combo 
+		/*
+		mpu6050@68 { // Gyroscope and accelerometer sensor combo
 			compatible = "invn,mpu6050";
 			reg = <0x68>;
 			pinctrl-names = "mpu_default","mpu_sleep";
@@ -145,9 +145,7 @@
 			invn,place = "Portrait Down Back Side";
 		};
 
-		
-
-		avago@39 { // Ambient light and proximity sensor 
+		avago@39 { // Ambient light and proximity sensor
 			compatible = "avago,apds9900";
 			reg = <0x39>;
 			pinctrl-names = "default","sleep";
@@ -181,31 +179,7 @@
 			ak,layout = <0x6>;
 			ak,auto-report;
 		};
-
-
-		kionix@1f {
-			compatible = "kionix,kx022";
-			reg = <0x1f>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <36 0x2>;
-			vdd-supply = <&pm8916_l8>;
-			vio-supply = <&pm8916_l6>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&kxtj9_default>;
-			kionix,interrupt-gpio = <&msm_gpio 36 0x2>;
-			kionix,min-interval = <5>;
-			kionix,init-interval = <200>;
-			kionix,axis-map-x = <1>;
-			kionix,axis-map-y = <0>;
-			kionix,axis-map-z = <2>;
-			kionix,g-range = <2>;
-			kionix,negate-x;
-			kionix,negate-y;
-			kionix,negate-z;
-			kionix,res-12bit;
-		};
-*/
-
+		*/
 		mpu6515@68 { // Gyroscope and accelerometer sensor combo 
 			compatible = "invn,mpu6515";
 			reg = <0x68>;
@@ -218,6 +192,19 @@
 			vio-supply = <&pm8916_l6>;
 			invn,gpio-int = <&msm_gpio 36 0x2>;
 			invn,place = "Portrait Down Back Side";
+		};
+
+		akm@c {
+			compatible = "ak,ak09911";
+			reg = <0x0c>;
+			pinctrl-names = "default","sleep";
+			pinctrl-0 = <&akm_default1>;
+			pinctrl-1 = <&akm_sleep1>;
+			vdd-supply = <&pm8916_l8>;
+			vio-supply = <&pm8916_l6>;
+			akm,layout = <0x3>;
+			akm,gpio_rstn = <&msm_gpio 112 0x0>;
+			akm,auto-report;
 		};
 
 		capella@60 {
@@ -239,7 +226,6 @@
 			capella,ps_conf1_val = <0x0006>;
 			capella,ps_conf3_val = <0x3010>;
 		};
-		
 
 		ap3426@1e {
 			compatible = "ap,ap3426";
@@ -252,41 +238,10 @@
 			pinctrl-0 = <&ap3426_default>;
 			ap,use-polling;
 			ap,interrupt-gpio = <&msm_gpio 113 0x2>;
-			//ap,levels = <0x0A 0xA0 0xE1 0x140 0x280 0x500 0xA28 0x16A8 0x1F40
-			//	0x2800>;
-			//ap,ps_close_thd_set = <0x200>;
-			//ap,ps_away_thd_set = <0x100>;
-			//ap,ls_cmd = <0x44>; /* ALS_IT=160ms, INT_PERS=2*/
-			//ap,ps_conf1_val = <0x0006>;
-			//ap,ps_conf3_val = <0x3010>;
 		};
 
 
-		akm@c {
-			compatible = "ak,ak09911";
-			reg = <0x0c>;
-			pinctrl-names = "default","sleep";
-			pinctrl-0 = <&akm_default1>;
-			pinctrl-1 = <&akm_sleep1>;
-			vdd-supply = <&pm8916_l8>;
-			vio-supply = <&pm8916_l6>;
-			akm,layout = <0x3>;
-			akm,gpio_rstn = <&msm_gpio 112 0x0>;
-			akm,auto-report;
-		};
-/*
-		bosch@68 {
-			compatible = "bosch-sensortec, bmi160";
-			reg = <0x68>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <36 0x2>;
-			vdd-supply = <&pm8916_l8>;
-			vio-supply = <&pm8916_l6>;
-			bmi,gpio_irq = <&msm_gpio 36 0x2>;
-		};
-*/
 	};
-
         // ASUS_BSP +++ srHuang HALL sensor
 	hall_sensor {
 		compatible = "qcom,hall";
@@ -338,15 +293,15 @@
 				"msm-voip-dsp", "msm-pcm-voice", "msm-pcm-loopback",
 				"msm-compress-dsp", "msm-pcm-hostless", "msm-pcm-afe",
 				"msm-lsm-client", "msm-pcm-routing", "msm-pcm-lpa";
-		asoc-cpu = <&dai_hdmi>, <&dai_mi2s0>, <&dai_mi2s1>,
+		asoc-cpu = <&dai_pri_auxpcm>, <&dai_hdmi>, <&dai_mi2s0>, <&dai_mi2s1>,
 				<&dai_mi2s2>, <&dai_mi2s3>, <&sb_0_rx>, <&sb_0_tx>,
 				<&sb_1_rx>, <&sb_1_tx>, <&sb_3_rx>, <&sb_3_tx>,
 				<&sb_4_rx>, <&sb_4_tx>, <&sb_5_tx>, <&bt_sco_rx>,
-				<&bt_sco_tx>, <&int_fm_rx>, <&int_fm_tx>, <&afe_pcm_rx>,
-				<&afe_pcm_tx>, <&afe_proxy_rx>, <&afe_proxy_tx>,
+				<&bt_sco_tx>, <&bt_a2dp_rx>, <&int_fm_rx>, <&int_fm_tx>,
+				<&afe_pcm_rx>, <&afe_pcm_tx>, <&afe_proxy_rx>, <&afe_proxy_tx>,
 				<&incall_record_rx>, <&incall_record_tx>, <&incall_music_rx>,
 				<&incall_music_2_rx>;
-		asoc-cpu-names = "msm-dai-q6-hdmi.8", "msm-dai-q6-mi2s.0",
+		asoc-cpu-names = "msm-dai-q6-auxpcm.1", "msm-dai-q6-hdmi.8", "msm-dai-q6-mi2s.0",
 				"msm-dai-q6-mi2s.1", "msm-dai-q6-mi2s.2",
 				"msm-dai-q6-mi2s.3", "msm-dai-q6-dev.16384",
 				"msm-dai-q6-dev.16385", "msm-dai-q6-dev.16386",
@@ -354,11 +309,12 @@
 				"msm-dai-q6-dev.16391", "msm-dai-q6-dev.16392",
 				"msm-dai-q6-dev.16393", "msm-dai-q6-dev.16395",
 				"msm-dai-q6-dev.12288", "msm-dai-q6-dev.12289",
-				"msm-dai-q6-dev.12292", "msm-dai-q6-dev.12293",
-				"msm-dai-q6-dev.224", "msm-dai-q6-dev.225",
-				"msm-dai-q6-dev.241", "msm-dai-q6-dev.240",
-				"msm-dai-q6-dev.32771", "msm-dai-q6-dev.32772",
-				"msm-dai-q6-dev.32773", "msm-dai-q6-dev.32770";
+				"msm-dai-q6-dev.12290", "msm-dai-q6-dev.12292",
+				"msm-dai-q6-dev.12293", "msm-dai-q6-dev.224",
+				"msm-dai-q6-dev.225", "msm-dai-q6-dev.241",
+				"msm-dai-q6-dev.240", "msm-dai-q6-dev.32771",
+				"msm-dai-q6-dev.32772", "msm-dai-q6-dev.32773",
+				"msm-dai-q6-dev.32770";
 		asoc-codec = <&stub_codec>, <&pm8916_tombak_dig>;
 		asoc-codec-names = "msm-stub-codec.1", "tombak_codec";
 

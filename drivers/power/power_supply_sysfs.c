@@ -49,7 +49,7 @@ static ssize_t power_supply_show_property(struct device *dev,
 		"USB_Parallel"
 	};
 	static char *status_text[] = {
-		"Unknown", "Charging", "Discharging", "Not charging", "Full", "Quick charging v1"
+		"Unknown", "Charging", "Discharging", "Not charging", "Full"
 	};
 	static char *charge_type[] = {
 		"Unknown", "N/A", "Trickle", "Fast", "Taper"
@@ -208,6 +208,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(resistance),
 	POWER_SUPPLY_ATTR(resistance_capacitive),
 	POWER_SUPPLY_ATTR(resistance_id),
+	POWER_SUPPLY_ATTR(resistance_now),
 	/* Local extensions */
 	POWER_SUPPLY_ATTR(usb_hc),
 	POWER_SUPPLY_ATTR(usb_otg),

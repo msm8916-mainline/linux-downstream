@@ -987,7 +987,7 @@ int msm_camera_init_gpio_pin_tbl(struct device_node *of_node,
 			rc = 0;
 		}
 	}
-//<asus-leong_un20150327<<<<<<<<<+ 
+//<asus-leong_un20150327<<<<<<<<<+
 	rc = of_property_read_u32(of_node, "qcom,gpio-flash-now", &val);
 	if (rc != -EINVAL) {
 		if (rc < 0) {

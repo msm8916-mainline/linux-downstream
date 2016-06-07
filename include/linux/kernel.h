@@ -15,7 +15,6 @@
 #include <asm/byteorder.h>
 #include <uapi/linux/kernel.h>
 #include <linux/asusdebug.h>
-
 //++++ sean_lu@asus.com add "support laser sensor 2nd source"
 extern int g_ASUS_laserID;
 //---- sean_lu@asus.com add "support laser sensor 2nd source"
@@ -488,7 +487,7 @@ extern int asus_PRJ_ID;
 extern char asus_project_RFsku[2];
 extern char asus_project_lte[2];
 extern char asus_project_stage[2];
-extern char asus_project_mem[2];
+extern char asus_project_mem[4];
 extern char asus_project_hd[2];
 
 

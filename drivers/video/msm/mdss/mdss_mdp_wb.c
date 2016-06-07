@@ -420,6 +420,10 @@ static struct mdss_mdp_wb_data *get_user_node(struct msm_fb_data_type *mfd,
 		struct ion_client *iclient = mdss_get_ionclient();
 		struct ion_handle *ihdl;
 
+		if (IS_ERR_OR_NULL(iclient)) {
+			pr_err("unable to get mdss ion client\n");
+			return NULL;
+		}
 		ihdl = ion_import_dma_buf(iclient, data->memory_id);
 		if (IS_ERR_OR_NULL(ihdl)) {
 			pr_err("unable to import fd %d\n", data->memory_id);
@@ -624,7 +628,8 @@ static int mdss_mdp_wb_dequeue(struct msm_fb_data_type *mfd,
 	return ret;
 }
 
-int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd, struct mdss_mdp_commit_cb *commit_cb)
+int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd,
+		struct mdss_mdp_commit_cb *commit_cb)
 {
 	struct mdss_mdp_wb *wb = mfd_to_wb(mfd);
 	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);

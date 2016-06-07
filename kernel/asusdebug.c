@@ -180,7 +180,7 @@ void show_stack1(struct task_struct *p1, void *p2)
     entries = kmalloc(MAX_STACK_TRACE_DEPTH * sizeof(*entries), GFP_KERNEL);
     if (!entries)
     {
-        printk("entries malloc failure\n");
+        printk("[ASDF]entries malloc failure\n");
         return;
     }
     trace.nr_entries    = 0;
@@ -243,26 +243,26 @@ void print_all_thread_info(void)
 			if (pti->pWaitingMutex->name)
 			{
 				save_log("    Mutex:%s,", pti->pWaitingMutex->name + 1);
-				printk("    Mutex:%s,", pti->pWaitingMutex->name + 1);
+				printk("[ASDF]    Mutex:%s,", pti->pWaitingMutex->name + 1);
 			}
 			else
-				printk("pti->pWaitingMutex->name == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->name == NULL\r\n");
 
 			if (pti->pWaitingMutex->mutex_owner_asusdebug)
 			{
 				save_log(" Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
-				printk(" Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
+				printk("[ASDF] Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
 			}
 			else
-				printk("pti->pWaitingMutex->mutex_owner_asusdebug == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->mutex_owner_asusdebug == NULL\r\n");
 
 			if (pti->pWaitingMutex->mutex_owner_asusdebug->comm)
 			{
 				save_log(" %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
-				printk(" %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
+				printk("[ASDF] %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
 			}
 			else
-				printk("pti->pWaitingMutex->mutex_owner_asusdebug->comm == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->mutex_owner_asusdebug->comm == NULL\r\n");
 		}
 
 		if(pti->pWaitingCompletion != &fake_completion && pti->pWaitingCompletion!=NULL)
@@ -270,7 +270,7 @@ void print_all_thread_info(void)
 			if (pti->pWaitingCompletion->name)
 	            save_log("    Completion:wait_for_completion %s", pti->pWaitingCompletion->name );
 	        else
-				printk("pti->pWaitingCompletion->name == NULL\r\n");
+				printk("[ASDF]pti->pWaitingCompletion->name == NULL\r\n");
 		}
 
         if(pti->pWaitingRTMutex != &fake_rtmutex && pti->pWaitingRTMutex != NULL)
@@ -279,11 +279,11 @@ void print_all_thread_info(void)
 			if (temp)
 				save_log("    RTMutex: Owned by pID(%d)", temp->pid);
             else
-				printk("pti->pWaitingRTMutex->temp == NULL\r\n");
+				printk("[ASDF]pti->pWaitingRTMutex->temp == NULL\r\n");
 			if (temp->comm)
 				save_log(" %s", temp->comm);
 			else
-				printk("pti->pWaitingRTMutex->temp->comm == NULL\r\n");
+				printk("[ASDF]pti->pWaitingRTMutex->temp->comm == NULL\r\n");
 		}
 
 	save_log("\r\n");
@@ -320,26 +320,26 @@ void print_all_thread_info(void)
 			if (pti->pWaitingMutex->name)
 			{
 				save_log("    Mutex:%s,", pti->pWaitingMutex->name + 1);
-				printk("    Mutex:%s,", pti->pWaitingMutex->name + 1);
+				printk("[ASDF]    Mutex:%s,", pti->pWaitingMutex->name + 1);
 			}
 			else
-				printk("pti->pWaitingMutex->name == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->name == NULL\r\n");
 
 			if (pti->pWaitingMutex->mutex_owner_asusdebug)
 			{
 				save_log(" Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
-				printk(" Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
+				printk("[ASDF] Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
 			}
 			else
-				printk("pti->pWaitingMutex->mutex_owner_asusdebug == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->mutex_owner_asusdebug == NULL\r\n");
 
 			if (pti->pWaitingMutex->mutex_owner_asusdebug->comm)
 			{
 				save_log(" %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
-				printk(" %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
+				printk("[ASDF] %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
 			}
 			else
-				printk("pti->pWaitingMutex->mutex_owner_asusdebug->comm == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->mutex_owner_asusdebug->comm == NULL\r\n");
 		}
 
 		if(pti->pWaitingCompletion != &fake_completion && pti->pWaitingCompletion!=NULL)
@@ -347,7 +347,7 @@ void print_all_thread_info(void)
 			if (pti->pWaitingCompletion->name)
 	            save_log("    Completion:wait_for_completion %s", pti->pWaitingCompletion->name );
 	        else
-				printk("pti->pWaitingCompletion->name == NULL\r\n");
+				printk("[ASDF]pti->pWaitingCompletion->name == NULL\r\n");
 		}
 
         if(pti->pWaitingRTMutex != &fake_rtmutex && pti->pWaitingRTMutex != NULL)
@@ -356,11 +356,11 @@ void print_all_thread_info(void)
 			if (temp)
 				save_log("    RTMutex: Owned by pID(%d)", temp->pid);
             else
-				printk("pti->pWaitingRTMutex->temp == NULL\r\n");
+				printk("[ASDF]pti->pWaitingRTMutex->temp == NULL\r\n");
 			if (temp->comm)
 				save_log(" %s", temp->comm);
 			else
-				printk("pti->pWaitingRTMutex->temp->comm == NULL\r\n");
+				printk("[ASDF]pti->pWaitingRTMutex->temp->comm == NULL\r\n");
 		}
                 save_log("\r\n");
                 show_stack1(p1, NULL);
@@ -391,30 +391,30 @@ int find_thread_info(struct task_struct *pts, int force)
     {
         ptis = ptis_head->pnext;
         ptis_ptr = NULL;
-        //printk("[Red_debug]initial ptis %x,\n\r", ptis);
+        //printk("[ASDF]initial ptis %x,\n\r", ptis);
         while(ptis)
         {
-            //printk("[Red_debug]initial ptis->pts %x, pts=%x\n\r", ptis->pts, pts);
+            //printk("[ASDF]initial ptis->pts %x, pts=%x\n\r", ptis->pts, pts);
             if(ptis->pid == pts->pid && ptis->pts == pts)
             {
-                //printk("[Red_debug]found pts=%x\n\r", pts);
+                //printk("[ASDF]found pts=%x\n\r", pts);
                 ptis_ptr = ptis;
                 break;
             }
             ptis = ptis->pnext;
         }
-        //printk("[Red_debug]ptis_ptr=%x\n\r", ptis_ptr);
+        //printk("[ASDF]ptis_ptr=%x\n\r", ptis_ptr);
         if(ptis_ptr)
         {
-            //printk("[Red_debug]found ptis->pid=%d, sum_exec_runtime  new:%lld.%06ld  old:%lld.%06ld \n\r", ptis->pid, SPLIT_NS(pts->se.sum_exec_runtime), SPLIT_NS(ptis->sum_exec_runtime));
+            //printk("[ASDF]found ptis->pid=%d, sum_exec_runtime  new:%lld.%06ld  old:%lld.%06ld \n\r", ptis->pid, SPLIT_NS(pts->se.sum_exec_runtime), SPLIT_NS(ptis->sum_exec_runtime));
             sum_exec_runtime = pts->se.sum_exec_runtime - ptis->sum_exec_runtime;
-            //printk("[Red_debug]difference=%lld.%06ld  \n\r", SPLIT_NS(sum_exec_runtime));
+            //printk("[ASDF]difference=%lld.%06ld  \n\r", SPLIT_NS(sum_exec_runtime));
         }
         else
         {
             sum_exec_runtime = pts->se.sum_exec_runtime;
         }
-        //printk("[Red_debug]utime=%d, stime=%d\n\r", utime, stime);
+        //printk("[ASDF]utime=%d, stime=%d\n\r", utime, stime);
         if(sum_exec_runtime > 0 || force)
         {
             pti = task_thread_info(pts);
@@ -440,26 +440,26 @@ int find_thread_info(struct task_struct *pts, int force)
 			if (pti->pWaitingMutex->name)
 			{
 				save_log("    Mutex:%s,", pti->pWaitingMutex->name + 1);
-				printk("    Mutex:%s,", pti->pWaitingMutex->name + 1);
+				printk("[ASDF]    Mutex:%s,", pti->pWaitingMutex->name + 1);
 			}
 			else
-				printk("pti->pWaitingMutex->name == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->name == NULL\r\n");
 
 			if (pti->pWaitingMutex->mutex_owner_asusdebug)
 			{
 				save_log(" Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
-				printk(" Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
+				printk("[ASDF] Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
 			}
 			else
-				printk("pti->pWaitingMutex->mutex_owner_asusdebug == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->mutex_owner_asusdebug == NULL\r\n");
 
 			if (pti->pWaitingMutex->mutex_owner_asusdebug->comm)
 			{
 				save_log(" %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
-				printk(" %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
+				printk("[ASDF] %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
 			}
 			else
-				printk("pti->pWaitingMutex->mutex_owner_asusdebug->comm == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->mutex_owner_asusdebug->comm == NULL\r\n");
 		}
 
             if(pti->pWaitingCompletion != &fake_completion && pti->pWaitingCompletion!=NULL)
@@ -467,7 +467,7 @@ int find_thread_info(struct task_struct *pts, int force)
 				if (pti->pWaitingCompletion->name)
 					save_log("    Completion:wait_for_completion %s", pti->pWaitingCompletion->name );
 				else
-					printk("pti->pWaitingCompletion->name == NULL\r\n");
+					printk("[ASDF]pti->pWaitingCompletion->name == NULL\r\n");
 			}
 
         if(pti->pWaitingRTMutex != &fake_rtmutex && pti->pWaitingRTMutex != NULL)
@@ -476,11 +476,11 @@ int find_thread_info(struct task_struct *pts, int force)
 			if (temp)
 				save_log("    RTMutex: Owned by pID(%d)", temp->pid);
             else
-				printk("pti->pWaitingRTMutex->temp == NULL\r\n");
+				printk("[ASDF]pti->pWaitingRTMutex->temp == NULL\r\n");
 			if (temp->comm)
 				save_log(" %s", temp->comm);
 			else
-				printk("pti->pWaitingRTMutex->temp->comm == NULL\r\n");
+				printk("[ASDF]pti->pWaitingRTMutex->temp->comm == NULL\r\n");
 		}
 
             save_log("\r\n");
@@ -535,7 +535,7 @@ void save_all_thread_info(void)
         ptis_ptr = ptis_head = kmalloc(sizeof( struct thread_info_save), GFP_KERNEL);
         if(!ptis_head)
         {
-            printk("kmalloc ptis_head failure\n");
+            printk("[ASDF]kmalloc ptis_head failure\n");
             return;
         }
         memset(ptis_head, 0, sizeof( struct thread_info_save));
@@ -544,11 +544,11 @@ void save_all_thread_info(void)
     for_each_process(pts)
     {
         pti = task_thread_info(pts);
-        //printk("[Red_debug]for pts %x, ptis_ptr=%x\n\r", pts, ptis_ptr);
+        //printk("[ASDF]for pts %x, ptis_ptr=%x\n\r", pts, ptis_ptr);
         ptis = kmalloc(sizeof( struct thread_info_save), GFP_KERNEL);
         if(!ptis)
         {
-            printk("kmalloc ptis failure\n");
+            printk("[ASDF]kmalloc ptis failure\n");
             return;
         }
         memset(ptis, 0, sizeof( struct thread_info_save));
@@ -578,33 +578,33 @@ void save_all_thread_info(void)
 			if (pti->pWaitingMutex->name)
 			{
 				save_log("    Mutex:%s,", pti->pWaitingMutex->name + 1);
-				printk("    Mutex:%s,", pti->pWaitingMutex->name + 1);
+				printk("[ASDF]    Mutex:%s,", pti->pWaitingMutex->name + 1);
 			}
 			else
-				printk("pti->pWaitingMutex->name == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->name == NULL\r\n");
 
 			if (pti->pWaitingMutex->mutex_owner_asusdebug)
 			{
 				save_log(" Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
-				printk(" Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
+				printk("[ASDF] Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
 			}
 			else
-				printk("pti->pWaitingMutex->mutex_owner_asusdebug == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->mutex_owner_asusdebug == NULL\r\n");
 
 			if (pti->pWaitingMutex->mutex_owner_asusdebug->comm)
 			{
 				save_log(" %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
-				printk(" %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
+				printk("[ASDF] %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
 			}
 			else
-				printk("pti->pWaitingMutex->mutex_owner_asusdebug->comm == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->mutex_owner_asusdebug->comm == NULL\r\n");
 		}
 	if(pti->pWaitingCompletion != &fake_completion && pti->pWaitingCompletion!=NULL)
 	{
 		if (pti->pWaitingCompletion->name)
 			save_log("    Completion:wait_for_completion %s", pti->pWaitingCompletion->name );
 		else
-			printk("pti->pWaitingCompletion->name == NULL\r\n");
+			printk("[ASDF]pti->pWaitingCompletion->name == NULL\r\n");
 	}
 
         if(pti->pWaitingRTMutex != &fake_rtmutex && pti->pWaitingRTMutex != NULL)
@@ -613,11 +613,11 @@ void save_all_thread_info(void)
 			if (temp)
 				save_log("    RTMutex: Owned by pID(%d)", temp->pid);
             else
-				printk("pti->pWaitingRTMutex->temp == NULL\r\n");
+				printk("[ASDF]pti->pWaitingRTMutex->temp == NULL\r\n");
 			if (temp->comm)
 				save_log(" %s", temp->comm);
 			else
-				printk("pti->pWaitingRTMutex->temp->comm == NULL\r\n");
+				printk("[ASDF]pti->pWaitingRTMutex->temp->comm == NULL\r\n");
 		}
 
 
@@ -630,9 +630,9 @@ void save_all_thread_info(void)
         ptis->pid = pts->pid;
         ptis->pts = pts;
         ptis->sum_exec_runtime = pts->se.sum_exec_runtime;
-        //printk("[Red_debug]saving %d, sum_exec_runtime  %lld.%06ld  \n\r", ptis->pid, SPLIT_NS(ptis->sum_exec_runtime));
+        //printk("[ASDF]saving %d, sum_exec_runtime  %lld.%06ld  \n\r", ptis->pid, SPLIT_NS(ptis->sum_exec_runtime));
         ptis->vruntime = pts->se.vruntime;
-        //printk("[Red_debug]newing ptis %x utime=%d, stime=%d\n\r", ptis, pts->utime, pts->stime);
+        //printk("[ASDF]newing ptis %x utime=%d, stime=%d\n\r", ptis, pts->utime, pts->stime);
 
         ptis_ptr->pnext = ptis;
         ptis_ptr = ptis;
@@ -643,11 +643,11 @@ void save_all_thread_info(void)
             do
             {
                 pti = task_thread_info(p1);
-                //printk("[Red_debug]for pts %x, ptis_ptr=%x\n\r", pts, ptis_ptr);
+                //printk("[ASDF]for pts %x, ptis_ptr=%x\n\r", pts, ptis_ptr);
                 ptis = kmalloc(sizeof( struct thread_info_save), GFP_KERNEL);
                 if(!ptis)
                 {
-                    printk("kmalloc ptis 2 failure\n");
+                    printk("[ASDF]kmalloc ptis 2 failure\n");
                     return;
                 }
                 memset(ptis, 0, sizeof( struct thread_info_save));
@@ -655,9 +655,9 @@ void save_all_thread_info(void)
                 ptis->pid = p1->pid;
                 ptis->pts = p1;
                 ptis->sum_exec_runtime = p1->se.sum_exec_runtime;
-                //printk("[Red_debug]saving %d, sum_exec_runtime  %lld.%06ld  \n\r", ptis->pid, SPLIT_NS(ptis->sum_exec_runtime));
+                //printk("[ASDF]saving %d, sum_exec_runtime  %lld.%06ld  \n\r", ptis->pid, SPLIT_NS(ptis->sum_exec_runtime));
                 ptis->vruntime = p1->se.vruntime;
-                //printk("[Red_debug]newing ptis %x utime=%d, stime=%d\n\r", ptis, pts->utime, pts->stime);
+                //printk("[ASDF]newing ptis %x utime=%d, stime=%d\n\r", ptis, pts->utime, pts->stime);
 
                 ptis_ptr->pnext = ptis;
                 ptis_ptr = ptis;
@@ -686,26 +686,26 @@ void save_all_thread_info(void)
 			if (pti->pWaitingMutex->name)
 			{
 				save_log("    Mutex:%s,", pti->pWaitingMutex->name + 1);
-				printk("    Mutex:%s,", pti->pWaitingMutex->name + 1);
+				printk("[ASDF]    Mutex:%s,", pti->pWaitingMutex->name + 1);
 			}
 			else
-				printk("pti->pWaitingMutex->name == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->name == NULL\r\n");
 
 			if (pti->pWaitingMutex->mutex_owner_asusdebug)
 			{
 				save_log(" Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
-				printk(" Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
+				printk("[ASDF] Owned by pID(%d)", pti->pWaitingMutex->mutex_owner_asusdebug->pid);
 			}
 			else
-				printk("pti->pWaitingMutex->mutex_owner_asusdebug == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->mutex_owner_asusdebug == NULL\r\n");
 
 			if (pti->pWaitingMutex->mutex_owner_asusdebug->comm)
 			{
 				save_log(" %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
-				printk(" %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
+				printk("[ASDF] %s",pti->pWaitingMutex->mutex_owner_asusdebug->comm);
 			}
 			else
-				printk("pti->pWaitingMutex->mutex_owner_asusdebug->comm == NULL\r\n");
+				printk("[ASDF]pti->pWaitingMutex->mutex_owner_asusdebug->comm == NULL\r\n");
 		}
 
 		if(pti->pWaitingCompletion != &fake_completion && pti->pWaitingCompletion!=NULL)
@@ -713,7 +713,7 @@ void save_all_thread_info(void)
 			if (pti->pWaitingCompletion->name)
 	            save_log("    Completion:wait_for_completion %s", pti->pWaitingCompletion->name );
 	        else
-				printk("pti->pWaitingCompletion->name == NULL\r\n");
+				printk("[ASDF]pti->pWaitingCompletion->name == NULL\r\n");
 		}
 
         if(pti->pWaitingRTMutex != &fake_rtmutex && pti->pWaitingRTMutex != NULL)
@@ -722,11 +722,11 @@ void save_all_thread_info(void)
 			if (temp)
 				save_log("    RTMutex: Owned by pID(%d)", temp->pid);
             else
-				printk("pti->pWaitingRTMutex->temp == NULL\r\n");
+				printk("[ASDF]pti->pWaitingRTMutex->temp == NULL\r\n");
 			if (temp->comm)
 				save_log(" %s", temp->comm);
 			else
-				printk("pti->pWaitingRTMutex->temp->comm == NULL\r\n");
+				printk("[ASDF]pti->pWaitingRTMutex->temp->comm == NULL\r\n");
 		}
                 save_log("\r\n");
                 show_stack1(p1, NULL);
@@ -753,7 +753,7 @@ void delta_all_thread_info(void)
     save_log(" pID----ppID----NAME----------------SumTime---vruntime--SPri-NPri-State----------PmpCnt----Waiting\r\n");
     for_each_process(pts)
     {
-        //printk("[Red_debug]for pts %x,\n\r", pts);
+        //printk("[ASDF]for pts %x,\n\r", pts);
         ret = find_thread_info(pts, 0);
         if(!thread_group_empty(pts))
         {
@@ -794,16 +794,16 @@ void save_phone_hang_log(void)
     int ret;
     //---------------saving phone hang log if any -------------------------------
     g_phonehang_log = (char*)PHONE_HANG_LOG_BUFFER;
-    printk("save_phone_hang_log PRINTK_BUFFER=%p, PHONE_HANG_LOG_BUFFER=%p\n", PRINTK_BUFFER_VA, PHONE_HANG_LOG_BUFFER);
+    printk("[ASDF]save_phone_hang_log PRINTK_BUFFER=%p, PHONE_HANG_LOG_BUFFER=%p\n", PRINTK_BUFFER_VA, PHONE_HANG_LOG_BUFFER);
     if(g_phonehang_log && ((strncmp(g_phonehang_log, "PhoneHang", 9) == 0) || (strncmp(g_phonehang_log, "ASUSSlowg", 9) == 0)) )
     {
-        printk("save_phone_hang_log-1\n");
+        printk("[ASDF]save_phone_hang_log-1\n");
         initKernelEnv();
         memset(messages, 0, sizeof(messages));
         strcpy(messages, ASUS_ASDF_BASE_DIR);
         strncat(messages, g_phonehang_log, 29);
         file_handle = sys_open(messages, O_CREAT|O_WRONLY|O_SYNC, 0);
-        printk("save_phone_hang_log-2 file_handle %d, name=%s\n", file_handle, messages);
+        printk("[ASDF]save_phone_hang_log-2 file_handle %d, name=%s\n", file_handle, messages);
         if(!IS_ERR((const void *)(ulong)file_handle))
         {
             ret = sys_write(file_handle, (unsigned char*)g_phonehang_log, strlen(g_phonehang_log));
@@ -885,7 +885,7 @@ void get_last_shutdown_log(void)
     ulong *printk_buffer_slot2_addr;
 
     printk_buffer_slot2_addr = (ulong *)PRINTK_BUFFER_SLOT2;
-    printk("get_last_shutdown_log: printk_buffer_slot2=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
+    printk("[ASDF]get_last_shutdown_log: printk_buffer_slot2=%p, value=0x%lx\n", printk_buffer_slot2_addr, *printk_buffer_slot2_addr);
     if(*printk_buffer_slot2_addr == (ulong)PRINTK_BUFFER_MAGIC) {
         save_last_shutdown_log("LastShutdown");
     }
@@ -911,7 +911,7 @@ static void do_write_event_worker(struct work_struct *work)
 	char buffer[256];
 	memset(buffer, 0, sizeof(char)*256);
 
-	printk(" enter %s\n",__func__);
+	printk("[ASDF] enter %s\n",__func__);
 	if (IS_ERR((const void *)(ulong)g_hfileEvtlog)) {
 		long size;
 		g_hfileEvtlog = sys_open(ASUS_EVTLOG_PATH".txt", O_CREAT|O_RDWR|O_SYNC, 0444);
@@ -1001,7 +1001,7 @@ void ASUSEvtlog(const char *fmt, ...)
 		/*printk(buffer);*/
 		queue_work(ASUSEvtlog_workQueue, &eventLog_Work);
 	} else {
-		printk("ASUSEvtlog buffer cannot be allocated\n");
+		printk("[ASDF]ASUSEvtlog buffer cannot be allocated\n");
 	}
 }
 EXPORT_SYMBOL(ASUSEvtlog);
@@ -1071,12 +1071,12 @@ static ssize_t asusdebug_write(struct file *file, const char __user *buf, size_t
 		panic("panic test");
 	} else if (strncmp(messages, "dbg", strlen("dbg")) == 0) {
 //		g_user_dbg_mode = 1;
-//		printk("[Red_debug]Kernel dbg mode = %d\n", g_user_dbg_mode);
-		printk("g_user_dbg_mode has been removed\n");
+//		printk("[ASDF]Kernel dbg mode = %d\n", g_user_dbg_mode);
+		printk("[ASDF]g_user_dbg_mode has been removed\n");
 	} else if(strncmp(messages, "ndbg", strlen("ndbg")) == 0) {
 //		g_user_dbg_mode = 0;
-//		printk("[Red_debug]Kernel dbg mode = %d\n", g_user_dbg_mode);
-		printk("g_user_dbg_mode has been removed\n");
+//		printk("[ASDF]Kernel dbg mode = %d\n", g_user_dbg_mode);
+		printk("[ASDF]g_user_dbg_mode has been removed\n");
 	} else if(strncmp(messages, "get_asdf_log",
 				strlen("get_asdf_log")) == 0) {
 #ifdef CONFIG_MSM_RTB
@@ -1096,18 +1096,19 @@ static ssize_t asusdebug_write(struct file *file, const char __user *buf, size_t
 			if ((*printk_buffer_slot2_addr) == (ulong)PRINTK_BUFFER_MAGIC )
 				save_rtb_log();
 #endif
-			(*printk_buffer_slot2_addr)=(ulong)PRINTK_BUFFER_MAGIC;
+			//(*printk_buffer_slot2_addr)=(ulong)PRINTK_BUFFER_MAGIC;
+			(*printk_buffer_slot2_addr)=0;
 		}
 #ifdef CONFIG_MSM_RTB
 		g_saving_rtb_log = 0;
 #endif
 	} else if(strncmp(messages, "slowlog", strlen("slowlog")) == 0) {
-		printk("start to gi chk\n");
+		printk("[ASDF]start to gi chk\n");
 		save_all_thread_info();
 
 		msleep(5 * 1000);
 
-		printk("start to gi delta\n");
+		printk("[ASDF]start to gi delta\n");
 		delta_all_thread_info();
 		save_phone_hang_log();
 		return count;

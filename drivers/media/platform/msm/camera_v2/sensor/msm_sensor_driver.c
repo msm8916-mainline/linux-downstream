@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -36,7 +36,7 @@
 #include <linux/wait.h>
 #include <linux/time.h>
 #include <linux/workqueue.h>
-#include <linux/input/ft5x06_ts.h>
+//#include <linux/input/ft5x06_ts.h>
 #include <linux/fs.h>
 #include <asm/uaccess.h>
 #include <linux/fs.h>
@@ -47,7 +47,7 @@
 
 /* Logging macro */
 #undef CDBG
-#define CDBG(fmt, args...) pr_err(fmt, ##args)
+#define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
 #define SENSOR_MAX_MOUNTANGLE (360)
 #define OTP_DATA_LEN_WORD (16)
@@ -105,7 +105,7 @@ static void remove_module_file(void);
 //panpan ++
 static  ssize_t front_status_proc_read(struct device *dev,
 				struct device_attribute *attr, char *buf);
-static  ssize_t front_resolution_read(struct device *dev, 
+static  ssize_t front_resolution_read(struct device *dev,
 					struct device_attribute *attr, char *buf);
 
 static  ssize_t rear_status_proc_read(struct device *dev,
@@ -182,14 +182,14 @@ static int msm_sensor_platform_remove(struct platform_device *pdev)
 	kfree(s_ctrl);
 	g_sctrl[pdev->id] = NULL;
 
-	remove_proc_file();	 //panpan++ 
+	remove_proc_file();	 //panpan++
 	remove_file();     //panpan++
 	remove_bank1_file();    //panpan++
 	remove_bank2_file();    //panpan++
 	remove_bank3_file();    //panpan++
 	remove_module_file(); //panpan++
 	remove_resolution_file(); //panpan++
-	
+
 
 	return 0;
 }
@@ -769,6 +769,23 @@ static void msm_sensor_fill_sensor_info(struct msm_sensor_ctrl_t *s_ctrl,
 }
 
 /* static function definition */
+int32_t msm_sensor_driver_is_special_support(
+	struct msm_sensor_ctrl_t *s_ctrl,
+	char* sensor_name)
+{
+	int32_t rc = FALSE;
+	int32_t i = 0;
+	struct msm_camera_sensor_board_info *sensordata = s_ctrl->sensordata;
+	for (i = 0; i < sensordata->special_support_size; i++) {
+		if (!strcmp(sensordata->special_support_sensors[i],
+			sensor_name)) {
+			rc = TRUE;
+			break ;
+		}
+	}
+	return rc;
+}
+
 int32_t msm_sensor_driver_probe(void *setting,
 	struct msm_sensor_info_t *probed_info, char *entity_name)
 {
@@ -779,6 +796,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 	struct msm_camera_slave_info        *camera_info = NULL;
 
 	unsigned long                        mount_pos = 0;
+	uint32_t                             is_yuv;
 	int otp_ret = 0;
 
 	/* Validate input parameters */
@@ -840,6 +858,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 			setting32.is_init_params_valid;
 		slave_info->sensor_init_params = setting32.sensor_init_params;
 		slave_info->is_flash_supported = setting32.is_flash_supported;
+		slave_info->output_format = setting32.output_format;
 	} else
 #endif
 	{
@@ -867,7 +886,6 @@ int32_t msm_sensor_driver_probe(void *setting,
 		CDBG("mount %d",
 			slave_info->sensor_init_params.sensor_mount_angle);
 	}
-
 
 	/* Validate camera id */
 	if (slave_info->camera_id >= MAX_CAMERAS) {
@@ -909,6 +927,16 @@ int32_t msm_sensor_driver_probe(void *setting,
 
 		rc = 0;
 		goto free_slave_info;
+	}
+
+	if (s_ctrl->sensordata->special_support_size > 0) {
+		if (!msm_sensor_driver_is_special_support(s_ctrl,
+			slave_info->sensor_name)) {
+			pr_err("%s:%s is not support on this board\n",
+				__func__, slave_info->sensor_name);
+			rc = 0;
+			goto free_slave_info;
+		}
 	}
 
 	rc = msm_sensor_get_power_settings(setting, slave_info,
@@ -1020,11 +1048,11 @@ int32_t msm_sensor_driver_probe(void *setting,
 	//panpan++
 	if(slave_info->camera_id==0)
 	sensorid0=slave_info->sensor_id_info.sensor_id;
-	else	
+	else
 	sensorid1=slave_info->sensor_id_info.sensor_id;
 	//panpan--
 	pr_err("%s probe succeeded", slave_info->sensor_name);
-	
+
 	//panpan++
 	if(CAMERA_0 == slave_info->camera_id){
 		g_camera_id = CAMERA_0;
@@ -1050,7 +1078,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 		pr_err("Create_front_camera_proc_file\n");
 	}
 //panpan--
-	
+
 	//Add for ATD read camera otp+++
 	//Register sysfs hooks and get otp,after this ,stream will turn off
 
@@ -1072,7 +1100,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 	}
 	//Add for ATD read camera status--
 
-	
+
 	/*
 	  Set probe succeeded flag to 1 so that no other camera shall
 	 * probed on this slot
@@ -1118,9 +1146,12 @@ int32_t msm_sensor_driver_probe(void *setting,
 		goto free_camera_info;
 	}
 	/* Update sensor mount angle and position in media entity flag */
-	mount_pos = s_ctrl->sensordata->sensor_info->position << 16;
-	mount_pos = mount_pos | ((s_ctrl->sensordata->sensor_info->
-		sensor_mount_angle / 90) << 8);
+	is_yuv = (slave_info->output_format == MSM_SENSOR_YCBCR) ? 1 : 0;
+	mount_pos = is_yuv << 25 |
+		(s_ctrl->sensordata->sensor_info->position << 16) |
+		((s_ctrl->sensordata->
+		sensor_info->sensor_mount_angle / 90) << 8);
+
 	s_ctrl->msm_sd.sd.entity.flags = mount_pos | MEDIA_ENT_FL_DEFAULT;
 
 	/*Save sensor info*/
@@ -1208,7 +1239,8 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 	int32_t                              rc = 0;
 	struct msm_camera_sensor_board_info *sensordata = NULL;
 	struct device_node                  *of_node = s_ctrl->of_node;
-	uint32_t cell_id;
+	uint32_t                             cell_id;
+	int32_t                              i;
 
 	s_ctrl->sensordata = kzalloc(sizeof(*sensordata), GFP_KERNEL);
 	if (!s_ctrl->sensordata) {
@@ -1241,6 +1273,34 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 		pr_err("failed: sctrl already filled for cell_id %d", cell_id);
 		rc = -EINVAL;
 		goto FREE_SENSOR_DATA;
+	}
+
+	sensordata->special_support_size =
+		of_property_count_strings(of_node, "qcom,special-support-sensors");
+
+	if (sensordata->special_support_size < 0)
+		sensordata->special_support_size = 0;
+
+	if (sensordata->special_support_size > MAX_SPECIAL_SUPPORT_SIZE) {
+		pr_err("%s:support_size exceed max support size\n",__func__);
+		sensordata->special_support_size = MAX_SPECIAL_SUPPORT_SIZE;
+	}
+
+	if (sensordata->special_support_size) {
+		for( i = 0; i < sensordata->special_support_size; i++) {
+			rc = of_property_read_string_index(of_node,
+				"qcom,special-support-sensors", i,
+				&(sensordata->special_support_sensors[i]));
+			if(rc < 0 ) {
+				/* if read sensor support names failed,
+				*   set support all sensors, break;
+				*/
+				sensordata->special_support_size = 0;
+				break ;
+			}
+			CDBG("%s special_support_sensors[%d] = %s\n", __func__,
+				i, sensordata->special_support_sensors[i]);
+		}
 	}
 
 	/* Read subdev info */
@@ -1372,6 +1432,7 @@ static int32_t msm_sensor_driver_parse(struct msm_sensor_ctrl_t *s_ctrl)
 	/* Store sensor control structure in static database */
 	g_sctrl[s_ctrl->id] = s_ctrl;
 	pr_err("g_sctrl[%d] %p", s_ctrl->id, g_sctrl[s_ctrl->id]);
+
 	return rc;
 
 FREE_DT_DATA:
@@ -1418,7 +1479,6 @@ static int32_t msm_sensor_driver_platform_probe(struct platform_device *pdev)
 	/* Fill device in power info */
 	s_ctrl->sensordata->power_info.dev = &pdev->dev;
 	return rc;
-	
 FREE_S_CTRL:
 	kfree(s_ctrl);
 	return rc;
@@ -1534,7 +1594,7 @@ static void __exit msm_sensor_driver_exit(void)
 //panpan++
 static int create_rear_status_proc_file(void)
 {
-		
+
 		int ret;
 			camera_kobj_camera = kobject_create_and_add("camera_status", NULL) ;
 			if (camera_kobj_camera == NULL)
@@ -1542,7 +1602,7 @@ static int create_rear_status_proc_file(void)
 				printk("%s: subsystem_register failed\n", __func__);
 				return -ENOMEM;
 			}
-		
+
 			ret = sysfs_create_file(camera_kobj_camera, &dev_attr_camera_status.attr);
 			if (ret)
 			{
@@ -1553,7 +1613,7 @@ static int create_rear_status_proc_file(void)
 }
 static int create_front_status_proc_file(void)
 {
-		
+
 		int ret;
 			camera_kobj_vga = kobject_create_and_add("vga_status", NULL) ;
 			if (camera_kobj_vga == NULL)
@@ -1561,7 +1621,7 @@ static int create_front_status_proc_file(void)
 				printk("%s: subsystem_register failed\n", __func__);
 				return -ENOMEM;
 			}
-		
+
 			ret = sysfs_create_file(camera_kobj_vga, &dev_attr_vga_status.attr);
 			if (ret)
 			{
@@ -1584,37 +1644,37 @@ static ssize_t rear_status_proc_read(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct msm_sensor_ctrl_t *s_ctrl = g_sctrl[0];
-		
+
 		if(g_camera_status)
 		{
 			if((msm_sensor_testi2c(s_ctrl))<0)
 			return sprintf(buf, "%s\n%s\n", "ERROR: i2c r/w test fail","Driver version:");
 			else
-    		return sprintf(buf, "%s\n%s\n%s0x%x\n", "ACK:i2c r/w test ok","Driver version:","sensor_id:",sensorid0);	
+		return sprintf(buf, "%s\n%s\n%s0x%x\n", "ACK:i2c r/w test ok","Driver version:","sensor_id:",sensorid0);
 		}
 	    else
 	   return sprintf(buf, "%s\n%s\n", "ERROR: i2c r/w test fail","Driver version:");
-		
-	pr_err("Randy read camera_0\n");   
+
+	pr_err("Randy read camera_0\n");
 }
 
 static ssize_t front_status_proc_read(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 		struct msm_sensor_ctrl_t *s_ctrl = g_sctrl[1];
-		
+
 		if(g_vga_status)
 		{
 			if((msm_sensor_testi2c(s_ctrl))<0)
 			 return sprintf(buf, "%s\n%s\n", "ERROR: i2c r/w test fail","Driver version:");
 			else
-    		 return sprintf(buf, "%s\n%s\n%s0x%x\n", "ACK:i2c r/w test ok","Driver version:","sensor_id:",sensorid1);	
+		 return sprintf(buf, "%s\n%s\n%s0x%x\n", "ACK:i2c r/w test ok","Driver version:","sensor_id:",sensorid1);
 		}
 	    else
 	   return sprintf(buf, "%s\n%s\n", "ERROR: i2c r/w test fail","Driver version:");
-		
+
 		pr_err("Randy read camera_1\n");
-	
+
 }
 
 
@@ -1664,7 +1724,7 @@ static int read_rear_otp_asus(void){
 	msleep(5);
 
 	//2.get access to otp, and set read mode 1xxxx101
-	
+
 
 	//2.1 set clk
 	rc = sensor_i2c_client->i2c_func_tbl->i2c_read(
@@ -1676,7 +1736,7 @@ static int read_rear_otp_asus(void){
 
 	//3.read otp ,it will spend one page(64 Byte) to store 24 * 8 bite
 	for ( j =2 ; j >=0; j--){
-		
+
 		memset(read_value,0,sizeof(read_value));
 			//3.1 set page num
 		rc = sensor_i2c_client->i2c_func_tbl->i2c_write(
@@ -1703,26 +1763,26 @@ static int read_rear_otp_asus(void){
 			read_value[i*2] = reg_val>>8;
 			read_value[i*2 +1] = reg_val&0x00ff;
 			//pr_err("i= %d, rear val = 0x%04x\n", i,reg_val);
-			
+
 			if(rc<0)
 			pr_err( "failed to read OTP data j:%d,i:%d\n",j,i);
 			if(reg_val != 0)
 			{
 				if(mFind==0)
-				{	
+				{
 					mFind = 1;
 					mFlag=j;
-				}	
+				}
 			}
 		}
-	
+
 		if(j==0)
 		memcpy(rear_otp_data_bank1, read_value, OTP_DATA_LEN_BYTE);
 		else if(j==1)
 		memcpy(rear_otp_data_bank2, read_value, OTP_DATA_LEN_BYTE);
-		else 
+		else
 		memcpy(rear_otp_data_bank3, read_value, OTP_DATA_LEN_BYTE);
-	
+
 	}
 	if(mFlag==2)
 		memcpy(rear_otp_data,rear_otp_data_bank3, OTP_DATA_LEN_BYTE);
@@ -1820,19 +1880,19 @@ static int mn34150_otp_read(void)
 			if(reg_val!= 0)
 			{
 				if(mFind==0)
-				{	
+				{
 					mFind = 1;
 					mFlag=j;
-				}	
+				}
 			}
-			
+
 		}
 
 		if(j==0)
 		memcpy(rear_otp_data_bank1, read_value, OTP_DATA_LEN_BYTE);
 		else if(j==1)
 		memcpy(rear_otp_data_bank2, read_value, OTP_DATA_LEN_BYTE);
-		else 
+		else
 		memcpy(rear_otp_data_bank3, read_value, OTP_DATA_LEN_BYTE);
 
 	}
@@ -1976,7 +2036,7 @@ static int read_front_otp_asus(void){
 	u8 read_value[OTP_DATA_LEN_BYTE];
 	//u16 bZero = 1;
 	u16 mFind = 0;
-	u16 mFlag=0; 
+	u16 mFlag=0;
 	const char *sensor_name;
 	int rc = 0,i,j;
 	u16 reg_val = 0;
@@ -2049,10 +2109,10 @@ static int read_front_otp_asus(void){
 			if(reg_val != 0)
 			{
 				if(mFind==0)
-				{	
+				{
 					mFind = 1;
 					mFlag=i;
-				}	
+				}
 			}
 		}
 
@@ -2105,7 +2165,7 @@ static int read_front_otp_asus(void){
 static struct proc_dir_entry *status_proc_file;
 
 static int rear_proc_read(struct seq_file *buf, void *v)
-{	
+{
 	int i;
 	for( i = 0; i < OTP_DATA_LEN_WORD * 2; i++)
 	{
@@ -2156,19 +2216,19 @@ static const struct file_operations front_status_fops = {
 
 static void create_rear_proc_file(void)
 {
-     
+
         status_proc_file = proc_create(STATUS_REAR_PROC_FILE, 0666, NULL, &rear_status_fops);
 		if(status_proc_file) {
 			CDBG("%s sucessed!\n", __func__);
 	    } else {
 			pr_err("%s failed!\n", __func__);
-	    }   
+	    }
 }
 
 static void create_front_proc_file(void)
 {
 		status_proc_file = proc_create(STATUS_FRONT_PROC_FILE, 0666, NULL, &front_status_fops);
-	
+
 	if(status_proc_file) {
 		CDBG("%s sucessed!\n", __func__);
     } else {
@@ -2179,7 +2239,7 @@ static void create_front_proc_file(void)
 static void remove_file(void)
 {
     extern struct proc_dir_entry proc_root;
-    pr_info("remove_file\n");	
+    pr_info("remove_file\n");
     remove_proc_entry(STATUS_REAR_PROC_FILE, &proc_root);
 	remove_proc_entry(STATUS_FRONT_PROC_FILE, &proc_root);
 }
@@ -2191,7 +2251,7 @@ static void remove_file(void)
 
 
 static int rear_bank1_proc_read(struct seq_file *buf, void *v)
-{	
+{
 	int i;
 	for( i = 0; i < OTP_DATA_LEN_WORD * 2; i++)
 	{
@@ -2242,19 +2302,19 @@ static const struct file_operations front_status_fops_bank1 = {
 
 static void create_rear_bank1_proc_file(void)
 {
-     
+
         status_proc_file = proc_create(STATUS_BANK1_REAR_PROC_FILE, 0666, NULL, &rear_status_fops_bank1);
 		if(status_proc_file) {
 			CDBG("%s sucessed!\n", __func__);
 	    } else {
 			pr_err("%s failed!\n", __func__);
-	    }   
+	    }
 }
 
 static void create_front_bank1_proc_file(void)
 {
 		status_proc_file = proc_create(STATUS_BANK1_FRONT_PROC_FILE, 0666, NULL, &front_status_fops_bank1);
-	
+
 	if(status_proc_file) {
 		CDBG("%s sucessed!\n", __func__);
     } else {
@@ -2265,7 +2325,7 @@ static void create_front_bank1_proc_file(void)
 static void remove_bank1_file(void)
 {
     extern struct proc_dir_entry proc_root;
-    pr_info("remove_bank1_file\n");	
+    pr_info("remove_bank1_file\n");
     remove_proc_entry(STATUS_BANK1_REAR_PROC_FILE, &proc_root);
 	remove_proc_entry(STATUS_BANK1_FRONT_PROC_FILE, &proc_root);
 }
@@ -2273,7 +2333,7 @@ static void remove_bank1_file(void)
 
 
 static int rear_bank2_proc_read(struct seq_file *buf, void *v)
-{	
+{
 	int i;
 	for( i = 0; i < OTP_DATA_LEN_WORD * 2; i++)
 	{
@@ -2324,19 +2384,19 @@ static const struct file_operations front_status_fops_bank2 = {
 
 static void create_rear_bank2_proc_file(void)
 {
-     
+
         status_proc_file = proc_create(STATUS_BANK2_REAR_PROC_FILE, 0666, NULL, &rear_status_fops_bank2);
 		if(status_proc_file) {
 			CDBG("%s sucessed!\n", __func__);
 	    } else {
 			pr_err("%s failed!\n", __func__);
-	    }   
+	    }
 }
 
 static void create_front_bank2_proc_file(void)
 {
 		status_proc_file = proc_create(STATUS_BANK2_FRONT_PROC_FILE, 0666, NULL, &front_status_fops_bank2);
-	
+
 	if(status_proc_file) {
 		CDBG("%s sucessed!\n", __func__);
     } else {
@@ -2347,14 +2407,14 @@ static void create_front_bank2_proc_file(void)
 static void remove_bank2_file(void)
 {
     extern struct proc_dir_entry proc_root;
-    pr_info("remove_bank2_file\n");	
+    pr_info("remove_bank2_file\n");
     remove_proc_entry(STATUS_BANK2_REAR_PROC_FILE, &proc_root);
 	remove_proc_entry(STATUS_BANK2_FRONT_PROC_FILE, &proc_root);
 }
 
 
 static int rear_bank3_proc_read(struct seq_file *buf, void *v)
-{	
+{
 	int i;
 	for( i = 0; i < OTP_DATA_LEN_WORD * 2; i++)
 	{
@@ -2405,19 +2465,19 @@ static const struct file_operations front_status_fops_bank3 = {
 
 static void create_rear_bank3_proc_file(void)
 {
-     
+
         status_proc_file = proc_create(STATUS_BANK3_REAR_PROC_FILE, 0666, NULL, &rear_status_fops_bank3);
 		if(status_proc_file) {
 			CDBG("%s sucessed!\n", __func__);
 	    } else {
 			pr_err("%s failed!\n", __func__);
-	    }   
+	    }
 }
 
 static void create_front_bank3_proc_file(void)
 {
 		status_proc_file = proc_create(STATUS_BANK3_FRONT_PROC_FILE, 0666, NULL, &front_status_fops_bank3);
-	
+
 	if(status_proc_file) {
 		CDBG("%s sucessed!\n", __func__);
     } else {
@@ -2428,7 +2488,7 @@ static void create_front_bank3_proc_file(void)
 static void remove_bank3_file(void)
 {
     extern struct proc_dir_entry proc_root;
-    pr_info("remove_bank3_file\n");	
+    pr_info("remove_bank3_file\n");
     remove_proc_entry(STATUS_BANK3_REAR_PROC_FILE, &proc_root);
 	remove_proc_entry(STATUS_BANK3_FRONT_PROC_FILE, &proc_root);
 }
@@ -2436,7 +2496,7 @@ static void remove_bank3_file(void)
 
 
 static int rear_module_proc_read(struct seq_file *buf, void *v)
-{	
+{
 	if(sensorid0==0x1c21)
 	return seq_printf(buf,"T4K37\n");
 	if(sensorid0==0x1481)
@@ -2483,19 +2543,19 @@ static const struct file_operations front_module_fops = {
 
 static void create_rear_module_proc_file(void)
 {
-     
+
         status_proc_file = proc_create(REARMODULE_PROC_FILE, 0666, NULL, &rear_module_fops);
 		if(status_proc_file) {
 			CDBG("%s sucessed!\n", __func__);
 	    } else {
 			pr_err("%s failed!\n", __func__);
-	    }   
+	    }
 }
 
 static void create_front_module_proc_file(void)
 {
 		status_proc_file = proc_create(FRONTMODULE_PROC_FILE, 0666, NULL, &front_module_fops);
-	
+
 	if(status_proc_file) {
 		CDBG("%s sucessed!\n", __func__);
     } else {
@@ -2506,7 +2566,7 @@ static void create_front_module_proc_file(void)
 static void remove_module_file(void)
 {
     extern struct proc_dir_entry proc_root;
-    pr_info("remove_module_file\n");	
+    pr_info("remove_module_file\n");
     remove_proc_entry(REARMODULE_PROC_FILE, &proc_root);
 	remove_proc_entry(FRONTMODULE_PROC_FILE, &proc_root);
 }
@@ -2522,7 +2582,7 @@ static void remove_module_file(void)
 
 static int create_rear_resolution_proc_file(void)
 {
-		
+
 		int ret;
 			camera_resolution_camera = kobject_create_and_add("camera_resolution", NULL) ;
 			if (camera_resolution_camera == NULL)
@@ -2530,7 +2590,7 @@ static int create_rear_resolution_proc_file(void)
 				printk("%s: subsystem_register failed\n", __func__);
 				return -ENOMEM;
 			}
-		
+
 			ret = sysfs_create_file(camera_resolution_camera, &dev_attr_camera_resolution.attr);
 			if (ret)
 			{
@@ -2541,7 +2601,7 @@ static int create_rear_resolution_proc_file(void)
 }
 static int create_front_resolution_proc_file(void)
 {
-		
+
 		int ret;
 			camera_resolution_vga = kobject_create_and_add("vga_resolution", NULL) ;
 			if (camera_resolution_vga == NULL)
@@ -2549,7 +2609,7 @@ static int create_front_resolution_proc_file(void)
 				printk("%s: subsystem_register failed\n", __func__);
 				return -ENOMEM;
 			}
-		
+
 			ret = sysfs_create_file(camera_resolution_vga, &dev_attr_vga_resolution.attr);
 			if (ret)
 			{
@@ -2575,16 +2635,16 @@ static ssize_t rear_resolution_read(struct device *dev,
 	return sprintf(buf,"13M\n");
 	else
 	return sprintf(buf,"8M\n");
-	pr_err("Randy read camera_0\n");   
+	pr_err("Randy read camera_0\n");
 }
 
 static ssize_t front_resolution_read(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	
+
 		return sprintf(buf,"5M\n");
 		pr_err("Randy read camera_1\n");
-	
+
 }
 
 

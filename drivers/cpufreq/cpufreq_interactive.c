@@ -401,6 +401,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	unsigned int index;
 	unsigned long flags;
 	bool boosted;
+	struct cpufreq_govinfo int_info;
 
 	if (!down_read_trylock(&pcpu->enable_sem))
 		return;
@@ -439,8 +440,15 @@ static void cpufreq_interactive_timer(unsigned long data)
 		do_div(cputime_speedadj, delta_time);
 	}
 
-	spin_lock_irqsave(&pcpu->target_freq_lock, flags);
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
+
+	int_info.cpu = data;
+	int_info.load = loadadjfreq / pcpu->policy->max;
+	int_info.sampling_rate_us = tunables->timer_rate;
+	atomic_notifier_call_chain(&cpufreq_govinfo_notifier_list,
+					CPUFREQ_LOAD_CHANGE, &int_info);
+
+	spin_lock_irqsave(&pcpu->target_freq_lock, flags);
 	cpu_load = loadadjfreq / pcpu->policy->cur;
 	boosted = tunables->boost_val || now < tunables->boostpulse_endtime;
 
@@ -1258,15 +1266,19 @@ static ssize_t store_use_sched_load(
 
 	if (tunables->use_sched_load == (bool) val)
 		return count;
+
+	tunables->use_sched_load = val;
+
 	if (val)
 		ret = cpufreq_interactive_enable_sched_input(tunables);
 	else
 		ret = cpufreq_interactive_disable_sched_input(tunables);
 
-	if (ret)
+	if (ret) {
+		tunables->use_sched_load = !val;
 		return ret;
+	}
 
-	tunables->use_sched_load = val;
 	return count;
 }
 
@@ -1514,6 +1526,7 @@ static struct cpufreq_interactive_tunables *alloc_tunable(
 	tunables->timer_rate = DEFAULT_TIMER_RATE;
 	tunables->boostpulse_duration_val = DEFAULT_MIN_SAMPLE_TIME;
 	tunables->timer_slack_val = DEFAULT_TIMER_SLACK;
+	tunables->align_windows = true;
 
 	spin_lock_init(&tunables->target_loads_lock);
 	spin_lock_init(&tunables->above_hispeed_delay_lock);
@@ -1677,12 +1690,8 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
-		if (policy->max < policy->cur)
-			__cpufreq_driver_target(policy,
-					policy->max, CPUFREQ_RELATION_H);
-		else if (policy->min > policy->cur)
-			__cpufreq_driver_target(policy,
-					policy->min, CPUFREQ_RELATION_L);
+		__cpufreq_driver_target(policy,
+				policy->cur, CPUFREQ_RELATION_L);
 		for_each_cpu(j, policy->cpus) {
 			pcpu = &per_cpu(cpuinfo, j);
 

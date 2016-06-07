@@ -358,6 +358,7 @@ CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 USERINCLUDE    := \
 		-I$(srctree)/arch/$(hdr-arch)/include/uapi \
 		-Iarch/$(hdr-arch)/include/generated/uapi \
+		-I$(srctree)/drivers/soc/qcom \
 		-I$(srctree)/include/uapi \
 		-Iinclude/generated/uapi \
                 -include $(srctree)/include/linux/kconfig.h
@@ -701,21 +702,6 @@ KBUILD_CFLAGS += $(KCFLAGS)
 ifeq ("$(FACTORY)", "1")
 KBUILD_CPPFLAGS += -DASUS_FACTORY_BUILD=1
 endif
-
-#ifeq ($(TARGET_BUILD_VARIANT), user)
-KBUILD_CPPFLAGS += -DASUS_SHIP_BUILD=1
-#endif
-
-# ASUS-danielchan20150603 ASUS_SENSOR_ENG_CMD >>>>>>>>>+
-ifeq ($(TARGET_BUILD_VARIANT), userdebug)
-KBUILD_CFLAGS += -DCONFIG_ASUS_SENSOR_ENG_CMD
-endif
-
-ifeq ($(TARGET_BUILD_VARIANT), eng)
-KBUILD_CFLAGS += -DCONFIG_ASUS_SENSOR_ENG_CMD
-endif
-# ASUS-danielchan20150603 ASUS_SENSOR_ENG_CMD <<<<<<<<<<+
-
 # Use --build-id when available.
 LDFLAGS_BUILD_ID = $(patsubst -Wl$(comma)%,%,\
 			      $(call cc-ldoption, -Wl$(comma)--build-id,))
@@ -725,6 +711,9 @@ LDFLAGS_vmlinux += $(LDFLAGS_BUILD_ID)
 ifeq ($(CONFIG_STRIP_ASM_SYMS),y)
 LDFLAGS_vmlinux	+= $(call ld-option, -X,)
 endif
+
+LDFLAGS_vmlinux += $(call ld-option, --fix-cortex-a53-843419)
+LDFLAGS_MODULE += $(call ld-option, --fix-cortex-a53-843419)
 
 # Default kernel image to build when no specific target is given.
 # KBUILD_IMAGE may be overruled on the command line or

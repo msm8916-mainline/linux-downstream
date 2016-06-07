@@ -1,0 +1,11 @@
+diff a/drivers/usb/gadget/f_uac1.c b/drivers/usb/gadget/f_uac1.c	(rejected hunks)
+@@ -1256,6 +1325,9 @@ f_audio_unbind(struct usb_configuration *c, struct usb_function *f)
+ {
+ 	struct f_audio *audio = func_to_audio(f);
+ 
++	flush_work(&audio->playback_work);
++	flush_work(&audio->capture_work);
++	flush_work(&audio->close_work);
+ 	gaudio_cleanup();
+ 	usb_free_all_descriptors(f);
+ 	kfree(audio);

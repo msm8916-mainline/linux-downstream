@@ -27,7 +27,7 @@ config DEFAULT_MESSAGE_LOGLEVEL
 
 config ENABLE_WARN_DEPRECATED
 	bool "Enable __deprecated logic"
-	default n
+	default y
 	help
 	  Enable the __deprecated logic in the kernel build.
 	  Disable this to suppress the "warning: 'foo' is deprecated
@@ -35,7 +35,7 @@ config ENABLE_WARN_DEPRECATED
 
 config ENABLE_MUST_CHECK
 	bool "Enable __must_check logic"
-	default n
+	default y
 	help
 	  Enable the __must_check logic in the kernel build.  Disable this to
 	  suppress the "warning: ignoring return value of 'foo', declared with
@@ -211,17 +211,17 @@ config LOCKUP_DETECTOR
 	  thresholds can be controlled through the sysctl watchdog_thresh.
 
 config HARDLOCKUP_DETECTOR_NMI
-	def_bool n
+	def_bool y
 	depends on LOCKUP_DETECTOR && !HAVE_NMI_WATCHDOG
 	depends on PERF_EVENTS && HAVE_PERF_EVENTS_NMI
 
 config HARDLOCKUP_DETECTOR_OTHER_CPU
-	def_bool n
+	def_bool y
 	depends on LOCKUP_DETECTOR && SMP
 	depends on !HARDLOCKUP_DETECTOR_NMI && !HAVE_NMI_WATCHDOG
 
 config HARDLOCKUP_DETECTOR
-	def_bool n
+	def_bool y
 	depends on HARDLOCKUP_DETECTOR_NMI || HARDLOCKUP_DETECTOR_OTHER_CPU
 
 config BOOTPARAM_HARDLOCKUP_PANIC
@@ -285,6 +285,17 @@ config PANIC_ON_OOPS_VALUE
 	default 0 if !PANIC_ON_OOPS
 	default 1 if PANIC_ON_OOPS
 
+config PANIC_ON_RECURSIVE_FAULT
+	bool "Panic on recursive faults during task exit"
+	help
+	  Panic upon the detection of a recursive fault during task exit,
+	  rather than putting the task into an uninterruptible sleep.
+	  This is particularly useful for debugging system hangs in
+	  scenarios where the task experiencing the fault is critical
+	  for system operation, rendering the system inoperable.
+
+	  Say N if unsure.
+
 config DETECT_HUNG_TASK
 	bool "Detect Hung Tasks"
 	depends on DEBUG_KERNEL
@@ -342,7 +353,7 @@ config BOOTPARAM_HUNG_TASK_PANIC_VALUE
 config SCHED_DEBUG
 	bool "Collect scheduler debugging info"
 	depends on DEBUG_KERNEL && PROC_FS
-	default n
+	default y
 	help
 	  If you say Y here, the /proc/sched_debug file will be provided
 	  that can help debug the scheduler. The runtime overhead of this
@@ -351,7 +362,7 @@ config SCHED_DEBUG
 config SYSRQ_SCHED_DEBUG
 	bool "Print scheduling debugging info from sysrq-trigger"
 	depends on SCHED_DEBUG
-	default n
+	default y
 	help
 	  If you say Y here, the "show-task-states(T)" and
 	  "show-blocked-tasks(W)" sysrq-triggers will print additional
@@ -565,7 +576,7 @@ config DEBUG_MODULE_SCAN_OFF
 config DEBUG_PREEMPT
 	bool "Debug preemptible kernel"
 	depends on DEBUG_KERNEL && PREEMPT && TRACE_IRQFLAGS_SUPPORT
-	default n
+	default y
 	help
 	  If you say Y here then the kernel will use a debug variant of the
 	  commonly used smp_processor_id() function and will print warnings
@@ -581,7 +592,7 @@ config DEBUG_RT_MUTEXES
 
 config DEBUG_PI_LIST
 	bool
-	default n
+	default y
 	depends on DEBUG_RT_MUTEXES
 
 config RT_MUTEX_TESTER
@@ -753,7 +764,7 @@ config DEBUG_LOCKING_API_SELFTESTS
 config STACKTRACE
 	bool "Stacktrace"
 	depends on STACKTRACE_SUPPORT
-	default n
+	default y
 
 config DEBUG_STACK_USAGE
 	bool "Stack utilization instrumentation"
@@ -784,7 +795,7 @@ config HAVE_DEBUG_BUGVERBOSE
 config DEBUG_BUGVERBOSE
 	bool "Verbose BUG() reporting (adds 70K)" if DEBUG_KERNEL && EXPERT
 	depends on BUG && (GENERIC_BUG || HAVE_DEBUG_BUGVERBOSE)
-	default n
+	default y
 	help
 	  Say Y here to make BUG() panics output the file name and line number
 	  of the BUG call as well as the EIP and oops trace.  This aids
@@ -1066,7 +1077,7 @@ config RCU_CPU_STALL_TIMEOUT
 config RCU_CPU_STALL_VERBOSE
 	bool "Print additional per-task information for RCU_CPU_STALL_DETECTOR"
 	depends on TREE_PREEMPT_RCU
-	default n
+	default y
 	help
 	  This option causes RCU to printk detailed per-task information
 	  for any tasks that are stalling the current RCU grace period.

@@ -217,7 +217,6 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq,
 		busy_bin = 0;
 		frame_flag = 0;
 	}
-
 	level = devfreq_get_freq_level(devfreq, stats.current_frequency);
 	if (level < 0) {
 		pr_err(TAG "bad freq %ld\n", stats.current_frequency);

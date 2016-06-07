@@ -48,12 +48,6 @@
 #define KERNEL_OBJECT	"hall_sensor_kobject"
 #define HALLSEN_ID        924
 
-#ifdef CONFIG_ASUS_SENSOR_ENG_CMD
-#define DEBUG_LOG 1
-#else
-#define DEBUG_LOG 0
-#endif
-
 /**************************/
 /* Driver Data Structure */
 /*************************/
@@ -134,7 +128,7 @@ static void debounce_hall_sensor_report_function(struct work_struct *dat)
 		int de_bounce=0;
         int sleep_time=0;
 //<ASUS-danielchan201500519>>>>>>>>>+
-        if(DEBUG_LOG) printk("[%s] hardcode:%d \n", DRIVER_NAME,hall_sensor_dev->hardcode);
+        printk("[%s] hardcode:%d \n", DRIVER_NAME,hall_sensor_dev->hardcode);
         if(hall_sensor_dev->hardcode==0) {
             input_report_switch(hall_sensor_dev->hall_indev, SW_LID, 0);
             input_sync(hall_sensor_dev->hall_indev);
@@ -145,8 +139,9 @@ static void debounce_hall_sensor_report_function(struct work_struct *dat)
             return;
         }
 //<ASUS-danielchan20150519<<<<<<<<<<+
-        if(DEBUG_LOG) printk("[%s] debounce:%d \n", DRIVER_NAME,hall_sensor_dev->debounce);
-        if(DEBUG_LOG) printk("[%s] sleep_time:%d \n", DRIVER_NAME,hall_sensor_dev->sleep);
+
+        printk("[%s] debounce:%d \n", DRIVER_NAME,hall_sensor_dev->debounce);
+        printk("[%s] sleep_time:%d \n", DRIVER_NAME,hall_sensor_dev->sleep);
         if(hall_sensor_dev->debounce<50) {
             printk("[%s] debounce<50  \n", DRIVER_NAME);
             de_bounce=50;
@@ -167,23 +162,23 @@ static void debounce_hall_sensor_report_function(struct work_struct *dat)
 		return;
         }
 		initial_status =hall_sensor_dev->status;
-		if(DEBUG_LOG) printk("[%s] initial_status:%d \n", DRIVER_NAME,hall_sensor_dev->status);
-		if(DEBUG_LOG) printk("[%s] de_bounce:%d \n", DRIVER_NAME,de_bounce);
+		printk("[%s] initial_status:%d \n", DRIVER_NAME,hall_sensor_dev->status);
+		printk("[%s] de_bounce:%d \n", DRIVER_NAME,de_bounce);
         for (counter = 0;counter < ((de_bounce/sleep_time));counter++) {
 			msleep(sleep_time);
-	        if(DEBUG_LOG) printk("[hall sensor] counter:%d \n",counter);
+	        printk("[hall sensor] counter:%d \n",counter);
             spin_lock_irqsave(&hall_sensor_dev->mHallSensorLock, flags);
             if (gpio_get_value(ASUS_HALL_SENSOR_GPIO) == 0) { //trigger low 
 		        hall_sensor_dev->status = 0;
 		        counter_trigger++;
-				if(DEBUG_LOG) printk("[%s] gpio_get_value 0 \n", DRIVER_NAME);
+				printk("[%s] gpio_get_value 0 \n", DRIVER_NAME);
             }else{
                 hall_sensor_dev->status = 1;
-				if(DEBUG_LOG) printk("[%s] gpio_get_value 1 \n", DRIVER_NAME);
+				printk("[%s] gpio_get_value 1 \n", DRIVER_NAME);
 		    }
 		    spin_unlock_irqrestore(&hall_sensor_dev->mHallSensorLock, flags);
-        }	
-        if(DEBUG_LOG) printk("[%s] counter_trigger:%d \n", DRIVER_NAME,counter_trigger);
+        }			
+        printk("[%s] counter_trigger:%d \n", DRIVER_NAME,counter_trigger);
         if( (counter_trigger > 0) && (counter_trigger < (de_bounce/sleep_time))){
             printk("[%s] SW_LID do not report to framework.\n", DRIVER_NAME);
             hall_sensor_dev->status = initial_status;
@@ -217,7 +212,8 @@ static void switch_irq_debounce_hall_sensor_report_function(struct work_struct *
     int de_bounce=0;
     int sleep_time=0;
     int ret=0;
-    if(DEBUG_LOG) printk("[%s]hardcode:%d\n", DRIVER_NAME,hall_sensor_dev->hardcode);
+ 
+    printk("[%s]hardcode:%d\n", DRIVER_NAME,hall_sensor_dev->hardcode);
     if(hall_sensor_dev->hardcode==0) {
         input_report_switch(hall_sensor_dev->hall_indev, SW_LID, 0);
         input_sync(hall_sensor_dev->hall_indev);
@@ -227,8 +223,9 @@ static void switch_irq_debounce_hall_sensor_report_function(struct work_struct *
         input_sync(hall_sensor_dev->hall_indev);
         return;
     }
-    if(DEBUG_LOG) printk("[%s] debounce:%d \n", DRIVER_NAME,hall_sensor_dev->debounce);
-    if(DEBUG_LOG) printk("[%s] sleep_time:%d \n", DRIVER_NAME,hall_sensor_dev->sleep);
+
+    printk("[%s] debounce:%d \n", DRIVER_NAME,hall_sensor_dev->debounce);
+    printk("[%s] sleep_time:%d \n", DRIVER_NAME,hall_sensor_dev->sleep);
     if(hall_sensor_dev->debounce<50) {
         printk("[%s] debounce<50  \n", DRIVER_NAME);
         de_bounce=50;
@@ -249,8 +246,8 @@ static void switch_irq_debounce_hall_sensor_report_function(struct work_struct *
         return;
     }
 	initial_status =hall_sensor_dev->status;
-	if(DEBUG_LOG) printk("[%s] initial_status:%d \n", DRIVER_NAME,hall_sensor_dev->status);
-	if(DEBUG_LOG) printk("[%s] de_bounce:%d \n", DRIVER_NAME,de_bounce);
+	printk("[%s] initial_status:%d \n", DRIVER_NAME,hall_sensor_dev->status);
+	printk("[%s] de_bounce:%d \n", DRIVER_NAME,de_bounce);
     for (counter = 0;counter < ((de_bounce/sleep_time));counter++) {
 	    msleep(sleep_time);
 	        printk("[hall sensor] counter:%d \n",counter);
@@ -258,14 +255,14 @@ static void switch_irq_debounce_hall_sensor_report_function(struct work_struct *
             if (gpio_get_value(ASUS_HALL_SENSOR_GPIO) == 0) { //trigger low
 		        hall_sensor_dev->status = 0;
 		        counter_trigger++;
-				if(DEBUG_LOG) printk("[%s] gpio_get_value 0 \n", DRIVER_NAME);
+				printk("[%s] gpio_get_value 0 \n", DRIVER_NAME);
             }else{
                 hall_sensor_dev->status = 1;
-				if(DEBUG_LOG) printk("[%s] gpio_get_value 1 \n", DRIVER_NAME);
+				printk("[%s] gpio_get_value 1 \n", DRIVER_NAME);
 		    }
 		    spin_unlock_irqrestore(&hall_sensor_dev->mHallSensorLock, flags);
         }
-        if(DEBUG_LOG) printk("[%s] counter_trigger:%d \n", DRIVER_NAME,counter_trigger);
+        printk("[%s] counter_trigger:%d \n", DRIVER_NAME,counter_trigger);
         if( (counter_trigger > 0) && (counter_trigger < (de_bounce/sleep_time))){
             printk("[%s] SW_LID do not report to framework.\n", DRIVER_NAME);
             hall_sensor_dev->status = initial_status;
@@ -823,7 +820,8 @@ static int __init hall_sensor_init(void)
 			err("[platform] platform_driver_register fail, Error : %d\n", err);
                         printk("[Hall Sensor] platform_driver_register fail, Error : %d\n",err);
                 }
-                if(DEBUG_LOG) printk("[Hall Sensor] platform_driver_register success, Error : %d\n",err);
+
+                printk("[Hall Sensor] platform_driver_register success, Error : %d\n",err);
 	//longping- }
 	//longping- else
 		//longping- err("[platform] SR device(%d) bypass platform_driver_register HALL sensor\n", g_ASUS_hwID);

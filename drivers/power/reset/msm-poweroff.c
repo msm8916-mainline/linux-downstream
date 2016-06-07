@@ -226,6 +226,7 @@ static void msm_restart_prepare(const char *cmd)
 #endif
 	bool is_asdf = false;
 	bool need_warm_reset = false;
+
 #ifdef CONFIG_MSM_DLOAD_MODE
 
 	/* Write download mode flags if we're panic'ing
@@ -250,6 +251,9 @@ static void msm_restart_prepare(const char *cmd)
 			strcmp(cmd, "bootloader") &&
 			strcmp(cmd, "rtc")))
 			need_warm_reset = true;
+	} else {
+		need_warm_reset = (get_dload_mode() ||
+				(cmd != NULL && cmd[0] != '\0'));
 	}
 
 	/* Hard reset the PMIC unless memory contents must be maintained. */
@@ -270,6 +274,7 @@ static void msm_restart_prepare(const char *cmd)
 		*printk_buffer_slot2_addr = 0;
 	}
 #endif
+
 	if (cmd != NULL) {
 		if (!strncmp(cmd, "bootloader", 10)) {
 			qpnp_pon_set_restart_reason(

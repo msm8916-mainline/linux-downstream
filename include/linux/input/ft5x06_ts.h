@@ -24,19 +24,6 @@
 #define FT6X06_ID		0x06
 #define FT6X36_ID       0x36
 
-#define FTS_APK_DEBUG
-//#define CONFIG_TOUCHPANEL_PROXIMITY_SENSOR
-
-#define TPD_MAX_POINTS_2                        2
-#define TPD_MAX_POINTS_5                        5
-#define TPD_MAX_POINTS_10                        10
-
-#define AUTO_CLB_NEED                           1
-#define AUTO_CLB_NONEED                         0
-
-#define FTS_NAME	"fts_wq"
-
-
 struct fw_upgrade_info {
 	bool auto_cal;
 	u16 delay_aa;
@@ -45,6 +32,22 @@ struct fw_upgrade_info {
 	u8 upgrade_id_2;
 	u16 delay_readid;
 	u16 delay_erase_flash;
+};
+
+struct ft5x06_psensor_platform_data {
+	struct input_dev *input_psensor_dev;
+	struct sensors_classdev ps_cdev;
+	int tp_psensor_opened;
+	char tp_psensor_data; /* 0 near, 1 far */
+	struct ft5x06_ts_data *data;
+};
+
+struct ft5x06_gesture_platform_data {
+	int gesture_enable_to_set;	/* enable/disable gesture */
+	int in_pocket;	/* whether in pocket mode or not */
+	struct device *dev;
+	struct class *gesture_class;
+	struct ft5x06_ts_data *data;
 };
 
 struct ft5x06_ts_platform_data {
@@ -56,8 +59,6 @@ struct ft5x06_ts_platform_data {
 	u32 irq_gpio_flags;
 	u32 reset_gpio;
 	u32 reset_gpio_flags;
-	u32 CTP_ID_gpio1;
-	u32 CTP_ID_gpio2;
 	u32 family_id;
 	u32 x_max;
 	u32 y_max;
@@ -75,6 +76,8 @@ struct ft5x06_ts_platform_data {
 	bool no_force_update;
 	bool i2c_pull_up;
 	bool ignore_id_check;
+	bool psensor_support;
+	bool gesture_support;
 	int (*power_init) (bool);
 	int (*power_on) (bool);
 };

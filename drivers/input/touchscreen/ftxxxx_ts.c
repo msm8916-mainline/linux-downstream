@@ -805,6 +805,22 @@ static int ASUS_check_point_position(u16 x, u16 y){
 		if( x < 129 || (351 < x && x < 411) || (669 < x && x < 729) || x > 951)
 			return 1;
 #endif
+
+
+if(asus_PRJ_ID == ASUS_ZE550KL){	
+
+#ifdef ZE551KL_FHD
+              limit_y = 1280;
+		if( x < 85 || (345 < x && x < 410) || (670 < x && x < 735) || x > 995)
+					return 1;
+#endif
+#ifdef ZE550KL_HD
+					  limit_y = 1280;
+				if( x < 50 || (230 < x && x < 275) || (445 < x && x < 490) || x > 670)
+							return 1;
+#endif
+}
+
 		return 0;
 	}else
 		return 0;
@@ -829,12 +845,24 @@ if(asus_PRJ_ID == ASUS_ZE600KL){
 #ifdef ZE600KL_HD
 	limit_report = 13;
 #endif
+
+
 }
+if(asus_PRJ_ID == ASUS_ZE550KL){	
+
+#ifdef ZE550KL_HD
+		limit_report = 13;
+#endif
+#ifdef ZE551KL_FHD
+			limit_report = 13;
+#endif
+}
+
 	filter_touch_point = event->touch_point;
 	for (i = 0; i < event->touch_point; i++) {
 		report_point=true;
 
-			if(asus_PRJ_ID == ASUS_ZE600KL){
+			if(asus_PRJ_ID == ASUS_ZE600KL||asus_PRJ_ID == ASUS_ZE550KL){
 				if(ASUS_check_point_position(event->au16_x[i],event->au16_y[i])){
 							report_point=false;
 							filter_touch_point--;
@@ -846,10 +874,8 @@ if(asus_PRJ_ID == ASUS_ZE600KL){
 						(first_location[event->au8_finger_id[i]].x > (ftxxxx_ts->x_max - limit_report))
 						){
 						if(//if the point is in the reported area, report the point and set the flag to true.
-							(event->au8_touch_event[i] == 2) && 
-							(limit_report <= event->au16_x[i] && 
-								(event->au16_x[i]<= (ftxxxx_ts->x_max-limit_report)))
-						){
+							(event->au8_touch_event[i] == 2) && (limit_report <= event->au16_x[i] && (event->au16_x[i]<= (ftxxxx_ts->x_max-limit_report))))
+							{
 							report_point=true;
 							first_location[event->au8_finger_id[i]].filter_flag = true;
 						}else{ // if the point is in non-reported area and if the flag to false, skeep the point.
@@ -864,6 +890,7 @@ if(asus_PRJ_ID == ASUS_ZE600KL){
 	
 		if(!report_point)
 			continue;
+		
 		input_mt_slot(data->input_dev,event->au8_finger_id[i]);
 		if (event->au8_touch_event[i]== 0 || event->au8_touch_event[i] == 2) {
 			input_mt_report_slot_state(data->input_dev,MT_TOOL_FINGER,true);
@@ -910,7 +937,8 @@ if(asus_PRJ_ID == ASUS_ZE600KL){
 		//if (touch_down_up_status == 0) {
 		//	touch_down_up_status = 1;
 
-	}
+		}
+
 	input_sync(data->input_dev);
 	last_touchpoint=event->Cur_touchpoint;
 }
@@ -931,7 +959,8 @@ static irqreturn_t ftxxxx_ts_interrupt(int irq, void *dev_id)
 		printk(KERN_WARNING "[Focal][Touch] in selftest mode\n");
 		return IRQ_HANDLED;
 	}
-	if (suspend_resume_process == true) {
+	//if (suspend_resume_process == true) { //anna -for disable touch
+	if ((suspend_resume_process == true) | (disable_tp_flag == true)) {
 		printk("[Focal][Touch] interrupt suspend_resume in process skip !\n");
 		return IRQ_HANDLED;
 	}
@@ -956,7 +985,7 @@ static irqreturn_t ftxxxx_ts_interrupt(int irq, void *dev_id)
 #endif
 			ret = ftxxxx_read_Touchdata(ftxxxx_ts);	
 			//<asus-Jeffery20151202+>
-			if(asus_PRJ_ID == ASUS_ZE600KL){
+			if(asus_PRJ_ID == ASUS_ZE600KL||asus_PRJ_ID == ASUS_ZE550KL){
 				for (i = 0; i < ftxxxx_ts->event.touch_point; i++) {
 					if(ftxxxx_ts->event.au8_touch_event[i] == 0){
 					//pr_err("[Jeffery][Touch] event=0 x=%x, y=%x\n",ftxxxx_ts->event.au16_x[i],ftxxxx_ts->event.au16_y[i]);
@@ -1947,6 +1976,23 @@ static void update_fw_in_wq(struct work_struct *work)
 	fts_ctpm_auto_upgrade(ftxxxx_ts->client);
 }
 /***********add byjinpeng_He for update firmware in workqueue begin****************/
+
+
+
+/* +++ anna  add for proximity trigger disable touch +++ */
+void ftxxxx_disable_touch(bool flag)
+{
+	if (flag) {
+		disable_tp_flag = true;
+		printk("[Focal][Touch] %s: proximity trigger disable touch !\n", __func__);
+	} else {
+		disable_tp_flag = false;
+		printk("[Focal][Touch] %s: proximity trigger enable touch  !\n", __func__);
+	}
+}
+EXPORT_SYMBOL(ftxxxx_disable_touch);
+
+/* --- anna add for proximity trigger disable touch --- */
 
 /*****add by jinpeng_he for touch disable or enable from execute /proc/asus_touch_proximity_status ++++******/
 struct proc_dir_entry *touchsensor_entry = NULL;

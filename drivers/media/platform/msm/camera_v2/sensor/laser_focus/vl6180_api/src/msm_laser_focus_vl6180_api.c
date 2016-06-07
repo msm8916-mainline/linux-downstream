@@ -730,7 +730,7 @@ static int ATD_VL6180x_device_read_range(VL6180x_RangeData_t *pRangeData)
 	
 #if VL6180x_WRAP_AROUND_FILTER_SUPPORT
 	printk("[LF][vl6180x]: %d (%d:%d:%d)\n", pRangeData->range_mm, 
-		pRangeData->FilteredData.def_range_mm,
+		pRangeData->FilteredData.filterError,
 		pRangeData->DMax,
 		pRangeData->errorStatus);
 #else
@@ -759,7 +759,7 @@ static int ATD_VL6180x_device_get_range_read(struct seq_file *buf, void *v)
 
 	if (vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_OFF ||
 		vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_DEINIT_CCI) {
-		pr_err("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
+		DBG_LOG("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
 		seq_printf(buf, "%d\n", 0);
 		mutex_unlock(&vl6180x_mutex);
 		return 0;
@@ -859,7 +859,7 @@ static int ATD_VL6180x_device_get_more_value_read(struct seq_file *buf, void *v)
 
 	if (vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_OFF ||
 		vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_DEINIT_CCI) {
-		pr_err("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
+		DBG_LOG("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
 		seq_printf(buf, "%d\n", 0);
 		mutex_unlock(&vl6180x_mutex);
 		return 0;
@@ -952,7 +952,7 @@ static int ATD_VL6180x_device_clibration_offset(void)
 
 	if (vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_OFF ||
 		vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_DEINIT_CCI) {
-		pr_err("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
+		DBG_LOG("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
 		mutex_unlock(&vl6180x_mutex);
 		return -EBUSY;
 	}
@@ -1049,7 +1049,7 @@ static int ATD_VL6180x_device_clibration_crosstalkoffset(void)
 
 	if (vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_OFF ||
 		vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_DEINIT_CCI) {
-		pr_err("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
+		DBG_LOG("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
 		mutex_unlock(&vl6180x_mutex);
 		return -EBUSY;
 	}
@@ -1383,7 +1383,7 @@ static int dump_VL6180x_debug_register_read(struct seq_file *buf, void *v)
 	
 	if (vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_OFF ||
 		vl6180x_t->device_state == MSM_LASER_FOCUS_DEVICE_DEINIT_CCI) {
-		pr_err("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
+		DBG_LOG("%s:%d Device without turn on: (%d) \n", __func__, __LINE__, vl6180x_t->device_state);
 		return -EBUSY;
 	}
 	
@@ -1931,6 +1931,36 @@ static void __exit VL6180x_driver_exit(void)
 	platform_driver_unregister(&msm_laser_focus_platform_driver);
 	return;
 }
+
+int ASUS_VL6180x_RdMulti(uint32_t register_addr, uint8_t *i2c_read_data, uint16_t num_byte)
+{
+	int status;
+	struct msm_camera_i2c_seq_reg_array reg_setting;
+	
+	/* Setting i2c client */
+	struct msm_camera_i2c_client *sensor_i2c_client;
+	sensor_i2c_client = vl6180x_t->i2c_client;
+	if (!sensor_i2c_client) {
+		pr_err("%s:%d failed: %p \n", __func__, __LINE__, sensor_i2c_client);
+		return -EINVAL;
+	}
+
+	reg_setting.reg_data_size = num_byte;
+
+	status = (int)sensor_i2c_client->i2c_func_tbl->i2c_read_seq(sensor_i2c_client, register_addr, 
+		i2c_read_data, reg_setting.reg_data_size);
+	
+	if (status < 0) {
+		pr_err("%s: read register(0x%x) failed\n", __func__, register_addr);
+		return status;
+	}
+	
+	//*i2c_read_data=reg_setting.reg_data;
+	REG_RW_DBG("%s: read register(0x%x) : 0x%x \n", __func__, register_addr, *i2c_read_data);
+
+	return status;
+}
+
 
 
 module_init(VL6180x_init_module);

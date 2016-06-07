@@ -251,7 +251,7 @@ EXPORT_SYMBOL(g_ASUS_laserID);
 //---- sean_lu@asus.com add "support laser sensor 2nd source"
 
 //+++ ASUS_BSP :  Add for asus_project_stage @wigman_sun
-char asus_project_mem[2] = {0};
+char asus_project_mem[4] = {0};
 EXPORT_SYMBOL(asus_project_mem);
 
 static int get_prj_mem(char *str)

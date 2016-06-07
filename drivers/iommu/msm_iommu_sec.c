@@ -147,7 +147,6 @@ static int msm_iommu_dump_fault_regs(int smmu_id, int cb_num,
 	else
 		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_UTIL,
 			IOMMU_DUMP_SMMU_FAULT_REGS), &desc);
-
 	dmac_inv_range(regs, regs + 1);
 
 	return ret;
@@ -492,11 +491,7 @@ static int msm_iommu_sec_map2(struct msm_scm_map2_req *map)
 	desc.args[4] = map->info.ctx_id;
 	desc.args[5] = map->info.va;
 	desc.args[6] = map->info.size;
-#ifdef CONFIG_MSM_IOMMU_TLBINVAL_ON_MAP
-	desc.args[7] = map->flags = IOMMU_TLBINVAL_FLAG;
-#else
 	desc.args[7] = map->flags = 0;
-#endif
 	desc.arginfo = SCM_ARGS(8, SCM_RW, SCM_VAL, SCM_VAL, SCM_VAL, SCM_VAL,
 				SCM_VAL, SCM_VAL, SCM_VAL);
 	if (!is_scm_armv8()) {

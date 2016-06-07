@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -353,6 +353,7 @@
 #define TSENS6_8939_POINT1_MASK		0x03f00000
 #define TSENS7_8939_POINT1_MASK		0x0000003f
 #define TSENS8_8939_POINT1_MASK		0x0003f000
+#define TSENS9_8939_POINT1_MASK		0x07e00000
 
 #define TSENS0_8939_POINT2_MASK		0x00007e00
 #define TSENS1_8939_POINT2_MASK		0x07e00000
@@ -363,6 +364,8 @@
 #define TSENS6_8939_POINT2_MASK		0xfc000000
 #define TSENS7_8939_POINT2_MASK		0x00000fc0
 #define TSENS8_8939_POINT2_MASK		0x00fc0000
+#define TSENS9_8939_POINT2_MASK_0_4	0xf8000000
+#define TSENS9_8939_POINT2_MASK_5	0x00002000
 
 #define TSENS_8939_TSENS_CAL_SEL	0x7
 #define TSENS_8939_CAL_SEL_SHIFT	0
@@ -377,6 +380,7 @@
 #define TSENS5_8939_POINT1_SHIFT	8
 #define TSENS6_8939_POINT1_SHIFT	20
 #define TSENS8_8939_POINT1_SHIFT	12
+#define TSENS9_8939_POINT1_SHIFT	21
 
 #define TSENS0_8939_POINT2_SHIFT	9
 #define TSENS1_8939_POINT2_SHIFT	21
@@ -387,6 +391,9 @@
 #define TSENS6_8939_POINT2_SHIFT	26
 #define TSENS7_8939_POINT2_SHIFT	6
 #define TSENS8_8939_POINT2_SHIFT	18
+#define TSENS9_8939_POINT2_SHIFT_0_4	27
+#define TSENS9_8939_POINT2_SHIFT_5	8
+#define TSENS_NUM_SENSORS_V3		10
 
 #define TSENS_BASE0_8994_MASK		0x3ff
 #define TSENS_BASE1_8994_MASK		0xffc00
@@ -497,6 +504,13 @@
 #define TSENS2_MSM8909_POINT2_SHIFT_2_5	2
 #define TSENS3_MSM8909_POINT2_SHIFT	10
 #define TSENS4_MSM8909_POINT2_SHIFT	22
+
+#define TSENS_MSM8909_D30_WA_S1   10
+#define TSENS_MSM8909_D30_WA_S3   9
+#define TSENS_MSM8909_D30_WA_S4   8
+#define TSENS_MSM8909_D120_WA_S1  6
+#define TSENS_MSM8909_D120_WA_S3  9
+#define TSENS_MSM8909_D120_WA_S4  10
 
 #define TSENS_ZIRC_CAL_SEL		0x700
 #define TSENS_ZIRC_CAL_SEL_SHIFT	8
@@ -1187,12 +1201,18 @@ static int tsens_calib_msm8909_sensors(void)
 			(((tsens_base0_data) + tsens0_point1) << 2);
 		calib_tsens_point1_data[1] =
 			(((tsens_base0_data) + tsens1_point1) << 2);
+		calib_tsens_point1_data[1] = calib_tsens_point1_data[1] -
+						TSENS_MSM8909_D30_WA_S1;
 		calib_tsens_point1_data[2] =
 			(((tsens_base0_data) + tsens2_point1) << 2);
 		calib_tsens_point1_data[3] =
 			(((tsens_base0_data) + tsens3_point1) << 2);
+		calib_tsens_point1_data[3] = calib_tsens_point1_data[3] -
+						TSENS_MSM8909_D30_WA_S3;
 		calib_tsens_point1_data[4] =
 			(((tsens_base0_data) + tsens4_point1) << 2);
+		calib_tsens_point1_data[4] = calib_tsens_point1_data[4] -
+						TSENS_MSM8909_D30_WA_S4;
 	}
 
 	if (tsens_calibration_mode == TSENS_TWO_POINT_CALIB) {
@@ -1201,12 +1221,18 @@ static int tsens_calib_msm8909_sensors(void)
 			((tsens_base1_data + tsens0_point2) << 2);
 		calib_tsens_point2_data[1] =
 			((tsens_base1_data + tsens1_point2) << 2);
+		calib_tsens_point2_data[1] = calib_tsens_point2_data[1] -
+						TSENS_MSM8909_D120_WA_S1;
 		calib_tsens_point2_data[2] =
 			((tsens_base1_data + tsens2_point2) << 2);
 		calib_tsens_point2_data[3] =
 			((tsens_base1_data + tsens3_point2) << 2);
+		calib_tsens_point2_data[3] = calib_tsens_point2_data[3] -
+						TSENS_MSM8909_D120_WA_S3;
 		calib_tsens_point2_data[4] =
 			((tsens_base1_data + tsens4_point2) << 2);
+		calib_tsens_point2_data[4] = calib_tsens_point2_data[4] -
+						TSENS_MSM8909_D120_WA_S4;
 	}
 
 	for (i = 0; i < tmdev->tsens_num_sensor; i++) {
@@ -1239,7 +1265,7 @@ static int tsens_calib_msm8909_sensors(void)
 
 static int tsens_calib_8939_sensors(void)
 {
-	int i, tsens_base0_data = 0, tsens_base1_data = 0;
+	int i, tsens_base0_data = 0, tsens_base1_data = 0, v3_enable = 0;
 	int tsens0_point1 = 0, tsens0_point2 = 0;
 	int tsens1_point1 = 0, tsens1_point2 = 0;
 	int tsens2_point1 = 0, tsens2_point2 = 0;
@@ -1249,9 +1275,13 @@ static int tsens_calib_8939_sensors(void)
 	int tsens6_point1 = 0, tsens6_point2 = 0;
 	int tsens7_point1 = 0, tsens7_point2 = 0;
 	int tsens8_point1 = 0, tsens8_point2 = 0;
+	int tsens9_point1 = 0, tsens9_point2 = 0;
 	int tsens_calibration_mode = 0, temp = 0;
-	uint32_t calib_data[4] = {0, 0, 0, 0};
-	uint32_t calib_tsens_point1_data[9], calib_tsens_point2_data[9];
+	uint32_t calib_data[6] = {0, 0, 0, 0, 0, 0};
+	uint32_t calib_tsens_point1_data[10], calib_tsens_point2_data[10];
+
+	if (tmdev->tsens_num_sensor == TSENS_NUM_SENSORS_V3)
+		v3_enable = 1;
 
 	if (!tmdev->calibration_less_mode) {
 
@@ -1263,6 +1293,14 @@ static int tsens_calib_8939_sensors(void)
 			(TSENS_8939_EEPROM(tmdev->tsens_calib_addr)));
 		calib_data[3] = readl_relaxed(
 			(TSENS_8939_EEPROM(tmdev->tsens_calib_addr) + 0x4));
+		if (v3_enable) {
+			calib_data[4] = readl_relaxed(
+				(TSENS_8939_EEPROM(tmdev->tsens_calib_addr) -
+					0x58));
+			calib_data[5] = readl_relaxed(
+				(TSENS_8939_EEPROM(tmdev->tsens_calib_addr) -
+					0x54));
+		}
 
 		tsens_calibration_mode =
 			(calib_data[0] & TSENS_8939_TSENS_CAL_SEL);
@@ -1293,6 +1331,10 @@ static int tsens_calib_8939_sensors(void)
 		tsens7_point1 = (calib_data[3] & TSENS7_8939_POINT1_MASK);
 		tsens8_point1 = (calib_data[3] & TSENS8_8939_POINT1_MASK) >>
 			TSENS8_8939_POINT1_SHIFT;
+		if (v3_enable)
+			tsens9_point1 = (calib_data[4] &
+				TSENS9_8939_POINT1_MASK) >>
+					TSENS9_8939_POINT1_SHIFT;
 	}
 
 	if (tsens_calibration_mode == TSENS_TWO_POINT_CALIB) {
@@ -1316,21 +1358,22 @@ static int tsens_calib_8939_sensors(void)
 			TSENS7_8939_POINT2_SHIFT;
 		tsens8_point2 = (calib_data[3] & TSENS8_8939_POINT2_MASK) >>
 			TSENS8_8939_POINT2_SHIFT;
+		if (v3_enable) {
+			tsens9_point2 = (calib_data[4] &
+				TSENS9_8939_POINT2_MASK_0_4) >>
+					TSENS9_8939_POINT2_SHIFT_0_4;
+			temp = (calib_data[5] & TSENS9_8939_POINT2_MASK_5) >>
+				TSENS9_8939_POINT2_SHIFT_5;
+			tsens9_point2 |= temp;
+		}
 	}
 
 	if (tsens_calibration_mode == 0) {
 		pr_debug("TSENS is calibrationless mode\n");
-		for (i = 0; i < tmdev->tsens_num_sensor; i++)
+		for (i = 0; i < tmdev->tsens_num_sensor; i++) {
 			calib_tsens_point2_data[i] = 780;
-		calib_tsens_point1_data[0] = 500;
-		calib_tsens_point1_data[1] = 500;
-		calib_tsens_point1_data[2] = 500;
-		calib_tsens_point1_data[3] = 500;
-		calib_tsens_point1_data[4] = 500;
-		calib_tsens_point1_data[5] = 500;
-		calib_tsens_point1_data[6] = 500;
-		calib_tsens_point1_data[7] = 500;
-		calib_tsens_point1_data[8] = 500;
+			calib_tsens_point1_data[i] = 500;
+		}
 	}
 
 	if ((tsens_calibration_mode == TSENS_ONE_POINT_CALIB_OPTION_2) ||
@@ -1353,6 +1396,9 @@ static int tsens_calib_8939_sensors(void)
 			(((tsens_base0_data) + tsens7_point1) << 2);
 		calib_tsens_point1_data[8] =
 			(((tsens_base0_data) + tsens8_point1) << 2);
+		if (v3_enable)
+			calib_tsens_point1_data[9] =
+				(((tsens_base0_data) + tsens9_point1) << 2);
 	}
 
 	if (tsens_calibration_mode == TSENS_TWO_POINT_CALIB) {
@@ -1375,6 +1421,9 @@ static int tsens_calib_8939_sensors(void)
 			((tsens_base1_data + tsens7_point2) << 2);
 		calib_tsens_point2_data[8] =
 			((tsens_base1_data + tsens8_point2) << 2);
+		if (v3_enable)
+			calib_tsens_point2_data[9] =
+				((tsens_base1_data + tsens9_point2) << 2);
 	}
 
 	for (i = 0; i < tmdev->tsens_num_sensor; i++) {
@@ -3056,91 +3105,6 @@ fail_tmdev:
 	return rc;
 }
 
-#if defined(ASUS_FACTORY_BUILD)//jevian ++
-#include <linux/proc_fs.h>
-extern uint32_t socinfo_get_id(void);
-ssize_t fac_thermal_zone0_read (struct file *filp, char __user *userbuf, size_t size, loff_t *loff_p)
-{
-	int len;
-	unsigned long temp;
-	char kernelbuf[64];
-	if(socinfo_get_id() == 206)
-		msm_tsens_get_temp(0, &temp);
-	else
-		msm_tsens_get_temp(0, &temp);
-	temp *= 1000;
-	len = sprintf(kernelbuf,"%ld\n",temp);
-	return simple_read_from_buffer(userbuf, size,loff_p,kernelbuf,len);
-}
-struct file_operations fac_thermal_zone0_fops = {
-	.read=fac_thermal_zone0_read,
-};
-ssize_t fac_thermal_zone1_read (struct file *filp, char __user *userbuf, size_t size, loff_t *loff_p)
-{
-	int len;
-	unsigned long temp;
-	char kernelbuf[64];
-	if(socinfo_get_id() == 206)
-		msm_tsens_get_temp(1, &temp);
-	else
-		msm_tsens_get_temp(1, &temp);
-	temp *= 1000;
-	len = sprintf(kernelbuf,"%ld\n",temp);
-	return simple_read_from_buffer(userbuf, size,loff_p,kernelbuf,len);
-}
-struct file_operations fac_thermal_zone1_fops = {
-	.read=fac_thermal_zone1_read,
-};
-ssize_t fac_thermal_zone2_read (struct file *filp, char __user *userbuf, size_t size, loff_t *loff_p)
-{
-	int len;
-	unsigned long temp;
-	char kernelbuf[64];
-	if(socinfo_get_id() == 206)
-		msm_tsens_get_temp(2, &temp);
-	else
-		msm_tsens_get_temp(3, &temp);
-	temp *= 1000;
-	len = sprintf(kernelbuf,"%ld\n",temp);
-	return simple_read_from_buffer(userbuf, size,loff_p,kernelbuf,len);
-}
-struct file_operations fac_thermal_zone2_fops = {
-	.read=fac_thermal_zone2_read,
-};
-ssize_t fac_thermal_zone3_read (struct file *filp, char __user *userbuf, size_t size, loff_t *loff_p)
-{
-	int len;
-	unsigned long temp;
-	char kernelbuf[64];
-	if(socinfo_get_id() == 206)
-		msm_tsens_get_temp(4, &temp);
-	else
-		msm_tsens_get_temp(6, &temp);
-	temp *= 1000;
-	len = sprintf(kernelbuf,"%ld\n",temp);
-	return simple_read_from_buffer(userbuf, size,loff_p,kernelbuf,len);
-}
-struct file_operations fac_thermal_zone3_fops = {
-	.read=fac_thermal_zone3_read,
-};
-ssize_t fac_thermal_zone4_read (struct file *filp, char __user *userbuf, size_t size, loff_t *loff_p)
-{
-	int len;
-	unsigned long temp;
-	char kernelbuf[64];
-	if(socinfo_get_id() == 206)
-		msm_tsens_get_temp(5, &temp);
-	else
-		msm_tsens_get_temp(9, &temp);
-	temp *= 1000;
-	len = sprintf(kernelbuf,"%ld\n",temp);
-	return simple_read_from_buffer(userbuf, size,loff_p,kernelbuf,len);
-}
-struct file_operations fac_thermal_zone4_fops = {
-	.read=fac_thermal_zone4_read,
-};
-#endif
-
 static int tsens_tm_probe(struct platform_device *pdev)
 {
 	int rc;
@@ -3180,28 +3144,6 @@ static int tsens_tm_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, tmdev);
 
-#if defined(ASUS_FACTORY_BUILD)//jevian ++
-	if(proc_create("fac_thermal_zone0", 0777, NULL, &fac_thermal_zone0_fops)==NULL)
-	{
-		printk(KERN_ERR"create fac_thermal_zone0 inode is error\n");
-	}
-	if(proc_create("fac_thermal_zone1", 0777, NULL, &fac_thermal_zone1_fops)==NULL)
-	{
-		printk(KERN_ERR"create fac_thermal_zone1 inode is error\n");
-	}
-	if(proc_create("fac_thermal_zone2", 0777, NULL, &fac_thermal_zone2_fops)==NULL)
-	{
-		printk(KERN_ERR"create fac_thermal_zone2 inode is error\n");
-	}
-	if(proc_create("fac_thermal_zone3", 0777, NULL, &fac_thermal_zone3_fops)==NULL)
-	{
-		printk(KERN_ERR"create fac_thermal_zone3 inode is error\n");
-	}
-	if(proc_create("fac_thermal_zone4", 0777, NULL, &fac_thermal_zone4_fops)==NULL)
-	{
-		printk(KERN_ERR"create fac_thermal_zone4 inode is error\n");
-	}
-#endif
 	return 0;
 fail:
 	if (tmdev->tsens_wq)

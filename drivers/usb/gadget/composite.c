@@ -429,7 +429,7 @@ int usb_func_wakeup(struct usb_function *func)
 			"Function wakeup for %s could not complete due to suspend state. Delayed until after bus resume.\n",
 			func->name ? func->name : "");
 		ret = 0;
-	} else if (ret < 0) {
+	} else if (ret < 0 && ret != -ENOTSUPP) {
 		ERROR(func->config->cdev,
 			"Failed to wake function %s from suspend state. ret=%d. Canceling USB request.\n",
 			func->name ? func->name : "", ret);
@@ -775,6 +775,12 @@ static int set_config(struct usb_composite_dev *cdev,
 		 */
 		switch (gadget->speed) {
 		case USB_SPEED_SUPER:
+			if (!f->ss_descriptors) {
+				pr_err("%s(): No SS desc for function:%s\n",
+							__func__, f->name);
+				usb_gadget_set_state(gadget, USB_STATE_ADDRESS);
+				return -EINVAL;
+			}
 			descriptors = f->ss_descriptors;
 			break;
 		case USB_SPEED_HIGH:
@@ -1917,7 +1923,7 @@ composite_resume(struct usb_gadget *gadget)
 						"Function wakeup for %s could not complete due to suspend state.\n",
 						f->name ? f->name : "");
 					break;
-				} else {
+				} else if (ret != -ENOTSUPP) {
 					ERROR(f->config->cdev,
 						"Failed to wake function %s from suspend state. ret=%d. Canceling USB request.\n",
 						f->name ? f->name : "",

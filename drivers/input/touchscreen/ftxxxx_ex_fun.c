@@ -96,7 +96,7 @@ static unsigned char CTPM_FW_ZE600KL_IVO_JTOUCH[] = {
 #endif
 #ifdef ZE601KL_FHD
 static unsigned char CTPM_FW_ZE601KL_TPK[] = {
-	#include "ASUS_ZE601KL_5446_0x53_0xA1_20151124_app.cfg"
+	#include "ASUS_ZE601KL_5446_0x53_0xA3_20151230_app.cfg"
 };
 static unsigned char CTPM_FW_ZE601KL_JTOUCH[] = {
 	#include "ASUS_ZE601KL_5446_0x83_0xA4_20151203_app.cfg"
@@ -1459,8 +1459,11 @@ static ssize_t flip_cover_mode_store(struct device *dev, struct device_attribute
 	if (tmp == 0) {
 
 		ftxxxx_ts->cover_mode_states = false;
+      if ((ftxxxx_ts->dclick_mode_eable == true) ||(ftxxxx_ts->gesture_mode_eable == true))
+        {
 		ftxxxx_write_reg(ftxxxx_ts->client,0xC1,0);
 		ftxxxx_write_reg(ftxxxx_ts->client,0xC3,0);//the filp cover is open
+        }
 		printk("[Focal][Touch] the filp cover is open ! \n");
 
 	} else if (tmp == 1) {

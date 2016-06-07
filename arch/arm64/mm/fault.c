@@ -463,6 +463,7 @@ asmlinkage void __exception do_mem_abort(unsigned long addr, unsigned int esr,
 
 	if (!inf->fn(addr, esr, regs))
 		return;
+
 	cpr_regulator_print_corner_voltage(); //<asus-wx20150730+>
 	pr_alert("Unhandled fault: %s (0x%08x) at 0x%016lx\n",
 		 inf->name, esr, addr);

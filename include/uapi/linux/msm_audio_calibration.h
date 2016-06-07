@@ -44,6 +44,10 @@
 							217, void *)
 #define AUDIO_SET_RTAC_AFE_CAL		_IOWR(CAL_IOCTL_MAGIC, \
 							218, void *)
+//<anna-cheng>for proximity near close touch in call
+#define AUDIO_SET_MODE		_IOWR(CAL_IOCTL_MAGIC, \
+							219, void *)
+extern int get_audiomode(void);							
 enum {
 	CVP_VOC_RX_TOPOLOGY_CAL_TYPE = 0,
 	CVP_VOC_TX_TOPOLOGY_CAL_TYPE,
@@ -72,6 +76,8 @@ enum {
 	AFE_HW_DELAY_CAL_TYPE,
 	AFE_SIDETONE_CAL_TYPE,
 
+	LSM_CUST_TOPOLOGY_CAL_TYPE,
+	LSM_TOPOLOGY_CAL_TYPE,
 	LSM_CAL_TYPE,
 
 	ADM_RTAC_INFO_CAL_TYPE,
@@ -87,7 +93,7 @@ enum {
 	DTS_EAGLE_CAL_TYPE,
 	AUDIO_CORE_METAINFO_CAL_TYPE,
 	SRS_TRUMEDIA_CAL_TYPE,
-
+	SET_MODE_TYPE,
 	MAX_CAL_TYPES,
 };
 
@@ -285,6 +291,13 @@ struct audio_cal_info_sidetone {
 	int32_t		pid;
 };
 
+struct audio_cal_info_lsm_top {
+	int32_t		topology;
+	int32_t		acdb_id;
+	int32_t		app_type;
+};
+
+
 struct audio_cal_info_lsm {
 	int32_t		acdb_id;
 	/* RX_DEVICE or TX_DEVICE */
@@ -478,6 +491,17 @@ struct audio_cal_type_sidetone {
 struct audio_cal_sidetone {
 	struct audio_cal_header			hdr;
 	struct audio_cal_type_sidetone		cal_type;
+};
+
+struct audio_cal_type_lsm_top {
+	struct audio_cal_type_header	cal_hdr;
+	struct audio_cal_data		cal_data;
+	struct audio_cal_info_lsm_top	cal_info;
+};
+
+struct audio_cal_lsm_top {
+	struct audio_cal_header		hdr;
+	struct audio_cal_type_lsm_top	cal_type;
 };
 
 struct audio_cal_type_lsm {

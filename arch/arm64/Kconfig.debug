@@ -4,7 +4,7 @@ source "lib/Kconfig.debug"
 
 config FRAME_POINTER
 	bool
-	default n
+	default y
 
 config STRICT_DEVMEM
 	bool "Filter access to /dev/mem"

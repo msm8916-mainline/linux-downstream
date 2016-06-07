@@ -269,6 +269,10 @@ enum usb_ctrl {
  * @bool disable_retention_with_vdd_min: Indicates whether to enable
 		allowing VDDmin without putting PHY into retention.
  * @usb_id_gpio: Gpio used for USB ID detection.
+ * @hub_reset_gpio: Gpio used for hub reset.
+ * @switch_sel_gpio: Gpio used for controlling switch that
+		routing D+/D- from the USB HUB to the USB jack type B
+		for peripheral mode.
  * @bool phy_dvdd_always_on: PHY DVDD is supplied by always on PMIC LDO.
  */
 struct msm_otg_platform_data {
@@ -301,7 +305,10 @@ struct msm_otg_platform_data {
 	bool enable_ahb2ahb_bypass;
 	bool disable_retention_with_vdd_min;
 	int usb_id_gpio;
+	int hub_reset_gpio;
+	int switch_sel_gpio;
 	bool phy_dvdd_always_on;
+	struct clk *system_clk;
 };
 
 /* phy related flags */
@@ -359,6 +366,8 @@ struct msm_otg_platform_data {
  * @pdata: otg device platform data.
  * @irq: IRQ number assigned for HSUSB controller.
  * @async_irq: IRQ number used by some controllers during low power state
+ * @phy_irq: IRQ number assigned for PHY to notify events like id and line
+		state changes.
  * @pclk: clock struct of iface_clk.
  * @core_clk: clock struct of core_bus_clk.
  * @sleep_clk: clock struct of sleep_clk for USB PHY.
@@ -409,12 +418,17 @@ struct msm_otg_platform_data {
 	     the charger detection starts. When USB is disconnected and in lpm
 	     pm_done is set to true.
  * @ext_id_irq: IRQ for ID interrupt.
+ * @phy_irq_pending: Gets set when PHY IRQ arrives in LPM.
+ * @dbg_idx: Dynamic debug buffer Index.
+ * @dbg_lock: Dynamic debug buffer Lock.
+ * @buf: Dynamic Debug Buffer.
  */
 struct msm_otg {
 	struct usb_phy phy;
 	struct msm_otg_platform_data *pdata;
 	int irq;
 	int async_irq;
+	int phy_irq;
 	struct clk *xo_clk;
 	struct clk *pclk;
 	struct clk *core_clk;
@@ -454,6 +468,7 @@ struct msm_otg {
 	struct notifier_block pm_notify;
 	atomic_t in_lpm;
 	atomic_t set_fpr_with_lpm_exit;
+	bool err_event_seen;
 	int async_int;
 	unsigned cur_power;
 	struct workqueue_struct *otg_wq;
@@ -546,9 +561,17 @@ struct msm_otg {
 	bool pm_done;
 	struct qpnp_vadc_chip	*vadc_dev;
 	int ext_id_irq;
-	wait_queue_head_t		host_suspend_wait;
+	bool phy_irq_pending;
+	wait_queue_head_t	host_suspend_wait;
+/* Maximum debug message length */
+#define DEBUG_MSG_LEN   128UL
+/* Maximum number of messages */
+#define DEBUG_MAX_MSG   256UL
+	unsigned int dbg_idx;
+	rwlock_t dbg_lock;
+	char (buf[DEBUG_MAX_MSG])[DEBUG_MSG_LEN];   /* buffer */
 //ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][Spec] Enable manual mode switching"
-	enum usb_mode_type otg_mode;
+       enum usb_mode_type otg_mode;
 //ASUS_BSP--- Landice "[ZE500KL][USBH][NA][Spec] Enable manual mode switching"
 };
 
@@ -562,6 +585,7 @@ struct ci13xxx_platform_data {
 	void *prv_data;
 	bool l1_supported;
 	bool enable_ahb2ahb_bypass;
+	struct clk *system_clk;
 };
 
 /**
@@ -682,6 +706,16 @@ void msm_hw_bam_disable(bool bam_disable);
 static inline void msm_hw_bam_disable(bool bam_disable)
 {
 }
+#endif
+
+/* CONFIG_PM_RUNTIME */
+#ifdef CONFIG_PM_RUNTIME
+static inline int get_pm_runtime_counter(struct device *dev)
+{
+	return atomic_read(&dev->power.usage_count);
+}
+#else /* !CONFIG_PM_RUNTIME */
+static inline int get_pm_runtime_counter(struct device *dev) { return -ENOSYS; }
 #endif
 
 #ifdef CONFIG_USB_DWC3_MSM

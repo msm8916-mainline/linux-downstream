@@ -3427,6 +3427,7 @@ static int inv_mpu_resume(struct device *dev)
 		result = st->set_power_state(st, true);
 	}
 	mutex_unlock(&indio_dev->mlock);
+	disable_irq_wake(st->irq); //<anna_cheng><<< +++ for significationmotion
 	/* add code according to different request End */
 
 //	up(&st->suspend_resume_lock);
@@ -3471,6 +3472,7 @@ static int inv_mpu_suspend(struct device *dev)
 		result |= st->set_power_state(st, false);
 	}
 	st->suspend_state = true;
+	enable_irq_wake(st->irq); //<anna_cheng><<< +++ for significationmotion
 	/* add code according to different request End */
 #ifndef USE_SUSPEND_NOIRQ
 //	down(&st->suspend_resume_lock);

@@ -538,11 +538,16 @@ static int find_valid_gpt(struct parsed_partitions *state, gpt_header **gpt,
 	legacy_mbr *legacymbr;
 	u64 lastlba;
 
+	char *blk_name = NULL;
+	blk_name = ((state->bdev)->bd_disk)->disk_name;
+	printk(KERN_NOTICE "%s: %s", __func__, blk_name);
+
 	if (!ptes)
 		return 0;
 
 	lastlba = last_lba(state->bdev);
-        if (!force_gpt) {
+
+        if ((!force_gpt) || (!strcmp(blk_name, "mmcblk1"))) {
                 /* This will be added to the EFI Spec. per Intel after v1.02. */
                 legacymbr = kzalloc(sizeof (*legacymbr), GFP_KERNEL);
                 if (legacymbr) {
@@ -628,15 +633,6 @@ int efi_partition(struct parsed_partitions *state)
 	gpt_entry *ptes = NULL;
 	u32 i;
 	unsigned ssz = bdev_logical_block_size(state->bdev) / 512;
-
-	char *blk_name = NULL;
-	blk_name = ((state->bdev)->bd_disk)->disk_name;
-
-	if (!strcmp(blk_name, "mmcblk1"))
-	{
-		printk(KERN_NOTICE "%s: Skip %s for SD card.\n", blk_name, __func__);
-		return 0;
-	}
 
 	if (!find_valid_gpt(state, &gpt, &ptes) || !gpt || !ptes) {
 		kfree(gpt);

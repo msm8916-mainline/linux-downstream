@@ -26,15 +26,14 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************/
 /*
- * $Date: 2015-01-08 14:30:24 +0100 (Thu, 08 Jan 2015) $
- * $Revision: 2039 $
+ * $Date: 2015-07-07 17:33:18 +0200 (Tue, 07 Jul 2015) $
+ * $Revision: 2441 $
  */
 
 #ifndef VL6180x_PLATFORM
 #define VL6180x_PLATFORM
 
-#include "vl6180x_def.h"
-/* this is a typical ansi and posix example with multithread and i1c lock concern */
+/* this is a typical ansi and posix example with multithread and i2c lock concern */
 //#include <unistd.h>
 //#include <pthread.h>
 
@@ -116,12 +115,37 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define VL6180X_SAFE_POLLING_ENTER  0
 
 /**
+ * @def VL6180x_HAVE_MULTI_READ
+ * @brief Enable I2C multi read support
+ *
+ * When set to 1, multi read operations are done (when necessary) by the API functions (mainly WAF) to access a bunch of registers
+ * instead of individual ones (for speed increase). This requires the @a VL6180x_RdMulti() function to be implemented.
+ */
+#define VL6180x_HAVE_MULTI_READ          1
+
+
+/**
+ * @def VL6180x_CACHED_REG
+ * @brief Enable Cached Register mode
+ *
+ * In addition to the multi read mode (#VL6180x_HAVE_MULTI_READ set to 1), this mode implements an advanced register access mode to speed-up
+ * ranging measurements by reading all results registers in one shot (using multi read operation). All post-processing operations (like WAF)
+ * are done by accessing the cached registers instead of doing individual register access.
+ * @warning It is mandatory to set #VL6180x_HAVE_MULTI_READ to 1 to benefit from this advanced mode
+
+ */
+#define VL6180x_CACHED_REG          1
+
+
+/**
  * @brief Enable start/end logging facilities. It can generates traces log to help problem tracking analysis and solving 
  *
  * Requires porting  @a #LOG_FUNCTION_START, @a #LOG_FUNCTION_END, @a #LOG_FUNCTION_END_FMT
  * @ingroup api_platform
  */
 #define VL6180X_LOG_ENABLE  0
+
+#include "vl6180x_def.h"
 
 //TODO: modify this
 #if VL6180x_SINGLE_DEVICE_DRIVER
@@ -160,9 +184,7 @@ typedef struct MyDev_t *VL6180xDev_t;
  * @param field ST structure filed name  
  * @ingroup api_platform
  */
-#if 0
 #define VL6180xDevDataGet(dev, field) (dev->Data.field)
-#endif
 
 /**
  * @def VL6180xDevDataSet(dev, field, data)
@@ -172,9 +194,7 @@ typedef struct MyDev_t *VL6180xDev_t;
  * @param data   Data to be set
  * @ingroup api_platform
  */
-#if 0
-//#define VL6180xDevDataSet(dev, field, data) (dev->Data.field)=(data)
-#endif
+#define VL6180xDevDataSet(dev, field, data) (dev->Data.field)=(data)
 /*! [device_type_multi] */
 
 #endif /* #else VL6180x_SINGLE_DEVICE_DRIVER */    
@@ -203,12 +223,12 @@ void VL6180x_PollDelay(VL6180xDev_t dev); /* usualy best implemanted a a real fu
 
 
 #if VL6180X_LOG_ENABLE
-//#include <sys/time.h>
-//#include <stdio.h>
-//extern FILE * log_file;
+#include <sys/time.h>
+#include <stdio.h>
+extern FILE * log_file;
 
-//#define trace_printf fprinf
-//#define LOG_GET_TIME() clock()
+#define trace_printf fprinf
+#define LOG_GET_TIME() clock()
 
 /**
  * @brief Log function start.
@@ -226,8 +246,8 @@ void VL6180x_PollDelay(VL6180xDev_t dev); /* usualy best implemanted a a real fu
  * @endcode
  * @ingroup api_platform
  */
-//#define LOG_FUNCTION_START(fmt, ... )   fprintf(log_file, "VL61080 beg %s start @%d\t" fmt "\n", __FUNCTION__, LOG_GET_TIME(), ##__VA_ARGS__)
-#define LOG_FUNCTION_START(fmt, ... )   printk(" Sean_test VL61080 beg %s\n", __func__)
+#define LOG_FUNCTION_START(fmt, ... ) \
+    fprintf(log_file, "VL61080 beg %s start @%d\t" fmt "\n", __FUNCTION__, LOG_GET_TIME(), ##__VA_ARGS__)
 
 /**
  * @brief  Logging function end with status.
@@ -241,8 +261,8 @@ void VL6180x_PollDelay(VL6180xDev_t dev); /* usualy best implemanted a a real fu
 
  * @ingroup api_platform
  */
-//#define LOG_FUNCTION_END(status)   fprintf(log_file, "VL61080  end %s @%d %d\n", __FUNCTION__, LOG_GET_TIME(), (int)status)
-#define LOG_FUNCTION_END(status)	printk(" Sean_test VL61080 end %s,status:%d\t\n", __func__,(int)status)
+#define LOG_FUNCTION_END(status)\
+        fprintf(log_file, "VL61080  end %s @%d %d\n", __FUNCTION__, LOG_GET_TIME(), (int)status)
 
 
 /**
@@ -259,8 +279,9 @@ void VL6180x_PollDelay(VL6180xDev_t dev); /* usualy best implemanted a a real fu
 
  * @ingroup api_platform
  */
-//#define LOG_FUNCTION_END_FMT(status, fmt, ... )  fprintf(log_file, "End %s @%d %d\t"fmt"\n" , __FUNCTION__, LOG_GET_TIME(), (int)status,##__VA_ARGS__)
-#define LOG_FUNCTION_END_FMT(status, fmt, ... )    printk(" Sean_test End %s,status:%d\t\n", __func__,(int)status)
+#define LOG_FUNCTION_END_FMT(status, fmt, ... )\
+        fprintf(log_file, "End %s @%d %d\t"fmt"\n" , __FUNCTION__, LOG_GET_TIME(), (int)status,##__VA_ARGS__)
+
 
 /**
  * @brief Log error raised in API
@@ -276,9 +297,7 @@ void VL6180x_PollDelay(VL6180xDev_t dev); /* usualy best implemanted a a real fu
  * @endcode
  * @ingroup api_platform
  */
-//#define VL6180x_ErrLog( fmt, ...)  fprintf(stderr, "VL6180x_ErrLog %s" fmt "\n", __func__, ##__VA_ARGS__)
-#define VL6180x_ErrLog( fmt, ...)  printk(" Sean_test VL6180x_ErrLog %s " fmt "\n", __func__, ##__VA_ARGS__)
-
+#define VL6180x_ErrLog( fmt, ...)  fprintf(stderr, "VL6180x_ErrLog %s" fmt "\n", __func__, ##__VA_ARGS__)
 
 #else /* VL6180X_LOG_ENABLE no logging */
     #define LOG_FUNCTION_START(...) (void)0

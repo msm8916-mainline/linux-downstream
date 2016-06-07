@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -74,7 +74,7 @@
 			};
 			cdc_pdm_lines_sus: pdm_lines_off {
 				drive-strength = <2>;
-				bias-disable;
+				bias-pull-down;
 			};
 		};
 
@@ -301,7 +301,7 @@
 			qcom,pin-func = <1>;
 			label = "spi0-active";
 			/* active state */
-			spi0_default: default {
+			spi0_default: spi0_default {
 				drive-strength = <12>; /* 12 MA */
 				bias-disable = <0>; /* No PULL */
 			};
@@ -314,7 +314,7 @@
 			qcom,pin-func = <0>;
 			label = "spi0-suspend";
 			/* suspended state */
-			spi0_sleep: sleep {
+			spi0_sleep: spi0_sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* pull down */
 			};
@@ -343,6 +343,58 @@
 				bias-disable = <0>;
 			};
 		};
+
+		spi2_active {
+			/* MOSI, MISO, CLK */
+			qcom,pins = <&gp 16>, <&gp 17>, <&gp 19>;
+			qcom,num-grp-pins = <3>;
+			qcom,pin-func = <1>;
+			label = "spi2-active";
+			/* active state */
+			spi2_default: default {
+				drive-strength = <12>; /* 12 MA */
+				bias-disable = <0>; /* No PULL */
+			};
+		};
+
+		spi2_suspend {
+			/* MOSI, MISO, CLK */
+			qcom,pins = <&gp 16>, <&gp 17>, <&gp 19>;
+			qcom,num-grp-pins = <3>;
+			qcom,pin-func = <0>;
+			label = "spi2-suspend";
+			/* suspended state */
+			spi2_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down; /* pull down */
+			};
+		};
+		spi2_cs2_active {
+			/* CS */
+			qcom,pins = <&gp 18>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <1>;
+			label = "spi2-cs0-active";
+			spi2_cs2_active: cs2_active {
+				drive-strength = <2>;
+				bias-disable = <0>;
+			};
+		};
+
+
+		spi2_cs2_suspend {
+			/* CS */
+			qcom,pins = <&gp 18>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "spi2-cs0-suspend";
+			spi2_cs2_sleep: cs2_sleep {
+				drive-strength = <2>;
+				bias-disable = <0>;
+			};
+		};
+
+
 
 		ice40-spi-usb-pins {
 			qcom,pins = <&gp 0>, <&gp 1>, <&gp 3>, <&gp 114>;
@@ -1379,6 +1431,21 @@
 				bias-pull-down;
 			};
 		};
+
+		mpu6515_int_pin {
+			qcom,pins = <&gp 36>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "mpu6515-irq";
+			mpu6515_default: mpu6515_default {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+			mpu6515_sleep: mpu6515_sleep {
+				drive-strength = <2>;
+			};
+		};
+
 		ak8963_int_pin {
 			qcom,pins = <&gp 69>;
 			qcom,pin-func = <0>;
@@ -1420,16 +1487,6 @@
                        };
                };
 
-		 ap3426_irq_pin {
-                       qcom,pins = <&gp 113>;
-                       qcom,pin-func = <0>;
-                       qcom,num-grp-pins = <1>;
-                       label = "ap3426_irq_pin";
-                       ap3426_default: ap3426_default {
-                               drive-strength = <16>;
-                               bias-pull-up;
-                       };
-               };
 
                kxtj9_irq_pin {
                        qcom,pins = <&gp 36>;
@@ -1442,19 +1499,16 @@
                        };
                };
 
-		mpu6515_int_pin {
-			qcom,pins = <&gp 36>;
-			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <1>;
-			label = "mpu6515-irq";
-			mpu6515_default: mpu6515_default {
-				drive-strength = <6>;
-				bias-pull-up;
-			};
-			mpu6515_sleep: mpu6515_sleep {
-				drive-strength = <2>;
-			};
-		};
+		ap3426_irq_pin {
+                       qcom,pins = <&gp 113>;
+                       qcom,pin-func = <0>;
+                       qcom,num-grp-pins = <1>;
+                       label = "ap3426_irq_pin";
+                       ap3426_default: ap3426_default {
+                               drive-strength = <16>;
+                               bias-pull-up;
+                       };
+               };
 
                /*+++ ASUS BSP Porting HALL+++*/
 		hall_int_pin {			
@@ -1472,6 +1526,5 @@
 			};
 		};
 		/*--- ASUS BSP Porting HALL---*/
-
 	};
 };

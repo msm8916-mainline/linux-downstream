@@ -1320,6 +1320,7 @@ static int inv_process_dmp_interrupt(struct inv_mpu_state *st)
 	if (d[0] & DMP_INT_SMD) {
 		wake_lock_timeout(&st->smd_wakelock, SMD_WAKELOCK_HOLD_MS);	
 		sysfs_notify(&indio_dev->dev.kobj, NULL, "event_smd");
+		//pr_err("[inv ][anna inv mpu 6515 test -------------------]%s::::::::::::::::::::::: event_smd detect\n", __func__);
 		st->chip_config.smd_enable = false;
 		st->chip_config.smd_triggered = true;
 	}
@@ -1629,8 +1630,10 @@ irqreturn_t inv_read_fifo(int irq, void *dev_id)
 	u64 pts1;
 
 #define DMP_MIN_RUN_TIME (37 * NSEC_PER_MSEC)
-	if (st->suspend_state)
-		return IRQ_HANDLED;
+	//<anna_cheng><<< +++ for significationmotion DOZE
+	//if (st->suspend_state)
+	//	return IRQ_HANDLED;
+	//<anna_cheng><<< +++ for significationmotion DOZE
 	down(&st->suspend_resume_lock);	
 	mutex_lock(&indio_dev->mlock);
 	if (st->chip_config.dmp_on) {

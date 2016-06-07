@@ -424,7 +424,6 @@ int of_batterydata_read_data(struct device_node *batterydata_container_node,
 		rc = of_batterydata_read_batt_id_kohm(node,
 						"qcom,batt-id-kohm",
 						&batt_ids);
-		//pr_info("[BATT][BMS]is in of_batterydata_read_data node name=%s\n",node->name);
 		if (rc)
 			continue;
 		for (i = 0; i < batt_ids.num; i++) {
