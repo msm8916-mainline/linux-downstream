@@ -314,6 +314,9 @@
 				 <&but_zones 2 470 750>;
 		btn-adc-read-count = <8>;
 		mpp-channel-scaling = <2 1 1>;
+		dynamic-micbias-ctrl-voltage = "2.20";	/* 1.60V ~ 2.85V (unit: 0.05V)
+							   The value must be "x.xx"
+							   e.g) "1.6" is not allowed  */
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
 		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
 		pinctrl-1 = <&earjack_det_sus &earjack_switch_sus>;

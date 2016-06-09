@@ -35,5 +35,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #include "../ss_dsi_panel_common.h"
 
 #define HX8389C_GH9607501A_SUPPORT_PANEL_COUNT 1
+#define LCD_DEFAUL_BL_LEVEL 133
+#define MAX_BRIGHTNESS_IN_BLU 32
 
 #endif

@@ -34,5 +34,6 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 
 #include <linux/completion.h>
 #include "../ss_dsi_panel_common.h"
+
 struct smartdim_conf *smart_get_conf_S6E3FA3_AMS568HN01(void);
 #endif

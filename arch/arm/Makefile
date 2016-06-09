@@ -306,11 +306,15 @@ dtbs: scripts
 ifeq ($(CONFIG_ARCH_MSM8939),y)
 	$(Q)$(MAKE) $(build)=$(boot)/dts/samsung/msm8939 MACHINE=$(MACHINE) dtbs
 else
+ifeq ($(CONFIG_ARCH_MSM8929),y)
+	$(Q)$(MAKE) $(build)=$(boot)/dts/samsung/msm8929 MACHINE=$(MACHINE) dtbs
+else
 	$(Q)$(MAKE) $(build)=$(boot)/dts/samsung/msm8916 MACHINE=$(MACHINE) dtbs
 endif
-
+endif
 zImage-dtb: vmlinux scripts dtbs
 	$(Q)$(MAKE) $(build)=$(boot) MACHINE=$(MACHINE) $(boot)/$@
+	
 
 # We use MRPROPER_FILES and CLEAN_FILES now
 archclean:

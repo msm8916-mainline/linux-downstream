@@ -95,24 +95,6 @@ struct logger_reader {
 	int			r_ver;
 };
 
-/**
- * Here are the static vectors which are in action
- * when SEC subsys debugging feature is turned on.
- * They will capture all the userland android logs
- * and their physicall address is passed to the subsys
- * structure for give who needs it!
- */
-#ifdef CONFIG_SEC_DEBUG_SUBSYS
-static struct logger_log log_main;
-static struct logger_log log_events;
-static struct logger_log log_radio;
-static struct logger_log log_system;
-static unsigned char _buf_log_main[CONFIG_LOGCAT_SIZE*1024*2]; //1MB
-static unsigned char _buf_log_events[CONFIG_LOGCAT_SIZE*1024]; //512KB
-static unsigned char _buf_log_radio[CONFIG_LOGCAT_SIZE*1024*4];  //2MB
-static unsigned char _buf_log_system[CONFIG_LOGCAT_SIZE*1024]; //512KB
-#endif
-
 /* logger_offset - returns index 'n' into the log via (optimized) modulus */
 static size_t logger_offset(struct logger_log *log, size_t n)
 {
@@ -799,6 +781,62 @@ static const struct file_operations logger_fops = {
 	.release = logger_release,
 };
 
+#ifdef CONFIG_SEC_DEBUG
+/* Use the old way because the new logger gets log buffers by means of vmalloc().
+    getlog tool considers that log buffers lie on physically contiguous memory area. */
+
+/*
+ * Defines a log structure with name 'NAME' and a size of 'SIZE' bytes, which
+ * must be a power of two, and greater than
+ * (LOGGER_ENTRY_MAX_PAYLOAD + sizeof(struct logger_entry)).
+ */
+#define DEFINE_LOGGER_DEVICE(VAR, NAME, SIZE) \
+static unsigned char _buf_ ## VAR[SIZE]; \
+static struct logger_log VAR = { \
+	.buffer = _buf_ ## VAR, \
+	.misc = { \
+		.minor = MISC_DYNAMIC_MINOR, \
+		.name = NAME, \
+		.fops = &logger_fops, \
+		.parent = NULL, \
+	}, \
+	.wq = __WAIT_QUEUE_HEAD_INITIALIZER(VAR .wq), \
+	.readers = LIST_HEAD_INIT(VAR .readers), \
+	.mutex = __MUTEX_INITIALIZER(VAR .mutex), \
+	.w_off = 0, \
+	.head = 0, \
+	.size = SIZE, \
+	.logs = LIST_HEAD_INIT(VAR .logs), \
+};
+
+DEFINE_LOGGER_DEVICE(log_main, LOGGER_LOG_MAIN, CONFIG_LOGCAT_SIZE*1024*2)	// 1MB
+DEFINE_LOGGER_DEVICE(log_events, LOGGER_LOG_EVENTS, CONFIG_LOGCAT_SIZE*1024)	// 512KB
+DEFINE_LOGGER_DEVICE(log_radio, LOGGER_LOG_RADIO, CONFIG_LOGCAT_SIZE*1024*4)	// 2MB
+DEFINE_LOGGER_DEVICE(log_system, LOGGER_LOG_SYSTEM, CONFIG_LOGCAT_SIZE*1024)	// 512KB
+
+struct logger_log * log_buffers[]={
+	&log_main,
+	&log_events,
+	&log_radio,
+	&log_system,
+	NULL,
+};
+
+struct logger_log *sec_get_log_buffer(char *log_name, int size)
+{
+	struct logger_log **log_buf=&log_buffers[0];
+
+	while (*log_buf) {
+		if (!strcmp(log_name,(*log_buf)->misc.name)) {
+			return *log_buf;
+		}
+
+		log_buf++;
+	}
+	return NULL;
+}
+#endif
+
 /*
  * Log size must must be a power of two, and greater than
  * (LOGGER_ENTRY_MAX_PAYLOAD + sizeof(struct logger_entry)).
@@ -807,41 +845,42 @@ static int __init create_log(char *log_name, int size)
 {
 	int ret = 0;
 	struct logger_log *log;
-/*
- * When we do not have SEC subsys, we should fall back to android's
- * default allocator and let them handle.
- * A bit of optimization here
- */
-#ifndef CONFIG_SEC_DEBUG_SUBSYS
+
+#ifdef CONFIG_SEC_DEBUG
+	log = sec_get_log_buffer(log_name,size);
+	if (!log) {
+		pr_info("No \"%s\" buffer registered\n",log_name);
+		return -1;
+	}
+
+	list_add_tail(&log->logs, &log_list);
+
+	/* finally, initialize the misc device for this log */
+	ret = misc_register(&log->misc);
+	if (unlikely(ret)) {
+		pr_err("failed to register misc device for log '%s'!\n",
+				log->misc.name);
+		return ret;
+	}
+
+	pr_info("created %luK log '%s'\n",
+		(unsigned long) log->size >> 10, log->misc.name);
+
+	return ret;
+#else
 	unsigned char *buffer;
 
 	buffer = vmalloc(size);
 	if (buffer == NULL)
 		return -ENOMEM;
-#endif
+
 	log = kzalloc(sizeof(struct logger_log), GFP_KERNEL);
 	if (log == NULL) {
 		ret = -ENOMEM;
 		goto out_free_buffer;
 	}
-/*
- * SEC subsys feature is on, so the static vectors
- * _buf(_log_main, _log_system, _log_events, _log_radio)
- * should get all the android userland logs
- * Whe this is on, android's default log collector is turned off
- */
-#ifdef CONFIG_SEC_DEBUG_SUBSYS
-	if(strcmp(log_name,LOGGER_LOG_MAIN) == 0)
-		log->buffer = _buf_log_main;
-	else if(strcmp(log_name,LOGGER_LOG_EVENTS) == 0)
-		log->buffer = _buf_log_events;
-	else if(strcmp(log_name,LOGGER_LOG_RADIO) == 0)
-		log->buffer = _buf_log_radio;
-	else if(strcmp(log_name, LOGGER_LOG_SYSTEM) == 0)
-		log->buffer = _buf_log_system;
-#else
-	log->buffer = buffer;
-#endif
+
+		log->buffer = buffer;
 
 	log->misc.minor = MISC_DYNAMIC_MINOR;
 	log->misc.name = kstrdup(log_name, GFP_KERNEL);
@@ -871,17 +910,6 @@ static int __init create_log(char *log_name, int size)
 		goto out_free_log;
 	}
 
- #ifdef CONFIG_SEC_DEBUG_SUBSYS
-	if(strcmp(log_name,LOGGER_LOG_MAIN) == 0)
-		memcpy(&log_main,log,sizeof(struct logger_log));
-	else if(strcmp(log_name,LOGGER_LOG_EVENTS) == 0)
-		memcpy(&log_events,log,sizeof(struct logger_log));
-	else if(strcmp(log_name,LOGGER_LOG_RADIO) == 0)
-		memcpy(&log_radio,log,sizeof(struct logger_log));
-	else if(strcmp(log_name, LOGGER_LOG_SYSTEM) == 0)
-		memcpy(&log_system,log,sizeof(struct logger_log));
-#endif
-
 	pr_info("created %luK log '%s'\n",
 		(unsigned long) log->size >> 10, log->misc.name);
 
@@ -889,11 +917,12 @@ static int __init create_log(char *log_name, int size)
 
 out_free_log:
 	kfree(log);
-#ifndef CONFIG_SEC_DEBUG_SUBSYS
-	vfree(buffer);
-#endif
+
 out_free_buffer:
+	vfree(buffer);
+
 	return ret;
+#endif //CONFIG_SEC_DEBUG
 }
 #ifdef CONFIG_SEC_DEBUG_SUBSYS
 int sec_debug_subsys_set_logger_info(

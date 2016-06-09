@@ -30,6 +30,18 @@ static int table_size;
 #if defined(CONFIG_SR200PC20)
 #include "sr200pc20.h"
 #endif
+#if defined(CONFIG_S5K4ECGX)
+#include "s5k4ecgx.h"
+#endif
+#if defined(CONFIG_SR352)
+#include "sr352.h"
+#endif
+#if defined(CONFIG_SR130PC20)
+#include "sr130pc20.h"
+#endif
+#if defined(CONFIG_DB8221A)
+#include "db8221a.h"
+#endif
 
 /* Logging macro */
 //#define MSM_SENSOR_DRIVER_DEBUG
@@ -42,8 +54,37 @@ static int table_size;
 
 #define SENSOR_MAX_MOUNTANGLE (360)
 
+#ifdef CONFIG_CAM_DISABLE_LPM_MODE
+extern int poweroff_charging;
+#endif
+
+#if defined (CONFIG_CAMERA_SYSFS_V2)
+extern char rear_cam_info[100];		//camera_info
+extern char front_cam_info[100];	//camera_info
+#endif
+
 /* Static declaration */
 static struct msm_sensor_ctrl_t *g_sctrl[MAX_CAMERAS];
+
+#if defined(CONFIG_SR352)
+static struct msm_sensor_fn_t sr352_sensor_func_tbl = {
+	.sensor_config = sr352_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = msm_sensor_match_id,
+	.sensor_native_control = sr352_sensor_native_control,
+}; 
+#endif
+
+#if defined(CONFIG_SR130PC20)
+static struct msm_sensor_fn_t sr130pc20_sensor_func_tbl = {
+	.sensor_config = sr130pc20_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = msm_sensor_match_id,
+	.sensor_native_control = sr130pc20_sensor_native_control,
+};
+#endif
 
 #if defined(CONFIG_SR200PC20)
 static struct msm_sensor_fn_t sr200pc20_sensor_func_tbl = {
@@ -52,6 +93,24 @@ static struct msm_sensor_fn_t sr200pc20_sensor_func_tbl = {
 	.sensor_power_down = msm_sensor_power_down,
 	.sensor_match_id = msm_sensor_match_id,
 	.sensor_native_control = sr200pc20_sensor_native_control,
+};
+#endif
+#if defined(CONFIG_S5K4ECGX)
+static struct msm_sensor_fn_t s5k4ecgx_sensor_func_tbl = {
+	.sensor_config = s5k4ecgx_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = s5k4ecgx_sensor_match_id,
+	.sensor_native_control = s5k4ecgx_sensor_native_control,
+};
+#endif
+#if defined(CONFIG_DB8221A)
+static struct msm_sensor_fn_t db8221a_sensor_func_tbl = {
+	.sensor_config = db8221a_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = msm_sensor_match_id,
+	.sensor_native_control = db8221a_sensor_native_control,
 };
 #endif
 
@@ -413,12 +472,28 @@ int32_t msm_sensor_driver_probe(void *setting)
 		rc = -EINVAL;
 		goto FREE_SLAVE_INFO;
 	}
+#if defined(CONFIG_SR352) && defined(CONFIG_SR130PC20)
+	if ( slave_info->camera_id == CAMERA_2 ) {
+		s_ctrl->func_tbl = &sr130pc20_sensor_func_tbl ;
+	} else {
+		s_ctrl->func_tbl = &sr352_sensor_func_tbl ;
+	}
+#endif
 #if defined(CONFIG_SR200PC20)
 	if(slave_info->camera_id == CAMERA_2){
 		s_ctrl->func_tbl = &sr200pc20_sensor_func_tbl ;
 	}
 #endif
-
+#if defined(CONFIG_S5K4ECGX)
+	if (slave_info->camera_id == CAMERA_0){
+		s_ctrl->func_tbl = &s5k4ecgx_sensor_func_tbl;
+	}
+#endif
+#if defined(CONFIG_DB8221A)
+	if(slave_info->camera_id == CAMERA_2){
+		s_ctrl->func_tbl = &db8221a_sensor_func_tbl ;
+	}
+#endif
 	CDBG("s_ctrl[%d] %p", slave_info->camera_id, s_ctrl);
 
 	if (s_ctrl->is_probe_succeed == 1) {
@@ -863,6 +938,22 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 	CDBG("%s qcom,mclk-23880000 = %d\n", __func__,
 		s_ctrl->set_mclk_23880000);
 
+#if defined (CONFIG_CAMERA_SYSFS_V2)
+	/* camera information */
+	if (cell_id == 0) {
+		rc = msm_camera_get_dt_camera_info(of_node, rear_cam_info);
+		if (rc < 0) {
+			pr_err("failed: msm_camera_get_dt_camera_info rc %d", rc);
+			goto FREE_VREG_DATA;
+		}
+	} else {
+		rc = msm_camera_get_dt_camera_info(of_node, front_cam_info);
+		if (rc < 0) {
+			pr_err("failed: msm_camera_get_dt_camera_info rc %d", rc);
+			goto FREE_VREG_DATA;
+		}
+	}
+#endif
 	return rc;
 
 FREE_VREG_DATA:
@@ -1063,6 +1154,14 @@ static int __init msm_sensor_driver_init(void)
 	int32_t rc = 0;
 
 	CDBG("Enter");
+
+#ifdef CONFIG_CAM_DISABLE_LPM_MODE
+	if(poweroff_charging) {
+		pr_err("%s : Camera is not probed in LPM mode", __func__);
+		return 0;
+	}
+#endif
+
 	rc = platform_driver_probe(&msm_sensor_platform_driver,
 		msm_sensor_driver_platform_probe);
 	if (!rc) {

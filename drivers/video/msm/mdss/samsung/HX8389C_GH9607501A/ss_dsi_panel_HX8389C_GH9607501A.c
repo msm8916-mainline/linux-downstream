@@ -29,18 +29,13 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
  * 02110-1301, USA.
  *
 */
-#include <linux/gpio.h>
-#include <linux/delay.h>
-#include <linux/spinlock.h>
 #include "ss_dsi_panel_HX8389C_GH9607501A.h"
 #include "ss_dsi_mdnie_HX8389C_GH9607501A.h"
-
-#define LCD_FIRST_BOOT_BL_CTRL
-#define LCD_DEFAUL_BL_LEVEL 255
 static int is_first_boot = 1;
+static int lcd_brightness;
 static DEFINE_SPINLOCK(bg_gpio_lock);
 
-void ktd3102_set_led_current(int pulse, struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+static void ktd3102_set_led_current(int pulse, struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
 	unsigned long irq_flags;
 
@@ -55,7 +50,62 @@ void ktd3102_set_led_current(int pulse, struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 
 	mdelay(1);
 }
+static void ktd3102_set_brightness(int level, struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	int pulse;
+	int tune_level = 0;
+	unsigned long irq_flags;
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return;
+	}
 
+	tune_level = level;
+
+	if(level == 0){
+		gpio_set_value((vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[1]), 0);
+		lcd_brightness = tune_level;
+		pr_info("level = %d pulling low\n",level);
+		return;
+	}
+
+	if (unlikely(lcd_brightness < 0)) {
+		int val = gpio_get_value(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[1]);
+		if (val) {
+			lcd_brightness = 0;
+			gpio_set_value(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[1], 0);
+			mdelay(3);
+			pr_info("LCD Baklight init in boot time on kernel\n");
+		}
+	}
+	if (!lcd_brightness) {
+		gpio_set_value(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[1], 1);
+		udelay(3);
+		lcd_brightness = 1;
+		pr_info("level = %d !lcd_brightness\n",level);
+	}
+
+	pulse = (tune_level - lcd_brightness + MAX_BRIGHTNESS_IN_BLU)
+					% MAX_BRIGHTNESS_IN_BLU;
+
+	pr_info("lcd_brightness = %d, tune_level = %d,  pulse = %d\n", lcd_brightness,tune_level,pulse);
+
+	spin_lock_irqsave(&bg_gpio_lock, irq_flags);
+	for (; pulse > 0; pulse--) {
+
+		gpio_set_value(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[1], 0);
+		udelay(3);
+		gpio_set_value(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[1], 1);
+		udelay(3);
+	}
+	spin_unlock_irqrestore(&bg_gpio_lock, irq_flags);
+
+	lcd_brightness = tune_level;
+
+	mdelay(1);
+
+}
 static int mdss_panel_on_pre(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
@@ -69,7 +119,37 @@ static int mdss_panel_on_pre(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	return true;
 }
+static void backlight_tft_late_on(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
 
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return;
+	}
+
+	if (!mdss_panel_attach_get(ctrl)) {
+		pr_err("%s: mdss_panel_attach_get(%d) : %d\n",__func__, ctrl->ndx, mdss_panel_attach_get(ctrl));
+		return;
+	}
+
+	if (gpio_is_valid(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[0])) {
+		gpio_set_value(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[0], 1);
+		msleep(80);
+	}
+
+	if(ctrl->bklt_ctrl == BL_SS_PWM && is_first_boot){
+		if (vdd->panel_func.samsung_brightness_tft_pwm)
+			vdd->panel_func.samsung_brightness_tft_pwm(ctrl,LCD_DEFAUL_BL_LEVEL);
+		is_first_boot = 0;
+	}
+
+	pr_info("%s : Backlight is on\n", __func__);
+
+	if(vdd->support_cabc)
+		mdss_samsung_cabc_update();
+
+}
 static int mdss_panel_on_post(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
@@ -81,19 +161,42 @@ static int mdss_panel_on_post(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	pr_info("%s %d\n", __func__, ctrl->ndx);
 
-	ktd3102_set_led_current(5,ctrl);	/* set max current to "6"/19.8mA, only when CABC is enabled */
+	if(ctrl->bklt_ctrl == BL_DCS_CMD)
+		ktd3102_set_led_current(5,ctrl);	/* set max current to "6"/19.8mA, only when CABC is enabled */
 
-	mdss_samsung_cabc_update();
-#if defined LCD_FIRST_BOOT_BL_CTRL
-	if(is_first_boot){
-	mdss_samsung_brightness_dcs(ctrl, LCD_DEFAUL_BL_LEVEL);
-	is_first_boot = 0;
+	if(vdd->support_cabc)
+		mdss_samsung_cabc_update();
+
+	if(ctrl->bklt_ctrl == BL_DCS_CMD && is_first_boot){
+		mdss_samsung_brightness_dcs(ctrl, LCD_DEFAUL_BL_LEVEL);
+		is_first_boot = 0;
 	}
-#endif
+
 
 	return true;
 }
+static int mdss_panel_off_post(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
 
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return false;
+	}
+
+	if(is_first_boot) {
+		mdss_backlight_tft_request_gpios(ctrl);
+		if (ctrl->bklt_ctrl == BL_DCS_CMD && vdd->panel_func.samsung_brightness_tft_pwm)
+			vdd->panel_func.samsung_brightness_tft_pwm(ctrl, 0);
+	}
+
+	if (gpio_is_valid(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[0]))
+		gpio_set_value(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[0], 0);
+	if (gpio_is_valid(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[1]))
+		gpio_set_value(vdd->dtsi_data[ctrl->ndx].backlight_tft_gpio[1], 0);
+
+	return true;
+}
 static int mdss_panel_revision(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
@@ -107,7 +210,22 @@ static int mdss_panel_revision(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	return true;
 }
+static void mdss_panel_tft_pwm_control(struct mdss_dsi_ctrl_pdata *ctrl, int level)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return;
+	}
 
+	vdd->bl_level = level;
+	vdd->scaled_level = get_scaled_level(vdd, ctrl->ndx);
+	ktd3102_set_brightness(vdd->scaled_level, ctrl);
+
+	pr_info("%s bl_level : %d scaled_level : %d\n", __func__, level, vdd->scaled_level);
+
+	return;
+}
 static struct dsi_panel_cmds * mdss_brightness_tft_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int *level_key)
 {
 	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
@@ -154,6 +272,8 @@ static void dsi_update_mdnie_data(void)
 
 	mdnie_data.DSI0_BYPASS_MDNIE = NULL;
 	mdnie_data.DSI0_NEGATIVE_MDNIE = DSI0_NEGATIVE_MDNIE;
+	mdnie_data.DSI0_GRAYSCALE_MDNIE = DSI0_NEGATIVE_EXIT_MDNIE;
+	mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE = DSI0_NEGATIVE_MDNIE;
 	mdnie_data.DSI0_COLOR_BLIND_MDNIE = NULL;
 	mdnie_data.DSI0_HBM_CE_MDNIE = NULL;
 	mdnie_data.DSI0_RGB_SENSOR_MDNIE = NULL;
@@ -221,12 +341,14 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->mdnie_tune_size2 = 0;
 	vdd->manufacture_id_dsi[vdd->support_panel_max - 1] = get_lcd_attached("GET");
 
-	vdd->support_cabc = true;
+	if (vdd->ctrl_dsi[DISPLAY_1]->bklt_ctrl == BL_DCS_CMD)
+		vdd->support_cabc = true;
 	/* ON/OFF */
 	vdd->panel_func.samsung_panel_on_pre = mdss_panel_on_pre;
 	vdd->panel_func.samsung_panel_on_post = mdss_panel_on_post;
 	vdd->panel_func.samsung_panel_off_pre = NULL;
-	vdd->panel_func.samsung_panel_off_post = NULL;
+	vdd->panel_func.samsung_panel_off_post = mdss_panel_off_post;
+	vdd->panel_func.samsung_backlight_late_on = backlight_tft_late_on;
 
 	/* DDI RX */
 	vdd->panel_func.samsung_panel_revision = mdss_panel_revision;
@@ -238,6 +360,7 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 
 	/* Brightness */
 	vdd->panel_func.samsung_brightness_tft_pwm_ldi = mdss_brightness_tft_pwm;
+	vdd->panel_func.samsung_brightness_tft_pwm = mdss_panel_tft_pwm_control;
 	vdd->panel_func.samsung_brightness_hbm_off = NULL;
 	vdd->panel_func.samsung_brightness_aid = NULL;
 	vdd->panel_func.samsung_brightness_acl_on = NULL;

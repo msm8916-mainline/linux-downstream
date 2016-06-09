@@ -35,8 +35,7 @@
 		gpios = <&msm_gpio 26 0>,
 			  <&msm_gpio 16 0>,
 			  <&msm_gpio 69 0>,
-			  <&msm_gpio 35 0>,
-			  <&msm_gpio 34 0>;
+			  <&msm_gpio 35 0>;
 		qcom,gpio-vana = <1>;
 		qcom,gpio-vdig = <2>;
 		qcom,gpio-reset = <3>;
@@ -115,8 +114,7 @@
 		gpios = <&msm_gpio 26 0>,
 			  <&msm_gpio 16 0>,
 			  <&msm_gpio 69 0>,
-			  <&msm_gpio 35 0>,
-			  <&msm_gpio 34 0>;
+			  <&msm_gpio 35 0>;
 		qcom,gpio-vana = <1>;
 		qcom,gpio-vdig = <2>;
 		qcom,gpio-reset = <3>;

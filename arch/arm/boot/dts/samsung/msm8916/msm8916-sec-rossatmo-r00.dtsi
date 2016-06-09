@@ -13,7 +13,7 @@
 #include "msm8916.dtsi"
 #include "msm8916-pinctrl-sec-rossatmo-r00.dtsi"
 #include "msm8916-camera.dtsi"
-#include "msm8916-camera-sensor-cdp-j1vzw.dtsi"
+#include "msm8916-camera-sensor-cdp-rossa.dtsi"
 #include "msm8916-sec-rossatmo-battery-r00.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/SC7798A_BV045WVM/dsi_panel_SC7798A_BV045WVM_wvga_video.dtsi"
 
@@ -23,11 +23,9 @@
 
 		/*i2c-gpio bus_id*/
               //i2c7 = &i2c_7;
-                i2c8 = &i2c_8;
 		i2c9 = &i2c_9;
 		i2c10 = &i2c_10;
 		i2c11 = &i2c_11;
-		i2c12 = &i2c_12;
 	};
 };
 
@@ -37,19 +35,11 @@
 		pinctrl-0 = <&motor_en_active>;
 		pinctrl-1 = <&motor_en_suspend>;
 		compatible = "vibrator";
-		samsung,motor-en = <&msm_gpio 72 0x1>;
+		samsung,motor-en = <&msm_gpio 74 0x1>;
 		status = "ok";
-	};
-		leds-gpio{
-		compatible = "gpio-leds";
-		button-backlight{
-			gpios = <&msm_gpio 60 0>;
-			status = "ok";
-		};
 	};
 
 	i2c@78b9000 { /* BLSP1 QUP5 */
-	status = "ok";
 	status = "ok";
                 ist30xx_ts@50 {
                         compatible = "imagis,ist30xx-ts";
@@ -199,31 +189,6 @@
 			compatible = "alps-input";
 	};
 
-	i2c_8: i2c@8 {
-		cell-index = <8>;
-                compatible = "i2c-gpio";
-                i2c-gpio-scl = <&msm_gpio 1 0x00>;
-                i2c-gpio-sda = <&msm_gpio 0 0x00>;
-                #address-cells = <1>;
-                #size-cells = <0>;
-		i2c-gpio,delay-us = <2>;
-		pn547@2B {
-			compatible = "pn547";
-			reg = <0x2B>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <21 0>;
-			pinctrl-names = "nfc_active","nfc_suspend";
-			pinctrl-0 = <&nfc_int_active &nfc_enable_active &nfc_firmware_active>;
-			pinctrl-1 = <&nfc_int_suspend &nfc_enable_suspend &nfc_firmware_suspend>;
-			pn547,firm-gpio = <&msm_gpio 49 0x00>;
-			pn547,ven-gpio = <&msm_gpio 20 0x00>;
-			pn547,irq-gpio = <&msm_gpio 21 0x01>;
-			nfc_ldo-supply = <&pm8916_l14>;
-			clocks = <&clock_rpm clk_bb_clk2_pin>;
-			clock-names = "nfc_clock";
-		};
-	};
-
 	i2c@78b6000 { /* BLSP1 QUP2 */
 		compatible = "qcom,i2c-msm-v2";
 		qcom,scl-gpio = <&msm_gpio 7 0>;
@@ -247,39 +212,19 @@
 			stm,poll_interval = <100>;
 			stm,min_interval = <2>;
 		};
-		cm36672p@60 {
-			compatible = "cm36672p";
-			reg = <0x60>;
+		gp2a-i2c@44{
+			compatible = "gp2a-i2c";
+			reg = <0x44>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int_active>;
+			pinctrl-1 = <&prox_int_suspend>;
 			interrupt-parent = <&msm_gpio>;
-			interrupts = <113 0>;
-			cm36672p,leden_gpio = <&msm_gpio 8 0x1>;
-			cm36672p,irq_gpio = <&msm_gpio 113 0x1>;
-			cm36672p,vdd-supply = <&pm8916_l17>;
-			cm36672p,vio-supply = <&pm8916_l5>;
-			cm36672p,default_hi_thd = <17>;
-			cm36672p,default_low_thd = <13>;
-			cm36672p,cancel_hi_thd = <20>;
-			cm36672p,cancel_low_thd = <8>;
-			cm36672p,ps_it = <0>;
-			cm36672p,led_current = <2>;
+			interupts= <113 0>;
+			gp2a-i2c,irq-gpio = <&msm_gpio 113 0x00>;
+			gp2a-i2c,en-gpio = <&msm_gpio 8 0x00>;
+			gp2a-vdd-supply = <&pm8916_l17>;
+			gp2a-vio-supply = <&pm8916_l5>;
 		};
-	};
-
-	i2c_12:i2c@12 {
-		cell-index = <12>;
-		compatible = "i2c-gpio";
-		i2c-gpio-scl = <&msm_gpio 32 0x00>;
-		i2c-gpio-sda = <&msm_gpio 31 0x00>;
-		i2c-gpio,delay-us = <2>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-        svc_leds@30{
-                compatible = "leds,ktd2026";
-                reg = <0x30>;
-		ktd2026,default_current = <0x30>;	/* default only rossa spr&tfn&vzw model:0x30, other models:0x10 */
-		ktd2026,lowpower_current = <0x02>;
-        };
 	};
 
 	/* Over-riding model specific changes */
@@ -302,7 +247,7 @@
 	samsung,gpio_settings{
 		compatible = "sec_gpio_sett";
 		pinctrl-names = "sec_gpio_active","sec_gpio_suspend";
-		pinctrl-0 = <&svc_led_pin &home_key_pin>;
+		pinctrl-0 = <&home_key_pin>;
 		pinctrl-1 = <>;
 	};
 
@@ -352,7 +297,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		sm5504@14{
+		sm5504@25{
 			compatible = "sm5504,i2c";
 			reg = <0x14>;
 			interrupt-parent = <&msm_gpio>;
@@ -381,13 +326,13 @@
 		qcom,earjack-sendend-gpio = <&msm_gpio 111 0x0>;
 		qcom,earjack-read-vadc = <&pm8916_vadc>;
 
-		det-zones-list = <&det_zones 823 10000 10 0>,
-						 <&det_zones 984 10000 10 0>,
-						 <&det_zones 985 10000 10 1>,
-						 <&det_zones 2000 10000 10 1>;
-		but-zones-list = <&but_zones 0 0 326>,
-						 <&but_zones 1 327 465>,
-						 <&but_zones 2 466 822>;
+		det-zones-list = <&det_zones 0 10000 10 0>,
+						 <&det_zones 975 10000 10 0>,
+						 <&det_zones 976 10000 10 1>,
+						 <&det_zones 1810 10000 10 1>;
+		but-zones-list = <&but_zones 0 0 339>,
+						 <&but_zones 1 340 479>,
+						 <&but_zones 2 480 999>;
 		mpp-channel-scaling = <2 1 1>;
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
 		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
@@ -397,7 +342,7 @@
 
 &usb_otg {
 	qcom,hsusb-otg-phy-init-seq =
-					<0x49 0x81 0x0b 0x82 0xffffffff>;
+					<0x19 0x81 0x0b 0x82 0xffffffff>;
 };
 
 &sdhc_1 {
@@ -589,17 +534,6 @@
 		reg = <0x13>; // channel 19 for MPP4 , 1:1scale
 		qcom,decimation = <0>;
 		qcom,pre-div-channel-scaling = <0>; // 1:1scale
-		qcom,calibration-type = "ratiometric";
-		qcom,scale-function = <1>;
-		qcom,hw-settle-time = <2>;
-		qcom,fast-avg-setup = <0>;
-	};
-
-	chan@30 {
-		label = "batt_therm";
-		reg = <0x30>;
-		qcom,decimation = <0>;
-		qcom,pre-div-channel-scaling = <0>;
 		qcom,calibration-type = "ratiometric";
 		qcom,scale-function = <1>;
 		qcom,hw-settle-time = <2>;

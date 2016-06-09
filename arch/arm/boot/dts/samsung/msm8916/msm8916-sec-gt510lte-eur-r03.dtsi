@@ -16,6 +16,7 @@
 #include "msm8916-sec-gt510lte-eur-battery-r00.dtsi"
 #include "msm8916-max77849-gt510-r01.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0_LTL101AT01/dsi_panel_S6D7AA0_LTL101AT01_RT8555_xga_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0_LTL101AT01_BOE/dsi_panel_S6D7AA0_BOE_LTL101AT01_RT8555_xga_video.dtsi"
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
@@ -26,16 +27,12 @@
 
 &soc {
 	samsung,vibrator {
-		compatible = "haptic_vib";
+		compatible = "samsung_vib";
 		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
 		pinctrl-0 = <&motor_en_active &motor_pwm_active>;
 		pinctrl-1 = <&motor_en_suspend &motor_pwm_suspend>;
 		samsung,vib_en = <&msm_gpio 76 0x1>;
 		samsung,vib_pwm = <&msm_gpio 50 0x1>;
-		samsung,vib_model = <1>;
-		samsung,is_pmic_vib_pwm = <0>;
-		samsung,pwm_period_us = <40>;
-		samsung,duty_us = <36>;
 		status = "ok";
 	};
 
@@ -307,13 +304,13 @@
 		qcom,earjack-read-vadc = <&pm8916_vadc>;
 
 		det-zones-list = <&det_zones 1 10000 10 0>,
-				 <&det_zones 930 10000 10 0>,
-				 <&det_zones 1900 10000 10 1>,
-				 <&det_zones 2800 10000 10 1>;
-		but-zones-list = <&but_zones 0 0 296>,
-				 <&but_zones 3 297 342>,
-				 <&but_zones 1 343 462>,
-				 <&but_zones 2 463 750>;
+				 <&det_zones 953 10000 10 0>,
+				 <&det_zones 954 10000 10 1>,
+				 <&det_zones 9999 10000 10 1>;
+		but-zones-list = <&but_zones 0 0 290>,
+				 <&but_zones 3 291 354>,
+				 <&but_zones 1 355 469>,
+				 <&but_zones 2 470 999>;
 		btn-adc-read-count = <8>;
 		mpp-channel-scaling = <2 1 1>;
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
@@ -471,9 +468,11 @@
 &dsi_sdc_xga_vid {
 	samsung,panel-extra-power-gpio1 = <&msm_gpio 8 0>;
 };
+&dsi_boe_xga_vid{
+	samsung,panel-extra-power-gpio1 = <&msm_gpio 8 0>;
+};
 
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_sdc_xga_vid>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&i2c_lp8556_active &lp8556_active &mdss_dsi_active &mdss_esd_active &pwm_ap_active>;
 	pinctrl-1 = <&i2c_lp8556_suspend &lp8556_suspend &mdss_dsi_suspend &mdss_esd_suspend &pwm_ap_suspend>;

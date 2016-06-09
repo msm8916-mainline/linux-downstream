@@ -17,31 +17,20 @@
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
-#ifdef CONFIG_ARCH_MSM8916
-#include <linux/qdsp6v2/apr.h>
-#endif /* CONFIG_ARCH_MSM8916 */
+
 #include <linux/mfd/arizona/core.h>
 
 #include "arizona.h"
 
 static int arizona_i2c_probe(struct i2c_client *i2c,
-					  const struct i2c_device_id *id)
+			     const struct i2c_device_id *id)
 {
 	struct arizona *arizona;
 	const struct regmap_config *regmap_config;
-	int ret, type;
-	
-#ifdef CONFIG_ARCH_MSM8916
-	int modem_state;
-	modem_state = apr_get_modem_state();
-	if (modem_state != APR_SUBSYS_LOADED) {
-		dev_info(&i2c->dev, "Modem is not loaded yet %d\n",
-				modem_state);
-		return -EPROBE_DEFER;
-	} else 
-		dev_info(&i2c->dev, "Modem is loaded %d\n", modem_state);
-#endif /* CONFIG_ARCH_MSM8916 */
-	
+	const struct regmap_config *regmap_32bit_config = NULL;
+	unsigned long type;
+	int ret;
+
 	if (i2c->dev.of_node)
 		type = arizona_of_get_type(&i2c->dev);
 	else
@@ -64,10 +53,17 @@ static int arizona_i2c_probe(struct i2c_client *i2c,
 		regmap_config = &wm8997_i2c_regmap;
 		break;
 #endif
-#ifdef CONFIG_MFD_WM8998
+#ifdef CONFIG_MFD_VEGAS
 	case WM8998:
 	case WM1814:
-		regmap_config = &wm8998_i2c_regmap;
+		regmap_config = &vegas_i2c_regmap;
+		break;
+#endif
+#ifdef CONFIG_MFD_CLEARWATER
+	case WM8285:
+	case WM1840:
+		regmap_config = &clearwater_16bit_i2c_regmap;
+		regmap_32bit_config = &clearwater_32bit_i2c_regmap;
 		break;
 #endif
 	default:
@@ -86,6 +82,18 @@ static int arizona_i2c_probe(struct i2c_client *i2c,
 		dev_err(&i2c->dev, "Failed to allocate register map: %d\n",
 			ret);
 		return ret;
+	}
+
+	if (regmap_32bit_config) {
+		arizona->regmap_32bit = devm_regmap_init_i2c(i2c,
+							   regmap_32bit_config);
+		if (IS_ERR(arizona->regmap_32bit)) {
+			ret = PTR_ERR(arizona->regmap_32bit);
+			dev_err(&i2c->dev,
+				"Failed to allocate dsp register map: %d\n",
+				ret);
+			return ret;
+		}
 	}
 
 	arizona->type = id->driver_data;
@@ -110,6 +118,8 @@ static const struct i2c_device_id arizona_i2c_id[] = {
 	{ "wm8997", WM8997 },
 	{ "wm8998", WM8998 },
 	{ "wm1814", WM1814 },
+	{ "wm8285", WM8285 },
+	{ "wm1840", WM1840 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, arizona_i2c_id);

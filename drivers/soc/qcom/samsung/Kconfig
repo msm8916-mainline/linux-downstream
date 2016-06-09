@@ -173,7 +173,14 @@ config SEC_BSP
 	  This option enables /proc/boot_stat support.
 
 config SEC_THERMISTOR
-        bool "Use external thermistor near AP for checking temprature"
-        default n
-        help
-        Use thermistor driver for checking temperature near AP chip.
+	bool "Use external thermistor near AP for checking temprature"
+	default n
+	help
+	  Use thermistor driver for checking temperature near AP chip.
+
+config SEC_USE_FLASH_THERMISTOR
+	depends on SEC_THERMISTOR
+	bool "Use external thermistor near flash for checking temprature"
+	default n
+	help
+	  Use thermistor driver for checking temperature near flash led.

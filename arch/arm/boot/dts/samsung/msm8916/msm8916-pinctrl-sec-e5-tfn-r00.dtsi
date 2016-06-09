@@ -1453,32 +1453,6 @@
 			};
 		};
 
-		cam_sensor_eeprom_wp {
-			qcom,pins =  <&gp 9>;
-			qcom,num-grp-pins = <1>;
-			qcom,pin-func = <0>;
-			label = "cam_sensor_eeprom_wp";
-			/* active state */
-			cam_sensor_eeprom_wp_default: default {
-				drive-strength = <4>; /* 4 MA */
-				bias-disable = <0>; /* No PULL */
-				output-low;
-			};
-		};
-
-		cam_sensor_eeprom_wp_sleep {
-			qcom,pins =  <&gp 9>;
-			qcom,num-grp-pins = <1>;
-			qcom,pin-func = <0>;
-			label = "cam_sensor_eeprom_wp_sleep";
-			/*suspended state */
-			cam_sensor_eeprom_wp_sleep: sleep {
-				drive-strength = <4>; /* 4 MA */
-				bias-pull-down; /* PULL DOWN */
-				output-low;
-			};
-		};
-
 		cam_sensor_eeprom {
 			/* RESET, STANDBY */
 			qcom,pins =  <&gp 10>, <&gp 11>;

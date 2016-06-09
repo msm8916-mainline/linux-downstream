@@ -16,6 +16,7 @@
 #include "msm8916-sec-gt5note8lte-eur-battery-r00.dtsi"
 #include "msm8916-max77849-gt5note8.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0_LSL080AL03/dsi_panel_S6D7AA0_LSL080AL03_wxga_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0_LSL080AL03_BOE/dsi_panel_S6D7AA0_LSL080AL03_BOE_wxga_video.dtsi"
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
@@ -295,12 +296,13 @@
 		qcom,earjack-read-vadc = <&pm8916_vadc>;
 
 		det-zones-list = <&det_zones 1 10000 10 0>,
-				 <&det_zones 1029 10000 10 0>,
-				 <&det_zones 1901 10000 10 1>,
-				 <&det_zones 2800 10000 10 1>;
-		but-zones-list = <&but_zones 0 1 177>,
-				 <&but_zones 1 178 358>,
-				 <&but_zones 2 359 1200>;
+				 <&det_zones 954 10000 10 0>,
+				 <&det_zones 955 10000 10 1>,
+				 <&det_zones 9999 10000 10 1>;
+		but-zones-list = <&but_zones 0 0 290>,
+				 <&but_zones 3 291 353>,
+				 <&but_zones 1 354 468>,
+				 <&but_zones 2 469 999>;
 		mpp-channel-scaling = <2 1 1>;
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
 		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
@@ -443,12 +445,14 @@
 	qcom,num-grp-pins = <2>;
 	qcom,pins = <&gp 51>, <&gp 69>;
 };
+&dsi_sdc_wxga_vid_boe{
+    samsung,panel-extra-power-gpio1 = <&msm_gpio 8 0>;
+};
 &dsi_sdc_wxga_vid{
 	samsung,panel-extra-power-gpio1 = <&msm_gpio 8 0>;
 };
 
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_sdc_wxga_vid>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&i2c_lp8556_active &lp8556_active &mdss_dsi_active>;
 	pinctrl-1 = <&i2c_lp8556_suspend &lp8556_suspend &mdss_dsi_suspend>;

@@ -103,6 +103,38 @@ static DEVICE_ATTR(emmc_checksum_pass, S_IRUGO | S_IWUSR ,
 		emmc_checksum_pass_show, emmc_checksum_pass_store);
 #endif /*MOVINAND_CHECKSUM*/
 
+/*  For MSM Feature ID
+ *  27:20 bit is for feature id */
+#define SECURITY_CONTROL_CORE_QFPROM_CORR_JTAG_ID 0x0005C000
+#define BIT_MASK_FOR_FEATURE_ID					  0x0FF00000
+
+static ssize_t msm_feature_id_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+		uint32_t feature_id = 0;
+		void *feature_id_addr;
+
+		feature_id_addr = ioremap_nocache(SECURITY_CONTROL_CORE_QFPROM_CORR_JTAG_ID,SZ_4K);
+		if (!feature_id_addr) {
+			pr_err("could not map FEATURE_ID address\n");
+			return scnprintf(buf, PAGE_SIZE, "could not map FEATURE_ID address\n");
+		}
+
+		feature_id = readl_relaxed(feature_id_addr);
+		iounmap(feature_id_addr);
+
+		if (!feature_id) {
+			return scnprintf(buf, PAGE_SIZE, "Feature ID is not supported!!\n");
+		}
+
+		feature_id = (feature_id & BIT_MASK_FOR_FEATURE_ID) >> 20;
+		printk("FEATURE_ID : 0x%08x\n",feature_id);
+
+		return scnprintf(buf, PAGE_SIZE, "%02d\n",feature_id);
+}
+
+static DEVICE_ATTR(msm_feature_id, S_IRUGO, msm_feature_id_show, NULL);
+/*  End of Feature ID */
 
 #ifdef RORY_CONTROL
 static ssize_t rory_control_show(struct device *dev,
@@ -288,6 +320,7 @@ static struct device_attribute *sec_misc_attrs[] = {
 #ifdef CONFIG_GSM_MODEM_SPRD6500
 	&dev_attr_update_cp_bin,
 #endif
+	&dev_attr_msm_feature_id,
 };
 
 static int __init sec_misc_init(void)

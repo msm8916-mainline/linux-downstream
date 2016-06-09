@@ -180,7 +180,7 @@ static ssize_t set_flush(struct device *dev, struct device_attribute *attr,
 	input_report_rel(meta_input_dev, REL_HWHEEL, sensor_type + 1);
 	input_sync(meta_input_dev);
 
-	pr_info("[SENSOR] flush %d", sensor_type);
+	pr_info("[SENSOR] flush %d\n", sensor_type);
 	return size;
 }
 

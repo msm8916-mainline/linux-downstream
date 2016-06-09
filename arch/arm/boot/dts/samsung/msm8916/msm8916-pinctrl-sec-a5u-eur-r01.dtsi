@@ -1217,6 +1217,23 @@
 			};
 		};
 
+		prox_sensor_enable_active {
+			qcom,pins = <&gp 8>;
+			qcom,pin-func = <1>;
+			qcom,num-grp-pins = <1>;
+			label = "prox_sensor_enable_active";
+			prox_enable_active: prox_enable_active {
+				drive-strength = <2>;
+				output-low;
+				bias-disable; /* No PULL */
+			};
+			prox_enable_suspend: prox_enable_suspend {
+				drive-strength = <2>;
+				output-low;
+				bias-disable; /* No PULL */
+			};
+		};
+
 		tlmm_gpio_key {
 			qcom,pins = <&gp 107>;
 			qcom,pin-func = <0>;

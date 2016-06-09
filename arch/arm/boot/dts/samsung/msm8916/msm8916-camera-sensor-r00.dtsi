@@ -133,8 +133,8 @@
     qcom,cam-vreg-max-voltage = <0 1800000 0 2800000>;
     qcom,cam-vreg-op-mode = <200000 0 80000 100000>;
     pinctrl-names = "cam_default", "cam_suspend";
-    pinctrl-0 = <&cam_sensor_mclk0_default &cam_core_en_default &cam_sensor_rear_default &cam_sensor_eeprom_default &cam_sensor_eeprom_wp_default>;
-    pinctrl-1 = <&cam_sensor_mclk0_sleep &cam_core_en_sleep &cam_sensor_rear_sleep &cam_sensor_eeprom_sleep &cam_sensor_eeprom_wp_sleep>;
+    pinctrl-0 = <&cam_sensor_mclk0_default &cam_core_en_default &cam_sensor_rear_default &cam_sensor_eeprom_default>;
+    pinctrl-1 = <&cam_sensor_mclk0_sleep &cam_core_en_sleep &cam_sensor_rear_sleep &cam_sensor_eeprom_sleep>;
     gpios = <&msm_gpio 26 0>,
           <&msm_gpio 33 0>,
           <&msm_gpio 35 0>;

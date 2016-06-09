@@ -29,6 +29,9 @@ struct sec_param_data {
 #ifdef CONFIG_RESTART_REASON_SEC_PARAM
 	unsigned int param_restart_reason;
 #endif
+#ifdef CONFIG_BARCODE_PAINTER
+	char param_barcode_info[1024];
+#endif
 };
 
 enum sec_param_index {
@@ -51,6 +54,9 @@ enum sec_param_index {
 #endif
 #ifdef CONFIG_RESTART_REASON_SEC_PARAM
 	param_index_restart_reason,
+#endif
+#ifdef CONFIG_BARCODE_PAINTER
+	param_index_barcode_info,
 #endif
 };
 

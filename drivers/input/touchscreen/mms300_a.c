@@ -1241,8 +1241,6 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			goto out;
 		}
 
-		if (x == 0 && y == 0)
-			continue;
 		if ((tmp[0] & irq_bit_mask) == 0) {
 			input_mt_slot(info->input_dev, id);
 			input_mt_report_slot_state(info->input_dev,
@@ -1294,7 +1292,9 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			info->finger_state[id] = 1;
 			touch_is_pressed++;
 			dev_notice(&client->dev,
-				"P [%2d](%d)", id, info->panel);
+				"P[%d] w=%d, major=%d, minor=%d, angle=%d, palm=%d(%d)",
+				id, tmp[4], tmp[6], tmp[7],
+				angle, palm, info->panel);
 		}
 #else /* CONFIG_SAMSUNG_PRODUCT_SHIP */
 		if (info->finger_state[id] == 0) {
@@ -5526,7 +5526,8 @@ static void mms_ts_input_close(struct input_dev *dev)
 	{
 		info->enabled = false;
 		disable_irq_nosync(info->irq);
-		usleep(2000);	// for all irq clear
+		//usleep(2000);	// for all irq clear
+		usleep(10 * 1000);		
 
 		touch_is_pressed = 0;
 		release_all_fingers(info);

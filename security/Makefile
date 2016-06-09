@@ -29,8 +29,14 @@ obj-$(CONFIG_CGROUP_DEVICE)		+= device_cgroup.o
 subdir-$(CONFIG_INTEGRITY)		+= integrity
 obj-$(CONFIG_INTEGRITY)			+= integrity/built-in.o
 
-# TIMA uevent 
+# MST driver
+obj-$(CONFIG_MST_LDO)	  += mstdrv/
+
+# TIMA uevent
 obj-$(CONFIG_TIMA_UEVENT)     += tima_uevent/
+
+#TZ ICCC
+obj-$(CONFIG_TZ_ICCC)     += tz_iccc/
 
 # Knox SDP
 obj-$(CONFIG_SDP) += sdp/

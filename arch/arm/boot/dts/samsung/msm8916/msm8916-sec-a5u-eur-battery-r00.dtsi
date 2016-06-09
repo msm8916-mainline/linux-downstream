@@ -28,7 +28,6 @@
 
 		battery,cable_check_type = <4>; /* SEC_BATTERY_CABLE_CHECK_PSY */
 		battery,cable_source_type = <3>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
-		battery,event_check;
 		battery,event_waiting_time = <600>;
 		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
 		battery,monitor_initial_count = <3>;
@@ -96,6 +95,12 @@
 			battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
 			battery,full_check_type = <2>; /* SEC_BATTERY_FULLCHARGED_FG_CURRENT */
 
+			/* AICL Disable for RT5033 Rev Change */
+			battery,dualized_charging_current;
+			battery,fast_charging_current_5033a = <2000 0 500 2000 500 1000 1000 500 0 1200 2000 2000 2000 (-1) 1300 500 800 1300 500 1000 2000 0 0>;
+			battery,input_current_limit_5033a = <1500 500 500 1500 500 1000 1000 500 500 1000 1000 1500 1500 500 1000 500 700 1000 500 1000 1500 500 500>;
+	
+			/* original charging current */
 			battery,input_current_limit = <1500 500 500 1500 500 1000 1000 500 500 1000 1000 1500 1500 500 1000 500 700 1000 500 1000 1500 500 500>;
 			battery,fast_charging_current = <1500 0 500 1500 500 1000 1000 500 0 1200 1500 1500 1500 (-1) 1300 500 800 1300 500 1000 1500 0 0>;
 			battery,full_check_current_1st = <200 0 200 200 200 200 200 200 0 200 200 200 200 0 200 200 200 200 200 200 200 0 0>;

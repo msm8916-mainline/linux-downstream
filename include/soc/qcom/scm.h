@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -95,14 +95,14 @@ struct scm_desc {
 #define OEM_SVC_CALLS           0x03000000
 #define MAKE_OEM_SCM_CMD(svc_id, cmd_id)       ((((svc_id << 8) | (cmd_id)) & 0xFFFF) | OEM_SVC_CALLS)
 
-#define TZBSP_SVC_OEM_DMVERITY	245
-#define OEM_DMVERITY_CMD_ID	0x01
+#define TZBSP_SVC_OEM_GENERIC	245
+#define OEM_GENERIC_CMD_ID	0x01
 #define	CMD_READ_KAP_STATUS	4
 #define	CMD_DISABLE_KAP		5
 typedef	struct {
 		uint32_t cmd_id;
 		uint32_t arg;
-} dmverity_data;
+} generic_data;
 int kap_status_scm_call(void);
 
 #ifdef CONFIG_MSM_SCM
@@ -124,6 +124,8 @@ extern s32 scm_call_atomic2(u32 svc, u32 cmd, u32 arg1, u32 arg2);
 extern s32 scm_call_atomic3(u32 svc, u32 cmd, u32 arg1, u32 arg2, u32 arg3);
 extern s32 scm_call_atomic4_3(u32 svc, u32 cmd, u32 arg1, u32 arg2, u32 arg3,
 		u32 arg4, u32 *ret1, u32 *ret2);
+extern s32 scm_call_atomic5_3(u32 svc, u32 cmd, u32 arg1, u32 arg2, u32 arg3,
+		u32 arg4, u32 arg5, u32 *ret1, u32 *ret2, u32 *ret3);
 
 #define SCM_VERSION(major, minor) (((major) << 16) | ((minor) & 0xFF))
 
@@ -190,6 +192,12 @@ static inline s32 scm_call_atomic3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
 
 static inline s32 scm_call_atomic4_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
 		u32 arg3, u32 arg4, u32 *ret1, u32 *ret2)
+{
+	return 0;
+}
+
+static inline s32 scm_call_atomic5_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
+	u32 arg3, u32 arg4, u32 arg5, u32 *ret1, u32 *ret2, u32 *ret3)
 {
 	return 0;
 }

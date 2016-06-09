@@ -707,6 +707,18 @@ static void acm_cdc_notify_complete(struct usb_ep *ep, struct usb_request *req)
 		acm_notify_serial_state(acm);
 }
 
+#ifdef CONFIG_USB_DUN_SUPPORT
+void acm_notify(void *dev, u16 state)
+{
+	struct f_acm    *acm = (struct f_acm *)dev;
+
+	if (acm) {
+		acm->serial_state = state;
+		acm_notify_serial_state(acm);
+	}
+}
+#endif
+
 /* connect == the TTY link is open */
 
 static void acm_connect(struct gserial *port)
@@ -848,6 +860,10 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
 			acm->port.in->name, acm->port.out->name,
 			acm->notify->name);
+	/* To notify serial state by datarouter*/
+#ifdef CONFIG_USB_DUN_SUPPORT
+	modem_register(acm);
+#endif
 	return 0;
 
 fail:
@@ -870,6 +886,10 @@ fail:
 static void acm_unbind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct f_acm		*acm = func_to_acm(f);
+
+#ifdef CONFIG_USB_DUN_SUPPORT
+	modem_unregister();
+#endif
 
 	/* acm_string_defs[].id is limited to 256
 	if id is cleared on disconneting, The increased number is allocated on connecting.

@@ -63,3 +63,14 @@ obj-$(CONFIG_KEYBOARD_ABOV_TOUCH)	+= abov_touchkey.o
 obj-$(CONFIG_KEYBOARD_ABOV_TOUCH_A7)	+= abov_touchkey_a7.o
 obj-$(CONFIG_KEYBOARD_ABOV_TOUCH_A3) 	+= abov_touchkey_a3.o
 obj-$(CONFIG_KEYBOARD_ABOV_TOUCH_A5)	+= abov_touchkey_a5.o
+obj-$(CONFIG_KEYBOARD_ABOV_TOUCH_A8)	+= abov_touchkey_a8.o
+obj-$(CONFIG_KEYBOARD_ABOV_TOUCH_NA7)	+= abov_touchkey_na7.o
+obj-$(CONFIG_KEYBOARD_ABOV_TOUCH_FT18XX)	+= abov_touchkey_ft18xx.o
+obj-$(CONFIG_KEYBOARD_ABOV_TOUCH_FT16XX)	+= abov_touchkey_ft16xx.o
+obj-$(CONFIG_KEYBOARD_TC360_TKEY_J3) 	+= tc360-touchkey_j3.o
+obj-$(CONFIG_KEYBOARD_TC360_TKEY_J7) 	+= tc360-touchkey_j7.o
+obj-$(CONFIG_KEYBOARD_TC305_TKEY) 	+= tc305-touchkey.o
+obj-$(CONFIG_KEYBOARD_TC360_TKEY_J5X) 	+= tc360-touchkey_j5x.o
+obj-$(CONFIG_KEYBOARD_TC350K)		+= tc300k.o
+obj-$(CONFIG_KEYBOARD_TC360_TKEY_J5) 	+= tc360-touchkey_j5.o
+

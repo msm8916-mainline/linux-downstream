@@ -2,7 +2,7 @@
  * drivers/gpu/ion/ion_system_heap.c
  *
  * Copyright (C) 2011 Google, Inc.
- * Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -89,6 +89,29 @@ static struct page *alloc_buffer_page(struct ion_system_heap *heap,
 	return page;
 }
 
+#ifdef CONFIG_ION_MSM_SYSTEM_HEAP_POOL_LIMIT
+/* Calculate uncached and cached pool pages from system heap
+ *
+ * @param heap current system heap
+ * @return total total uncached and cached pool pages
+ */
+static unsigned long get_system_heap_pool_total(struct ion_system_heap *heap)
+{
+	int i;
+	unsigned long total = 0;
+
+	for (i = 0; i < num_orders; i++) {
+		struct ion_page_pool *uncached_pool = heap->uncached_pools[i];
+		struct ion_page_pool *cached_pool = heap->cached_pools[i];
+
+		total += (1 << uncached_pool->order) * (uncached_pool->high_count + uncached_pool->low_count) +
+				(1 << cached_pool->order) * (cached_pool->high_count + cached_pool->low_count);
+	}
+
+	return total;
+}
+#endif
+
 static void free_buffer_page(struct ion_system_heap *heap,
 			     struct ion_buffer *buffer, struct page *page,
 			     unsigned int order)
@@ -97,6 +120,13 @@ static void free_buffer_page(struct ion_system_heap *heap,
 
 	if (!(buffer->private_flags & ION_PRIV_FLAG_SHRINKER_FREE)) {
 		struct ion_page_pool *pool;
+
+#ifdef CONFIG_ION_MSM_SYSTEM_HEAP_POOL_LIMIT
+		if (get_system_heap_pool_total(heap) > CONFIG_MAX_ION_MSM_SYSTEM_HEAP_POOL) {
+			__free_pages(page, order);
+			return;
+		}
+#endif
 		if (cached)
 			pool = heap->cached_pools[order_to_index(order)];
 		else
@@ -405,13 +435,12 @@ static int ion_system_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
 				pool->low_count, pool->order,
 				(1 << pool->order) * PAGE_SIZE *
 					pool->low_count);
-		} else {
-			uncached_total += (1 << pool->order) * PAGE_SIZE *
-						pool->high_count;
-			uncached_total += (1 << pool->order) * PAGE_SIZE *
-						pool->low_count;
 		}
 
+		uncached_total += (1 << pool->order) * PAGE_SIZE *
+			pool->high_count;
+		uncached_total += (1 << pool->order) * PAGE_SIZE *
+			pool->low_count;
 	}
 
 	for (i = 0; i < num_orders; i++) {
@@ -426,17 +455,29 @@ static int ion_system_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
 				pool->low_count, pool->order,
 				(1 << pool->order) * PAGE_SIZE *
 					pool->low_count);
-		} else {
-			cached_total += (1 << pool->order) * PAGE_SIZE *
-						pool->high_count;
-			cached_total += (1 << pool->order) * PAGE_SIZE *
-						pool->low_count;
 		}
+
+		cached_total += (1 << pool->order) * PAGE_SIZE *
+			pool->high_count;
+		cached_total += (1 << pool->order) * PAGE_SIZE *
+			pool->low_count;
 	}
 
-	if (!use_seq)
-		pr_info("uncached pool total = %lu cached pool total %lu\n",
+	if (use_seq) {
+		seq_puts(s, "--------------------------------------------\n");
+		seq_printf(s, "uncached pool = %lu cached pool = %lu\n",
 				uncached_total, cached_total);
+		seq_printf(s, "pool total (uncached + cached) = %lu\n",
+				uncached_total + cached_total);
+		seq_puts(s, "--------------------------------------------\n");
+	} else {
+		pr_info("-------------------------------------------------\n");
+		pr_info("uncached pool = %lu cached pool = %lu\n",
+				uncached_total, cached_total);
+		pr_info("pool total (uncached + cached) = %lu\n",
+				uncached_total + cached_total);
+		pr_info("-------------------------------------------------\n");
+	}
 
 	return 0;
 }
