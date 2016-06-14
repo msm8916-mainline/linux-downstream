@@ -90,7 +90,7 @@ typedef struct SubClassDataSt
 	///  1. Abbrev: CUST; Default: ASUS(-); DF Addr: 0015h; SRAM Offset: 0015h ; SubClass Offset : 0
 	///     Customer name defined by uPI
 	GCHAR strCustomer[16];                                     
-	///  2. Abbrev: PROJ; Default: Z380KL_COVER(-); DF Addr: 0025h; SRAM Offset: 0025h ; SubClass Offset : 16
+	///  2. Abbrev: PROJ; Default: Z380KL_CB81(-); DF Addr: 0025h; SRAM Offset: 0025h ; SubClass Offset : 16
 	///     Project name defined by uPI
 	GCHAR strProject[16];                                      
 	///  3. Abbrev: CUSTNAME; Default: Co(-); DF Addr: 0035h; SRAM Offset: 0035h ; SubClass Offset : 32
@@ -129,7 +129,7 @@ typedef struct SubClassManufacturerInfoSt
 	///  2. Abbrev: FWVER; Default: 0(-); DF Addr: 005Dh; SRAM Offset: 005Dh ; SubClass Offset : 2
 	///     CellParameter struct version
 	GWORD wFwVersion;                                          
-	///  3. Abbrev: GGBVER; Default: 0(-); DF Addr: 005Fh; SRAM Offset: 005Fh ; SubClass Offset : 4
+	///  3. Abbrev: GGBVER; Default: 1(-); DF Addr: 005Fh; SRAM Offset: 005Fh ; SubClass Offset : 4
 	///     GGB version : 0x0102 = 2.1 Version
 	GWORD wGGBVersion;                                         
 } PACK SubClassManufacturerInfoType;	///< Total = 6 Bytes
@@ -242,7 +242,7 @@ typedef struct SubClassEDVCfgSt
 	///  1. Abbrev: EDV1VOLT; Default: 3000(mV); DF Addr: 007Fh; SRAM Offset: 007Fh ; SubClass Offset : 0
 	///     Edv 1 Voltage
 	GWORD wEdv1Voltage;                                        
-	///  2. Abbrev: OFFTIME; Default: 1(-); DF Addr: 0081h; SRAM Offset: 0081h ; SubClass Offset : 2
+	///  2. Abbrev: OFFTIME; Default: 12(hour); DF Addr: 0081h; SRAM Offset: 0081h ; SubClass Offset : 2
 	///     Max power off time for re-looking up table at initial
 	GBYTE bOffTime;                                            
 } PACK SubClassEDVCfgType;	///< Total = 3 Bytes

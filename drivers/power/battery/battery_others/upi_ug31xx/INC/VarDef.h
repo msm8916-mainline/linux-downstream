@@ -127,7 +127,10 @@ EXTERN GOtpDataType   GInputOTP;
 #ifdef  FEATURE_BUFFER_ENABLE
 EXTERN GCHAR DebugLogBuf[];
 #endif  ///< end of FEATURE_BUFFER_ENABLE
-
+#if defined(FEATURE_PLAT_WINDOWS)
+  EXTERN FILE* FPLogFile;
+  EXTERN int   ILogFileidex; 
+#endif ///< for FEATURE_PLAT_WINDOWS
 /// ******** MAIN CODE  VARIABLE DEFINITION  ******* ////
 #endif ///< __VARDEF_H__
 

@@ -52,6 +52,8 @@ source "drivers/i2c/Kconfig"
 
 source "drivers/slimbus/Kconfig"
 
+source "drivers/soundwire/Kconfig"
+
 source "drivers/spi/Kconfig"
 
 source "drivers/spmi/Kconfig"
@@ -187,5 +189,7 @@ source "drivers/phy/Kconfig"
 source "drivers/soc/Kconfig"
 
 source "drivers/firmware/Kconfig"
+
+source "drivers/dts_eagle/Kconfig"
 
 endmenu

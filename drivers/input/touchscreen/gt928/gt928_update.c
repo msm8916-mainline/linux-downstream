@@ -212,6 +212,13 @@ s32 gup_i2c_write(struct i2c_client *client,u8 *buf,s32 len)
     return ret;
 }
 
+static u8 cfg_info_group1[] = CTP_CFG_GROUP1;
+static u8 cfg_info_group2[] = CTP_CFG_GROUP2;
+static u8 cfg_info_group3[] = CTP_CFG_GROUP3;
+static u8 cfg_info_group4[] = CTP_CFG_GROUP4;
+static u8 cfg_info_group5[] = CTP_CFG_GROUP5;
+static u8 cfg_info_group6[] = CTP_CFG_GROUP6;
+
 static s32 gup_init_panel(struct goodix_ts_data *ts)
 {
     s32 ret = 0;
@@ -221,12 +228,6 @@ static s32 gup_init_panel(struct goodix_ts_data *ts)
     u8 sensor_id = 0;
     u16 version = 0;
 
-    u8 cfg_info_group1[] = CTP_CFG_GROUP1;
-    u8 cfg_info_group2[] = CTP_CFG_GROUP2;
-    u8 cfg_info_group3[] = CTP_CFG_GROUP3;
-    u8 cfg_info_group4[] = CTP_CFG_GROUP4;
-    u8 cfg_info_group5[] = CTP_CFG_GROUP5;
-    u8 cfg_info_group6[] = CTP_CFG_GROUP6;
     u8 *send_cfg_buf[] = {cfg_info_group1, cfg_info_group2, cfg_info_group3,
                         cfg_info_group4, cfg_info_group5, cfg_info_group6};
     u8 cfg_info_len[] = { CFG_GROUP_LEN(cfg_info_group1),
@@ -321,6 +322,7 @@ static s32 gup_init_panel(struct goodix_ts_data *ts)
     }
     gtp_read_version(ts->client, &version);
     msleep(10);
+
     return 0;
 }
 

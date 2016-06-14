@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -252,8 +252,10 @@ struct buffer_info *get_registered_buf(struct msm_vidc_inst *inst,
 		goto err_invalid_input;
 	}
 
+	WARN(!mutex_is_locked(&inst->registeredbufs.lock),
+		"Registered buf lock is not acquired for %s", __func__);
+
 	*plane = 0;
-	mutex_lock(&inst->registeredbufs.lock);
 	list_for_each_entry(temp, &inst->registeredbufs.list, list) {
 		for (i = 0; (i < temp->num_planes)
 			&& (i < VIDEO_MAX_PLANES); i++) {
@@ -277,7 +279,6 @@ struct buffer_info *get_registered_buf(struct msm_vidc_inst *inst,
 		if (ret)
 			break;
 	}
-	mutex_unlock(&inst->registeredbufs.lock);
 err_invalid_input:
 	return ret;
 }
@@ -494,7 +495,7 @@ int map_and_register_buf(struct msm_vidc_inst *inst, struct v4l2_buffer *b)
 			!b->m.planes[i].length) {
 			continue;
 		}
-		mutex_lock(&inst->sync_lock);
+		mutex_lock(&inst->registeredbufs.lock);
 		temp = get_registered_buf(inst, b, i, &plane);
 		if (temp && !is_dynamic_output_buffer_mode(b, inst)) {
 			dprintk(VIDC_DBG,
@@ -513,7 +514,6 @@ int map_and_register_buf(struct msm_vidc_inst *inst, struct v4l2_buffer *b)
 			* we receive RELEASE_BUFFER_REFERENCE EVENT from f/w.
 			*/
 			dprintk(VIDC_DBG, "[MAP] Buffer already prepared\n");
-			mutex_lock(&inst->registeredbufs.lock);
 			list_for_each_entry(iterator,
 				&inst->registeredbufs.list, list) {
 				if (iterator == temp) {
@@ -525,14 +525,15 @@ int map_and_register_buf(struct msm_vidc_inst *inst, struct v4l2_buffer *b)
 					break;
 				}
 			}
-			mutex_unlock(&inst->registeredbufs.lock);
 		}
-		mutex_unlock(&inst->sync_lock);
+		mutex_unlock(&inst->registeredbufs.lock);
 		if (rc < 0)
 			goto exit;
 
-		same_fd_handle = get_same_fd_buffer(&inst->registeredbufs,
-					b->m.planes[i].reserved[0]);
+		if (!is_dynamic_output_buffer_mode(b, inst))
+			same_fd_handle = get_same_fd_buffer(
+						&inst->registeredbufs,
+						b->m.planes[i].reserved[0]);
 
 		populate_buf_info(binfo, b, i);
 		if (same_fd_handle) {
@@ -596,7 +597,8 @@ int unmap_and_deregister_buf(struct msm_vidc_inst *inst,
 		return -EINVAL;
 	}
 
-	mutex_lock(&inst->registeredbufs.lock);
+	WARN(!mutex_is_locked(&inst->registeredbufs.lock),
+		"Registered buf lock is not acquired for %s", __func__);
 
 	/*
 	* Make sure the buffer to be unmapped and deleted
@@ -657,7 +659,6 @@ int unmap_and_deregister_buf(struct msm_vidc_inst *inst,
 		dprintk(VIDC_DBG, "[UNMAP] NOT-FREED binfo: %p\n", temp);
 	}
 exit:
-	mutex_unlock(&inst->registeredbufs.lock);
 	return 0;
 }
 
@@ -726,25 +727,27 @@ int output_buffer_cache_invalidate(struct msm_vidc_inst *inst,
 	return 0;
 }
 
+static bool valid_v4l2_buffer(struct v4l2_buffer *b,
+		struct msm_vidc_inst *inst) {
+	enum vidc_ports port =
+		!V4L2_TYPE_IS_MULTIPLANAR(b->type) ? MAX_PORT_NUM :
+		b->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE ? CAPTURE_PORT :
+		b->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE ? OUTPUT_PORT :
+								MAX_PORT_NUM;
+
+	return port != MAX_PORT_NUM &&
+		inst->fmts[port]->num_planes == b->length;
+}
+
 int msm_vidc_prepare_buf(void *instance, struct v4l2_buffer *b)
 {
 	struct msm_vidc_inst *inst = instance;
 
-	if (!inst || !b)
+	if (!inst || !b || !valid_v4l2_buffer(b, inst))
 		return -EINVAL;
 
-	if (!V4L2_TYPE_IS_MULTIPLANAR(b->type) || !b->length ||
-		(b->length > VIDEO_MAX_PLANES)) {
-		dprintk(VIDC_ERR, "%s: wrong input params\n",
-				__func__);
-		return -EINVAL;
-	}
-
-	if (is_dynamic_output_buffer_mode(b, inst)) {
-		dprintk(VIDC_ERR, "%s: not supported in dynamic buffer mode\n",
-				__func__);
-		return -EINVAL;
-	}
+	if (is_dynamic_output_buffer_mode(b, inst))
+		return 0;
 
 	/* Map the buffer only for non-kernel clients*/
 	if (b->m.planes[0].reserved[0]) {
@@ -889,15 +892,8 @@ int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b)
 	int rc = 0;
 	int i;
 
-	if (!inst || !b)
+	if (!inst || !b || !valid_v4l2_buffer(b, inst))
 		return -EINVAL;
-
-	if (!V4L2_TYPE_IS_MULTIPLANAR(b->type) || !b->length ||
-		(b->length > VIDEO_MAX_PLANES)) {
-		dprintk(VIDC_ERR, "%s: wrong input params\n",
-				__func__);
-		return -EINVAL;
-	}
 
 	if (is_dynamic_output_buffer_mode(b, inst)) {
 		if (b->m.planes[0].reserved[0])
@@ -919,8 +915,9 @@ int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b)
 			b->m.planes[i].m.userptr = 0;
 			continue;
 		}
-
+		mutex_lock(&inst->registeredbufs.lock);
 		binfo = get_registered_buf(inst, b, i, &plane);
+		mutex_unlock(&inst->registeredbufs.lock);
 		if (!binfo) {
 			dprintk(VIDC_ERR,
 				"This buffer is not registered: %d, %d, %d\n",
@@ -973,15 +970,8 @@ int msm_vidc_dqbuf(void *instance, struct v4l2_buffer *b)
 	struct buffer_info *buffer_info = NULL;
 	int i = 0, rc = 0;
 
-	if (!inst || !b)
+	if (!inst || !b || !valid_v4l2_buffer(b, inst))
 		return -EINVAL;
-
-	if (!V4L2_TYPE_IS_MULTIPLANAR(b->type) || !b->length ||
-		(b->length > VIDEO_MAX_PLANES)) {
-		dprintk(VIDC_ERR, "%s: wrong input params\n",
-				__func__);
-		return -EINVAL;
-	}
 
 	if (inst->session_type == MSM_VIDC_DECODER)
 		rc = msm_vdec_dqbuf(instance, b);
@@ -1033,7 +1023,9 @@ int msm_vidc_dqbuf(void *instance, struct v4l2_buffer *b)
 
 		dprintk(VIDC_DBG, "[DEQUEUED]: fd[0] = %d\n",
 			buffer_info->fd[0]);
+		mutex_lock(&inst->registeredbufs.lock);
 		rc = unmap_and_deregister_buf(inst, buffer_info);
+		mutex_unlock(&inst->registeredbufs.lock);
 	} else
 		rc = output_buffer_cache_invalidate(inst, buffer_info);
 
@@ -1201,6 +1193,12 @@ static int setup_event_queue(void *inst,
 	int rc = 0;
 	struct msm_vidc_inst *vidc_inst = (struct msm_vidc_inst *)inst;
 
+	if (!inst || !pvdev) {
+		dprintk(VIDC_ERR, "%s Invalid params inst %p pvdev %p\n",
+					__func__, inst, pvdev);
+		return -EINVAL;
+	}
+
 	v4l2_fh_init(&vidc_inst->event_handler, pvdev);
 	v4l2_fh_add(&vidc_inst->event_handler);
 
@@ -1338,9 +1336,18 @@ void *msm_vidc_open(int core_id, int session_type)
 	inst->debugfs_root =
 		msm_vidc_debugfs_init_inst(inst, core->debugfs_root);
 
-	setup_event_queue(inst, &core->vdev[session_type].vdev);
+	rc = setup_event_queue(inst, &core->vdev[session_type].vdev);
+	if (rc) {
+		dprintk(VIDC_ERR,
+			"%s Failed to set up event queue\n", __func__);
+		goto fail_setup;
+	}
 
 	return inst;
+
+fail_setup:
+	debugfs_remove_recursive(inst->debugfs_root);
+
 fail_init:
 	vb2_queue_release(&inst->bufq[OUTPUT_PORT].vb2_bufq);
 

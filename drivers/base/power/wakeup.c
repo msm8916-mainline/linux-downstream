@@ -15,7 +15,6 @@
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
 #include <trace/events/power.h>
-#include <linux/workqueue.h>
 
 #include "power.h"
 
@@ -53,42 +52,6 @@ static void pm_wakeup_timer_fn(unsigned long data);
 static LIST_HEAD(wakeup_sources);
 
 static DECLARE_WAIT_QUEUE_HEAD(wakeup_count_wait_queue);
-
-struct workqueue_struct *polling_wakelock_wq;
-struct delayed_work polling_wakelock_work;
-void wakeup_source_monitor(void){
-	struct wakeup_source *ws;
-	int active = 0;
-	int counter= 0;
-	struct wakeup_source *last_activity_ws = NULL;
-
-	rcu_read_lock();
-	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
-		counter++;
-		if (unlikely(!ws)){
-			pr_info("Error detect!! wakeup_source %d is null\n",counter);
-			continue;
-		}
-		if (ws->active) {
-			ktime_t now = ktime_get();
-			unsigned long delta = ktime_to_ms(ktime_sub(now, ws->last_time));
-			pr_info("Wakelock: %s had locked since %ld.%03ld sec ago\n", ws->name,delta/1000L,delta%1000L);
-			active = 1;
-		} else if (!active && (!last_activity_ws || ktime_to_ns(ws->last_time) > ktime_to_ns(last_activity_ws->last_time))) {
-			last_activity_ws = ws;
-		}
-	}
-
-	if (!active && last_activity_ws)
-		pr_info("last active Wakelock: %s\n", last_activity_ws->name);
-	rcu_read_unlock();
-}
-void polling_wakelock(struct work_struct *dat){
-        printk("Polling Wakelock:\n");
-        wakeup_source_monitor();
-        queue_delayed_work(polling_wakelock_wq, &polling_wakelock_work, 300*HZ);
-}
-
 
 /**
  * wakeup_source_prepare - Prepare a new wakeup source for initialization.
@@ -701,11 +664,11 @@ static void print_active_wakeup_sources(void)
 	struct wakeup_source *ws;
 	int active = 0;
 	struct wakeup_source *last_activity_ws = NULL;
-	pr_info("[Wakelock]combined_event_count = %#x\n", atomic_read(&combined_event_count));
+
 	rcu_read_lock();
 	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
 		if (ws->active) {
-			pr_info("[Wakelock]active wakeup source: %s\n", ws->name);
+			pr_info("active wakeup source: %s\n", ws->name);
 			active = 1;
 		} else if (!active &&
 			   (!last_activity_ws ||
@@ -716,7 +679,7 @@ static void print_active_wakeup_sources(void)
 	}
 
 	if (!active && last_activity_ws)
-		pr_info("[Wakelock]last active wakeup source: %s\n",
+		pr_info("last active wakeup source: %s\n",
 			last_activity_ws->name);
 	rcu_read_unlock();
 }
@@ -775,8 +738,7 @@ bool pm_get_wakeup_count(unsigned int *count, bool block)
 			split_counters(&cnt, &inpr);
 			if (inpr == 0 || signal_pending(current))
 				break;
-			pr_info("[Wakelock] %d wakelocks exist. Try to suspend failed, waiting to unlock.\n",inpr);
-			wakeup_source_monitor();
+
 			schedule();
 		}
 		finish_wait(&wakeup_count_wait_queue, &wait);
@@ -808,7 +770,6 @@ bool pm_save_wakeup_count(unsigned int count)
 	if (cnt == count && inpr == 0) {
 		saved_count = count;
 		events_check_enabled = true;
-		pr_info("[Wakelock]Go to suspend, and start to detect wakeup events.\n");
 	}
 	spin_unlock_irqrestore(&events_lock, flags);
 	return events_check_enabled;
@@ -894,26 +855,6 @@ static int print_wakeup_source_stats(struct seq_file *m,
 	return ret;
 }
 
-static void print_activing_wakeup_sources(struct seq_file *m){
-	unsigned long flags;
-	struct wakeup_source *ws;
-	bool actving = false;
-	int ret;
-	seq_puts(m, "=================\nSummary:\n");
-	list_for_each_entry_rcu(ws, &wakeup_sources, entry){
-		spin_lock_irqsave(&ws->lock, flags);
-		if (ws->active) {
-			unsigned long delta = ktime_to_ms(ktime_sub(ktime_get(), ws->last_time));
-			actving = true;
-			ret = seq_printf(m, "%s had locked since %ld.%03ld sec ago\n",
-				ws->name, delta/1000L,delta%1000L );
-		}
-		spin_unlock_irqrestore(&ws->lock, flags);
-	}
-	if(!actving)
-		seq_printf(m, "None of wakelock is activing!\n");
-}
-
 /**
  * wakeup_sources_stats_show - Print wakeup sources statistics information.
  * @m: seq_file to print the statistics into.
@@ -929,7 +870,6 @@ static int wakeup_sources_stats_show(struct seq_file *m, void *unused)
 	rcu_read_lock();
 	list_for_each_entry_rcu(ws, &wakeup_sources, entry)
 		print_wakeup_source_stats(m, ws);
-	print_activing_wakeup_sources(m);
 	rcu_read_unlock();
 
 	return 0;
@@ -952,15 +892,6 @@ static int __init wakeup_sources_debugfs_init(void)
 {
 	wakeup_sources_stats_dentry = debugfs_create_file("wakeup_sources",
 			S_IRUGO, NULL, NULL, &wakeup_sources_stats_fops);
-
-        polling_wakelock_wq = create_freezable_workqueue("polling_wakelock_wq");
-	if (!polling_wakelock_wq){
-		printk("[Wakelock]polling_wakelock_wq init failed!\n");
-	}
-	else{
-		INIT_DELAYED_WORK(&polling_wakelock_work, polling_wakelock);
-		queue_delayed_work(polling_wakelock_wq, &polling_wakelock_work,300*HZ);
-	}
 	return 0;
 }
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -32,6 +32,8 @@ static unsigned int ATD_camera_status;
 static unsigned int ATD_vga_status;
 static unsigned int ATD_camera_id;
 static unsigned int ATD_vga_id;
+static unsigned int ATD_wrong_camera_module;
+static unsigned int ATD_wrong_vga_module;
 //ASUS_BSP-- for ATD status
 
 //ASUS_BSP+++ for reading dtsi fail
@@ -645,17 +647,42 @@ int msm_sensor_driver_dbgfs_init(int cameraId)
 		debugfs_dir = debugfs_create_dir("camera0", NULL);
 		debugfs_create_u32("camera_status", 0644, debugfs_dir, &ATD_camera_status);
 		debugfs_create_u32("sensor_id", 0644, debugfs_dir, &ATD_camera_id);
-	} else {
+		debugfs_create_u32("wrong_camera_module", 0644, debugfs_dir, &ATD_wrong_camera_module);
+	} else if (cameraId == 10) {
+		debugfs_dir = debugfs_create_dir("camera0", NULL);
+		debugfs_create_u32("wrong_camera_module", 0644, debugfs_dir, &ATD_wrong_camera_module);	
+	} else if (cameraId == 1) {
 		debugfs_dir = debugfs_create_dir("camera1", NULL);
 		debugfs_create_u32("vga_status", 0644, debugfs_dir, &ATD_vga_status);
 		debugfs_create_u32("sensor_id", 0644, debugfs_dir, &ATD_vga_id);
-	} 
+		debugfs_create_u32("wrong_vga_module", 0644, debugfs_dir, &ATD_wrong_vga_module);
+	} else if (cameraId == 11) {
+		debugfs_dir = debugfs_create_dir("camera1", NULL);
+		debugfs_create_u32("wrong_vga_module", 0644, debugfs_dir, &ATD_wrong_vga_module);	
+	}
 	return 0;
 }
 /*---------- dbgfs ----------*/
 //ASUS_BSP++ for ATD status
 
 /* static function definition */
+int32_t msm_sensor_driver_is_special_support(
+	struct msm_sensor_ctrl_t *s_ctrl,
+	char* sensor_name)
+{
+	int32_t rc = FALSE;
+	int32_t i = 0;
+	struct msm_camera_sensor_board_info *sensordata = s_ctrl->sensordata;
+	for (i = 0; i < sensordata->special_support_size; i++) {
+		if (!strcmp(sensordata->special_support_sensors[i],
+			sensor_name)) {
+			rc = TRUE;
+			break ;
+		}
+	}
+	return rc;
+}
+
 int32_t msm_sensor_driver_probe(void *setting,
 	struct msm_sensor_info_t *probed_info, char *entity_name)
 {
@@ -667,6 +694,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 	struct msm_camera_slave_info        *camera_info = NULL;
 
 	unsigned long                        mount_pos = 0;
+	uint32_t                             is_yuv;
 
 	/* Validate input parameters */
 	if (!setting) {
@@ -727,6 +755,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 			setting32.is_init_params_valid;
 		slave_info->sensor_init_params = setting32.sensor_init_params;
 		slave_info->is_flash_supported = setting32.is_flash_supported;
+		slave_info->output_format = setting32.output_format;
 	} else
 #endif
 	{
@@ -739,7 +768,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 	}
 
 	//ASUS_BSP+++ MAIN camera probed by gpio 56
-	if(strcmp("ov5670",slave_info->sensor_name) == 0) {
+	if((strcmp("ov5670",slave_info->sensor_name) == 0)||(strcmp("ov5670_30010a3",slave_info->sensor_name) == 0)) {
 		rc = gpio_request(958, "MAIN_CAM_ID1");
 		if(rc) {
 			pr_err("%s: failed to request gpio(pin 56:958) %d\n", __func__, __LINE__);
@@ -815,6 +844,16 @@ int32_t msm_sensor_driver_probe(void *setting,
 
 		rc = 0;
 		goto free_slave_info;
+	}
+
+	if (s_ctrl->sensordata->special_support_size > 0) {
+		if (!msm_sensor_driver_is_special_support(s_ctrl,
+			slave_info->sensor_name)) {
+			pr_err("%s:%s is not support on this board\n",
+				__func__, slave_info->sensor_name);
+			rc = 0;
+			goto free_slave_info;
+		}
 	}
 
 	rc = msm_sensor_get_power_settings(setting, slave_info,
@@ -921,13 +960,27 @@ int32_t msm_sensor_driver_probe(void *setting,
 	rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
 	if (rc < 0) {
 		pr_err("%s power up failed", slave_info->sensor_name);
+		if ((rc == -2680)||(rc == -2051)) {
+			ATD_wrong_vga_module = 1;
+			msm_sensor_driver_dbgfs_init(11);
+		}
+		if ((rc == -8856)||(rc == -1481)) {
+			ATD_wrong_camera_module = 1;
+			msm_sensor_driver_dbgfs_init(10);
+		}
 		goto free_camera_info;
 	}
 //ASUS_BSP+++
-       /* read otp */
-       rc = s_ctrl->func_tbl->sensor_read_otp(s_ctrl);
-       if(rc < 0)
-	       pr_err("%s read otp fail", slave_info->sensor_name);
+    /* read otp */
+    rc = s_ctrl->func_tbl->sensor_read_otp(s_ctrl);
+    if(rc < 0) {
+    	pr_err("%s read otp fail", slave_info->sensor_name);
+		if (rc == -5670) {
+			ATD_wrong_camera_module = 1;
+			msm_sensor_driver_dbgfs_init(10);
+			goto camera_power_down;
+		}
+    }
 //ASUS_BSP---
 	pr_err("%s probe succeeded", slave_info->sensor_name);
 
@@ -935,14 +988,32 @@ int32_t msm_sensor_driver_probe(void *setting,
 	if(strcmp("ov5670",slave_info->sensor_name) == 0) {
 		ATD_camera_status = 1;
 		ATD_camera_id = 5670; //camera_info->sensor_id;
+		ATD_wrong_camera_module = 0;
 		msm_sensor_driver_dbgfs_init(0);
-        } else if(strcmp("t4k35",slave_info->sensor_name) == 0) {
-                ATD_camera_status = 1;
-                ATD_camera_id = 35; //camera_info->sensor_id;
-                msm_sensor_driver_dbgfs_init(0);
-	} else if (strcmp("gc0310",slave_info->sensor_name) == 0 || strcmp("hm2051",slave_info->sensor_name) == 0) {
+    } else if(strcmp("ov5670_30010a3",slave_info->sensor_name) == 0) {
+        ATD_camera_status = 1;
+        ATD_camera_id = 5670; //camera_info->sensor_id;
+        ATD_wrong_camera_module = 0;
+        msm_sensor_driver_dbgfs_init(0);
+    } else if(strcmp("t4k35",slave_info->sensor_name) == 0) {
+        ATD_camera_status = 1;
+        ATD_camera_id = 35; //camera_info->sensor_id;
+        ATD_wrong_camera_module = 0;
+        msm_sensor_driver_dbgfs_init(0);
+    } else if(strcmp("ov8856",slave_info->sensor_name) == 0) {
+        ATD_camera_status = 1;
+        ATD_camera_id = 8856; //camera_info->sensor_id;
+        ATD_wrong_camera_module = 0;
+        msm_sensor_driver_dbgfs_init(0);
+	} else if (strcmp("hm2051",slave_info->sensor_name) == 0) {
 		ATD_vga_status = 1;
 		ATD_vga_id = 2051;//camera_info->sensor_id;
+		ATD_wrong_vga_module = 0;
+		msm_sensor_driver_dbgfs_init(1);
+	} else if (strcmp("ov2680",slave_info->sensor_name) == 0) {
+		ATD_vga_status = 1;
+		ATD_vga_id = 2680;//camera_info->sensor_id;
+		ATD_wrong_vga_module = 0;
 		msm_sensor_driver_dbgfs_init(1);
 	}
 	//ASUS_BSP-- for ATD status
@@ -992,9 +1063,12 @@ int32_t msm_sensor_driver_probe(void *setting,
 		goto free_camera_info;
 	}
 	/* Update sensor mount angle and position in media entity flag */
-	mount_pos = s_ctrl->sensordata->sensor_info->position << 16;
-	mount_pos = mount_pos | ((s_ctrl->sensordata->sensor_info->
-		sensor_mount_angle / 90) << 8);
+	is_yuv = (slave_info->output_format == MSM_SENSOR_YCBCR) ? 1 : 0;
+	mount_pos = is_yuv << 25 |
+		(s_ctrl->sensordata->sensor_info->position << 16) |
+		((s_ctrl->sensordata->
+		sensor_info->sensor_mount_angle / 90) << 8);
+
 	s_ctrl->msm_sd.sd.entity.flags = mount_pos | MEDIA_ENT_FL_DEFAULT;
 
 	/*Save sensor info*/
@@ -1047,7 +1121,7 @@ static int32_t msm_sensor_driver_get_gpio_data(
 		if(gCell_id == 0)
 			gpio_array_size = 3;
 		else if (gCell_id == 1)
-			gpio_array_size = 4;
+			gpio_array_size = 3;
 	}
 #endif
 //ASUS_BSP---
@@ -1074,8 +1148,7 @@ static int32_t msm_sensor_driver_get_gpio_data(
 			} else if (gCell_id == 1) {
 				if( i == 0) gpio_array[i] = 929;
                                 else if( i == 1) gpio_array[i] = 930;
-                                else if( i == 2) gpio_array[i] = 935;
-                                else if( i == 3) gpio_array[i] = 1023;
+                                else if( i == 2) gpio_array[i] = 1023;
 			}
 			pr_err("Resore gpio_array[%d] = %d", i, gpio_array[i]);
 		}
@@ -1113,7 +1186,8 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 	int32_t                              rc = 0;
 	struct msm_camera_sensor_board_info *sensordata = NULL;
 	struct device_node                  *of_node = s_ctrl->of_node;
-	uint32_t cell_id;
+	uint32_t                             cell_id;
+	int32_t                              i;
 
 	s_ctrl->sensordata = kzalloc(sizeof(*sensordata), GFP_KERNEL);
 	if (!s_ctrl->sensordata) {
@@ -1148,6 +1222,34 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 		pr_err("failed: sctrl already filled for cell_id %d", cell_id);
 		rc = -EINVAL;
 		goto FREE_SENSOR_DATA;
+	}
+
+	sensordata->special_support_size =
+		of_property_count_strings(of_node, "qcom,special-support-sensors");
+
+	if (sensordata->special_support_size < 0)
+		sensordata->special_support_size = 0;
+
+	if (sensordata->special_support_size > MAX_SPECIAL_SUPPORT_SIZE) {
+		pr_err("%s:support_size exceed max support size\n",__func__);
+		sensordata->special_support_size = MAX_SPECIAL_SUPPORT_SIZE;
+	}
+
+	if (sensordata->special_support_size) {
+		for( i = 0; i < sensordata->special_support_size; i++) {
+			rc = of_property_read_string_index(of_node,
+				"qcom,special-support-sensors", i,
+				&(sensordata->special_support_sensors[i]));
+			if(rc < 0 ) {
+				/* if read sensor support names failed,
+				*   set support all sensors, break;
+				*/
+				sensordata->special_support_size = 0;
+				break ;
+			}
+			CDBG("%s special_support_sensors[%d] = %s\n", __func__,
+				i, sensordata->special_support_sensors[i]);
+		}
 	}
 
 	/* Read subdev info */

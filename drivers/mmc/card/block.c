@@ -1040,7 +1040,7 @@ static const struct block_device_operations mmc_bdops = {
 #ifdef CONFIG_COMPAT
 	.compat_ioctl		= mmc_blk_compat_ioctl,
 #endif
-	.is_media_present = mmc_is_media_present,
+        .is_media_present = mmc_is_media_present,
 };
 
 static inline int mmc_blk_part_switch(struct mmc_card *card,
@@ -1477,13 +1477,6 @@ retry:
 			goto out;
 	}
 
-	if (mmc_can_sanitize(card)) {
-		trace_mmc_blk_erase_start(EXT_CSD_SANITIZE_START, 0, 0);
-		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
-				 EXT_CSD_SANITIZE_START, 1,
-				 MMC_SANITIZE_REQ_TIMEOUT);
-		trace_mmc_blk_erase_end(EXT_CSD_SANITIZE_START, 0, 0);
-	}
 out_retry:
 	if (err && !mmc_blk_reset(md, card->host, type))
 		goto retry;
@@ -2615,10 +2608,6 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 
 	do {
 		if (rqc) {
-#ifdef CONFIG_MMC_PERF_PROFILING
-            if (rq_data_dir(req) == WRITE)
-                card->sectors_changed += blk_rq_sectors(req);
-#endif
 			/*
 			 * When 4KB native sector is enabled, only 8 blocks
 			 * multiple read or write is allowed
@@ -2715,14 +2704,14 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 		case MMC_BLK_RETRY:
 			if (retry++ < MMC_BLK_MAX_RETRIES)
 				break;
-            /* Some card declares CMD23 supports in SCR.33,
-             * but actually, it doesn't response CMD23. */
-            if (mmc_card_sd(card) && (brq->sbc.opcode == MMC_SET_BLOCK_COUNT) &&
-                (card->sd_bus_speed != UHS_SDR104_BUS_SPEED)) {
-                    card->quirks |= MMC_QUIRK_BLK_NO_CMD23;
-                    pr_info("%s: disable CMD23 due to card doesn't response it\n",
-                        mmc_hostname(card->host));
-            }
+			/* Some card declares CMD23 supports in SCR.33,
+			 * but actually, it doesn't response CMD23. */
+			if (mmc_card_sd(card) && (brq->sbc.opcode == MMC_SET_BLOCK_COUNT) &&
+			    (card->sd_bus_speed != UHS_SDR104_BUS_SPEED)) {
+				card->quirks |= MMC_QUIRK_BLK_NO_CMD23;
+				pr_info("%s: disable CMD23 due to card doesn't response it\n",
+					mmc_hostname(card->host));
+			}
 			/* Fall through */
 		case MMC_BLK_ABORT:
 			if (!mmc_blk_reset(md, card->host, type) &&
@@ -3348,8 +3337,7 @@ static int mmc_blk_probe(struct mmc_card *card)
 	mmc_fixup_device(card, blk_fixups);
 
 #ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-	if (card->host->caps2 & MMC_CAP2_DEFERRED_RESUME)
-		mmc_set_bus_resume_policy(card->host, 1);
+	mmc_set_bus_resume_policy(card->host, 1);
 #endif
 	if (mmc_add_disk(md))
 		goto out;

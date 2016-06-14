@@ -45,6 +45,10 @@ GaugeVarType UpiGauge;
 #else  ///< for FEATURE_PLAT_WINDOWS
   GVOID* UpiI2CMutex = NULL; 
 #endif ///< for FEATURE_PLAT_WINDOWS
+#if defined(FEATURE_PLAT_WINDOWS)
+  FILE* FPLogFile = NULL;
+  int   ILogFileidex = 0;
+#endif ///< for FEATURE_PLAT_WINDOWS
 GDWORD ApCtlStatus = 0x00;
 GSbsCmdType     *SBSCmd;
 GSbsType        *ReportSBS;
@@ -412,8 +416,11 @@ LABEL_NEXT_ROUND:
   {
     UpiGauge.wGaugeStatus |= GAUGE_STATUS_MEAS_STABLE;
 
-    /// [AT-PM] : Set ADC1 queue to normal configuration ; 08/13/2015
-    ADCUpdateQueue1();
+    if(UpiGauge.wGaugeStatus & GAUGE_STATUS_ADC_QUEUE_INIT)
+    {
+      /// [AT-PM] : Set ADC1 queue to normal configuration ; 08/13/2015
+      ADCUpdateQueue1();
+    }
   }
   if(UpiGauge.wSysMode & SYS_MODE_INIT_CAP)
   {
@@ -671,15 +678,7 @@ GVOID GMainLoop(GVOID)
       Sleep(10);
       continue;
     }
-    /// [RY] : add check device connect status
-    if (ChkBridgeConnect() == FALSE)
-    {
-      GKboErrCode        = UPI_UG31XX_KBO_RTN_EVM_CONN_FAIL;
-      GVerifyMeasErrCode = UPI_UG31XX_VERIFY_MEAS_RTN_CONN_FAIL;
-      LAVE_AP_KBO;  ///< [RY] : clean this time
-      LEAVE_AP_VERIFY_MEAS;
-      continue;
-    }
+    /// initial the every time kbo or verify measurement conut
     cnt = 0;
     sKboCurr = 0;
     iFailCaliCnt = 0;

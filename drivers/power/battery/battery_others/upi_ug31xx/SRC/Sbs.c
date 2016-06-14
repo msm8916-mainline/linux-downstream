@@ -864,6 +864,22 @@ GWORD SbsOffTime(GVOID)
 }
 
 ///---------------------------------------------------///
+/// 0x44,     [O],  RSOC looked up from table
+///---------------------------------------------------///
+
+/**
+ * @brief SbsTableStateOfCharge
+ * 
+ * Get SOC looked up from table
+ *
+ * @return SOC looked up from table
+ */
+GWORD SbsTableStateOfCharge(GVOID)
+{
+  return (ReportSBS->wTSOC);
+}
+
+///---------------------------------------------------///
 /// 0x4B,     [O],  RT of Voltage Gauge
 ///---------------------------------------------------///
 /**
@@ -1019,10 +1035,57 @@ GWORD SbsSysMode(GVOID)
  */
 GVOID SbsSysModeWt(GWORD wData)
 {
-  ReportSBS->wSysMode = wData;
-  SBS->wSysMode = wData;
-  UpiGauge.wSysMode = wData;
-  GLOGD("[%s]: wSysMode = %04x / %04x / %04x / %04x\n", __func__, ReportSBS->wSysMode, SBS->wSysMode, UpiGauge.wSysMode, wData);
+  if(wData == SYS_MODE_CMD_FULL_DEBUG_MSG)
+  {
+    UpiGauge.wSysMode = UpiGauge.wSysMode | SYS_MODE_FULL_DEBUG_MSG;
+    GLOGD("[%s]: wSysMode = %04x / %04x\n", __func__,UpiGauge.wSysMode,wData);
+  }
+  if(wData == SYS_MODE_CMD_SIMPLE_DEBUG_MSG)
+  {
+    UpiGauge.wSysMode = UpiGauge.wSysMode & (~SYS_MODE_FULL_DEBUG_MSG);
+    GLOGD("[%s]: wSysMode = %04x / %04x\n", __func__,UpiGauge.wSysMode,wData);
+  }
+
+  if(wData == SYS_MODE_CMD_INIT_CAP_CLR)
+  {
+    UpiGauge.wSysMode = UpiGauge.wSysMode & (~SYS_MODE_INIT_CAP);
+    GLOGD("[%s]: wSysMode = %04x / %04x\n", __func__,UpiGauge.wSysMode,wData);
+  }
+  if(wData == SYS_MODE_CMD_RESTORED_CLR)
+  {
+    UpiGauge.wSysMode = UpiGauge.wSysMode & (~SYS_MODE_RESTORED);
+    GLOGD("[%s]: wSysMode = %04x / %04x\n", __func__,UpiGauge.wSysMode,wData);
+  }
+  if(wData == SYS_MODE_CMD_PAUSE)
+  {
+    UpiGauge.wSysMode = UpiGauge.wSysMode | SYS_MODE_PAUSE;
+    GLOGD("[%s]: wSysMode = %04x / %04x\n", __func__,UpiGauge.wSysMode,wData);
+  }
+  if(wData == SYS_MODE_CMD_PAUSE_CLR)
+  {
+    UpiGauge.wSysMode = UpiGauge.wSysMode & (~SYS_MODE_PAUSE);
+    GLOGD("[%s]: wSysMode = %04x / %04x\n", __func__,UpiGauge.wSysMode,wData);
+  }
+  if(wData == SYS_MODE_CMD_ACTIVATE)
+  {
+    UpiGauge.wSysMode = UpiGauge.wSysMode | SYS_MODE_ACTIVATE;
+    GLOGD("[%s]: wSysMode = %04x / %04x\n", __func__,UpiGauge.wSysMode,wData);
+  }
+  if(wData == SYS_MODE_CMD_DEACTIVATE)
+  {
+    UpiGauge.wSysMode = UpiGauge.wSysMode | SYS_MODE_DEACTIVATE;
+    GLOGD("[%s]: wSysMode = %04x / %04x\n", __func__,UpiGauge.wSysMode,wData);
+  }
+  if(wData == SYS_MODE_MEAS_CMD_STABLE_CLR)
+  {
+    UpiGauge.wSysMode = UpiGauge.wSysMode & (~SYS_MODE_MEAS_STABLE);
+    GLOGD("[%s]: wSysMode = %04x / %04x\n", __func__,UpiGauge.wSysMode,wData);
+  }
+  if(wData == SYS_MODE_SAVE_CMD_DATA_START_CLR)
+  {
+    UpiGauge.wSysMode = UpiGauge.wSysMode & (~SYS_MODE_SAVE_DATA_START);
+    GLOGD("[%s]: wSysMode = %04x / %04x\n", __func__,UpiGauge.wSysMode,wData);
+  }
   return;
 }
 
@@ -2203,7 +2266,7 @@ STATIC GVOID SBSUpdateCap(GWORD wRsoc)
   bTimeout = 0;
   while(1)
   {
-    wTmpRsoc = SBSCalSoc(SBS->wRM, SBS->wFCC);
+    wTmpRsoc = SBSCalSoc((GWORD)dwTmp, SBS->wFCC);
 
     /// [AT-PM] : The boundary is reached ; 08/26/2015
     if(wTmpRsoc != wRsoc)
@@ -2371,7 +2434,7 @@ GWORD SBSCalSoc(GWORD wRM, GWORD wFcc)
   dwTmp = dwTmp / wFcc;
   dwTmp = dwTmp + CAP_CONST_ROUND_BY_5;
   dwTmp = dwTmp / CAP_CONST_ROUND_BASE;
-  if((dwTmp == 0) && (wRM != 0))
+  if((dwTmp == 0) && (wRM >= 4))
   {
     dwTmp = 1;
   }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -21,6 +21,10 @@
 // ASUS BSP +++
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/HWVersion.h>
+extern int Read_HW_ID(void);
+extern int Read_PROJ_ID(void);
+extern int Read_PCB_ID(void);
 // ASUS BSP ---
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
@@ -105,7 +109,60 @@ void create_camera_proc_file(void){
 		printk("proc otp_uid file create failed!\n");
 	}
 }
+
+void remove_camera_proc_file(void)
+{
+    remove_proc_entry(CAMERA_PROC_OTP_FILE, NULL);
+    remove_proc_entry(CAMERA_PROC_OTP_UNIQUE_ID_FILE, NULL);
+}
 //For DIT VCM Debug and ATD flash Interface---
+
+//ASUS_BSP+++
+void getPCBID(int *ppcb_id, int *pPROJ_ID, int *pZ380KL_Refresh)
+{
+	
+	int pcb_id=-1, project_id=-1, hardware_id=-1, offset_0=-1, offset_1=-1, offset_2=-1, offset_3=-1, offset_4=-1, offset_5=-1; //ASUS_BSP+++
+	int Z380KL_Refresh = 0, PROJECT_ID = -1;
+
+	PROJECT_ID = Read_PROJ_ID();
+	pr_info("%s(%d):Project ID = %d\n",
+		__func__, __LINE__, PROJECT_ID);
+
+	pcb_id = Read_PCB_ID();
+	pr_info("%s(%d):PCB ID = %x\n",
+		__func__, __LINE__, pcb_id);
+
+	switch (PROJECT_ID) {
+		case PROJ_ID_Z380KL:
+	
+			project_id = pcb_id & 0x7;
+			hardware_id = (pcb_id & 0x38) >> 3;
+			offset_0 = (pcb_id & 0x40) >> 6;
+			offset_1 = (pcb_id & 0x80) >> 7;
+			offset_2 = (pcb_id & 0x100) >> 8;
+//			Z380KL_Refresh = (pcb_id & 0x200) >> 9;
+			offset_3 = (pcb_id & 0xE00) >> 9;
+			offset_4 = (pcb_id & 0x3000) >> 12;
+			offset_5 = (pcb_id & 0xC000) >> 14;
+
+			if ((offset_3 == 5)||(offset_3 == 7)) {
+				Z380KL_Refresh = 1;
+			}
+
+			//offset_0: DDR Vendor, offset_1: DDR Density, offset_2: TP, offset_3: LCM, offset_4: Rear CAM, offset_5: Front CAM
+			//PCB_ID = pentry->project_id | pentry->hardware_id << 3 | pentry->offset_0 << 6 | pentry->offset_1 << 7 | pentry->offset_2 << 8 | pentry->offset_3 << 9 | pentry->offset_4 << 12 | pentry->offset_5 << 14;
+
+			pr_info("%s: Z380KL_Refresh=%d, Project ID=%d, Hardware ID=%d, DDR Vendor=%d, DDR Density=%d, TP=%d, LCM=%d, Rear CAM=%d, Front CAM=%d\n", __FUNCTION__, Z380KL_Refresh, project_id, hardware_id, offset_0, offset_1, offset_2, offset_3, offset_4, offset_5);
+			break;
+		default:
+			break;
+	}
+
+	*ppcb_id = pcb_id;
+	*pPROJ_ID = PROJECT_ID;
+	*pZ380KL_Refresh = Z380KL_Refresh;
+}
+//ASUS_BSP---
 
 static struct v4l2_file_operations msm_sensor_v4l2_subdev_fops;
 static void msm_sensor_adjust_mclk(struct msm_camera_power_ctrl_t *ctrl)
@@ -479,6 +536,8 @@ int32_t msm_sensor_free_sensor_data(struct msm_sensor_ctrl_t *s_ctrl)
 	kfree(s_ctrl->sensordata->sensor_info);
 	kfree(s_ctrl->sensordata->power_info.clk_info);
 	kfree(s_ctrl->sensordata);
+
+	remove_camera_proc_file(); //ASUS_BSP+++
 	return 0;
 }
 
@@ -598,6 +657,7 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_camera_i2c_client *sensor_i2c_client;
 	struct msm_camera_slave_info *slave_info;
 	const char *sensor_name;
+	static int pcb_id = -1, PROJ_ID = -1, Z380KL_Refresh = -1; //ASUS_BSP+++
 
 	if (!s_ctrl) {
 		pr_err("%s:%d failed: %p\n",
@@ -623,8 +683,40 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 		return rc;
 	}
 
-	CDBG("%s: read id: 0x%x expected id 0x%x:\n", __func__, chipid,
+	pr_err("%s: read id: 0x%x expected id 0x%x:\n", __func__, chipid,
 		slave_info->sensor_id);
+
+	//ASUS_BSP+++
+    if (pcb_id==-1) {
+	    getPCBID(&pcb_id, &PROJ_ID, &Z380KL_Refresh);
+    }
+
+	if (PROJ_ID == PROJ_ID_Z380KL) {
+//		Z380KL_Refresh = 1; //Test Code, need to be removed before checkin
+    	if (Z380KL_Refresh==0) {
+	      pr_info("%s, Z380KL Project", __FUNCTION__);
+		  if (chipid == 0x2680) {
+		  	pr_err("%s: Wrong vga module = OV2680\n", __func__);
+			return -2680;
+		  }
+  		  if (chipid == 0x885a) {
+		  	pr_err("%s: Wrong camera module = OV8856\n", __func__);
+			return -8856;
+		  }
+	    } else {
+		  pr_info("%s, Z380KL Refresh Project", __FUNCTION__);
+		  if (chipid == 0x20ff) {
+		  	pr_err("%s: Wrong vga module = HM2051\n", __func__);
+			return -2051;
+		  }
+  		  if (chipid == 0x1481) {
+		  	pr_err("%s: Wrong camera module = T4K35\n", __func__);
+			return -1481;
+		  }
+		}
+	}
+	//ASUS_BSP---
+	
 	if (chipid != slave_info->sensor_id) {
 		pr_err("msm_sensor_match_id chip id doesnot match\n");
 		return -ENODEV;
@@ -641,11 +733,12 @@ int msm_sensor_read_otp(struct msm_sensor_ctrl_t *s_ctrl){
 
 	uint16_t read_value[32];
 	uint16_t local_data;
+	static int pcb_id = -1, PROJ_ID = -1, Z380KL_Refresh = -1; //ASUS_BSP+++
 
 	sensor_name = s_ctrl->sensordata->sensor_name;
 	s_ctrl->sensor_i2c_client->addr_type = MSM_CAMERA_I2C_WORD_ADDR;
 
-	if(strcmp("ov5670",sensor_name) == 0){
+	if((strcmp("ov5670",sensor_name) == 0)||(strcmp("ov5670_30010a3",sensor_name) == 0)||(strcmp("ov8856",sensor_name) == 0)){
 		int start_addr, end_addr;
 		pr_err("Back Camera %s\n", sensor_name);
 		// otp valid after mipi on and sw stream on
@@ -712,7 +805,7 @@ int msm_sensor_read_otp(struct msm_sensor_ctrl_t *s_ctrl){
 			if((read_value[0]!=0 || read_value[1]!=0) && (read_value[0]!=0xff || read_value[1]!=0xff)){
 				// 32 bytes OTP
 				if(total_32 == check_sum_32){
-				    pr_err("32byte OTP");
+				    pr_err("32byte OTP\n");
 				    // clear otp buffer
 				    for (i = start_addr; i<=end_addr; i++)
 				        s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(
@@ -729,7 +822,7 @@ int msm_sensor_read_otp(struct msm_sensor_ctrl_t *s_ctrl){
 				    goto out;
 				}
 				else{
-				    pr_err("24byte OTP");
+				    pr_err("24byte OTP\n");
 				    // clear otp buffer
 				    for (i = start_addr; i<=end_addr; i++){
 				        s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_write(
@@ -902,6 +995,54 @@ out:
 	for(i = 0; i < 32; i++)
 		otp_data[i] = (uint8_t) read_value[i];
 
+	printk("%s, Module ID = 0x%x\n", __func__, read_value[8]);
+	printk("%s, OTP Value = \n", __func__);
+	
+	if (total_32 != check_sum_32) {
+		for (i = 0;i < 24;i++){
+		    printk("0x%X", otp_data[i]);
+		      if((i+1) % 8 != 0)
+				printk(" ");
+			  else
+				printk("\n");
+		}
+	}
+	else{
+		for (i = 0;i < 32;i++){
+		    printk("0x%X", otp_data[i]);
+			  if((i+1) % 8 != 0)
+				printk(" ");
+			  else
+				printk("\n");
+		}
+	}
+
+	//ASUS_BSP+++
+    if (pcb_id==-1) {
+	    getPCBID(&pcb_id, &PROJ_ID, &Z380KL_Refresh);
+    }
+
+	if (PROJ_ID == PROJ_ID_Z380KL) {
+//		Z380KL_Refresh = 1; //Test Code, need to be removed before checkin
+    	if (Z380KL_Refresh==0) {
+	      pr_info("%s, Z380KL Project", __FUNCTION__);
+		  if (read_value[8]==0x30) {
+			printk("Wrong Module\n");
+			return -5670;
+		  }
+
+	    } else {
+		  pr_info("%s, Z380KL Refresh Project", __FUNCTION__);
+		  if (read_value[8]==0x1e) {
+			printk("Wrong Module\n");
+			return -5670;
+		  }
+		}
+	}
+	//ASUS_BSP---
+
+
+
 	buf->af_inf_pos = read_value[0]<<8 | read_value[1];
 	buf->af_30cm_pos = read_value[2]<<8 | read_value[3];
 	buf->af_10cm_pos = read_value[4]<<8 | read_value[5];
@@ -968,6 +1109,8 @@ static long msm_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 	case VIDIOC_MSM_SENSOR_RELEASE:
 	case MSM_SD_SHUTDOWN:
 		msm_sensor_stop_stream(s_ctrl);
+		return 0;
+	case MSM_SD_NOTIFY_FREEZE:
 		return 0;
 	default:
 		return -ENOIOCTLCMD;
@@ -1077,8 +1220,10 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		conf_array.delay = conf_array32.delay;
 		conf_array.size = conf_array32.size;
 		conf_array.reg_setting = compat_ptr(conf_array32.reg_setting);
+		conf_array.qup_i2c_batch = conf_array32.qup_i2c_batch;
 
-		if (!conf_array.size) {
+		if (!conf_array.size ||
+			conf_array.size > I2C_REG_DATA_MAX) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 			rc = -EFAULT;
 			break;
@@ -1184,11 +1329,13 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		conf_array.size = conf_array32.size;
 		conf_array.reg_setting = compat_ptr(conf_array32.reg_setting);
 
-		if (!conf_array.size) {
+		if (!conf_array.size ||
+			conf_array.size > I2C_SEQ_REG_DATA_MAX) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 			rc = -EFAULT;
 			break;
 		}
+
 		reg_setting = kzalloc(conf_array.size *
 			(sizeof(struct msm_camera_i2c_seq_reg_array)),
 			GFP_KERNEL);
@@ -1281,6 +1428,7 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		stop_setting->data_type = stop_setting32.data_type;
 		stop_setting->delay = stop_setting32.delay;
 		stop_setting->size = stop_setting32.size;
+		stop_setting->qup_i2c_batch = stop_setting32.qup_i2c_batch;
 
 		reg_setting = compat_ptr(stop_setting32.reg_setting);
 
@@ -1397,7 +1545,8 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 			break;
 		}
 
-		if (!conf_array.size) {
+		if (!conf_array.size ||
+			conf_array.size > I2C_REG_DATA_MAX) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 			rc = -EFAULT;
 			break;
@@ -1493,11 +1642,13 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 			write_config.slave_addr,
 			write_config.conf_array.size);
 
-		if (!write_config.conf_array.size) {
+		if (!write_config.conf_array.size ||
+			write_config.conf_array.size > I2C_SEQ_REG_DATA_MAX) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 			rc = -EFAULT;
 			break;
 		}
+
 		reg_setting = kzalloc(write_config.conf_array.size *
 			(sizeof(struct msm_camera_i2c_reg_array)), GFP_KERNEL);
 		if (!reg_setting) {
@@ -1571,11 +1722,13 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 			break;
 		}
 
-		if (!conf_array.size) {
+		if (!conf_array.size ||
+			conf_array.size > I2C_SEQ_REG_DATA_MAX) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
 			rc = -EFAULT;
 			break;
 		}
+
 		reg_setting = kzalloc(conf_array.size *
 			(sizeof(struct msm_camera_i2c_seq_reg_array)),
 			GFP_KERNEL);

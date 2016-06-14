@@ -101,10 +101,10 @@
 			compatible = "capella,cm36686";
 			reg = <0x60>;
 			interrupt-parent = <&msm_gpio>;
-			interrupts = <113 0x2002>;
+			interrupts = <113 0x2008>;
 			vdd-supply = <&pm8916_l17>;
 			vio-supply = <&pm8916_l17>;
-			capella,interrupt-gpio = <&msm_gpio 113 0x2002>;
+			capella,interrupt-gpio = <&msm_gpio 113 0x2008>;
 			capella,levels = <0x02 0x0f 0x1e 0x32 0x64 0xC8 0x12C 0x190 0x1F4 0x28A 0x320 0x3E8 0x5DC 0x7D0 0xBB8 0xFA0 0x1388 0x1B58 0x2710 0x30D4 0x3A98 0x445C 0x4E20>;
 			capella,ps_close_thd_set = <0x1e>;
 			capella,ps_away_thd_set = <0x19>;
@@ -114,7 +114,13 @@
 		};
 
 	};
-
+	
+	Hall_sensor {
+                compatible = "YOBON,YB8251ST23";
+                YOBON,hall-intr-gpio = <&msm_gpio 117 0>;
+                vdd-supply = <&pm8916_l6>;
+        };
+	
 	gen-vkeys {
 		compatible = "qcom,gen-vkeys";
 		label = "ekth3260";
@@ -130,10 +136,12 @@
 #include "dsi-panel-ili6136s-800x1280-video.dtsi"
 #include "dsi-panel-nt35521-800x1280-video.dtsi"
 #include "dsi-panel-rm27013-800x1280-video.dtsi"
+#include "dsi-panel-rm68200-800x1280-video.dtsi"
 
 &mdss_dsi0 {
 	qcom,dsi-pref-prim-pan-ili6136s = <&dsi_ili6136s_800x1280_video>;
 	qcom,dsi-pref-prim-pan-rm27013 = <&dsi_rm27013_800x1280_video>;
+	qcom,dsi-pref-prim-pan-rm68200 = <&dsi_rm68200_800x1280_video>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
@@ -143,16 +151,12 @@
 	/delete-property/ qcom,platform-bklight-en-gpio;
 
 	// EVB ++++
-	qcom,dsi-pref-prim-pan-nt35521 = <&dsi_nt35521_800x1280_video>;
 	qcom,platform-enable-gpio-evb = <&msm_gpio 97 0>;
 	qcom,platform-bklight-en-gpio-evb = <&msm_gpio 98 0>;
 	// EVB ----
 
 	qcom,platform-lcm-id2 = <&msm_gpio 102 0>;
-};
-
-&dsi_nt35521_800x1280_video {
-	qcom,cont-splash-enabled;
+	qcom,platform-lcm-id0 = <&msm_gpio 100 0>;
 };
 
 &dsi_ili6136s_800x1280_video {
@@ -160,6 +164,10 @@
 };
 
 &dsi_rm27013_800x1280_video {
+	qcom,cont-splash-enabled;
+};
+
+&dsi_rm68200_800x1280_video {
 	qcom,cont-splash-enabled;
 };
 
@@ -194,21 +202,9 @@
 		};
 	};
 
-	i2c@78b6000 { /* BLSP1 QUP2 */
-		/delete-node/ wcd9xxx_codec@14;
-	};
-
-	sound {
-		/delete-property/ qcom,cdc-us-euro-gpios;
-		qcom,msm-mbhc-hphl-swh = <1>;
-		qcom,uart-debug-gpio = <&msm_gpio 112 0>;
-	};
-	
-	Hall_sensor {
-		compatible = "YOBON,YB8251ST23";
-                vdd-supply = <&pm8916_l5>;
-		YOBON,hall-intr-gpio = <&msm_gpio 117 0>;
-	};
+        sound {
+                qcom,uart-debug-gpio = <&msm_gpio 112 0>;
+        };
 };
 
 &pmx_mdss_te {
@@ -239,7 +235,6 @@
 	/delete-property/ vdd-supply;
 	vdd-en-gpio = <&msm_gpio 119 0>;
 };
-
 /* +++++++++++++++++++++++++ USB, Charger, Battery +++++++++++++++++++++++++ */
 &soc {
 	tlmm_pinmux: pinctrl@1000000 {
@@ -416,4 +411,3 @@
        qcom,cover_id_np-gpio = <&msm_gpio 0 1>;
 };
 /* ------------------------- USB, Charger, Battery ------------------------- */
-

@@ -348,6 +348,8 @@ typedef void                 GVOID;
 #define TIME_MSEC_TO_SEC                  (1000)  ///< 1SEC = 1000 MS
 #define TIME_SEC_TO_MIN                   (60)    ///< 1MIN =  60 SEC
 #define TIME_MIN_TO_HOUR                  (60)    ///< 1HR = 60 MIN
+#define TIME_HOUR_TO_DAY                  (24)    ///< 1DAY = 24 HR
+#define TIME_DAY_TO_MONTH                 (30)    ///< 1MON = 30 DAY
 
 #define TIME_NORMAL_NEXT_ROUND            (1000)
 #define TIME_RESET_NEXT_ROUND             (300)
@@ -438,6 +440,8 @@ typedef void                 GVOID;
 #define GAUGE_STATUS_MEAS_STABLE        (1<<5)   ///< Measurment data is stable
   #define GAUGE_MEAS_STABLE_COUNT         (GAUGE_RESET_DONE_COUNT + 3)
 #define GAUGE_STATUS_SERVICE_SBS_CMD    (1<<6)   ///< Service SBS command
+#define GAUGE_STATUS_DRV_VERSION_MIS    (1<<7)   ///< Driver version mismatched
+#define GAUGE_STATUS_ADC_QUEUE_INIT     (1<<8)   ///< ADC1 conversion queue in initial state
 
 ///-------------------------------------------------------------------------------///
 /// Gauge ERR
@@ -494,6 +498,7 @@ typedef void                 GVOID;
 #define CAP_CNTL_RESET                    (1<<0)
 #define CAP_CNTL_SET_FULL                 (1<<1)
 #define CAP_CNTL_SET_RSOC                 (1<<2)
+#define CAP_CNTL_INIT_RUN                 (1<<3)
 
 #define CAP_CHG_STATE_FULL_CHARGE         (1<<0)
 
@@ -714,6 +719,7 @@ typedef void                 GVOID;
   #define SBS_ALARM_UV_DISABLE    (0x7576)
 #define SBS_OFF_TIME            (0x43)                ///< Power Off Time in minutes
   #define SBS_OFF_TIME_MAXIMUM  (65535)
+#define SBS_CAP_TABLE_RSOC      (0x44)                ///< RSOC looked from table
 #define SBS_VCAP_RSOC           (0x4d)                ///< RSOC of Voltage Gauge
 #define SBS_VCAP_ASOC           (0x4e)                ///< ASOC of Voltage Gauge
 #define SBS_VCAP_RM             (0x4f)                ///< RM of Voltage Gauge
@@ -723,6 +729,18 @@ typedef void                 GVOID;
 /// Vedor SBS Command
 ///-------------------------------------------------------------------------------///
 #define SBS_SYS_MODE          (0xC0)  
+  #define SYS_MODE_CMD_FULL_DEBUG_MSG   (0x1122)
+  #define SYS_MODE_CMD_SIMPLE_DEBUG_MSG (0x2211)
+  #define SYS_MODE_CMD_INIT_CAP_CLR        (0x3344)
+  #define SYS_MODE_CMD_RESTORED_CLR        (0x4433)
+  #define SYS_MODE_CMD_PAUSE               (0x5566)
+  #define SYS_MODE_CMD_PAUSE_CLR           (0x6655)  
+  #define SYS_MODE_CMD_ACTIVATE            (0x7788)  
+  #define SYS_MODE_CMD_DEACTIVATE          (0x8877)  
+  #define SYS_MODE_MEAS_CMD_STABLE_CLR     (0x9900) 
+  #define SYS_MODE_SAVE_CMD_DATA_START_CLR (0x0099) 
+
+  
 #define SBS_REG_ADDR          (0xC3)  
 #define SBS_REG_DATA          (0xC4)
   /// High byte

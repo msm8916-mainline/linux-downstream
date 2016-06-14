@@ -48,7 +48,7 @@
  */
 
 #include <linux/irq.h>
-#include "gt928.h"
+#include <gt928.h>
 
 #include <linux/regulator/consumer.h>
 #include <linux/of_gpio.h>
@@ -71,7 +71,7 @@
 /*[BUGFIX]Add End by TCTSZ-LZ 2014-5-5,PR-667466. TP INT pull-up enable.*/
 
 static const char *goodix_ts_name = "goodix-touchscreen";
-static struct workqueue_struct *goodix_wq;
+struct workqueue_struct *goodix_wq;
 struct i2c_client * i2c_connect_client = NULL;
 u8 config[GTP_CONFIG_MAX_LENGTH + GTP_ADDR_LENGTH]
     = {GTP_REG_CONFIG_DATA >> 8, GTP_REG_CONFIG_DATA & 0xff};
@@ -135,6 +135,7 @@ extern u8 gup_init_update_proc(struct goodix_ts_data *);
 #endif
 
 #if GTP_ESD_PROTECT
+static struct delayed_work gtp_esd_start_work;
 static struct delayed_work gtp_esd_check_work;
 static struct workqueue_struct * gtp_esd_check_workqueue = NULL;
 static void gtp_esd_check_func(struct work_struct *);
@@ -145,6 +146,11 @@ void gtp_esd_switch(struct i2c_client *, s32);
 // add by leo ++
 extern int Read_HW_ID(void);
 // add by leo --
+
+#if GTP_OPENSHORT_TEST
+extern s32 gtp_test_sysfs_init(void);
+extern void gtp_test_sysfs_deinit(void);
+#endif
 
 //*********** For GT9XXF Start **********//
 #if GTP_COMPATIBLE_MODE
@@ -184,6 +190,55 @@ static s8 gtp_enter_doze(struct goodix_ts_data *ts);
 #endif
 
 u8 grp_cfg_version = 0;
+
+// add by leo ++
+struct delayed_work  gt928_fw_check_work;
+static struct workqueue_struct * gt928_fw_check_workqueue = NULL;
+
+#if DRIVER_SEND_AC_CONFIG
+struct delayed_work  gt928_send_ac_config_work;
+struct workqueue_struct * gt928_send_ac_config_workqueue = NULL;
+#endif
+
+int gt928_debug;
+EXPORT_SYMBOL(gt928_debug);
+extern unsigned int entry_mode;
+extern int build_version;
+
+extern int build_version;
+extern const struct attribute_group gt928_attr_group;
+extern struct miscdevice gt928_misc_dev;
+
+extern void gt928_create_proc_tp_debug_file(void);
+extern void gt928_remove_proc_tp_debug_file(void);
+extern void gt928_create_proc_debug_file(void);
+extern void gt928_remove_proc_debug_file(void);
+extern void gt928_create_proc_diag_file(void);
+extern void gt928_remove_proc_diag_file(void);
+extern void gt928_create_proc_test_file(void);
+extern void gt928_remove_proc_test_file(void);
+extern void gt928_create_proc_gesture_file(void);
+extern void gt928_remove_proc_gesture_file(void);
+
+extern s8 gt928_read_cfg_version(struct i2c_client *client);
+extern s32 gt928_send_cfg(struct i2c_client *client, u8 *iconfig);
+extern int gt928_get_display_id(void);
+//extern int gt928_get_tp_id(int source);
+extern int gt928_FW_check(void);
+extern int Read_HW_ID(void);
+
+extern ssize_t touch_switch_name(struct switch_dev *sdev, char *buf);
+extern ssize_t touch_switch_state(struct switch_dev *sdev, char *buf);
+
+// add by leo for cable status notifier ++
+#if DRIVER_SEND_AC_CONFIG
+extern int cable_status_register_client(struct notifier_block *nb);
+extern int cable_status_unregister_client(struct notifier_block *nb);
+extern int gt928_cable_status_handler(struct notifier_block *nb, unsigned long event, void *ptr);
+extern struct notifier_block gt928_cable_status_notifier;
+#endif
+// add by leo for cable status notifier --
+// add by leo --
 
 /*******************************************************
 Function:
@@ -415,6 +470,8 @@ void gtp_irq_disable(struct goodix_ts_data *ts)
         disable_irq_nosync(ts->client->irq);
     }
     spin_unlock_irqrestore(&ts->irq_lock, irqflags);
+
+    return;
 }
 
 /*******************************************************
@@ -438,9 +495,59 @@ void gtp_irq_enable(struct goodix_ts_data *ts)
         ts->irq_is_disable = 0;
     }
     spin_unlock_irqrestore(&ts->irq_lock, irqflags);
+
+    return;
 }
 
+/*******************************************************
+* Function:
+* test gt9 series Config Checksum
+* Input:
+* client, i2c_client
+* Return:
+* SUCCESS: test process success, FAIL, test process failed
+*
+*********************************************************/
+s8 gt9xx_read_Config_Checksum(void)
+{
+    s8 ret = FAIL;
+    u8 buf[10] = {GTP_REG_CHECKSUM_ONE >> 8, GTP_REG_CHECKSUM_ONE & 0xFF};
+    struct goodix_ts_data *ts = i2c_get_clientdata(i2c_connect_client);
 
+    gtp_irq_disable(ts);
+
+#if GTP_ESD_PROTECT
+    ts->gtp_is_suspend = 1; // suspend esd
+#endif
+
+    //read Config Checksum
+    ret = gtp_i2c_read(i2c_connect_client, buf, sizeof(buf));
+    if(ret <= 0)
+    {
+        GTP_ERROR("<Sysfs-INFO>I2C transfer error. errno:%d\n ", ret);
+        goto exit_read_Config_checksum;
+    }
+    else
+    {
+        //print Config Checksum ONE
+        GTP_INFO("<Sysfs-INFO>CFG Checksum (0x80FF): 0x%02X", buf[2]);
+        ts->config_checksum = buf[2];
+    }
+    gtp_irq_enable(ts);
+
+#if GTP_ESD_PROTECT
+    ts->gtp_is_suspend = 0; // resume esd
+#endif
+    return SUCCESS;
+
+exit_read_Config_checksum:
+    gtp_irq_enable(ts);
+
+#if GTP_ESD_PROTECT
+    ts->gtp_is_suspend = 0; // resume esd
+#endif
+    return FAIL;
+}
 /*******************************************************
 Function:
     Report touch point event
@@ -477,6 +584,7 @@ static void gtp_touch_down(struct goodix_ts_data* ts,s32 id,s32 x,s32 y,s32 w)
 #endif
 
     GTP_DEBUG("ID:%d, X:%d, Y:%d, W:%d", id, x, y, w);
+    return;
 }
 
 /*******************************************************
@@ -496,6 +604,8 @@ static void gtp_touch_up(struct goodix_ts_data* ts, s32 id)
 #else
     input_report_key(ts->input_dev, BTN_TOUCH, 0);
 #endif
+
+    return;
 }
 
 #if GTP_WITH_PEN
@@ -545,6 +655,8 @@ static void gtp_pen_init(struct goodix_ts_data *ts)
         GTP_ERROR("Register %s input device failed", ts->pen_dev->name);
         return;
     }
+
+    return;
 }
 
 static void gtp_pen_down(s32 x, s32 y, s32 w, s32 id)
@@ -573,6 +685,7 @@ static void gtp_pen_down(s32 x, s32 y, s32 w, s32 id)
     input_mt_sync(ts->pen_dev);
 #endif
     GTP_DEBUG("(%d)(%d, %d)[%d]", id, x, y, w);
+    return;
 }
 
 static void gtp_pen_up(s32 id)
@@ -588,6 +701,7 @@ static void gtp_pen_up(s32 id)
     input_report_key(ts->pen_dev, BTN_TOUCH, 0);
 #endif
 
+    return;
 }
 #endif
 
@@ -630,6 +744,12 @@ static void goodix_ts_work_func(struct work_struct *work)
     u8 doze_buf[3] = {0x81, 0x4B};
 #endif
 
+    // add by leo for report gesture point ++
+    u8 point_buf[6] = {0x94, 0x20};
+    s32 double_tap_x = 0;
+    s32 double_tap_y = 0;
+    // add by leo for report gesture point --
+
     GTP_DEBUG_FUNC();
     ts = container_of(work, struct goodix_ts_data, work);
     if (ts->enter_update)
@@ -643,13 +763,24 @@ static void goodix_ts_work_func(struct work_struct *work)
         GTP_DEBUG("0x814B = 0x%02X", doze_buf[2]);
         if (ret > 0)
         {
-            if ((doze_buf[2] == 'a') || (doze_buf[2] == 'b') || (doze_buf[2] == 'c') ||
-                    (doze_buf[2] == 'd') || (doze_buf[2] == 'e') || (doze_buf[2] == 'g') ||
-                    (doze_buf[2] == 'h') || (doze_buf[2] == 'm') || (doze_buf[2] == 'o') ||
-                    (doze_buf[2] == 'q') || (doze_buf[2] == 's') || (doze_buf[2] == 'v') ||
-                    (doze_buf[2] == 'w') || (doze_buf[2] == 'y') || (doze_buf[2] == 'z') ||
-                    (doze_buf[2] == 0x5E) /* ^ */
-               )
+            if((doze_buf[2] == 'a') ||
+                    (doze_buf[2] == 'b') ||
+                    ((doze_buf[2] == 'c') && (ts->gesture & GESTURE_C)) ||
+                    (doze_buf[2] == 'd') ||
+                    ((doze_buf[2] == 'e') && (ts->gesture & GESTURE_E)) ||
+                    (doze_buf[2] == 'g') ||
+                    (doze_buf[2] == 'h') ||
+                    ((doze_buf[2] == 'm') && (ts->gesture & GESTURE_M)) ||
+                    ((doze_buf[2] == 'o') && (ts->gesture & GESTURE_O)) ||
+                    (doze_buf[2] == 'q') ||
+                    ((doze_buf[2] == 's') && (ts->gesture & GESTURE_S)) ||
+                    ((doze_buf[2] == 'v') && (ts->gesture & GESTURE_V)) ||
+                    ((doze_buf[2] == 'w') && (ts->gesture & GESTURE_W)) ||
+                    (doze_buf[2] == 'y') ||
+                    ((doze_buf[2] == 'z') && (ts->gesture & GESTURE_Z)) ||
+                    ((doze_buf[2] == 0x3E) && (ts->gesture & GESTURE_HORIZONTAL_V)) || // >
+                    ((doze_buf[2] == 0x5E) && (ts->gesture & GESTURE_INVERTED_V)) // ^
+              )
             {
                 if (doze_buf[2] != 0x5E)
                 {
@@ -660,16 +791,77 @@ static void goodix_ts_work_func(struct work_struct *work)
                     GTP_INFO("Wakeup by gesture(^), light up the screen!");
                 }
                 doze_status = DOZE_WAKEUP;
+#if 0
                 input_report_key(ts->input_dev, KEY_POWER, 1);
                 input_sync(ts->input_dev);
                 input_report_key(ts->input_dev, KEY_POWER, 0);
                 input_sync(ts->input_dev);
+
+                // add by leo for gesture wake up interface ++
+                msleep(10);
+#else
+                if((doze_buf[2] == 'w') && (ts->gesture & GESTURE_W))
+                {
+                    input_report_key(ts->input_dev, KEY_F23, 1);
+                    input_sync(ts->input_dev);
+                    input_report_key(ts->input_dev, KEY_F23, 0);
+                    input_sync(ts->input_dev);
+                }
+                else if((doze_buf[2] == 's') && (ts->gesture & GESTURE_S))
+                {
+                    input_report_key(ts->input_dev, KEY_F22, 1);
+                    input_sync(ts->input_dev);
+                    input_report_key(ts->input_dev, KEY_F22, 0);
+                    input_sync(ts->input_dev);
+                }
+                else if((doze_buf[2] == 'e') && (ts->gesture & GESTURE_E))
+                {
+                    input_report_key(ts->input_dev, KEY_F21, 1);
+                    input_sync(ts->input_dev);
+                    input_report_key(ts->input_dev, KEY_F21, 0);
+                    input_sync(ts->input_dev);
+                }
+                else if((doze_buf[2] == 'c') && (ts->gesture & GESTURE_C))
+                {
+                    input_report_key(ts->input_dev, KEY_F20, 1);
+                    input_sync(ts->input_dev);
+                    input_report_key(ts->input_dev, KEY_F20, 0);
+                    input_sync(ts->input_dev);
+                }
+                else if((doze_buf[2] == 'z') && (ts->gesture & GESTURE_Z))
+                {
+                    input_report_key(ts->input_dev, KEY_F19, 1);
+                    input_sync(ts->input_dev);
+                    input_report_key(ts->input_dev, KEY_F19, 0);
+                    input_sync(ts->input_dev);
+                }
+                else if((doze_buf[2] == 'v') && (ts->gesture & GESTURE_V))
+                {
+                    input_report_key(ts->input_dev, KEY_F18, 1);
+                    input_sync(ts->input_dev);
+                    input_report_key(ts->input_dev, KEY_F18, 0);
+                    input_sync(ts->input_dev);
+                }
+                /*
+                else if((doze_buf[2] == 'o') && (ts->gesture & GESTURE_O))
+                {
+                	input_report_key(ts->input_dev, KEY_F17, 1);
+                 	input_sync(ts->input_dev);
+                 	input_report_key(ts->input_dev, KEY_F17, 0);
+                	input_sync(ts->input_dev);
+                }
+                */
+#endif
+                // add by leo for gesture wake up interface --
                 // clear 0x814B
                 doze_buf[2] = 0x00;
                 gtp_i2c_write(i2c_connect_client, doze_buf, 3);
             }
-            else if ( (doze_buf[2] == 0xAA) || (doze_buf[2] == 0xBB) ||
-                      (doze_buf[2] == 0xAB) || (doze_buf[2] == 0xBA) )
+            else if(((doze_buf[2] == 0xAA) && (ts->gesture & GESTURE_LEFT)) ||    //left
+                    ((doze_buf[2] == 0xBB) && (ts->gesture & GESTURE_RIGHT)) || // right
+                    ((doze_buf[2] == 0xAB) && (ts->gesture & GESTURE_DOWN)) || // down
+                    ((doze_buf[2] == 0xBA) && (ts->gesture & GESTURE_UP)) // up
+                   )
             {
                 char *direction[4] = {"Right", "Down", "Up", "Left"};
                 u8 type = ((doze_buf[2] & 0x0F) - 0x0A) + (((doze_buf[2] >> 4) & 0x0F) - 0x0A) * 2;
@@ -684,20 +876,49 @@ static void goodix_ts_work_func(struct work_struct *work)
                 doze_buf[2] = 0x00;
                 gtp_i2c_write(i2c_connect_client, doze_buf, 3);
             }
-            else if (0xC0 == (doze_buf[2] & 0xC0))
+            else if((0xCC == doze_buf[2]) && (ts->gesture & GESTURE_DOUBLE_CLICK))  // double click
             {
                 GTP_INFO("Double click to light up the screen!");
                 doze_status = DOZE_WAKEUP;
+#if 0
                 input_report_key(ts->input_dev, KEY_POWER, 1);
                 input_sync(ts->input_dev);
                 input_report_key(ts->input_dev, KEY_POWER, 0);
                 input_sync(ts->input_dev);
+
+                // add by leo for gesture wake up interface ++
+                msleep(10);
+#else
+                input_report_key(ts->input_dev, KEY_F24, 1);
+                input_sync(ts->input_dev);
+                input_report_key(ts->input_dev, KEY_F24, 0);
+                input_sync(ts->input_dev);
+#endif
+
+                // add by leo for report gesture point ++
+                msleep(30);
+                ret = gtp_i2c_read(i2c_connect_client, point_buf, 6);
+                GTP_INFO("////////////////////		0x9420 = 0x%02X, 0x%02X, 0x%02X, 0x%02X", point_buf[2], point_buf[3], point_buf[4], point_buf[5]);
+                double_tap_x = point_buf[2] | (point_buf[3] << 8);
+                double_tap_y = point_buf[4] | (point_buf[5] << 8);
+                GTP_INFO("////////////////////		Gesture point (x, y) = (%d, %d)", double_tap_x, double_tap_y);
+
+#if 0
+                gtp_touch_down(ts, 0, double_tap_x, double_tap_y, 240);
+                input_sync(ts->input_dev);
+                msleep(100);
+                gtp_touch_up(ts, 0);
+                input_sync(ts->input_dev);
+#endif
+                // add by leo for report gesture point --
+                // add by leo for gesture wake up interface --
                 // clear 0x814B
                 doze_buf[2] = 0x00;
                 gtp_i2c_write(i2c_connect_client, doze_buf, 3);
             }
             else
             {
+                GTP_DEBUG("%s:[%d]: Wrong Gesture (doze_buf[2] = 0x%02X)! Enter doze mode again", __func__, __LINE__, doze_buf[2]); // add by leo
                 // clear 0x814B
                 doze_buf[2] = 0x00;
                 gtp_i2c_write(i2c_connect_client, doze_buf, 3);
@@ -755,66 +976,66 @@ static void goodix_ts_work_func(struct work_struct *work)
 
         switch (rqst_buf[2])
         {
-        case GTP_RQST_CONFIG:
-            GTP_INFO("Request for config.");
-            ret = gtp_send_cfg(ts->client);
-            if (ret < 0)
-            {
-                GTP_ERROR("Request for config unresponded!");
-            }
-            else
-            {
+            case GTP_RQST_CONFIG:
+                GTP_INFO("Request for config.");
+                ret = gtp_send_cfg(ts->client);
+                if (ret < 0)
+                {
+                    GTP_ERROR("Request for config unresponded!");
+                }
+                else
+                {
+                    rqst_buf[2] = GTP_RQST_RESPONDED;
+                    gtp_i2c_write(ts->client, rqst_buf, 3);
+                    GTP_INFO("Request for config responded!");
+                }
+                break;
+
+            case GTP_RQST_BAK_REF:
+                GTP_INFO("Request for backup reference.");
+                ts->rqst_processing = 1;
+                ret = gtp_bak_ref_proc(ts, GTP_BAK_REF_SEND);
+                if (SUCCESS == ret)
+                {
+                    rqst_buf[2] = GTP_RQST_RESPONDED;
+                    gtp_i2c_write(ts->client, rqst_buf, 3);
+                    ts->rqst_processing = 0;
+                    GTP_INFO("Request for backup reference responded!");
+                }
+                else
+                {
+                    GTP_ERROR("Requeset for backup reference unresponed!");
+                }
+                break;
+
+            case GTP_RQST_RESET:
+                GTP_INFO("Request for reset.");
+                gtp_recovery_reset(ts->client);
+                break;
+
+            case GTP_RQST_MAIN_CLOCK:
+                GTP_INFO("Request for main clock.");
+                ts->rqst_processing = 1;
+                ret = gtp_main_clk_proc(ts);
+                if (FAIL == ret)
+                {
+                    GTP_ERROR("Request for main clock unresponded!");
+                }
+                else
+                {
+                    GTP_INFO("Request for main clock responded!");
+                    rqst_buf[2] = GTP_RQST_RESPONDED;
+                    gtp_i2c_write(ts->client, rqst_buf, 3);
+                    ts->rqst_processing = 0;
+                    ts->clk_chk_fs_times = 0;
+                }
+                break;
+
+            default:
+                GTP_INFO("Undefined request: 0x%02X", rqst_buf[2]);
                 rqst_buf[2] = GTP_RQST_RESPONDED;
                 gtp_i2c_write(ts->client, rqst_buf, 3);
-                GTP_INFO("Request for config responded!");
-            }
-            break;
-
-        case GTP_RQST_BAK_REF:
-            GTP_INFO("Request for backup reference.");
-            ts->rqst_processing = 1;
-            ret = gtp_bak_ref_proc(ts, GTP_BAK_REF_SEND);
-            if (SUCCESS == ret)
-            {
-                rqst_buf[2] = GTP_RQST_RESPONDED;
-                gtp_i2c_write(ts->client, rqst_buf, 3);
-                ts->rqst_processing = 0;
-                GTP_INFO("Request for backup reference responded!");
-            }
-            else
-            {
-                GTP_ERROR("Requeset for backup reference unresponed!");
-            }
-            break;
-
-        case GTP_RQST_RESET:
-            GTP_INFO("Request for reset.");
-            gtp_recovery_reset(ts->client);
-            break;
-
-        case GTP_RQST_MAIN_CLOCK:
-            GTP_INFO("Request for main clock.");
-            ts->rqst_processing = 1;
-            ret = gtp_main_clk_proc(ts);
-            if (FAIL == ret)
-            {
-                GTP_ERROR("Request for main clock unresponded!");
-            }
-            else
-            {
-                GTP_INFO("Request for main clock responded!");
-                rqst_buf[2] = GTP_RQST_RESPONDED;
-                gtp_i2c_write(ts->client, rqst_buf, 3);
-                ts->rqst_processing = 0;
-                ts->clk_chk_fs_times = 0;
-            }
-            break;
-
-        default:
-            GTP_INFO("Undefined request: 0x%02X", rqst_buf[2]);
-            rqst_buf[2] = GTP_RQST_RESPONDED;
-            gtp_i2c_write(ts->client, rqst_buf, 3);
-            break;
+                break;
         }
     }
 #endif
@@ -878,9 +1099,7 @@ static void goodix_ts_work_func(struct work_struct *work)
             GTP_DEBUG("BTN_STYLUS & BTN_STYLUS2 Up.");
             input_report_key(ts->pen_dev, BTN_STYLUS, 0);
             input_report_key(ts->pen_dev, BTN_STYLUS2, 0);
-            if ( (pre_key == 0x40) || (pre_key == 0x20) ||
-                    (pre_key == 0x10)
-               )
+            if((pre_key == 0x40) || (pre_key == 0x20) || (pre_key == 0x10))
             {
                 pen_active = 1;
             }
@@ -1074,6 +1293,8 @@ exit_work_func:
     {
         gtp_irq_enable(ts);
     }
+
+    return;
 }
 
 /*******************************************************
@@ -1147,6 +1368,7 @@ void gtp_reset_guitar(struct i2c_client *client, s32 ms)
 {
     struct goodix_ts_data *ts = i2c_get_clientdata(client);
     printk(">>-- %s line:%d \n", __func__, __LINE__);
+    GTP_INFO("////////////////////		ts->client->addr = %d", ts->client->addr);
     /* This reset sequence will selcet I2C slave address */
     gpio_direction_output(ts->pdata->reset_gpio, 0);
     msleep(ms);
@@ -1185,14 +1407,14 @@ void gtp_reset_guitar(struct i2c_client *client, s32 ms)
     GTP_GPIO_OUTPUT(GTP_RST_PORT, 0);   // begin select I2C slave addr
     msleep(ms);                         // T2: > 10ms
     // HIGH: 0x28/0x29, LOW: 0xBA/0xBB
-    GTP_GPIO_OUTPUT(ts->pdata->irq_gpio, client->addr == 0x14);
+    GTP_GPIO_OUTPUT(GTP_INT_PORT, client->addr == 0x14);
 
     msleep(2);                          // T3: > 100us
     GTP_GPIO_OUTPUT(GTP_RST_PORT, 1);
 
     msleep(6);                          // T4: > 5ms
 
-    GTP_GPIO_AS_INPUT(GTP_RST_PORT);    // end select I2C slave addr
+    //GTP_GPIO_AS_INPUT(GTP_RST_PORT); // end select I2C slave addr // mark by leo
 
 #if GTP_COMPATIBLE_MODE
     if (CHIP_TYPE_GT9F == ts->chip_type)
@@ -1205,6 +1427,8 @@ void gtp_reset_guitar(struct i2c_client *client, s32 ms)
 #if GTP_ESD_PROTECT
     gtp_init_ext_watchdog(client);
 #endif
+
+    return;
 }
 #endif
 
@@ -1260,7 +1484,7 @@ Output:
     Executive outcomes.
        1: succeed, otherwise failed.
 *******************************************************/
-static s8 gtp_enter_sleep(struct goodix_ts_data * ts)
+s8 gtp_enter_sleep(struct goodix_ts_data * ts)
 {
     s8 ret = -1;
     s8 retry = 0;
@@ -1320,7 +1544,7 @@ Output:
     Executive outcomes.
         >0: succeed, otherwise: failed.
 *******************************************************/
-static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
+s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
 {
     u8 retry = 0;
     s8 ret = -1;
@@ -1392,7 +1616,17 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
     while(retry++ < 10)
     {
 #if GTP_GESTURE_WAKEUP
-        if (DOZE_WAKEUP != doze_status)
+        // add by leo for gesture wake up ++
+        GTP_INFO("Gesture Enable = 0x%08x", ts->gesture);
+        if(!(ts->gesture & GESTURE_ENABLE))
+        {
+            GTP_GPIO_OUTPUT(ts->pdata->irq_gpio, 1);
+            msleep(5);
+            goto gt928_skip_resume_for_gestrue;
+        }
+        // add by leo for gesture wake up --
+
+        if(DOZE_WAKEUP != doze_status)
         {
             GTP_INFO("Powerkey wakeup.");
         }
@@ -1410,6 +1644,13 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
         msleep(5);
 #endif
 
+    gt928_skip_resume_for_gestrue: // add by leo for gesture wake up
+
+        // add by leo for resume hang issue ++
+        gtp_int_sync(ts, 25);
+        msleep(10);
+        // add by leo for resume hang issue  --
+
         ret = gtp_i2c_test(ts->client);
         if (ret > 0)
         {
@@ -1417,7 +1658,7 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
 
 #if (!GTP_GESTURE_WAKEUP)
             {
-                gtp_int_sync(ts, 25);
+                //gtp_int_sync(ts, 25); // marked by leo for resume hang issue
 #if GTP_ESD_PROTECT
                 gtp_init_ext_watchdog(ts->client);
 #endif
@@ -1427,7 +1668,6 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
             return ret;
         }
         gtp_reset_guitar(ts->client, 20);
-//        gtp_reset_guitar(ts, 20);
     }
 #endif
 
@@ -1435,6 +1675,7 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
     return ret;
 }
 #if GTP_DRIVER_SEND_CFG
+#if 0
 static s32 gtp_get_info(struct goodix_ts_data *ts)
 {
     u8 opr_buf[6] = {0};
@@ -1472,7 +1713,7 @@ static s32 gtp_get_info(struct goodix_ts_data *ts)
     return SUCCESS;
 }
 #endif
-
+#endif
 /*******************************************************
 Function:
     Initialize gtp.
@@ -1482,22 +1723,24 @@ Output:
     Executive outcomes.
         0: succeed, otherwise: failed
 *******************************************************/
+static u8 cfg_info_group1[] = CTP_CFG_GROUP1;
+static u8 cfg_info_group2[] = CTP_CFG_GROUP2;
+static u8 cfg_info_group3[] = CTP_CFG_GROUP3;
+static u8 cfg_info_group4[] = CTP_CFG_GROUP4;
+static u8 cfg_info_group5[] = CTP_CFG_GROUP5;
+static u8 cfg_info_group6[] = CTP_CFG_GROUP6;
+
 static s32 gtp_init_panel(struct goodix_ts_data *ts)
 {
     s32 ret = -1;
+    int retry = 0;
 
 #if GTP_DRIVER_SEND_CFG
-    s32 i = 0;
-    u8 check_sum = 0;
+    //s32 i = 0;
+    //u8 check_sum = 0;
     u8 opr_buf[16] = {0};
     u8 sensor_id = 0;
 
-    u8 cfg_info_group1[] = CTP_CFG_GROUP1;
-    u8 cfg_info_group2[] = CTP_CFG_GROUP2;
-    u8 cfg_info_group3[] = CTP_CFG_GROUP3;
-    u8 cfg_info_group4[] = CTP_CFG_GROUP4;
-    u8 cfg_info_group5[] = CTP_CFG_GROUP5;
-    u8 cfg_info_group6[] = CTP_CFG_GROUP6;
     u8 *send_cfg_buf[] = {cfg_info_group1, cfg_info_group2, cfg_info_group3,
                           cfg_info_group4, cfg_info_group5, cfg_info_group6
                          };
@@ -1546,22 +1789,73 @@ static s32 gtp_init_panel(struct goodix_ts_data *ts)
 #if GTP_COMPATIBLE_MODE
         msleep(50);
 #endif
-        ret = gtp_i2c_read_dbl_check(ts->client, GTP_REG_SENSOR_ID, &sensor_id, 1);
-        if (SUCCESS == ret)
+        GTP_INFO("Read Sensor ID");
+        for(retry = 1 ; retry <= 15 ; retry ++)
         {
-            if (sensor_id >= 0x06)
+            ret = gtp_i2c_read_dbl_check(ts->client, GTP_REG_SENSOR_ID, &sensor_id, 1);
+            if (SUCCESS == ret)
             {
-                GTP_ERROR("Invalid sensor_id(0x%02X), No Config Sent!", sensor_id);
+                if (sensor_id >= 0x06)
+                {
+                    GTP_ERROR("Invalid sensor_id(0x%02X), No Config Sent! retry %d times", sensor_id, retry);
+                    if(retry == 15)
+                    {
+                        GTP_ERROR("Send default config");
+                        //ts->pnl_init_error = 1; // mark by leo for testtest
+                        //return -1; // mark by leo for testtest
+                    }
+                    else
+                    {
+                        //GTP_GPIO_OUTPUT(TPID1_GPIO, 0);
+                        msleep(30);
+                        gtp_reset_guitar(ts->client, 20);
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+            else
+            {
+                GTP_ERROR("Failed to get sensor_id, No config sent!");
                 ts->pnl_init_error = 1;
                 return -1;
             }
         }
-        else
+        // add by leo for oxff FW update mode issue --
+
+        GTP_INFO("original Sensor_ID: %d", sensor_id);
+
+        // add by leo for different TP source ++
+        if((ts->TP_ID == 0) || (ts->TP_ID == 1))
         {
-            GTP_ERROR("Failed to get sensor_id, No config sent!");
-            ts->pnl_init_error = 1;
-            return -1;
+            if(ts->DISPLAY_ID == 0)
+            {
+                sensor_id = 0; // AUO LCM + GIS TP
+                GTP_INFO("AUO LCM + GIS TP");
+            }
+            else
+            {
+                sensor_id = 1; // TIANMA LCM + GIS TP
+                GTP_INFO("TIANMA LCM + GIS TP");
+            }
         }
+        else if((ts->TP_ID == 2) || (ts->TP_ID == 3))
+        {
+            if(ts->DISPLAY_ID == 0)
+            {
+                sensor_id = 2; // AUO LCM + TopTouch TP
+                GTP_INFO("AUO LCM + TopTouch TP");
+            }
+            else
+            {
+                sensor_id = 3; // TIANMA LCM + TopTouch TP
+                GTP_INFO("TIANMA LCM + TopTouch TP");
+            }
+        }
+        // add by leo for different TP source --
+
         GTP_INFO("Sensor_ID: %d", sensor_id);
     }
     ts->gtp_cfg_len = cfg_info_len[sensor_id];
@@ -1586,13 +1880,13 @@ static s32 gtp_init_panel(struct goodix_ts_data *ts)
 
         if (ret == SUCCESS)
         {
-            GTP_DEBUG("CFG_GROUP%d Config Version: %d, 0x%02X; IC Config Version: %d, 0x%02X", sensor_id+1,
-                      send_cfg_buf[sensor_id][0], send_cfg_buf[sensor_id][0], opr_buf[0], opr_buf[0]);
-
+            GTP_INFO("CFG_GROUP%d Config Version: %d, 0x%02X; IC Config Version: %d, 0x%02X", sensor_id + 1,
+                     send_cfg_buf[sensor_id][0], send_cfg_buf[sensor_id][0], opr_buf[0], opr_buf[0]);
+#if 0
             if (opr_buf[0] < 90)
             {
                 grp_cfg_version = send_cfg_buf[sensor_id][0];       // backup group config version
-//                send_cfg_buf[sensor_id][0] = 0x00;
+                //send_cfg_buf[sensor_id][0] = 0x00;
                 ts->fixed_cfg = 0;
             }
             else        // treated as fixed config, not send config
@@ -1602,6 +1896,7 @@ static s32 gtp_init_panel(struct goodix_ts_data *ts)
                 gtp_get_info(ts);
                 return 0;
             }
+#endif
         }
         else
         {
@@ -1629,12 +1924,14 @@ static s32 gtp_init_panel(struct goodix_ts_data *ts)
     }
 #endif  // GTP_CUSTOM_CFG
 
+#if 0
     check_sum = 0;
     for (i = GTP_ADDR_LENGTH; i < ts->gtp_cfg_len; i++)
     {
         check_sum += config[i];
     }
     config[ts->gtp_cfg_len] = (~check_sum) + 1;
+#endif
 
 #else // driver not send config
 
@@ -1700,6 +1997,8 @@ static s32 gtp_init_panel(struct goodix_ts_data *ts)
         {
             GTP_ERROR("Send config error.");
         }
+
+#if 0
         // set config version to CTP_CFG_GROUP, for resume to send config
         config[GTP_ADDR_LENGTH] = grp_cfg_version;
         check_sum = 0;
@@ -1709,10 +2008,37 @@ static s32 gtp_init_panel(struct goodix_ts_data *ts)
         }
         config[ts->gtp_cfg_len] = (~check_sum) + 1;
 #endif
+#endif
         GTP_INFO("X_MAX: %d, Y_MAX: %d, TRIGGER: 0x%02x", ts->abs_x_max,ts->abs_y_max,ts->int_trigger_type);
     }
-
     msleep(10);
+
+    // add by leo for AC configs ++
+#if DRIVER_SEND_AC_CONFIG
+    switch(sensor_id)
+    {
+        case AUO_GIS_CONFIG:
+            ts->config = CTP_CFG_GROUP1_NORMAL;
+            ts->ac_config = CTP_CFG_GROUP1_AC;
+            break;
+        case TIANMA_GIS_CONFIG:
+            ts->config = CTP_CFG_GROUP2_NORMAL;
+            ts->ac_config = CTP_CFG_GROUP2_AC;
+            break;
+        case AUO_TOPTOUCH_CONFIG:
+            ts->config = CTP_CFG_GROUP3_NORMAL;
+            ts->ac_config = CTP_CFG_GROUP3_AC;
+            break;
+        case TIANMA_TOPTOUCH_CONFIG:
+            ts->config = CTP_CFG_GROUP4_NORMAL;
+            ts->ac_config = CTP_CFG_GROUP4_AC;
+            break;
+        default:
+            ts->config = CTP_CFG_GROUP1_NORMAL;
+            ts->ac_config = CTP_CFG_GROUP1_AC;
+    }
+#endif
+    // add by leo for AC configs ++
 
     /*[BUGFIX] ADD begin by TCTSZ-WH,2014-5-14,Show TP config version*/
     ret = gtp_i2c_read_dbl_check(ts->client, GTP_REG_CONFIG_DATA,
@@ -1805,6 +2131,9 @@ s32 gtp_read_version(struct i2c_client *client, u16* version)
     s32 ret = -1;
     u8 buf[8] = {GTP_REG_VERSION >> 8, GTP_REG_VERSION & 0xff};
 
+    int i = 0; // add by leo
+    struct goodix_ts_data *ts = i2c_get_clientdata(i2c_connect_client); // add by leo
+
     GTP_DEBUG_FUNC();
 
     ret = gtp_i2c_read(client, buf, sizeof(buf));
@@ -1814,17 +2143,24 @@ s32 gtp_read_version(struct i2c_client *client, u16* version)
         return ret;
     }
 
+    // add by leo ++
+    for(i = 0; i < 8; i++)
+    {
+        ts->fw_ver[i] = buf[i];
+    }
+    // add by leo -
+
     if (version)
     {
         *version = (buf[7] << 8) | buf[6];
     }
     if (buf[5] == 0x00)
     {
-        GTP_INFO("IC Version: %c%c%c_%02x%02x", buf[2], buf[3], buf[4], buf[7], buf[6]);
+        GTP_INFO("IC FW Version: %c%c%c_%02x%02x", buf[2], buf[3], buf[4], buf[7], buf[6]);
     }
     else
     {
-        GTP_INFO("IC Version: %c%c%c%c_%02x%02x", buf[2], buf[3], buf[4], buf[5], buf[7], buf[6]);
+        GTP_INFO("IC FW Version: %c%c%c%c_%02x%02x", buf[2], buf[3], buf[4], buf[5], buf[7], buf[6]);
     }
     return ret;
 }
@@ -1917,7 +2253,7 @@ Output:
     Executive outcomes.
         2: succeed, otherwise failed.
 *******************************************************/
-static s8 gtp_i2c_test(struct i2c_client *client)
+s8 gtp_i2c_test(struct i2c_client *client)
 {
     u8 test[3] = {GTP_REG_CONFIG_DATA >> 8, GTP_REG_CONFIG_DATA & 0xff};
     u8 retry = 0;
@@ -1937,6 +2273,7 @@ static s8 gtp_i2c_test(struct i2c_client *client)
     }
     return ret;
 }
+EXPORT_SYMBOL(gtp_i2c_test);
 
 /*******************************************************
 Function:
@@ -2057,7 +2394,24 @@ static s8 gtp_request_io_port(struct goodix_ts_data *ts)
         ret = -ENODEV;
     }
 
-    GTP_GPIO_AS_INPUT(GTP_RST_PORT);
+    //GTP_GPIO_AS_INPUT(GTP_RST_PORT); // mark by leo
+
+    // add by leo for OPT2 low ++
+#if 0
+    ret = GTP_GPIO_REQUEST(TPID1_GPIO, "TPID1_GPIO");
+    if(ret < 0)
+    {
+        GTP_ERROR("Failed to request GPIO:%d, ERRNO:%d", (s32)TPID1_GPIO, ret);
+        ret = -ENODEV;
+    }
+    else
+    {
+        GTP_INFO("Set TP ID 1 to output low.");
+        GTP_GPIO_OUTPUT(TPID1_GPIO, 0);
+    }
+    msleep(30);
+#endif
+    // add by leo for OPT2 low --
 
     gtp_reset_guitar(ts->client, 20);
 
@@ -2085,11 +2439,10 @@ static s8 gtp_request_irq(struct goodix_ts_data *ts)
     const u8 irq_table[] = GTP_IRQ_TAB;
 
     GTP_DEBUG_FUNC();
-    GTP_DEBUG("INT trigger type:%x", ts->int_trigger_type);
+    GTP_INFO("INT trigger type:%x", ts->int_trigger_type);
 
     ret  = request_irq(ts->client->irq,
                        goodix_ts_irq_handler,
-//                       irq_table[ts->int_trigger_type],
                        irq_table[ts->int_trigger_type] | IRQF_ONESHOT,
                        ts->client->name,
                        ts);
@@ -2108,6 +2461,7 @@ static s8 gtp_request_irq(struct goodix_ts_data *ts)
     {
         gtp_irq_disable(ts);
         ts->use_irq = 1;
+        enable_irq_wake(ts->client->irq); // add by leo to set wake up source for gesture wakup
         return 0;
     }
 }
@@ -2157,6 +2511,17 @@ static s8 gtp_request_input_dev(struct goodix_ts_data *ts)
 
 #if GTP_GESTURE_WAKEUP
     input_set_capability(ts->input_dev, EV_KEY, KEY_POWER);
+    input_set_capability(ts->input_dev, EV_KEY, KEY_POWER2);
+    // add by leo for gesture wake up interface ++
+    input_set_capability(ts->input_dev, EV_KEY, KEY_F24);
+    input_set_capability(ts->input_dev, EV_KEY, KEY_F23);
+    input_set_capability(ts->input_dev, EV_KEY, KEY_F22);
+    input_set_capability(ts->input_dev, EV_KEY, KEY_F21);
+    input_set_capability(ts->input_dev, EV_KEY, KEY_F20);
+    input_set_capability(ts->input_dev, EV_KEY, KEY_F19);
+    input_set_capability(ts->input_dev, EV_KEY, KEY_F18);
+    input_set_capability(ts->input_dev, EV_KEY, KEY_F17);
+    // add by leo for gesture wake up interface --
 #endif
 
 #if GTP_CHANGE_X2Y
@@ -2302,6 +2667,8 @@ void gtp_recovery_reset(struct i2c_client *client)
 #if GTP_ESD_PROTECT
     gtp_esd_switch(client, SWITCH_ON);
 #endif
+
+    return;
 }
 
 static s32 gtp_bak_ref_proc(struct goodix_ts_data *ts, u8 mode)
@@ -2369,65 +2736,65 @@ static s32 gtp_bak_ref_proc(struct goodix_ts_data *ts, u8 mode)
 
     switch (mode)
     {
-    case GTP_BAK_REF_SEND:
-        GTP_INFO("Send backup-reference");
-        ref_filp->f_op->llseek(ref_filp, 0, SEEK_SET);
-        ret = ref_filp->f_op->read(ref_filp, (char*)p_bak_ref, ts->bak_ref_len, &ref_filp->f_pos);
-        if (ret < 0)
-        {
-            GTP_ERROR("failed to read bak_ref info from file, sending defualt bak_ref");
-            goto bak_ref_default;
-        }
-        for (j = 0; j < ref_grps; ++j)
-        {
-            ref_sum = 0;
-            for (i = 0; i < (ref_seg_len); i += 2)
+        case GTP_BAK_REF_SEND:
+            GTP_INFO("Send backup-reference");
+            ref_filp->f_op->llseek(ref_filp, 0, SEEK_SET);
+            ret = ref_filp->f_op->read(ref_filp, (char*)p_bak_ref, ts->bak_ref_len, &ref_filp->f_pos);
+            if (ret < 0)
             {
-                ref_sum += (p_bak_ref[i + j * ref_seg_len] << 8) + p_bak_ref[i+1 + j * ref_seg_len];
+                GTP_ERROR("failed to read bak_ref info from file, sending defualt bak_ref");
+                goto bak_ref_default;
             }
-            learn_cnt = (p_bak_ref[j * ref_seg_len + ref_seg_len -4] << 8) + (p_bak_ref[j * ref_seg_len + ref_seg_len -3]);
-            chksum = (p_bak_ref[j * ref_seg_len + ref_seg_len -2] << 8) + (p_bak_ref[j * ref_seg_len + ref_seg_len -1]);
-            GTP_DEBUG("learn count = %d", learn_cnt);
-            GTP_DEBUG("chksum = %d", chksum);
-            GTP_DEBUG("ref_sum = 0x%04X", ref_sum & 0xFFFF);
-            // Sum(1~ref_seg_len) == 1
-            if (1 != ref_sum)
+            for (j = 0; j < ref_grps; ++j)
             {
-                GTP_INFO("wrong chksum for bak_ref, reset to 0x00 bak_ref");
-                memset(&p_bak_ref[j * ref_seg_len], 0, ref_seg_len);
-                p_bak_ref[ref_seg_len + j * ref_seg_len - 1] = 0x01;
-            }
-            else
-            {
-                if (j == (ref_grps - 1))
+                ref_sum = 0;
+                for (i = 0; i < (ref_seg_len); i += 2)
                 {
-                    GTP_INFO("backup-reference data in %s used", GTP_BAK_REF_PATH);
+                    ref_sum += (p_bak_ref[i + j * ref_seg_len] << 8) + p_bak_ref[i+1 + j * ref_seg_len];
+                }
+                learn_cnt = (p_bak_ref[j * ref_seg_len + ref_seg_len -4] << 8) + (p_bak_ref[j * ref_seg_len + ref_seg_len -3]);
+                chksum = (p_bak_ref[j * ref_seg_len + ref_seg_len -2] << 8) + (p_bak_ref[j * ref_seg_len + ref_seg_len -1]);
+                GTP_DEBUG("learn count = %d", learn_cnt);
+                GTP_DEBUG("chksum = %d", chksum);
+                GTP_DEBUG("ref_sum = 0x%04X", ref_sum & 0xFFFF);
+                // Sum(1~ref_seg_len) == 1
+                if (1 != ref_sum)
+                {
+                    GTP_INFO("wrong chksum for bak_ref, reset to 0x00 bak_ref");
+                    memset(&p_bak_ref[j * ref_seg_len], 0, ref_seg_len);
+                    p_bak_ref[ref_seg_len + j * ref_seg_len - 1] = 0x01;
+                }
+                else
+                {
+                    if (j == (ref_grps - 1))
+                    {
+                        GTP_INFO("backup-reference data in %s used", GTP_BAK_REF_PATH);
+                    }
                 }
             }
-        }
-        ret = i2c_write_bytes(ts->client, GTP_REG_BAK_REF, p_bak_ref, ts->bak_ref_len);
-        if (FAIL == ret)
-        {
-            GTP_ERROR("failed to send bak_ref because of iic comm error");
-            goto bak_ref_exit;
-        }
-        break;
+            ret = i2c_write_bytes(ts->client, GTP_REG_BAK_REF, p_bak_ref, ts->bak_ref_len);
+            if (FAIL == ret)
+            {
+                GTP_ERROR("failed to send bak_ref because of iic comm error");
+                goto bak_ref_exit;
+            }
+            break;
 
-    case GTP_BAK_REF_STORE:
-        GTP_INFO("Store backup-reference");
-        ret = i2c_read_bytes(ts->client, GTP_REG_BAK_REF, p_bak_ref, ts->bak_ref_len);
-        if (ret < 0)
-        {
-            GTP_ERROR("failed to read bak_ref info, sending default back-reference");
-            goto bak_ref_default;
-        }
-        ref_filp->f_op->llseek(ref_filp, 0, SEEK_SET);
-        ref_filp->f_op->write(ref_filp, (char*)p_bak_ref, ts->bak_ref_len, &ref_filp->f_pos);
-        break;
+        case GTP_BAK_REF_STORE:
+            GTP_INFO("Store backup-reference");
+            ret = i2c_read_bytes(ts->client, GTP_REG_BAK_REF, p_bak_ref, ts->bak_ref_len);
+            if (ret < 0)
+            {
+                GTP_ERROR("failed to read bak_ref info, sending default back-reference");
+                goto bak_ref_default;
+            }
+            ref_filp->f_op->llseek(ref_filp, 0, SEEK_SET);
+            ref_filp->f_op->write(ref_filp, (char*)p_bak_ref, ts->bak_ref_len, &ref_filp->f_pos);
+            break;
 
-    default:
-        GTP_ERROR("invalid backup-reference request");
-        break;
+        default:
+            GTP_ERROR("invalid backup-reference request");
+            break;
     }
     ret = SUCCESS;
     goto bak_ref_exit;
@@ -2637,6 +3004,8 @@ void gtp_get_chip_type(struct goodix_ts_data *ts)
         ts->chip_type = CHIP_TYPE_GT9F;
     }
     GTP_INFO("Chip Type: %s", (ts->chip_type == CHIP_TYPE_GT9) ? "GOODIX_GT9" : "GOODIX_GT9F");
+
+    return;
 }
 
 #endif
@@ -2943,6 +3312,11 @@ static int goodix_parse_dt(struct device *dev,
     if (pdata->irq_gpio < 0)
         return pdata->irq_gpio;
 
+    pdata->power_gpio = of_get_named_gpio_flags(np, "goodix,power-gpio",
+                        0, &pdata->power_gpio_flags);
+    if (pdata->power_gpio < 0)
+        return pdata->power_gpio;
+
     rc = of_property_read_string(np, "goodix,product-id", &pdata->product_id);
     if (rc && (rc != -EINVAL))
     {
@@ -2980,7 +3354,7 @@ static int goodix_parse_dt(struct device *dev,
     {
         snprintf(prop_name, sizeof(prop_name), "goodix,cfg-data%d", i);
         prop = of_find_property(np, prop_name, NULL); // modify by leo
-                                //&pdata->config_data_len[i]);
+        //&pdata->config_data_len[i]);
         if (!prop || !prop->value)
         {
             pdata->config_data_len[i] = 0;
@@ -3071,7 +3445,20 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
     u16 version_info;
 
     GTP_DEBUG_FUNC();
-    GTP_INFO("////////////////////[goodix_ts_probe]: start ");
+    GTP_INFO("////////////////////[goodix_ts_probe]: start 1");
+
+    // add by leo for skip COS/POS ++
+    if(entry_mode == 4)
+    {
+        printk("%s:[%d]: In COS, Skip Probe\n", __func__, __LINE__);
+        return ret;
+    }
+    else if(entry_mode == 3)
+    {
+        printk("%s:[%d]: In POS, Skip Probe\n", __func__, __LINE__);
+        return ret;
+    }
+    //add by leo for skip COS/POS --
 
     dev_dbg(&client->dev, "GTP I2C Address: 0x%02x\n", client->addr);
     //if (client->dev.of_node)
@@ -3087,7 +3474,7 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
         ret = goodix_parse_dt(&client->dev, pdata);
         GTP_INFO("////////////////////goodix_parse_dt, ret = %d", ret);
         if (ret)
-            return ret;	
+            return ret;
     }
     else
     {
@@ -3125,12 +3512,6 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
     // add by leo for EVB with GT928 ++
     ts->HW_ID = Read_HW_ID();
     GTP_INFO("////////////////////		HW ID = %d", ts->HW_ID);
-    if(ts->HW_ID!=0)
-    {
-    	GTP_INFO("////////////////////		Skip probe Goodix GT928 Touch driver");
-	return -ENODEV;
-    }
-    // add by leo for EVB with GT928 --
 
 #if 0
     printk(">>-- %s line:%d \n", __func__, __LINE__);
@@ -3148,6 +3529,7 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
 
     printk(">>-- %s line:%d \n", __func__, __LINE__);
 #endif
+    //client->addr = 0x14; // add by leo for test only
 
     INIT_WORK(&ts->work, goodix_ts_work_func);
     ts->client = client;
@@ -3175,16 +3557,32 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
         return ret;
     }
 
-    /*[BUGFIX]Add Begin by TCTSZ-LZ 2014-5-5,PR-667466. TP INT pull-up enable.*/	
-	/*
+    GTP_INFO("////////////////////		enable touch power");
+    ret = gpio_request(pdata->power_gpio, "ElanTouch-power");
+    if(ret < 0)
+        printk(KERN_ERR "[elan] %s:Failed to request GPIO%d (ElanTouch-power) ret=%d\n", __func__, pdata->power_gpio, ret);
+
+    ret = gpio_direction_output(pdata->power_gpio, 1);
+    if(ret)
+    {
+        printk(KERN_ERR "[elan] %s:Failed to set reset direction, error=%d\n", __func__, ret);
+        gpio_free(pdata->power_gpio);
+    }
+    msleep(300);
+
+    /*[BUGFIX]Add Begin by TCTSZ-LZ 2014-5-5,PR-667466. TP INT pull-up enable.*/
+    /*
     gtp_pinctrl_init(&ts->client->dev);
     ret = pinctrl_select_state(gt928_pctrl.pinctrl,
                                gt928_pctrl.gpio_state_active);
     if (ret)
         pr_err("%s:%d cannot set pin to suspend state",
                __func__, __LINE__);
-	*/
+    */
     /*[BUGFIX]Add End by TCTSZ-LZ 2014-5-5,PR-667466. TP INT pull-up enable.*/
+
+    
+    GTP_INFO("////////////////////		enable regulator");	
     ret = goodix_power_init(ts);
     if (ret)
     {
@@ -3199,6 +3597,7 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
 //		goto exit_deinit_power;
     }
 
+    GTP_INFO("////////////////////		gtp_reset_guitar");
     gtp_reset_guitar(ts->client, 20);
 
     ret = gtp_i2c_test(client);
@@ -3211,6 +3610,7 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
     /*[FEATURE]Add Begin by TCTSZ-weihong.chen 2014-5-29, do this after  gtp_i2c_test.
     g_tp_device_name = "gt9271";
     [FEATURE]Add END by TCTSZ-weihong.chen*/
+
 #if GTP_COMPATIBLE_MODE
     gtp_get_chip_type(ts);
     if (CHIP_TYPE_GT9F == ts->chip_type)
@@ -3246,6 +3646,67 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
         ts->abs_y_max = GTP_MAX_HEIGHT;
         ts->int_trigger_type = GTP_INT_TRIGGER;
     }
+    // add by leo for read real config version ++
+    ts->config_ver = 0; // add by leo
+    ret = gt928_read_cfg_version(client);
+    if(ret < 0)
+    {
+        GTP_ERROR("I2C communication ERROR!");
+    }
+    //GTP_INFO("IC Config Version: %d", ts->config_ver);
+    // add by leo for read real config version --
+
+#if GTP_OPENSHORT_TEST
+    ret = gtp_test_sysfs_init();
+    if(ret)
+    {
+        GTP_ERROR("Create test sysfs failed.");
+    }
+#endif
+
+    //add by leo ++
+#if DRIVER_SEND_AC_CONFIG
+    ts->ac_in = 0;
+    ts->skip_ac_config = 1;
+#endif
+    ts->HW_ID = Read_HW_ID();
+    GTP_INFO("HW ID = %d", ts->HW_ID);
+    //ts->gesture = GESTURE_DOUBLE_CLICK; // left, up, right, w, o, m, e, c, slip, z, s, ^, >, v, double click, down
+    //ts->gesture = GESTURE_DOUBLE_CLICK | GESTURE_W | GESTURE_S | GESTURE_E | GESTURE_C | GESTURE_Z | GESTURE_V;
+    ts->gesture = 0;
+    GTP_INFO("Gesture Enable = 0x%08X", ts->gesture);
+    //if(build_version != 1)queue_delayed_work(gt928_fw_check_workqueue, &gt928_fw_check_work, 0.5 * HZ); // 2* HZ
+
+    ts->touch_sdev.name = TOUCH_SDEV_NAME;
+    ts->touch_sdev.print_name = touch_switch_name;
+    ts->touch_sdev.print_state = touch_switch_state;
+    if(switch_dev_register(&ts->touch_sdev) < 0)
+    {
+        printk("%s: switch_dev_register failed!\n", __func__);
+    }
+
+    ret = sysfs_create_group(&client->dev.kobj, &gt928_attr_group);
+    if(ret)
+    {
+        GTP_INFO("%s: [%d]: sysfs_create_group (%d)", __func__, __LINE__, ret);
+    }
+
+    gt928_create_proc_tp_debug_file();
+    gt928_create_proc_debug_file();
+    gt928_create_proc_diag_file();
+    gt928_create_proc_test_file();
+    gt928_create_proc_gesture_file();
+
+    ret = misc_register(&gt928_misc_dev);
+    if(ret < 0)
+    {
+        GTP_ERROR("%s: [%d]: misc_register failed (%d)", __func__, __LINE__, ret);
+    }
+    //add by leo --
+
+#if DRIVER_SEND_AC_CONFIG
+    cable_status_register_client(&gt928_cable_status_notifier); // add by leo for cable status notifier ++
+#endif
     // Create proc file system
     gt928_config_proc = proc_create(GT928_CONFIG_PROC_FILE, 0666, NULL, &config_proc_ops);
     if (gt928_config_proc == NULL)
@@ -3256,6 +3717,7 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
     {
         GTP_INFO("create proc entry %s success", GT928_CONFIG_PROC_FILE);
     }
+
 #if GTP_AUTO_UPDATE
     ret = gup_init_update_proc(ts);
     if (ret < 0)
@@ -3263,12 +3725,16 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
         GTP_ERROR("Create update thread error.");
     }
 #endif
+
+    GTP_INFO("request input device");
     ret = gtp_request_input_dev(ts);
-    if (ret < 0)
+    if(ret < 0)
     {
         GTP_ERROR("GTP request input dev failed");
     }
     input_set_drvdata(ts->input_dev, ts);
+
+    GTP_INFO("request IRQ");
     ret = gtp_request_irq(ts);
     if (ret < 0)
     {
@@ -3279,6 +3745,7 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
         GTP_INFO("GTP works in interrupt mode.");
     }
 
+    GTP_INFO("read fw version");
     ret = gtp_read_fw_version(client, &version_info);
     if (ret != 2)
         dev_err(&client->dev, "GTP firmware version read failed.\n");
@@ -3320,6 +3787,13 @@ static int goodix_ts_remove(struct i2c_client *client)
 
     GTP_DEBUG_FUNC();
 
+    gt928_remove_proc_debug_file();
+    gt928_remove_proc_diag_file();
+    gt928_remove_proc_test_file();
+    gt928_remove_proc_gesture_file();
+#if DRIVER_SEND_AC_CONFIG
+    cable_status_unregister_client(&gt928_cable_status_notifier); // add by leo for cable status notifier ++
+#endif
 #ifdef CONFIG_HAS_EARLYSUSPEND
     unregister_early_suspend(&ts->early_suspend);
 #endif
@@ -3332,9 +3806,15 @@ static int goodix_ts_remove(struct i2c_client *client)
     destroy_workqueue(gtp_esd_check_workqueue);
 #endif
 
-    if (ts)
+    if(build_version != 1)destroy_workqueue(gt928_fw_check_workqueue);
+
+#if DRIVER_SEND_AC_CONFIG
+    destroy_workqueue(gt928_send_ac_config_workqueue); // add by leo for AC config
+#endif
+
+    if(ts)
     {
-        if (ts->use_irq)
+        if(ts->use_irq)
         {
             GTP_GPIO_AS_INPUT(ts->pdata->irq_gpio);
             GTP_GPIO_FREE(ts->pdata->irq_gpio);
@@ -3368,13 +3848,13 @@ static int goodix_ts_suspend(struct device *dev)
     struct goodix_ts_data *ts = dev_get_drvdata(dev);
     int ret = 0, i;
     /*[BUGFIX]Add Begin by TCTSZ-LZ 2014-5-5,PR-667466. TP INT pull-up enable.*/
-	/*
+    /*
     ret = pinctrl_select_state(gt928_pctrl.pinctrl,
                                gt928_pctrl.gpio_state_suspend);
     if (ret)
         pr_err("%s:%d cannot set pin to suspend state",
                __func__, __LINE__);
-	*/
+    */
     /*[BUGFIX]Add End by TCTSZ-LZ 2014-5-5,PR-667466. TP INT pull-up enable.*/
     if (ts->gtp_is_suspend)
     {
@@ -3447,13 +3927,13 @@ static int goodix_ts_resume(struct device *dev)
         return 0;
     }
     /*[BUGFIX]Add Begin by TCTSZ-LZ 2014-5-5,PR-667466. TP INT pull-up enable.*/
-	/*
+    /*
     ret = pinctrl_select_state(gt928_pctrl.pinctrl,
                                gt928_pctrl.gpio_state_active);
     if (ret)
         pr_err("%s:%d cannot set pin to suspend state",
                __func__, __LINE__);
-	*/
+    */
     /*[BUGFIX]Add End by TCTSZ-LZ 2014-5-5,PR-667466. TP INT pull-up enable.*/
 
 //	mutex_lock(&ts->lock);
@@ -3521,12 +4001,37 @@ static void goodix_ts_early_suspend(struct early_suspend *h)
     GTP_INFO("System suspend.");
 
     ts->gtp_is_suspend = 1;
+    // add by leo for AC config ++
+#if DRIVER_SEND_AC_CONFIG
+    ts->skip_ac_config = 1;
+    cancel_delayed_work(&gt928_send_ac_config_work);
+#endif
+    // add by leo for AC config --
+
 #if GTP_ESD_PROTECT
     gtp_esd_switch(ts->client, SWITCH_OFF);
 #endif
 
 #if GTP_GESTURE_WAKEUP
-    ret = gtp_enter_doze(ts);
+    // add by leo for gesture wake up ++
+    GTP_INFO("Gesture Enable = 0x%08X", ts->gesture);
+    if(ts->gesture & GESTURE_ENABLE)
+    {
+        ret = gtp_enter_doze(ts);
+    }
+    else
+    {
+        if(ts->use_irq)
+        {
+            gtp_irq_disable(ts);
+        }
+        else
+        {
+            hrtimer_cancel(&ts->timer);
+        }
+        ret = gtp_enter_sleep(ts);
+    }
+    // add by leo for gesture wake up --
 #else
     if (ts->use_irq)
     {
@@ -3545,6 +4050,8 @@ static void goodix_ts_early_suspend(struct early_suspend *h)
     // to avoid waking up while not sleeping
     //  delay 48 + 10ms to ensure reliability
     msleep(58);
+
+    return;
 }
 
 /*******************************************************
@@ -3564,7 +4071,7 @@ static void goodix_ts_late_resume(struct early_suspend *h)
     GTP_DEBUG_FUNC();
 
     GTP_INFO("System resume.");
-
+    GTP_INFO("Gesture Enable = 0x%08X", ts->gesture); /// add by leo for gesture wake up
     ret = gtp_wakeup_sleep(ts);
 
 #if GTP_GESTURE_WAKEUP
@@ -3583,7 +4090,17 @@ static void goodix_ts_late_resume(struct early_suspend *h)
     else
 #endif
     {
+        // add by leo for AC config ++
+#if DRIVER_SEND_AC_CONFIG
+        ts->skip_ac_config = 0;
+        if(ts->ac_in)
+            gt928_send_cfg(ts->client, ts->ac_config);
+        else
+            gt928_send_cfg(ts->client, ts->config);
+#else
         gtp_send_cfg(ts->client);
+#endif
+        // add by leo for AC config --
     }
 
     if (ts->use_irq)
@@ -3597,8 +4114,11 @@ static void goodix_ts_late_resume(struct early_suspend *h)
 
     ts->gtp_is_suspend = 0;
 #if GTP_ESD_PROTECT
-    gtp_esd_switch(ts->client, SWITCH_ON);
+    //gtp_esd_switch(ts->client, SWITCH_ON); // mark by leo for ESD check start
+    queue_delayed_work(gtp_esd_check_workqueue, &gtp_esd_start_work, 2 * HZ); // add by leo for ESD check start
 #endif
+
+    return;
 }
 #endif
 
@@ -3678,6 +4198,14 @@ void gtp_esd_switch(struct i2c_client *client, s32 on)
 {
     struct goodix_ts_data *ts;
 
+    // add by leo for disable ESD workaround in factory ++
+    if(build_version == 1)
+    {
+        GTP_INFO("skip ESD %s", (on == SWITCH_ON) ? "on" : "off");
+        return;
+    }
+    // add by leo for disable ESD workaround in factory --
+
     ts = i2c_get_clientdata(client);
     spin_lock(&ts->esd_lock);
 
@@ -3709,6 +4237,8 @@ void gtp_esd_switch(struct i2c_client *client, s32 on)
             spin_unlock(&ts->esd_lock);
         }
     }
+
+    return;
 }
 
 /*******************************************************
@@ -3726,6 +4256,44 @@ static s32 gtp_init_ext_watchdog(struct i2c_client *client)
     GTP_DEBUG("[Esd]Init external watchdog");
     return gtp_i2c_write_no_rst(client, opr_buffer, 3);
 }
+
+#if DRIVER_SEND_AC_CONFIG
+static void gtp_charger_in(struct i2c_client *client)
+{
+    s32 ret = 0;
+    s32 i = 0;
+    u8 chr_cmd[3] = {0x80, 0x40, 6};
+    for(i = 0; i < 3; i++)
+    {
+        //ret = gtp_i2c_write(client, chr_cmd, 3);
+        ret = gtp_i2c_write_no_rst(client, chr_cmd, 3);
+        if(ret > 0)
+        {
+            //enable_cmd=1;
+            printk("Update status for Charger Plugin");
+            break;
+        }
+    }
+}
+
+static void gtp_charger_out(struct i2c_client *client)
+{
+    s32 ret = 0;
+    s32 i = 0;
+    u8 chr_cmd[3] = {0x80, 0x40, 7};
+    for(i = 0; i < 3; i++)
+    {
+        //ret = gtp_i2c_write(client, chr_cmd, 3);
+        ret = gtp_i2c_write_no_rst(client, chr_cmd, 3);
+        if(ret > 0)
+        {
+            //enable_cmd=0;
+            printk("Update status for Charger Plugout");
+            break;
+        }
+    }
+}
+#endif
 
 /*******************************************************
 Function:
@@ -3747,7 +4315,7 @@ static void gtp_esd_check_func(struct work_struct *work)
 
     ts = i2c_get_clientdata(i2c_connect_client);
 
-    if (ts->gtp_is_suspend)
+    if(ts->gtp_is_suspend || ts->enter_update)
     {
         GTP_INFO("Esd suspended!");
         return;
@@ -3838,11 +4406,94 @@ static void gtp_esd_check_func(struct work_struct *work)
     }
     else
     {
+        cancel_delayed_work_sync(&gtp_esd_start_work); // add by leo for ESD check
         GTP_INFO("Esd suspended!");
     }
     return;
 }
 #endif
+
+#if 0
+// add by leo for FW check ++
+static void gt928_fw_check_func(struct work_struct *work)
+{
+    struct goodix_ts_data *ts = i2c_get_clientdata(i2c_connect_client);
+
+    GTP_INFO("%s: [%d] check FW version start.", __func__, __LINE__);
+    ts->check_result = gt928_FW_check();
+    // add by leo for AC config ++
+#if DRIVER_SEND_AC_CONFIG
+    if(ts->check_result == NEED_TO_UPDATE)
+        ts->skip_ac_config = 1;
+    else
+        ts->skip_ac_config = 0;
+
+    if(ts->skip_ac_config == 0)queue_delayed_work(gt928_send_ac_config_workqueue, &gt928_send_ac_config_work, 0.1 * HZ);
+#endif
+    // add by leo for AC config --
+    GTP_INFO("%s:[%d]: ts->check_result = %s", __func__, __LINE__, (ts->check_result == NEED_TO_UPDATE) ? "NEED_TO_UPDATE" : "NO_NEED_TO_UPDATE");
+    return;
+}
+// add by leo for FW check --
+#endif
+
+// add by leo for ESD check ++
+#if GTP_ESD_PROTECT
+static void gt928_esd_start_func(struct work_struct *work)
+{
+    struct goodix_ts_data *ts = i2c_get_clientdata(i2c_connect_client);
+
+    GTP_INFO("%s: [%d] ESD check start.", __func__, __LINE__);
+    if(!ts->gtp_is_suspend)
+        gtp_esd_switch(ts->client, SWITCH_ON);
+    else
+        GTP_INFO("%s: [%d] skip ESD check start due to system suspend.", __func__, __LINE__);
+
+    return;
+}
+#endif
+// add by leo for ESD check --
+
+// add by leo for AC config ++
+#if DRIVER_SEND_AC_CONFIG
+int ac_old_status = -1;
+static void gt928_send_ac_config_func(struct work_struct *work)
+{
+    struct goodix_ts_data *ts = i2c_get_clientdata(i2c_connect_client);
+
+    if(ts->skip_ac_config)
+    {
+        GTP_INFO("////////////////////		%s: [%d] SKIP.", __func__, __LINE__);
+        return;
+    }
+
+    if(ts->ac_in == ac_old_status)
+    {
+        GTP_INFO("%s: skip gt928_send_ac_config_work due to ac_in = %d.", __func__, ts->ac_in);
+        return;
+    }
+    else
+        GTP_INFO("%s: AC status changed, call gt928_send_ac_config_work", __func__);
+
+    if(ts->ac_in)
+    {
+        GTP_INFO("////////////////////		%s: [%d] send ts->ac_config.", __func__, __LINE__);
+        gt928_send_cfg(ts->client, ts->ac_config);
+        ts->ac_in != ac_old_status;
+    }
+    else
+    {
+        GTP_INFO("////////////////////		%s: [%d] send ts->config.", __func__, __LINE__);
+        gt928_send_cfg(ts->client, ts->config);
+        ts->ac_in != ac_old_status	;
+    }
+
+    //msleep(100);
+    //gt9xx_read_Config_Checksum();
+    return;
+}
+#endif
+// add by leo for AC config --
 
 static const struct i2c_device_id goodix_ts_id[] =
 {
@@ -3896,7 +4547,7 @@ Output:
 ********************************************************/
 static int __init goodix_ts_init(void)
 {
-    s32 ret;
+    s32 ret = 0;
 
     GTP_DEBUG_FUNC();
 #if 1
@@ -3910,6 +4561,7 @@ static int __init goodix_ts_init(void)
             return -ENOMEM;
         }
 #if GTP_ESD_PROTECT
+        INIT_DELAYED_WORK(&gtp_esd_start_work, gt928_esd_start_func); // add by leo for ESD check
         INIT_DELAYED_WORK(&gtp_esd_check_work, gtp_esd_check_func);
         gtp_esd_check_workqueue = create_workqueue("gtp_esd_check");
 #endif

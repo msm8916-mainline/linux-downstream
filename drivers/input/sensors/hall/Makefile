@@ -1,1 +1,1 @@
-obj-y += hall_sensor.o
+obj-y   += hall_sensor.o

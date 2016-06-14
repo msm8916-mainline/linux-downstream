@@ -51,12 +51,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/printk.h>
 
-// Flysky150528 Support for /proc/printk_state
-#ifdef CONFIG_PROC_FS
-#include <linux/proc_fs.h>
-static struct proc_dir_entry *proc_printk=NULL;
-#endif
-
 #ifdef CONFIG_EARLY_PRINTK_DIRECT
 extern void printascii(char *);
 #endif
@@ -287,9 +281,7 @@ static const char log_oops_end[] = "---end of oops log buffer---";
 
 #if defined(CONFIG_LOG_BUF_MAGIC)
 static u32 __log_align __used = LOG_ALIGN;
-//#define LOG_MAGIC(msg) ((msg)->magic = 0x5d7aefca)
-//Will change magic
-#define LOG_MAGIC(msg) ((msg)->magic = 0x12345678)
+#define LOG_MAGIC(msg) ((msg)->magic = 0x5d7aefca)
 #else
 #define LOG_MAGIC(msg)
 #endif
@@ -2916,49 +2908,6 @@ int kmsg_dump_unregister(struct kmsg_dumper *dumper)
 	return err;
 }
 EXPORT_SYMBOL_GPL(kmsg_dump_unregister);
-
-// Flysky150528 add printk_state ++
-#ifdef CONFIG_PROC_FS
-static ssize_t printk_state_write_proc(struct file *filp, const char __user *buf, size_t count, loff_t *off)
-{
-        printk(KERN_INFO "Flysky: %s-- %s write is not support \n",__FILE__,__func__);
-        kmsg_dump(KMSG_DUMP_PANIC);
-        return -1;
-}
-
-static ssize_t printk_state_read_proc (struct file *file, char __user *page, size_t size, loff_t *ppos)
-{
-        int len;
-
-        printk(KERN_INFO "%s-- %s \n",__FILE__,__func__);
-        printk(KERN_ERR "Flysky: %s\n",__func__);
-        printk(KERN_ERR "log_buf=%p,__pa=%lx\n",log_buf,__pa(log_buf));
-        printk(KERN_ERR "&log_first_idx=%p,__pa=%lx,value=%x\n",&log_first_idx,__pa(&log_first_idx),log_first_idx);
-        printk(KERN_ERR "&console_idx=%p,__pa=%lx,value=%x\n",&console_idx,__pa(&console_idx),console_idx);
-        printk(KERN_ERR "&log_next_idx=%p,__pa=%lx,value=%x\n",&log_next_idx,__pa(&log_next_idx),log_next_idx);
-        printk(KERN_ERR "log_buf_len=%d\n",log_buf_len);
-
-        len = sprintf(page, "%lx %lx %lx\n",__pa(log_buf),__pa(log_buf),__pa(log_buf + log_buf_len));
-
-        return len;
-}
-
-static const struct file_operations proc_printk_struct =
-{
-        .owner = THIS_MODULE,
-        .read = printk_state_read_proc,
-        .write = printk_state_write_proc,
-};
-
-void create_printk_proc(void)
-{
-	proc_printk = proc_create( "printk_state", 0, NULL, &proc_printk_struct);
-}
-
-EXPORT_SYMBOL_GPL(create_printk_proc);
-#endif
-// Flysky150528 add printk_state --
-
 
 static bool always_kmsg_dump;
 module_param_named(always_kmsg_dump, always_kmsg_dump, bool, S_IRUGO | S_IWUSR);

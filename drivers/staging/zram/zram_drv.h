@@ -81,8 +81,9 @@ struct zram_stats {
 	atomic64_t failed_writes;	/* can happen when memory is too low */
 	atomic64_t invalid_io;	/* non-page-aligned I/O requests */
 	atomic64_t notify_free;	/* no. of swap slot free notifications */
-	u32 pages_zero;		/* no. of zero filled pages */
-	u32 pages_stored;	/* no. of pages currently stored */
+	atomic64_t pages_stored;	/* no. of pages currently stored */
+	atomic_long_t max_used_pages;	/* no. of maximum pages stored */
+	u64 pages_zero;		/* no. of zero filled pages */
 	u32 good_compress;	/* % of pages with compression ratio<=50% */
 	u32 bad_compress;	/* % of pages with compression ratio>=75% */
 };
@@ -121,5 +122,11 @@ struct zram {
 	spinlock_t slot_free_lock;
 
 	struct zram_stats stats;
+	/*
+	 * the number of pages zram can consume for storing compressed data
+	 */
+	unsigned long limit_pages;
+
+	char compressor[10];
 };
 #endif

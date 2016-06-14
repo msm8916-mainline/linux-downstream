@@ -54,6 +54,7 @@ void bmm050_screen_chenged_listaner(const int state);
 #include "bmm050.h"
 #include "bs_log.h"
 
+
 #define DEBUG
 
 /* sensor specific */
@@ -122,6 +123,7 @@ struct bosch_sensor_specific {
 
 #define LDBG(s,args...)	{printk("[BMM050] : func [%s], line [%d], ",__func__,__LINE__); printk(s,## args);}
 
+extern unsigned int entry_mode;
 /*!
  * we use a typedef to hide the detail,
  * because this type might be changed
@@ -217,10 +219,8 @@ static int bmm_i2c_write(struct i2c_client *client, u8 reg_addr,
 static void bmm_dump_reg(struct i2c_client *client);
 static int bmm_wakeup(struct i2c_client *client);
 static int bmm_check_chip_id(struct i2c_client *client);
-
 static int bmm_pre_suspend(struct i2c_client *client);
 static int bmm_post_resume(struct i2c_client *client);
-
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void bmm_early_suspend(struct early_suspend *handler);
 static void bmm_late_resume(struct early_suspend *handler);
@@ -1501,6 +1501,19 @@ static int bmm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	u32 value[2] = {0};
 
 	printk("===== E-commpass Probe Start =====\n");
+	// add by leo for skip COS/POS ++
+	if(entry_mode==4)
+	{
+		printk("%s:[%d]: In COS, Skip Probe\n", __func__, __LINE__);
+		return 0;
+	}
+	else if(entry_mode==3)
+	{
+		printk("%s:[%d]: In POS, Skip Probe\n", __func__, __LINE__);
+		return 0;
+	}
+	// add by leo for skip COS/POS --
+
 	
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		PERR("i2c_check_functionality error!");
@@ -1820,7 +1833,6 @@ static int bmm_resume(struct i2c_client *client)
 
 	mutex_lock(&client_data->mutex_power_mode);
 	err = bmm_restore_hw_cfg(client);
-	/* post resume operation */
 	bmm_post_resume(client);
 
 	mutex_unlock(&client_data->mutex_power_mode);
@@ -1851,6 +1863,19 @@ void bmm_shutdown(struct i2c_client *client)
 	struct bmm_client_data *client_data =
 		(struct bmm_client_data *)i2c_get_clientdata(client);
 
+	// add by Tom Cheng for skip COS/POS ++
+	if(entry_mode==4)
+	{
+		printk("%s:[%d]: In COS, Skip Probe\n", __func__, __LINE__);
+		return;
+	}
+	else if(entry_mode==3)
+	{
+		printk("%s:[%d]: In POS, Skip Probe\n", __func__, __LINE__);
+		return;
+	}
+	// add by Tom Cheng for skip COS/POS --
+	
 	mutex_lock(&client_data->mutex_power_mode);
 	bmm_set_op_mode(client_data, BMM_VAL_NAME(SUSPEND_MODE));
 	mutex_unlock(&client_data->mutex_power_mode);

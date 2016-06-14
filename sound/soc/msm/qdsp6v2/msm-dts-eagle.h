@@ -24,7 +24,8 @@ struct param_outband {
 	phys_addr_t  paddr;
 };
 
-#ifdef CONFIG_DTS_EAGLE
+//#ifdef CONFIG_DTS_EAGLE
+#if 0
 void msm_dts_ion_memmap(struct param_outband *po);
 
 int msm_dts_eagle_handler_pre(struct audio_client *ac, long *arg);

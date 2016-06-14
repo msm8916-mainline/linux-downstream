@@ -63,27 +63,21 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 		goto out;
 
 	if (status ^ ctx->status) {
-		if (status) {
-			/* card insert. enable polling mode to gain reliability */
-			host->caps |= MMC_CAP_NEEDS_POLL;
-			host->retry_timeout = 10;
-		} else {
-			/* card removal, disable polling mode */
-			host->caps &= ~MMC_CAP_NEEDS_POLL;
-		}
-		pr_info("%s: slot status change detected (%d -> %d), GPIO_ACTIVE_%s, %s polling\n",
+                if (status) {
+                       /* card insert. enable polling mode to gain reliability */
+                       host->caps |= MMC_CAP_NEEDS_POLL;
+                       host->retry_timeout = 10;
+                } else {
+                       /* card removal, disable polling mode */
+                       host->caps &= ~MMC_CAP_NEEDS_POLL;
+                }
+                pr_info("%s: slot status change detected (%d -> %d), GPIO_ACTIVE_%s, %s polling\n",
 				mmc_hostname(host), ctx->status, status,
 				(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
 				"HIGH" : "LOW",
 				(host->caps & MMC_CAP_NEEDS_POLL) ? "enable" : "disable");
 		ctx->status = status;
-        
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
-        if (host->caps2 & MMC_CAP2_DEFERRED_RESUME)
-            mmc_set_force_pm_resume(host);
-        /* Always rescan, since status change. */
-        host->rescan_disable = 0;
-#endif
+
 		/* Schedule a card detection after a debounce timeout */
 		mmc_detect_change(host, msecs_to_jiffies(200));
 	}

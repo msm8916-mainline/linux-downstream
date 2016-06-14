@@ -1242,12 +1242,12 @@ static int mmc_sd_resume(struct mmc_host *host)
 	BUG_ON(!host->card);
 
 	mmc_claim_host(host);
-    if (host->ops->get_cd && !host->ops->get_cd(host)) {
-        printk(KERN_ERR "%s: skip re-init card due to cd status\n",
-               mmc_hostname(host));
-        mmc_release_host(host);
-        return -ENOMEDIUM;
-    }
+	if (host->ops->get_cd && !host->ops->get_cd(host)) {
+		printk(KERN_ERR "%s: skip re-init card due to cd status\n",
+		       mmc_hostname(host));
+		mmc_release_host(host);
+		return -ENOMEDIUM;
+	}
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	retries = 5;
 	while (retries) {
@@ -1256,11 +1256,11 @@ static int mmc_sd_resume(struct mmc_host *host)
 		if (err) {
 			printk(KERN_ERR "%s: Re-init card rc = %d (retries = %d)\n",
 			       mmc_hostname(host), err, retries);
-            if (host->ops->get_cd && !host->ops->get_cd(host)) {
-                printk(KERN_ERR "%s: skip re-init card due to cd status\n",
-                       mmc_hostname(host));
-                break;
-            }
+			if (host->ops->get_cd && !host->ops->get_cd(host)) {
+				printk(KERN_ERR "%s: skip re-init card due to cd status\n",
+				       mmc_hostname(host));
+				break;
+			}
 			retries--;
 			mmc_power_off(host);
 			usleep_range(5000, 5500);

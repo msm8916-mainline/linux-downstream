@@ -701,15 +701,15 @@ int snd_usb_parse_audio_interface(struct snd_usb_audio *chip, int iface_no)
 			continue;
 		}
 
-		if ((chip->usb_id == USB_ID(0x0d8c, 0x0102)) && (fp->rate_max > 48000)) {
-			pr_info("%s: audio cover only support 48kHz, %dHz exceeds limit, abandon it\n",
-			__func__, fp->rate_max);
-			kfree(fp->rate_table);
-			kfree(fp->chmap);
-			kfree(fp);
-			fp = NULL;
-			continue;
-		}
+                if ((chip->usb_id == USB_ID(0x0d8c, 0x0102)) && (fp->rate_max > 48000)) {
+                        pr_info("%s: audio cover only support 48kHz, %dHz exceeds limit, abandon it\n",
+                        __func__, fp->rate_max);
+                        kfree(fp->rate_table);
+                        kfree(fp->chmap);
+                        kfree(fp);
+                        fp = NULL;
+                        continue;
+                }
 
 		snd_printdd(KERN_INFO "%d:%u:%d: add audio endpoint %#x\n", dev->devnum, iface_no, altno, fp->endpoint);
 		err = snd_usb_add_audio_stream(chip, stream, fp);

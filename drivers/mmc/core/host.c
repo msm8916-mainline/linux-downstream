@@ -434,21 +434,6 @@ static inline void mmc_host_clk_sysfs_init(struct mmc_host *host)
 
 #endif
 
-#ifdef CONFIG_MMC_PERF_PROFILING
-static ssize_t
-show_sectors_changed(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-
-    if (host && host->card)
-        return snprintf(buf, PAGE_SIZE, "%d\n", host->card->sectors_changed);
-    return 0;
-}
-
-static DEVICE_ATTR(sectors_changed, S_IRUGO | S_IWUSR,
-                   show_sectors_changed, NULL);
-#endif
-
 /**
  *	mmc_of_parse() - parse host's device-tree node
  *	@host: host whose node should be parsed.
@@ -865,7 +850,6 @@ static DEVICE_ATTR(perf, S_IRUGO | S_IWUSR,
 static struct attribute *dev_attrs[] = {
 #ifdef CONFIG_MMC_PERF_PROFILING
 	&dev_attr_perf.attr,
-	&dev_attr_sectors_changed.attr,
 #endif
 	NULL,
 };

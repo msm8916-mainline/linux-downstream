@@ -126,6 +126,7 @@ typedef struct GSbsSt
   ///---------------------------------------------------------------------------///   
   GWORD  wAlarmSts;     ///< 0x42,      [O],  Alarm Status
   GWORD  wOffTime;      ///< 0x43,      [O],  Power Off Time in minutes
+  GWORD  wTSOC;         ///< 0x44,      [O],  RSOC looked from table
   GWORD  wVRT;          ///< 0x4B,      [O],  RemainingTime of Voltage Gauge
   GWORD  wVFCT;         ///< 0x4C,      [O],  FullChargeTime of Voltage Gauge
   GWORD  wVRSOC;        ///< 0x4D,      [O],  RelativeStateOfCharge of Voltage Gauge
@@ -451,7 +452,7 @@ typedef struct PACKRAM GMeasDataST
 
   ///
   GBOOL bValid; 
-  GBOOL bDeltaQ;         ///< [YL] : To determine restore if finish or not ; 2015/08/11
+  GBOOL bDeltaQ;         ///< [YL] : To determine restore if finish or not ; 2015/09/17
 } PACKRAM GMeasDataType;
 
 ///=============================================================///
@@ -513,7 +514,7 @@ typedef struct GConfigDataSt
   GU2                  wQD3;              ///< [AT-PM] : ADDR = 0x96 ; 04/20/2015
 
   GCHAR                strCellID[8];      ///< [AT-PM] : ADDR = 0x98 ; 04/20/2015
-  GCHAR                strDrvVersion[11]; ///< [AT-PM] : ADDR = 0xA0 ; 04/20/2015
+  GBYTE                strDrvVersion[11]; ///< [AT-PM] : ADDR = 0xA0 ; 04/20/2015
   GI1                  sBoardOffsetComp;  ///< [AT-PM] : ADDR = 0xAB ; 05/11/2015
   GWORD                wGgbVersion;       ///< [AT-PM] : ADDR = 0xAC ; 04/20/2015
   GWORD                wChecksum;         ///< [AT-PM] : ADDR = 0xAE ; 04/20/2015
@@ -529,6 +530,8 @@ typedef struct PACKRAM GCapDataST
 {
   GBYTE bCapCntl;
   GBYTE bChgState;
+  /// [YL]: Not to determine capacity status ; 20150921
+  GBYTE bCapSteable;
   GWORD wDsgState;
 
   GU1 bTempIdx;

@@ -163,6 +163,7 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_RESISTANCE_CAPACITIVE,
 	/* unit is in ohms due to ID being typically in kohm range */
 	POWER_SUPPLY_PROP_RESISTANCE_ID,
+	POWER_SUPPLY_PROP_RESISTANCE_NOW,
 	/* Local extensions */
 	POWER_SUPPLY_PROP_USB_HC,
 	POWER_SUPPLY_PROP_USB_OTG,
@@ -191,8 +192,8 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_USB_PARALLEL,		/* USB Parallel Path */
 	POWER_SUPPLY_TYPE_PACK_BATTERY,		/* chris: add for Cover Pack Battery */
 	POWER_SUPPLY_TYPE_PACK_AC,		/* chris: add for Cover Pack Battery */
-	POWER_SUPPLY_TYPE_OTG,		/* OTG */
-	POWER_SUPPLY_TYPE_OTGOUT,	/* OTGOUT */
+	POWER_SUPPLY_TYPE_OTG,      /* OTG */
+	POWER_SUPPLY_TYPE_OTGOUT,   /* OTGOUT */
 	POWER_SUPPLY_TYPE_POWERBACK, /*POWERBACK*/
 };
 

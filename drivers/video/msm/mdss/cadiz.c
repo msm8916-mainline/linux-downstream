@@ -488,7 +488,9 @@ initcode cadiz_boot4[]={
 	{0x0000,0x01},
 	{0x0941,0x07},
 	{0x0941,0x01},
-	{0x0005,0xFF}
+	{0x0005,0xFF},
+	{0x0C0B,0xFF},
+	{0x0C0A,0xB6}
 };
 
 int cadiz_boot1_len = 0;
@@ -659,10 +661,12 @@ int cadiz_i2c_seq_write(initcode boot[], int arraysize)
 			.len = 0,
 	};
 
+	memset(tx_data, 0x0, sizeof(tx_data));
+
 	pm_qos_update_request(&tput_pm_qos_req, 0);
 
 	for(i = 0; i < arraysize; i++) {
-		if(next_reg != boot[i].addr) {
+		if((next_reg != boot[i].addr) || count == 50) {
 			if(count > 0) {
 				msgs.buf = tx_data;
 				msgs.len = count;
@@ -672,6 +676,7 @@ int cadiz_i2c_seq_write(initcode boot[], int arraysize)
 						__func__, tx_data[0], tx_data[1], r);
 					return r;
 				}
+				memset(tx_data, 0x0, sizeof(tx_data));
 			}
 
 			tx_data[0] = boot[i].addr >> 8;
@@ -685,7 +690,6 @@ int cadiz_i2c_seq_write(initcode boot[], int arraysize)
 
 	msgs.buf = tx_data;
 	msgs.len = count;
-
 	r = i2c_transfer(client->adapter, &msgs, 1);
 	if (r < 0) {
 		dev_err(&client->dev, "%s: reg 0x%02x%02x error %d\n",
@@ -699,7 +703,7 @@ int cadiz_i2c_seq_write(initcode boot[], int arraysize)
 }
 
 int cadiz_init_boot1(void){
-	int r=0;
+	int r = 0;
 	int hw_id = 0;
 	int arraysize= sizeof(cadiz_boot1)/sizeof(cadiz_boot1[0]);
 
@@ -728,7 +732,7 @@ int cadiz_init_boot1(void){
 EXPORT_SYMBOL(cadiz_init_boot1);
 
 int cadiz_init_ipc_ibc(void){
-	int r=0;
+	int r = 0;
 	int arraysize= sizeof(cadiz_ipc_ibc)/sizeof(cadiz_ipc_ibc[0]);
 	printk("%s: arraysize=%d\n", __func__, arraysize);
 
@@ -749,7 +753,7 @@ int cadiz_init_ipc_ibc(void){
 EXPORT_SYMBOL(cadiz_init_ipc_ibc);
 
 int cadiz_init_boot2(void){
-	int r=0;
+	int r = 0;
 	int arraysize= sizeof(cadiz_boot2)/sizeof(cadiz_boot2[0]);
 	printk("%s: arraysize=%d\n", __func__, arraysize);
 
@@ -870,8 +874,10 @@ void cadiz_resume(void)
 	int ret=0;
 
 	printk("[DISPLAY] %s: Enter\n",__func__);
-	if(cadiz_12)
-		gpio_direction_output(cadiz_12,1);
+	if(cadiz_12) {
+		ret = gpio_direction_output(cadiz_12,1);
+		printk("[DISPLAY] cadiz set 1.2v ret = %d\n", ret);
+	}
 	ret = regulator_set_voltage(vdd, 1800000, 1800000);
 	printk("[DISPLAY] cadiz l15 set 1.8v ret = %d \n",ret);
 	ret = regulator_enable(vdd);
@@ -882,8 +888,10 @@ void cadiz_resume(void)
 	printk("[DISPLAY] clk_prepare_enable ret = %d \n",ret);
 	usleep_range(5000, 5000);
 
-	if(cadiz_ldo_enable)
-		gpio_direction_output(cadiz_ldo_enable,1);
+	if(cadiz_ldo_enable) {
+		ret = gpio_direction_output(cadiz_ldo_enable,1);
+		printk("[DISPLAY] tcon set 1.8v ret = %d\n", ret);
+	}
 
 	ret = regulator_set_voltage(tcon_vdd, 3300000, 3300000);
 	printk("[DISPLAY] tcon l11 set 3.3v ret = %d \n",ret);
@@ -1304,6 +1312,7 @@ static int cadiz_probe(struct i2c_client *client, const struct i2c_device_id *id
 
 	cadiz_client = client;
 	addr = client->addr;
+	printk("[DISPLAY] %s: slave address=0x%x\n", __func__, addr);
 
 	vdd = regulator_get(&client->dev, "cadiz_18_vdd");
 	tcon_vdd = regulator_get(&client->dev, "tcon_ldo_vdd");
@@ -1348,8 +1357,6 @@ static int cadiz_probe(struct i2c_client *client, const struct i2c_device_id *id
 
 	ret = clk_set_rate(s_clk, 19200000);
 	printk("[DISPLAY] clk_set_rate == %d\n", ret);
-
-	printk("[DISPLAY] %s: slave address=0x%x\n", __func__, addr);
 
 	//Power
 	ret = regulator_enable(vdd);
@@ -1409,9 +1416,10 @@ static struct i2c_driver cadiz_driver = {
 static int __init cadiz_I2C_init(void)
 {
 	int ret = 0;
-	printk("[DISPLAY] %s: Enter\n",__func__);
+	printk("[DISPLAY] %s: Enter\n", __func__);
 	ret = i2c_add_driver(&cadiz_driver);
-	
+	printk("[DISPLAY] %s: ret=%d", __func__, ret);
+
 	return ret;
 }
 

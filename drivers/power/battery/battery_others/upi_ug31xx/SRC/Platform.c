@@ -33,37 +33,13 @@ GVOID UpiPrintDbg(char *format, ...)
 #if defined(FEATURE_PLAT_WINDOWS)
   va_list arg;
   char buf[1024];
-#ifdef FEATURE_DUMP_LOG
-  char name[64];
-  FILE *fpLogFile;
-  DWORD dwSize;
-#endif ///< end of FEATURE_DUMP_LOG
-  DWORD dwMaxSize = DUMP_FILE_SIZE;   ///< 10MB
-  static int idx = 0;
 
   memset(buf, 0, sizeof(buf));
   
   va_start(arg, format);
   vsprintf(buf + strlen(buf),  format, arg);
   va_end(arg);
-#ifdef FEATURE_DUMP_LOG
-  sprintf(name, "%s_%d.TXT", DUMP_FILE_NAME, idx);
-  fpLogFile = fopen(name, "a+");
-  if (fpLogFile)
-  {
-    fprintf(fpLogFile, "%s", buf);
-
-    fseek(fpLogFile, 0L, SEEK_END);
-    dwSize = ftell(fpLogFile);
-    fseek(fpLogFile, 0L, SEEK_SET);
-    /// check the file size is bug then 100MB
-    if (dwSize > dwMaxSize)
-    {
-      idx++;
-    }
-    fclose(fpLogFile);
-  }
-#endif ///< end of FEATURE_DUMP_LOG
+  _Dump2File(buf);
 
   printf("%s", buf);
 #elif defined(FEATURE_PLAT_LINUX)
@@ -116,38 +92,14 @@ GVOID UpiPrintDbgE(char *format, ...)
 {
 #if defined(FEATURE_PLAT_WINDOWS)
   char buf[1024];
-  char name[64];
+  
   va_list arg;
-#ifdef FEATURE_DUMP_LOG
-  FILE *fpLogFile;
-  DWORD dwSize;
-#endif ///< end of FEATURE_DUMP_LOG
-  DWORD dwMaxSize = DUMP_FILE_SIZE;   ///< 10MB
-  static int idx = 0;
-
   memset(buf, 0, sizeof(buf));
   
   va_start(arg, format);
   vsprintf(buf + strlen(buf),  format, arg);
   va_end(arg);
-  sprintf(name, "%s_%d.TXT", DUMP_FILE_NAME, idx);
-#ifdef FEATURE_DUMP_LOG
-  fpLogFile = fopen(name, "a+");
-  if (fpLogFile)
-  {
-    fprintf(fpLogFile, "%s", buf);
-
-    fseek(fpLogFile, 0L, SEEK_END);
-    dwSize = ftell(fpLogFile);
-    fseek(fpLogFile, 0L, SEEK_SET);
-    /// check the file size is bug then 100MB
-    if (dwSize > dwMaxSize)
-    {
-      idx++;
-    }
-    fclose(fpLogFile);
-  }
-#endif ///< end of FEATURE_DUMP_LOG
+  _Dump2File(buf);
 
   printf("%s", buf);
 #elif defined(FEATURE_PLAT_LINUX)
@@ -265,7 +217,7 @@ GVOID UpiSleep(GDWORD msec)
 #if defined(FEATURE_PLAT_WINDOWS)
   Sleep(msec);
 #elif defined(FEATURE_PLAT_LINUX)
-  mdelay(msec);
+  msleep(msec);
 #elif defined(FEATURE_PLAT_ARM_M0)
   SYSDelay(msec);
 #elif defined(FEATURE_PLAT_POWERBANK_ARM_M0)

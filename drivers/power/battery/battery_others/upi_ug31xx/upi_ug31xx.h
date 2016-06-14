@@ -51,6 +51,7 @@
 #define UPI_UG31XX_KBO_EEPROM_ADDR      (0x4C)
 #define UPI_UG31XX_KBO_EEPROM_SIZE      (4)
 #define UPI_UG31XX_KBO_CMP_EEP_RETRY    (3)
+#define UPI_UG31XX_INIT_DELAY_WAIT_MS   (20000)
 
 /// =============================================
 /// Variables

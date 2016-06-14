@@ -41,11 +41,12 @@
 		qcom,mdss-pan-physical-height-dimension = <172>;
 		qcom,mdss-dsi-bpp = <24>;
 		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
-		qcom,mdss-dsi-underflow-color = <0xff>;
+		qcom,mdss-dsi-underflow-color = <0x00>;
 		qcom,mdss-dsi-border-color = <0>;
 		qcom,mdss-dsi-on-command = [29 01 00 00 00 00 02 50 77
 				29 01 00 00 00 00 02 E1 66
 				29 01 00 00 00 00 02 DC 67
+				29 01 00 00 00 00 02 E9 55
 				29 01 00 00 00 00 02 50 00
 				29 01 00 00 00 00 02 35 00
 				29 01 00 00 00 00 02 58 99

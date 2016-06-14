@@ -94,11 +94,6 @@ extern void fork_init(unsigned long);
 extern void mca_init(void);
 extern void sbus_init(void);
 extern void radix_tree_init(void);
-// Flysky150528: create /proc/printk_state
-#ifdef CONFIG_PRINTK
-extern void create_printk_proc(void);
-#endif
-
 #ifndef CONFIG_DEBUG_RODATA
 static inline void mark_rodata_ro(void) { }
 #endif
@@ -1005,12 +1000,6 @@ static int __ref kernel_init(void *unused)
 	numa_default_policy();
 
 	flush_delayed_fput();
-
-// Flysky150528: create /proc/printk_state
-#ifdef CONFIG_PRINTK
-        create_printk_proc();
-#endif
-
 
 	if (ramdisk_execute_command) {
 		if (!run_init_process(ramdisk_execute_command))

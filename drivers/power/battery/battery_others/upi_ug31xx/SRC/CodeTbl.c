@@ -158,7 +158,7 @@ GWORD (* const StdCmdTablePage2[])(GVOID) = {
          SbsVCapData,                     ///< 0x41 Dummy
          SbsAlarm,                        ///< 0x42 Alarm function
          SbsOffTime,                      ///< 0x43 Power Off Time
-         SbsDummy,                        ///< 0x44 Dummy
+         SbsTableStateOfCharge,           ///< 0x44 SOC looked up from table
          SbsDummy,                        ///< 0x45 Dummy
          SbsDummy,                        ///< 0x46 Dummy
          SbsDummy,                        ///< 0x47 Dummy

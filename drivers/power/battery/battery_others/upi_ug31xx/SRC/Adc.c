@@ -107,6 +107,8 @@ static AdcDeltaCodeMappingType AdcDeltaCodeMapping[] =
  */
 STATIC GVOID ADC1QueueSet(GVOID)
 {
+  UpiGauge.wGaugeStatus = UpiGauge.wGaugeStatus & (~GAUGE_STATUS_ADC_QUEUE_INIT);
+
   WRITE_REG(REG_ADC_CTR_A, Adc1QueueVal[0]);
   WRITE_REG(REG_ADC_CTR_B, Adc1QueueVal[1]);
   WRITE_REG(REG_ADC_CTR_C, Adc1QueueVal[2]);
@@ -123,6 +125,8 @@ STATIC GVOID ADC1QueueSet(GVOID)
  */
 STATIC GVOID ADC1QueueInitSet(GVOID)
 {
+  UpiGauge.wGaugeStatus = UpiGauge.wGaugeStatus | GAUGE_STATUS_ADC_QUEUE_INIT;
+
   WRITE_REG(REG_ADC_CTR_A, Adc1QueueInitVal[0]);
   WRITE_REG(REG_ADC_CTR_B, Adc1QueueInitVal[1]);
   WRITE_REG(REG_ADC_CTR_C, Adc1QueueInitVal[2]);
@@ -749,11 +753,11 @@ GSHORT ADCFilterCurr(GSHORT sCurrCode)
   GSHORT sDeltaCode1;
   GSHORT sDeltaCode2;
 
-  if(GADC->bAdcCurrCodeCnt < 5)
+  if(GADC->bAdcCurrCodeCnt < 1)
   {
     /// [AT-PM] : Get the average current code at initial stage ; 08/03/2015
     GADC->bAdcCurrCodeCnt = GADC->bAdcCurrCodeCnt + 1;
-    GADC->dwAdcCurrCodeSum = GADC->dwAdcCurrCodeSum + sCurrCode;
+    GADC->dwAdcCurrCodeSum = GADC->dwAdcCurrCodeSum - GADC->sCCOffset;
     i32Code = GADC->dwAdcCurrCodeSum / GADC->bAdcCurrCodeCnt;
     GLOGD("[%s]: CNT = %d, SUM = %lld, RAW = %d, FILTER = %d\n", __func__, 
           GADC->bAdcCurrCodeCnt, 
@@ -824,15 +828,15 @@ GWORD ADCFilterIntTemp(GWORD wITcode)
 {
   GINT32 i32Code;
 
-  if(GADC->bAdcITCodeCnt < 5)
+  if(GADC->bAdcITCodeCnt < 1)
   {
     GADC->bAdcITCodeCnt++;
-    GADC->dwAdcITCodeSum = GADC->dwAdcITCodeSum + wITcode;
+    GADC->dwAdcITCodeSum = GADC->dwAdcITCodeSum + GOTP->aveIT25;
     i32Code = (GINT32) (GADC->dwAdcITCodeSum / (GADC->bAdcITCodeCnt));
     return (GWORD) i32Code;
   }
 
-  i32Code = (GADC->wAdcITCode * 60 + wITcode * 40) / 100;
+  i32Code = (GADC->wAdcITCode * 80 + wITcode * 20) / 100;
 
   return (GWORD) i32Code;
 }

@@ -10,7 +10,6 @@ config SENSORS_BMA2X2
 
 config SENSORS_BMA2X2_ENABLE_INT1
 	tristate "BMA2X2 acceleration sensor interrupt INT1 support"
-	depends on SENSORS_BMA2X2 && !SENSORS_BMA2X2_ENABLE_INT2
 	help
 	 If you say yes here, you get INT1 support for Bosch Sensortec
 	 acceleration sensors BMA255/BMA250E/BMA222E/BMA280.
@@ -18,7 +17,6 @@ config SENSORS_BMA2X2_ENABLE_INT1
 
 config SENSORS_BMA2X2_ENABLE_INT2
 	tristate "BMA2X2 acceleration sensor interrupt INT2 support"
-	depends on SENSORS_BMA2X2 && !SENSORS_BMA2X2_ENABLE_INT1
 	help
 	 If you say yes here, you get INT2 support for Bosch Sensortec
 	 acceleration sensors BMA255/BMA250E/BMA222E/BMA280.

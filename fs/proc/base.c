@@ -1114,7 +1114,7 @@ static ssize_t oom_qos_write(struct file *file, const char __user *buf,
         }
 
 
-        pr_debug("%s (%d): /proc/%d/oom_qos -> %d\n",
+        pr_info("%s (%d): /proc/%d/oom_qos -> %d\n",
                 current->comm, task_pid_nr(current), task_pid_nr(task),
                 oom_qos);
 
@@ -1132,10 +1132,6 @@ static const struct file_operations proc_oom_qos_operations = {
         .read		= oom_qos_read,
         .write		= oom_qos_write,
         .llseek		= generic_file_llseek,
-};
-
-static const struct inode_operations proc_oom_qos_inode_operations = {
-       .permission     = oom_adjust_permission,
 };
 
 static ssize_t oom_score_adj_read(struct file *file, char __user *buf,
@@ -2806,6 +2802,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("mounts",     S_IRUGO, proc_mounts_operations),
 	REG("mountinfo",  S_IRUGO, proc_mountinfo_operations),
 	REG("mountstats", S_IRUSR, proc_mountstats_operations),
+#ifdef CONFIG_PROCESS_RECLAIM
+	REG("reclaim", S_IWUSR, proc_reclaim_operations),
+#endif
 #ifdef CONFIG_PROC_PAGE_MONITOR
 	REG("clear_refs", S_IWUSR, proc_clear_refs_operations),
 	REG("smaps",      S_IRUGO, proc_pid_smaps_operations),
@@ -2835,7 +2834,7 @@ static const struct pid_entry tgid_base_stuff[] = {
 	INF("oom_score",  S_IRUGO, proc_oom_score),
 	ANDROID("oom_adj", S_IRUGO|S_IWUSR, oom_adj),
 	REG("oom_score_adj", S_IRUGO|S_IWUSR, proc_oom_score_adj_operations),
-    ANDROID("oom_qos", S_IRUGO|S_IWUSR, oom_qos),
+	REG("oom_qos", S_IRUGO|S_IWUSR, proc_oom_qos_operations),
 #ifdef CONFIG_AUDITSYSCALL
 	REG("loginuid",   S_IWUSR|S_IRUGO, proc_loginuid_operations),
 	REG("sessionid",  S_IRUGO, proc_sessionid_operations),
@@ -3192,7 +3191,7 @@ static const struct pid_entry tid_base_stuff[] = {
 	INF("oom_score", S_IRUGO, proc_oom_score),
 	REG("oom_adj",   S_IRUGO|S_IWUSR, proc_oom_adj_operations),
 	REG("oom_score_adj", S_IRUGO|S_IWUSR, proc_oom_score_adj_operations),
-    REG("oom_qos", S_IRUGO|S_IWUSR, proc_oom_qos_operations),
+	REG("oom_qos", S_IRUGO|S_IWUSR, proc_oom_qos_operations),
 #ifdef CONFIG_AUDITSYSCALL
 	REG("loginuid",  S_IWUSR|S_IRUGO, proc_loginuid_operations),
 	REG("sessionid",  S_IRUGO, proc_sessionid_operations),

@@ -15,15 +15,12 @@
 #include <linux/of_gpio.h>
 
 #define DRIVER_NAME "hall_sensor"
-#define HALLSENSOR_EVENT_WAKELOCK (2*HZ)
 #define DEV_NAME "HALL_SENSOR"
-#define DEBOUNCE_TIME 50
+#define DEBOUNCE_TIME 1
 static struct workqueue_struct *hall_sensor_wq;
 static struct kobject *hall_sensor_kobj;
 static struct platform_device *pdev;
 struct wake_lock Wake_Lock;
-struct wake_lock Event_wakelock;
-extern bool IS_FAIL_CA81(void);
 static struct hall_sensor_str {
  	int irq;
 	int status;
@@ -163,17 +160,9 @@ exit:
 static void lid_report_function(struct work_struct *dat)
 {
         unsigned long flags;
-        pr_info("[%s]EEPROM:%s",DRIVER_NAME,IS_FAIL_CA81() ? "Wrong type" : "Correct type");
-	msleep(DEBOUNCE_TIME);
-        if (!hall_sensor_dev->enable || IS_FAIL_CA81()){
-            pr_info("[%s] disable hall sensor becasue of user request!\n", DRIVER_NAME);
-            if(IS_FAIL_CA81() && hall_sensor_dev->status == 0){
-                pr_info("Detect CA81 and status is off!\n");
-                wake_lock_timeout(&Event_wakelock,HALLSENSOR_EVENT_WAKELOCK);
-                input_report_switch(hall_sensor_dev->lid_indev, SW_LID, hall_sensor_dev->status);
-                input_sync(hall_sensor_dev->lid_indev);
-                hall_sensor_dev->status = 1;
-            }
+        msleep(DEBOUNCE_TIME);
+        if (!hall_sensor_dev->enable){
+            pr_info("[%s] disable hall sensor becasue user!\n", DRIVER_NAME);
 	    wake_unlock(&Wake_Lock);
 	    return;
         }
@@ -185,7 +174,6 @@ static void lid_report_function(struct work_struct *dat)
             hall_sensor_dev->status = 0;
         spin_unlock_irqrestore(&hall_sensor_dev->mHallSensorLock, flags);
 
-        wake_lock_timeout(&Event_wakelock,HALLSENSOR_EVENT_WAKELOCK);
         input_report_switch(hall_sensor_dev->lid_indev, SW_LID, !hall_sensor_dev->status);
         input_sync(hall_sensor_dev->lid_indev);
 	wake_unlock(&Wake_Lock);
@@ -264,11 +252,11 @@ static int lid_probe(struct platform_device *pdev){
         }
         spin_lock_init(&hall_sensor_dev->mHallSensorLock);
         wake_lock_init(&Wake_Lock, WAKE_LOCK_SUSPEND, "lid_suspend_blocker");
-        wake_lock_init(&Event_wakelock, WAKE_LOCK_SUSPEND, "hall_event_timeout");
         hall_sensor_dev->enable = 1;
 
         //set gpio
         hall_sensor_dev->gpio = of_get_named_gpio_flags(pdev->dev.of_node,"YOBON,hall-intr-gpio",0,0);
+	printk("hall_sensor GPIO=%d\n", hall_sensor_dev->gpio);
         if (!gpio_is_valid(hall_sensor_dev->gpio) || hall_sensor_dev->gpio == 0){
              pr_info("[%s_ERROR] GPIO:[%d] for hall sensor does not exist.\n", DRIVER_NAME,hall_sensor_dev->gpio);
              ret= -1;
@@ -375,7 +363,6 @@ static void __exit hall_sensor_exit(void)
 	platform_driver_unregister(&lid_platform_driver);
 	platform_device_unregister(pdev);
 	wake_lock_destroy(&Wake_Lock);
-        wake_lock_destroy(&Event_wakelock);
 }
 
 

@@ -95,13 +95,13 @@
 #define DOUBLE_TAP_INTERRUPT        REL_WHEEL
 #define SINGLE_TAP_INTERRUPT        REL_MISC
 #define UNKNOW_TAP_INTERRUPT        REL_MAX
-#define ORIENT_INTERRUPT            ABS_PRESSURE
+#define ORIENT_INTERRUPT            ABS_TILT_X
 #define FLAT_INTERRUPT              ABS_DISTANCE
 #define SLOW_NO_MOTION_INTERRUPT    REL_Y
 /* Add by Tom for Zen Motion*/
 #define MOTION_FLICK_INTERRUPT      ABS_GAS
-#define MOTION_FLICK_HV_INTERRUPT      ABS_WHEEL
-#define MOTION_TERMINAL_INTERRUPT   ABS_PRESSURE
+#define MOTION_FLICK_HV_INTERRUPT   ABS_WHEEL
+#define MOTION_TERMINAL_INTERRUPT   ABS_TILT_X
 
 #define HIGH_G_INTERRUPT_X_HAPPENED                 1
 #define HIGH_G_INTERRUPT_Y_HAPPENED                 2
@@ -1400,6 +1400,7 @@ static const struct interrupt_map_t int_map[] = {
 /* Add by Tom for Calibration */
 #define REPORT_SINGLE_TAP_WHEN_DOUBLE_TAP_SENSOR_ENABLED
 #define GS_INI_PATH "/persist/gs_cali.ini"
+extern unsigned int entry_mode;
 static int bma2x2_write_to_califile(int raw_x,int raw_y,int raw_z);
 static struct bma2x2_data *g_accel_data ;
 static int Cali_Result ;
@@ -7572,6 +7573,18 @@ static int bma2x2_probe(struct i2c_client *client,
 
 
 	printk("===== G-Sensor Probe Start =====\n");
+	// add by leo for skip COS/POS ++
+	if(entry_mode==4)
+	{
+		printk("%s:[%d]: In COS, Skip Probe\n", __func__, __LINE__);
+		return 0;
+	}
+	else if(entry_mode==3)
+	{
+		printk("%s:[%d]: In POS, Skip Probe\n", __func__, __LINE__);
+		return 0;
+	}
+	// add by leo for skip COS/POS --
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		LDBG("i2c_check_functionality error\n");
@@ -7803,7 +7816,7 @@ static int bma2x2_probe(struct i2c_client *client,
 	data->dev_terminal->name = "bma2x2_terminal";
 	data->dev_terminal->id.bustype = BUS_I2C;
 	input_set_capability(data->dev_terminal, EV_ABS, MOTION_TERMINAL_INTERRUPT);
-	input_set_abs_params(data->dev_terminal, ABS_PRESSURE, ABSMIN, ABSMAX, 0, 0);
+	input_set_abs_params(data->dev_terminal, ABS_TILT_X , ABSMIN, ABSMAX, 0, 0);
 	input_set_drvdata(data->dev_terminal, g_accel_data);
 	err = input_register_device(data->dev_terminal);
 	if (err < 0)
@@ -8072,6 +8085,7 @@ exit:
 	return err;
 }
 
+#ifdef CONFIG_PM_SCREEN_STATE_NOTIFIER
 static void bma2x2_early_suspend(struct i2c_client *client)
 {
 	struct bma2x2_data *data = i2c_get_clientdata(client);
@@ -8144,6 +8158,7 @@ static int bma2x2_late_resume(struct i2c_client *client)
 
 	return 0;
 }
+#endif
 
 static int bma2x2_remove(struct i2c_client *client)
 {

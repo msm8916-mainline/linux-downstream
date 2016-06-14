@@ -27,6 +27,9 @@
 
 #define UG31XX_ALARM_FUNCTION                       ///< 開啟 UV ALARM IRQ 功能
 #define UG31XX_ATTACH_DETECTION                     ///< 開啟 Gauge Attach IRQ 功能
+#ifdef  UG31XX_ATTACH_DETECTION
+  #define UG31XX_DELAY_INIT                         ///< 開啟 Delay Initialize 功能
+#endif  ///< end of UG31XX_ATTACH_DETECTION
 
 #define UG31XX_BAT_FULL_VOLT        (4350)          ///< 设定电池满充电压
 #define UG31XX_BAT_SHUTDOWN_VOLT    (3000)          ///< 设定系统关机电压
@@ -64,6 +67,11 @@ typedef struct upi_ug31xx_st {
   #ifdef  UG31XX_ATTACH_DETECTION
   struct mutex             attach_lock;
   #endif  ///< end of UG31XX_ATTACH_DETECTION
+  #ifdef  UG31XX_DELAY_INIT
+  struct hrtimer           delay_init_timer;
+  struct delayed_work      delay_init_work;
+  #endif  ///< end of UG31XX_DELAY_INIT
+
   int                      curr_cable_status;
   int                      prev_cable_status;
   int                      cable_change_cnt;
@@ -79,6 +87,11 @@ typedef struct upi_ug31xx_st {
   bool                     first_run;
   int                      last_report_rsoc;
   int                      in_suspend_cnt;
+  #ifdef  UG31XX_DELAY_INIT 
+  atomic_t                 wait_delay_init;
+  atomic_t                 wait_delay_state;
+  atomic_t                 wait_delay_toggle;
+  #endif  ///< end of UG31XX_DELAY_INIT 
   upi_kbo_type             kbo_data;
 } upi_ug31xx_type;
 
@@ -485,12 +498,19 @@ static void upi_ug31xx_main_task(struct work_struct *work)
     }
     upi_ug31xx->last_report_rsoc = (int)wRsoc;
 
-    /// [AT-PM] : Set debug level ; 03/24/2015
-    wSysMode = wSysMode & (~SYS_MODE_FULL_DEBUG_MSG);
-    wSysMode = wSysMode | (debug_level & SYS_MODE_FULL_DEBUG_MSG);
-    buf[0] = wSysMode % 256;
-    buf[1] = wSysMode / 256;
-    SmbWriteCommand(SBS_SYS_MODE, &buf[0], 2);
+    /// [YL] : Set debug level ; 20150907
+    if(debug_level == 0)
+    {
+      buf[0] = SYS_MODE_CMD_SIMPLE_DEBUG_MSG % 256;
+      buf[1] = SYS_MODE_CMD_SIMPLE_DEBUG_MSG / 256;
+      SmbWriteCommand(SBS_SYS_MODE, &buf[0], 2);
+    }
+    else 
+    {
+      buf[0] = SYS_MODE_CMD_FULL_DEBUG_MSG % 256;
+      buf[1] = SYS_MODE_CMD_FULL_DEBUG_MSG / 256;
+      SmbWriteCommand(SBS_SYS_MODE, &buf[0], 2);
+    }
   }
   else
   {
@@ -544,6 +564,18 @@ void upi_ug31xx_attach(bool attach)
 static void upi_ug31xx_attach(bool attach)
 #endif
 {
+  #ifdef  UG31XX_DELAY_INIT
+  atomic_set(&upi_ug31xx->wait_delay_toggle, 1);
+  atomic_set(&upi_ug31xx->wait_delay_state, (attach == true) ? 1 : 0);
+
+  if(atomic_read(&upi_ug31xx->wait_delay_init) == 1)
+  {
+    schedule_delayed_work(&upi_ug31xx->delay_init_work, 1*HZ);
+    GLOGE("[%s]: Wait for the RTC timer stable\n", __func__);
+    return;
+  }
+  #endif  ///< end of UG31XX_DELAY_INIT
+
   cancel_delayed_work_sync(&upi_ug31xx->power_change_work);
   cancel_delayed_work_sync(&upi_ug31xx->info_update_work);
 
@@ -587,6 +619,21 @@ static void upi_ug31xx_attach(bool attach)
 EXPORT_SYMBOL(upi_ug31xx_attach);
 
 #endif  ///< end of UG31XX_ATTACH_DETECTION
+
+#ifdef  UG31XX_DELAY_INIT
+static void upi_ug31xx_delay_init_work_func(struct work_struct *work)
+{
+  GLOGE("[%s]: Restart attach event\n", __func__);
+  upi_ug31xx_attach(atomic_read(&upi_ug31xx->wait_delay_state) == 1 ? true : false);
+}
+
+static enum hrtimer_restart upi_ug31xx_delay_init_timer_func(struct hrtimer *timer)
+{
+  atomic_set(&upi_ug31xx->wait_delay_init, 0);
+  GLOGE("[%s]: RTC time is stable\n", __func__);
+  return (HRTIMER_NORESTART);
+}
+#endif  ////< end of UG31XX_DELAY_INIT
 
 /// ===============================================================================================
 /// Alarm function
@@ -944,20 +991,21 @@ static int ug31xx_get_proc_upi_gauge_attached(char *buf, char **start, off_t off
 static int ug31xx_get_proc_reset_capacity(char *buf, char **start, off_t off, int count, int *eof, void *data)
 {
   int len;
-  GWORD wSysMode;
   GBYTE buf[2];
 
   cancel_delayed_work_sync(&upi_ug31xx->info_update_work);
 
   /// [AT-PM] : Reset capacity status ; 04/22/2015
-  SmbReadCommand(SBS_SYS_MODE);
-  wSysMode = (GWORD)(*(SBSCmd->pbData + 1));
-  wSysMode = (wSysMode << 8) | (*(SBSCmd->pbData));
-  wSysMode = wSysMode | SYS_MODE_FULL_DEBUG_MSG;
-  wSysMode = wSysMode & (~SYS_MODE_INIT_CAP);
-  wSysMode = wSysMode & (~SYS_MODE_RESTORED);
-  buf[0] = wSysMode % 256;
-  buf[1] = wSysMode / 256;
+  buf[0] = SYS_MODE_CMD_FULL_DEBUG_MSG % 256;
+  buf[1] = SYS_MODE_CMD_FULL_DEBUG_MSG / 256;
+  SmbWriteCommand(SBS_SYS_MODE, &buf[0], 2);
+    
+  buf[0] = SYS_MODE_CMD_INIT_CAP_CLR % 256;
+  buf[1] = SYS_MODE_CMD_INIT_CAP_CLR / 256;
+  SmbWriteCommand(SBS_SYS_MODE, &buf[0], 2);
+
+  buf[0] = SYS_MODE_CMD_RESTORED_CLR % 256;
+  buf[1] = SYS_MODE_CMD_RESTORED_CLR / 256;
   SmbWriteCommand(SBS_SYS_MODE, &buf[0], 2);
 
   stop_charging();
@@ -1234,21 +1282,29 @@ static const struct file_operations ug31xx_get_proc_upi_gauge_attached_fops = {
 
 static int ug31xx_get_proc_reset_capacity(struct seq_file *m, void *v)
 {
-  GWORD wSysMode;
   GBYTE buf[2];
 
   cancel_delayed_work_sync(&upi_ug31xx->info_update_work);
 
-  /// [AT-PM] : Reset capacity status ; 04/22/2015
-  SmbReadCommand(SBS_SYS_MODE);
-  wSysMode = (GWORD)(*(SBSCmd->pbData + 1));
-  wSysMode = (wSysMode << 8) | (*(SBSCmd->pbData));
-  wSysMode = wSysMode & (~SYS_MODE_FULL_DEBUG_MSG);
-  wSysMode = wSysMode | (debug_level & SYS_MODE_FULL_DEBUG_MSG);
-  wSysMode = wSysMode & (~SYS_MODE_INIT_CAP);
-  wSysMode = wSysMode & (~SYS_MODE_RESTORED);
-  buf[0] = wSysMode % 256;
-  buf[1] = wSysMode / 256;
+  /// [YL] : Set debug level ; 20150907
+  if(debug_level == 0)
+  {
+    buf[0] = SYS_MODE_CMD_SIMPLE_DEBUG_MSG % 256;
+    buf[1] = SYS_MODE_CMD_SIMPLE_DEBUG_MSG / 256;
+    SmbWriteCommand(SBS_SYS_MODE, &buf[0], 2);     
+  }
+  else 
+  {
+    buf[0] = SYS_MODE_CMD_FULL_DEBUG_MSG % 256;
+    buf[1] = SYS_MODE_CMD_FULL_DEBUG_MSG / 256;
+    SmbWriteCommand(SBS_SYS_MODE, &buf[0], 2);
+  }
+  buf[0] = SYS_MODE_CMD_INIT_CAP_CLR % 256;
+  buf[1] = SYS_MODE_CMD_INIT_CAP_CLR / 256;
+  SmbWriteCommand(SBS_SYS_MODE, &buf[0], 2);
+
+  buf[0] = SYS_MODE_CMD_RESTORED_CLR % 256;
+  buf[1] = SYS_MODE_CMD_RESTORED_CLR / 256;
   SmbWriteCommand(SBS_SYS_MODE, &buf[0], 2);
 
   stop_charging();
@@ -1875,6 +1931,20 @@ static int ug31xx_i2c_probe(struct i2c_client *client, const struct i2c_device_i
   #ifdef  UG31XX_ATTACH_DETECTION
   mutex_init(&upi_ug31xx->attach_lock);
   #endif  ///< end of UG31XX_ATTACH_DETECTION
+
+  #ifdef  UG31XX_DELAY_INIT
+  /// [AT-PM] : Delay initialization if cover attached at power-on ; 09/04/2015
+  atomic_set(&upi_ug31xx->wait_delay_init, 1);
+  atomic_set(&upi_ug31xx->wait_delay_state, 0);
+  atomic_set(&upi_ug31xx->wait_delay_toggle, 0);
+  INIT_DEFERRABLE_WORK(&upi_ug31xx->delay_init_work, upi_ug31xx_delay_init_work_func);
+  hrtimer_init(&upi_ug31xx->delay_init_timer, HRTIMER_BASE_BOOTTIME, HRTIMER_MODE_REL);
+  upi_ug31xx->delay_init_timer.function = upi_ug31xx_delay_init_timer_func;
+  hrtimer_start(&upi_ug31xx->delay_init_timer,
+                ktime_set(UPI_UG31XX_INIT_DELAY_WAIT_MS / 1000,
+                          (UPI_UG31XX_INIT_DELAY_WAIT_MS % 1000) * 1000000),
+                HRTIMER_MODE_REL);
+  #endif  ///< end of UG31XX_DELAY_INIT
 
   #ifdef  UG31XX_ATTACH_DETECTION
   if(upi_ug31xx_is_attach() == true)

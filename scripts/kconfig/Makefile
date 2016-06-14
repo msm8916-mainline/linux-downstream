@@ -103,7 +103,8 @@ endif
 
 %_defconfig: $(obj)/conf
 	@echo " Make kernel configs with diffconfig ++"
-	-cat $(ANDROID_BUILD_TOP)/kernel/arch/$(SRCARCH)/configs/$@ $(ANDROID_BUILD_TOP)/vendor/asus/bsp/${ASUS_PROJECT}/${ASUS_PROJECT}_diffconfig $(ANDROID_BUILD_TOP)/vendor/asus/bsp/${ASUS_PROJECT}/${TARGET_BUILD_VARIANT}_diffconfig > $(OUT)/merge_config.tmp 
+	cat $(ANDROID_BUILD_TOP)/kernel/arch/$(SRCARCH)/configs/$@ $(ANDROID_BUILD_TOP)/vendor/asus/bsp/${ASUS_PROJECT}/${ASUS_PROJECT}_diffconfig > $(OUT)/merge_config.tmp 
+	-cat  $(ANDROID_BUILD_TOP)/vendor/asus/bsp/${ASUS_PROJECT}/${TARGET_BUILD_VARIANT}_diffconfig >> $(OUT)/merge_config.tmp
 	$(Q)$< --defconfig=$(OUT)/merge_config.tmp $(Kconfig)
 	@echo " ake kernel configs with diffconfig --"
 

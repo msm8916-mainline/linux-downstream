@@ -550,9 +550,9 @@ GVOID SYSCheckSysMode(GVOID)
   ///--------------------------------------------------///
   /// 1. BIT#0 : check system pause
   ///--------------------------------------------------///
-  if(SBS->wSysMode & SYS_MODE_PAUSE)
+  if(UpiGauge.wSysMode & SYS_MODE_PAUSE)
   { 
-    while(SBS->wSysMode & SYS_MODE_PAUSE)
+    while(UpiGauge.wSysMode & SYS_MODE_PAUSE)
     {   
       /// Clear WDT
   #if defined(FEATURE_PLAT_ARM_M0)
@@ -570,19 +570,19 @@ GVOID SYSCheckSysMode(GVOID)
   ///--------------------------------------------------///
   /// 2. BIT#1 : Set GG-RUN
   ///--------------------------------------------------///  
-  if(SBS->wSysMode & SYS_MODE_ACTIVATE)
+  if(UpiGauge.wSysMode & SYS_MODE_ACTIVATE)
   { 
     SYSActivateIC();
-    SBS->wSysMode &=~(SYS_MODE_ACTIVATE);
+    UpiGauge.wSysMode &=~(SYS_MODE_ACTIVATE);
   }
   
   ///--------------------------------------------------///
   /// 3. BIT#2 : CLEAR GG-RUN
   ///--------------------------------------------------///  
-  if(SBS->wSysMode & SYS_MODE_DEACTIVATE)
+  if(UpiGauge.wSysMode & SYS_MODE_DEACTIVATE)
   { 
     SYSDeActivateIC();
-    SBS->wSysMode &=~(SYS_MODE_DEACTIVATE);
+    UpiGauge.wSysMode &=~(SYS_MODE_DEACTIVATE);
   } 
 }
 
@@ -983,6 +983,62 @@ GVOID SYSReset(GVOID)
 }
 
 /**
+ * @brief SYSSelData
+ *
+ * Select data loaded from IC or CONFIG file
+ * - Date Code = 0xYYYYMMDDHHmm
+ *
+ * @return NULL
+ */
+STATIC GVOID SYSSelData(GVOID)
+{
+  GDWORD dwICDate;
+  GDWORD dwConfigDate;
+
+  if(!(UpiGauge.wGaugeStatus & GAUGE_STATUS_CONFIG_LOADED))
+  {
+    GLOGE("[%s]: CONFIG data is not available\n", __func__);
+    return;
+  }
+
+  /// [AT-PM] : Convert date code ; 09/08/2015
+  dwICDate = (GDWORD)UpiGauge.tmRes.mon;
+  dwICDate = (dwICDate << 8) | ((GBYTE)(UpiGauge.tmRes.day));
+  dwICDate = (dwICDate << 8) | ((GBYTE)(UpiGauge.tmRes.hour));
+  dwICDate = (dwICDate << 8) | ((GBYTE)(UpiGauge.tmRes.min));
+  GLOGD("[%s]: IC Date = %08x (%d/%d/%d %d:%d)\n", __func__, 
+        dwICDate, 
+        UpiGauge.tmRes.year, UpiGauge.tmRes.mon, UpiGauge.tmRes.day, 
+        UpiGauge.tmRes.hour, UpiGauge.tmRes.min);
+
+  dwConfigDate = (GDWORD)CFG->bMonth;
+  dwConfigDate = (dwConfigDate << 8) | ((GBYTE)(CFG->bMonth));
+  dwConfigDate = (dwConfigDate << 8) | ((GBYTE)(CFG->bDay));
+  dwConfigDate = (dwConfigDate << 8) | ((GBYTE)(CFG->bHour));
+  dwConfigDate = (dwConfigDate << 8) | ((GBYTE)(CFG->bMin));
+  GLOGD("[%s]: CONFIG Date = %08x (%d/%d/%d %d:%d)\n", __func__, 
+        dwConfigDate, 
+        CFG->wYear, CFG->bMonth, CFG->bDay,
+        CFG->bHour, CFG->bMin);
+
+  /// [AT-PM] : Check data load from IC ; 09/08/2015
+  if(UpiGauge.tmRes.year > CFG->wYear)
+  {
+    GLOGE("[%s]: Load data from IC (%d > %d)\n", __func__, UpiGauge.tmRes.year, CFG->wYear);
+    return;
+  }
+  if((UpiGauge.tmRes.year == CFG->wYear) &&
+     (dwICDate >= dwConfigDate))
+  {
+    GLOGE("[%s]: Load data from IC (%08x >= %08x)\n", __func__, dwICDate, dwConfigDate);
+    return;
+  }
+
+  /// [AT-PM] : Use data from CONFIG file ; 09/08/2015
+  CFGRecoverCapData();
+}
+
+/**
  * @brief SYSInit
  *
  *  Init System
@@ -1003,9 +1059,14 @@ GVOID SYSInit(GVOID)
     ///-------------------------------------------------------------------------------///
     if(SYSRestore() == GTRUE)
     {
+      /// [AT-PM] : Select load data from IC or CONFIG file ; 09/08/2015
+      SYSSelData();
+
       UpiGauge.wGaugeStatus |= GAUGE_STATUS_RESET_DONE;
       UpiGauge.wGaugeStatus |= GAUGE_STATUS_MEAS_STABLE;
       UpiGauge.wSysMode |= SYS_MODE_MEAS_STABLE;
+      CurMeas->bDeltaQ = GTRUE;
+    
       return;
     }
 #endif ///< for   FEATURE_RESTORE_FROM_IC 

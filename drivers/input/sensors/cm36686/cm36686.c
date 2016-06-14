@@ -142,6 +142,7 @@ static const int als_sense[] = {
 // add by Tom for get sys info
 extern int Read_HW_ID(void);
 extern int build_version;
+extern unsigned int entry_mode;
 static int debug;
 
 static void sensor_irq_do_work(struct work_struct *work);
@@ -1015,13 +1016,15 @@ static ssize_t ps_adc_show(struct device *dev,
 	int ret;
 	struct cm36686_info *lpi = lp_info;
 	int intr_val = -1;
+	uint16_t intFlag;
+	_cm36686_I2C_Read_Word(lpi->slave_addr, INT_FLAG, &intFlag);
 
 	get_ps_adc_value(&value);
 	if (gpio_is_valid(lpi->intr_pin))
 		intr_val = gpio_get_value(lpi->intr_pin);
 
-	ret = snprintf(buf, PAGE_SIZE, "ADC[%d], ENABLE=%d intr_pin=%d\n",
-			value, lpi->ps_enable, intr_val);
+	ret = snprintf(buf, PAGE_SIZE, "ADC[%d], ENABLE=%d intr_pin=%d INT_FLAG[%d]\n",
+			value, lpi->ps_enable, intr_val, intFlag);
 
 	return ret;
 }
@@ -2275,6 +2278,18 @@ static int cm36686_probe(struct i2c_client *client,
 	u32 value[2] = {0};
 	
 	printk("===== Light & Proximity Probe Start V1.0.0 =====\n");
+	// add by Tom for skip COS/POS ++
+	if(entry_mode==4)
+	{
+		printk("%s:[%d]: In COS, Skip Probe\n", __func__, __LINE__);
+		return 0;
+	}
+	else if(entry_mode==3)
+	{
+		printk("%s:[%d]: In POS, Skip Probe\n", __func__, __LINE__);
+		return 0;
+	}
+	// add by Tom for skip COS/POS --
 	
 	lpi = kzalloc(sizeof(struct cm36686_info), GFP_KERNEL);
 	if (!lpi)

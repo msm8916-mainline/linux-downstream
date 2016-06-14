@@ -852,8 +852,7 @@ STATIC GVOID CapAssignStandbyTable(GU2 *pwOcvTable)
     }
 
     /// [AT-PM] : Limit the voltage smaller than TP voltage ; 08/28/2015
-    if(CAP->wStandbyVoltTable[wIdx] >= 
-       (GGB->cChargeControl.scTerminationCfg.wTPVoltage))
+    if(CAP->wStandbyVoltTable[wIdx] >= (GGB->cChargeControl.scTerminationCfg.wTPVoltage))
     {
       CAP->wStandbyVoltTable[wIdx] = (GGB->cChargeControl.scTerminationCfg.wTPVoltage) -
                                      wIdx;
@@ -1041,6 +1040,9 @@ GVOID CapUpdate(GVOID)
   {
     CAP->bCapCntl = CAP->bCapCntl & (~CAP_CNTL_SET_RSOC);
 
+    /// [AT-PM] : Remove the limitation of the RSOC timer ; 09/10/2015
+    SBS->wRsocTimer = SBS_RSOC_TIMER_INIT;
+
     dwTmp = (GU4)CAP->wExtRsoc;
     dwTmp = dwTmp * CAP->wFcc;
     dwTmp = dwTmp / CAP_CONST_PERCENTAGE;
@@ -1069,46 +1071,50 @@ GVOID CapUpdate(GVOID)
         CAP->wRM,
         CAP->wFcc);
 
-  if(UpiGauge.bState == STATE_FULL_CHARGED)
+  /// [YL] : When system shut down to power on did not do this ; 20150921
+  if(CAP->bCapSteable != CAP_CNTL_INIT_RUN)
   {
-    CAP->bChgState = CAP->bChgState | CAP_CHG_STATE_FULL_CHARGE;
-    CAP->wDsgState = CAP->wDsgState | CAP_DSG_STATE_QD;
-
-    CapStepFull();
-  }
-  else if(UpiGauge.bState == STATE_FULL_DISCHARGED)
-  {
-    CAP->wDsgState = CAP->wDsgState | CAP_DSG_STATE_REACH_EDV0;
-
-    /// [AT-PM] : Update QD if necessary ; 06/03/2014
-    CapUpdateQD();
-
-    CAP->bChgState = CAP->bChgState & (~CAP_CHG_STATE_FULL_CHARGE);
-    CAP->wDsgState = CAP->wDsgState & (~CAP_DSG_STATE_QD);
-
-    CapStepDsgRM(0);
-  }
-  else
-  {
-    CAP->bChgState = CAP->bChgState & (~CAP_CHG_STATE_FULL_CHARGE);
-
-    if(UpiGauge.bState == STATE_CHARGING)
+    if(UpiGauge.bState == STATE_FULL_CHARGED)
     {
-      /// [AT-PM] : Reset discharge state ; 04/22/2014
-      CapResetQD();
+      CAP->bChgState = CAP->bChgState | CAP_CHG_STATE_FULL_CHARGE;
+      CAP->wDsgState = CAP->wDsgState | CAP_DSG_STATE_QD;
 
-      CapNowChg();
+      CapStepFull();
     }
-    else if(UpiGauge.bState == STATE_DISCHARGING)
+    else if(UpiGauge.bState == STATE_FULL_DISCHARGED)
     {
-      CapNowDsg();
+      CAP->wDsgState = CAP->wDsgState | CAP_DSG_STATE_REACH_EDV0;
+
+      /// [AT-PM] : Update QD if necessary ; 06/03/2014
+      CapUpdateQD();
+
+      CAP->bChgState = CAP->bChgState & (~CAP_CHG_STATE_FULL_CHARGE);
+      CAP->wDsgState = CAP->wDsgState & (~CAP_DSG_STATE_QD);
+
+      CapStepDsgRM(0);
     }
     else
     {
-      /// [AT-PM] : Reset discharge state ; 04/22/2014
-      CapResetQD();
+      CAP->bChgState = CAP->bChgState & (~CAP_CHG_STATE_FULL_CHARGE);
 
-      CapNowStandby();
+      if(UpiGauge.bState == STATE_CHARGING)
+      {
+        /// [AT-PM] : Reset discharge state ; 04/22/2014
+        CapResetQD();
+
+        CapNowChg();
+      }
+      else if(UpiGauge.bState == STATE_DISCHARGING)
+      {
+        CapNowDsg();
+      }
+      else
+      {
+        /// [AT-PM] : Reset discharge state ; 04/22/2014
+        CapResetQD();
+
+        CapNowStandby();
+      }
     }
   }
   GLOGD("%s[%s]: S(%x-%x-%x), IDX(%d-%d), SOC(%d=%d/%d), QD(%d-%d-%d-%d), QDB(%d-%d-%d-%d), VDT(%d-%d-%d-%d)\n", 
@@ -1139,16 +1145,20 @@ GVOID CapUpdateSbs(GVOID)
   /// [AT-PM] : Update RSOC ; 04/17/2014
   SBS->wRSOC = SBSCalSoc(SBS->wRM, SBS->wFCC);
 
-  /// [AT-PM] : Update ASOS ; 04/17/2014
+  /// [AT-PM] : Update ASOC ; 04/17/2014
   SBS->wASOC = SBSCalSoc(SBS->wRM, GGB->cSBSConfiguration.scData.wILMD);
 
-  GLOGD("%s[%s]: %d (%d) / %d (%d) = %d (%d)\n", CAP_BATT_LOG_HEADER, __func__,
+  /// [AT-PM] : Update TSOC ; 09/10/2015
+  SBS->wTSOC = CAP->wRsoc10x;
+
+  GLOGD("%s[%s]: %d (%d) / %d (%d) = %d (%d) <- %d\n", CAP_BATT_LOG_HEADER, __func__,
         SBS->wRM,
         CAP->wRM,
         SBS->wFCC,
         CAP->wFcc,
         SBS->wRSOC,
-        SBS->wASOC);
+        SBS->wASOC,
+        SBS->wTSOC);
 }
 
 #ifdef  __cplusplus

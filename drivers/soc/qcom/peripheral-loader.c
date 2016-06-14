@@ -559,7 +559,7 @@ static int pil_load_seg(struct pil_desc *desc, struct pil_seg *seg)
 // Rubio+ add dynamic load firmware feature
 		/*snprintf(fw_name, ARRAY_SIZE(fw_name), "%s.b%02d",
 				desc->name, num);*/
-		if((strcmp(desc->name, "wcnss") == 0 ) || (strcmp(desc->name, "venus") == 0 )) {
+		if((strcmp(desc->name, "venus") == 0 )) {
 			if (cpu_is_msm8916()) {
 				snprintf(fw_name, ARRAY_SIZE(fw_name), "%s_8916.b%02d", desc->name, num);
 				pil_err(desc, "CPU is msm8916, prepare load %s\n", fw_name);
@@ -676,7 +676,7 @@ int pil_boot(struct pil_desc *desc)
 	down_read(&pil_pm_rwsem);
 // Rubio+ add dynamic load firmware feature
 	/*snprintf(fw_name, sizeof(fw_name), "%s.mdt", desc->name);*/
-	if((strcmp(desc->name, "wcnss") == 0 ) || (strcmp(desc->name, "venus") == 0 )) {
+	if((strcmp(desc->name, "venus") == 0 )) {
 		if (cpu_is_msm8916()){
 			snprintf(fw_name, sizeof(fw_name), "%s_8916.mdt", desc->name);
 			pil_err(desc, "CPU is msm8916, prepare load %s\n", fw_name);
@@ -815,7 +815,7 @@ EXPORT_SYMBOL(pil_shutdown);
  */
 void pil_free_memory(struct pil_desc *desc)
 {
- 	struct pil_priv *priv = desc->priv;
+	struct pil_priv *priv = desc->priv;
 
 	if (priv->region) {
 		dma_free_attrs(desc->dev, priv->region_size,

@@ -269,7 +269,6 @@ int snd_usb_init_pitch(struct snd_usb_audio *chip, int iface,
 	}
 }
 
-
 static int start_endpoints(struct snd_usb_substream *subs, bool can_sleep)
 {
 	int err;

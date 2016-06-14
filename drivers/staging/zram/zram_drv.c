@@ -34,7 +34,7 @@
 #include <linux/vmalloc.h>
 #include <linux/ratelimit.h>
 #include <linux/show_mem_notifier.h>
-
+#include <linux/proc_fs.h>
 #include "zram_drv.h"
 
 /* Globals */
@@ -46,6 +46,8 @@ static struct zram *zram_devices;
  * second to know that a problem is occurring.
  */
 #define ALLOC_ERROR_LOG_RATE_MS 1000
+
+static const char *default_compressor = "lzo";
 
 /* Module params (documentation at end) */
 static unsigned int num_devices = 1;
@@ -69,14 +71,17 @@ static int zram_show_mem_notifier(struct notifier_block *nb,
 		if (zram->init_done) {
 			u64 val;
 			u64 data_size;
+			u64 orig_data_size;
 
 			val = zs_get_total_size_bytes(meta->mem_pool);
 			data_size = atomic64_read(&zram->stats.compr_size);
+			orig_data_size = atomic64_read(&zram->stats.pages_stored);
+
 			pr_info("Zram[%d] mem_used_total = %llu\n", i, val);
 			pr_info("Zram[%d] compr_data_size = %llu\n", i,
 				(unsigned long long)data_size);
-			pr_info("Zram[%d] orig_data_size = %u\n", i,
-				zram->stats.pages_stored);
+			pr_info("Zram[%d] orig_data_size = %llu\n", i,
+				(unsigned long long)orig_data_size);
 		}
 
 		up_read(&zram->init_lock);
@@ -88,6 +93,20 @@ static int zram_show_mem_notifier(struct notifier_block *nb,
 static struct notifier_block zram_show_mem_notifier_block = {
 	.notifier_call = zram_show_mem_notifier
 };
+#define ZRAM_ATTR_RO(name)						\
+static ssize_t zram_attr_##name##_show(struct device *d,		\
+				struct device_attribute *attr, char *b)	\
+{									\
+	struct zram *zram = dev_to_zram(d);				\
+	return scnprintf(b, PAGE_SIZE, "%llu\n",			\
+		(u64)atomic64_read(&zram->stats.name));			\
+}									\
+static struct device_attribute dev_attr_##name =			\
+	__ATTR(name, S_IRUGO, zram_attr_##name##_show, NULL)
+static inline int init_done(struct zram *zram)
+{
+	return zram->meta != NULL;
+}
 
 static inline struct zram *dev_to_zram(struct device *dev)
 {
@@ -146,12 +165,50 @@ static ssize_t notify_free_show(struct device *dev,
 			(u64)atomic64_read(&zram->stats.notify_free));
 }
 
+static ssize_t mem_used_max_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	u64 val = 0;
+	struct zram *zram = dev_to_zram(dev);
+
+	down_read(&zram->init_lock);
+	if (init_done(zram))
+		val = atomic_long_read(&zram->stats.max_used_pages);
+	up_read(&zram->init_lock);
+
+	return scnprintf(buf, PAGE_SIZE, "%llu\n", val << PAGE_SHIFT);
+}
+
+static ssize_t mem_used_max_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t len)
+{
+	int err;
+	unsigned long val;
+	struct zram *zram = dev_to_zram(dev);
+
+	err = kstrtoul(buf, 10, &val);
+	if (err || val != 0)
+		return -EINVAL;
+
+	down_read(&zram->init_lock);
+	if (init_done(zram)) {
+		struct zram_meta *meta = zram->meta;
+
+		atomic_long_set(&zram->stats.max_used_pages,
+				zs_get_total_pages(meta->mem_pool));
+	}
+	up_read(&zram->init_lock);
+
+	return len;
+}
+
+
 static ssize_t zero_pages_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct zram *zram = dev_to_zram(dev);
 
-	return sprintf(buf, "%u\n", zram->stats.pages_zero);
+	return sprintf(buf, "%llu\n", zram->stats.pages_zero);
 }
 
 static ssize_t orig_data_size_show(struct device *dev,
@@ -160,7 +217,7 @@ static ssize_t orig_data_size_show(struct device *dev,
 	struct zram *zram = dev_to_zram(dev);
 
 	return sprintf(buf, "%llu\n",
-		(u64)(zram->stats.pages_stored) << PAGE_SHIFT);
+		(u64)atomic64_read(&zram->stats.pages_stored) << PAGE_SHIFT);
 }
 
 static ssize_t compr_data_size_show(struct device *dev,
@@ -354,7 +411,7 @@ static void zram_free_page(struct zram *zram, size_t index)
 		zram->stats.good_compress--;
 
 	atomic64_sub(meta->table[index].size, &zram->stats.compr_size);
-	zram->stats.pages_stored--;
+	atomic64_dec(&zram->stats.pages_stored);
 
 	meta->table[index].handle = 0;
 	meta->table[index].size = 0;
@@ -438,6 +495,21 @@ out_cleanup:
 	return ret;
 }
 
+static inline void update_used_max(struct zram *zram,
+					const unsigned long pages)
+{
+	int old_max, cur_max;
+
+	old_max = atomic_long_read(&zram->stats.max_used_pages);
+
+	do {
+		cur_max = old_max;
+		if (pages > cur_max)
+			old_max = atomic_long_cmpxchg(
+				&zram->stats.max_used_pages, cur_max, pages);
+	} while (old_max != cur_max);
+}
+
 static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 			   int offset)
 {
@@ -447,6 +519,7 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 	struct page *page;
 	unsigned char *user_mem, *cmem, *src, *uncmem = NULL;
 	struct zram_meta *meta = zram->meta;
+    unsigned long alloced_pages;
 	static unsigned long zram_rs_time;
 
 	page = bvec->bv_page;
@@ -528,6 +601,15 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 		ret = -ENOMEM;
 		goto out;
 	}
+
+	alloced_pages = zs_get_total_pages(meta->mem_pool);
+	if (zram->limit_pages && alloced_pages > zram->limit_pages) {
+		zs_free(meta->mem_pool, handle);
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	update_used_max(zram, alloced_pages);
 	cmem = zs_map_object(meta->mem_pool, handle, ZS_MM_WO);
 
 	if ((clen == PAGE_SIZE) && !is_partial_io(bvec)) {
@@ -551,7 +633,7 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 
 	/* Update stats */
 	atomic64_add(clen, &zram->stats.compr_size);
-	zram->stats.pages_stored++;
+	atomic64_inc(&zram->stats.pages_stored);
 	if (clen <= PAGE_SIZE / 2)
 		zram->stats.good_compress++;
 
@@ -852,6 +934,8 @@ static DEVICE_ATTR(zero_pages, S_IRUGO, zero_pages_show, NULL);
 static DEVICE_ATTR(orig_data_size, S_IRUGO, orig_data_size_show, NULL);
 static DEVICE_ATTR(compr_data_size, S_IRUGO, compr_data_size_show, NULL);
 static DEVICE_ATTR(mem_used_total, S_IRUGO, mem_used_total_show, NULL);
+static DEVICE_ATTR(mem_used_max, S_IRUGO | S_IWUSR, mem_used_max_show,
+		mem_used_max_store);
 
 static struct attribute *zram_disk_attrs[] = {
 	&dev_attr_disksize.attr,
@@ -865,6 +949,7 @@ static struct attribute *zram_disk_attrs[] = {
 	&dev_attr_orig_data_size.attr,
 	&dev_attr_compr_data_size.attr,
 	&dev_attr_mem_used_total.attr,
+	&dev_attr_mem_used_max.attr,
 	NULL,
 };
 
@@ -908,6 +993,7 @@ static int create_device(struct zram *zram, int device_id)
 	zram->disk->private_data = zram;
 	snprintf(zram->disk->disk_name, 16, "zram%d", device_id);
 
+	__set_bit(QUEUE_FLAG_FAST, &zram->queue->queue_flags);
 	/* Actual capacity set using syfs (/sys/block/zram<id>/disksize */
 	set_capacity(zram->disk, 0);
 
@@ -929,7 +1015,7 @@ static int create_device(struct zram *zram, int device_id)
 		pr_warn("Error creating sysfs group");
 		goto out_free_disk;
 	}
-
+    strlcpy(zram->compressor, default_compressor, sizeof(zram->compressor));
 	zram->init_done = 0;
 	return 0;
 
@@ -955,6 +1041,70 @@ static void destroy_device(struct zram *zram)
 	if (zram->queue)
 		blk_cleanup_queue(zram->queue);
 }
+
+#ifdef CONFIG_PROC_FS
+static int zraminfo_proc_show(struct seq_file *m, void *v)
+{
+	if (num_devices == 1 && init_done(zram_devices)) {
+#define P2K(x) (((unsigned long)x) << (PAGE_SHIFT - 10))
+#define B2K(x) (((unsigned long)x) >> (10))
+		seq_printf(m,
+				"DiskSize:       %8lu kB\n"
+				"OrigSize:       %8lu kB\n"
+				"ComprSize:      %8lu kB\n"
+				"MemUsed:        %8lu kB\n"
+				"ZeroPage:       %8lu kB\n"
+				"NotifyFree:     %8lu kB\n"
+				"FailReads:      %8lu kB\n"
+				"FailWrites:     %8lu kB\n"
+				"NumReads:       %8lu kB\n"
+				"NumWrites:      %8lu kB\n"
+				"InvalidIO:      %8lu kB\n"
+#ifdef CONFIG_ZSM
+				"ZSM saved:      %8lu kB\n"
+				"ZSM4k saved:    %8lu kB\n"
+#endif
+				"MaxUsedPages:   %8lu kB\n"
+
+				,
+				B2K(zram_devices->disksize),
+				P2K(atomic64_read(&zram_devices->stats.pages_stored)),
+				B2K(atomic64_read(&zram_devices->stats.compr_size)),
+				P2K(zs_get_total_pages(zram_devices->meta->mem_pool)),
+				P2K(zram_devices->stats.pages_zero),
+				P2K(atomic64_read(&zram_devices->stats.notify_free)),
+				P2K(atomic64_read(&zram_devices->stats.failed_reads)),
+				P2K(atomic64_read(&zram_devices->stats.failed_writes)),
+				P2K(atomic64_read(&zram_devices->stats.num_reads)),
+				P2K(atomic64_read(&zram_devices->stats.num_writes)),
+				P2K(atomic64_read(&zram_devices->stats.invalid_io)),
+#ifdef CONFIG_ZSM
+				B2K(atomic64_read(&zram_devices->stats.zsm_saved)),
+				B2K(atomic64_read(&zram_devices->stats.zsm_saved4k)),
+#endif
+				P2K(atomic_long_read(&zram_devices->stats.max_used_pages))
+
+				);
+#undef P2K
+#undef B2K
+		seq_printf(m, "Algorithm: [%s]\n", zram_devices->compressor);
+	}
+
+	return 0;
+}
+
+static int zraminfo_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, zraminfo_proc_show, NULL);
+}
+
+static const struct file_operations zraminfo_proc_fops = {
+	.open		= zraminfo_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+#endif
 
 static int __init zram_init(void)
 {
@@ -988,6 +1138,9 @@ static int __init zram_init(void)
 	}
 
 	show_mem_notifier_register(&zram_show_mem_notifier_block);
+#ifdef CONFIG_PROC_FS
+	proc_create("zraminfo", 0, NULL, &zraminfo_proc_fops);
+#endif
 	pr_info("Created %u device(s) ...\n", num_devices);
 
 	return 0;

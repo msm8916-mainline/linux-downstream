@@ -419,6 +419,7 @@ unsigned int conn_gadget_poll(struct file* fp, poll_table *wait)
 	return mask;
 }
 
+//http://stackoverflow.com/questions/12875571/format-d-expects-argument-of-type-int-but-argument-2-has-type-size-t-w
 static ssize_t conn_gadget_read(struct file *fp, char __user *buf,
 				size_t count, loff_t *pos)
 {
@@ -427,7 +428,7 @@ static ssize_t conn_gadget_read(struct file *fp, char __user *buf,
 	int ret;
 	int lock = 0;
 
-	pr_debug("conn_gadget_read(%d)\n", count);
+	pr_debug("conn_gadget_read(%zu)\n", count);
 
 	if (!_conn_gadget_dev) {
 		printk(KERN_ERR "%s: _conn_gadget_dev is NULL\n", __func__);
@@ -435,7 +436,7 @@ static ssize_t conn_gadget_read(struct file *fp, char __user *buf,
 	}
 
 	if (count > CONN_GADGET_BULK_BUFFER_SIZE) {
-		printk(KERN_ERR "%s: count %d > BLK_BUF_SIZ %d\n", __func__, count, CONN_GADGET_BULK_BUFFER_SIZE);
+		printk(KERN_ERR "%s: count %zu > BLK_BUF_SIZ %d\n", __func__, count, CONN_GADGET_BULK_BUFFER_SIZE);
 		return -EINVAL;
 	}
 
@@ -525,7 +526,7 @@ static ssize_t conn_gadget_write(struct file *fp, const char __user *buf,
 		return -ENODEV;
 	}
 
-	pr_debug("conn_gadget_write(%d)\n", count);
+	pr_debug("conn_gadget_write(%zu)\n", count);
 
 	if (conn_gadget_lock(&dev->write_excl)) {
 		printk(KERN_INFO "%s: lock write_excl failed\n", __func__);
@@ -535,7 +536,7 @@ static ssize_t conn_gadget_write(struct file *fp, const char __user *buf,
 	dev->tx_done = 0;
 
 	while (count > 0) {
-		pr_debug("%s: in the loop (user count %d)\n", __func__, count);
+		pr_debug("%s: in the loop (user count %zu)\n", __func__, count);
 
 		if (dev->error) {
 			r = -EIO;
@@ -826,7 +827,7 @@ static int conn_gadget_bind_config(struct usb_configuration *c)
 
 	dev->cdev = c->cdev;
 	dev->function.name = "pclink";
-	dev->function.fs_descriptors  = fs_conn_gadget_descs;
+	dev->function.fs_descriptors = fs_conn_gadget_descs;
 	dev->function.hs_descriptors = hs_conn_gadget_descs;
 	dev->function.ss_descriptors = ss_conn_gadget_descs;
 	dev->function.bind = conn_gadget_function_bind;

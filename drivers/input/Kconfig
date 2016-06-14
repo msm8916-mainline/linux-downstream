@@ -211,6 +211,7 @@ source "drivers/input/sensors/Kconfig"
 
 source "drivers/input/sensors/bmc156/Kconfig"
 
+
 endif
 
 menu "Hardware I/O ports"

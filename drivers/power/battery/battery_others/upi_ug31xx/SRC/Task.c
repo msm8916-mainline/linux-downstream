@@ -217,7 +217,7 @@ GVOID TaskMeasurement(GVOID)
   
   /// Capacity Filter
   CurMeas->iCurCap    = MeasCapFilter();
-  
+  CurMeas->bDeltaQ    = GTRUE;
   /// Get Delta Cap
   CurMeas->sDeltaQ = MeasDeltaQ();
   
@@ -303,8 +303,10 @@ GVOID TaskGasGauge(GVOID)
  */
 GVOID TaskCapacity(GVOID)
 {
-  GSHORT sOffTime;
-  GSHORT sOffTimeThrd;
+  GWORD  wOffTime;
+  GWORD  wOffTimeThrd;
+  GDWORD dwPowerOffTime;
+  GDWORD dwPowerONTime;
 
   UpiMutexLock((GVOID *)&UpiCapMutex);
 
@@ -322,8 +324,8 @@ GVOID TaskCapacity(GVOID)
   {
     CapInit();
 
-    if((UpiGauge.wSysMode & SYS_MODE_RESTORED) ||
-       (UpiGauge.wGaugeStatus & GAUGE_STATUS_CONFIG_LOADED))
+    if((UpiGauge.wSysMode & SYS_MODE_RESTORED) && 
+       (!(UpiGauge.wGaugeStatus & GAUGE_STATUS_DRV_VERSION_MIS)))
     {
       /// [AT-PM] : Check power-off time ; 06/12/2014
       GLOGD("[%s]: Power-off time = %d-%d-%d %d:%d\n", __func__,
@@ -333,45 +335,60 @@ GVOID TaskCapacity(GVOID)
             UpiGauge.tmRes.hour,
             UpiGauge.tmRes.min);
 
-      if((UpiGauge.tmNow.year != UpiGauge.tmRes.year) ||
-         (UpiGauge.tmNow.mon  != UpiGauge.tmRes.mon) ||
-         (UpiGauge.tmNow.day  != UpiGauge.tmRes.day))
+      /// [AT-PM] : Get date code ; 09/08/2015
+      dwPowerOffTime = (GDWORD)UpiGauge.tmRes.mon;
+      dwPowerOffTime = (dwPowerOffTime << 8) | ((GBYTE)UpiGauge.tmRes.day);
+      dwPowerOffTime = (dwPowerOffTime << 8) | ((GBYTE)UpiGauge.tmRes.hour);
+      dwPowerOffTime = (dwPowerOffTime << 8) | ((GBYTE)UpiGauge.tmRes.min);
+
+      dwPowerONTime = (GDWORD)UpiGauge.tmNow.mon;
+      dwPowerONTime = (dwPowerONTime << 8) | ((GBYTE)UpiGauge.tmNow.day);
+      dwPowerONTime = (dwPowerONTime << 8) | ((GBYTE)UpiGauge.tmNow.hour);
+      dwPowerONTime = (dwPowerONTime << 8) | ((GBYTE)UpiGauge.tmNow.min);
+
+      if(UpiGauge.tmNow.year != UpiGauge.tmRes.year)
       {
-        sOffTime = TIME_MIN_TO_HOUR;
-        GLOGE("[%s]: Power-off date mismatched. (%04d/%02d/%02d != %04d/%02d/%02d)\n", __func__,
+        wOffTime = (GSHORT)GGB->cGasGauging.scEDVCfg.bOffTime;
+        wOffTime = wOffTime * TIME_MIN_TO_HOUR;
+        GLOGE("[%s]: Power-off year mismatched. (%04d/%02d/%02d != %04d/%02d/%02d)\n", __func__,
               UpiGauge.tmNow.year, UpiGauge.tmNow.mon, UpiGauge.tmNow.day,
               UpiGauge.tmRes.year, UpiGauge.tmRes.mon, UpiGauge.tmRes.day);
       }
-      else if(UpiGauge.tmNow.hour < UpiGauge.tmRes.hour)
+      else if(dwPowerOffTime > dwPowerONTime)
       {
-        sOffTime = TIME_MIN_TO_HOUR;
-        GLOGE("[%s]: Power-off hour overflown. (%d < %d)\n", __func__,
-              UpiGauge.tmNow.hour, UpiGauge.tmRes.hour);
+        wOffTime = (GSHORT)GGB->cGasGauging.scEDVCfg.bOffTime;
+        wOffTime = wOffTime * TIME_MIN_TO_HOUR;
+        GLOGE("[%s]: Power-off date overflown. (%08x > %08x)\n", __func__, dwPowerOffTime, dwPowerONTime);
       }
       else
       {
-        sOffTime = UpiGauge.tmNow.hour - UpiGauge.tmRes.hour;
-        sOffTime = sOffTime * TIME_MIN_TO_HOUR;
-        sOffTime = sOffTime + UpiGauge.tmNow.min - UpiGauge.tmRes.min;
-        GLOGE("[%s]: Power-off time = %d minutes\n", __func__, sOffTime);
+        wOffTime = (GWORD)(UpiGauge.tmNow.mon - UpiGauge.tmRes.mon);
+        wOffTime = wOffTime * TIME_DAY_TO_MONTH + (GWORD)(UpiGauge.tmNow.day - UpiGauge.tmRes.day);
+        wOffTime = wOffTime * TIME_HOUR_TO_DAY + (GWORD)(UpiGauge.tmNow.hour - UpiGauge.tmRes.hour);
+        wOffTime = wOffTime * TIME_MIN_TO_HOUR + (GWORD)(UpiGauge.tmNow.min - UpiGauge.tmRes.min);
+        GLOGE("[%s]: Power-off time = %d minutes\n", __func__, wOffTime);
       }
 
       /// [AT-PM] : Set off time to SBS ; 08/26/2015
-      if(sOffTime < 0)
+      if(wOffTime > SBS_OFF_TIME_MAXIMUM)
       {
-        /// [AT-PM] : Set off time to maximum if calculated value is negative ; 08/26/2015
+        /// [AT-PM] : Set off time to maximum if exceed it ; 09/07/2015
         SBS->wOffTime = SBS_OFF_TIME_MAXIMUM;
       }
       else
       {
-        SBS->wOffTime = (GWORD)sOffTime;
+        SBS->wOffTime = wOffTime;
       }
 
-      sOffTimeThrd = (GSHORT)GGB->cGasGauging.scEDVCfg.bOffTime;
-      sOffTimeThrd = sOffTimeThrd * TIME_MIN_TO_HOUR;
-      if(sOffTime < sOffTimeThrd)
+      wOffTimeThrd = (GWORD)GGB->cGasGauging.scEDVCfg.bOffTime;
+      wOffTimeThrd = wOffTimeThrd * TIME_MIN_TO_HOUR;
+      if(wOffTime < wOffTimeThrd)
       {
+        /// [YL] : Before update hang up Capacity initail run flag ; 20150921 
+        CAP->bCapSteable = CAP->bCapSteable | CAP_CNTL_INIT_RUN;
         CapUpdate();
+        /// [YL] : Clear Capacity initail run flag ; 20150921 
+        CAP->bCapSteable = CAP->bCapSteable & (~CAP_CNTL_INIT_RUN);  
       }
     }
     else
@@ -592,10 +609,13 @@ GVOID TaskSystem(GVOID)
   ///-------------------------------------------------///
   /// Save data back to IC
   ///-------------------------------------------------///
+  #ifndef FEATURE_ASUS_TINY_BOARD_MASE_PRODUCTION
   if(UpiGauge.wSysMode & SYS_MODE_SAVE_DATA_START)
   {
+    GLOGD("[%s]: In the normal status save data back to IC\n",__func__);
     SYSSaveData();
   }
+  #endif ///< End of FEATURE_ASUS_TINY_BOARD_MASE_PRODUCTION
 }
 
 /**
@@ -689,7 +709,8 @@ GVOID TaskConfig(GVOID)
   GINT32 iDeltaTime;
 
   iDeltaTime = UpiGauge.tmNow.absTime - UpiGauge.tmConfig.absTime; 
-  if(iDeltaTime >= CONFIG_UPDATE_INTERVAL)
+  if((iDeltaTime >= CONFIG_UPDATE_INTERVAL) ||
+     (UpiGauge.wGaugeStatus & GAUGE_STATUS_DRV_VERSION_MIS))
   {
     UPI_LOCALTIME(&UpiGauge.tmConfig);
 
@@ -698,6 +719,8 @@ GVOID TaskConfig(GVOID)
 
     /// [AT-PM] : Save config data to file ; 04/20/2015
     CFGUpdate();
+
+    UpiGauge.wGaugeStatus = UpiGauge.wGaugeStatus & (~GAUGE_STATUS_DRV_VERSION_MIS);
   }
 }
 
@@ -813,7 +836,8 @@ GVOID TaskDebugPrint(GVOID)
     }
   }
 
-  GLOGE("UG3105-%02d:%02d:%02d(%dms)>dt:%d,I:%d(%d),CC:%d(%d),CNT:%d,IT:%d(%d),ET:%d(%d,%d),VC1:%d(%d),VC2:%d(%d),VC3:%d(%d),OFF:%d,RID:%d(%d,%d),T:%d\n",
+  GLOGE("UG3105-%04d/%02d/%02d-%02d:%02d:%02d(%dms)>dt:%d,I:%d(%d),CC:%d(%d),CNT:%d,IT:%d(%d),ET:%d(%d,%d),VC1:%d(%d),VC2:%d(%d),VC3:%d(%d),OFF:%d,RID:%d(%d,%d),T:%d\n",
+        UpiGauge.tmNow.year, UpiGauge.tmNow.mon, UpiGauge.tmNow.day,
         UpiGauge.tmNow.hour, UpiGauge.tmNow.min, UpiGauge.tmNow.sec, UpiGauge.tmNow.absTime, CurMeas->iDeltaTime,
         SBS->wCodeCurr, GADC->adcRawCode.sCodeCurrInst,
         SBS->wCodeCC, GADC->adcCaliCode.sCodeCC, SBS->wCodeCnt,
@@ -825,14 +849,15 @@ GVOID TaskDebugPrint(GVOID)
         SBS->sCodeOffset,
         SBS->wCodeRid, GADC->wAdcRidCode, GADC->adcCaliCode.sCodeRidComp,
         CurMeas->iConvTime);
-  GLOGE("OVERALL-%02d:%02d:%02d(%dms)>dT:%d-%04x,V:%d,I:%d,IT:%d,ET:%d,R:%d-%d(%d/%d),Q:%lld(%d),RID:%d.%d,S:%04x-%04x-%04x-%04x-%02x(%d)%02x-%02x-%04x DV:%s, ID:%s-%s, GV:%04x\n",
+  GLOGE("OVERALL-%04d/%02d/%02d-%02d:%02d:%02d(%dms)>dT:%d-%04x,V:%d,I:%d,IT:%d,ET:%d,R:%d(%d/%d),Q:%lld(%d),RID:%d.%d,S:%04x-%04x-%04x-%04x-%02x(%d)%02x-%02x-%04x(%d),DV:%s,ID:%s-%s,GV:%04x\n",
+        UpiGauge.tmNow.year, UpiGauge.tmNow.mon, UpiGauge.tmNow.day,
         UpiGauge.tmNow.hour, UpiGauge.tmNow.min, UpiGauge.tmNow.sec, UpiGauge.tmNow.absTime, CurMeas->iDeltaTime, SBS->wRsocTimer,
         CurMeas->wVCell1, CurMeas->sCurr, CurMeas->sIntTemp, CurMeas->sExtTemp,
-        SBS->wRSOC, CAP->wRsoc10x, SBS->wRM, SBS->wFCC,
+        SBS->wRSOC, SBS->wRM, SBS->wFCC,
         CurMeas->iCurCap, CurMeas->sDeltaQ,
         (CurMeas->wRid / 10), (CurMeas->wRid % 10),
         UpiGauge.wSysMode, UpiGauge.wGaugeStatus, UpiGauge.wErrorStatus, UpiGauge.wWarningStatus, UpiGauge.bState, UpiGauge.loopIdx,
-        CAP->bCapCntl, CAP->bChgState, CAP->wDsgState,
+        CAP->bCapCntl, CAP->bChgState, CAP->wDsgState, CAP->wRsoc10x,
         #if defined(FEATURE_ASUS_DRV_VERSION)
         DRV_VERSION_ASUS,
         #else ///< else of defined(FEATURE_ASUS_DRV_VERSION)

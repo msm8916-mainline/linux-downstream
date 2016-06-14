@@ -99,6 +99,14 @@ extern "C" {
 #include <linux/ioctl.h>
 #include <asm/uaccess.h>
 #include <asm/unaligned.h>
+#include <asm/atomic.h>
+#include <linux/timer.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+#include <linux/android_alarm.h>
+#else   ///< else of LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+#include <linux/alarmtimer.h>
+#endif  ///< end of LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+#include <linux/hrtimer.h>
 #elif defined(FEATURE_PLAT_ARM_M0)
 #include "evmdef.h"
 #elif defined(FEATURE_PLAT_POWERBANK_ARM_M0)

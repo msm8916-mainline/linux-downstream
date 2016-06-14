@@ -22,150 +22,6 @@
 	qcom,board-id = <1 0>;
 };
 
-/* Display */
-#include "dsi-panel-ili6136s-800x1280-video.dtsi"
-#include "dsi-panel-nt35521-800x1280-video.dtsi"
-#include "dsi-panel-rm27013-800x1280-video.dtsi"
-
-&mdss_dsi0 {
-	qcom,dsi-pref-prim-pan-ili6136s = <&dsi_ili6136s_800x1280_video>;
-	qcom,dsi-pref-prim-pan-rm27013 = <&dsi_rm27013_800x1280_video>;
-	pinctrl-names = "mdss_default", "mdss_sleep";
-	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
-	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
-
-	/delete-property/ qcom,platform-enable-gpio;
-	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
-	/delete-property/ qcom,platform-bklight-en-gpio;
-
-	// EVB ++++
-	qcom,dsi-pref-prim-pan-nt35521 = <&dsi_nt35521_800x1280_video>;
-	qcom,platform-enable-gpio-evb = <&msm_gpio 97 0>;
-	qcom,platform-bklight-en-gpio-evb = <&msm_gpio 98 0>;
-	// EVB ----
-
-	qcom,platform-lcm-id2 = <&msm_gpio 102 0>;
-};
-
-&dsi_nt35521_800x1280_video {
-	qcom,cont-splash-enabled;
-};
-
-&dsi_ili6136s_800x1280_video {
-	qcom,cont-splash-enabled;
-};
-
-&dsi_rm27013_800x1280_video {
-	qcom,cont-splash-enabled;
-};
-
-&soc {
-	i2c@78b5000 { /* BLSP1 QUP1 */
-		sony@10 {
-			compatible = "sony,cadiz";
-			reg = <0x10>;
-			sony,cadiz-ldo-en = <&msm_gpio 35 0x00>;
-			sony,cadiz-rst = <&msm_gpio 120 0x00>;
-
-			clocks = <&clock_gcc clk_gcc_gp1_clk>;
-			clock-names = "ref_clk";
-
-			qcom,platform-cadiz-12-gpio = <&msm_gpio 97 0>;
-			cadiz_18_vdd-supply = <&pm8916_l15>;
-			qcom,cadiz_18_vdd-voltage = <1800000 1800000>;
-
-			tcon_ldo_vdd-supply = <&pm8916_l11>;
-			qcom,tcon_ldo_vdd-voltage = <3300000 3300000>;
-		};
-
-		rt@31 {
-			compatible = "rt,8555";
-			reg = <0x31>;
-			rt,bl-en-gpio = <&msm_gpio 98 0x00>;
-		};
-
-		rt@2C {
-			compatible = "lp,85571";
-			reg = <0x2C>;
-		};
-	};
-	i2c@78b6000 { /* BLSP1 QUP2 */
-		
-		bosch@10 { /* Accelerometer sensor */
-			compatible = "bosch,bma2x2";
-			reg = <0x10>;
-			pinctrl-names = "default";
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <115 0x2002>;
-			vdd-supply = <&pm8916_l6>;
-			vio-supply = <&pm8916_l6>;
-			bosch,gpio-irq = <&msm_gpio 115 0x2002>;
-		};
-
-		bosch@12 { /* Magnetic field sensor */
-			compatible = "bosch,bmm050";
-			reg = <0x12>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <69 0x2>;
-			vdd-supply = <&pm8916_l6>;
-			vio-supply = <&pm8916_l6>;
-		};
-		
-		capella@60 { /* Proximity & Light Sensor */
-			compatible = "capella,cm36686";
-			reg = <0x60>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <113 0x2002>;
-			vdd-supply = <&pm8916_l17>;
-			vio-supply = <&pm8916_l17>;
-			capella,interrupt-gpio = <&msm_gpio 113 0x2002>;
-			capella,levels = <0x02 0x0f 0x1e 0x32 0x64 0xC8 0x12C 0x190 0x1F4 0x28A 0x320 0x3E8 0x5DC 0x7D0 0xBB8 0xFA0 0x1388 0x1B58 0x2710 0x30D4 0x3A98 0x445C 0x4E20>;
-			capella,ps_close_thd_set = <0x1e>;
-			capella,ps_away_thd_set = <0x19>;
-			capella,ls_cmd = <0x0045>; /* ALS_IT=80ms, INT_PERS=2*/
-			capella,ps_conf1_val = <0x0037>;
-			capella,ps_conf3_val = <0x0300>;
-		};
-
-	};
-	
-	sound {
-		/delete-property/ qcom,cdc-us-euro-gpios;
-		qcom,msm-mbhc-hphl-swh = <1>;
-		qcom,uart-debug-gpio = <&msm_gpio 112 0>;
-	};
-
-        GPIO98 {
-                compatible = "GPIO98";
-                gpios = <&msm_gpio 98 0>;
-        };
-        Hall_sensor {
-                compatible = "YOBON,YB8251ST23";
-                vdd-supply = <&pm8916_l5>;
-                YOBON,hall-intr-gpio = <&msm_gpio 117 0>;
-        };
-};
-
-&pmx_mdss_te {
-	/delete-property/ qcom,num-grp-pins;
-	/delete-property/ qcom,pins;
-};
-
-&pmx_mdss {
-	qcom,num-grp-pins = <1>;
-	qcom,pins = <&gp 25>;
-};
-
-&cci {
-	qcom,camera@0 {
-		/delete-property/ gpios;
-	};
-};
-
-&blsp1_uart1 {
-	status = "disabled";
-};
-
 /* Touch */
 &soc {
         i2c@78b9000 { /* BLSP1 QUP5 */
@@ -202,12 +58,159 @@
                         pinctrl-2 = <&ts_release>;
                         goodix,intr-gpio = <&msm_gpio 13 0x2008>;
                         goodix,reset-gpio = <&msm_gpio 12 0x0>;
+                        goodix,power-gpio = <&msm_gpio 21 0x0>;
                         goodix,display-coords = <0 0 719 1279>;
                         goodix,panel-coords = <0 0 719 1405>;
                         goodix,product-id = <928>;
                         goodix,i2c-pull-up;
                 };
         };
+	
+	i2c@78b6000 { /* BLSP1 QUP2 */
+		
+		bosch@10 { /* Accelerometer sensor */
+			compatible = "bosch,bma2x2";
+			reg = <0x10>;
+			pinctrl-names = "default";
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <115 0x2002>;
+			vdd-supply = <&pm8916_l6>;
+			vio-supply = <&pm8916_l6>;
+			bosch,gpio-irq = <&msm_gpio 115 0x2002>;
+		};
+
+		bosch@12 { /* Magnetic field sensor */
+			compatible = "bosch,bmm050";
+			reg = <0x12>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <69 0x2>;
+			vdd-supply = <&pm8916_l6>;
+			vio-supply = <&pm8916_l6>;
+		};
+		
+		capella@60 { /* Proximity & Light Sensor */
+			compatible = "capella,cm36686";
+			reg = <0x60>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <113 0x2008>;
+			vdd-supply = <&pm8916_l17>;
+			vio-supply = <&pm8916_l17>;
+			capella,interrupt-gpio = <&msm_gpio 113 0x2008>;
+			capella,levels = <0x02 0x0f 0x1e 0x32 0x64 0xC8 0x12C 0x190 0x1F4 0x28A 0x320 0x3E8 0x5DC 0x7D0 0xBB8 0xFA0 0x1388 0x1B58 0x2710 0x30D4 0x3A98 0x445C 0x4E20>;
+			capella,ps_close_thd_set = <0x1e>;
+			capella,ps_away_thd_set = <0x19>;
+			capella,ls_cmd = <0x0045>; /* ALS_IT=80ms, INT_PERS=2*/
+			capella,ps_conf1_val = <0x0037>;
+			capella,ps_conf3_val = <0x0300>;
+		};
+
+	};
+ 
+	Hall_sensor {
+                compatible = "YOBON,YB8251ST23";
+                YOBON,hall-intr-gpio = <&msm_gpio 117 0>;
+                vdd-supply = <&pm8916_l6>;
+        };
+
+};
+
+/* Display */
+#include "dsi-panel-ili6136s-800x1280-video.dtsi"
+#include "dsi-panel-nt35521-800x1280-video.dtsi"
+#include "dsi-panel-rm27013-800x1280-video.dtsi"
+#include "dsi-panel-rm68200-800x1280-video.dtsi"
+
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan-ili6136s = <&dsi_ili6136s_800x1280_video>;
+	qcom,dsi-pref-prim-pan-rm27013 = <&dsi_rm27013_800x1280_video>;
+	qcom,dsi-pref-prim-pan-rm68200 = <&dsi_rm68200_800x1280_video>;
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
+
+	/delete-property/ qcom,platform-enable-gpio;
+	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+	/delete-property/ qcom,platform-bklight-en-gpio;
+
+	// EVB ++++
+	qcom,platform-enable-gpio-evb = <&msm_gpio 97 0>;
+	qcom,platform-bklight-en-gpio-evb = <&msm_gpio 98 0>;
+	// EVB ----
+
+	qcom,platform-lcm-id2 = <&msm_gpio 102 0>;
+	qcom,platform-lcm-id0 = <&msm_gpio 100 0>;
+};
+
+&dsi_ili6136s_800x1280_video {
+	qcom,cont-splash-enabled;
+};
+
+&dsi_rm27013_800x1280_video {
+	qcom,cont-splash-enabled;
+};
+
+&dsi_rm68200_800x1280_video {
+	qcom,cont-splash-enabled;
+};
+
+&soc {
+	i2c@78b5000 { /* BLSP1 QUP1 */
+		sony@10 {
+			compatible = "sony,cadiz";
+			reg = <0x10>;
+			sony,cadiz-ldo-en = <&msm_gpio 35 0x00>;
+			sony,cadiz-rst = <&msm_gpio 120 0x00>;
+
+			clocks = <&clock_gcc clk_gcc_gp1_clk>;
+			clock-names = "ref_clk";
+
+			qcom,platform-cadiz-12-gpio = <&msm_gpio 97 0>;
+			cadiz_18_vdd-supply = <&pm8916_l15>;
+			qcom,cadiz_18_vdd-voltage = <1800000 1800000>;
+
+			tcon_ldo_vdd-supply = <&pm8916_l11>;
+			qcom,tcon_ldo_vdd-voltage = <3300000 3300000>;
+		};
+
+		rt@31 {
+			compatible = "rt,8555";
+			reg = <0x31>;
+			rt,bl-en-gpio = <&msm_gpio 98 0x00>;
+		};
+
+		rt@2C {
+			compatible = "lp,85571";
+			reg = <0x2C>;
+		};
+	};
+        GPIO98 {
+                 compatible = "GPIO98";
+                 gpios = <&msm_gpio 98 0>;
+        };
+
+        sound {
+                qcom,uart-debug-gpio = <&msm_gpio 112 0>;
+        };
+};
+
+&pmx_mdss_te {
+	/delete-property/ qcom,num-grp-pins;
+	/delete-property/ qcom,pins;
+};
+
+&pmx_mdss {
+	qcom,num-grp-pins = <1>;
+	qcom,pins = <&gp 25>;
+};
+
+&cci {
+	qcom,camera@0 {
+		/delete-property/ gpios;
+	};
+};
+
+&blsp1_uart1 {
+	status = "disabled";
 };
 
 &sdhc_1 {
@@ -215,11 +218,10 @@
 };
 
 &sdhc_2 {
-        /delete-property/ vdd-supply;
-        vdd-en-gpio = <&msm_gpio 119 0>;
-        qcom,clk-rates = <400000 25000000 50000000 100000000 200000000>;
+	/delete-property/ vdd-supply;
+	vdd-en-gpio = <&msm_gpio 119 0>;
+	qcom,clk-rates = <400000 25000000 50000000 100000000 200000000>;
 };
-
 /* +++++++++++++++++++++++++ USB, Charger, Battery +++++++++++++++++++++++++ */
 &soc {
 	tlmm_pinmux: pinctrl@1000000 {
@@ -396,4 +398,3 @@
        qcom,cover_id_np-gpio = <&msm_gpio 0 1>;
 };
 /* ------------------------- USB, Charger, Battery ------------------------- */
-

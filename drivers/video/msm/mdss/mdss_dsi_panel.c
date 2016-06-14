@@ -32,8 +32,8 @@
 #define NT35596_BUF_5_STATUS 0x80
 #define NT35596_MAX_ERR_CNT 2
 
-#define MIN_REFRESH_RATE 30
-
+#define MIN_REFRESH_RATE 48
+#define DEFAULT_MDP_TRANSFER_TIME 14000
 // cadiz +++++
 #if defined(ASUS_PROJECT_Z380KL_DISPLAY)
 extern int is_cadiz_support(void);
@@ -43,6 +43,7 @@ extern void lp85571_resume(void);
 extern int lp85571_support(void);
 extern void cadiz_rest_gpio(void);
 extern int lcm_id2;
+extern int lcm_id0;
 #endif
 // cadiz -----
 
@@ -178,6 +179,8 @@ static void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 	/*Panel ON/Off commands should be sent in DSI Low Power Mode*/
 	if (pcmds->link_state == DSI_LP_MODE)
 		cmdreq.flags  |= CMD_REQ_LP_MODE;
+	else if (pcmds->link_state == DSI_HS_MODE)
+		cmdreq.flags |= CMD_REQ_HS_MODE;
 
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
@@ -303,13 +306,19 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			pr_err("gpio request failed\n");
 			return rc;
 		}
+
 		if (!pinfo->cont_splash_enabled) {
 			if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
 				gpio_set_value((ctrl_pdata->disp_en_gpio), 1);
 
 			for (i = 0; i < pdata->panel_info.rst_seq_len; ++i) {
+#if 1
+				gpio_direction_output((ctrl_pdata->rst_gpio),
+					pdata->panel_info.rst_seq[i]);
+#else
 				gpio_set_value((ctrl_pdata->rst_gpio),
 					pdata->panel_info.rst_seq[i]);
+#endif
 				if (pdata->panel_info.rst_seq[++i])
 					usleep(pinfo->rst_seq[i] * 1000);
 			}
@@ -613,6 +622,19 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 	// cadiz +++++
 #if defined(ASUS_PROJECT_Z380KL_DISPLAY)
 	case BL_CADIZ:
+		if(lcm_id0 && lcm_id2) {
+			switch (bl_level) {
+				case 8:
+					bl_level = 7;
+					break;
+				case 6:
+					bl_level = 5;
+					break;
+				case 5:
+					bl_level = 3;
+					break;
+			}
+		}
 		if(is_cadiz_support())
 			cadiz_i2c_reg_write(0x0C28,bl_level);
 		break;
@@ -671,6 +693,42 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 end:
 	pinfo->blank_state = MDSS_PANEL_BLANK_UNBLANK;
 	printk("[DISPLAY] %s:-\n", __func__);
+	return 0;
+}
+
+static int mdss_dsi_post_panel_on(struct mdss_panel_data *pdata)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
+	struct mdss_panel_info *pinfo;
+	struct dsi_panel_cmds *on_cmds;
+
+	if (pdata == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
+
+	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+
+	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+
+	pinfo = &pdata->panel_info;
+	if (pinfo->dcs_cmd_by_left) {
+		if (ctrl->ndx != DSI_CTRL_LEFT)
+			goto end;
+	}
+
+	on_cmds = &ctrl->post_panel_on_cmds;
+
+	pr_debug("%s: ctrl=%p cmd_cnt=%d\n", __func__, ctrl, on_cmds->cmd_cnt);
+
+	if (on_cmds->cmd_cnt) {
+		msleep(50);	/* wait for 3 vsync passed */
+		mdss_dsi_panel_cmds_send(ctrl, on_cmds);
+	}
+
+end:
+	pr_debug("%s:-\n", __func__);
 	return 0;
 }
 
@@ -1351,6 +1409,133 @@ static void mdss_dsi_parse_dfps_config(struct device_node *pan_node,
 	return;
 }
 
+void mdss_dsi_unregister_bl_settings(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+{
+	if (ctrl_pdata->bklt_ctrl == BL_WLED)
+		led_trigger_unregister_simple(bl_led_trigger);
+}
+
+
+/**
+ * get_mdss_dsi_even_lane_clam_mask() - Computest DSI lane 0 & 2 clamps mask
+ * @dlane_swap: dsi_lane_map_type
+ * @lane_id: DSI lane (DSI_LANE_0)/(DSI_LANE_2)
+ *
+ * Return DSI lane 0 & 2 clamp mask based on lane swap configuration.
+ * Clamp Bit for Physical lanes
+ *      Lane Num        Bit     Mask
+ *      Lane0           Bit 7   0x80
+ *      Lane1           Bit 5   0x20
+ *      Lane2           Bit 3   0x08
+ *      Lane3           Bit 2   0x02
+ */
+u32 get_mdss_dsi_even_lane_clam_mask(char dlane_swap,
+				     enum dsi_lane_ids lane_id)
+{
+	u32 lane0_mask = 0;
+	u32 lane2_mask = 0;
+
+	switch (dlane_swap) {
+	case DSI_LANE_MAP_0123:
+	case DSI_LANE_MAP_0321:
+		lane0_mask = 0x80;
+		lane2_mask = 0x08;
+		break;
+	case DSI_LANE_MAP_3012:
+	case DSI_LANE_MAP_1032:
+		lane0_mask = 0x20;
+		lane2_mask = 0x02;
+		break;
+	case DSI_LANE_MAP_2301:
+	case DSI_LANE_MAP_2103:
+		lane0_mask = 0x08;
+		lane2_mask = 0x80;
+		break;
+	case DSI_LANE_MAP_1230:
+	case DSI_LANE_MAP_3210:
+		lane0_mask = 0x02;
+		lane2_mask = 0x20;
+		break;
+	default:
+		lane0_mask = 0x00;
+		lane2_mask = 0x00;
+		break;
+	}
+	if (lane_id == DSI_LANE_0)
+		return lane0_mask;
+	else if (lane_id == DSI_LANE_2)
+		return lane2_mask;
+	else
+		return 0;
+}
+
+/**
+ * get_mdss_dsi_odd_lane_clam_mask() - Computest DSI lane 1 & 3 clamps mask
+ * @dlane_swap: dsi_lane_map_type
+ * @lane_id: DSI lane (DSI_LANE_1)/(DSI_LANE_3)
+ *
+ * Return DSI lane 1 & 3 clamp mask based on lane swap configuration.
+ */
+u32 get_mdss_dsi_odd_lane_clam_mask(char dlane_swap,
+					enum dsi_lane_ids lane_id)
+{
+	u32 lane1_mask = 0;
+	u32 lane3_mask = 0;
+
+	switch (dlane_swap) {
+	case DSI_LANE_MAP_0123:
+	case DSI_LANE_MAP_2103:
+		lane1_mask = 0x20;
+		lane3_mask = 0x02;
+		break;
+	case DSI_LANE_MAP_3012:
+	case DSI_LANE_MAP_3210:
+		lane1_mask = 0x08;
+		lane3_mask = 0x80;
+		break;
+	case DSI_LANE_MAP_2301:
+	case DSI_LANE_MAP_0321:
+		lane1_mask = 0x02;
+		lane3_mask = 0x20;
+		break;
+	case DSI_LANE_MAP_1230:
+	case DSI_LANE_MAP_1032:
+		lane1_mask = 0x80;
+		lane3_mask = 0x08;
+		break;
+	default:
+		lane1_mask = 0x00;
+		lane3_mask = 0x00;
+		break;
+	}
+	if (lane_id == DSI_LANE_1)
+		return lane1_mask;
+	else if (lane_id == DSI_LANE_3)
+		return lane3_mask;
+	else
+		return 0;
+}
+static void mdss_dsi_set_lane_clamp_mask(struct mipi_panel_info *mipi)
+{
+	u32 mask = 0;
+
+	if (mipi->data_lane0)
+		mask = get_mdss_dsi_even_lane_clam_mask(mipi->dlane_swap,
+					DSI_LANE_0);
+	if (mipi->data_lane1)
+		mask |= get_mdss_dsi_odd_lane_clam_mask(mipi->dlane_swap,
+					DSI_LANE_1);
+	if (mipi->data_lane2)
+		mask |= get_mdss_dsi_even_lane_clam_mask(mipi->dlane_swap,
+					DSI_LANE_2);
+	if (mipi->data_lane3)
+		mask |= get_mdss_dsi_odd_lane_clam_mask(mipi->dlane_swap,
+					DSI_LANE_3);
+
+	mipi->phy_lane_clamp_mask = mask;
+}
+
+
 static int mdss_panel_parse_dt(struct device_node *np,
 			struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
@@ -1637,6 +1822,8 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	pinfo->mipi.frame_rate = (!rc ? tmp : 60);
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-clockrate", &tmp);
 	pinfo->clk_rate = (!rc ? tmp : 0);
+	rc = of_property_read_u32(np, "qcom,mdss-mdp-transfer-time-us", &tmp);
+	pinfo->mdp_transfer_time_us = (!rc ? tmp : DEFAULT_MDP_TRANSFER_TIME);
 	data = of_get_property(np, "qcom,mdss-dsi-panel-timings", &len);
 	if ((!data) || (len != 12)) {
 		pr_err("%s:%d, Unable to read Phy timing settings",
@@ -1650,6 +1837,9 @@ static int mdss_panel_parse_dt(struct device_node *np,
 					"qcom,mdss-dsi-lp11-init");
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-init-delay-us", &tmp);
 	pinfo->mipi.init_delay = (!rc ? tmp : 0);
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-post-init-delay", &tmp);
+	pinfo->mipi.post_init_delay = (!rc ? tmp : 0);
 
 	mdss_dsi_parse_roi_alignment(np, pinfo);
 
@@ -1670,6 +1860,9 @@ static int mdss_panel_parse_dt(struct device_node *np,
 
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
 		"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->post_panel_on_cmds,
+		"qcom,mdss-dsi-post-panel-on-command", NULL);
 
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
 		"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
@@ -1705,6 +1898,12 @@ static int mdss_panel_parse_dt(struct device_node *np,
 				pr_err("TE-ESD not valid for video mode\n");
 		}
 	}
+
+	pinfo->mipi.force_clk_lane_hs = of_property_read_bool(np,
+		"qcom,mdss-dsi-force-clock-lane-hs");
+
+	pinfo->mipi.always_on = of_property_read_bool(np,
+		"qcom,mdss-dsi-always-on");
 
 	rc = mdss_dsi_parse_panel_features(np, ctrl_pdata);
 	if (rc) {
@@ -1753,6 +1952,8 @@ int mdss_dsi_panel_init(struct device_node *node,
 		return rc;
 	}
 
+	mdss_dsi_set_lane_clamp_mask(&pinfo->mipi);
+
 	// cadiz +++++
 #if defined(ASUS_PROJECT_Z380KL_DISPLAY)
 	if(is_cadiz_support())
@@ -1770,6 +1971,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 	pinfo->esd_rdy = false;
 
 	ctrl_pdata->on = mdss_dsi_panel_on;
+	ctrl_pdata->post_panel_on = mdss_dsi_post_panel_on;
 	ctrl_pdata->off = mdss_dsi_panel_off;
 	ctrl_pdata->low_power_config = mdss_dsi_panel_low_power_config;
 	ctrl_pdata->panel_data.set_backlight = mdss_dsi_panel_bl_ctrl;

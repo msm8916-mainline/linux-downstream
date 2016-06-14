@@ -226,9 +226,12 @@ EXTERN GVOID VCapRestore(GVOID);
 EXTERN GVOID CFGInit(GVOID);
 EXTERN GVOID CFGPrepareData(GVOID);
 EXTERN GVOID CFGUpdate(GVOID);
+EXTERN GVOID CFGRecoverCapData(GVOID);
 
 EXTERN GBOOL _CFGWriteByte(GWORD addr, GCHAR buf);
 EXTERN GBOOL _CFGReadByte(GWORD addr, GCHAR *buf);
+
+EXTERN GVOID _Dump2File(GCHAR *buf);
 
 ///-------------------------------------------------------------------------------///
 /// Alarm Function
@@ -327,6 +330,7 @@ EXTERN GVOID SbsVCapCmd(GWORD wData);               ///< 0x41 Capacity command o
 EXTERN GWORD SbsAlarm(GVOID);                       ///< 0x42 Alarm function
 EXTERN GVOID SbsAlarmWt(GWORD wData);               ///< 0x42 Alarm function control
 EXTERN GWORD SbsOffTime(GVOID);                     ///< 0x43 Power Off Time
+EXTERN GWORD SbsTableStateOfCharge(GVOID);          ///< 0x44 SOC looked up from table
 EXTERN GWORD SbsVRT(GVOID);                         ///< 0x4b RT of Voltage Gauge
 EXTERN GWORD SbsVFct(GVOID);                        ///< 0x4c FCT of Voltage Gauge
 EXTERN GWORD SbsVRsoc(GVOID);                       ///< 0x4d RSOC of Voltage Gauge

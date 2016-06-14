@@ -30,7 +30,6 @@
 #include <linux/suspend.h>
 #include <linux/cpuidle.h>
 #include <linux/timer.h>
-#include <linux/delay.h>
 
 #include "../base.h"
 #include "power.h"
@@ -1128,7 +1127,6 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 	char *info = NULL;
 	int error = 0;
 	struct dpm_watchdog wd;
-	int i = 0;
 
 	dpm_wait_for_children(dev, async);
 
@@ -1154,19 +1152,7 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 	
 	dpm_wd_set(&wd, dev);
 
-        while(1){
-                 if(mutex_trylock(&dev->mutex))
-                         break;
-                 if(++i==3){
-                         error = -EBUSY;
-                         dpm_wd_clear(&wd);
-                         printk("[%s]Suspend process is failed due to the device:%s had been locked.\n"
-                                       ,__func__,dev_name(dev));
-                         goto Complete;
-                 }
-                 msleep(100);
-        }
-
+	device_lock(dev);
 
 	if (dev->pm_domain) {
 		info = "power domain ";
@@ -1318,7 +1304,6 @@ static int device_prepare(struct device *dev, pm_message_t state)
 	int (*callback)(struct device *) = NULL;
 	char *info = NULL;
 	int error = 0;
-	int i = 0;
 
 	if (dev->power.syscore)
 		return 0;
@@ -1331,16 +1316,7 @@ static int device_prepare(struct device *dev, pm_message_t state)
 	 */
 	pm_runtime_get_noresume(dev);
 
-        while(1){
-                if(mutex_trylock(&dev->mutex))
-                        break;
-                if(++i==3){
-                        printk("[%s]Suspend process is failed due to the device:%s had been locked.\n"
-                                       ,__func__,dev_name(dev));
-                        return -EBUSY;
-                }
-                msleep(100);
-        }
+	device_lock(dev);
 
 	dev->power.wakeup_path = device_may_wakeup(dev);
 

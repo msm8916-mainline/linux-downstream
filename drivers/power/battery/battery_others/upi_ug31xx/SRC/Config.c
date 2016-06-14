@@ -156,6 +156,13 @@ STATIC GBOOL CFGCheckData(GVOID)
     return (GFALSE);
   }
 
+  if((CFG->strDrvVersion[0] != (FW_VERSION % 256)) || 
+     (CFG->strDrvVersion[1] != (FW_VERSION / 256)))
+  {
+    GLOGE("[%s]: Driver version = %02x%02x != %d\n", __func__, CFG->strDrvVersion[1], CFG->strDrvVersion[0], FW_VERSION);
+    UpiGauge.wGaugeStatus = UpiGauge.wGaugeStatus | GAUGE_STATUS_DRV_VERSION_MIS;
+  }
+
   if(CFG->wFcc == 0)
   {
     GLOGE("[%s]: FCC from EEPROM = %d == 0\n", __func__, CFG->wFcc);
@@ -221,7 +228,7 @@ STATIC GVOID CFGLoadBoardOffset(GVOID)
  *
  * @return NULL
  */
-STATIC GVOID CFGRecoverCapData(GVOID)
+GVOID CFGRecoverCapData(GVOID)
 {
   SBS->wRM  = (GWORD)CFG->wRM;
   SBS->wFCC = (GWORD)CFG->wFcc;
@@ -285,10 +292,11 @@ GVOID CFGInit(GVOID)
 
   if(CFGLoadFromFile((GCHAR *)CFG, CfgMapTablePtr[0].addr, (GWORD)CFG->wDataSize) == GTRUE)
   {
-    GLOGE("[%s]: Config Data -> R:%d,F:%d,LC:%d,Y:%d,M:%d,D:%d,HR:%d,MIN:%d,QD:%d-%d-%d-%d,CS:%04x\n", __func__,
+    GLOGE("[%s]: Config Data -> R:%d,F:%d,LC:%d,Y:%d,M:%d,D:%d,HR:%d,MIN:%d,QD:%d-%d-%d-%d,DRV:%02x%02x,CS:%04x\n", __func__,
           CFG->wRM, CFG->wFcc, CFG->iCurCap,
           CFG->wYear, CFG->bMonth, CFG->bDay, CFG->bHour, CFG->bMin,
           CFG->wQD0, CFG->wQD1, CFG->wQD2, CFG->wQD3,
+          CFG->strDrvVersion[1], CFG->strDrvVersion[0],
           CFG->wChecksum);
 
     /// [AT-PM] : Load board offset ; 04/20/2015
@@ -331,6 +339,9 @@ GVOID CFGPrepareData(GVOID)
   CFG->wQD1    = (GU2)CAP->wQD[1];
   CFG->wQD2    = (GU2)CAP->wQD[2];
   CFG->wQD3    = (GU2)CAP->wQD[3];
+
+  CFG->strDrvVersion[0] = FW_VERSION % 256;
+  CFG->strDrvVersion[1] = FW_VERSION / 256;
 
   /// [AT-PM] : Calcualte checksum ; 04/20/2015
   CFG->wChecksum = (GWORD)CFGCalculateChecksum();
@@ -439,6 +450,15 @@ GVOID CFGUpdate(GVOID)
   if(rtn != GTRUE)
   {
     GLOGE("[%s]: Save CFG->wQD3 = %d fail\n", __func__, CFG->wQD3);
+    UpiGauge.wWarningStatus = UpiGauge.wWarningStatus | GAUGE_WARN_CONFIG_SAVE_FAIL;
+    return;
+  }
+
+  /// [AT-PM] : Save driver version ; 09/04/2015
+  rtn = CFGSaveToFile((GCHAR *)&CFG->strDrvVersion[0], CfgMapTablePtr[CONFIG_MAP_IDX_DRV_VERSION].addr, CfgMapTablePtr[CONFIG_MAP_IDX_DRV_VERSION].size);
+  if(rtn != GTRUE)
+  {
+    GLOGE("[%s]: Save CFG->strDrvVersion = %02x%02x fail\n", __func__, CFG->strDrvVersion[1], CFG->strDrvVersion[0]);
     UpiGauge.wWarningStatus = UpiGauge.wWarningStatus | GAUGE_WARN_CONFIG_SAVE_FAIL;
     return;
   }

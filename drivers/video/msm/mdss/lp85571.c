@@ -98,7 +98,7 @@ int lp85571_support(void)
 	if(is_support != -1)
 		return is_support;
 
-	if(Read_HW_ID()==HW_ID_SR1) {
+	if(false /*Read_HW_ID()==HW_ID_SR1*/) {
 		printk("[DISPLAY] %s: Not support LP85571\n", __func__);
 		is_support = 0;
 	}else{

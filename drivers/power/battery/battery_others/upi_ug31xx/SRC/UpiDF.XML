@@ -350,7 +350,7 @@
         <min>1</min>
         <max>255</max>
         <description>Max power off time for re-looking up table at initial</description>
-        <unit>-</unit>
+        <unit>hour</unit>
       </item>
     </subClass>
     <subClass type="CurrentThresholds" name="scCurrentThresholds">

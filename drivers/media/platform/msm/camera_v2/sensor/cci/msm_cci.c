@@ -29,7 +29,7 @@
 #define CYCLES_PER_MICRO_SEC_DEFAULT 4915
 #define CCI_MAX_DELAY 1000000
 
-#define CCI_TIMEOUT msecs_to_jiffies(1000)
+#define CCI_TIMEOUT msecs_to_jiffies(100)
 
 /* TODO move this somewhere else */
 #define MSM_CCI_DRV_NAME "msm_cci"
@@ -961,6 +961,8 @@ static long msm_cci_subdev_ioctl(struct v4l2_subdev *sd,
 	switch (cmd) {
 	case VIDIOC_MSM_CCI_CFG:
 		rc = msm_cci_config(sd, arg);
+		break;
+	case MSM_SD_NOTIFY_FREEZE:
 		break;
 	case MSM_SD_SHUTDOWN: {
 		struct msm_camera_cci_ctrl ctrl_cmd;

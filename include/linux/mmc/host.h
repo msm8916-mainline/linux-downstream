@@ -87,6 +87,7 @@ struct mmc_ios {
 /* states to represent load on the host */
 enum mmc_load {
 	MMC_LOAD_HIGH,
+	MMC_LOAD_INIT,
 	MMC_LOAD_LOW,
 };
 
@@ -154,8 +155,8 @@ struct mmc_host_ops {
 	int	(*notify_load)(struct mmc_host *, enum mmc_load);
 	int	(*stop_request)(struct mmc_host *host);
 	unsigned int	(*get_xfer_remain)(struct mmc_host *host);
-    /* Invoke in mmc_init_card, host can change the default configuration in implementation */
-    void (*change_configuration)(struct mmc_host *host, struct mmc_card *card);
+	/* Invoke in mmc_init_card, host can change the default configuration in implementation */
+	void (*change_configuration)(struct mmc_host *host, struct mmc_card *card);
 };
 
 struct mmc_card;
@@ -237,7 +238,6 @@ struct mmc_host {
 	unsigned int		f_min;
 	unsigned int		f_max;
 	unsigned int		f_init;
-    asus_mmc_pm_flag_t asus_mmc_pm_flag;
 	u32			ocr_avail;
 	u32			ocr_avail_sdio;	/* SDIO-specific OCR */
 	u32			ocr_avail_sd;	/* SD-specific OCR */
@@ -334,7 +334,6 @@ struct mmc_host {
 #define MMC_CAP2_HS400		(MMC_CAP2_HS400_1_8V | \
 				 MMC_CAP2_HS400_1_2V)
 #define MMC_CAP2_NONHOTPLUG	(1 << 25)	/*Don't support hotplug*/
-#define MMC_CAP2_DEFERRED_RESUME (1 << 26)  /* indicate whether the card resume process is deferable */    
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
 	int			clk_requests;	/* internal reference counter */
@@ -464,11 +463,6 @@ struct mmc_host {
 	bool			card_clock_off;
 	unsigned long		private[0] ____cacheline_aligned;
 };
-
-/* h must be a pointer to "struct mmc_host" */
-#define mmc_set_force_pm_resume(h) ((h)->asus_mmc_pm_flag |= ASUS_MMC_PM_FORCE_RESUME)
-#define mmc_clr_force_pm_resume(h) ((h)->asus_mmc_pm_flag &= ~ASUS_MMC_PM_FORCE_RESUME)
-#define mmc_is_force_pm_resume(h) (!!((h)->asus_mmc_pm_flag & ASUS_MMC_PM_FORCE_RESUME))
 
 struct mmc_host *mmc_alloc_host(int extra, struct device *);
 bool mmc_host_may_gate_card(struct mmc_card *);
