@@ -2084,14 +2084,7 @@ retry_open:
 		goto retry_open;
 	}
 	tty_unlock(tty);
-//ASUSDEBUG + jeffery_hu@asus.com
-// ASUS_BSP +++ [thomas] Fix can't enter control+C from debug board
-// Tks for Wenli's help.
-	#define ASUS_DEBUG_HSL "ttyHSL0"
-	if  (!strncmp(tty->name, ASUS_DEBUG_HSL, strlen(ASUS_DEBUG_HSL)))
-		noctty = 0;
-// ASUS_BSP --- [thomas] Fix can't enter control+C from debug board
-//ASUSDEBUG -
+
 
 	mutex_lock(&tty_mutex);
 	tty_lock(tty);
@@ -2577,28 +2570,6 @@ static int tiocsetd(struct tty_struct *tty, int __user *p)
 }
 
 /**
- *	tiocgetd	-	get line discipline
- *	@tty: tty device
- *	@p: pointer to user data
- *
- *	Retrieves the line discipline id directly from the ldisc.
- *
- *	Locking: waits for ldisc reference (in case the line discipline
- *		is changing or the tty is being hungup)
- */
-
-static int tiocgetd(struct tty_struct *tty, int __user *p)
-{
-	struct tty_ldisc *ld;
-	int ret;
-
-	ld = tty_ldisc_ref_wait(tty);
-	ret = put_user(ld->ops->num, p);
-	tty_ldisc_deref(ld);
-	return ret;
-}
-
-/**
  *	send_break	-	performed time break
  *	@tty: device to break on
  *	@duration: timeout in mS
@@ -2815,7 +2786,7 @@ long tty_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case TIOCGSID:
 		return tiocgsid(tty, real_tty, p);
 	case TIOCGETD:
-		return tiocgetd(tty, p);
+		return put_user(tty->ldisc->ops->num, (int __user *)p);
 	case TIOCSETD:
 		return tiocsetd(tty, p);
 	case TIOCVHANGUP:

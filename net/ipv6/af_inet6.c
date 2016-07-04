@@ -448,11 +448,9 @@ void inet6_destroy_sock(struct sock *sk)
 
 	/* Free tx options */
 
-	opt = xchg((__force struct ipv6_txoptions **)&np->opt, NULL);
-	if (opt) {
-		atomic_sub(opt->tot_len, &sk->sk_omem_alloc);
-		txopt_put(opt);
-	}
+	opt = xchg(&np->opt, NULL);
+	if (opt != NULL)
+		sock_kfree_s(sk, opt, opt->tot_len);
 }
 EXPORT_SYMBOL_GPL(inet6_destroy_sock);
 
@@ -696,6 +694,7 @@ int inet6_sk_rebuild_header(struct sock *sk)
 		fl6.flowi6_mark = sk->sk_mark;
 		fl6.fl6_dport = inet->inet_dport;
 		fl6.fl6_sport = inet->inet_sport;
+		fl6.flowi6_uid = sock_i_uid(sk);
 		security_sk_classify_flow(sk, flowi6_to_flowi(&fl6));
 
 		final_p = fl6_update_dst(&fl6, np->opt, &final);

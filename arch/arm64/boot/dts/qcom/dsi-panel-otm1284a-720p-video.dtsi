@@ -199,7 +199,7 @@
 		qcom,mdss-dsi-bl-max-level = <255>;
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
-		//qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+		//qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";	//ASUS BSP Austin_Tseng : disable panel pwm control
 		qcom,mdss-dsi-reset-sequence = <1 10>, <0 50>, <1 10>;
 		qcom,mdss-pan-physical-width-dimension = <62>; //width of picture in mm (for xdpi)
 		qcom,mdss-pan-physical-height-dimension = <110>; //height of picture in mm (for ydpi)
