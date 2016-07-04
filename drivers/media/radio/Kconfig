@@ -522,6 +522,10 @@ config LGE_ANT_SWITCH_FMRADIO_TDMB
 		bool "fmradio ant switch"
 		default n
 
+config LGE_FMRADIO_SOFT_MUTE_OFF
+        bool "fmradio softmute off"
+        default n
+
 config RADIO_SILABS
         tristate "SILABS FM"
         depends on I2C && VIDEO_V4L2

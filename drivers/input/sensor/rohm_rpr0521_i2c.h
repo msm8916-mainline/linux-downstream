@@ -179,4 +179,11 @@ typedef struct {
 /* REG_PSTL(0x4D) */
 #define REG_PSTL_MAX        (0xFFF)
 
+/* REG_ALS_DATA0_TH(0x4F) */
+#define REG_ALS_DATA0_TH_MAX (0xFFF)
+
+/* REG_ALS_DATA0_TL(0x51) */
+#define REG_ALS_DATA0_TL_MAX (0xFFF)
+
+
 #endif /* _ROHM_RPR0521_I2C_H_ */

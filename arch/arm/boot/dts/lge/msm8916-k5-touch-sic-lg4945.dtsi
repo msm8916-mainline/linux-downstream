@@ -1,0 +1,106 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	aliases {
+		spi5 = &spi_5;
+	};
+
+	soc {
+		spi_5: spi@78b9000{    /* BLSP-1 QUP5 */
+			status = "ok";
+			#revision = "rev_a...";
+			compatible = "qcom,spi-qup-v2";
+
+			cell-index = <18>;
+			
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			reg-names = "spi_physical", "spi_bam_physical";
+			reg = <0x78b9000 0x600>, <0x7884000 0x23000>;
+
+			interrupt-names = "spi_irq", "spi_bam_irq";
+			interrupts = <0 99 0>, <0 238 0>;
+
+			spi-max-frequency = <50000000>;
+			qcom,master-id = <86>;
+
+			clock-names = "iface_clk", "core_clk";
+			clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+				<&clock_gcc clk_gcc_blsp1_qup5_spi_apps_clk>;
+
+			/* Assign runtime functions to pins */
+			qcom,use-pinctrl;
+			pinctrl-names = "spi_default","spi_sleep";
+			pinctrl-0 = <&spi_ts_active>;
+			pinctrl-1 = <&spi_ts_suspend>;
+
+			qcom,gpio-mosi = <&msm_gpio 16 0>;
+			qcom,gpio-miso = <&msm_gpio 17 0>;
+			qcom,gpio-cs5 = <&msm_gpio 18 0>;
+			qcom,gpio-clk = <&msm_gpio 19 0>;
+
+			qcom,infinite-mode = <0>;
+			qcom,ver-reg-exists;
+
+			qcom,use-bam;
+			qcom,bam-consumer-pipe-index = <12>;
+			qcom,bam-producer-pipe-index = <13>;
+			/*qcom,rt-priority;*/
+			/*qcom,shared;*/
+
+		};
+	};
+};
+
+&spi_5 {
+	lg4945@0 {
+		compatible = "lge,lg4945";
+		status = "ok";
+		reg = <0>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2008>;
+		irqflags = <0x00000002>;
+		spi-max-frequency = <50000000>;
+
+		pinctrl-names = "touch_pin_active", "touch_pin_sleep";
+		pinctrl-0 = <&ts_reset_active &ts_int_active>;
+		pinctrl-1 = <&ts_reset_suspend &ts_int_suspend>;
+
+		reset-gpio = <&msm_gpio 12 0x00>;
+		irq-gpio = <&msm_gpio 13 0x2008>;
+
+		/*Caps*/
+		max_x = <1439>;
+		max_y = <2579>;
+		max_pressure = <0xff>;
+		max_width = <15>;
+		max_orientation = <1>;
+		max_id = <10>;
+
+		/*role*/
+		hw_reset_delay = <90>;
+		sw_reset_delay = <90>;
+		use_lpwg = <1>;
+		use_lpwg_test = <1>;
+
+		/* firmware */
+		use_upgrade = <1>;
+		fw_image = "sic/k5/L0L57P1_1_49.img",
+				"sic/k5/L0L57P1_1_35.img";
+		panel_spec = "sic/k5/pplus_limit.txt";
+		panel_spec_mfts = "sic/k5/pplus_limit_mfts.txt";
+	};
+
+	
+};

@@ -22,7 +22,7 @@
 
 		lge,fw_image = "melfas/mit200/c50_tmo_us/L0M45P1CY5_01_02.fw";
 		lge,p5_product = "L0M45P5CY5";
-		lge,p5_fw_image = "melfas/mit200/c50_tmo_us/L0M45P5CY5_01_09.fw";
+		lge,p5_fw_image = "melfas/mit200/c50_tmo_us/L0M45P5CY5_01_10.fw";
 
 		/* platform_data->pwr*/
 		/* type 0: none(default) */

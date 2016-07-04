@@ -216,6 +216,45 @@ static int qpnp_vib_get_time(struct timed_output_dev *dev)
 		return 0;
 }
 
+static int qpnp_vib_get_voltage(struct timed_output_dev *dev)
+{
+	struct qpnp_vib *vib = container_of(dev, struct qpnp_vib, timed_dev);
+	u8 reg = 0;
+	int rc;
+
+	rc = qpnp_vib_read_u8(vib, &reg, QPNP_VIB_VTG_CTL(vib->base));
+	if (rc < 0)
+		return rc;
+	printk("qpnp_vib_get_voltage : %d", reg);
+	return (int) reg;
+
+}
+
+static int qpnp_vib_set_voltage(struct timed_output_dev *dev, int value)
+{
+	struct qpnp_vib *vib = container_of(dev, struct qpnp_vib, timed_dev);
+	u8 reg = 0;
+	int rc;
+
+	vib->vtg_level = value;
+	if (vib->vtg_level < QPNP_VIB_MIN_LEVEL)
+		vib->vtg_level = QPNP_VIB_MIN_LEVEL;
+	else if (vib->vtg_level > QPNP_VIB_MAX_LEVEL)
+		vib->vtg_level = QPNP_VIB_MAX_LEVEL;
+
+	rc = qpnp_vib_read_u8(vib, &reg, QPNP_VIB_VTG_CTL(vib->base));
+	if (rc < 0)
+		return rc;
+	reg &= ~QPNP_VIB_VTG_SET_MASK;
+	reg |= (vib->vtg_level & QPNP_VIB_VTG_SET_MASK);
+	rc = qpnp_vib_write_u8(vib, &reg, QPNP_VIB_VTG_CTL(vib->base));
+	if (rc)
+		return rc;
+	vib->reg_vtg_ctl = reg;
+	printk("qpnp_vib_set_voltage : %d", reg);
+	return 0;
+}
+
 static enum hrtimer_restart qpnp_vib_timer_func(struct hrtimer *timer)
 {
 	struct qpnp_vib *vib = container_of(timer, struct qpnp_vib,
@@ -365,6 +404,8 @@ static int qpnp_vibrator_probe(struct spmi_device *spmi)
 	vib->timed_dev.name = "vibrator";
 	vib->timed_dev.get_time = qpnp_vib_get_time;
 	vib->timed_dev.enable = qpnp_vib_enable;
+	vib->timed_dev.get_vtg = qpnp_vib_get_voltage;
+	vib->timed_dev.set_vtg = qpnp_vib_set_voltage;
 
 	dev_set_drvdata(&spmi->dev, vib);
 

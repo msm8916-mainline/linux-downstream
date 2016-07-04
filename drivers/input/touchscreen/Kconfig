@@ -11,8 +11,13 @@ menuconfig INPUT_TOUCHSCREEN
 
 if INPUT_TOUCHSCREEN
 
+source "drivers/input/touchscreen/lge/Kconfig"
+
 source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
 source "drivers/input/touchscreen/TD4191/Kconfig"
+source "drivers/input/touchscreen/MIT300/Kconfig"
+source "drivers/input/touchscreen/melfas_mip4/Kconfig"
+source "drivers/input/touchscreen/c100n_mit300/Kconfig"
 
 config TOUCHSCREEN_88PM860X
 	tristate "Marvell 88PM860x touchscreen"
@@ -950,6 +955,35 @@ config TOUCHSCREEN_FT5X06
          To compile this driver as a module, choose M here: the
          module will be called ft5x06_ts.
 
+config TOUCHSCREEN_FT5X06_PSENSOR
+       tristate "FocalTech proximity feature support"
+       depends on TOUCHSCREEN_FT5X06 && SENSORS
+       help
+         Say Y here if you want to support ft5x06's proximity
+         feature.
+
+         If unsure, say N.
+
+config TOUCHSCREEN_FT5X06_GESTURE
+       tristate "FocalTech gesture feature support"
+       depends on TOUCHSCREEN_FT5X06
+       help
+         Say Y here if you want to support ft5x06's gesture
+         feature.
+
+         If unsure, say N.
+
+config TOUCHSCREEN_MSTAR21XX
+       tristate "mstar touchscreens"
+       depends on I2C
+       help
+         Say Y here if you have a mstar touchscreen.
+
+         If unsure, say N.
+
+         To compile this driver as a module, choose M here: the
+         module will be called msg21xx_ts.
+
 config TOUCHSCREEN_GEN_VKEYS
        tristate "Touchscreen Virtual Keys Driver"
        help
@@ -1000,7 +1034,7 @@ config TOUCHSCREEN_LGE_SYNAPTICS
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_S3320.
 
-config TOUCHSCREEN_LGE_SYNAPTICS_YG
+config TOUCHSCREEN_MSM8916_YG
 	tristate "Synaptics YG I2C Touchscreen"
 	depends on I2C
 	help
@@ -1011,6 +1045,38 @@ config TOUCHSCREEN_LGE_SYNAPTICS_YG
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_YG.
+
+config TOUCHSCREEN_MSM8916_C100N
+	tristate "Synaptics C100N I2C Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have Synaprics I2C touchscreen,
+	  such as TD4191, connected to your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called synaptics_C100N.
+
+config TOUCHSCREEN_MSM8916_M216N
+        tristate "Synaptics M216N I2C Touchscreen"
+        depends on I2C
+        help
+          Say Y here if you have Synaprics I2C touchscreen,
+          such as TD4191, connected to your system.
+          If unsure, say N.
+          To compile this driver as a module, choose M here: the
+          module will be called synaptics_M216N.
+
+config TOUCHSCREEN_MSM8916_M216
+	tristate "Synaptics M216 I2C Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have Synaprics I2C touchscreen,
+	  such as TD4191, connected to your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here: the
+	  module will be called synaptics_M216.
 
 config MSM8916_C90
 	tristate "msm 8916 c90nas_spr_us Synaptics S3320 I2C Touchscreen"
@@ -1106,6 +1172,54 @@ config TOUCHSCREEN_UNIFIED_DRIVER
 	 Say Y here if you use lge unified driver
 	 if unsure, say N
 
+config TOUCHSCREEN_UNIFIED_DRIVER_3
+        bool "LGE Unified driver Ver3.0"
+        depends on I2C
+        default n
+        help
+         Say Y here if you use lge unified driver ver3.0
+         if unsure, say N
+
+config TOUCHSCREEN_UNIFIED_DRIVER4
+        bool "LGE Unified driver Ver4.0"
+        depends on I2C
+        default n
+        help
+         Say Y here if you use lge unified driver ver3.0
+         if unsure, say N
+
+config TOUCHSCREEN_UNIFIED_MELFAS_MIT300_PH1
+	bool "Melfas MIT-300 based on LGE Unified driver Ver4.0"
+	depends on I2C && TOUCHSCREEN_UNIFIED_DRIVER4
+	default n
+	help
+         Say Y here if you have a Mefas MIT-300(PH1) I2C touchscreen
+         connected to your system.
+
+config MSM8916_C70
+	bool "LGE Device"
+	depends on I2C
+	default n
+	help
+	 Say Y here if you use lge unified driver
+	 if unsure, say N
+
+config TOUCHSCREEN_MSM8916_C70
+	bool "LGE Device"
+	depends on I2C
+	default n
+	help
+	 Say Y here if you use lge unified driver
+	 if unsure, say N
+
+config TOUCHSCREEN_MSM8939_P1B
+	bool "LGE Device"
+	depends on I2C
+	default n
+	help
+	 Say Y here if you use lge unified driver
+	 if unsure, say N
+
 config TOUCHSCREEN_LGE_MELFAS
 	bool "Melfas MIT-200 based on LGE Touch Core driver"
 	depends on I2C && TOUCHSCREEN_LGE_TOUCHCORE
@@ -1116,6 +1230,14 @@ config TOUCHSCREEN_LGE_MELFAS
 
 config TOUCHSCREEN_LU202X
 	bool "LEADINGUI LU202x"
+	depends on I2C
+	default n
+	help
+	 Say Y here if you have a LEADINGUI LU202x I2C touchscreen
+	 connected to your system.
+
+config TOUCHSCREEN_S3320
+	bool "Synaptics S3320"
 	depends on I2C
 	default n
 	help
@@ -1173,6 +1295,13 @@ config TOUCHSCREEN_ATMEL_STYLUS_PEN
     help
         Say Y here if you have an Atmel Maxtouch based touchscreen and stylus pen.
 
+config TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+    tristate "Atmel LPWG Debug Reason enable feature based touchscreens"
+    depends on I2C
+    default n
+    help
+        Say Y here if you have an Atmel Maxtouch based touchscreen and LPWG Debug Reason.
+
 config TOUCHSCREEN_LGE_LPWG
 	bool "LGE Touch LPWG feature"
 	depends on I2C
@@ -1225,5 +1354,17 @@ config TOUCHSCREEN_MSG_INFO_PRINT
 	  Say Y here if you want to enable the driver.
 
 	  If unsure, say N.
+
+config TOUCHSCREEN_IT7260_I2C
+	tristate "IT7260 Touchscreen Driver"
+	depends on I2C
+	help
+	  Say Y here if you have a IT7260 Touchscreen Driver
+	  connected to your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called it7258_ts_i2c.
 
 endif

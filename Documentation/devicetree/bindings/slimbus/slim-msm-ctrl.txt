@@ -59,6 +59,11 @@ Optional property:
 		 register and receive subsytem restart notification from mdm
 		 and follow appropriate steps to ensure communication on the bus
 		 can be resumed after mdm-restart.
+ - qcom,slim-int_mdm: Set this flag if slimbus master is present in internal mdm.
+		This property enables the slimbus driver to register and
+		receive subsytem restart notification from mdm and follow
+		appropriate steps to ensure communication on the bus can
+		be resumed after mdm-restart.
 Example:
 	slim@fe12f000 {
 		cell-index = <1>;

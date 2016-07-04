@@ -58,7 +58,7 @@
 
 #define TOUCH_IRQ_FLAGS ( IRQF_ONESHOT )
 
-#elif defined ( TOUCH_MODEL_YG )
+#elif defined ( TOUCH_MODEL_YG ) || defined( TOUCH_MODEL_C100N ) || defined( TOUCH_MODEL_M216N ) || defined( TOUCH_MODEL_M216 )
 
 #define TOUCH_I2C_BUS_NUM 5
 
@@ -106,7 +106,7 @@
 #define TOUCH_GPIO_INTERRUPT (13+902)
 #define TOUCH_GPIO_POWER (9+902)
 
-#define TOUCH_IRQ_FLAGS ( IRQF_TRIGGER_LOW | IRQF_ONESHOT | IRQF_NO_SUSPEND )
+#define TOUCH_IRQ_FLAGS ( IRQF_ONESHOT )
 
 #elif defined ( TOUCH_MODEL_P1B )
 
@@ -146,6 +146,7 @@ void TouchGetDeviceSpecificDriver(TouchDeviceSpecificFunction ***pDeviceFunc);
 void TouchGetModelConfig(TouchDriverData *pDriverData);
 void TouchPowerModel( int isOn );
 void TouchAssertResetModel( void );
+void TouchGetDeviceSpecificMatchTable(struct of_device_id ***pMatchtableList);
 
 
 #endif /* _LGTP_MODEL_CONFIG_H_ */

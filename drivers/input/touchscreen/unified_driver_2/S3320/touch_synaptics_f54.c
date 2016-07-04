@@ -44,9 +44,11 @@
 #define TX_CH_CNT_REG					(RX_CH_CNT_REG+1)
 
 #define TRX_MAX 						32
-#define CAP_FILE_PATH					"/mnt/sdcard/touch_self_test.txt"
+// #define CAP_FILE_PATH					"/mnt/sdcard/touch_self_test.txt"
 #define DS5_BUFFER_SIZE 				6000
 #define WAIT_TIME 						100
+
+extern int lge_get_factory_boot(void);
 
 u8 f54_wlog_buf[DS5_BUFFER_SIZE] = {0};
 
@@ -79,8 +81,15 @@ static int write_log(char *filename, char *data)
 	set_fs(KERNEL_DS);
 
 	if(filename == NULL){
-		fd = sys_open(CAP_FILE_PATH, O_WRONLY|O_CREAT|O_APPEND, 0666);
-		TOUCH_DBG("write log in /mnt/sdcard/touch_self_test.txt\n");
+		char *sd_path;
+		int res = lge_get_factory_boot();
+		if (res) {
+			sd_path = "/mnt/sdcard/touch_self_test.txt";
+		} else {
+			sd_path = "/data/logger/touch_self_test.txt";
+		}
+		fd = sys_open(sd_path, O_WRONLY|O_CREAT|O_APPEND, 0666);
+		TOUCH_DBG("write log in %s\n", sd_path);
 	} else{
 		fd = sys_open(filename, O_WRONLY|O_CREAT, 0666);
 		TOUCH_DBG("write log in /sns/touch/cap_diff_test.txt\n");

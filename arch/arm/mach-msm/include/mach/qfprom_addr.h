@@ -1,7 +1,9 @@
 #ifndef __MACH_QFPROM_ADDR_8916_H__
 #define __MACH_QFPROM_ADDR_8916_H__
 
-#define SEC_PATH "/dev/block/platform/7824900.sdhci/by-name/sec"
+//#define SEC_PATH "/dev/block/platform/7824900.sdhci/by-name/sec"
+#define SEC_PATH "/dev/block/bootdevice/by-name/sec"
+
 /* QFPROM address to blow */
 #define QFPROM_CTRL_BASE            (0x00058000)
 
@@ -48,6 +50,7 @@ qfprom_result_bits result_bits[QFPROM_RESULT_MAX] = {
   {QFPROM_RESULT_SEC_HW_KEY,  QFPROM_SEC_HW_KEY,    0xFFFFFFFF, 0xFFFFFFFF},
   {QFPROM_RESULT_RD_WR_PERM,  QFPROM_RD_WR_PERM,    0xFFFFFFFF, 0xFFFFFFFF},
   {QFPROM_RESULT_PRODUCT_ID,  QFPROM_OEM_CONFIG,    0xFFFF0000, 0x00000000},
+  {QFPROM_RESULT_OEM_PK_HASH, QFPROM_OEM_PK_HASH,   0xFFFFFFFF, 0xFFFFFFFF},
 };
 
 /* secondary hw key status flag */

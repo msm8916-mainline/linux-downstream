@@ -1,0 +1,23 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+
+/dts-v1/;
+#include "../../qcom/msm8936.dtsi"
+#include "../../qcom/msm8939-mtp.dtsi"
+#include "../msm8936-p1bssn_vtr_ca/msm8936-p1bssn.dtsi"
+
+
+/ {
+	model = "Qualcomm MSM 8936, P1BSSN VTR";
+	compatible = "qcom,msm8936";
+	qcom,board-id = <100 0>;
+};

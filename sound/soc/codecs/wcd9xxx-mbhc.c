@@ -9,7 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#define DEBUG
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/firmware.h>
@@ -375,6 +374,11 @@ static bool __wcd9xxx_switch_micbias(struct wcd9xxx_mbhc *mbhc,
 			   0x04;
 		if (!override)
 			wcd9xxx_turn_onoff_override(mbhc, true);
+
+		snd_soc_update_bits(codec, WCD9XXX_A_MAD_ANA_CTRL,
+				    0x10, 0x00);
+		snd_soc_update_bits(codec, WCD9XXX_A_LDO_H_MODE_1,
+				    0x20, 0x00);
 		/* Adjust threshold if Mic Bias voltage changes */
 		if (d->micb_mv != VDDIO_MICBIAS_MV) {
 			cfilt_k_val = __wcd9xxx_resmgr_get_k_val(mbhc,
@@ -436,6 +440,11 @@ static bool __wcd9xxx_switch_micbias(struct wcd9xxx_mbhc *mbhc,
 		if ((!checkpolling || mbhc->polling_active) &&
 		    restartpolling)
 			wcd9xxx_pause_hs_polling(mbhc);
+
+			snd_soc_update_bits(codec, WCD9XXX_A_MAD_ANA_CTRL,
+					    0x10, 0x10);
+			snd_soc_update_bits(codec, WCD9XXX_A_LDO_H_MODE_1,
+					    0x20, 0x20);
 		/* Reprogram thresholds */
 		if (d->micb_mv != VDDIO_MICBIAS_MV) {
 			cfilt_k_val =
@@ -1026,11 +1035,10 @@ static void wcd9xxx_report_plug(struct wcd9xxx_mbhc *mbhc, int insertion,
 			mbhc->micbias_enable_cb(mbhc->codec, true,
 						mbhc->mbhc_cfg->micbias);
 		}
-#if CONFIG_MACH_LGE
-#else
+
 		if (mbhc->impedance_detect && impedance_detect_en)
 			wcd9xxx_detect_impedance(mbhc, &mbhc->zl, &mbhc->zr);
-#endif
+
 		pr_debug("%s: Reporting insertion %d(%x)\n", __func__,
 			 jack_type, mbhc->hph_status);
 		wcd9xxx_jack_report(mbhc, &mbhc->headset_jack,
@@ -1685,17 +1693,7 @@ wcd9xxx_cs_find_plug_type(struct wcd9xxx_mbhc *mbhc,
 	}
 #ifdef CONFIG_MACH_LGE
         if (type == PLUG_TYPE_HIGH_HPH) {
-                wcd9xxx_detect_impedance(mbhc, &mbhc->zl, &mbhc->zr);
-
-                if (mbhc->zl < LGE_ADVANCED_MIN_THD){
-                        type = PLUG_TYPE_HEADSET;
-                        mbhc->micbias_enable = true;
-                        pr_info("[LGE MBHC] High Impedance Headset(Apple) is detected. Enable MICBIAS and report 4pin headset.\n");
-                }
-                else {
-                        type = PLUG_TYPE_HEADSET;
-                        pr_info("[LGE MBHC] L-impedance is higher than 1000 ohm(4pin AUX). Report 4pin headset.\n");
-                }
+		type = PLUG_TYPE_HEADSET;
         }
 #endif
 
@@ -3641,25 +3639,32 @@ static int wcd9xxx_get_button_mask(const int btn)
 		mask = SND_JACK_BTN_0;
 		break;
 	case 1:
+		mask = SND_JACK_BTN_1;
 		pr_info("[LGE MBHC] buttons 1 pressed.\n");
 		break;
 	case 2:
-		mask = SND_JACK_BTN_1;
+		mask = SND_JACK_BTN_2;
+		pr_info("[LGE MBHC] buttons 2 pressed.\n");
 		break;
 	case 3:
+		mask = SND_JACK_BTN_3;
 		pr_info("[LGE MBHC] buttons 3 pressed.\n");
 		break;
 	case 4:
+		mask = SND_JACK_BTN_4;
 		pr_info("[LGE MBHC] buttons 4 pressed.\n");
 		break;
 	case 5:
+		mask = SND_JACK_BTN_5;
 		pr_info("[LGE MBHC] buttons 5 pressed.\n");
 		break;
 	case 6:
+		mask = SND_JACK_BTN_6;
 		pr_info("[LGE MBHC] buttons 6 pressed.\n");
 		break;
 	case 7:
-		mask = SND_JACK_BTN_2;
+		mask = SND_JACK_BTN_7;
+		pr_info("[LGE MBHC] buttons 7 pressed.\n");
 		break;
 	default:
 		pr_info("[LGE MBHC] SND_JACK_BTN_default : altev2 isn't using this button.\n");
@@ -3955,6 +3960,13 @@ irqreturn_t wcd9xxx_dce_handler(int irq, void *data)
 		wcd9xxx_update_rel_threshold(mbhc, v_btn_high[btn], vddio);
 
 		mask = wcd9xxx_get_button_mask(btn);
+#ifdef CONFIG_MACH_LGE
+       if (!(mask & (SND_JACK_BTN_0 |SND_JACK_BTN_1 | SND_JACK_BTN_2 | SND_JACK_BTN_3))) {
+              pr_info("[LGE MBHC] Unsupported button event. Ignore button event.\n");
+              goto done;
+       }
+#endif
+
 		mbhc->buttons_pressed |= mask;
 		wcd9xxx_lock_sleep(core_res);
 		if (schedule_delayed_work(&mbhc->mbhc_btn_dwork,
@@ -5559,26 +5571,34 @@ int wcd9xxx_mbhc_init(struct wcd9xxx_mbhc *mbhc, struct wcd9xxx_resmgr *resmgr,
 				__func__);
 			return ret;
 		}
-
-		//LGE_UPDATE
+#ifdef CONFIG_MACH_LGE
 		ret = snd_jack_set_key(mbhc->button_jack.jack,
-				       SND_JACK_BTN_1,
-				       KEY_VOLUMEUP);
+						SND_JACK_BTN_3,
+						KEY_VOLUMEDOWN);
 		if (ret) {
-			pr_err("%s: Failed to set code for btn-1\n",
+			pr_err("%s: Failed to set code for btn-3[volume down]\n",
 				__func__);
 			return ret;
 		}
 
 		ret = snd_jack_set_key(mbhc->button_jack.jack,
-				       SND_JACK_BTN_2,
-				       KEY_VOLUMEDOWN);
+						SND_JACK_BTN_2,
+						KEY_VOLUMEUP);
 		if (ret) {
-			pr_err("%s: Failed to set code for btn-2\n",
+			pr_err("%s: Failed to set code for btn-2[volume up]\n",
 				__func__);
 			return ret;
 		}
 
+		ret = snd_jack_set_key(mbhc->button_jack.jack,
+						SND_JACK_BTN_1,
+						KEY_VOICECOMMAND);
+		if (ret) {
+			pr_err("%s: Failed to set code for btn-1[voice assist]\n",
+				__func__);
+			return ret;
+		}
+#endif
 #ifdef CONFIG_MACH_LGE
 		mbhc->sdev.name = "h2w";
 		mbhc->sdev.print_state = lge_hsd_print_state;
@@ -5711,10 +5731,6 @@ void wcd9xxx_mbhc_deinit(struct wcd9xxx_mbhc *mbhc)
 	wcd9xxx_regmgr_cond_deregister(mbhc->resmgr, 1 << WCD9XXX_COND_HPH_MIC |
 						     1 << WCD9XXX_COND_HPH);
 
-#ifdef CONFIG_MACH_LGE
-	switch_dev_unregister(&mbhc->sdev);
-#endif
-
 	wcd9xxx_free_irq(core_res, mbhc->intr_ids->button_release, mbhc);
 	wcd9xxx_free_irq(core_res, mbhc->intr_ids->dce_est_complete, mbhc);
 	wcd9xxx_free_irq(core_res, mbhc->intr_ids->poll_plug_rem, mbhc);
@@ -5722,6 +5738,13 @@ void wcd9xxx_mbhc_deinit(struct wcd9xxx_mbhc *mbhc)
 	wcd9xxx_free_irq(core_res, mbhc->intr_ids->hs_jack_switch, mbhc);
 	wcd9xxx_free_irq(core_res, mbhc->intr_ids->hph_left_ocp, mbhc);
 	wcd9xxx_free_irq(core_res, mbhc->intr_ids->hph_right_ocp, mbhc);
+
+#ifdef CONFIG_MACH_LGE
+	if (mbhc->sdev.name) {
+		switch_dev_unregister(&mbhc->sdev);
+		memset(&mbhc->sdev, 0, sizeof(struct switch_dev));
+	}
+#endif
 
 	mutex_destroy(&mbhc->mbhc_lock);
 	wcd9xxx_resmgr_unregister_notifier(mbhc->resmgr, &mbhc->nblock);

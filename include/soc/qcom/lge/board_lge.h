@@ -1,7 +1,9 @@
 #ifndef __ASM_ARCH_MSM_BOARD_LGE_H
 #define __ASM_ARCH_MSM_BOARD_LGE_H
 
-#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1BDSN_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US)
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 typedef enum {
 	HW_REV_0 = 0,
 	HW_REV_A,
@@ -11,6 +13,18 @@ typedef enum {
 	HW_REV_E,
 	HW_REV_1_0,
 	HW_REV_1_1,
+	HW_REV_MAX
+} hw_rev_type;
+#elif defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+typedef enum {
+	HW_REV_0 = 0,
+	HW_REV_A,
+	HW_REV_B,
+	HW_REV_C,
+	HW_REV_D,
+	HW_REV_E,
+	HW_REV_F,
+	HW_REV_1_0,
 	HW_REV_MAX
 } hw_rev_type;
 #else
@@ -105,26 +119,21 @@ void get_dt_cn_prop_str(const char *name, char *value);
 void get_dt_cn_prop_u64(const char *name, uint64_t *u64);
 void get_dt_cn_prop_u32(const char *name, uint32_t *u32);
 
-
-#ifdef CONFIG_LGE_LCD_TUNING
-struct lcd_platform_data {
-	int (*set_values) (int *tun_lcd_t);
-	int (*get_values) (int *tun_lcd_t);
-	};
-void __init lge_add_lcd_misc_devices(void);
-#endif
 enum lge_laf_mode_type {
 	LGE_LAF_MODE_NORMAL = 0,
 	LGE_LAF_MODE_LAF,
 };
 enum lge_laf_mode_type lge_get_laf_mode(void);
+bool lge_get_mfts_mode(void);
 #if defined(CONFIG_LCD_KCAL)
 void __init lge_add_lcd_kcal_devices(void);
 #endif
-#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && defined(CONFIG_LGE_QFPROM_INTERFACE) && !defined(CONFIG_MACH_MSM8939_P1BDSN_GLOBAL_COM) && !defined(CONFIG_MACH_MSM8939_P1BC_SPR_US)
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR) && defined(CONFIG_LGE_QFPROM_INTERFACE) && !defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) && !defined(CONFIG_MACH_MSM8939_P1BC_SPR_US)  && !defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) && \
+	!defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) && !defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) && \
+	!defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 void __init lge_add_qfprom_devices(void);
 #endif
-#if defined(CONFIG_LGE_DIAG_USB_ACCESS_LOCK) || defined(CONFIG_LGE_DIAG_ENABLE_SYSFS)
+#if defined(CONFIG_LGE_USB_DIAG_LOCK) || defined(CONFIG_LGE_DIAG_ENABLE_SYSFS)
 int __init lge_add_diag_devices(void);
 #endif
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
@@ -171,7 +180,7 @@ enum lge_boot_mode_type {
 	LGE_BOOT_MODE_PIF_910K,
 	LGE_BOOT_MODE_MINIOS    /* LGE_UPDATE for MINIOS2.0 */
 };
-#ifdef CONFIG_USB_G_LGE_ANDROID
+#ifdef CONFIG_LGE_USB_G_ANDROID
 int  __init lge_add_android_usb_devices(void);
 #endif
 enum lge_boot_mode_type lge_get_boot_mode(void);
@@ -184,4 +193,9 @@ extern int lge_get_kswitch_status(void);
 
 #endif
 
+#if defined(CONFIG_LGE_QSDL_SUPPORT)
 extern int lge_get_bootreason(void);
+#endif
+#if defined(CONFIG_LGE_LCD_OFF_DIMMING)
+extern int lge_get_bootreasoncode(void);
+#endif

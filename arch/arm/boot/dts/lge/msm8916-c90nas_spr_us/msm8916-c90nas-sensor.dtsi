@@ -79,11 +79,21 @@
 		Rohm,infrared_level = <0>;
 		Rohm,ps_gain = <1>;
 		Rohm,persistence = <2>;
-		Rohm,near_offset = <16>;
-		Rohm,far_offset = <4>;
-		Rohm,bright_threshold = <10>;
-		Rohm,dark_threshold = <5>;
-		Rohm,default_cross_talk = <50>;
+		Rohm,near_offset = <40>;
+		Rohm,far_offset = <10>;
+		Rohm,default_cross_talk = <9>;
+		Rohm,judge_coef0 = <1130>;
+		Rohm,judge_coef1 = <1424>;
+		Rohm,judge_coef2 = <1751>;
+		Rohm,judge_coef3 = <3015>;
+		Rohm,data0_coef0 = <6803>;
+		Rohm,data0_coef1 = <3667>;
+		Rohm,data0_coef2 = <2054>;
+		Rohm,data0_coef3 = <1520>;
+		Rohm,data1_coef0 = <4714>;
+		Rohm,data1_coef1 = <1941>;
+		Rohm,data1_coef2 = <809>;
+		Rohm,data1_coef3 = <504>;
 	};
 
 	k2dh0@18 {
@@ -165,5 +175,22 @@
 		Bosch,vddio_i2c_supply_max = <1800000>;
 		Bosch,vddio_i2c_load_ua = <10000>;
 		place = <5>;
+	};
+};
+
+/*sysfs node for unified usercal*/
+/{
+	lge,sensor-sysfs {
+		compatible = "lge,sensor-sysfs";
+
+		sysfs,node =
+			/* group , user_node,  kernel node */
+			"accelerometer", "run_calibration",  "/sys/devices/virtual/input/lge_accelerometer/run_fast_calibration",
+			"accelerometer", "selftest",         "/sys/devices/virtual/input/lge_accelerometer/selftest",
+//			"gyroscope",     "run_calibration",  "/sys/devices/virtual/input/lge_gyroscope/run_calibration",
+//			"gyroscope",     "selftest",         "/sys/devices/virtual/input/lge_gyroscope/selftest",
+			"proximity",     "run_calibration",  "/sys/devices/virtual/input/lge_proximity/run_calibration",
+			"proximity",     "calibration_data", "/sys/devices/virtual/input/lge_proximity/prox_cal_data"
+			;
 	};
 };

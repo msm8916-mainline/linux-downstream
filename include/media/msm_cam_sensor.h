@@ -31,6 +31,12 @@
 #define MAX_PROXY_REG_SETTINGS 800
 /* LGE_CHANGE_E, proxy, 2014-09-02, byungsoo.moon@lge.com */
 
+/* LGE_CHANGE_S, tcs, 2015-03-07, booil.park@lge.com */
+#define MAX_TCS_MOD_NAME_SIZE 32
+#define MAX_TCS_NAME_SIZE 32
+#define MAX_TCS_REG_SETTINGS 800
+/* LGE_CHANGE_E, tcs, 2015-03-07, booil.park@lge.com */
+
 #define MOVE_NEAR 0
 #define MOVE_FAR  1
 
@@ -84,6 +90,14 @@ enum sensor_sub_module_t {
 /* LGE_CHANGE_S, proxy, 2014-09-16, byungsoo.moon@lge.com */
 	SUB_MODULE_PROXY,
 /* LGE_CHANGE_E, proxy, 2014-09-16, byungsoo.moon@lge.com */
+/* LGE_CHANGE_S, tcs, 2015-01-14, booil.park@lge.com */
+	SUB_MODULE_TCS,
+/* LGE_CHANGE_E, tcs, 2015-01-14, booil.park@lge.com */
+
+#if defined(CONFIG_MSM_OTP) || defined(LGE_CAMERA_USE_OTP)
+	SUB_MODULE_OTP,
+#endif
+
 	SUB_MODULE_MAX,
 };
 
@@ -296,6 +310,49 @@ struct msm_eeprom_cfg_data {
 	} cfg;
 };
 
+#if defined(CONFIG_MSM_OTP) || defined(LGE_CAMERA_USE_OTP)
+enum otp_cfg_type_t {
+	CFG_OTP_GET_INFO,
+	CFG_OTP_GET_CAL_DATA,
+	CFG_OTP_READ_CAL_DATA,
+	CFG_OTP_WRITE_DATA,
+	CFG_OTP_GET_MM_INFO,
+};
+
+struct otp_get_t {
+	uint32_t num_bytes;
+};
+
+struct otp_read_t {
+	uint8_t *dbuffer;
+	uint32_t num_bytes;
+};
+
+struct otp_write_t {
+	uint8_t *dbuffer;
+	uint32_t num_bytes;
+};
+
+struct otp_get_cmm_t {
+	uint32_t cmm_support;
+	uint32_t cmm_compression;
+	uint32_t cmm_size;
+};
+
+struct msm_otp_cfg_data {
+	enum otp_cfg_type_t cfgtype;
+	uint8_t is_supported;
+	union {
+		char otp_name[MAX_SENSOR_NAME];
+		struct otp_get_t get_data;
+		struct otp_read_t read_data;
+		struct otp_write_t write_data;
+		struct otp_get_cmm_t get_cmm_data;
+	} cfg;
+};
+#endif
+
+
 #ifdef CONFIG_COMPAT
 struct msm_sensor_power_setting32 {
 	enum msm_sensor_power_seq_type_t seq_type;
@@ -336,6 +393,11 @@ struct msm_camera_sensor_slave_info32 {
 	char actuator_name[32];
 	char ois_name[32];
 	char flash_name[32];
+
+#if defined(CONFIG_MSM_OTP) || defined(LGE_CAMERA_USE_OTP)
+	char otp_name[32];
+#endif
+
 	enum msm_sensor_camera_id_t camera_id;
 	uint16_t slave_addr;
 	enum i2c_freq_mode_t i2c_freq_mode;
@@ -345,6 +407,7 @@ struct msm_camera_sensor_slave_info32 {
 	uint8_t  is_init_params_valid;
 	struct msm_sensor_init_params sensor_init_params;
 	uint8_t is_flash_supported;
+	enum msm_sensor_output_format_t output_format;
 };
 
 struct msm_camera_csid_lut_params32 {
@@ -476,6 +539,22 @@ enum msm_proxy_cfg_type_t {
 };
 /* LGE_CHANGE_E, proxy, 2014-09-16, byungsoo.moon@lge.com */
 
+/* LGE_CHANGE_S, tcs, 2015-01-14, booil.park@lge.com */
+enum msm_tcs_cfg_type_t {
+        CFG_TCS_INIT,
+        CFG_TCS_ON,
+        CFG_TCS_OFF,
+        CFG_GET_TCS,
+        CFG_TCS_THREAD_ON,
+        CFG_TCS_THREAD_PAUSE,
+        CFG_TCS_THREAD_RESTART,
+        CFG_TCS_THREAD_OFF,
+        CFG_TCS_POWERDOWN,
+        CFG_TCS_POWERUP,
+        CFG_TCS_AAT_MODE,
+};
+/* LGE_CHANGE_E, tcs, 2015-01-14, booil.park@lge.com */
+
 enum msm_ois_i2c_operation {
 	MSM_OIS_WRITE = 0,
 	MSM_OIS_POLL,
@@ -512,6 +591,19 @@ struct msm_proxy_info_t{
 	uint32_t cal_count;
 	uint32_t cal_done;
 };
+
+/* LGE_CHANGE_S, tcs, 2015-01-22, booil.park@lge.com */
+struct msm_tcs_info_t{
+	uint32_t status;
+	uint32_t clear;
+	uint32_t red;
+	uint32_t green;
+	uint32_t blue;
+	uint32_t ir;
+	uint32_t extra1;
+	uint32_t extra2;
+};
+/* LGE_CHANGE_E, tcs, 2015-01-22, booil.park@lge.com */
 
 struct msm_actuator_move_params_t {
 	int8_t dir;
@@ -575,7 +667,7 @@ enum af_camera_name {
 	ACTUATOR_MAIN_CAM_1, //LGE_CHANGE dw9718 20141118 Camera-Driver@lge.com
 	ACTUATOR_MAIN_CAM_2, //LGE_CHANGE wv517 20141118 Camera-Driver@lge.com
 	ACTUATOR_MAIN_CAM_3, //LGE_CHANGE dw9714 20141118 Camera-Driver@lge.com
-	ACTUATOR_MAIN_CAM_4,
+	ACTUATOR_MAIN_CAM_4, //LGE_CHANGE dw9719 20150603 Camera-Driver@lge.com
 	ACTUATOR_MAIN_CAM_5,
 	ACTUATOR_WEB_CAM_0,
 	ACTUATOR_WEB_CAM_1,
@@ -598,6 +690,15 @@ struct msm_proxy_cfg_data {
 	} cfg;
 };
 /* LGE_CHANGE_E, proxy, 2014-09-16, byungsoo.moon@lge.com */
+
+/* LGE_CHANGE_S, tcs, 2015-01-14, booil.park@lge.com */
+struct msm_tcs_cfg_data {
+        int cfgtype;
+        union {
+                struct msm_tcs_info_t set_info;
+} cfg;
+};
+/* LGE_CHANGE_E, tcs, 2015-01-14, booil.park@lge.com */
 
 struct msm_actuator_set_position_t {
 	uint16_t number_of_steps;
@@ -706,6 +807,16 @@ struct sensor_init_cfg_data {
 #define VIDIOC_MSM_FLASH_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 13, struct msm_flash_cfg_data_t)
 
+/*LGE_CHANGE_S, tcs, 2015-01-14, booil.park@lge.com*/
+#define VIDIOC_MSM_TCS_CFG \
+        _IOWR('V', BASE_VIDIOC_PRIVATE + 14, struct msm_tcs_cfg_data)
+/*LGE_CHANGE_E, tcs, 2015-01-14, booil.park@lge.com*/
+
+#if defined(CONFIG_MSM_OTP) || defined(LGE_CAMERA_USE_OTP)
+#define VIDIOC_MSM_OTP_CFG \
+        _IOWR('V', BASE_VIDIOC_PRIVATE + 15, struct msm_tcs_cfg_data)
+#endif
+
 #ifdef CONFIG_COMPAT
 struct msm_camera_i2c_reg_setting32 {
 	compat_uptr_t reg_setting;
@@ -713,6 +824,7 @@ struct msm_camera_i2c_reg_setting32 {
 	enum msm_camera_i2c_reg_addr_type addr_type;
 	enum msm_camera_i2c_data_type data_type;
 	uint16_t delay;
+	enum msm_camera_qup_i2c_write_batch_t qup_i2c_batch;
 };
 
 struct msm_actuator_tuning_params_t32 {
@@ -871,6 +983,16 @@ struct msm_flash_cfg_data_t32 {
 
 #define VIDIOC_MSM_FLASH_CFG32 \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 13, struct msm_flash_cfg_data_t32)
+
+#if defined(CONFIG_MSM_OTP) || defined(LGE_CAMERA_USE_OTP)
+#define VIDIOC_MSM_OTP_CFG32 \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 15, struct msm_eeprom_cfg_data32)
 #endif
+
+#endif
+/* LGE_CHANGE_S, tcs, 2015-01-14, booil.park@lge.com */
+#define VIDIOC_MSM_TCS_CFG32 \
+        _IOWR('V', BASE_VIDIOC_PRIVATE + 14, struct msm_tcs_cfg_data32)
+/* LGE_CHANGE_E, tcs, 2015-01-14, booil.park@lge.com */
 
 #endif /* __LINUX_MSM_CAM_SENSOR_H */

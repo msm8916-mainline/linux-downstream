@@ -202,7 +202,13 @@ static const char defaultFirmware[] = "synaptics/p1b/PLG449-V1.01-PR1797768-DS5.
 #elif defined ( TOUCH_MODEL_P1C )
 static const char defaultFirmware[] = "synaptics/p1c/PLG465-V1.11-PR1815155-DS5.2.12.0.13-4005018B.img";
 #elif defined ( TOUCH_MODEL_YG )
-static const char defaultFirmware[] = "synaptics/yg/PLG521-V1.03-PR1854132-DS5.2.12.1013_40050183.img";
+static const char defaultFirmware[] = "synaptics/yg/PLG521-V1.01-PR1815155-DS5.2.12.1013_40050181.img";
+#elif defined ( TOUCH_MODEL_C100N )
+static const char defaultFirmware[] = "synaptics/yg/PLG521-V1.01-PR1815155-DS5.2.12.1013_40050181.img";
+#elif defined ( TOUCH_MODEL_M216N )
+static const char defaultFirmware[] = "synaptics/yg/PLG521-V1.01-PR1815155-DS5.2.12.1013_40050181.img";
+#elif defined ( TOUCH_MODEL_M216 )
+static const char defaultFirmware[] = "synaptics/m216/PLG521-V1.01-PR1815155-DS5.2.12.1013_40050181.img";
 #else
 #error "Model should be defined"
 #endif

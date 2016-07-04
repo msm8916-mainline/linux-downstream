@@ -104,11 +104,11 @@
 		sensor_vdd-supply = <&pm8916_l17_sns>;
 		sensor_vcc_i2c-supply = <&pm8916_l6>;
 		pinctrl-names = "default", "sleep";
-				pinctrl-0 = <&akm09911_active>;
-				pinctrl-1 = <&akm09911_suspend>;
+		pinctrl-0 = <&akm09911_active>;
+		pinctrl-1 = <&akm09911_suspend>;
 		akm,gpio_rstn = <&msm_gpio 69 0x0>;
-				akm,layout = <0x0>;
-				akm,auto-report;
+		akm,layout = <5>;
+		akm,auto-report;
 	};
 
 	/* Acceleration sensor */
@@ -143,6 +143,10 @@
 		compatible = "bosch,bmi160";
 		status = "ok";
 		reg = <0x68>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <115 0x2>;
+		bosch,irq-gpio = <&msm_gpio 115 0x00>;
+		place = <4>;
 	};
 
 };

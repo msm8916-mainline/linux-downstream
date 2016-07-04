@@ -611,7 +611,11 @@ enum LG_LED_PTRNS {
 	ID_LED_OFF,					/* off */
 	ID_LED_ON_ALWAYS,				/* always on */
 	ID_LED_ON_500ms_ONLY,				/* 500ms on =>  off  X 1 */
+#if defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
+	ID_LED_ON_160ms_IN_12000ms,			/* 5920ms off => 160ms on => 5920ms off repeat */
+#else
 	ID_LED_ON_160ms_IN_4000ms,			/* 1920ms off => 160ms on => 1920ms off repeat */
+#endif
 	ID_LED_ON_700ms_IN_2000ms,			/* 650ms off => 700ms on => 650ms off repeat */
 	ID_LED_ON_HALF_BRIGHTNESS,			/* always on with half brightness */
 	ID_LED_ON_500ms_IN_1000ms,			/* 250ms off => 500ms on => 250ms off repeat */
@@ -629,7 +633,11 @@ static const struct patrn_data lg_led_patterns[ID_LED_MAX] = {
 	[ID_LED_OFF] = 					{.brightness_val = 0, .period_in_msec = 1000, .repeat = 0},
 	[ID_LED_ON_ALWAYS] = 				{.brightness_val = 255, .period_in_msec = 1000, .repeat = 0},
 	[ID_LED_ON_500ms_ONLY] = 			{.brightness_val = 255, .period_in_msec = 500, .repeat = 1},
+#if defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
+	[ID_LED_ON_160ms_IN_12000ms] =			{.brightness_val = 10, .period_in_msec = 12000, .repeat = 0},
+#else
 	[ID_LED_ON_160ms_IN_4000ms] =			{.brightness_val = 10, .period_in_msec = 4000, .repeat = 0},
+#endif
 	[ID_LED_ON_700ms_IN_2000ms] =			{.brightness_val = 89, .period_in_msec = 2000, .repeat = 0},
 	[ID_LED_ON_HALF_BRIGHTNESS] = 			{.brightness_val = 255, .period_in_msec = 1000, .repeat = 0},
 	[ID_LED_ON_500ms_IN_1000ms] = 			{.brightness_val = 127, .period_in_msec = 1000, .repeat = 0},
@@ -2819,9 +2827,9 @@ static ssize_t pattern_id_store(struct device *dev,
 	struct qpnp_led_data *led;
 	u8 pattern_id;
 	u8 val;
-	u8 previous_brightness;
-	u32 previous_pwm_us;
-	u32 repeat_ms;
+	u8 previous_brightness = 0;
+	u32 previous_pwm_us = 0;
+	u32 repeat_ms = 0;
 	struct pwm_config_data *pwm_cfg;
 	struct led_classdev *led_cdev = dev_get_drvdata(dev);
 	ssize_t ret = -EINVAL;
@@ -2836,7 +2844,8 @@ static ssize_t pattern_id_store(struct device *dev,
 					led->ptrn_id, lg_led_patterns[led->ptrn_id].brightness_val, lg_led_patterns[led->ptrn_id].period_in_msec);
 
 	switch (pattern_id) {
-#if defined(CONFIG_MACH_MSM8916_STYLUSC_SPR_US) || defined(CONFIG_MACH_MSM8916_C90NAS_SPR_US)
+#if defined(CONFIG_MACH_MSM8916_STYLUSC_SPR_US) || defined(CONFIG_MACH_MSM8916_C90NAS_SPR_US) || \
+            defined(CONFIG_MACH_MSM8916_PH1_SPR_US)
 		case ID_MISSED_NOTI_ONCE:
 		case ID_LCD_ON:
 		case ID_FAILED_CHECKPASSWORD:
@@ -2880,7 +2889,11 @@ static ssize_t pattern_id_store(struct device *dev,
 			break;
 		case ID_MISSED_NOTI:
 		case ID_URGENT_CALL_MISSED_NOTI:
+#if defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)
+			led->ptrn_id = ID_LED_ON_160ms_IN_12000ms;
+#else
 			led->ptrn_id = ID_LED_ON_160ms_IN_4000ms;
+#endif
 			break;
 		case ID_CALL_01:
 		case ID_INCOMING_CALL:

@@ -11,15 +11,12 @@
 #include <linux/qpnp/qpnp-adc.h>
 #include <linux/power_supply.h>
 #include <linux/delay.h>
-#ifdef CONFIG_USB_G_LGE_ANDROID
+#ifdef CONFIG_LGE_USB_G_ANDROID
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <soc/qcom/lge/lge_android_usb.h>
 #endif
 
-#ifdef CONFIG_LGE_QSDL_SUPPORT
-#include <soc/qcom/lge/lge_qsdl.h>
-#endif
 
 #define PROP_VAL_MAX_SIZE 50
 
@@ -160,7 +157,7 @@ void get_dt_cn_prop_str(const char *name, char *value)
 	pr_err("The %s node have not property value\n", name);
 }
 
-#if defined(CONFIG_LGE_DIAG_USB_ACCESS_LOCK) || defined(CONFIG_LGE_DIAG_ENABLE_SYSFS)
+#if defined(CONFIG_LGE_USB_DIAG_LOCK) || defined(CONFIG_LGE_DIAG_ENABLE_SYSFS)
 static struct platform_device lg_diag_cmd_device = {
 	.name = "lg_diag_cmd",
 	.id = -1,
@@ -362,12 +359,17 @@ int lge_get_android_dlcomplete(void)
 static hw_rev_type lge_bd_rev = HW_REV_A;
 
 /* CAUTION: These strings are come from LK. */
-#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1BDSN_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US)
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined (CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined (CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 char *rev_str[] = {"rev_0", "rev_a", "rev_b", "rev_c", "rev_d",
-	"rev_e", "rev_10", "rev_11","revserved"};
+	"rev_e", "rev_10", "rev_11","reserved"};
+#elif defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+char *rev_str[] = {"rev_0", "rev_a", "rev_b", "rev_c", "rev_d",
+	"rev_e", "rev_f", "rev_10","reserved"};
 #else
 char *rev_str[] = {"evb1", "evb2", "rev_a", "rev_b", "rev_c", "rev_d",
-	"rev_e", "rev_f", "rev_10", "rev_11","revserved"};
+	"rev_e", "rev_f", "rev_10", "rev_11","reserved"};
 #endif
 
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
@@ -399,7 +401,9 @@ void pseudo_batt_set(struct pseudo_batt_info_type *info)
 	pseudo_batt_info.charging = info->charging;
 
 #ifndef CONFIG_BQ24296_CHARGER
-#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_P1BDSN_GLOBAL_COM) && !defined(CONFIG_MACH_MSM8939_P1BC_SPR_US)
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR) && !defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) && !defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) && !defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) && \
+	!defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) && !defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) && \
+	!defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 	pseudo_batt_ibatmax_set();
 #endif
 #endif
@@ -439,7 +443,8 @@ bool is_lge_battery_valid(void)
 
 int read_lge_battery_id(void)
 {
-#if !defined(CONFIG_MACH_MSM8939_P1BDSN_GLOBAL_COM) && !defined(CONFIG_MACH_MSM8939_P1BC_SPR_US)
+#if !defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) && !defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) && \
+	!defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 		return lge_battery_info;
 #else
 		return 1;
@@ -608,8 +613,9 @@ int lge_get_factory_boot(void)
 static enum lge_laf_mode_type lge_laf_mode = LGE_LAF_MODE_NORMAL;
 static int __init lge_laf_mode_init(char *s)
 {
-	if (strcmp(s, ""))
+	if (strcmp(s, "") && strcmp(s, "MID")) {
 		lge_laf_mode = LGE_LAF_MODE_LAF;
+    }
 	return 1;
 }
 __setup("androidboot.laf=", lge_laf_mode_init);
@@ -619,7 +625,7 @@ enum lge_laf_mode_type lge_get_laf_mode(void)
 	return lge_laf_mode;
 }
 
-#ifdef CONFIG_USB_G_LGE_ANDROID
+#ifdef CONFIG_LGE_USB_G_ANDROID
 static int get_factory_cable(void)
 {
 	int res = 0;
@@ -674,6 +680,7 @@ int  __init lge_add_android_usb_devices(void)
 module_init(lge_add_android_usb_devices);
 #endif
 
+#if defined (CONFIG_LGE_QSDL_SUPPORT)
 static int lge_boot_reason = -1; /* undefined for error checking */
 static int __init lge_check_bootreason(char *reason)
 {
@@ -697,6 +704,33 @@ int lge_get_bootreason(void)
 {
 	return lge_boot_reason;
 }
+#endif
+
+#if defined(CONFIG_LGE_LCD_OFF_DIMMING)
+static int lge_boot_reason_code = -1; /* undefined for error checking */
+static int __init lge_check_bootreasoncode(char *reason)
+{
+	int ret = 0;
+
+	/* handle corner case of kstrtoint */
+	if (!strcmp(reason, "0xffffffff")) {
+		lge_boot_reason_code = 0xffffffff;
+		return 1;
+	}
+	ret = kstrtoint(reason, 16, &lge_boot_reason_code);
+	if (!ret)
+		printk(KERN_INFO "LGE REBOOT REASON CODE: %x\n", lge_boot_reason_code);
+	else
+		printk(KERN_INFO "LGE REBOOT REASON CODE: Couldn't get bootreasoncode - %d\n",ret);
+	return 1;
+}
+__setup("lge.bootreasoncode=", lge_check_bootreasoncode);
+
+int lge_get_bootreasoncode(void)
+{
+	return lge_boot_reason_code;
+}
+#endif
 
 #ifdef CONFIG_LGE_KSWITCH
 static
@@ -744,25 +778,3 @@ int  lge_get_kswitch_status()
 }
 #endif/* CONFIG_LGE_KSWITCH */
 
-#ifdef CONFIG_LGE_QSDL_SUPPORT
-static struct lge_qsdl_platform_data lge_qsdl_pdata = {
-	.oneshot_read = 0,
-	.using_uevent = 0
-};
-
-static struct platform_device lge_qsdl_device = {
-	.name = LGE_QSDL_DEV_NAME,
-	.id = -1,
-	.dev = {
-		.platform_data = &lge_qsdl_pdata,
-	}
-};
-
-static int  __init lge_add_qsdl_device(void)
-{
-  return platform_device_register(&lge_qsdl_device);
-}
-
-arch_initcall(lge_add_qsdl_device);
-
-#endif /* CONFIG_LGE_QSDL_SUPPORT */

@@ -104,6 +104,10 @@ static int bootlog_probe(struct platform_device *pdev)
 			return err;
 
 		pdata = pdev->dev.platform_data;
+		if (!pdata){
+			pr_err("%s: failed to read platform_data's pointer\n", __func__);
+			return 0;
+		}
 	}
 
 	paddr = pdata->paddr;

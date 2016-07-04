@@ -154,3 +154,6 @@ obj-$(CONFIG_LG_VPN) += interceptor/
 
 # LGVPN_v33
 obj-$(CONFIG_LG_VPN_V33) += interceptor_v33/
+
+# LGVPN_v34
+obj-$(CONFIG_LG_VPN_V34) += interceptor_v34/

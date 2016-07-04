@@ -29,8 +29,10 @@
 #include <linux/spinlock.h>
 #include <linux/iio/sysfs.h>
 #include <linux/async.h>
+#include <linux/time.h>
 #ifdef CONFIG_OF
 #include <linux/regulator/consumer.h>
+//#include "android/android_alarm.h"
 #include <linux/of_gpio.h>
 #endif
 
@@ -59,9 +61,11 @@ s64 get_time_ns(void)
 */
 
 	struct timespec ts;
-	ktime_get_ts(&ts);
+	get_monotonic_boottime(&ts);
 	return timespec_to_ns(&ts);
 }
+
+struct timeval inv_cal_time, inv_cal_time2;
 
 /* This is for compatibility for power state. Should remove once HAL
    does not use power_state sysfs entry */
@@ -258,7 +262,7 @@ static int inv_switch_engine(struct inv_mpu_state *st, bool en, u32 mask)
 
 	if ((BIT_PWR_GYRO_STBY == mask) && en) {
 		/* only gyro on needs sensor up time */
-		/* msleep(SENSOR_UP_TIME); */ /* [Liger]Remove delay on enable time*/
+		msleep(SENSOR_UP_TIME);
 		/* after gyro is on & stable, switch internal clock to PLL */
 		mgmt_1 |= INV_CLK_PLL;
 		result = inv_i2c_single_write(st, reg->pwr_mgmt_1,
@@ -266,9 +270,8 @@ static int inv_switch_engine(struct inv_mpu_state *st, bool en, u32 mask)
 		if (result)
 			return result;
 	}
-	/* [Liger]Remove delay on enable time */
-	/* if ((BIT_PWR_ACCEL_STBY == mask) && en)
-		msleep(REG_UP_TIME); */
+	if ((BIT_PWR_ACCEL_STBY == mask) && en)
+		msleep(REG_UP_TIME);
 
 	return 0;
 }
@@ -314,9 +317,8 @@ static int set_power_itg(struct inv_mpu_state *st, bool power_on)
 	if (result)
 		return result;
 
-	/* [Liger]Remove delay on enable time */
-	/* if (power_on)
-		msleep(REG_UP_TIME); */
+	if (power_on)
+		msleep(REG_UP_TIME);
 
 	st->chip_config.is_asleep = !power_on;
 
@@ -373,6 +375,8 @@ static int inv_init_config(struct iio_dev *indio_dev)
 #ifdef LGE_LIGER_SELF_TEST_FLAG
 	st->self_test_exec_state = false;
 #endif
+    do_gettimeofday(&inv_cal_time);
+    do_gettimeofday(&inv_cal_time2);
 	if (INV_ITG3500 != st->chip_type) {
 		st->chip_config.accel_fs = INV_FS_02G;
 		result = inv_i2c_single_write(st, reg->accel_config,
@@ -1438,7 +1442,7 @@ static ssize_t inv_flush_batch_show(struct device *dev,
 {
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
 	int result;
-	bool has_data;
+	bool has_data = false;
 
 	mutex_lock(&indio_dev->mlock);
 	result = inv_flush_batch_data(indio_dev, &has_data);
@@ -1489,7 +1493,13 @@ static ssize_t _attr_store(struct device *dev,
 
 	if( this_attr->address == ATTR_RUN_CALIBRATION)
 	{
-		call_usermodehelper( argv[0], argv, envp, UMH_WAIT_EXEC);
+        do_gettimeofday(&inv_cal_time);
+        if(inv_cal_time.tv_sec - inv_cal_time2.tv_sec >= 5)
+        {
+            pr_info("inv_mpu: calibration because interval is  %ld \n", inv_cal_time.tv_sec - inv_cal_time2.tv_sec);
+            call_usermodehelper( argv[0], argv, envp, UMH_WAIT_EXEC);
+            do_gettimeofday(&inv_cal_time2);
+        }
 		return count;
 	}
 
@@ -2523,7 +2533,7 @@ static int inv_setup_vddio(struct inv_mpu_state *st)
  *  inv_check_chip_type() - check and setup chip type.
  */
 static int inv_check_chip_type(struct inv_mpu_state *st,
-		const struct i2c_device_id *id)
+		const struct i2c_device_id *id, bool reset_needed)		
 {
 	struct inv_reg_map_s *reg;
 	int result;
@@ -2568,11 +2578,13 @@ static int inv_check_chip_type(struct inv_mpu_state *st,
 	st->hw  = &hw_info[st->chip_type];
 	reg = &st->reg;
 	st->setup_reg(reg);
+	if (reset_needed) {
 	/* reset to make sure previous state are not there */
 	result = inv_i2c_single_write(st, reg->pwr_mgmt_1, BIT_H_RESET);
 	if (result)
 		return result;
 	msleep(POWER_UP_TIME);
+	}
 	/* toggle power state */
 	result = st->set_power_state(st, false);
 	if (result)
@@ -2774,6 +2786,7 @@ static int inv_mpu_probe(struct i2c_client *client,
 	struct inv_mpu_state *st;
 	struct iio_dev *indio_dev;
 	int result;
+	bool reset_needed = true;
 
 #ifdef CONFIG_DTS_INV_MPU_IIO
 	enable_irq_wake(client->irq);
@@ -2844,6 +2857,8 @@ static int inv_mpu_probe(struct i2c_client *client,
 					"power_on failed: %d\n", result);
 			return result;
 		}
+		msleep(POWER_UP_TIME);
+		reset_needed = false;
 	}
 
 //msleep(100); /* Power-On RESET time */
@@ -2852,7 +2867,7 @@ static int inv_mpu_probe(struct i2c_client *client,
 	st->plat_data =
 	*(struct mpu_platform_data *)dev_get_platdata(&client->dev);
 #endif
-	result = inv_check_chip_type(st, id);
+	result = inv_check_chip_type(st, id, reset_needed);	
 
 	if (result)
 		goto out_free;

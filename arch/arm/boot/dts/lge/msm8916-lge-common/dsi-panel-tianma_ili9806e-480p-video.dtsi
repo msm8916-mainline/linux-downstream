@@ -56,7 +56,7 @@
 			15 01 00 00 00 00 02	// Resolution Control (480*800)
 			30 02
 			15 01 00 00 00 00 02	// Display Inversion Control
-			31 02
+			31 00
 			15 01 00 00 00 00 02	// Source Timing Adjust 1 (SDTI)
 			40 10
 			15 01 00 00 00 00 02	// Source Timing Adjust 2 (CRTI)
@@ -268,7 +268,7 @@
 			39 01 00 00 00 00 06
 			FF FF 98 06 04 00		// Change to page 0
 			15 01 00 00 00 00 02
-			55 B0
+			55 90
 			//05 01 00 00 78 00 01	// Sleep out
 			05 01 00 00 82 00 01	// Sleep out
 			11

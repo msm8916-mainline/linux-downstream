@@ -477,9 +477,11 @@ static ssize_t logger_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	struct logger_entry header;
 	struct timespec now;
 	ssize_t ret = 0;
-
+#ifdef CONFIG_ANDROID_LOGGER_MS_TIME
+	getnstimeofday(&now);
+#else
 	now = current_kernel_time();
-
+#endif
 	header.pid = current->tgid;
 	header.tid = current->pid;
 	header.sec = now.tv_sec;

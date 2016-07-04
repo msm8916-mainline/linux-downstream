@@ -779,6 +779,7 @@ struct lge_touch_attribute {
 struct lge_touch_attribute lge_touch_attr_##_name 	\
 	= __ATTR(_name, _mode, _show, _store)
 
+extern int factory_boot;
 
 int  touch_driver_register(struct touch_device_driver *driver,
 	struct of_device_id *match_table);

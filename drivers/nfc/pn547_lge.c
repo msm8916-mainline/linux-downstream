@@ -194,7 +194,7 @@ static ssize_t pn547_dev_read(struct file *filp, char __user *buf,
     struct pn547_dev *pn547_dev = filp->private_data;
     static char tmp[MAX_BUFFER_SIZE];
     int ret;
-    static bool isFinalPacket = true;
+    static bool isFirstPacket = true;
     unsigned long flags;
 
     if (count > MAX_BUFFER_SIZE)
@@ -202,11 +202,10 @@ static ssize_t pn547_dev_read(struct file *filp, char __user *buf,
 
     //pr_err("%s : reading %zu bytes.\n", __func__, count); // for debug
 
-wait:
-    if (isFinalPacket == true) {
+    if (isFirstPacket == false) {
         ret = wait_event_interruptible_timeout(pn547_dev->read_wq, gpio_get_value(pn547_dev->irq_gpio), msecs_to_jiffies(NFC_TIMEOUT_MS));
         if (ret == 0) {
-            pr_err("%s: pass wait_event_interruptible by %dms timeout. restart waiting!\n", __func__, NFC_TIMEOUT_MS); // for debug
+            pr_err("%s: no more interrupt after %dms (%d)!\n", __func__, NFC_TIMEOUT_MS, gpio_get_value(pn547_dev->irq_gpio)); // for debug
             spin_lock_irqsave(&pn547_dev->irq_enabled_lock, flags);
             if (sIsWakeLocked == true) {
                 wake_unlock(&nfc_wake_lock);
@@ -214,13 +213,15 @@ wait:
             }
             spin_unlock_irqrestore(&pn547_dev->irq_enabled_lock, flags);
             //pr_err("%s: wake_unlock\n", __func__); // for debug
-            isFinalPacket = false;
-            goto wait;
+            isFirstPacket = true;
         }
     }
-    else {
+
+    if (isFirstPacket == true)
+    {
         ret = wait_event_interruptible(pn547_dev->read_wq, gpio_get_value(pn547_dev->irq_gpio));
-        isFinalPacket = true;
+        if (ret == 0)
+            isFirstPacket = false;
     }
 
     if (ret == -ERESTARTSYS) {
@@ -421,7 +422,12 @@ static int pn547_probe(struct i2c_client *client,
         goto err_exit;
     }
 
-    pn547_parse_dt(&client->dev, pn547_dev);
+    ret = pn547_parse_dt(&client->dev, pn547_dev);
+    if (ret != 0) {
+        dev_err(&client->dev,"device tree set nfc is disabled\n");
+        ret = -ENOMEM;
+        goto err_int;
+    }
 
     pn547_dev->client   = client;
     dprintk(PN547_DRV_NAME ":IRQ : %d\nVEN : %d\nFIRM : %d\n",

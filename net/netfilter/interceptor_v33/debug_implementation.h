@@ -1,6 +1,6 @@
 /**
    @copyright
-   Copyright (c) 2011 - 20155555, INSIDE Secure Oy. All rights reserved.
+   Copyright (c) 2011 - 2015, INSIDE Secure Oy. All rights reserved.
 */
 
 
@@ -240,11 +240,11 @@ DebugDumper debug_dump_hex_bytes;
 
 void
 debug_disable(
-		void);
+        void);
 
 void
 debug_enable(
-		void);
+        void);
 
 void
 debug_set_filename(

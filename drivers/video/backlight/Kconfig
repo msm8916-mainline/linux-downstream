@@ -447,17 +447,16 @@ config BACKLIGHT_LM3697
 	  The backlights can be controlled directly, through PWM input, or by
 	  the ambient-light-sensor interface. The chip supports 256 brightness
 	  levels.
-
 config BACKLIGHT_TI_LM3697
-        tristate "Backlight TI Driver for LM3697"
-        depends on BACKLIGHT_CLASS_DEVICE
-        help
-          Say Y to enable the backlight driver for National Semiconductor / TI
-          LM3697 Lighting Power chips.
+	tristate "Backlight TI Driver for LM3697"
+	depends on BACKLIGHT_CLASS_DEVICE
+	help
+	  Say Y to enable the backlight driver for National Semiconductor / TI
+	  LM3697 Lighting Power chips.
 
-          The backlights can be controlled directly, through PWM input, or by
-          the ambient-light-sensor interface. The chip supports 256 brightness
-          levels.
+	  The backlights can be controlled directly, through PWM input, or by
+	  the ambient-light-sensor interface. The chip supports 2048 brightness
+	  levels.
 
 
 

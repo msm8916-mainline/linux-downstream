@@ -653,6 +653,7 @@ config ARCH_MSM
 	select GENERIC_ALLOCATOR
 	select HAVE_CLK
 	select HAVE_CLK_PREPARE
+	select ARCH_HAS_OPP
 	select NEED_MACH_MEMORY_H
 	select NEED_MACH_IO_H
 	select NEED_MACH_GPIO_H
@@ -2341,13 +2342,6 @@ config NEON
 	  Say Y to include support code for NEON, the ARMv7 Advanced SIMD
 	  Extension.
 
-config KERNEL_MODE_NEON
-	bool "Support for NEON in kernel mode"
-	default n
-	depends on NEON
-	help
-	  Say Y to include support for NEON in kernel mode.
-
 endmenu
 
 menu "Userspace binary formats"
@@ -2363,6 +2357,13 @@ config ARTHUR
 	  experimental; if this sounds frightening, say N and sleep in peace.
 	  You can also say M here to compile this support as a module (which
 	  will be called arthur).
+
+config KERNEL_MODE_NEON
+    bool "Support for NEON in kernel mode"
+    default y
+    depends on NEON
+    help
+      Say Y to include support for NEON in kernel mode.
 
 endmenu
 
@@ -2392,9 +2393,6 @@ source "arch/arm/Kconfig.debug"
 source "security/Kconfig"
 
 source "crypto/Kconfig"
-if CRYPTO
-source "arch/arm/crypto/Kconfig"
-endif
 
 source "lib/Kconfig"
 

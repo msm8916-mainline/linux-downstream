@@ -29,6 +29,17 @@ static int time_order = 1;
 
 #define CHG_MAXIDX	7
 
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+static struct batt_temp_table chg_temp_table[CHG_MAXIDX] = {
+	{INT_MIN,      -101,    CHG_BATTEMP_BL_M11},
+	{   -100,       -50,    CHG_BATTEMP_M10_M5},
+	{    -49,       419,    CHG_BATTEMP_M4_41},
+	{    420,       450,    CHG_BATTEMP_42_45},
+	{    451,       520,    CHG_BATTEMP_46_51},
+	{    521,       550,    CHG_BATTEMP_52_OT},
+	{    551,   INT_MAX,    CHG_BATTEMP_AB_OT},
+};
+#else
 static struct batt_temp_table chg_temp_table[CHG_MAXIDX] = {
 	{INT_MIN,       -11,    CHG_BATTEMP_BL_M11},
 	{    -10,        -5,    CHG_BATTEMP_M10_M5},
@@ -38,6 +49,7 @@ static struct batt_temp_table chg_temp_table[CHG_MAXIDX] = {
 	{     52,        55,    CHG_BATTEMP_52_OT},
 	{     56,   INT_MAX,    CHG_BATTEMP_AB_OT},
 };
+#endif
 
 static enum lge_charging_states charging_state;
 static enum lge_states_changes states_change;

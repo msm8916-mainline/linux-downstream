@@ -12,13 +12,37 @@ config MACH_MSM8939_ALTEV2_VZW
         help
           Support for the Qualcomm MSM8939 ALTEV2 VZW device.
 
-config MACH_MSM8939_P1BDSN_GLOBAL_COM
-        bool "MSM8939 P1BDSN_GLOBAL_COM"
+config MACH_MSM8939_ALTEV2_LGU_KR
+        bool "MSM8939 ALTEV2_LGU_KR"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+	select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8939 ALTEV2 LGU KR device.
+
+config MACH_MSM8939_P1B_GLOBAL_COM
+        bool "MSM8939 P1B_GLOBAL_COM"
         depends on ARCH_MSM8916
         select MACH_LGE
         select LGE_ENABLE_THERMAL_CORE_CONTROL
         help
-          Support for the Qualcomm MSM8939 P1BDSN GLOBAL COM device.
+          Support for the Qualcomm MSM8939 P1B GLOBAL COM device.
+
+config MACH_MSM8939_PH2_GLOBAL_COM
+        bool "MSM8939 PH2_GLOBAL_COM"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8939 PH2 GLOBAL COM device.
+
+config MACH_MSM8939_P1BSSN_SKT_KR
+        bool "MSM8939 P1BSSN_SKT_KR"
+        depends on ARCH_MSM8916
+        select MACH_LGE
+        select LGE_ENABLE_THERMAL_CORE_CONTROL
+        help
+          Support for the Qualcomm MSM8939 P1BSSN SKT KR device.
 
 endmenu
 
@@ -84,6 +108,33 @@ config LGE_KSWITCH
     depends on MACH_LGE
     help
 	  LGE Kill Switch
+
+config LGE_SENSOR_UNIFIED_NODE
+    bool "enable LGE SENSOR Unified sysfs node"
+    help
+      Support LGE SENSOR Unified sysfs node
+
+config LGE_USE_DEFAULT_HARD_RESET
+    bool "On reboot, apply hard reset unless memory contents must be maintained"
+    default n
+    help
+      Nobody can guarantee stablity upon continuous warm resets.
+
+config LGE_DEFAULT_DISABLE_DLOAD_MODE
+    bool "set default value of download_mode to 0"
+    default n
+    help
+      If some crash occurs on boot-up,
+      device enters into ramdump mode even though user build.
+      (because default value of download_mode is 1)
+
+config LGE_LCD_OFF_DIMMING
+    tristate "Support LGE LCD off dimming reboot"
+    default n
+    depends on MACH_LGE
+    help
+      Support lcd off or dimming reboot when reboot reason is "LCD off".
+      lcd stay dimming until lcd is off and on again.
 
 endmenu
 

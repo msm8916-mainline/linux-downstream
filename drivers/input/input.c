@@ -289,18 +289,10 @@ static int input_get_disposition(struct input_dev *dev,
 				break;
 			}
 
-			if (value != 0xFF) {
-				if (!!test_bit(code, dev->key) != !!value) {
+			if (!!test_bit(code, dev->key) != !!value) {
 
-					__change_bit(code, dev->key);
-					disposition = INPUT_PASS_TO_HANDLERS;
-				}
-			} else {
-				if (!!test_bit(code, dev->key) != value) {
-
-					__change_bit(code, dev->key);
-					disposition = INPUT_PASS_TO_HANDLERS;
-				}
+				__change_bit(code, dev->key);
+				disposition = INPUT_PASS_TO_HANDLERS;
 			}
 		}
 		break;

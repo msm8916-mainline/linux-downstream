@@ -85,7 +85,7 @@ static ssize_t led_max_brightness_show(struct device *dev,
 	return snprintf(buf, LED_BUFF_SIZE, "%u\n", led_cdev->max_brightness);
 }
 
-#ifdef CONFIG_LGE_PM_COOLDOWN_VZW_POWER_REQ
+#ifdef CONFIG_LGE_PM
 static int lge_thm_status;
 static ssize_t thermald_status_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -117,7 +117,7 @@ static struct device_attribute led_class_attrs[] = {
 	__ATTR(brightness, 0644, led_brightness_show, led_brightness_store),
 	__ATTR(max_brightness, 0644, led_max_brightness_show,
 			led_max_brightness_store),
-#ifdef CONFIG_LGE_PM_COOLDOWN_VZW_POWER_REQ
+#ifdef CONFIG_LGE_PM
 	__ATTR(thermald_status, 0644, thermald_status_show, thermald_status_store),
 #endif
 #ifdef CONFIG_LEDS_TRIGGERS

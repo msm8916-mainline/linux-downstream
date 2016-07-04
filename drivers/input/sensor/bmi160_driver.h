@@ -46,6 +46,12 @@
 #include <linux/earlysuspend.h>
 #endif
 
+#ifdef CONFIG_OF
+#include <linux/regulator/consumer.h>
+#include <linux/of_gpio.h>
+#endif
+
+
 #include "bmi160.h"
 
 /* sensor specific */
@@ -217,8 +223,12 @@ enum BMI_FIFO_DATA_SELECT_T {
 
 #ifdef BMI160_CALIBRATION
 /* calibration tilt limit against x/y axis pre-calculated by "RAW_VALUE(8192) * sin (11 deg)" */
-#define BMI160_FAST_CALIB_TILT_LIMIT	(2500)
-#define BMI160_SHAKING_DETECT_THRESHOLD	(1000)
+#define BMI160_DEFECT_LIMIT_XY	(3688)
+#define BMI160_DEFECT_LIMIT_Z1	(12124)
+#define BMI160_DEFECT_LIMIT_Z2	(20644)
+#define BMI160_DEFECT_LIMIT_GYRO	(164)
+#define BMI160_FAST_CALIB_TILT_LIMIT	(3000)
+#define BMI160_SHAKING_DETECT_THRESHOLD	(1650)
 #define BMI160_GYRO_SHAKING_DETECT_THRESHOLD	(30)
 #define INPUT_EVENT_FAST_ACC_CALIB_DONE    6
 #define INPUT_EVENT_FAST_GYRO_CALIB_DONE    4
@@ -231,11 +241,11 @@ enum BMI_FIFO_DATA_SELECT_T {
 * please give parameters in BSP file.
 */
 struct bosch_sensor_specific {
-	char *name;
-	/* 0 to 7 */
-	unsigned int place:3;
-	int irq;
-	int (*irq_gpio_cfg)(void);
+  char *name;
+  /* 0 to 7 */
+  unsigned int place:3;
+  int irq;
+  int (*irq_gpio_cfg)(void);
 };
 
 /*! bmi160 sensor spec of power mode */
@@ -290,6 +300,36 @@ struct fifo_sensor_time_t {
 	u32 mag_ts;
 };
 
+
+#ifdef CONFIG_OF
+enum sensor_dt_entry_status {
+	DT_REQUIRED,
+	DT_SUGGESTED,
+	DT_OPTIONAL,
+};
+
+enum sensor_dt_entry_type {
+	DT_U32,
+	DT_GPIO,
+	DT_BOOL,
+};
+
+struct sensor_dt_to_pdata_map {
+	const char                  *dt_name;
+	void                        *ptr_data;
+	enum sensor_dt_entry_status status;
+	enum sensor_dt_entry_type   type;
+	int                          default_val;
+};
+
+
+struct bmi_platform_data {
+	unsigned int irq_gpio;
+	u32 place;
+};
+#endif
+
+
 struct pedometer_data_t {
 	/*! Fix step detector misinformation for the first time*/
 	u8 wkar_step_detector_status;
@@ -303,6 +343,9 @@ struct bmi_client_data {
 	struct delayed_work work;
 	struct work_struct irq_work;
 
+#ifdef CONFIG_OF
+      struct bmi_platform_data *platform_data;
+#endif
 	u8 chip_id;
 
 	struct pw_mode pw;
@@ -314,6 +357,10 @@ struct bmi_client_data {
 	u8 selftest;
 
 	atomic_t wkqueue_en; /*TO DO acc gyro mag*/
+
+  atomic_t acc_wkqueue_en;
+  atomic_t gyro_wkqueue_en;
+  atomic_t mag_wkqueue_en;
 	atomic_t delay;
 	atomic_t selftest_result;
 

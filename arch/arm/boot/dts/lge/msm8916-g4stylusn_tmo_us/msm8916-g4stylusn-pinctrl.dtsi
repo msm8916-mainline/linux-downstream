@@ -248,7 +248,7 @@
 			qcom,pin-func = <1>;
 			label = "spi0-active";
 			/* active state */
-			spi0_default: default {
+			spi0_default: spi0_default {
 				drive-strength = <12>; /* 12 MA */
 				bias-disable = <0>; /* No PULL */
 			};
@@ -261,7 +261,7 @@
 			qcom,pin-func = <0>;
 			label = "spi0-suspend";
 			/* suspended state */
-			spi0_sleep: sleep {
+			spi0_sleep: spi0_sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* pull down */
 			};
@@ -600,6 +600,7 @@
 		};
 
 		pmx_rd_nfc_int{
+			status = "ok";
 			qcom,pins = <&gp 21>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
@@ -617,6 +618,7 @@
 		};
 
 		pmx_nfc_reset{
+			status = "ok";
 			qcom,pins = <&gp 20>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
@@ -634,6 +636,7 @@
 		};
 
 		pmx_nfc_wake{
+			status = "ok";
 			qcom,pins = <&gp 118>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
@@ -1348,10 +1351,10 @@
 				<&gp 53>, <&gp 54>, <&gp 55>, <&gp 56>,
 				<&gp 60>, <&gp 62>, <&gp 77>, <&gp 78>,
 				<&gp 79>, <&gp 80>, <&gp 83>, <&gp 90>,
-				<&gp 91>, <&gp 92>,
+				<&gp 91>,
 				<&gp 97>, <&gp 100>, <&gp 101>, <&gp 102>,
 				<&gp 105>, <&gp 106>, <&gp 112>, <&gp 120>;
-			qcom,num-grp-pins = <25>;
+			qcom,num-grp-pins = <32>;
 			qcom,pin-func = <0>;
 			label = "nc_control";
 			nc_sleep: nc_sleep {

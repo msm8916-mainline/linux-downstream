@@ -2,7 +2,7 @@
 #define __ATMF04_EFLASH_H__
 
 #define SZ_PAGE_DATA                64
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 #define FW_DATA_PAGE               	115
 #else
 #define FW_DATA_PAGE               	96

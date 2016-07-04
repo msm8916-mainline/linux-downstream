@@ -20,6 +20,53 @@ static struct msm_sensor_ctrl_t hi191_s_ctrl;
 /////////////////////////////////////////////////////////////////
 // USE Model Feature: If you want to change the follow setting
 /////////////////////////////////////////////////////////////////
+#if defined (CONFIG_MACH_MSM8916_C50_VZW)
+static struct msm_sensor_power_setting hi191_power_setting[] = {
+
+	{//[0]
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET,
+		.config_val = GPIO_OUT_LOW,
+		.delay = 0,
+	},
+	{//[1]
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VIO,
+		.config_val = 0,
+		.delay = 0,
+	},
+	{//[2]
+		.seq_type = SENSOR_VREG,
+		.seq_val = CAM_VANA,
+		.config_val = 0,
+		.delay = 0,
+	},
+	{//[2]
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_VDIG,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+	{//[3]
+		.seq_type = SENSOR_GPIO,
+		.seq_val = SENSOR_GPIO_RESET,
+		.config_val = GPIO_OUT_HIGH,
+		.delay = 1,
+	},
+	{//[4]
+		.seq_type = SENSOR_CLK,
+		.seq_val = SENSOR_CAM_MCLK,
+		.config_val = 0,
+		.delay = 11, // >= 10msec
+	},
+	{//[5]
+		.seq_type = SENSOR_I2C_MUX,
+		.seq_val = 0,
+		.config_val = 0,
+		.delay = 0,
+	},
+};
+#else
 static struct msm_sensor_power_setting hi191_power_setting[] = {
 	{//[0]
 		.seq_type = SENSOR_VREG,
@@ -58,6 +105,7 @@ static struct msm_sensor_power_setting hi191_power_setting[] = {
 		.delay = 0,
 	},
 };
+#endif
 
 static struct v4l2_subdev_info hi191_subdev_info[] = {
 	{

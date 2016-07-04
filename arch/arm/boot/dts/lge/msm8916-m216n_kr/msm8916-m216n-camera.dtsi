@@ -1,0 +1,59 @@
+
+/*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../msm8916-lge-common/msm8916-m2-camera.dtsi"
+
+&i2c_4 {
+	led_flash0: qcom,led-flash@39 {
+		compatible                = "qcom,led-flash";
+		status                    = "ok";
+		reg                       = <0x39>;
+
+		rt8542,lcd_bl_en = <&msm_gpio 98 0x00>;
+		rt8542,max_current        = <0x14>;
+		rt8542,min_brightness     = <0x04>;
+		rt8542,default_brightness = <0x52>;
+		rt8542,max_brightness     = <0x7E>;
+		rt8542,enable_pwm         = <0>;
+		rt8542,blmap_size         = <127>;
+		rt8542,blmap = <
+		/*   0 */    2   2   2   2   2   2   2   2   2   2
+		/*  10 */    2   2   2   2   2   2   2   2   3   3
+		/*  20 */    3   3   4   4   4   4   5   5   5   5
+		/*  30 */    6   6   6   6   7   7   7   8   8   8
+		/*  40 */    9   9   9  10  10  11  11  12  12  13
+		/*  50 */   14  14  15  16  17  17  18  18  19  19
+		/*  60 */   20  21  22  23  23  24  25  26  27  27
+		/*  70 */   28  29  30  31  32  32  33  34  35  36
+		/*  80 */   37  38  39  40  41  42  44  45  46  48
+		/*  90 */   49  50  52  53  54  56  57  58  59  60
+		/* 100 */   62  63  64  65  67  69  70  72  74  76
+		/* 110 */   77  79  80  82  83  85  87  89  91  92
+		/* 120 */   94  96  99 102 104 107 110
+		>;
+
+		cell-index = <0>;
+		label                   = "rt8542";
+		qcom,flash-name         = "rt8542";
+		qcom,slave-id           = <0x39 0x00 0x0011>;
+		qcom,flash-type         = <1>;              // LED_FLASH
+		qcom,gpio-no-mux        = <0>;
+		gpios                   = <&msm_gpio 31 0>; // FLASH_STROBE_TRIG, GPIO 31
+		qcom,gpio-flash-en      = <0>;
+		qcom,gpio-req-tbl-num   = <0>;
+		qcom,gpio-req-tbl-flags = <0>;
+		qcom,gpio-req-tbl-label = "FLASH_EN";
+		qcom,cci-master = <0>;
+	};
+};

@@ -12,36 +12,15 @@
 
 / {
 	memory {
-		secure_mem: secure_region@0 {
-			status = "disabled";
-		};
-
 		removed_regions: removed_regions@0 {
-			linux,reserve-contiguous-region;
-			linux,reserve-region;
-			linux,remove-completely;
-			reg = <0 0xD0000000 0 0x20000000>;
-			label = "memory_hole";
-			revision = "...rev_a";
-		};
-
-		modem_adsp_mem: modem_adsp_region@0 {
-			linux,reserve-contiguous-region;
-			linux,reserve-region;
-			linux,remove-completely;
-			reg = <0x0 0x86800000 0x0 0x04D00000>;
-			label = "modem_adsp_mem";
-		};
-
-		peripheral_mem: pheripheral_region@0 {
-			linux,reserve-contiguous-region;
-			linux,reserve-region;
-			linux,remove-completely;
-			reg = <0x0 0x8b800000 0x0 0x0600000>;
-			label = "peripheral_mem";
+		linux,reserve-contiguous-region;
+		linux,reserve-region;
+		linux,remove-completely;
+		reg = <0 0xD0000000 0 0x20000000>;
+		label = "memory_hole";
+		revision = "...rev_a";
 		};
 	};
-
 	aliases {
 		serial0 = &blsp1_uart2;
 		i2c1 = &i2c_1; /* i2c_1 BLSP1 QUP1 */
@@ -49,18 +28,12 @@
 };
 
 &blsp1_uart2 {
-	status = "disable";
+	status = "ok";
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart_console_sleep>;
 };
 
 &soc {
-	qcom,ion {
-		qcom,ion-heap@8 {
-			status = "disabled";
-		};
-	};
-
 	i2c_1: i2c@78b5000 { /* BLSP1 QUP1 */
 		compatible = "qcom,i2c-msm-v2";
 		#address-cells = <1>;
@@ -187,7 +160,7 @@
 	gpio@c100 { /* GPIO 2 */
 		/* NFC_CLK_REQ */
 		qcom,mode = <0>; /* QPNP_PIN_MODE_DIG_IN */
-		qcom,pull = <4>; /* QPNP_PIN_PULL_DN */
+		qcom,pull = <5>; /* QPNP_PIN_PULL_NO */
 		qcom,vin-sel = <2>; /* QPNP_PIN_VIN2 */
 		qcom,src-sel = <2>; /* QPNP_PIN_SEL_FUNC_1 */
 		qcom,master-en = <1>;
@@ -222,6 +195,27 @@
 
 &qcom_seecom {
 	status = "okay";
+};
+
+&rpm_bus {
+	rpm-regulator-ldoa17 {
+		status = "ok";
+		pm8916_l17: regulator-l17 {
+			status = "ok";
+			revision = "...rev_c";
+			regulator-always-on;
+		};
+
+		pm8916_l17_sns: regulator-l17_sns {
+			status = "ok";
+			compatible = "qcom,rpm-smd-regulator";
+			regulator-name = "8916_l17_sns";
+			qcom,set = <3>;
+			regulator-min-microvolt = <2850000>;
+			regulator-max-microvolt = <2850000>;
+			qcom,init-voltage = <2850000>;
+		};
+	};
 };
 
 /* LGE Change FB size */

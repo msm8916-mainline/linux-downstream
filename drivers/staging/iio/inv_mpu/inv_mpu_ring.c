@@ -130,7 +130,7 @@ static int inv_send_pressure_data(struct inv_mpu_state *st)
 		conf->normal_pressure_measure = 1;
 		return 0;
 	}
-	curr_ts = get_time_ns();
+	curr_ts = st->last_ts;
 	if (curr_ts - slave->prev_ts > slave->min_read_time) {
 		result = slave->read_data(st, sen);
 		if (!result)
@@ -160,7 +160,7 @@ static int inv_send_compass_data(struct inv_mpu_state *st)
 		conf->normal_compass_measure = 1;
 		return 0;
 	}
-	curr_ts = get_time_ns();
+	curr_ts = st->last_ts;
 	if (curr_ts - slave->prev_ts > slave->min_read_time) {
 		result = slave->read_data(st, sen);
 		if (!result)
@@ -505,6 +505,7 @@ static int reset_fifo_itg(struct iio_dev *indio_dev)
 	int result, i;
 	u8 val, int_word;
 	struct inv_mpu_state  *st = iio_priv(indio_dev);
+	u64 ts;
 
 	reg = &st->reg;
 	if (st->chip_config.lpa_mode) {
@@ -588,7 +589,14 @@ static int reset_fifo_itg(struct iio_dev *indio_dev)
 		if (result)
 			goto reset_fifo_fail;
 	}
-	st->last_ts = get_time_ns();
+	ts = get_time_ns();
+	if (ts > st->engine_en_ts &&
+			((ts - st->engine_en_ts) < 500 * NSEC_PER_MSEC)) {
+		pr_debug("engien_en_ts = %llu now = %llu diff = %llu\n",
+				st->engine_en_ts, ts, ts - st->engine_en_ts);
+		st->last_ts = ts - (ts - st->engine_en_ts);
+	} else
+		st->last_ts = ts;
 	st->prev_ts = st->last_ts;
 	st->last_run_time = st->last_ts;
 	if (st->sensor[SENSOR_COMPASS].on)
@@ -998,6 +1006,7 @@ int set_inv_enable(struct iio_dev *indio_dev, bool enable)
 				return result;
 		}
 
+		st->engine_en_ts = get_time_ns();
 		if (st->chip_config.gyro_enable) {
 			result = st->switch_gyro_engine(st, true);
 			if (result)
@@ -1296,6 +1305,9 @@ static int inv_get_timestamp(struct inv_mpu_state *st, int count)
 	ts *= counter;
 	st->last_ts += ts;
 
+	/* not to set future timestamp */
+	if (st->last_ts > st->prev_ts)
+		st->last_ts = st->prev_ts;
 	return 0;
 }
 

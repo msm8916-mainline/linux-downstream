@@ -1,0 +1,163 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_0{
+
+        partron@53 { /* Ambient light and proximity sensor */
+                compatible = "partron,pas230";
+                reg = <0x53>;
+                status = "ok";
+                pinctrl-names = "default","sleep";
+                pinctrl-0 = <&pas230_int_active>;
+                pinctrl-1 = <&pas230_int_suspend>;
+                interrupt-parent = <&msm_gpio>;
+                interrupts = <113 0x2002>;
+                Partron,vdd_ana-supply = <&pm8916_l17_sns>;
+                Partron,vddio_i2c-supply = <&pm8916_l6>;
+                Partron,irq-gpio = <&msm_gpio 113 0x2002>;
+		Partron,near_offset = <200>;
+		Partron,far_offset = <85>;
+		Partron,crosstalk_max = <500>;
+		Partron,ppcount = <50>;
+		Partron,ps_led_current = <6>; /* 4 : 50mA 	5 : 75mA  	6 : 100mA */
+		Partron,als_up_thres = <19>;    /* based on green data, not lux_value */
+		Partron,als_low_thres = <15>;  /* based on green data, not lux_value */
+		Partron,als_gain = <3>;
+		Partron,ps_crosstalk = <100>;
+		Partron,ps_crosstalk_offset = <50>;
+        };
+
+
+        /* Acceleration sensor */
+        st_k303b_acc@1d {
+                compatible = "st,k303b_acc";
+		revision = "...rev_a";
+		status = "disabled";
+                reg = <0x1d>;
+                interrupt-parent = <&msm_gpio>;
+                interrupts = <115 0x2>;
+                st,vdd_ana-supply = <&pm8916_l17_sns>;
+                st,vddio_i2c-supply = <&pm8916_l6>;
+                pinctrl-names = "default", "sleep";
+                pinctrl-0 = <&st_k303b_acc_int_active>;
+                pinctrl-1 = <&st_k303b_acc_int_suspend>;
+                st,irq-gpio = <&msm_gpio 115 0x00>;
+                st,i2c-pull-up;
+                st,axis_map_x = <1>;
+                st,axis_map_y = <0>;
+                st,axis_map_z = <2>;
+                st,negate_x = <1>;
+                st,negate_y = <1>;
+                st,negate_z = <0>;
+                st,poll_interval = <100>;
+                st,min_interval = <2>;
+                st,fs_range = <32>;
+        };
+
+        /* Magnetic Sensor */
+        st_k303b_mag@1e {
+                compatible = "st,k303b_mag";
+		revision = "...rev_a";
+		status = "disabled";
+                reg = <0x1e>;
+                interrupt-parent = <&msm_gpio>;
+                interrupts = <69 0x2>;
+                st,vdd_ana-supply = <&pm8916_l17_sns>;
+                st,vddio_i2c-supply = <&pm8916_l6>;
+                pinctrl-names = "default", "sleep";
+                pinctrl-0 = <&st_k303b_mag_active>;
+                pinctrl-1 = <&st_k303b_mag_suspend>;
+                st,irq-gpio = <&msm_gpio 69 0x00>;
+                st,i2c-pull-up;
+                st,axis_map_x = <1>;
+                st,axis_map_y = <0>;
+                st,axis_map_z = <2>;
+                st,negate_x = <1>;
+                st,negate_y = <1>;
+                st,negate_z = <0>;
+                st,poll_interval = <100>;
+                st,min_interval = <13>;
+                st,fs_range = <96>;
+        };
+
+	/* Acceleration sensor */
+	bosch_bma2x2@11 {
+		compatible = "bosch,bma2x2";
+		revision = "rev_b...";
+		status = "ok";
+		reg = <0x11>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <115 0x2>;
+		Bosch,vdd_ana-supply = <&pm8916_l17_sns>;
+		Bosch,vddio_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bma2x2_int_active>;
+		pinctrl-1 = <&bma2x2_int_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 115 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <2850000>;
+		Bosch,vdd_ana_supply_max = <3300000>;
+		Bosch,vdd_ana_load_ua = <15000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <3>;
+		cal_range = <3>; //RANGE 2G:3 4G:5 8G:8 16G:12
+	};
+
+	/* Magnetic Sensor Driver */
+	bosch_bmm050@13 {
+		compatible = "bosch,bmm050";
+		revision = "rev_b...";
+		status = "ok";
+		reg = <0x13>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <69 0x2>;
+		Bosch,vdd_ana-supply = <&pm8916_l17_sns>;
+		Bosch,vddio_i2c-supply = <&pm8916_l6>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&bmm_drdy_active>;
+		pinctrl-1 = <&bmm_drdy_suspend>;
+		Bosch,irq-gpio = <&msm_gpio 69 0x00>;
+		Bosch,i2c-pull-up;
+		Bosch,vdd_ana_supply_min = <2850000>;
+		Bosch,vdd_ana_supply_max = <3300000>;
+		Bosch,vdd_ana_load_ua = <15000>;
+		Bosch,vddio_dig_supply_min = <1800000>;
+		Bosch,vddio_dig_supply_max = <1800000>;
+		Bosch,vddio_dig_load_ua = <10000>;
+		Bosch,vddio_i2c_supply_min = <1800000>;
+		Bosch,vddio_i2c_supply_max = <1800000>;
+		Bosch,vddio_i2c_load_ua = <10000>;
+		place = <3>;
+	};
+};
+
+/*sysfs node for unified usercal*/
+/{
+	lge,sensor-sysfs {
+		compatible = "lge,sensor-sysfs";
+
+		sysfs,node =
+			/* group , user_node,  kernel node */
+			"accelerometer", "run_calibration",  "/sys/devices/virtual/input/lge_accelerometer/run_fast_calibration",
+			"accelerometer", "selftest",         "/sys/devices/virtual/input/lge_accelerometer/selftest",
+//			"gyroscope",     "run_calibration",  "/sys/devices/virtual/input/lge_gyroscope/run_calibration",
+//			"gyroscope",     "selftest",         "/sys/devices/virtual/input/lge_gyroscope/selftest",
+			"proximity",     "run_calibration",  "/sys/devices/virtual/input/lge_proximity/run_calibration",
+			"proximity",     "calibration_data", "/sys/devices/virtual/input/lge_proximity/prox_cal_data"
+			;
+	};
+};

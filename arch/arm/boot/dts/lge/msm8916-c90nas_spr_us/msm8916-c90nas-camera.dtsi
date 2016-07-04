@@ -46,7 +46,7 @@
 		cell-index = <0>;
 		label                   = "lm3639";
 		qcom,flash-name         = "lm3639";
-		qcom,slave-id           = <0x39 0x00 0x0011>;
+		qcom,slave-id           = <0x39 0x00 0x11>;
 		qcom,flash-type         = <1>;              // LED_FLASH
 		qcom,gpio-no-mux        = <0>;
 		gpios                   = <&msm_gpio 31 0>; // FLASH_STROBE_TRIG, GPIO 31
@@ -59,7 +59,6 @@
 };
 
 &cci {
-
 	actuator0: qcom,actuator@18 {
 		cell-index = <0>;
 		reg = <0x18 0x0>;
@@ -153,11 +152,14 @@
 		qcom,sensor-mode = <0>;
 		qcom,cci-master = <0>;
 		qcom,mclk-23880000;
+		lge,vcm-pwdn = "dw9718";
 		status = "ok";
 		clocks = <&clock_gcc clk_mclk0_clk_src>,
 				 <&clock_gcc clk_gcc_camss_mclk0_clk>;
 		clock-names = "cam_src_clk", "cam_clk";
 	};
+
+	//C90nas RC only change the front camera, not a main camera
 
 	qcom,camera@6c {
 		compatible           = "qcom,ov5670";
@@ -180,7 +182,54 @@
 		pinctrl-1 = <&cam_sensor_mclk1_sleep &cam_sensor_front_sleep>;
 
 		gpios = <&msm_gpio 27  0>,    //VT_CAM_MCLK,    GPIO 27
-		        <&msm_gpio 28  0>,    //VT_CAM_RESET_N, GPIO 33
+		        <&msm_gpio 28  0>,    //VT_CAM_RESET_N, GPIO 28
+				<&msm_gpio 121 0>;	  //CAM_DVDD_1V2,   GPIO_121
+
+		qcom,gpio-no-mux  = <0>;
+		qcom,gpio-reset   = <1>;
+		qcom,gpio-vdig    = <2>;
+
+		qcom,gpio-req-tbl-num   = <0 1 2>;
+		qcom,gpio-req-tbl-flags = <1 0 0>;
+		qcom,gpio-req-tbl-label = "CAMIF_MCLK2",
+		                          "CAM_RESET2",
+		                          "MAIN_VDIG_EN2";
+
+		qcom,csi-lane-assign    = <0x4320>;
+		qcom,csi-lane-mask      = <0x7>;
+		qcom,sensor-position    = <1>;
+		qcom,sensor-mode        = <1>;
+		qcom,cci-master         = <0>;
+		qcom,mclk-23880000;
+
+		status = "ok";
+		clocks = <&clock_gcc clk_mclk1_clk_src>,
+		         <&clock_gcc clk_gcc_camss_mclk1_clk>;
+		clock-names = "cam_src_clk", "cam_clk";
+	};
+
+	qcom,camera_front@50 {
+		compatible           = "qcom,hi553_ff";
+		reg                  = <0x50>;
+		qcom,slave-id        = <0x50 0x0F16 0x553>;
+		qcom,csiphy-sd-index = <1>;
+		qcom,csid-sd-index   = <1>;
+		qcom,mount-angle     = <270>;
+		qcom,sensor-name     = "hi553_ff";
+
+		cam_vio-supply  = <&pm8916_l6>;   //1V8_VREG_L6 (always-on)
+		cam_vana-supply = <&pm8916_l10>;  //2V8_VREG_L10
+		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana";
+		qcom,cam-vreg-min-voltage = <0 0 2800000>;
+		qcom,cam-vreg-max-voltage = <0 0 2800000>;
+		qcom,cam-vreg-op-mode     = <0 0   80000>;
+
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_default &cam_sensor_front_default>;
+		pinctrl-1 = <&cam_sensor_mclk1_sleep &cam_sensor_front_sleep>;
+
+		gpios = <&msm_gpio 27  0>,    //VT_CAM_MCLK,    GPIO 27
+		        <&msm_gpio 28  0>,    //VT_CAM_RESET_N, GPIO 28
 				<&msm_gpio 121 0>;	  //CAM_DVDD_1V2,   GPIO_121
 
 		qcom,gpio-no-mux  = <0>;

@@ -334,9 +334,18 @@ static int enter_state(suspend_state_t state)
 	if (state == PM_SUSPEND_FREEZE)
 		freeze_begin();
 
+#ifdef CONFIG_CHECK_SYNC_TIME
+	printk(KERN_INFO "PM: Check and Syncing filesystems ... \n");
+	if (check_and_sync() != 0) {
+		error = -EBUSY;
+		goto Unlock;
+	}
+	printk("PM: done.\n");
+#else
 	printk(KERN_INFO "PM: Syncing filesystems ... ");
 	sys_sync();
 	printk("done.\n");
+#endif
 
 	pr_debug("PM: Preparing system for %s sleep\n", pm_states[state]);
 	error = suspend_prepare(state);

@@ -974,6 +974,9 @@ static void msm_tlmm_gp_irq_resume(void)
 						&& virq_desc->action->name != NULL)
 					pr_err("%s: virq %d, virq->name : %s\n",
 					 __func__, virq, virq_desc->action->name);
+				else
+					pr_err("%s: virq %d registered improperly!\n",
+							__func__, virq);
 			}
 			else
 				pr_err("%s: stray virq\n", __func__);

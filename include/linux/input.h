@@ -386,11 +386,7 @@ void input_inject_event(struct input_handle *handle, unsigned int type, unsigned
 
 static inline void input_report_key(struct input_dev *dev, unsigned int code, int value)
 {
-	if (value == 0xFF) {
-		input_event(dev, EV_KEY, code, value);
-	} else {
-		input_event(dev, EV_KEY, code, !!value);
-	}
+	input_event(dev, EV_KEY, code, !!value);
 }
 
 static inline void input_report_rel(struct input_dev *dev, unsigned int code, int value)

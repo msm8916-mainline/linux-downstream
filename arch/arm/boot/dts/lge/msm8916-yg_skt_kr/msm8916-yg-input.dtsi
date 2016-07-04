@@ -18,7 +18,7 @@
 		status = "ok";
 		revision = "rev_0...";
 
-		fw_image = "synaptics/yg/PLG521-V1.03-PR1854132-DS5.2.12.1013_40050183.img";
+		fw_image = "synaptics/yg/PLG521-V1.06-PR1880096-DS5.2.12.1013_40050186.img";
 		panel_spec = "synaptics/yg/limit.txt";
 		pinctrl-names = "default","sleep"; 				/*Touch GPIO pin name setting*/
 		pinctrl-0 = <&ts_int_active &ts_reset_active>;                  /*Touch GPIO pin active setting*/

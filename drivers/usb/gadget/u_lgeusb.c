@@ -15,8 +15,8 @@
 
 /*
  * DGMS MC-C05702-7 : Apply Autorun
- * CONFIG_USB_G_LGE_ANDROID_AUTORUN
- * CONFIG_USB_G_LGE_ANDROID_AUTORUN_LGE
+ * CONFIG_LGE_USB_G_AUTORUN
+ * CONFIG_LGE_USB_G_AUTORUN_LGE
  */
 
 #include <linux/init.h>
@@ -41,9 +41,11 @@
 #endif//CONFIG_64BIT
 #include "u_lgeusb.h"
 
+#include <linux/power_supply.h>
+
 static struct mutex lgeusb_lock;
 
-#ifdef CONFIG_USB_G_LGE_ANDROID_AUTORUN
+#ifdef CONFIG_LGE_USB_G_AUTORUN
 static u16 user_mode;
 #endif
 
@@ -73,11 +75,45 @@ static char swver_string[32];
 static char subver_string[32];
 static char phoneid_string[32];
 
-#ifdef CONFIG_USB_G_LGE_MULTIPLE_CONFIGURATION
+#ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
 static bool is_mac_os;
 #endif
 
 static struct lgeusb_dev *_lgeusb_dev;
+
+#if defined(CONFIG_LGE_USB_TYPE_A)
+int uevnet_is_send = 0;
+
+int get_battery_capacity(void) {
+
+	union power_supply_propval ret = {0,};
+	struct power_supply *fuelgauge = power_supply_get_by_name("fuelgauge");
+	if (fuelgauge) {
+		fuelgauge->get_property(fuelgauge, POWER_SUPPLY_PROP_CAPACITY, &ret);
+	} else {
+		pr_err("fuelgauge is null\n");
+		return -1;
+	}
+	return ret.intval;
+}
+
+int send_usb_storage_limited(void) {
+	struct lgeusb_dev *dev = _lgeusb_dev;
+	int soc;
+	char *capacity[2]= { "BATTERY=UNDER_15_PERCENT", NULL };
+
+	soc = get_battery_capacity();
+	if ((soc >= 0) && (soc <= 15)) {
+		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, capacity);
+		uevnet_is_send = 1;
+		pr_info("%s: storage limited uevent sent\n", __func__);
+		return 1;
+	} else {
+		pr_info("%s: at least a valid battery status ...\n", __func__);
+		return 0;
+	}
+}
+#endif
 
 /* Belows are borrowed from android gadget's ATTR macros ;) */
 #define LGE_ID_ATTR(field, format_string)               \
@@ -179,7 +215,7 @@ static ssize_t lgeusb_mode_show(struct device *dev,
 }
 static DEVICE_ATTR(lge_usb_mode, S_IRUGO, lgeusb_mode_show, NULL);
 
-#ifdef CONFIG_USB_G_LGE_ANDROID_AUTORUN
+#ifdef CONFIG_LGE_USB_G_AUTORUN
 /* To set/get USB user mode to/from user space for autorun */
 static ssize_t autorun_user_mode_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -229,7 +265,7 @@ static struct device_attribute *lge_android_usb_attributes[] = {
 	&dev_attr_sw_version,
 	&dev_attr_sub_version,
 	&dev_attr_phone_id,
-#ifdef CONFIG_USB_G_LGE_ANDROID_AUTORUN
+#ifdef CONFIG_LGE_USB_G_AUTORUN
 	&dev_attr_autorun_user_mode,
 #endif
 	NULL
@@ -364,7 +400,7 @@ static struct platform_driver lge_android_usb_platform_driver = {
 	},
 };
 
-#ifdef CONFIG_USB_G_LGE_MULTIPLE_CONFIGURATION
+#ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
 void lgeusb_set_host_os(u16 w_length)
 {
 	switch (w_length) {

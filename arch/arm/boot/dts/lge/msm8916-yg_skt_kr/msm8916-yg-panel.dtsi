@@ -19,35 +19,41 @@
 };
 
 &dsi_jdi_r69338_vid {
+       qcom,mdss-dsi-panel-name = "JDI-RENESAS";
+       qcom,mdss-dsi-lp11-init;
        qcom,mdss-pan-physical-width-dimension = <63>;
        qcom,mdss-pan-physical-height-dimension = <110>;
        qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
        qcom,mdss-dsi-on-command = [
 		39 01 00 00 00 00 02
-		51 ff
+		51 FF
 
 		39 01 00 00 00 00 02
-		53 0c			//BCTRL Off (2c => 0c)
+		53 0C			//BCTRL Off (2c => 0c)
 
 		39 01 00 00 00 00 02
 		55 00			//SRE Off (40 => 00)
 
 		29 01 00 00 00 00 02
-		b0 04
+		B0 04
 
-		29 01 00 00 00 00 0d //Test command8
-		cb F0 F7 FF 3F 30 00
-		00 00 00 00 3c cf
+		29 01 00 00 00 00 2D
+		C1 84 61 00 52 4A 59
+		94 20 03 1C D9 D8 82
+		CF B9 07 17 6B D1 80
+		41 82 94 52 4A 09 11
+		11 11 11 A0 40 42 20
+		12 10 22 00 15 00 01
+		00 00 00
 
-		29 01 00 00 00 00 14
-		ec 29 00 2c 2b 01 00
-		00 00 00 00 00 00 00
-		00 00 00 07 09 00
+		29 01 00 00 00 00 10
+		C4 70 00 00 00 00 00
+		00 00 00 00 06 16 16
+		16 01
 
-		29 01 00 00 00 00 0f
-		ee 1c 02 02 03 00 10
-		00 02 00 00 00 00 00
-		03
+		29 01 00 00 00 00 0D
+		CB F0 F7 FF 3F 30 00
+		00 00 00 00 3C CF
 
 		29 01 00 00 00 00 1F /* gamma setting 1 */
 		C7 00 0A 16 20 2C 39
@@ -61,25 +67,18 @@
 		00 00 00 00 00 FC 00
 		00 00 00 00 FC 00
 
-		29 01 00 00 00 00 1F
-		C1 84 61 10 52 4A 59
-		94 20 03 1C D9 D8 82
-		CF B9 07 17 6B D1 80
-		41 82 94 52 4A 09 10
-		10 10 10
-
-		29 01 00 00 00 00 02
-		d6 01
-
-		15 01 00 00 00 00 02
-		36 00
-
 		29 01 00 00 00 00 21 /* Color Enhancement */
 		CA 01 70 9A 95 A2 98
 		95 8F 3F 3F 80 80 08
 		80 08 3F 08 90 0C 0C
 		0A 06 04 04 00 C8 10
 		10 3F 3F 3F 3F
+
+		29 01 00 00 00 00 02
+		D6 01
+
+		15 01 00 00 00 00 02
+		36 00
 
 		05 01 00 00 00 00 01
 		29
@@ -100,14 +99,15 @@
        pinctrl-0 = <&mdss_dsi_active>;
        pinctrl-1 = <&mdss_dsi_suspend>;
 
-	   qcom,platform-dsv_p_en-gpio = <&msm_gpio 97 0>;
-	   qcom,platform-dsv_n_en-gpio = <&msm_gpio 100 0>;
-	   qcom,platform-vdd_en-gpio = <&msm_gpio 34 0>;
-	   qcom,platform-vddio_en-gpio = <&msm_gpio 33 0>;
+       qcom,platform-dsv_p_en-gpio = <&msm_gpio 97 0>;
+       qcom,platform-dsv_n_en-gpio = <&msm_gpio 100 0>;
+       qcom,platform-vdd_en-gpio = <&msm_gpio 34 0>;
+       qcom,platform-vddio_en-gpio = <&msm_gpio 33 0>;
 
        qcom,platform-reset-gpio = <&msm_gpio 25 0>;
        qcom,regulator-ldo-mode;
        qcom,platform-regulator-settings = [02 09 03 00 20 00 01];
+
 };
 
 &i2c_4 {

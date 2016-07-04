@@ -607,8 +607,8 @@ static int lm3697_bl_parse_dt(struct device *dev, struct lm3697_bl_chip *chip)
 		bl_pdata[i].imax = lm3697_get_current_code(imax_mA);
 
 #ifdef CONFIG_LGE_LCD_OFF_DIMMING
-		if ((lge_get_bootreason() == 0x77665560) || (lge_get_bootreason() == 0x77665561)
-					   || (lge_get_bootreason() == 0x77665562)) {
+		if ((lge_get_bootreasoncode() == 0x77665560) || (lge_get_bootreasoncode() == 0x77665561)
+					   || (lge_get_bootreasoncode() == 0x77665562)) {
 			pr_info("%s : lcd dimming mode! set default dimming brightness.\n",__func__);
 			bl_pdata[i].init_brightness = 10;
 		} else

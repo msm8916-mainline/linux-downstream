@@ -1988,6 +1988,28 @@ static int akm09911_i2c_check_device(
 	return err;
 }
 
+#ifdef CONFIG_OF
+static int akm_compass_parse_dt(struct device *dev, struct akm_compass_data *pdata)
+{
+	struct device_node *np = dev->of_node;
+	u32 temp_val;
+	int rc;
+
+	rc = of_property_read_u32(np, "akm,layout", &temp_val);
+	if (rc && (rc != -EINVAL)) {
+		dev_err(dev, "Unable to read akm,layout\n");
+		return rc;
+	} else {
+		s_akm->layout= temp_val;
+		dev_info(dev, "%s: layout :%d.", __func__, temp_val);
+	}
+
+       return 0;
+}
+#endif
+
+
+
 int akm_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct akm09911_platform_data *pdata;
@@ -2034,18 +2056,30 @@ int akm_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	for (i = 0; i < AKM_NUM_SENSORS; i++)
 		s_akm->delay[i] = -1;
 
-	/***** Set platform information *****/
-	pdata = client->dev.platform_data;
-	if (pdata) {
-		/* Platform data is available. copy its value to local. */
-		s_akm->layout = pdata->layout;
-		s_akm->gpio_rstn = pdata->gpio_RSTN;
-	} else {
-		/* Platform data is not available.
-		   Layout and information should be set by each application. */
-		dev_dbg(&client->dev, "%s: No platform data.", __func__);
-		s_akm->layout = 0;
-		s_akm->gpio_rstn = 0;
+	if (client->dev.of_node) {
+		err = akm_compass_parse_dt(&client->dev, s_akm);
+		if (err) {
+			dev_err(&client->dev,
+				"Unable to parse platfrom data err=%d\n", err);
+			return err;
+		}
+       } else {
+		if (client->dev.platform_data) {
+		/***** Set platform information *****/
+		pdata = client->dev.platform_data;
+		}
+
+		if (pdata) {
+			/* Platform data is available. copy its value to local. */
+			s_akm->layout = pdata->layout;
+			s_akm->gpio_rstn = pdata->gpio_RSTN;
+		} else {
+			/* Platform data is not available.
+			Layout and information should be set by each application. */
+			dev_dbg(&client->dev, "%s: No platform data.", __func__);
+			s_akm->layout = 0;
+			s_akm->gpio_rstn = 0;
+		}
 	}
 
 	/***** I2C initialization *****/
@@ -2090,7 +2124,8 @@ int akm_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		}
 #else
 		s_akm->bst_pd = kzalloc(sizeof(*s_akm->bst_pd), GFP_KERNEL);
-		s_akm->bst_pd->place = 5;
+		s_akm->bst_pd->place = s_akm->layout;
+
 		dev_info(&client->dev, "platform data of bmm %s: place: %d, irq: %d",
 		s_akm->bst_pd->name, s_akm->bst_pd->place, s_akm->bst_pd->irq);
 #endif

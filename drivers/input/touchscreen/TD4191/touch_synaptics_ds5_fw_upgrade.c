@@ -134,7 +134,7 @@ enum F35RecoveryCommand {
 	CMD_F35_RESET = 0x10,
 };
 
-#if 1 // refresh screen after F35 recovery.
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
 extern void mdss_lcd_lut_update(void);
 #endif
 
@@ -914,7 +914,7 @@ void EraseConfigBlock(struct synaptics_ts_data *ts)
 
 void SynaCheckFlashStatus(struct synaptics_ts_data *ts)
 {
-	unsigned char status;
+	unsigned char status = 0;
 
 	readRMI(ts->client, SynaF35DataBase + F35_ERROR_CODE_OFFSET, &status, 1);
 
@@ -1027,8 +1027,10 @@ void CompleteReflash(struct synaptics_ts_data *ts)
 
 	SynaFinalizeReflash(ts);
 
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
         if (ts->fw_info.need_rewrite_firmware)
 	        mdss_lcd_lut_update();
+#endif
 }
 
 void FlashRecovery(struct synaptics_ts_data *ts)
@@ -1040,8 +1042,8 @@ void FlashRecovery(struct synaptics_ts_data *ts)
 	SynaWriteChunkData(ts);
 
 	SynaFinalizeRecovery(ts);
-
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
 	mdss_lcd_lut_update();
-
+#endif
 	return;
 }

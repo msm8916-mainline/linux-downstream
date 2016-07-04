@@ -778,6 +778,7 @@ struct inv_mpu_state {
 	u64 step_detector_base_ts;
 	u64 prev_ts;
 	u64 last_run_time;
+	u64 engine_en_ts;
 	u8 name[20];
 	u8 secondary_name[20];
 

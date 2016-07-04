@@ -22,6 +22,11 @@
 #endif
 #define CONFIG_MAX17048_CUSTOM
 
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+#define CONFIG_LGE_PM_BATT_PROFILE
+//#define CONFIG_LGE_PM_BATT_PROFILE_DEBUG // compare level between origin and tune
+#endif
+
 #ifdef CONFIG_LGE_PM_BATTERY_ID_CHECKER
 enum cell_type{
  LGC_LLL,
@@ -56,6 +61,9 @@ struct max17048_battery_model {
 	uint16_t vreset;
 	uint16_t valert;
 	uint16_t ocvtest;
+#endif
+#ifdef CONFIG_LGE_PM_BATT_PROFILE
+	int batt_profile_enabled;
 #endif
 };
 

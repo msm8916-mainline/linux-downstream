@@ -8,6 +8,7 @@
 
 #include "aes_glue.h"
 
+
 EXPORT_SYMBOL(AES_encrypt);
 EXPORT_SYMBOL(AES_decrypt);
 EXPORT_SYMBOL(private_AES_set_encrypt_key);
@@ -93,6 +94,6 @@ module_exit(aes_fini);
 
 MODULE_DESCRIPTION("Rijndael (AES) Cipher Algorithm (ASM)");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS_CRYPTO("aes");
-MODULE_ALIAS_CRYPTO("aes-asm");
+MODULE_ALIAS("aes");
+MODULE_ALIAS("aes-asm");
 MODULE_AUTHOR("David McCullough <ucdevel@gmail.com>");

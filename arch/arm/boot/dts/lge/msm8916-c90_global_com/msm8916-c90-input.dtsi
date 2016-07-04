@@ -21,6 +21,17 @@
 		fw_image = "synaptics/c70/PLG455-V1.03-PR1778363-DS5.2.12.0.1013_40047183.img";
 		panel_spec = "synaptics/c70/limit.txt";
 	};
+
+	melfas_mit300@34 {
+		compatible = "unified_driver,ver2,mit300";
+		status = "ok";
+		revision = "rev_a...";
+		reg = <0x34>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2>;
+		vdd_ana-supply = <&pm8916_l16>;
+		vcc_i2c-supply = <&pm8916_l6>;
+	};
 };
 
 &soc {

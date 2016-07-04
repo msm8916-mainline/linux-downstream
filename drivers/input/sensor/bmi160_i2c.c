@@ -26,6 +26,66 @@
  @{*/
 
 static struct i2c_client *bmi_client;
+
+#ifdef CONFIG_OF
+static int sensor_parse_dt(struct device *dev, struct bmi_platform_data *pdata)
+{
+	struct device_node *np = dev->of_node;
+
+	int ret, err =0;
+	struct sensor_dt_to_pdata_map *itr;
+	struct sensor_dt_to_pdata_map map[] = {
+	{"bosch,irq-gpio",				      &pdata->irq_gpio,				          DT_REQUIRED,	DT_GPIO,	0},
+	{"place",			                  &pdata->place,			              DT_OPTIONAL,	DT_U32,		0},
+	{NULL	,                         NULL,                             0,            0,      	0},
+	};
+
+	for (itr = map; itr->dt_name ; ++itr) {
+		switch (itr->type) {
+		case DT_GPIO:
+			ret = of_get_named_gpio(np, itr->dt_name, 0);
+			if (ret >= 0) {
+				*((int *) itr->ptr_data) = ret;
+				ret = 0;
+			}
+			break;
+		case DT_U32:
+			ret = of_property_read_u32(np, itr->dt_name,
+							 (u32 *) itr->ptr_data);
+			break;
+		case DT_BOOL:
+			*((bool *) itr->ptr_data) =
+				of_property_read_bool(np, itr->dt_name);
+			ret = 0;
+			break;
+		default:
+			printk(KERN_INFO "%d is an unknown DT entry type\n",
+								itr->type);
+			ret = -EBADE;
+		}
+
+                /* disable parse dt log
+		printk(KERN_INFO "DT entry ret:%d name:%s val:%d\n",
+				ret, itr->dt_name, *((int *)itr->ptr_data));
+	        */
+		if (ret) {
+			*((int *)itr->ptr_data) = itr->default_val;
+
+			if (itr->status < DT_OPTIONAL) {
+				printk(KERN_INFO "Missing '%s' DT entry\n",
+								itr->dt_name);
+
+				if (itr->status == DT_REQUIRED && !err)
+					err = ret;
+			}
+		}
+	}
+
+	return err;
+
+}
+#endif
+
 /*!
  * @brief define i2c wirte function
  *
@@ -190,6 +250,9 @@ static int bmi_i2c_probe(struct i2c_client *client,
 		int err = 0;
 		struct bmi_client_data *client_data = NULL;
 
+#ifdef CONFIG_OF
+    struct bmi_platform_data *platform_data;
+#endif
 		dev_info(&client->dev, "BMI160 i2c function probe entrance");
 
 		if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
@@ -215,6 +278,24 @@ static int bmi_i2c_probe(struct i2c_client *client,
 			goto exit_err_clean;
 		}
 
+#ifdef CONFIG_OF
+	if(client->dev.of_node) {
+		platform_data = devm_kzalloc(&client->dev,
+			sizeof(struct bmi_platform_data), GFP_KERNEL);
+		if (!platform_data) {
+			dev_err(&client->dev, "Failed to allocate memory.\n");
+			return -ENOMEM;
+		}
+
+		client->dev.platform_data = platform_data;
+		err = sensor_parse_dt(&client->dev, platform_data);
+		if(err)
+			goto exit_err_clean;
+
+	} else {
+		platform_data = client->dev.platform_data;
+	}
+#endif
 		client_data->device.bus_read = bmi_i2c_read_wrapper;
 		client_data->device.bus_write = bmi_i2c_write_wrapper;
 

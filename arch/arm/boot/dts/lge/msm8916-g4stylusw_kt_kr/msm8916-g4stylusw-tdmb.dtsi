@@ -15,7 +15,7 @@
 		spi1 = &spi_tdmb;
 	};
 	soc {
-		  spi_tdmb: spi_tdmb@78b7000 {	/*BLSP-1 QUP3*/
+		spi_tdmb: spi@78b7000 {	/*BLSP-1 QUP3*/
 			status = "ok";
 			compatible = "qcom,spi-qup-v2";
 
@@ -36,7 +36,7 @@
 
 			/* Assign runtime functions to pins */
 			qcom,use-pinctrl;
-			pinctrl-names = "default","sleep";
+			pinctrl-names = "spi_default","spi_sleep";
 			pinctrl-0 = <&spi_tdmb_active>;
 			pinctrl-1 = <&spi_tdmb_suspend>;
 

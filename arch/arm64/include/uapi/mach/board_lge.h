@@ -85,14 +85,6 @@ void get_dt_cn_prop_str(const char *name, char *value);
 void get_dt_cn_prop_u64(const char *name, uint64_t *u64);
 void get_dt_cn_prop_u32(const char *name, uint32_t *u32);
 
-
-#ifdef CONFIG_LGE_LCD_TUNING
-struct lcd_platform_data {
-	int (*set_values) (int *tun_lcd_t);
-	int (*get_values) (int *tun_lcd_t);
-	};
-void __init lge_add_lcd_misc_devices(void);
-#endif
 enum lge_laf_mode_type {
 	LGE_LAF_MODE_NORMAL = 0,
 	LGE_LAF_MODE_LAF,
@@ -148,9 +140,17 @@ enum lge_boot_mode_type {
 	LGE_BOOT_MODE_PIF_910K,
 	LGE_BOOT_MODE_MINIOS    /* LGE_UPDATE for MINIOS2.0 */
 };
-#ifdef CONFIG_USB_G_LGE_ANDROID
+#ifdef CONFIG_LGE_USB_G_ANDROID
 int  __init lge_add_android_usb_devices(void);
 #endif
+
+#if defined(CONFIG_LGE_QSDL_SUPPORT)
+int lge_get_bootreason(void);
+#endif
+#if defined(CONFIG_LGE_LCD_OFF_DIMMING)
+int lge_get_bootreasoncode(void);
+#endif
+
 enum lge_boot_mode_type lge_get_boot_mode(void);
 int lge_get_factory_boot(void);
 #endif

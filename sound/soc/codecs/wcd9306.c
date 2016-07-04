@@ -6278,6 +6278,12 @@ static int tapan_post_reset_cb(struct wcd9xxx *wcd9xxx)
 
 	wcd9xxx_resmgr_post_ssr(&tapan->resmgr);
 
+	wcd9xxx_resmgr_rm_cond_update_bits(
+				&tapan->resmgr,
+				WCD9XXX_COND_HPH_MIC,
+				TAPAN_A_MICB_2_CTL, 7,
+				false);
+
 	wcd9xxx_mbhc_deinit(&tapan->mbhc);
 
 	if (TAPAN_IS_1_0(wcd9xxx->version))
@@ -6288,7 +6294,11 @@ static int tapan_post_reset_cb(struct wcd9xxx *wcd9xxx)
 	ret = wcd9xxx_mbhc_init(&tapan->mbhc, &tapan->resmgr, codec,
 				tapan_enable_mbhc_micbias,
 				&mbhc_cb, &cdc_intr_ids, rco_clk_rate,
-				TAPAN_CDC_ZDET_SUPPORTED);
+#ifdef CONFIG_MACH_LGE
+				false);
+#else
+                TAPAN_CDC_ZDET_SUPPORTED);
+#endif
 	if (ret)
 		pr_err("%s: mbhc init failed %d\n", __func__, ret);
 	else
@@ -6539,7 +6549,11 @@ static int tapan_codec_probe(struct snd_soc_codec *codec)
 	ret = wcd9xxx_mbhc_init(&tapan->mbhc, &tapan->resmgr, codec,
 				tapan_enable_mbhc_micbias,
 				&mbhc_cb, &cdc_intr_ids, rco_clk_rate,
-				TAPAN_CDC_ZDET_SUPPORTED);
+#ifdef CONFIG_MACH_LGE
+				false);
+#else
+                TAPAN_CDC_ZDET_SUPPORTED);
+#endif
 
 	if (ret) {
 		pr_err("%s: mbhc init failed %d\n", __func__, ret);

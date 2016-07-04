@@ -15,19 +15,19 @@
 
 	lge,no-init-cable = <0 0 0>;
 	lge,cable-mhl-1k = <5000 500 500>;
-	lge,cable-u-28p7k = <5500 810 500>;
-	lge,cable-28p7k = <6000 810 500>;
+	lge,cable-u-28p7k = <5500 720 500>;
+	lge,cable-28p7k = <6000 720 500>;
 	lge,cable-56k = <200000 1500 1500>;
-	lge,cable-100k = <239000 810 500>;
+	lge,cable-100k = <239000 720 500>;
 	lge,cable-130k = <340000 1500 1500>;
-	lge,cable-180k = <400000 810 500>;
-	lge,cable-200k = <410000 810 500>;
-	lge,cable-220k = <485000 810 500>;
-	lge,cable-270k = <560000 810 500>;
-	lge,cable-330k = <735000 810 500>;
-	lge,cable-620k = <955000 810 500>;
+	lge,cable-180k = <400000 720 500>;
+	lge,cable-200k = <410000 720 500>;
+	lge,cable-220k = <485000 720 500>;
+	lge,cable-270k = <560000 720 500>;
+	lge,cable-330k = <735000 720 500>;
+	lge,cable-620k = <955000 720 500>;
 	lge,cable-910k = <1140000 1500 1500>;
-	lge,cable-none = <1900000 810  500>;
+	lge,cable-none = <1900000 720  500>;
 
 	qcom,vddmax-mv = <4350>;
 	qcom,vddsafe-mv = <4380>;
@@ -42,11 +42,11 @@
 	qcom,msm-thermal {
 		qcom,freq-control-mask = <0xf>;
 		qcom,core-control-mask = <0xe>;
-		qcom,hotplug-temp = <94>;
-		qcom,hotplug-temp-hysteresis = <15>;
-		qcom,freq-mitigation-temp = <94>;
-		qcom,freq-mitigation-temp-hysteresis = <10>;
-		qcom,freq-mitigation-value = <400000>;
+		qcom,hotplug-temp = <110>;
+		qcom,hotplug-temp-hysteresis = <20>;
+		qcom,freq-mitigation-temp = <110>;
+		qcom,freq-mitigation-temp-hysteresis = <20>;
+		qcom,freq-mitigation-value = <960000>;
 		qcom,limit-temp = <90>;
 		qcom,freq-step = <1>;
 		qcom,core-limit-temp = <100>;
@@ -56,7 +56,7 @@
 &spmi_bus {
 qcom,pm8916@0 {
 	qcom,leds@a100 {
-		status = "disable";
+		status = "okay";
 		qcom,led_mpp_2 {
 			label = "mpp";
 			linux,name = "red";
@@ -90,7 +90,7 @@ qcom,pm8916@0 {
 
 &pm8916_mpps {
 	mpp@a100 {
-		status = "disable";
+		status = "okay";
 		qcom,mode = <6>;
 		qcom,invert = <0>;
 		qcom,src-sel = <4>;
@@ -126,9 +126,9 @@ qcom,pm8916@0 {
 
 &pm8916_bms {
 	status = "ok";
-	qcom,v-cutoff-uv = <3400000>;
+	qcom,v-cutoff-uv = <3200000>;
 	qcom,max-voltage-uv = <4350000>;
-	qcom,low-voltage-threshold = <3450000>;
+	qcom,low-voltage-threshold = <3250000>;
 	qcom,s2-fifo-length = <8>;
 	qcom,shutdown-soc-valid-limit = <20>;
 	qcom,force-bms-active-on-charger;
@@ -206,16 +206,6 @@ qcom,pm8916@0 {
 			qcom,init-voltage = <2850000>;
 			regulator-always-on;
 			status = "okay";
-		};
-
-		pm8916_l17_sns: regulator-l17_sns {
-			status = "ok";
-			compatible = "qcom,rpm-smd-regulator";
-			regulator-name = "8916_l17_sns";
-			qcom,set = <3>;
-			regulator-min-microvolt = <2850000>;
-			regulator-max-microvolt = <2850000>;
-			qcom,init-voltage = <2850000>;
 		};
 	};
 };

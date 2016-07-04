@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -124,6 +124,7 @@ static int msm_iommu_dump_fault_regs(int smmu_id, int cb_num,
 				struct msm_scm_fault_regs_dump *regs)
 {
 	int ret;
+	struct scm_desc desc = {0};
 
 	struct msm_scm_fault_regs_dump_req {
 		uint32_t id;
@@ -133,15 +134,19 @@ static int msm_iommu_dump_fault_regs(int smmu_id, int cb_num,
 	} req_info;
 	int resp = 0;
 
-	req_info.id = smmu_id;
-	req_info.cb_num = cb_num;
-	req_info.buff = virt_to_phys(regs);
-	req_info.len = sizeof(*regs);
+	desc.args[0] = req_info.id = smmu_id;
+	desc.args[1] = req_info.cb_num = cb_num;
+	desc.args[2] = req_info.buff = virt_to_phys(regs);
+	desc.args[3] = req_info.len = sizeof(*regs);
+	desc.arginfo = SCM_ARGS(4, SCM_VAL, SCM_VAL, SCM_RW, SCM_VAL);
 
 	dmac_clean_range(regs, regs + 1);
-	ret = scm_call(SCM_SVC_UTIL, IOMMU_DUMP_SMMU_FAULT_REGS,
-		&req_info, sizeof(req_info), &resp, 1);
-
+	if (!is_scm_armv8())
+		ret = scm_call(SCM_SVC_UTIL, IOMMU_DUMP_SMMU_FAULT_REGS,
+			&req_info, sizeof(req_info), &resp, 1);
+	else
+		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_UTIL,
+			IOMMU_DUMP_SMMU_FAULT_REGS), &desc);
 	dmac_inv_range(regs, regs + 1);
 
 	return ret;
@@ -346,7 +351,7 @@ static int msm_iommu_sec_ptbl_init(void)
 	unsigned int spare;
 	int ret, ptbl_ret = 0;
 	int version;
-	/* Use a dummy device for dma_alloc_coherent allocation */
+	/* Use a dummy device for dma_alloc_attrs allocation */
 	struct device dev = { 0 };
 	void *cpu_addr;
 	dma_addr_t paddr;
@@ -447,7 +452,7 @@ static int msm_iommu_sec_ptbl_init(void)
 	return 0;
 
 fail_mem:
-	dma_free_coherent(&dev, psize[0], cpu_addr, paddr);
+	dma_free_attrs(&dev, psize[0], cpu_addr, paddr, &attrs);
 fail:
 	return ret;
 }
@@ -485,11 +490,7 @@ static int msm_iommu_sec_map2(struct msm_scm_map2_req *map)
 	desc.args[4] = map->info.ctx_id;
 	desc.args[5] = map->info.va;
 	desc.args[6] = map->info.size;
-#ifdef CONFIG_MSM_IOMMU_TLBINVAL_ON_MAP
-	desc.args[7] = map->flags = IOMMU_TLBINVAL_FLAG;
-#else
 	desc.args[7] = map->flags = 0;
-#endif
 	desc.arginfo = SCM_ARGS(8, SCM_RW, SCM_VAL, SCM_VAL, SCM_VAL, SCM_VAL,
 				SCM_VAL, SCM_VAL, SCM_VAL);
 	if (!is_scm_armv8()) {

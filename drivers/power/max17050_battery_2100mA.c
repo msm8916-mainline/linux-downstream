@@ -61,9 +61,6 @@ struct max17050_chip {
 };
 /* 130411 junnyoung.jang@lge.com Implement Power test SOC quickstart */
 int lge_power_test_flag_max17050 = 1;
-#if defined(CONFIG_MACH_MSM8916_C50C_VZW)
-int lge_power_init_flag_max17050 = 1;
-#endif
 /* 130411 junnyoung.jang@lge.com Implement Power test SOC quickstart */
 
 static int max17050_write_reg(struct i2c_client *client, u8 reg, u16 value)
@@ -896,14 +893,6 @@ int max17050_get_battery_capacity_percent(void)
 {
 	if (at_cmd_buf[0] == 1)
 		return at_cmd_buf[1];
-
-#if defined(CONFIG_MACH_MSM8916_C50C_VZW)
-	if(lge_power_init_flag_max17050 == 1)
-	{
-		max17050_quick_start();
-		lge_power_init_flag_max17050 = 0;
-	}
-#endif
 
 	return max17050_get_capacity_percent();
 }

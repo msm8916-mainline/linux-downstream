@@ -212,6 +212,14 @@ config DECOMPRESS_XZ
 config DECOMPRESS_LZO
 	select LZO_DECOMPRESS
 	tristate
+config LZ4_COMPRESS
+	tristate
+
+config LZ4HC_COMPRESS
+	tristate
+
+config LZ4_DECOMPRESS
+	tristate
 
 #
 # Generic allocator support is selected if needed

@@ -25,23 +25,23 @@ static char *stop_push = "mts_tty_stop_push";
 
 int mts_stop_ready_complete(void)
 {
-    int num_push = 0, total_push = 0;
-    int left = strlen(stop_push);
+	int num_push = 0, total_push = 0;
+	int left = strlen(stop_push);
 	struct mts_tty *mts_tty_drv = mts_tty;
 
 	if (mts_tty_drv == NULL)  {
 		return -1;
 	}
 
-    //num_push = tty_insert_flip_string(mts_tty_drv->tty_struct,
-    num_push = tty_insert_flip_string(mts_tty_drv->mts_tty_port,
-            stop_push + total_push, left);
-    total_push += num_push;
-    left -= num_push;
-    //tty_flip_buffer_push(mts_tty_drv->tty_struct);
-    tty_flip_buffer_push(mts_tty_drv->mts_tty_port);
-    printk("%s\n", __func__);
-    return 0;
+	//num_push = tty_insert_flip_string(mts_tty_drv->tty_struct,
+	num_push = tty_insert_flip_string(mts_tty_drv->mts_tty_port,
+			stop_push + total_push, left);
+	total_push += num_push;
+	left -= num_push;
+	//tty_flip_buffer_push(mts_tty_drv->tty_struct);
+	tty_flip_buffer_push(mts_tty_drv->mts_tty_port);
+	printk("%s\n", __func__);
+	return 0;
 }
 
 int mts_tty_process(char *buf, int left)
@@ -54,21 +54,21 @@ int mts_tty_process(char *buf, int left)
 		return -1;
 	}
 
-    switch (mts_tty->run) {
-        case MTS_START_READY:
-            printk("%s MTS_START_READY\n", __func__);
-            return -1;
-        case MTS_STOP_READY_COMPLETE:
-            printk("%s MTS_STOP_READY_COMPLETE\n", __func__);
-            return -1;
-        case MTS_STOP_READY:
-            printk("%s MTS_STOP_READY\n", __func__);
-            mts_tty->run = MTS_STOP_READY_COMPLETE;
-            mts_stop_ready_complete();
-            return -1;
-        default:
-            break;
-    }
+	switch (mts_tty->run) {
+		case MTS_START_READY:
+			printk("%s MTS_START_READY\n", __func__);
+			return -1;
+		case MTS_STOP_READY_COMPLETE:
+			printk("%s MTS_STOP_READY_COMPLETE\n", __func__);
+			return -1;
+		case MTS_STOP_READY:
+			printk("%s MTS_STOP_READY\n", __func__);
+			mts_tty->run = MTS_STOP_READY_COMPLETE;
+			mts_stop_ready_complete();
+			return -1;
+		default:
+			break;
+	}
 
 	//num_push = tty_insert_flip_string(mts_tty_drv->tty_struct,
 	num_push = tty_insert_flip_string(mts_tty_drv->mts_tty_port,
@@ -78,7 +78,7 @@ int mts_tty_process(char *buf, int left)
 	//tty_flip_buffer_push(mts_tty_drv->tty_struct);
 	tty_flip_buffer_push(mts_tty_drv->mts_tty_port);
 
-    //printk("mts_tty push %d\n", total_push);
+	//printk("mts_tty push %d\n", total_push);
 	return 0;
 }
 
@@ -94,8 +94,8 @@ static int mts_tty_open(struct tty_struct *tty, struct file *file)
 	if (!mts_tty_drv)
 		return -ENODEV;
 
-    tty_port_tty_set(mts_tty_drv->mts_tty_port, tty);
-    mts_tty_drv->mts_tty_port->low_latency = 0;
+	tty_port_tty_set(mts_tty_drv->mts_tty_port, tty);
+	mts_tty_drv->mts_tty_port->low_latency = 0;
 
 	tty->driver_data = mts_tty_drv;
 	mts_tty_drv->tty_struct = tty;
@@ -117,7 +117,7 @@ static void mts_tty_close(struct tty_struct *tty, struct file *file)
 	}
 
 	mts_tty_drv = tty->driver_data;
-    tty_port_tty_set(mts_tty_drv->mts_tty_port, NULL);
+	tty_port_tty_set(mts_tty_drv->mts_tty_port, NULL);
 	printk( "mts_tty_close TTY device close %d,%d\n", 0, 0);
 
 	return;
@@ -129,25 +129,25 @@ static int mts_tty_ioctl(struct tty_struct *tty, unsigned int cmd,
 	int ret = 0;
 
 	switch (cmd) {
-     case MTS_TTY_START_READY:
-		mts_tty->run = MTS_START_READY;
-		printk("mts_tty->run: MTS_START_READY (%s)\n", __func__);
-        break;
-	case MTS_TTY_START:
-		mts_tty->run = MTS_ON;
-		printk("mts_tty->run: MTS_ON (%s)\n", __func__);
-		break;
-     case MTS_TTY_STOP_READY:
-		printk("mts_tty->run: MTS_TTY_STOP_READY (%s)\n", __func__);
-        mts_tty->run = MTS_STOP_READY;
-        break;
-	case MTS_TTY_STOP:
-		mts_tty->run = MTS_OFF;
-		printk("mts_tty->run: MTS_OFF (%s)\n", __func__);
-		break;
-	default:
-		printk("mts_tty->run: unknown (%s)\n", __func__);
-		break;
+		case MTS_TTY_START_READY:
+			mts_tty->run = MTS_START_READY;
+			printk("mts_tty->run: MTS_START_READY (%s)\n", __func__);
+			break;
+		case MTS_TTY_START:
+			mts_tty->run = MTS_ON;
+			printk("mts_tty->run: MTS_ON (%s)\n", __func__);
+			break;
+		case MTS_TTY_STOP_READY:
+			printk("mts_tty->run: MTS_TTY_STOP_READY (%s)\n", __func__);
+			mts_tty->run = MTS_STOP_READY;
+			break;
+		case MTS_TTY_STOP:
+			mts_tty->run = MTS_OFF;
+			printk("mts_tty->run: MTS_OFF (%s)\n", __func__);
+			break;
+		default:
+			printk("mts_tty->run: unknown (%s)\n", __func__);
+			break;
 	}
 	return ret;
 }
@@ -167,9 +167,9 @@ static int mts_tty_write(struct tty_struct *tty, const unsigned char *buf, int c
 	tty->driver_data = mts_tty_drv;
 	mts_tty_drv->tty_struct = tty;
 
-    print_hex_dump(KERN_DEBUG, "mts_tty_write ", 16, 1, DUMP_PREFIX_ADDRESS, buf+4, count-4, 1);
+	print_hex_dump(KERN_DEBUG, "mts_tty_write ", 16, 1, DUMP_PREFIX_ADDRESS, buf+4, count-4, 1);
 
-    return count;
+	return count;
 }
 
 static const struct tty_operations mts_tty_ops = {
@@ -187,19 +187,18 @@ static int mts_pm_notify(struct notifier_block *b, unsigned long event, void *p)
 	wake_up_interruptible(&mts_tty->waitq);
 
 	switch (event) {
-        case PM_SUSPEND_PREPARE:
-		mts_tty->pm_notify_info = 3;
-		printk("mts_pm_notify: PM_SUSPEND_PREPARE\n");
-                break;
-        case PM_POST_SUSPEND:
-		mts_tty->pm_notify_info = 4;
-		printk("mts_pm_notify: PM_POST_SUSPEND\n");
-                break;
-	default:
-		break;
-        }
-
-        return 0;
+		case PM_SUSPEND_PREPARE:
+			mts_tty->pm_notify_info = 3;
+			printk("mts_pm_notify: PM_SUSPEND_PREPARE\n");
+			break;
+		case PM_POST_SUSPEND:
+			mts_tty->pm_notify_info = 4;
+			printk("mts_pm_notify: PM_POST_SUSPEND\n");
+			break;
+		default:
+			break;
+	}
+	return 0;
 }
 #endif
 
@@ -210,19 +209,28 @@ static int __init mts_tty_init(void)
 	struct mts_tty *mts_tty_drv = NULL;
 
 	mts_tty_drv = kzalloc(sizeof(struct mts_tty), GFP_KERNEL);
-    mts_tty_drv->mts_tty_port = kzalloc(sizeof(struct tty_port), GFP_KERNEL);
-	tty_port_init(mts_tty_drv->mts_tty_port);
 
 	if (mts_tty_drv == NULL) {
 		printk( "mts_tty_init: memory alloc fail %d - %d\n", 0, 0);
 		return 0;
 	}
 
+	mts_tty_drv->mts_tty_port = kzalloc(sizeof(struct tty_port), GFP_KERNEL);
+
+	if (mts_tty_drv->mts_tty_port == NULL) {
+		printk( "mts_tty_init: memory alloc fail %d - %d\n", 0, 0);
+		kfree(mts_tty_drv);
+		return 0;
+	}
+
+	tty_port_init(mts_tty_drv->mts_tty_port);
+
 	mts_tty = mts_tty_drv;
 	mts_tty_drv->tty_drv = alloc_tty_driver(MAX_DIAG_MTS_DRV);
 
 	if (!mts_tty_drv->tty_drv) {
 		printk( "mts_tty_init: tty alloc driver fail %d - %d\n", 1, 0);
+		kfree(mts_tty_drv->mts_tty_port);
 		kfree(mts_tty_drv);
 		return 0;
 	}
@@ -243,7 +251,7 @@ static int __init mts_tty_init(void)
 	mts_tty_drv->tty_drv->init_termios.c_iflag = IGNBRK | IGNPAR;
 	mts_tty_drv->tty_drv->init_termios.c_oflag = 0;
 	mts_tty_drv->tty_drv->init_termios.c_cflag =
-        B9600 | CS8 | CREAD | HUPCL | CLOCAL;
+		B9600 | CS8 | CREAD | HUPCL | CLOCAL;
 	mts_tty_drv->tty_drv->init_termios.c_lflag = 0;
 
 	tty_set_operations(mts_tty_drv->tty_drv, &mts_tty_ops);
@@ -251,11 +259,11 @@ static int __init mts_tty_init(void)
 	ret = tty_register_driver(mts_tty_drv->tty_drv);
 
 	if (ret) {
-        printk("fail to mts tty_register_driver\n");
+		printk("fail to mts tty_register_driver\n");
 		put_tty_driver(mts_tty_drv->tty_drv);
 		tty_port_destroy(mts_tty_drv->mts_tty_port);
 		mts_tty_drv->tty_drv = NULL;
-        kfree(mts_tty_drv->mts_tty_port);
+		kfree(mts_tty_drv->mts_tty_port);
 		kfree(mts_tty_drv);
 		return 0;
 	}
@@ -263,11 +271,11 @@ static int __init mts_tty_init(void)
 	tty_dev = tty_register_device(mts_tty_drv->tty_drv, 0, NULL);
 
 	if (IS_ERR(tty_dev)) {
-        printk("fail to mts tty_register_device\n");
+		printk("fail to mts tty_register_device\n");
 		tty_unregister_driver(mts_tty_drv->tty_drv);
 		put_tty_driver(mts_tty_drv->tty_drv);
 		tty_port_destroy(mts_tty_drv->mts_tty_port);
-        kfree(mts_tty_drv->mts_tty_port);
+		kfree(mts_tty_drv->mts_tty_port);
 		kfree(mts_tty_drv);
 		return 0;
 	}
@@ -300,7 +308,7 @@ static void __exit mts_tty_exit(void)
 	ret = tty_unregister_driver(mts_tty_drv->tty_drv);
 	put_tty_driver(mts_tty_drv->tty_drv);
 	mts_tty_drv->tty_drv = NULL;
-    kfree(mts_tty_drv->mts_tty_port);
+	kfree(mts_tty_drv->mts_tty_port);
 	kfree(mts_tty_drv);
 	mts_tty = NULL;
 

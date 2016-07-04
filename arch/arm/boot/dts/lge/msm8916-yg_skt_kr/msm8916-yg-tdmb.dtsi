@@ -38,7 +38,7 @@
 
 			/* Assign runtime functions to pins */
 			qcom,use-pinctrl;
-			pinctrl-names = "default","sleep";
+			pinctrl-names = "spi_default","spi_sleep";
 			pinctrl-0 = <&spi_tdmb_active>;
 			pinctrl-1 = <&spi_tdmb_suspend>;
 
@@ -56,10 +56,10 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			reg-names = "spi_physical";
-			reg = <0x78b7000 0x600>;
-			interrupt-names = "spi_irq";
-			interrupts = <0 97 0>;
+			reg-names = "spi_physical", "spi_bam_physical";
+			reg = <0x78b7000 0x600>, <0x7884000 0x23000>;
+			interrupt-names = "spi_irq", "spi_bam_irq";
+			interrupts = <0 97 0>, <0 238 0>;
 
 			spi-max-frequency = <16000000>;
 
@@ -70,7 +70,7 @@
 
 			/* Assign runtime functions to pins */
 			qcom,use-pinctrl;
-			pinctrl-names = "default","sleep";
+			pinctrl-names = "spi_default","spi_sleep";
 			pinctrl-0 = <&spi_tdmb_active>;
 			pinctrl-1 = <&spi_tdmb_suspend>;
 
@@ -78,6 +78,12 @@
 			qcom,gpio-miso = <&msm_gpio 9 0>;
 			qcom,gpio-cs0 = <&msm_gpio 10 0>;
 			qcom,gpio-clk = <&msm_gpio 11 0>;
+
+			qcom,infinite-mode = <0>;
+			qcom,use-bam;
+			qcom,ver-reg-exists;
+			qcom,bam-consumer-pipe-index = <8>;
+			qcom,bam-producer-pipe-index = <9>;
 		};
 	};
 };

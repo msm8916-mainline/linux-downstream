@@ -1064,9 +1064,6 @@ static noinline int alloc_debug_processing(struct kmem_cache *s, struct page *pa
 	return 1;
 
 bad:
-#ifdef CONFIG_SLUB_DEBUG_ON_FORCE_BUG
-	BUG();
-#endif
 	if (PageSlab(page)) {
 		/*
 		 * If this is a slab page then lets do the best we can
@@ -1133,9 +1130,6 @@ out:
 	return n;
 
 fail:
-#ifdef CONFIG_SLUB_DEBUG_ON_FORCE_BUG
-	BUG();
-#endif
 	slab_unlock(page);
 	spin_unlock_irqrestore(&n->list_lock, *flags);
 	slab_fix(s, "Object at 0x%p not freed", object);
@@ -1307,6 +1301,10 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 	 */
 	alloc_gfp = (flags | __GFP_NOWARN | __GFP_NORETRY) & ~__GFP_NOFAIL;
 
+#ifdef CONFIG_SLUB_RESTRAIN_HIGH_ORDER_ALLOC
+	if ((alloc_gfp & __GFP_WAIT) && oo_order(oo) > oo_order(s->min))
+		alloc_gfp = (alloc_gfp | __GFP_NOMEMALLOC) & ~__GFP_WAIT;
+#endif
 	page = alloc_slab_page(alloc_gfp, node, oo);
 	if (unlikely(!page)) {
 		oo = s->min;

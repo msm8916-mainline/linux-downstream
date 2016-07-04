@@ -152,6 +152,19 @@ enum F54_TEST {
 	F54_TRX_TO_TRX
 };
 
+#if defined(ENABLE_REALTIME_LPWG_FAIL_REASON)
+enum {
+	FAIL_DISTANCE_INTER_TAP = 1,
+	FAIL_DISTANCE_TOUCHSLOP,
+	FAIL_TIMEOUT_INTER_TAP,
+	FAIL_MULTI_FINGER,
+	FAIL_DELAY_TIME,
+	FAIL_PALM_STATE,
+	FAIL_ACTIVE_AREA,
+	FAIL_TAP_COUNT,
+};
+#endif
+
 /****************************************************************************
 * Exported Variables
 ****************************************************************************/

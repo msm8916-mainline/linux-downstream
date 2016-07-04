@@ -48,6 +48,74 @@
 		qcom,freq-mitigation-temp-hysteresis = <10>;
 		qcom,freq-mitigation-value = <400000>;
 		};
+
+	lge,power-sysfs {
+		status = "ok";
+		compatible = "lge,power-sysfs";
+
+		sysfs,node =
+			/* group, user_node kernel node */
+			/* ADC/MPP */
+			"adc", "thermal", "/sys/class/thermal/",
+			"adc", "xo_therm", "/sys/class/hwmon/hwmon0/device/xo_therm",
+			"adc", "batt_therm", "/sys/class/power_supply/battery/temp",
+			"adc", "batt_id", "/sys/class/power_supply/battery/battery_id_checker",
+			"adc", "pa_therm0", "/sys/class/hwmon/hwmon0/device/pa_therm0",
+			"adc", "pa_therm1", "NULL",
+			"adc", "usb_in", "/sys/class/hwmon/hwmon0/device/usb_in",
+			"adc", "vcoin", "/sys/class/hwmon/hwmon0/device/vcoin",
+			"adc", "vph_pwr", "/sys/class/hwmon/hwmon0/device/vph_pwr",
+			"adc", "usb_id", "/sys/class/hwmon/hwmon0/device/usb_id",
+			/* Battery */
+			"battery", "capacity", "/sys/class/power_supply/battery/capacity",
+			"battery", "health", "/sys/class/power_supply/battery/health",
+			"battery", "present", "/sys/class/power_supply/battery/present",
+			"battery", "pseudo_batt", "/sys/class/power_supply/battery/pseudo_batt",
+			"battery", "status", "/sys/class/power_supply/battery/status",
+			"battery", "temp", "/sys/class/power_supply/battery/temp",
+			"battery", "valid_batt_id", "/sys/class/power_supply/battery/valid_batt_id",
+			"battery", "voltage_now", "/sys/class/power_supply/battery/voltage_now",
+			/* Charger */
+			"charger", "ac_online", "NULL",
+			"charger", "usb_online", "/sys/class/power_supply/usb/online",
+			"charger", "present", "/sys/class/power_supply/usb/present",
+			"charger", "wlc_online", "NULL",
+			"charger", "type", "/sys/class/power_supply/usb/type",
+			"charger", "time_out", "NULL",
+			"charger", "charging_enabled", "/sys/class/power_supply/battery/charging_enabled",
+			"charger", "ibat_current", "/sys/class/power_supply/battery/current_now",
+			"charger", "ichg_current", "/sys/class/power_supply/usb/current_max",
+			"charger", "iusb_control", "NULL",
+			"charger", "thermal_mitigation", "/sys/module/bq24262_charger/parameters/bq24262_thermal_mitigation",
+			"charger", "wlc_thermal_mitigation", "NULL",
+			"charger", "usb_parallel_chg_status", "NULL",
+			"charger", "usb_parallel_charging_enabled", "NULL",
+			/* LCD Backlight */
+			"lcd", "brightness", "/sys/class/leds/lcd-backlight/brightness",
+			"lcd", "max_brightness", "/sys/class/leds/lcd-backlight/max_brightness",
+		        /* KEY LED */
+			"key_led", "red_brightness", "/sys/class/leds/red/brightness",
+			"key_led", "green_brightness", "NULL",
+			"key_led", "blue_brightness", "NULL",
+			/* CPU */
+			"cpu", "cpu_idle_modes", "/sys/module/lpm_levels/system/",
+			/* GPU */
+			"gpu", "busy", "/sys/class/kgsl/kgsl-3d0/gpubusy",
+			/* PLATFORM */
+			"platform", "speed_bin", "NULL",
+			"platform", "pvs_bin", "NULL",
+			"platform", "power_state", "/sys/power/autosleep",
+			"platform", "poweron_alarm", "/sys/module/qpnp_rtc/parameters/poweron_alarm",
+			"platform", "pcb_rev", "/sys/class/power_supply/battery/hw_rev",
+			/* testmode */
+			"testmode", "charge", "/sys/class/power_supply/battery/charging_enabled",
+			"testmode", "chcomp", "/sys/class/power_supply/battery/device/at_chcomp1",
+			"testmode", "chgmodeoff", "/sys/class/power_supply/battery/charging_enabled",
+			"testmode", "fuelrst", "/sys/devices/soc.0/78b5000.i2c/i2c-1/1-0036/fuelrst",
+			"testmode", "rtc_time", "/dev/rtc0",
+			"testmode", "pmrst", "/sys/class/power_supply/battery/device/at_pmrst1",
+			"testmode", "battexit", "/sys/class/power_supply/battery/present";
+	};
 };
 
 &spmi_bus {
@@ -73,25 +141,12 @@ qcom,pm8916@0 {
 
 	pm8916_pon: qcom,power-on@800 {
 			qcom,pon_1 {
-				qcom,support-reset = <1>;
+				qcom,support-reset = <0>;
 			};
 		};
-	qcom,power-on,lge@800 {
-			compatible = "qcom,qpnp-power-on";
-			reg = <0x800 0x100>;
-			interrupts = <0x0 0x8 0x0>;
-			interrupt-names = "kpdpwr";
-			qcom,pon-dbc-delay = <15625>;
-			qcom,system-reset;
-
-			qcom,pon_1 {
-				qcom,pon-type = <0>;
-				qcom,support-reset = <1>;
-				qcom,pull-up = <1>;
-				qcom,s1-timer = <10256>;
-				qcom,s2-timer = <2000>;
-				qcom,s2-type = <7>;
-				linux,code = <116>;
+	qcom,power-on,lge@800{
+			 qcom,pon_1 {
+				qcom,support-reset = <0>;
 			};
 		};
 	};

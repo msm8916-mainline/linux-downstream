@@ -1469,7 +1469,11 @@ RETRY:
 				}
 				ret += sprintf(buf + ret, "======================\n");
 				ret += sprintf(buf + ret, "F/W Version : %X.%02X \n", ts->module.version[0], ts->module.version[1]);
+				if(lge_get_factory_boot()) {
+				ret += sprintf(buf + ret, "F/W Product : [%s] \n", ts->module.product_code);
+				} else {
 				ret += sprintf(buf + ret, "F/W Product : %s \n", ts->module.product_code);
+				}
 				ret += sprintf(buf + ret, "F/W Row : %d, Col : %d\n", ts->dev.row_num, ts->dev.col_num);
 				if (ts->module.otp == OTP_NOT_SUPPORTED) {
 					ret += sprintf(buf + ret, "OTP : F/W Not support \n");

@@ -964,6 +964,10 @@ static void uas_free_streams(struct uas_dev_info *devinfo)
 	usb_free_streams(devinfo->intf, eps, 3, GFP_KERNEL);
 }
 
+#if defined(CONFIG_LGE_USB_TYPE_A)
+extern int send_usb_storage_limited(void);
+#endif
+
 /*
  * XXX: What I'd like to do here is register a SCSI host for each USB host in
  * the system.  Follow usb-storage's design of registering a SCSI host for
@@ -976,6 +980,13 @@ static int uas_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	struct Scsi_Host *shost;
 	struct uas_dev_info *devinfo;
 	struct usb_device *udev = interface_to_usbdev(intf);
+
+#if defined(CONFIG_LGE_USB_TYPE_A)
+	if (send_usb_storage_limited()) {
+		pr_info("%s: Not approved for UAS at the low battery\n", __func__);
+		return -ENODEV;
+	}
+#endif
 
 	if (uas_switch_interface(udev, intf))
 		return -ENODEV;

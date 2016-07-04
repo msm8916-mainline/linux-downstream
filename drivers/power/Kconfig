@@ -210,6 +210,7 @@ config BATTERY_MAX17042
 	  multi-function devices that include fuel gauages that are compatible
 	  with MAX17042. This driver also supports max17047/50 chips which are
 	  improved version of max17042.
+
 config BATTERY_MAX17048
         tristate "Maxim MAX17048 fuel gauging external driver"
         depends on LGE_PM_BATTERY_EXTERNAL_FUELGAUGE
@@ -593,6 +594,12 @@ config LGE_PM_CHARGER_TEMP_SCENARIO_COMMON
       say Y here to support for lge charging temperature scenario common.
       This manages the charging status by battery temperature.
 
+config LGE_PM_THERMALE_BACKLIGHT_CHG_CONTROL
+    depends on LGE_PM
+    default n
+    bool "LGE PM THERMALE BACKLIGHT CHG CONTROL setting"
+    help
+      say Y here to disable thermal engine chg control in backlight off status
 
 config LGE_PM_FACTORY_CABLE
 	depends on LGE_PM
@@ -641,6 +648,20 @@ config LGE_PM_LAF_NOT_RELEASE_VM_BMS
 	help
 	  Say Y here to enable LAF mode, Do not release VM_BMS driver
 
+config LGE_PM_VM_BMS_EARLY_FIFO_UPDATE
+	tristate "LGE_PM early fifo update in boot up "
+	depends on LGE_PM
+	default n
+	help
+	  Say Y here to update the fifo data (ocv) during repeated reboot
+
+config LGE_PM_VM_BMS_SLOW_INCREASE
+	tristate "LGE_PM prevent the sudden increase after connecting TA "
+	depends on LGE_PM
+	default n
+	help
+	  Don't push the increased soc to buffer in discharging
+
 config LGE_PM_SMPL_COUNT
 	bool "SMPL Counter"
 	depends on LGE_PM
@@ -652,6 +673,14 @@ config LGE_PM_PWR_KEY_FOR_CHG_LOGO
 	depends on LGE_PM
 	help
 	  PWR KEY could be controlled by this code.
+
+config LGE_PM_VOLUME_KEY_FOR_CHG_LOGO
+	bool "Control the VOLUME KEY for charger logo"
+	depends on LGE_PM_PWR_KEY_FOR_CHG_LOGO
+	default n
+	help
+	  VOLUME KEY could be controlled by this code.
+	  Don't call volume key in chargerlogo.
 
 config LGE_PM_BATTERY_RT9428_FUELGAUGE
 	bool "Richtek RT9428 Fuelgauge support"
@@ -689,6 +718,20 @@ config LGE_PM_BATTERY_RT9428_EOC_BY_SOC
 	  Say Y to enable the Richtek RT9428 fuelgauge
 	  for SOC based end of charging support
 
+config LGE_PM_BATTERY_RT9428_RESET_RECOVER
+	bool "Richtek RT9428 Fuelgauge support"
+	depends on LGE_PM_BATTERY_EXTERNAL_FUELGAUGE
+	default n
+	help
+	  Say Y to enable support for the Richtek RT9428 RESET.
+
+config LGE_PM_BATTERY_RT9428_RAW_SOC
+	bool "Richtek fuelgauge print raw SOC to log"
+	depends on LGE_PM_BATTERY_RT9428_FUELGAUGE
+	default n
+	help
+	  Say Y to enable printing raw SOC for debug
+
 config LGE_PM_BATTERY_RT9428_BL52UH_2100mAh
 	bool "Richtek RT9428 battery BL52UH profile support"
 	depends on LGE_PM_BATTERY_RT9428_FUELGAUGE
@@ -703,6 +746,13 @@ config LGE_PM_BATTERY_RT9428_BL51YF_3000mAh
 	help
 	  Say Y to enable support for battery profile BL51YF_3000mAh.
 
+config LGE_PM_BATTERY_RT9428_BL45B1F_3000mAh
+	bool "Richtek RT9428 battery BL45B1F_3000mAh profile support"
+	depends on LGE_PM_BATTERY_RT9428_FUELGAUGE
+	default n
+	help
+	  Say Y to enable support for battery profile BL45B1F_3000mAh.
+
 config LGE_PM_BATTERY_RT9428_BL49SF_2300mAh
 	bool "Richtek RT9428 battery BL49SF_2300mAh profile support"
 	depends on LGE_PM_BATTERY_RT9428_FUELGAUGE
@@ -716,6 +766,13 @@ config LGE_PM_BATTERY_RT9428_BLT12_4000mAh
 	default n
 	help
 	  Say Y to enable support for battery profile BLT12_4000mAh.
+
+config LGE_PM_BATTERY_RT9428_BLT22_2050mAh
+	bool "Richtek RT9428 battery BLT22_2050mAh profile support"
+	depends on LGE_PM_BATTERY_RT9428_FUELGAUGE
+	default n
+	help
+	  Say Y to enable support for battery profile BLT22_2050mAh.
 
 config LGE_PM_BATTERY_MAX17048
         tristate "Maxim MAX17048 fuel gauging external driver"
@@ -809,6 +866,18 @@ config LGE_PM_CHARGING_BQ24296_CHARGER
 	  BQ24296 be operated as a slave device via the power supply
 	  framework.
 
+config LGE_PM_CHARGING_BQ24296_SUB_CHARGER
+	tristate "bq24296 sub charger"
+	depends on I2C
+	default n
+	help
+	  Say Y to enable support for the BQ24296 switching mode based charger
+	  and sysfs. The driver supports controlling charger-enable and
+	  current limiting capabilities. The driver also lets the
+	  BQ24296 be operated as a slave device via the power supply
+	  framework.
+
+
 config LGE_PM_CHARGING_PAD
     tristate "Apply charging option for PAD"
     depends on LGE_PM
@@ -816,12 +885,19 @@ config LGE_PM_CHARGING_PAD
     help
 	  Say Y here to support charging option for PAD
 
-config LGE_PM_CHARGING_VZW_POWER_REQ
+config LGE_PM_FLOATED_CHARGER
     tristate "implementation power requirements of Verizon"
     depends on LGE_PM_CHARGING_BQ24296_CHARGER
     default n
     help
 	  power requirements for verizon
+
+config LGE_PM_EMBEDDED_BATTERY_VZW_POWER_REQ
+    tristate "implementation power requirements of Verizon"
+    depends on LGE_PM_CHARGING_BQ24296_CHARGER
+    default n
+    help
+	  power requirements for Verizon
 
 config LGE_PM_CHARGING_SUPPORT_PHIHONG
     bool "Support Phihong travel charger"
@@ -842,18 +918,32 @@ config LGE_PM_COOLDOWN_VZW_POWER_REQ
 	help
 		power requirements for cool down mode
 
+config LGE_PM_CURRENT_SENSING_FUELGAUGE
+        tristate "Support current sensing FUELGAUGE"
+        default n
+        help
+          Say Y to enable support to current sensing
+          by externel fuelgauge or BMS
+
 config CHG_DETECTOR_MAX14656
 	tristate "max14656 USB Charger Detector"
 	depends on I2C
 	default n
 	help
 	  Say Y to enable support for the MAX14656
-	  
+
 config LGE_PM_BATTERY_PROFILE_DATA
 	bool "Apply LGE battery profile data"
 	depends on LGE_PM && LGE_PM_BATTERY_ID_CHECKER
 	help
 	  Say Y here to  Apply LGE battery profile data
+
+config LGE_PM_BATTERY_PROFILE_DATA_WO_BAT_ID
+	bool "Apply LGE battery profile data"
+	depends on LGE_PM && !LGE_PM_BATTERY_ID_CHECKER
+	help
+	  Say Y here to  Apply LGE battery profile data
+	  But, we do not use Battery ID and Battery ADC
 
 config LGE_PM_MPP_LED_SINK
 	bool "MPP LED SINK support"
@@ -881,6 +971,13 @@ config LGE_PM_AC_ONLINE
 	help
 	  Say Y to enable support for AC ONLINE.
 
+config LGE_PM_EOC_BY_CHG_DONE_IRQ
+	bool "fail-safe EOC by CHG_DONE irq from Linear Battery Charger"
+	depends on QPNP_LINEAR_CHARGER
+	default n
+	help
+	  Say Y to enable support for fail-safe EOC by CHG_DONE irq
+
 config LGE_PM_PSEUDO_CHG_UI
 	bool "Apply LGE pseudo charging UI in charging scenario"
 	depends on LGE_PM
@@ -905,6 +1002,13 @@ config LGE_PM_CPU_CLOCK_DOWN_FACTORY_CABLE
 	bool "LGE PM CPU CLOCK DOWN FACTORY CABLE"
 	help
 	  Say Y here to support for cpu clock down for factory cable booting
+
+config LGE_USB_CHARGING_SPEC_VZW
+	bool "Applying VZW requirement"
+	depends on LGE_PM
+	help
+	  Say Y here to meet VZW requirement.
+
 endif # POWER_SUPPLY
 
 source "drivers/power/avs/Kconfig"

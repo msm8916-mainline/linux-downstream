@@ -42,21 +42,19 @@
 #define ATMF04_CRCS_DUTY_LOW        385
 #define ATMF04_CRCS_DUTY_HIGH       645
 #define ATMF04_CRCS_COUNT           30
+#define ATMF04_CSCR_RESULT          -1
 #else
-#define ATMF04_CRCS_DUTY_LOW        385
-#define ATMF04_CRCS_DUTY_HIGH       645
-#define ATMF04_CRCS_COUNT           50
-#endif
-
-#if defined(CONFIG_MACH_MSM8926_T8LTE)
-#define ATMF04_CS_PERCENT_THRESH    -2
-#else
-#define ATMF04_CS_PERCENT_THRESH    -1
+#define ATMF04_CRCS_DUTY_LOW        375
+#define ATMF04_CRCS_DUTY_HIGH       800
+#define ATMF04_CRCS_COUNT           80
+#define ATMF04_CSCR_RESULT          -2
 #endif
 
 /* I2C Register */
 
-#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1BDSN_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US)
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
 #define I2C_ADDR_SSTVT_H            0x01
 #define I2C_ADDR_SSTVT_L            0x02
 #define I2C_ADDR_TCH_ONOFF_CNT      0x03
@@ -96,7 +94,7 @@
 #define I2C_ADDR_PGM_VER_SUB        0x17
 #endif
 
-#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 //Calibration Data Backup/Restore
 #define I2C_ADDR_CMD_OPT 					0x7E
 #define I2C_ADDR_COMMAND 					0x7F
@@ -119,10 +117,12 @@ int CalData[4][SZ_CALDATA_UNIT];
 #define OFF_SENSOR                  2
 #define PATH_CAPSENSOR_CAL  "/sns/capsensor_cal.dat"
 
-#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_P1BDSN_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US)
-#define CNT_INITCODE                9
-const unsigned char InitCodeAddr[CNT_INITCODE] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0E };
-const unsigned char InitCodeVal[CNT_INITCODE] = { 0x00, 0x0C, 0x33, 0x0B, 0x08, 0x72, 0x65, 0x06, 0x32 };
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR) || defined(CONFIG_MACH_MSM8939_P1B_GLOBAL_COM) || defined(CONFIG_MACH_MSM8939_P1BC_SPR_US) || defined(CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || \
+	defined(CONFIG_MACH_MSM8939_P1BSSN_BELL_CA) || defined(CONFIG_MACH_MSM8939_P1BSSN_VTR_CA) || \
+	defined(CONFIG_MACH_MSM8939_PH2_GLOBAL_COM)
+#define CNT_INITCODE                13
+const unsigned char InitCodeAddr[CNT_INITCODE] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x0C, 0x0D, 0x0E, 0x20, 0x21 };
+const unsigned char InitCodeVal[CNT_INITCODE] = { 0x00, 0x31, 0x33, 0x0B, 0x08, 0x6C, 0x68, 0x07, 0x00, 0x0C, 0x50, 0x81, 0x20 };
 #else
 #define CNT_INITCODE                7
 const unsigned char InitCodeAddr[CNT_INITCODE] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 };
@@ -131,6 +131,7 @@ const unsigned char InitCodeVal[CNT_INITCODE] = { 0x00, 0x0A, 0x69, 0x67, 0x0B, 
 static struct i2c_driver atmf04_driver;
 static struct workqueue_struct *atmf04_workqueue;
 
+unsigned char fuse_data[SZ_PAGE_DATA];
 
 #ifdef CONFIG_OF
 enum sensor_dt_entry_status {
@@ -218,7 +219,7 @@ void chg_mode(unsigned char flag, struct i2c_client *client)
 	mdelay(1);
 }
 
-#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 int Backup_CalData(struct i2c_client *client)
 {
 	int loop, dloop;
@@ -502,7 +503,7 @@ unsigned char load_firmware(struct atmf04_data *data, struct i2c_client *client,
 	unsigned char page_addr[2];
 	unsigned char fw_version, ic_fw_version, page_num;
 	int version_addr;
-#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
     int restore = 0;
 #endif
 
@@ -531,18 +532,38 @@ unsigned char load_firmware(struct atmf04_data *data, struct i2c_client *client,
 
 	if (fw_version > ic_fw_version || fw->data[version_addr] > main_version) {
 		//mdelay(200);
-#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
-        if( Backup_CalData(client) == -1)
-        {
-            restore = 0;
-        }
-        else
-        {
-            restore = 1;
-        }
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+		if (ic_fw_version == 0)
+			restore = 0;
+		else {
+			if (Backup_CalData(client) < 0)
+				restore = 0;
+			else
+				restore = 1;
+		}
 #endif
+		/* IC Download Mode Change */
 		chg_mode(ON, client);
 
+		/* fuse data process */
+		page_addr[0] = 0x00;
+		page_addr[1] = 0x00;
+
+		rtn = read_eflash_page(FLAG_FUSE, page_addr, fuse_data, client);
+		if (rtn != RTN_SUCC) {
+			PERR("read eflash page fail!");
+			return rtn;		/* fuse read fail */
+		}
+
+		fuse_data[51] |= 0x80;
+
+		rtn = write_eflash_page(FLAG_FUSE, page_addr, fuse_data, client);
+		if (rtn != RTN_SUCC) {
+			PERR("write eflash page fail!");
+			return rtn;		/* fuse write fail */
+		}
+
+		/* firmware write process */
 		rtn = erase_eflash(client);
 		if(rtn != RTN_SUCC) {
 			PINFO("earse fail\n");
@@ -576,7 +597,7 @@ unsigned char load_firmware(struct atmf04_data *data, struct i2c_client *client,
 	}
 	chg_mode(OFF, client);
 	gpio_direction_output(data->platform_data->chip_enable, 1);
-#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW)
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	mdelay(10);
     if(restore)
     {
@@ -719,7 +740,7 @@ static ssize_t atmf04_show_docalibration(struct device *dev,
 	unsigned char  safe_duty;
 
 	/* check safe duty for validation of cal*/
-	safe_duty = i2c_smbus_read_byte_data(client, I2C_ADDR_SAFE_DUTY_CHK | 0x80);
+	safe_duty = i2c_smbus_read_byte_data(client, I2C_ADDR_SAFE_DUTY_CHK & 0x80);
 
 	return sprintf(buf, "%x\n", safe_duty);
 }
@@ -748,7 +769,8 @@ static ssize_t atmf04_store_docalibration(struct device *dev,
 	mdelay(450);
 #endif
 
-	safe_duty = i2c_smbus_read_byte_data(client, I2C_ADDR_SAFE_DUTY_CHK | 0x80);
+	safe_duty = i2c_smbus_read_byte_data(client, I2C_ADDR_SAFE_DUTY_CHK & 0x80);
+	PINFO("safe_duty : %x", safe_duty);
 
 	write_calibration_data(data, PATH_CAPSENSOR_CAL);
 
@@ -784,7 +806,9 @@ static ssize_t atmf04_show_regproxdata(struct device *dev,
     char buf_regproxdata[256] = "";
     char buf_line[64] = "";
 	unsigned char init_touch_md;
-
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)	 /*auto calibration FW*/
+	int check_mode;
+#endif
     memset(buf_line, 0, sizeof(buf_line));
     memset(buf_regproxdata, 0, sizeof(buf_regproxdata));
 
@@ -805,6 +829,14 @@ static ssize_t atmf04_show_regproxdata(struct device *dev,
 
 	cap_value = (int)cs_duty_val * (int)cs_per_result;
 	// printk("H: %x L:%x H:%x L:%x\n",cr_duty[1] ,cr_duty[0], cs_duty[1], cs_duty[0]);
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)	/*auto calibration FW*/
+	check_mode = get_bit(init_touch_md, 2);
+
+	if (check_mode)		/* Normal Mode */
+		sprintf(buf_line, "[R]%6d %6d %6d %6d %6d\n", get_bit(init_touch_md,2), cs_per_result, cr_duty_val, cs_duty_val, cap_value);
+	else		/* Init Touch Mode */
+#endif
+
 
     sprintf(buf_line, "[R]%6d %6d %6d %6d %6d\n", get_bit(init_touch_md,1), cs_per_result, cr_duty_val, cs_duty_val, cap_value);
     nlength = strlen(buf_regproxdata);
@@ -894,6 +926,7 @@ static ssize_t atmf04_show_check_far(struct device *dev, struct device_attribute
     unsigned char init_touch_md_check;
     short tmp, cs_per[2], cs_per_result, crcs_count;
     short cr_duty[2], cs_duty[2], cr_duty_val, cs_duty_val;
+	int bit_mask = 1; //bit for reading of I2C_ADDR_SYS_STAT
 
     mutex_lock(&data->update_lock);
 
@@ -913,23 +946,28 @@ static ssize_t atmf04_show_check_far(struct device *dev, struct device_attribute
     crcs_count = cr_duty_val - cs_duty_val;
 
     init_touch_md_check = i2c_smbus_read_byte_data(client, I2C_ADDR_SYS_STAT);
-
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR) /*auto calibration FW*/
+    if(get_bit(init_touch_md_check, 2))
+        bit_mask = 2;  /* Normal Mode */
+    else
+        bit_mask = 1;  /* Init Touch Mode */
+#endif
     if(gpio_get_value(data->platform_data->irq_gpio) == 1) {
-        if ((get_bit(init_touch_md_check,1) != 1) || (cs_duty_val < ATMF04_CRCS_DUTY_LOW)\
+        if ((get_bit(init_touch_md_check, bit_mask) != 1) || (cs_duty_val < ATMF04_CRCS_DUTY_LOW)\
                 ||(cr_duty_val <ATMF04_CRCS_DUTY_LOW) || (cs_duty_val > ATMF04_CRCS_DUTY_HIGH)\
-                || (cr_duty_val > ATMF04_CRCS_DUTY_HIGH) || (cs_per_result <= ATMF04_CS_PERCENT_THRESH) || (crcs_count > ATMF04_CRCS_COUNT)) {
-            printk("1.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check,1), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
+                || (cr_duty_val > ATMF04_CRCS_DUTY_HIGH) || (cs_per_result < ATMF04_CSCR_RESULT) || (crcs_count > ATMF04_CRCS_COUNT)) {
+            printk("1.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check, bit_mask), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
             mutex_unlock(&data->update_lock);
             return sprintf(buf,"%d",0);
         }
         else {
-            printk("2.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check,1), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
+            printk("2.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check, bit_mask), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
             mutex_unlock(&data->update_lock);
             return sprintf(buf,"%d",1);
         }
     }
     else {
-        printk("3.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check,1), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
+        printk("3.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check, bit_mask), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
         mutex_unlock(&data->update_lock);
         return sprintf(buf,"%d",0);
     }
@@ -942,6 +980,7 @@ static ssize_t atmf04_show_check_mid(struct device *dev, struct device_attribute
     unsigned char init_touch_md_check;
     short tmp, cs_per[2], cs_per_result, crcs_count;
     short cr_duty[2], cs_duty[2], cr_duty_val, cs_duty_val;
+	int bit_mask = 1; //bit for reading of I2C_ADDR_SYS_STAT
 
     mutex_lock(&data->update_lock);
 
@@ -961,16 +1000,22 @@ static ssize_t atmf04_show_check_mid(struct device *dev, struct device_attribute
     crcs_count = cr_duty_val - cs_duty_val;
 
     init_touch_md_check = i2c_smbus_read_byte_data(client, I2C_ADDR_SYS_STAT);
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR) /*auto calibration FW*/
+    if(get_bit(init_touch_md_check, 2))
+        bit_mask = 2;  /* Normal Mode */
+    else
+        bit_mask = 1;  /* Init Touch Mode */
+#endif
 
-    if ((get_bit(init_touch_md_check,1) != 1) || (cs_duty_val < ATMF04_CRCS_DUTY_LOW)\
+    if ((get_bit(init_touch_md_check, bit_mask) != 1) || (cs_duty_val < ATMF04_CRCS_DUTY_LOW)\
             ||(cr_duty_val <ATMF04_CRCS_DUTY_LOW) || (cs_duty_val > ATMF04_CRCS_DUTY_HIGH)\
-            || (cr_duty_val > ATMF04_CRCS_DUTY_HIGH) || (cs_per_result <= ATMF04_CS_PERCENT_THRESH) || (crcs_count > ATMF04_CRCS_COUNT)) {
-        printk("1.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check,1), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
+            || (cr_duty_val > ATMF04_CRCS_DUTY_HIGH) || (cs_per_result < ATMF04_CSCR_RESULT) || (crcs_count > ATMF04_CRCS_COUNT)) {
+        printk("1.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check, bit_mask), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
         mutex_unlock(&data->update_lock);
         return sprintf(buf,"%d",0);
     }
     else {
-        printk("2.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check,1), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
+        printk("2.cal_check : %d, cr_value : %d, cs_value : %d, status : %d Count : %d\n",get_bit(init_touch_md_check, bit_mask), cr_duty_val, cs_duty_val, cs_per_result, crcs_count);
         mutex_unlock(&data->update_lock);
         return sprintf(buf,"%d",1);
     }

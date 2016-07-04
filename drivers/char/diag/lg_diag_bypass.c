@@ -276,10 +276,10 @@ static int lge_bypass_write(struct tty_struct *tty, const unsigned char *buf, in
     tty->driver_data = bypass_drv;
     bypass_drv->tty_str = tty;
 
-	memcpy(bypass_request, buf, count);
-    diag_bypass_request(bypass_request, count);
-
     bypass_drv->enable = 1;
+
+    memcpy(bypass_request, buf, count);
+    diag_bypass_request(bypass_request, count);
 
     return count;
 }

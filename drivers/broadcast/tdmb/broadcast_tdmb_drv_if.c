@@ -239,6 +239,18 @@ static int8 broadcast_tdmb_select_antenna(void __user *arg)
     return rc;
 }
 
+static int8 broadcast_tdmb_set_nation(void __user *arg)
+{
+    int rc = ERROR;
+    int udata;
+    int __user* puser = (int __user*)arg;
+
+    udata = *puser;
+    rc = device_drv->broadcast_drv_if_set_nation(udata);
+
+    return rc;
+}
+
 static ssize_t broadcast_tdmb_open_control(struct inode *inode, struct file *file)
 {
     struct broadcast_tdmb_chdevice *the_dev =
@@ -315,6 +327,10 @@ static long broadcast_tdmb_ioctl_control(struct file *filep, unsigned int cmd,  
 
     case LGE_BROADCAST_TDMB_IOCTL_SELECT_ANTENNA:
         rc = broadcast_tdmb_select_antenna(argp);
+        break;
+
+    case LGE_BROADCAST_TDMB_IOCTL_SET_NATION:
+        rc = broadcast_tdmb_set_nation(argp);
         break;
 
     default:

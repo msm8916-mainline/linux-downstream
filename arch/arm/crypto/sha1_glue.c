@@ -25,12 +25,12 @@
 #include <asm/byteorder.h>
 #include <asm/crypto/sha1.h>
 
-
 asmlinkage void sha1_block_data_order(u32 *digest,
 		const unsigned char *data, unsigned int rounds);
 
 
 static int sha1_init(struct shash_desc *desc)
+
 {
 	struct sha1_state *sctx = shash_desc_ctx(desc);
 
@@ -44,6 +44,7 @@ static int sha1_init(struct shash_desc *desc)
 
 static int __sha1_update(struct sha1_state *sctx, const u8 *data,
 			 unsigned int len, unsigned int partial)
+
 {
 	unsigned int done = 0;
 
@@ -65,12 +66,11 @@ static int __sha1_update(struct sha1_state *sctx, const u8 *data,
 	return 0;
 }
 
-
 int sha1_update_arm(struct shash_desc *desc, const u8 *data,
 		    unsigned int len)
 {
 	struct sha1_state *sctx = shash_desc_ctx(desc);
-	unsigned int partial = sctx->count % SHA1_BLOCK_SIZE;
+        unsigned int partial = sctx->count % SHA1_BLOCK_SIZE;
 	int res;
 
 	/* Handle the fast case right here */
@@ -83,7 +83,6 @@ int sha1_update_arm(struct shash_desc *desc, const u8 *data,
 	return res;
 }
 EXPORT_SYMBOL_GPL(sha1_update_arm);
-
 
 /* Add padding and return the message digest. */
 static int sha1_final(struct shash_desc *desc, u8 *out)
@@ -171,5 +170,5 @@ module_exit(sha1_mod_fini);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SHA1 Secure Hash Algorithm (ARM)");
-MODULE_ALIAS_CRYPTO("sha1");
+MODULE_ALIAS("sha1");
 MODULE_AUTHOR("David McCullough <ucdevel@gmail.com>");

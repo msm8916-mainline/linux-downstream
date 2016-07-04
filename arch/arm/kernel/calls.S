@@ -391,26 +391,8 @@
 		CALL(sys_finit_module)
 /* 380 */	CALL(sys_sched_setattr)
 		CALL(sys_sched_getattr)
-		CALL(sys_ni_syscall) /* reserved for vanilla */
-		CALL(sys_ni_syscall) /* reserved for vanilla */
-		CALL(sys_ni_syscall) /* reserved for vanilla */
-/* 385 */	CALL(sys_ni_syscall) /* reserved for vanilla */
-		CALL(sys_ni_syscall) /* reserved for vanilla */
-		CALL(sys_ni_syscall) /* reserved for vanilla */
-		CALL(sys_ni_syscall) /* reserved for future */
-		CALL(sys_ni_syscall) /* reserved for future */
-/* 390 */	CALL(sys_ni_syscall) /* reserved for future */
-		CALL(sys_ni_syscall) /* reserved for future */
-		CALL(sys_ni_syscall) /* reserved for future */
-		CALL(sys_ni_syscall) /* reserved for future */
-		CALL(sys_ni_syscall) /* reserved for future */
-/* 395 */	CALL(sys_ni_syscall) /* reserved for future*/
-		CALL(sys_ni_syscall) /* reserved for future*/
-		CALL(sys_ni_syscall) /* reserved for future */
-/* FEATURE_SDCARD_MEDIAEXN_SYSTEMCALL_ENCRYPTION [S] */
-		CALL(sys_set_media_property)
-		CALL(sys_set_media_ext)
-/* FEATURE_SDCARD_MEDIAEXN_SYSTEMCALL_ENCRYPTION [E] */
+                CALL(sys_ni_syscall)       /* reserved sys_renameat2 */
+                CALL(sys_seccomp)
 #ifndef syscalls_counted
 .equ syscalls_padding, ((NR_syscalls + 3) & ~3) - NR_syscalls
 #define syscalls_counted

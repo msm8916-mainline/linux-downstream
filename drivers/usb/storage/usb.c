@@ -940,6 +940,9 @@ int usb_stor_probe1(struct us_data **pus,
 	/*
 	 * Allow 16-byte CDBs and thus > 2TB
 	 */
+#ifdef CONFIG_USB_HOST_NOTIFY
+	host->by_usb = 1;
+#endif
 	host->max_cmd_len = 16;
 	host->sg_tablesize = usb_stor_sg_tablesize(intf);
 	*pus = us = host_to_us(host);
@@ -1054,6 +1057,11 @@ void usb_stor_disconnect(struct usb_interface *intf)
 }
 EXPORT_SYMBOL_GPL(usb_stor_disconnect);
 
+#if defined(CONFIG_LGE_USB_TYPE_A)
+extern int send_usb_storage_limited(void);
+extern int uevnet_is_send;
+#endif
+
 /* The main probe routine for standard devices */
 static int storage_probe(struct usb_interface *intf,
 			 const struct usb_device_id *id)
@@ -1062,6 +1070,18 @@ static int storage_probe(struct usb_interface *intf,
 	struct us_data *us;
 	int result;
 	int size;
+
+#if defined(CONFIG_LGE_USB_TYPE_A)
+	if (uevnet_is_send) {
+		uevnet_is_send = 0;
+		return -ENXIO;
+	} else {
+		if (send_usb_storage_limited()) {
+			uevnet_is_send = 0;
+			return -ENXIO;
+		}
+	}
+#endif
 
 	/*
 	 * If the device isn't standard (is handled by a subdriver

@@ -48,6 +48,12 @@ static struct batt_temp_table chg_temp_table[CHG_MAXIDX] = {
 	{     45,        46,    CHG_BATTEMP_42_44},
 	{     47,        52,    CHG_BATTEMP_45_52},
 	{     53,   INT_MAX,    CHG_BATTEMP_AB_OT},
+#elif defined (CONFIG_MACH_MSM8916_STYLUSC_SPR_US)
+	{INT_MIN,        -4,    CHG_BATTEMP_BL_M5},
+	{     -3,        41,    CHG_BATTEMP_M4_41},
+	{     42,        45,    CHG_BATTEMP_42_44},
+	{     46,        53,    CHG_BATTEMP_45_52},
+	{     54,   INT_MAX,    CHG_BATTEMP_AB_OT},
 #else
 	{INT_MIN,        -5,    CHG_BATTEMP_BL_M5},
 	{     -4,        41,    CHG_BATTEMP_M4_41},

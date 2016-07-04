@@ -30,20 +30,29 @@
 #define FC8080_RESULT_SUCCESS    (int8) 1
 
 #undef FEATURE_FIC_BER
-#undef FEATURE_RSSI_DEBUG
+#define FEATURE_RSSI_DEBUG
+#define FEATURE_CHECK_EEP
 
 // LGE ADD
 #define    FREQ_SEARCH_IN_TABLE        /* Freq conversion in Table Searching */
-#define    CH_LOW_NUM        71        /* 7A index 71 for UI */
 
-#define    CH_UPPER_NUM        133        /* 13C index 131 for UI*/
+#define    KR           0
+#define    EU           1
+
+//KR
+#define    CH_KR_LOW_NUM        71        /* 7A index 71 for UI */
+#define    CH_KR_UPPER_NUM     133        /* 13C index 131 for UI*/
+//EU
+#define    CH_EU_LOW_NUM        51
+#define    CH_EU_UPPER_NUM     136
 #define FEATURE_ISR_REPAIR
 #ifdef FREQ_SEARCH_IN_TABLE
 
-#define    MAX_KOREABAND_FULL_CHANNEL    21
+#define    MAX_KRBAND_FULL_CHANNEL    21
+#define    MAX_EUBAND_FULL_CHANNEL    41
 
-#define    INDEX_KOR_CH_NUM_DEC            0
-#define    INDEX_KOR_FREQ_NUM                1
+#define    INDEX_CH_NUM_DEC            0
+#define    INDEX_FREQ_NUM                1
 #else
 #define    C7A_CEN_FREQ        175280    /* 7A Center Frequency */
 #define    ENS_GAP_FREQ         6000    /* Frequency Gap-Interval between Other Ensemble */
@@ -143,13 +152,23 @@ fci_u8 msc_multi_data[188*8*8];
 *============================================================*/
 //LGE ADD
 #ifdef FREQ_SEARCH_IN_TABLE
-
-    static int32 gKOREnsembleFullFreqTbl[MAX_KOREABAND_FULL_CHANNEL][2] =
+//KR
+    static int32 gKREnsembleFullFreqTbl[MAX_KRBAND_FULL_CHANNEL][2] =
     {
         {71,175280},{72,177008},{73,178736},{81,181280},{82,183008},{83,184736},
         {91,187280},{92,189008},{93,190736},{101,193280},{102,195008},{103,196736},
         {111,199280},{112,201008},{113,202736},{121,205280},{122,207008},{123,208736}
         ,{131,211280},{132,213008},{133,214736}
+    };
+
+//EU A:1 B:2 C:3 D:4 E:5 F:6 N:9
+    static int32 gEUEnsembleFullFreqTbl[MAX_EUBAND_FULL_CHANNEL][2] =
+    {
+        {51,174928},{52,176640},{53,178352},{54,180064},{61,181936},{62,183648},{63,185360},{64,187072},
+        {71,188928},{72,190640},{73,192352},{74,194064},{81,195936},{82,197648},{83,199360},{84,201072},
+        {91,202928},{92,204640},{93,206352},{94,208064},{101,209936},{102,211648},{103,213360},{104,215072},{109,210096},
+        {111,216928},{112,218640},{113,220352},{114,222064},{119,217088},{121,223936},{122,225648},{123,227360},{124,229072},{129,224096},
+        {131,230784},{132,232496},{133,234208},{134,235776},{135,237488},{136,239200}
     };
 #endif
 
@@ -163,6 +182,9 @@ static uint16    antBuff[MAX_ANT_BUFF_CNT] = {0, };
 static uint8    calAntLevel = 0;
 static uint8    syncLockCnt = 0;
 /* LGE_ADD_E, [hyun118.shin@lge.com], TDMB Antenna Leveling */
+
+static unsigned int broadcast_nation = 0;
+
 /*============================================================
 **    8.   Local Function Prototype
 *============================================================*/
@@ -171,6 +193,8 @@ static uint32 tunerbb_drv_fc8080_get_viterbi_ber(void);
 static int8 tunerbb_drv_fc8080_get_sync_status(void);
 //static uint32 tunerbb_drv_fc8080_get_rs_ber(void);
 //static int8 tunerbb_drv_fc8080_check_overrun(uint8 op_mode);
+static int tunerbb_drv_fc8080_get_nation(void);
+
 void tunerbb_drv_fc8080_isr_control(fci_u8 onoff);
 #ifdef FEATURE_RSSI_DEBUG
 void tunerbb_drv_fc8080_get_dm(fci_u32 *mscber, fci_u32 *tp_err, fci_u16 *tpcnt, fci_u32 *vaber, fci_s8 *rssi);
@@ -196,6 +220,13 @@ int8 tunerbb_drv_fc8080_power_off(void)
 int8 tunerbb_drv_fc8080_select_antenna(unsigned int sel)
 {
     return tdmb_fc8080_select_antenna(sel);
+}
+
+int8 tunerbb_drv_fc8080_set_nation(unsigned int nation)
+{
+    printk("[dbg] tunerbb_drv_fc8080_set_nation %d\n", nation);
+    broadcast_nation = nation;
+    return TRUE;
 }
 
 int8 tunerbb_drv_fc8080_reset_ch(void)
@@ -239,33 +270,62 @@ static int32    tunerbb_drv_convert_chnum_to_freq(uint32 ch_num)
 #ifdef FREQ_SEARCH_IN_TABLE
     int32        loop;
     int32        current_idx = 0;
-
+    int            nation_info = 0;
 #else
     uint32        ensemble_idx = (ch_num/10-TDMB_ENS_NUM);
     uint32        subch_idx =(ch_num%10 -1);
 #endif
 
-    if((ch_num < CH_LOW_NUM ) || (ch_num > CH_UPPER_NUM))
-    {
-        return 0;
-    }
-
 #ifdef FREQ_SEARCH_IN_TABLE
-    for(loop = 0; loop < MAX_KOREABAND_FULL_CHANNEL; loop ++)
+    nation_info = tunerbb_drv_fc8080_get_nation();
+    printk("nation_info = %d\n", nation_info);
+
+    if(nation_info == KR)
     {
-        if(gKOREnsembleFullFreqTbl[loop][INDEX_KOR_CH_NUM_DEC] == (int32)ch_num)
+        if((ch_num < CH_KR_LOW_NUM ) || (ch_num > CH_KR_UPPER_NUM))
         {
-            current_idx = loop;
-            break;
+            return 0;
         }
-    }
 
-    if(loop >= MAX_KOREABAND_FULL_CHANNEL)
+        for(loop = 0; loop < MAX_KRBAND_FULL_CHANNEL; loop ++)
+        {
+            if(gKREnsembleFullFreqTbl[loop][INDEX_CH_NUM_DEC] == (int32)ch_num)
+            {
+                current_idx = loop;
+                break;
+            }
+        }
+
+        if(loop >= MAX_KRBAND_FULL_CHANNEL)
+        {
+            return 0;
+        }
+
+        return (gKREnsembleFullFreqTbl[current_idx][INDEX_FREQ_NUM]);
+    }
+    else
     {
-        return 0;
-    }
+        if((ch_num < CH_EU_LOW_NUM ) || (ch_num > CH_EU_UPPER_NUM))
+        {
+            return 0;
+        }
 
-    return (gKOREnsembleFullFreqTbl[current_idx][INDEX_KOR_FREQ_NUM]);
+        for(loop = 0; loop < MAX_EUBAND_FULL_CHANNEL; loop ++)
+        {
+            if(gEUEnsembleFullFreqTbl[loop][INDEX_CH_NUM_DEC] == (int32)ch_num)
+            {
+                current_idx = loop;
+                break;
+            }
+        }
+
+        if(loop >= MAX_EUBAND_FULL_CHANNEL)
+        {
+            return 0;
+        }
+
+        return (gEUEnsembleFullFreqTbl[current_idx][INDEX_FREQ_NUM]);
+    }
 #else
     return ((C7A_CEN_FREQ +  ENS_GAP_FREQ*ensemble_idx) + (CH_GAP_FREQ *subch_idx ));
 #endif
@@ -296,7 +356,7 @@ int tunerbb_drv_fc8080_fic_cb(uint32 userdata, uint8 *data, int length)
 
     // FC8000 관련 code인 send_fic_int_sig_isr2task() in mbs_dshmain.c를 빼다 보니, 현재는 polling 방식이나 향후 ISR방식으로 적용시 필요하므로 feature를 추가함
 #ifndef FEATURE_GET_FIC_POLLING
-    send_fic_int_sig_isr2task();
+    //send_fic_int_sig_isr2task();
 #endif // FEATURE_GET_FIC_POLLING
 
     return FC8080_RESULT_SUCCESS;
@@ -319,7 +379,19 @@ int tunerbb_drv_fc8080_msc_cb(uint32 userdata, uint8 subChId, uint8 *data, int l
     TDMB_BB_HEADER_TYPE dmb_header;
     uint16 head_size = 0;
 
-    dmb_header.data_type = (fc8080_serviceType[0] == FC8080_DAB?TDMB_BB_DATA_DAB:TDMB_BB_DATA_TS);
+    switch(fc8080_serviceType[0])
+    {
+        case FC8080_DAB:
+            dmb_header.data_type = TDMB_BB_DATA_DAB;
+            break;
+        case FC8080_DATA:
+            dmb_header.data_type = TDMB_BB_DATA_PACK;
+            break;
+        default:
+            dmb_header.data_type = TDMB_BB_DATA_TS;
+            break;
+    }
+
     dmb_header.size = length;
     dmb_header.subch_id = subChId;
     dmb_header.reserved = 0;//data_sequence_count++;//0xDEAD;
@@ -564,25 +636,189 @@ int8    tunerbb_drv_fc8080_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
 {
     uint8 sync_status;
     uint32 tp_err_cnt=0;
-#ifdef FEATURE_RSSI_DEBUG
-    int8 rssi;
-#endif
 
     uint16 nframe = 0;
 
     /* LGE_ADD_S, [hyun118.shin@lge.com], TDMB Antenna Leveling */
     uint8 loop;
-    uint16 antTable[4][2] =
+    uint16 antTable[4][2];
+#ifdef FEATURE_CHECK_EEP
+    uint32 eep_info;
+    uint8 eep_pi1, eep_pi2, en_num;
+    uint8 protection_level;
+    uint16 protection_type;
+#endif
+    uint16 avgBER;
+    uint8 refAntLevel;
+    int    nation_info = 0;
+    /* LGE_ADD_E, [hyun118.shin@lge.com], TDMB Antenna Leveling */
+
+    uint16 antTable_kr[4][2] =
     {
         {4,    6000},
         {3,    8000},
         {2,    9000},
         {1,    12000},
     };
+    uint16 antTable_eudab[4][2] =
+    {
+        {4,    5000},
+        {3,    6000},
+        {2,    8000},
+        {1,    12000},
+    };
+#ifdef FEATURE_CHECK_EEP
+    uint16 antTable_eudabp_eep3a[4][2] =
+    {
+        {4,    6000},
+        {3,    6500},
+        {2,    7000},
+        {1,    8000},
+    };
+    uint16 antTable_eudabp_eep3b[4][2] =
+    {
+        {4,    3500},
+        {3,    4000},
+        {2,    4500},
+        {1,    5000},
+    };
+#endif
+    uint16 antTable_eudmb[4][2] =
+    {
+        {4,    8000},
+        {3,    9000},
+        {2,    9500},
+        {1,    10000},
+    };
 
-    uint16 avgBER;
-    uint8 refAntLevel;
-    /* LGE_ADD_E, [hyun118.shin@lge.com], TDMB Antenna Leveling */
+
+    memset(antTable, 0, sizeof(uint16) * 4 * 2);
+
+    nation_info = tunerbb_drv_fc8080_get_nation();
+    if(nation_info == KR)
+    {
+        memcpy(antTable, antTable_kr, sizeof(uint16) * 4 * 2);
+    }
+    else
+    {
+#ifdef FEATURE_CHECK_EEP
+
+        if(fc8080_serviceType[0] == FC8080_DMB || fc8080_serviceType[0] == FC8080_VISUAL)
+            en_num = 0;
+        else if(fc8080_serviceType[0] == FC8080_DATA)
+            en_num = 1;
+        else if(fc8080_serviceType[0] == FC8080_DAB || fc8080_serviceType[0] == FC8080_DABP)
+            en_num = 2;
+
+        bbm_com_word_read(NULL, 0x623 + (en_num*12), &protection_type);
+        if(protection_type & 0x80)
+        {
+            protection_level = UEP;
+        }
+        else
+        {
+            bbm_com_long_read(NULL, 0x0624 + (en_num*12), &eep_info);
+            eep_pi1 = (eep_info & 0x0000001f);
+            eep_pi2 = (eep_info & 0x001f0000) >> 16;
+
+            switch(eep_pi1)
+            {
+                case 3:
+                    if (eep_pi2 ==2)
+                        protection_level = EEP_4A;
+                    else
+                        protection_level = UNKNOWN_PROTECTION_LEVEL;
+                    break;
+
+                case 8:
+                    if (eep_pi2 ==7)
+                        protection_level = EEP_3A;
+                    else
+                        protection_level = UNKNOWN_PROTECTION_LEVEL;
+                    break;
+
+                case 13:
+                    if (eep_pi2 ==12)
+                        protection_level = EEP_2A;
+                    else
+                        protection_level = UNKNOWN_PROTECTION_LEVEL;
+                    break;
+
+                case 14:
+                    if (eep_pi2 ==13)
+                        protection_level = EEP_2A;
+                    else
+                        protection_level = UNKNOWN_PROTECTION_LEVEL;
+                    break;
+
+                case 24:
+                    if (eep_pi2 ==23)
+                        protection_level = EEP_1A;
+                    else
+                        protection_level = UNKNOWN_PROTECTION_LEVEL;
+                    break;
+
+                case 2:
+                    if (eep_pi2 ==1)
+                        protection_level = EEP_4B;
+                    else
+                        protection_level = UNKNOWN_PROTECTION_LEVEL;
+                    break;
+
+                case 4:
+                    if (eep_pi2 ==3)
+                        protection_level = EEP_3B;
+                    else
+                        protection_level = UNKNOWN_PROTECTION_LEVEL;
+                    break;
+
+                case 6:
+                    if (eep_pi2 ==5)
+                        protection_level = EEP_2B;
+                    else
+                        protection_level = UNKNOWN_PROTECTION_LEVEL;
+                    break;
+
+                case 10:
+                    if (eep_pi2 ==9)
+                        protection_level = EEP_1B;
+                    else
+                        protection_level = UNKNOWN_PROTECTION_LEVEL;
+                    break;
+                default:
+                    protection_level = UNKNOWN_PROTECTION_LEVEL;
+                    break;
+            }
+        }
+#endif
+
+        switch(fc8080_serviceType[0])
+        {
+            case FC8080_DAB:
+#ifdef FEATURE_CHECK_EEP
+                if(protection_level == UEP)
+                {
+                    memcpy(antTable, antTable_eudab, sizeof(uint16) * 4 * 2);
+                }
+                else
+                {
+                    if(protection_level == EEP_3B)
+                        memcpy(antTable, antTable_eudabp_eep3b, sizeof(uint16) * 4 * 2);
+                    else
+                        memcpy(antTable, antTable_eudabp_eep3a, sizeof(uint16) * 4 * 2);
+                }
+#else
+                memcpy(antTable, antTable_eudab, sizeof(uint16) * 4 * 2);
+#endif
+                break;
+            case FC8080_DATA:
+                memcpy(antTable, antTable_eudmb, sizeof(uint16) * 4 * 2);
+                break;
+            default:
+                memcpy(antTable, antTable_eudab, sizeof(uint16) * 4 * 2);
+                break;
+        }
+    }
 
     if(is_tdmb_probe == 0)
     {
@@ -596,7 +832,7 @@ int8    tunerbb_drv_fc8080_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
     //tunerbb_drv_fc8080_check_overrun(fc8080_serviceType[0]);
 
 #ifdef FEATURE_RSSI_DEBUG
-    tunerbb_drv_fc8080_get_dm(&dmb_bb_info->msc_ber, &tp_err_cnt, &nframe, &dmb_bb_info->va_ber, &rssi);
+    tunerbb_drv_fc8080_get_dm(&dmb_bb_info->msc_ber, &tp_err_cnt, &nframe, &dmb_bb_info->va_ber, &dmb_bb_info->rssi);
 #else
     tunerbb_drv_fc8080_get_dm(&dmb_bb_info->msc_ber, &tp_err_cnt, &nframe, &dmb_bb_info->va_ber);
 #endif
@@ -605,7 +841,7 @@ int8    tunerbb_drv_fc8080_get_ber(struct broadcast_tdmb_sig_info *dmb_bb_info)
 
     sync_status = tunerbb_drv_fc8080_get_sync_status();
 #ifdef FEATURE_RSSI_DEBUG
-    printk("[FC8080] sync_status = 0x%x, msc_ber = %d, tp_err_cnt = %d, nframe = %d, va_ber = %d rssi = %d\n", sync_status, dmb_bb_info->msc_ber, tp_err_cnt, nframe, dmb_bb_info->va_ber, rssi);
+    //printk("[FC8080] sync_status = 0x%x, msc_ber = %d, tp_err_cnt = %d, nframe = %d, va_ber = %d rssi = %d\n", sync_status, dmb_bb_info->msc_ber, tp_err_cnt, nframe, dmb_bb_info->va_ber, dmb_bb_info->rssi);
 #endif
 
     dmb_bb_info->sync_lock = ((sync_status & 0x10) ? 1 : 0);
@@ -842,6 +1078,11 @@ int8    tunerbb_drv_fc8080_multi_set_channel(int32 freq_num, uint8 subch_cnt, ui
         switch(fc8080_serviceType[i])
         {
             case FC8080_DAB:
+            case FC8080_DABP:
+                if(tunerbb_drv_fc8080_get_nation() == EU)
+                {
+                   mask |= 0x100;
+                }
                 mask |= (1<<DAB_SVC_ID);
                 res = bbm_com_audio_select(0, subch_id[i],DAB_SVC_ID);
 #ifdef STREAM_TS_UPLOAD
@@ -853,6 +1094,10 @@ int8    tunerbb_drv_fc8080_multi_set_channel(int32 freq_num, uint8 subch_cnt, ui
             case FC8080_DMB:
             case FC8080_VISUAL:
             case FC8080_BLT_TEST:
+                if(tunerbb_drv_fc8080_get_nation() == EU)
+                {
+                   mask |= 0x100;
+                }
                 mask |= (1 << (DMB_SVC_ID+dmb_cnt));
                 if(dmb_cnt<2)
                 {
@@ -929,7 +1174,7 @@ int8    tunerbb_drv_fc8080_get_fic(uint8* buffer, uint32* buffer_size  /*, uint8
     if(mfIntStatus == 0)
         return FC8080_RESULT_ERROR;
 
-    bbm_com_word_write(hDevice, BBM_BUF_STATUS, mfIntStatus);
+    bbm_com_word_write(hDevice, BBM_BUF_STATUS, mfIntStatus&0x0100);
 
     if(mfIntStatus & 0x0100)
     {
@@ -1590,3 +1835,8 @@ void tunerbb_drv_fc8080_init_antlevel_val(void)
     calAntLevel = 0;
 }
 /* LGE_CHANGE_E, [hyun118.shin@lge.com], TDMB Antennal Leveling */
+
+int tunerbb_drv_fc8080_get_nation(void)
+{
+    return broadcast_nation;
+}

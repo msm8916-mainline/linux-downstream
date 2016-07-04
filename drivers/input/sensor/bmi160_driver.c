@@ -22,6 +22,11 @@
 
 #include "bmi160.h"
 #include "bmi160_driver.h"
+#include <linux/kobject.h>
+#include <linux/string.h>
+#include <linux/sysfs.h>
+#include <linux/slab.h>
+#include <linux/init.h>
 #include <linux/device.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
@@ -33,6 +38,145 @@
 #define LMADA     (1)
 uint64_t g_current_apts_us;
 static unsigned char g_fifo_data_arr[2048];/*1024 + 12*4*/
+
+#ifdef BMI_CAL_MSG_UEVENT
+struct bmi_cal_obj {
+	struct kobject kobj;
+	char msg[100];
+};
+
+struct bmi_cal_attribute {
+	struct attribute attr;
+	ssize_t (*show)(struct bmi_cal_obj *msg, struct bmi_cal_attribute *attr, char *buf);
+	ssize_t (*store)(struct bmi_cal_obj *msg, struct bmi_cal_attribute *attr, const char *buf, size_t count);
+};
+
+#define to_bmi_cal_obj(x) container_of(x, struct bmi_cal_obj, kobj)
+#define to_bmi_cal_attr(x) container_of(x, struct bmi_cal_attribute, attr)
+
+
+static struct kset *bmi_sensor_cal_kset;
+static struct bmi_cal_obj *g_bmi_cal_obj;
+
+
+
+static ssize_t bmi_cal_attr_show(struct kobject *kobj,
+			     struct attribute *attr,
+			     char *buf)
+{
+	struct bmi_cal_attribute *attribute;
+	struct bmi_cal_obj *bmi;
+
+	attribute = to_bmi_cal_attr(attr);
+	bmi = to_bmi_cal_obj(kobj);
+
+	if (!attribute->show)
+		return -EIO;
+
+	return attribute->show(bmi, attribute, buf);
+}
+
+static ssize_t bmi_cal_attr_store(struct kobject *kobj,
+			      struct attribute *attr,
+			      const char *buf, size_t len)
+{
+	struct bmi_cal_attribute *attribute;
+	struct bmi_cal_obj *bmi;
+
+	attribute = to_bmi_cal_attr(attr);
+	bmi = to_bmi_cal_obj(kobj);
+
+	if (!attribute->store)
+		return -EIO;
+
+	return attribute->store(bmi, attribute, buf, len);
+}
+
+
+static const struct sysfs_ops bmi_sysfs_ops = {
+	.show = bmi_cal_attr_show,
+	.store = bmi_cal_attr_store,
+};
+
+static void bmi_cal_release(struct kobject *kobj)
+{
+	struct bmi_cal_obj *bmi;
+
+	bmi = to_bmi_cal_obj(kobj);
+	kfree(bmi);
+}
+
+
+
+
+
+
+void bmi_send_cal_msg(char *msg)
+{
+	/*
+	 * We are always responsible for sending the uevent that the kobject
+	 * was added to the system.
+	 */
+	char *envp[2] = {msg, NULL};
+	if(g_bmi_cal_obj != NULL) {
+	  kobject_uevent_env( &g_bmi_cal_obj->kobj, KOBJ_CHANGE, envp);
+  }
+
+}
+EXPORT_SYMBOL(bmi_send_cal_msg);
+
+static ssize_t bmi_cal_show(struct bmi_cal_obj *cal_obj, struct bmi_cal_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%s\n", (char*)cal_obj->msg);
+}
+
+static ssize_t bmi_cal_store(struct bmi_cal_obj *cal_obj, struct bmi_cal_attribute *attr,
+			 const char *buf, size_t count)
+{
+	sscanf(buf, "%s", (char*)cal_obj->msg);
+
+	bmi_send_cal_msg((char*)buf);
+	return count;
+}
+
+
+static struct bmi_cal_attribute bmi_cal_attribute =
+	__ATTR(msg, 0664, bmi_cal_show, bmi_cal_store);
+
+
+/*
+ * Create a group of attributes so that we can create and destroy them all
+ * at once.
+ */
+static struct attribute *bmi_cal_default_attrs[] = {
+	&bmi_cal_attribute.attr,
+	NULL,	/* need to NULL terminate the list of attributes */
+};
+
+/*
+ * Our own ktype for our kobjects.  Here we specify our sysfs ops, the
+ * release function, and the set of default attributes we want created
+ * whenever a kobject of this type is registered with the kernel.
+ */
+static struct kobj_type bmi_ktype = {
+	.sysfs_ops = &bmi_sysfs_ops,
+	.release = bmi_cal_release,
+	.default_attrs = bmi_cal_default_attrs,
+};
+
+
+static void destroy_bmi_obj(struct bmi_cal_obj *bmi)
+{
+	kobject_put(&bmi->kobj);
+}
+
+
+
+
+
+
+#endif
 
 enum BMI_SENSOR_INT_T {
 	/* Interrupt enable0*/
@@ -765,6 +909,8 @@ static ssize_t bmi160_fifo_data_sel_store(struct device *dev,
 	int err;
 	unsigned long data;
 	unsigned char fifo_datasel;
+	unsigned int enable_flag_acc, enable_flag_gyro, enable_flag_mag;
+
 
 	err = kstrtoul(buf, 10, &data);
 	if (err)
@@ -775,7 +921,34 @@ static ssize_t bmi160_fifo_data_sel_store(struct device *dev,
 
 
 	fifo_datasel = (unsigned char)data;
+	enable_flag_acc = (unsigned int) (fifo_datasel & (1 << BMI_ACC_SENSOR)) ? 1 :  0;
+	enable_flag_gyro = (unsigned int) (fifo_datasel & (1 << BMI_GYRO_SENSOR) ? 1 : 0);
+	enable_flag_mag = (unsigned int) ((fifo_datasel & (1 << BMI_MAG_SENSOR)) ? 1 : 0);
 
+  if(enable_flag_acc  == 1){
+    atomic_set(&client_data->acc_wkqueue_en,  1);
+  } else {
+    atomic_set(&client_data->acc_wkqueue_en,  0);
+  }
+  if(enable_flag_gyro == 1){
+    atomic_set(&client_data->gyro_wkqueue_en, 1);
+  } else {
+    atomic_set(&client_data->gyro_wkqueue_en, 0);
+  }
+  if(enable_flag_mag  == 1){
+    atomic_set(&client_data->mag_wkqueue_en,  1);
+  } else {
+    atomic_set(&client_data->mag_wkqueue_en,  0);
+  }
+
+	if(enable_flag_acc == 1 || enable_flag_gyro == 1 || enable_flag_mag == 1 ){
+		 atomic_set(&client_data->wkqueue_en, 1);
+		 dev_info(client_data->dev, "bmi160_fifo_data_sel_store enabled sensor wq\n");
+	}
+	else if(enable_flag_acc == 0 && enable_flag_gyro == 0 && enable_flag_mag == 0){
+		 atomic_set(&client_data->wkqueue_en, 0);
+		 dev_info(client_data->dev, "bmi160_fifo_data_sel_store disabled sensor wq\n");
+	}
 
 	err += BMI_CALL_API(set_fifo_acc_en)
 			((fifo_datasel & (1 << BMI_ACC_SENSOR)) ? 1 :  0);
@@ -1397,6 +1570,50 @@ static int bmi160_set_acc_op_mode(struct bmi_client_data *client_data,
 
 }
 
+
+static int bmi160_set_gyro_op_mode(struct bmi_client_data *client_data,
+							unsigned long op_mode)
+{
+	int err = 0;
+
+	mutex_lock(&client_data->mutex_op_mode);
+
+	if (op_mode < BMI_GYRO_PM_MAX) {
+		switch (op_mode) {
+		case BMI_GYRO_PM_NORMAL:
+			err = BMI_CALL_API(set_command_register)
+				(bmi_pmu_cmd_gyro_arr[BMI_GYRO_PM_NORMAL]);
+			client_data->pw.gyro_pm = BMI_GYRO_PM_NORMAL;
+			mdelay(3);
+			break;
+		case BMI_GYRO_PM_FAST_START:
+			err = BMI_CALL_API(set_command_register)
+				(bmi_pmu_cmd_gyro_arr[BMI_GYRO_PM_FAST_START]);
+			client_data->pw.gyro_pm = BMI_GYRO_PM_FAST_START;
+			mdelay(3);
+			break;
+		case BMI_GYRO_PM_SUSPEND:
+			err = BMI_CALL_API(set_command_register)
+				(bmi_pmu_cmd_gyro_arr[BMI_GYRO_PM_SUSPEND]);
+			client_data->pw.gyro_pm = BMI_GYRO_PM_SUSPEND;
+			mdelay(3);
+			break;
+		default:
+			mutex_unlock(&client_data->mutex_op_mode);
+			return -EINVAL;
+		}
+	} else {
+		mutex_unlock(&client_data->mutex_op_mode);
+		return -EINVAL;
+	}
+
+	mutex_unlock(&client_data->mutex_op_mode);
+
+	return err;
+
+
+}
+
 static ssize_t bmi160_temperature_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1648,7 +1865,7 @@ static int sigmotion_enable_interrupts(u8 sig_map_int_pin)
 	ret += bmi160_set_int_significant_motion_select(1);
 
 	if (ret)
-		printk(KERN_ERR "bmi160 sig motion failed setting,%d!\n", ret);
+		dev_err(client_data->dev, "bmi160 sig motion failed setting,%d!\n", ret);
 	return ret;
 
 }
@@ -1806,13 +2023,14 @@ static ssize_t bmi160_acc_fast_calibration_x_store(struct device *dev,
 		const char *buf, size_t count)
 {
 	unsigned long data;
+	unsigned char x, y, z;
 	int err;
 	s8 accel_offset_x = 0;
 #ifdef BMI160_CALIBRATION
 	struct input_dev *input = to_input_dev(dev);
 	struct bmi_client_data *client_data = input_get_drvdata(input);
 	unsigned int timeout_shaking = 0;
-	int tilt_check_count = 0;
+	unsigned int shake_count = 0;
 	struct bmi160acc_t udata;
 	struct bmi160_axis_data_t bmi160_udata_pre;
 	struct bmi160_axis_data_t bmi160_udata;
@@ -1826,6 +2044,13 @@ static ssize_t bmi160_acc_fast_calibration_x_store(struct device *dev,
 #ifdef BMI160_CALIBRATION
 	atomic_set(&client_data->fast_calib_x_rslt, 0);
 
+	err = BMI_CALL_API(set_accel_offset_compensation_xaxis)((unsigned char)0);
+	err = BMI_CALL_API(set_accel_offset_compensation_yaxis)((unsigned char)0);
+	err = BMI_CALL_API(set_accel_offset_compensation_zaxis)((unsigned char)0);
+	err = BMI_CALL_API(get_foc_acc_x)(&x);
+	err = BMI_CALL_API(get_foc_acc_y)(&y);
+	err = BMI_CALL_API(get_foc_acc_z)(&z);
+		dev_info(client_data->dev,"bmi160_acc_offset_compensation_axis x:%d, y:%d, z:%d", x, y, z);
 	err = BMI_CALL_API(read_acc_xyz)(&udata);
 	if (err < 0)
 		return err;
@@ -1836,11 +2061,18 @@ static ssize_t bmi160_acc_fast_calibration_x_store(struct device *dev,
 
 	bmi_remap_sensor_data(&bmi160_udata_pre, client_data);
 
-	/* Device is upside down */
-	if (bmi160_udata_pre.z < 0) {
-		dev_info(client_data->dev,"device is upside down. data : %d",bmi160_udata_pre.z);
-		return -EINVAL;
+	/* Defective chip */
+	if ((abs(bmi160_udata_pre.x) > BMI160_DEFECT_LIMIT_XY)
+		|| (abs(bmi160_udata_pre.y) > BMI160_DEFECT_LIMIT_XY)
+		|| ((BMI160_DEFECT_LIMIT_Z1 > bmi160_udata_pre.z) || (bmi160_udata_pre.z > BMI160_DEFECT_LIMIT_Z2))) {
+			atomic_set(&client_data->fast_calib_rslt, 3);
+			dev_info(client_data->dev,"BMI160_DEFECT_LIMIT x:%d, y:%d, z:%d",
+				bmi160_udata_pre.x, bmi160_udata_pre.y, bmi160_udata_pre.z);
+			dev_err(client_data->dev,"===============Defective chip===============");
+			return -EINVAL;
 	}
+
+	/* Shaking Check  */
 	do{
 		mdelay(20);
 		err = BMI_CALL_API(read_acc_xyz)(&udata);
@@ -1853,30 +2085,28 @@ static ssize_t bmi160_acc_fast_calibration_x_store(struct device *dev,
 
 		bmi_remap_sensor_data(&bmi160_udata, client_data);
 
-		dev_info(client_data->dev,"===============moved x=============== timeout = %d",timeout_shaking);
+		dev_info(client_data->dev,"===============checking x=============== timeout = %d, shake = %d",timeout_shaking, shake_count);
+		if (5 < shake_count) {
+			atomic_set(&client_data->fast_calib_rslt, 2);
+			dev_err(client_data->dev,"===============shaking error x===============");
+			return -EINVAL;
+		}
 		dev_info(client_data->dev,"(%d, %d, %d) (%d, %d, %d)",
 			bmi160_udata_pre.x,	bmi160_udata_pre.y, bmi160_udata_pre.z, bmi160_udata.x,bmi160_udata.y,bmi160_udata.z );
 
 		if((abs(bmi160_udata.x - bmi160_udata_pre.x) > BMI160_SHAKING_DETECT_THRESHOLD)
 			|| (abs((bmi160_udata.y - bmi160_udata_pre.y)) > BMI160_SHAKING_DETECT_THRESHOLD)
 			|| (abs((bmi160_udata.z - bmi160_udata_pre.z)) > BMI160_SHAKING_DETECT_THRESHOLD)) {
-				atomic_set(&client_data->fast_calib_rslt, 2);
-				dev_err(client_data->dev,"===============shaking x===============");
-				return -EINVAL;
+				bmi160_udata_pre.x = bmi160_udata.x;
+				bmi160_udata_pre.y = bmi160_udata.y;
+				bmi160_udata_pre.z = bmi160_udata.z;
+				shake_count++;
 		}
 		else{
 			bmi160_udata_pre.x = bmi160_udata.x;
 			bmi160_udata_pre.y = bmi160_udata.y;
 			bmi160_udata_pre.z = bmi160_udata.z;
-			if (abs(bmi160_udata.y) > BMI160_FAST_CALIB_TILT_LIMIT
-				|| abs(bmi160_udata.x) > BMI160_FAST_CALIB_TILT_LIMIT)
-				tilt_check_count++;
-			if (tilt_check_count > 5) {
-				atomic_set(&client_data->fast_calib_rslt, 3);
-				dev_err(client_data->dev,"============tilted over 15 degree===========");
-				return -EINVAL;
 			}
-		}
 		timeout_shaking++;
 	}while(timeout_shaking < 10);
 	dev_info(client_data->dev,"===============complete shaking x check===============");
@@ -1888,6 +2118,7 @@ static ssize_t bmi160_acc_fast_calibration_x_store(struct device *dev,
 
 	err = BMI_CALL_API(set_accel_foc_trigger)(X_AXIS,
 					data, &accel_offset_x);
+
 	if (err)
 		return -EIO;
 
@@ -1925,7 +2156,7 @@ static ssize_t bmi160_acc_fast_calibration_y_store(struct device *dev,
 	struct input_dev *input = to_input_dev(dev);
 	struct bmi_client_data *client_data = input_get_drvdata(input);
 	unsigned int timeout_shaking = 0;
-	int tilt_check_count = 0;
+	unsigned int shake_count = 0;
 	struct bmi160acc_t udata;
 	struct bmi160_axis_data_t bmi160_udata_pre;
 	struct bmi160_axis_data_t bmi160_udata;
@@ -1951,11 +2182,7 @@ static ssize_t bmi160_acc_fast_calibration_y_store(struct device *dev,
 
 		bmi_remap_sensor_data(&bmi160_udata_pre, client_data);
 
-		/* Device is upside down */
-		if (bmi160_udata_pre.z < 0) {
-			dev_info(client_data->dev,"device is upside down. data : %d",bmi160_udata_pre.z);
-			return -EINVAL;
-		}
+		/* Shaking Check */
 		do{
 			mdelay(20);
 			err = BMI_CALL_API(read_acc_xyz)(&udata);
@@ -1968,29 +2195,27 @@ static ssize_t bmi160_acc_fast_calibration_y_store(struct device *dev,
 
 			bmi_remap_sensor_data(&bmi160_udata, client_data);
 
-			dev_info(client_data->dev,"===============moved y=============== timeout = %d",timeout_shaking);
+			dev_info(client_data->dev,"===============cheking y=============== timeout = %d, shake = %d",timeout_shaking, shake_count);
+			if (5 < shake_count) {
+				atomic_set(&client_data->fast_calib_rslt, 4);
+				dev_err(client_data->dev,"===============shaking error y===============");
+				return -EINVAL;
+			}
 			dev_info(client_data->dev,"(%d, %d, %d) (%d, %d, %d)",
 				bmi160_udata_pre.x, bmi160_udata_pre.y, bmi160_udata_pre.z, bmi160_udata.x,bmi160_udata.y,bmi160_udata.z );
 
 			if((abs(bmi160_udata.x - bmi160_udata_pre.x) > BMI160_SHAKING_DETECT_THRESHOLD)
 				|| (abs((bmi160_udata.y - bmi160_udata_pre.y)) > BMI160_SHAKING_DETECT_THRESHOLD)
 				|| (abs((bmi160_udata.z - bmi160_udata_pre.z)) > BMI160_SHAKING_DETECT_THRESHOLD)) {
-					atomic_set(&client_data->fast_calib_rslt, 4);
-					dev_err(client_data->dev,"===============shaking y===============");
-					return -EINVAL;
+					bmi160_udata_pre.x = bmi160_udata.x;
+					bmi160_udata_pre.y = bmi160_udata.y;
+					bmi160_udata_pre.z = bmi160_udata.z;
+					shake_count++;
 			}
 			else{
 				bmi160_udata_pre.x = bmi160_udata.x;
 				bmi160_udata_pre.y = bmi160_udata.y;
 				bmi160_udata_pre.z = bmi160_udata.z;
-				if (abs(bmi160_udata.y) > BMI160_FAST_CALIB_TILT_LIMIT
-					|| abs(bmi160_udata.x) > BMI160_FAST_CALIB_TILT_LIMIT)
-					tilt_check_count++;
-				if (tilt_check_count > 5) {
-					atomic_set(&client_data->fast_calib_rslt, 5);
-					dev_err(client_data->dev,"============tilted over 15 degree===========");
-					return -EINVAL;
-				}
 			}
 			timeout_shaking++;
 		}while(timeout_shaking < 10);
@@ -2034,12 +2259,13 @@ static ssize_t bmi160_acc_fast_calibration_z_store(struct device *dev,
 		const char *buf, size_t count)
 {
 	unsigned long data;
+	unsigned char x, y, z;
 	int err;
 	s8 accel_offset_z = 0;
 #ifdef BMI160_CALIBRATION
 		struct bmi_client_data *client_data = dev_get_drvdata(dev);
 		unsigned int timeout_shaking = 0;
-		int tilt_check_count = 0;
+		unsigned int shake_count = 0;
 		struct bmi160acc_t udata;
 		struct bmi160_axis_data_t bmi160_udata_pre;
 		struct bmi160_axis_data_t bmi160_udata;
@@ -2065,11 +2291,7 @@ static ssize_t bmi160_acc_fast_calibration_z_store(struct device *dev,
 
 		bmi_remap_sensor_data(&bmi160_udata_pre, client_data);
 
-		/* Device is upside down */
-		if (bmi160_udata_pre.z < 0) {
-			dev_info(client_data->dev,"device is upside down. data : %d",bmi160_udata_pre.z);
-			return -EINVAL;
-		}
+		/* Shaking Check */
 		do{
 			mdelay(20);
 			err = BMI_CALL_API(read_acc_xyz)(&udata);
@@ -2082,29 +2304,27 @@ static ssize_t bmi160_acc_fast_calibration_z_store(struct device *dev,
 
 			bmi_remap_sensor_data(&bmi160_udata, client_data);
 
-			dev_info(client_data->dev,"===============moved z=============== timeout = %d",timeout_shaking);
+			dev_info(client_data->dev,"===============checking z=============== timeout = %d, shake = %d",timeout_shaking, shake_count);
+			if (4 < shake_count) {
+				atomic_set(&client_data->fast_calib_rslt, 6);
+				dev_err(client_data->dev,"===============shaking error z===============");
+				return -EINVAL;
+			}
 			dev_info(client_data->dev,"(%d, %d, %d) (%d, %d, %d)",
 				bmi160_udata_pre.x, bmi160_udata_pre.y, bmi160_udata_pre.z, bmi160_udata.x,bmi160_udata.y,bmi160_udata.z );
 
 			if((abs(bmi160_udata.x - bmi160_udata_pre.x) > BMI160_SHAKING_DETECT_THRESHOLD)
 				|| (abs((bmi160_udata.y - bmi160_udata_pre.y)) > BMI160_SHAKING_DETECT_THRESHOLD)
 				|| (abs((bmi160_udata.z - bmi160_udata_pre.z)) > BMI160_SHAKING_DETECT_THRESHOLD)) {
-					atomic_set(&client_data->fast_calib_rslt, 6);
-					dev_err(client_data->dev,"===============shaking z===============");
-					return -EINVAL;
+					bmi160_udata_pre.x = bmi160_udata.x;
+					bmi160_udata_pre.y = bmi160_udata.y;
+					bmi160_udata_pre.z = bmi160_udata.z;
+					shake_count++;
 			}
 			else{
 				bmi160_udata_pre.x = bmi160_udata.x;
 				bmi160_udata_pre.y = bmi160_udata.y;
 				bmi160_udata_pre.z = bmi160_udata.z;
-				if (abs(bmi160_udata.y) > BMI160_FAST_CALIB_TILT_LIMIT
-					|| abs(bmi160_udata.x) > BMI160_FAST_CALIB_TILT_LIMIT)
-					tilt_check_count++;
-				if (tilt_check_count > 5) {
-					atomic_set(&client_data->fast_calib_rslt, 7);
-					dev_err(client_data->dev,"============tilted over 15 degree===========");
-					return -EINVAL;
-				}
 			}
 			timeout_shaking++;
 		}while(timeout_shaking < 10);
@@ -2117,6 +2337,11 @@ static ssize_t bmi160_acc_fast_calibration_z_store(struct device *dev,
 
 	err = BMI_CALL_API(set_accel_foc_trigger)(Z_AXIS,
 			data, &accel_offset_z);
+	err = BMI_CALL_API(get_foc_acc_x)(&x);
+	err = BMI_CALL_API(get_foc_acc_y)(&y);
+	err = BMI_CALL_API(get_foc_acc_z)(&z);
+	dev_info(client_data->dev,"accel_offset_compensation_axis x:%d, y:%d, z:%d", x, y, z);
+
 	if (err)
 		return -EIO;
 
@@ -2584,6 +2809,7 @@ static ssize_t bmi160_gyro_op_mode_store(struct device *dev,
 	if (err)
 		return err;
 
+/*
 	mutex_lock(&client_data->mutex_op_mode);
 
 	if (op_mode < BMI_GYRO_PM_MAX) {
@@ -2616,6 +2842,8 @@ static ssize_t bmi160_gyro_op_mode_store(struct device *dev,
 	}
 
 	mutex_unlock(&client_data->mutex_op_mode);
+*/
+  err = bmi160_set_gyro_op_mode(client_data, op_mode);
 
 	if (err)
 		return err;
@@ -2748,12 +2976,14 @@ static ssize_t bmi160_gyro_fast_calibration_en_store(struct device *dev,
 {
 	unsigned long enable;
 	s8 err;
+	u16 x, y, z;
 	s16 gyr_off_x;
 	s16 gyr_off_y;
 	s16 gyr_off_z;
 	struct input_dev *input = to_input_dev(dev);
 	struct bmi_client_data *client_data = input_get_drvdata(input);
 	unsigned int timeout_shaking = 0;
+	unsigned int shake_count = 0;
 	struct bmi160gyro_t udata;
 	struct bmi160_axis_data_t bmi160_udata_pre;
 	struct bmi160_axis_data_t bmi160_udata;
@@ -2765,6 +2995,15 @@ static ssize_t bmi160_gyro_fast_calibration_en_store(struct device *dev,
 
 		atomic_set(&client_data->gyro_fast_calib_rslt, 0);
 
+		err = BMI_CALL_API(set_gyro_offset_compensation_xaxis)((s16)0);
+		err = BMI_CALL_API(set_gyro_offset_compensation_yaxis)((s16)0);
+		err = BMI_CALL_API(set_gyro_offset_compensation_zaxis)((s16)0);
+		err = BMI_CALL_API(get_gyro_off_comp_xaxis)(&x);
+		err = BMI_CALL_API(get_gyro_off_comp_yaxis)(&y);
+		err = BMI_CALL_API(get_gyro_off_comp_zaxis)(&z);
+			dev_info(client_data->dev,"bmi160_gyro_offset_compensation_axis x:%d, y:%d, z:%d"
+				, (x&0x3ff), (y&0x3ff), (z&0x3ff));
+
 		err = BMI_CALL_API(read_gyro_xyz)(&udata);
 		if (err < 0)
 			return err;
@@ -2774,6 +3013,17 @@ static ssize_t bmi160_gyro_fast_calibration_en_store(struct device *dev,
 		bmi160_udata_pre.z = udata.z;
 
 		bmi_remap_sensor_data(&bmi160_udata_pre, client_data);
+
+		/* Defective chip */
+		if ((abs(bmi160_udata_pre.x) > BMI160_DEFECT_LIMIT_GYRO)
+			|| (abs(bmi160_udata_pre.y) > BMI160_DEFECT_LIMIT_GYRO)
+			|| (abs(bmi160_udata_pre.z) > BMI160_DEFECT_LIMIT_GYRO)) {
+			atomic_set(&client_data->gyro_fast_calib_rslt, 3);
+			dev_info(client_data->dev,"BMI160_DEFECT_LIMIT x:%d, y:%d, z:%d",
+			bmi160_udata_pre.x, bmi160_udata_pre.y, bmi160_udata_pre.z);
+			dev_err(client_data->dev,"===============Defective chip===============");
+			return -EINVAL;
+		}
 
 		do{
 			mdelay(20);
@@ -2787,16 +3037,22 @@ static ssize_t bmi160_gyro_fast_calibration_en_store(struct device *dev,
 
 			bmi_remap_sensor_data(&bmi160_udata, client_data);
 
-			dev_info(client_data->dev,"===============moved x=============== timeout = %d",timeout_shaking);
+			dev_info(client_data->dev,"===============checking x=============== timeout = %d, shake = %d",timeout_shaking, shake_count);
+			if (2 < shake_count) {
+				atomic_set(&client_data->fast_calib_rslt, 2);
+				dev_err(client_data->dev,"===============shaking error x===============");
+				return -EINVAL;
+			}
 			dev_info(client_data->dev,"(%d, %d, %d) (%d, %d, %d)",
 			bmi160_udata_pre.x, bmi160_udata_pre.y, bmi160_udata_pre.z, bmi160_udata.x,bmi160_udata.y,bmi160_udata.z );
 
 			if((abs(bmi160_udata.x - bmi160_udata_pre.x) > BMI160_GYRO_SHAKING_DETECT_THRESHOLD)
 			|| (abs((bmi160_udata.y - bmi160_udata_pre.y)) > BMI160_GYRO_SHAKING_DETECT_THRESHOLD)
 			|| (abs((bmi160_udata.z - bmi160_udata_pre.z)) > BMI160_GYRO_SHAKING_DETECT_THRESHOLD)) {
-				atomic_set(&client_data->gyro_fast_calib_rslt, 2);
-				dev_err(client_data->dev,"===============shaking x===============");
-				return -EINVAL;
+				bmi160_udata_pre.x = bmi160_udata.x;
+				bmi160_udata_pre.y = bmi160_udata.y;
+				bmi160_udata_pre.z = bmi160_udata.z;
+				shake_count++;
 			}else {
 				bmi160_udata_pre.x = bmi160_udata.x;
 				bmi160_udata_pre.y = bmi160_udata.y;
@@ -2809,11 +3065,16 @@ static ssize_t bmi160_gyro_fast_calibration_en_store(struct device *dev,
 
 	err = BMI_CALL_API(set_foc_gyr_en)((u8)enable,
 				&gyr_off_x, &gyr_off_y, &gyr_off_z);
+	err = BMI_CALL_API(get_gyro_off_comp_xaxis)(&x);
+	err = BMI_CALL_API(get_gyro_off_comp_yaxis)(&y);
+	err = BMI_CALL_API(get_gyro_off_comp_zaxis)(&z);
+		dev_info(client_data->dev,"bmi160_gyro_offset_compensation_axis x:%d, y:%d, z:%d"
+			, (x&0x3ff), (y&0x3ff), (z&0x3ff));
 
 	if (err < 0)
 		return -EIO;
 
-    printk(KERN_INFO "bmi160 BMI160_GYRO_CALIBRATION_DONE \n");
+    dev_info(client_data->dev, "bmi160 BMI160_GYRO_CALIBRATION_DONE \n");
     input_event(client_data->input, EV_MSC, INPUT_EVENT_FAST_GYRO_CALIB_DONE, 1);
     input_sync(client_data->input);
     dev_info(client_data->dev, "GYRO XYZ Calibration Success");
@@ -2824,14 +3085,16 @@ static ssize_t bmi160_gyro_fast_calibration_en_store(struct device *dev,
 static ssize_t bmi160_gyro_offset_x_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	s16 data = 0;
+	u16 data = 0;
 	s8 err = 0;
 
 	err = BMI_CALL_API(get_gyro_off_comp_xaxis)(&data);
 
 	if (err < 0)
 		return err;
-	return sprintf(buf, "%d\n", data);
+	data = data&0x3ff;
+	printk("bmi160_gyro_offset_x_show :%u \n", data);
+	return sprintf(buf, "%u\n",  data);
 }
 
 static ssize_t bmi160_gyro_offset_x_store(struct device *dev,
@@ -2846,6 +3109,7 @@ static ssize_t bmi160_gyro_offset_x_store(struct device *dev,
 		return err;
 
 	err = BMI_CALL_API(set_gyro_offset_compensation_xaxis)((s16)data);
+	printk("bmi160_gyro_offset_x_store :%d \n", (s16) data);
 
 	if (err < 0)
 		return -EIO;
@@ -2855,14 +3119,15 @@ static ssize_t bmi160_gyro_offset_x_store(struct device *dev,
 static ssize_t bmi160_gyro_offset_y_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	s16 data = 0;
+	u16 data = 0;
 	s8 err = 0;
 
 	err = BMI_CALL_API(get_gyro_off_comp_yaxis)(&data);
-
 	if (err < 0)
 		return err;
-	return sprintf(buf, "%d\n", data);
+	data = data&0x3ff;
+	printk("bmi160_gyro_offset_y_show :%u \n", data);
+	return sprintf(buf, "%u\n",  data);
 }
 
 static ssize_t bmi160_gyro_offset_y_store(struct device *dev,
@@ -2877,6 +3142,7 @@ static ssize_t bmi160_gyro_offset_y_store(struct device *dev,
 		return err;
 
 	err = BMI_CALL_API(set_gyro_offset_compensation_yaxis)((s16)data);
+	printk("bmi160_gyro_offset_y_store :%d \n", (s16) data);
 
 	if (err < 0)
 		return -EIO;
@@ -2886,14 +3152,16 @@ static ssize_t bmi160_gyro_offset_y_store(struct device *dev,
 static ssize_t bmi160_gyro_offset_z_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	s16 data = 0;
+	u16 data = 0;
 	int err = 0;
 
 	err = BMI_CALL_API(get_gyro_off_comp_zaxis)(&data);
 
 	if (err < 0)
 		return err;
-	return sprintf(buf, "%d\n", data);
+	data = data&0x3ff;
+	printk("bmi160_gyro_offset_z_show :%u \n", data);
+	return sprintf(buf, "%u\n",  data);
 }
 
 static ssize_t bmi160_gyro_offset_z_store(struct device *dev,
@@ -2908,6 +3176,7 @@ static ssize_t bmi160_gyro_offset_z_store(struct device *dev,
 		return err;
 
 	err = BMI_CALL_API(set_gyro_offset_compensation_zaxis)((s16)data);
+	printk("bmi160_gyro_offset_z_store :%d \n", (s16) data);
 
 	if (err < 0)
 		return -EIO;
@@ -3338,7 +3607,7 @@ static ssize_t bmi160_run_fast_calibration_store(struct device *dev,
 		return -EIO;
 	}
 
-	printk(KERN_INFO "bmi160 BMI160_ACCEL_CALIBRATION_DONE\n");
+	dev_info(client_data->dev, "bmi160 BMI160_ACCEL_CALIBRATION_DONE\n");
 	input_event(client_data->input, EV_MSC, INPUT_EVENT_FAST_ACC_CALIB_DONE, 1);
 	input_sync(client_data->input);
 	dev_info(client_data->dev, "ACCEL XYZ Calibration Success");
@@ -3386,7 +3655,7 @@ static ssize_t bmi160_eeprom_writing_store(struct device *dev,
 		atomic_read(&client_data->fast_calib_y_rslt) == 1 &&
 		atomic_read(&client_data->fast_calib_z_rslt) == 1) {
 
-		printk(KERN_INFO "bmi160 BMI160_ACCEL_CALIBRATION_DONE\n");
+		dev_info(client_data->dev, "bmi160 BMI160_ACCEL_CALIBRATION_DONE\n");
 		input_event(client_data->input, EV_MSC, INPUT_EVENT_FAST_ACC_CALIB_DONE, 1);
 		input_sync(client_data->input);
 
@@ -3694,10 +3963,10 @@ static void bmi_fifo_watermark_interrupt_handle
 
 	if (client_data->pw.acc_pm == 2 && client_data->pw.gyro_pm == 2
 					&& client_data->pw.mag_pm == 2)
-		printk(KERN_INFO "pw_acc: %d, pw_gyro: %d\n",
+		dev_info(client_data->dev, "pw_acc: %d, pw_gyro: %d\n",
 			client_data->pw.acc_pm, client_data->pw.gyro_pm);
 	if (!client_data->fifo_data_sel)
-		printk(KERN_INFO "no selsect sensor fifo, fifo_data_sel:%d\n",
+		dev_info(client_data->dev, "no selsect sensor fifo, fifo_data_sel:%d\n",
 						client_data->fifo_data_sel);
 
 	err = BMI_CALL_API(fifo_length)(&fifo_len0);
@@ -3730,7 +3999,7 @@ static void bmi_fifo_watermark_interrupt_handle
 static void bmi_signification_motion_interrupt_handle(
 		struct bmi_client_data *client_data)
 {
-	printk(KERN_INFO "bmi_signification_motion_interrupt_handle\n");
+	dev_info(client_data->dev, "bmi_signification_motion_interrupt_handle\n");
 	input_event(client_data->input, EV_MSC, INPUT_EVENT_SGM, 1);
 /*input_report_rel(client_data->input,INPUT_EVENT_SGM,1);*/
 	input_sync(client_data->input);
@@ -3748,10 +4017,10 @@ static void bmi_stepdetector_interrupt_handle(
 	client_data->pedo_data.wkar_step_detector_status++;
 	current_step_dector_st = client_data->pedo_data.wkar_step_detector_status;
 
-	printk("interrupt step detector:%d,%d\n", client_data->pedo_data.wkar_step_detector_status, current_step_dector_st);
+	dev_info(client_data->dev,"interrupt step detector:%d,%d\n", client_data->pedo_data.wkar_step_detector_status, current_step_dector_st);
 	client_data->std = ((current_step_dector_st == 1)? 0: 1);
 	if (client_data->std == 1)
-		printk(KERN_INFO "bmi_stepdetector_interrupt_handle, times:%d\n",
+		dev_info(client_data->dev, "bmi_stepdetector_interrupt_handle, times:%d\n",
 					current_step_dector_st);
 
 }
@@ -3800,6 +4069,46 @@ static irqreturn_t bmi_irq_handler(int irq, void *handle)
 }
 #endif /* defined(BMI_ENABLE_INT1)||defined(BMI_ENABLE_INT2) */
 
+
+
+
+#ifdef BMI_CAL_MSG_UEVENT
+static int bmi_cal_msg_init(void) {
+
+	struct bmi_cal_obj *bmi;
+	int retval;
+	bmi_sensor_cal_kset = kset_create_and_add("bmi_sensor_cal", NULL, kernel_kobj);
+
+	if (!bmi_sensor_cal_kset)
+		return -ENOMEM;
+
+	bmi = kzalloc(sizeof(*bmi), GFP_KERNEL);
+	if (!bmi)
+		return -ENOMEM;
+
+	bmi->kobj.kset = bmi_sensor_cal_kset;
+	g_bmi_cal_obj = bmi;
+
+	retval = kobject_init_and_add(&bmi->kobj, &bmi_ktype, NULL, "%s", "bmi_sensor_cal");
+	if (retval) {
+		kobject_put(&bmi->kobj);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+
+static int bmi_cal_msg_deinit(void) {
+	destroy_bmi_obj(g_bmi_cal_obj);
+	kset_unregister(bmi_sensor_cal_kset);
+	return 0;
+}
+
+
+#endif
+
+
 int bmi_probe(struct bmi_client_data *client_data, struct device *dev)
 {
 	int err = 0;
@@ -3807,6 +4116,11 @@ int bmi_probe(struct bmi_client_data *client_data, struct device *dev)
 #ifdef BMI160_MAG_INTERFACE_SUPPORT
 	u8 mag_urst_len;
 #endif
+
+#ifdef CONFIG_OF
+  struct bmi_platform_data* platform_data;
+#endif
+
 	/* check chip id */
 	err = bmi_check_chip_id(client_data);
 	if (err)
@@ -3831,28 +4145,19 @@ int bmi_probe(struct bmi_client_data *client_data, struct device *dev)
 		goto exit_err_sysfs;
 
 
-//	if (NULL != dev->platform_data) {
-		client_data->bst_pd = kzalloc(sizeof(*client_data->bst_pd),
-				GFP_KERNEL);
-		client_data->bst_pd->place = 4;
+	if (NULL != dev->platform_data) {
+		client_data->bst_pd = kzalloc(sizeof(*client_data->bst_pd), GFP_KERNEL);
+		platform_data = dev->platform_data;
 
 		if (NULL != client_data->bst_pd) {
-	//		memcpy(client_data->bst_pd, dev->platform_data,
-	//				sizeof(*client_data->bst_pd));
-			dev_notice(dev, "%s sensor driver set place: p%d\n",
-					client_data->bst_pd->name,
-					client_data->bst_pd->place);
+		    client_data->bst_pd->place = platform_data->place;
 		}
-//	}
+	}
+dev_notice(dev, "%s sensor driver set place: p%d\n", "[BMI160_DTSI]", client_data->bst_pd->place);
 
-	if (NULL != client_data->bst_pd) {
-		//	memcpy(client_data->bst_pd, dev->platform_data,
-		//			sizeof(*client_data->bst_pd));
-			dev_notice(dev, "%s sensor driver set place: p%d\n",
-					client_data->bst_pd->name,
-					client_data->bst_pd->place);
-		}
-
+#ifdef BMI_CAL_MSG_UEVENT
+	bmi_cal_msg_init();
+#endif
 
 	/* workqueue init */
 	INIT_DELAYED_WORK(&client_data->work, bmi_work_func);
@@ -3900,10 +4205,10 @@ int bmi_probe(struct bmi_client_data *client_data, struct device *dev)
 
 
 #if defined(BMI160_ENABLE_INT1) || defined(BMI160_ENABLE_INT2)
-		client_data->gpio_pin = of_get_named_gpio_flags(dev->of_node,
-					"bmi,gpio_irq", 0, NULL);
-		dev_info(client_data->dev, "BMI160 qpio number:%d\n",
-					client_data->gpio_pin);
+#ifdef CONFIG_OF
+    client_data->gpio_pin = platf rm_data->irq_gpio;
+    dev_notice(dev, "%s sensor driver set gpio: %d\n", "[BMI160_DTSI]", client_data->gpio_pin);
+#endif
 		err += gpio_request_one(client_data->gpio_pin,
 					GPIOF_IN, "bmi160_int");
 		err += gpio_direction_input(client_data->gpio_pin);
@@ -4010,6 +4315,11 @@ int bmi_remove(struct device *dev)
 	int err = 0;
 	struct bmi_client_data *client_data = dev_get_drvdata(dev);
 
+#ifdef BMI_CAL_MSG_UEVENT
+	bmi_cal_msg_deinit();
+#endif
+
+
 	if (NULL != client_data) {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 		unregister_early_suspend(&client_data->early_suspend_handler);
@@ -4047,12 +4357,22 @@ static int bmi_post_resume(struct bmi_client_data *client_data)
 
 	mutex_lock(&client_data->mutex_enable);
 
-	if (atomic_read(&client_data->wkqueue_en) == 1) {
+	if (atomic_read(&client_data->acc_wkqueue_en) == 1) {
+	  dev_info(client_data->dev, "acc_wkqueue_en is 1");
 		bmi160_set_acc_op_mode(client_data, BMI_ACC_PM_NORMAL);
 		schedule_delayed_work(&client_data->work,
 				msecs_to_jiffies(
 					atomic_read(&client_data->delay)));
 	}
+
+  if (atomic_read(&client_data->gyro_wkqueue_en) == 1) {
+      dev_info(client_data->dev, "gyro_wkqueue_en is 1");
+      bmi160_set_gyro_op_mode(client_data, BMI_GYRO_PM_NORMAL);
+      schedule_delayed_work(&client_data->work,
+          msecs_to_jiffies(
+            atomic_read(&client_data->delay)));
+  }
+	
 	mutex_unlock(&client_data->mutex_enable);
 
 	return err;
@@ -4067,10 +4387,18 @@ int bmi_suspend(struct device *dev)
 	dev_err(client_data->dev, "bmi suspend function entrance");
 
 
-	if (atomic_read(&client_data->wkqueue_en) == 1) {
+	if (atomic_read(&client_data->acc_wkqueue_en) == 1) {
+	  dev_info(client_data->dev, "acc_wkqueue_en is 1");
 		bmi160_set_acc_op_mode(client_data, BMI_ACC_PM_SUSPEND);
 		cancel_delayed_work_sync(&client_data->work);
 	}
+
+  if (atomic_read(&client_data->gyro_wkqueue_en) == 1) {
+    dev_info(client_data->dev, "gyro_wkqueue_en is 1");
+    bmi160_set_gyro_op_mode(client_data, BMI_GYRO_PM_SUSPEND);
+    cancel_delayed_work_sync(&client_data->work);
+  }
+	
 	BMI_CALL_API(get_step_counter_enable)(&stc_enable);
 
 	if (client_data->pw.acc_pm != BMI_ACC_PM_SUSPEND && (stc_enable != 1)) {
@@ -4107,4 +4435,6 @@ int bmi_resume(struct device *dev)
 	return err;
 }
 EXPORT_SYMBOL(bmi_resume);
+
+
 

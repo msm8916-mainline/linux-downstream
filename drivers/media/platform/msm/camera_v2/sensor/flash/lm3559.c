@@ -30,6 +30,7 @@ static struct i2c_driver lm3559_i2c_driver;
 
 static struct msm_camera_i2c_reg_array lm3559_init_array[] = {
 	{0x10, 0x00},
+	{0x80, 0x09},
 	{0xA0, 0x12},
 	{0xB0, 0x88},
 };
@@ -190,6 +191,7 @@ int msm_flash_lm3559_led_low(struct msm_led_flash_ctrl_t *fctrl)
 	int rc = 0;
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
+	uint16_t flag;
 	LM3559_DBG("%s:%d called\n", __func__, __LINE__);
 
 	flashdata = fctrl->flashdata;
@@ -202,10 +204,14 @@ int msm_flash_lm3559_led_low(struct msm_led_flash_ctrl_t *fctrl)
 
 	if (fctrl->flash_i2c_client && fctrl->reg_setting) {
 		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
-			fctrl->flash_i2c_client,
-			fctrl->reg_setting->low_setting);
-		if (rc < 0)
+				fctrl->flash_i2c_client, fctrl->reg_setting->low_setting);
+		if (rc < 0) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
+		} else {
+			fctrl->flash_i2c_client->i2c_func_tbl->i2c_read(
+				fctrl->flash_i2c_client, 0xD0, &flag, MSM_CAMERA_I2C_BYTE_DATA);
+			pr_info("%s flag = 0x%x\n", __func__, flag);
+		}
 	}
 
 	return rc;
@@ -216,6 +222,7 @@ int msm_flash_lm3559_led_high(struct msm_led_flash_ctrl_t *fctrl)
 	int rc = 0;
 	struct msm_camera_sensor_board_info *flashdata = NULL;
 	struct msm_camera_power_ctrl_t *power_info = NULL;
+	uint16_t flag;
 	LM3559_DBG("%s:%d called\n", __func__, __LINE__);
 
 	flashdata = fctrl->flashdata;
@@ -231,8 +238,13 @@ int msm_flash_lm3559_led_high(struct msm_led_flash_ctrl_t *fctrl)
 		rc = fctrl->flash_i2c_client->i2c_func_tbl->i2c_write_table(
 			fctrl->flash_i2c_client,
 			fctrl->reg_setting->high_setting);
-		if (rc < 0)
+		if (rc < 0) {
 			pr_err("%s:%d failed\n", __func__, __LINE__);
+		} else {
+			fctrl->flash_i2c_client->i2c_func_tbl->i2c_read(
+				fctrl->flash_i2c_client, 0xD0, &flag, MSM_CAMERA_I2C_BYTE_DATA);
+			pr_info("%s flag = 0x%x\n", __func__, flag);
+		}
 	}
 
 	return rc;

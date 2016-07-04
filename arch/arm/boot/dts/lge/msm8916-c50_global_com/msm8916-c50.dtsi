@@ -33,8 +33,8 @@
 	aliases {
 		serial0 = &blsp1_uart2;
 		i2c1 = &i2c_1; /* i2c_1 BLSP1 QUP1 */
+		nfc = &nfc_bcm;
 	};
-
 };
 
 &blsp1_uart2 {
@@ -85,7 +85,7 @@
 	/*  LGE_CHANGE_S, [NFC][wongab.jeon@lge.com], 2013-02-13, NFC Bring up */
 	i2c_6: i2c@78ba000 { //E2 Rev.A
 	/*i2c_4: i2c@78b8000 {*///E2 HDK
-		bcm2079x@76 {
+nfc_bcm:	bcm2079x@76 {
 			status = "ok";
 		};
 	};
@@ -255,4 +255,5 @@
 #include "msm8916-c50-camera.dtsi"
 #include "msm8916-c50-connectivity.dtsi"
 #include "msm8916-c50-sound.dtsi"
+#include "msm8916-c50-nfc.dtsi"
 

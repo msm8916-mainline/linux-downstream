@@ -145,7 +145,7 @@ struct usb_ep_ops {
 
 	int (*fifo_status) (struct usb_ep *ep);
 	void (*fifo_flush) (struct usb_ep *ep);
-#ifdef CONFIG_USB_G_LGE_MULTIPLE_CONFIGURATION
+#ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
 	void (*yield_request) (struct usb_ep *ep, struct usb_request *req);
 #endif
 };
@@ -193,7 +193,7 @@ struct usb_ep {
 };
 
 /*-------------------------------------------------------------------------*/
-#ifdef CONFIG_USB_G_LGE_MULTIPLE_CONFIGURATION
+#ifdef CONFIG_LGE_USB_G_MULTIPLE_CONFIGURATION
 /*
  * If some eps need to share the usb_requset,
  * this function do that.

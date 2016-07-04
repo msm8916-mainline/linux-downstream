@@ -35,6 +35,7 @@
 #include <linux/file.h>
 #include <linux/syscalls.h>
 #include <linux/async.h>
+#include <linux/irq.h>
 #ifdef CONFIG_LGE_PM
 #include <soc/qcom/lge/board_lge.h>
 #endif
@@ -44,6 +45,7 @@
 
 #define LGE_TOUCH_NAME      "lge_touch"
 
+static struct mutex lpwg_lock;
 static struct mutex i2c_suspend_lock;
 static struct mutex irq_lock;
 
@@ -51,6 +53,7 @@ static bool is_probing;
 static bool selftest_enable;
 static bool selftest_show;
 static struct wake_lock touch_wake_lock;
+static struct wake_lock pm_touch_wake_lock;
 static struct mxt_data *global_mxt_data;
 static struct workqueue_struct	*touch_wq = NULL;
 
@@ -60,9 +63,24 @@ static unsigned char touched_finger_count = 0;
 static unsigned char patchevent_mask = 0;
 static unsigned char power_block_mask = 0;
 
-#if defined(CONFIG_MACH_MSM8926_E8LTE) || defined(CONFIG_MACH_MSM8226_E8WIFI)
-bool thermal_status = 0;
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+bool thermal_status_mode = 0;
 extern int touch_thermal_mode;
+static bool check_panel = 0;
+#endif
+
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+bool is_self_cap_off = false;
+bool is_finger_mode = false;
+bool is_stylus_mode = false;
+static int finger_mode_count = 0;
+static int stylus_mode_count = 0;
+
+static int touch_current_temp = 0;
+static int touch_previous_temp_mode = 0;
+int check_current_temp_mode(int current_temp);
+void select_temp_event_knock_on(int temp_mode, int lpwg_mode);
+extern int bq24296_get_batt_temp_origin(void);
 #endif
 
 static struct bus_type touch_subsys = {
@@ -96,6 +114,7 @@ static u8 ime_status_value = 0;
 static bool factorymode = false;
 #endif
 static int g_usb_type = 0;
+static int factory_boot = 0;
 
 static int mxt_soft_reset(struct mxt_data *data);
 static int mxt_hw_reset(struct mxt_data *data);
@@ -111,7 +130,7 @@ static int mxt_command_backup(struct mxt_data *data, u8 value);
 static int mxt_command_reset(struct mxt_data *data, u8 value);
 static void mxt_regulator_disable(struct mxt_data *data);
 static void mxt_regulator_enable(struct mxt_data *data);
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 static int mxt_check_panel_type(struct mxt_data *data);
 static hw_rev_type lge_bd_rev = HW_REV_A;
 #endif
@@ -123,8 +142,9 @@ char *lpwg_event[2] = { "TOUCH_GESTURE_WAKEUP=PASSWORD", NULL };
 
 static void send_uevent(char* string[2])
 {
-	kobject_uevent_env(&device_touch.kobj, KOBJ_CHANGE, string);
-	TOUCH_INFO_MSG("uevent[%s]\n", string[0]);
+	int ret = 0;
+	ret = kobject_uevent_env(&device_touch.kobj, KOBJ_CHANGE, string);
+	TOUCH_INFO_MSG("uevent[%s], ret:%d\n", string[0], ret);
 }
 
 #if defined(CONFIG_TOUCHSCREEN_LGE_LPWG)
@@ -144,22 +164,21 @@ static enum hrtimer_restart tci_timer_func(struct hrtimer *multi_tap_timer)
 static void mxt_active_mode_start(struct mxt_data *data);
 static void mxt_gesture_mode_start(struct mxt_data *data);
 
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+static void save_lpwg_debug_reason(struct mxt_data *data, u8 *value);
+static void save_lpwg_debug_reason_print(struct mxt_data *data);
+#endif
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 extern int cradle_smart_cover_status(void);
 #endif
 static void touch_multi_tap_work(struct work_struct *multi_tap_work)
 {
-	struct mxt_data *data = container_of(multi_tap_work, struct mxt_data, multi_tap_work);
-
 	TOUCH_DEBUG_MSG("TCI WORK in \n");
 	wake_unlock(&touch_wake_lock);
 	wake_lock_timeout(&touch_wake_lock, msecs_to_jiffies(3000));
 
 	TOUCH_DEBUG_MSG("T93 ENABLE LPWG \n");
-	if (data->suspended) {
-		send_uevent(lpwg_event);
-//		mxt_set_t7_power_cfg(data, MXT_POWER_CFG_DEEPSLEEP);
-	}
+	send_uevent(lpwg_event);
 }
 
 static void waited_udf(struct mxt_data *data, u8 *message)
@@ -193,7 +212,9 @@ static int touch_enable_irq_wake(unsigned int irq)
 		touch_irq_wake_mask = 1;
 		ret = enable_irq_wake(irq);
 		if (ret != 0)
-			TOUCH_INFO_MSG("%s : %d \n", __func__, ret);
+			TOUCH_ERR_MSG("%s : %d \n", __func__, ret);
+		else
+			TOUCH_DEBUG_MSG("%s : %d \n", __func__, ret);
 	}
 
 	mutex_unlock(&irq_lock);
@@ -210,7 +231,9 @@ static int touch_disable_irq_wake(unsigned int irq)
 		touch_irq_wake_mask = 0;
 		ret = disable_irq_wake(irq);
 		if (ret != 0)
-			TOUCH_INFO_MSG("%s : %d \n", __func__, ret);
+			TOUCH_ERR_MSG("%s : %d \n", __func__, ret);
+		else
+			TOUCH_DEBUG_MSG("%s : %d \n", __func__, ret);
 	}
 
 	mutex_unlock(&irq_lock);
@@ -225,6 +248,7 @@ static void touch_enable_irq(unsigned int irq)
 	if (!touch_irq_mask) {
 		touch_irq_mask = 1;
 		enable_irq(irq);
+		TOUCH_DEBUG_MSG("%s()\n", __func__);
 	}
 
 	mutex_unlock(&irq_lock);
@@ -237,6 +261,7 @@ static void touch_disable_irq(unsigned int irq)
 	if (touch_irq_mask) {
 		touch_irq_mask = 0;
 		disable_irq_nosync(irq);
+		TOUCH_DEBUG_MSG("%s()\n", __func__);
 	}
 
 	mutex_unlock(&irq_lock);
@@ -834,12 +859,12 @@ int mxt_get_self_reference_chk(struct mxt_data *data)
 
 static bool mxt_check_xy_range(struct mxt_data *data, u16 node)
 {
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	u8 x_line = node / data->channel_size.size_y;
 	u8 y_line = node % data->channel_size.size_y;
 #else
 	u8 x_line = node / data->info->matrix_ysize;
-	u8 y_line = node % data->info->matrix_xsize;
+	u8 y_line = node % data->info->matrix_ysize;
 #endif
 	return (y_line < data->rawdata->num_ynode) ?
 		(x_line < data->rawdata->num_xnode) : false;
@@ -901,7 +926,7 @@ static void mxt_prepare_debug_data(struct mxt_data *data)
 		error = -ENOMEM;
 		return ;
 	}
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	rawdata->num_xnode = data->channel_size.size_x;
 	rawdata->num_ynode = data->channel_size.size_y;
 	rawdata->num_nodes = rawdata->num_xnode * rawdata->num_ynode;
@@ -985,7 +1010,7 @@ static int mxt_read_all_diagnostic_data(struct mxt_data *data, u8 dbg_mode, char
 
 	*len += snprintf(buf + *len, write_page - *len, "\n===============================================");
 	*len += snprintf(buf + *len, write_page - *len, "===============================================");
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	end_page = (data->channel_size.size_x * data->channel_size.size_y) / NODE_PER_PAGE;
 #else
 	end_page = (data->info->matrix_xsize * data->info->matrix_ysize) / NODE_PER_PAGE;
@@ -1001,11 +1026,14 @@ static int mxt_read_all_diagnostic_data(struct mxt_data *data, u8 dbg_mode, char
 	/* read the dbg data */
 	for (read_page = 0 ; read_page < end_page; read_page++) {
 		for (node = 0; node < NODE_PER_PAGE; node++) {
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 			if (cnt%data->channel_size.size_y == 0) {
 				*len += snprintf(buf + *len , write_page - *len, "\n[X%02d] ", cnt/data->channel_size.size_y);
 				if (cnt/data->channel_size.size_y == data->channel_size.size_x) {
 #else
+			if (cnt / data->info->matrix_ysize >= data->channel_size.size_x) {
+				break;
+			}
 			if (cnt%data->info->matrix_ysize == 0) {
 				*len += snprintf(buf + *len , write_page - *len, "\n[X%02d] ", cnt/data->info->matrix_ysize);
 				if (cnt/data->info->matrix_ysize == data->info->matrix_xsize) {
@@ -1019,19 +1047,24 @@ static int mxt_read_all_diagnostic_data(struct mxt_data *data, u8 dbg_mode, char
 			if (!mxt_check_xy_range(data, cnt++)) {
 				break;
 			}
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 			value = mxt_treat_dbg_data(data, dbg_object, dbg_mode, read_point, num);
 
 			*len += snprintf(buf + *len , write_page - *len, "%6d", value);
 
+#if 0 /* remove unused variable */
 			if(dbg_mode == MXT_DIAG_REFERENCE_MODE && data->full_cap != NULL )
 				data->full_cap[num / data->channel_size.size_y][num % data->channel_size.size_y] = value;
+#endif
 #else
 			value = mxt_treat_dbg_data(data, dbg_object, dbg_mode, read_point, num);
-			*len += snprintf(buf + *len , write_page - *len, "%6d", value);
-
+			if(cnt % data->info->matrix_ysize <= data->channel_size.size_y && cnt % data->info->matrix_ysize != 0) {
+				*len += snprintf(buf + *len , write_page - *len, "%6d", value);
+			}
+#if 0 /* remove unused variable */
 			if(dbg_mode == MXT_DIAG_REFERENCE_MODE && data->full_cap != NULL )
 				data->full_cap[num / data->info->matrix_ysize][num % data->info->matrix_ysize] = value;
+#endif
 #endif
 			num++;
 		}
@@ -1095,7 +1128,7 @@ static void mxt_proc_t6_messages(struct mxt_data *data, u8 *msg)
 	u8 status = msg[1];
 	u32 crc = msg[2] | (msg[3] << 8) | (msg[4] << 16);
 	struct mxt_object *object = NULL;
-	u8 stylus_in_a_row_limit[2] = {0};
+	u8 stylus_in_a_row_limit[6] = {0};
 	int ret = 0;
 
 	if (crc != data->config_crc) {
@@ -1127,6 +1160,7 @@ static void mxt_proc_t6_messages(struct mxt_data *data, u8 *msg)
 //		mxt_regulator_enable(data);
 		mxt_reset_slots(data);
 		if (data->delayed_cal) {
+			TOUCH_DEBUG_MSG("delayed calibration call\n");
 			queue_delayed_work(touch_wq, &data->work_delay_cal, msecs_to_jiffies(200));
 			data->delayed_cal = false;
 		}
@@ -1138,14 +1172,16 @@ static void mxt_proc_t6_messages(struct mxt_data *data, u8 *msg)
 			return;
 		}
 
-		ret = mxt_read_mem(data, object->start_address+2, 2, stylus_in_a_row_limit);
+		ret = mxt_read_mem(data, object->start_address+2, 6, stylus_in_a_row_limit);
 
 		if (ret) {
 			TOUCH_INFO_MSG("T38 stylus_in_a_row_limit read fail \n");
 		}
 
 		data->stylus_in_a_row_cnt_thr = stylus_in_a_row_limit[0] << 8 | stylus_in_a_row_limit[1];
-		TOUCH_INFO_MSG("Set Stylus limit thr %d \n", data->stylus_in_a_row_cnt_thr);
+		data->x_zitter = stylus_in_a_row_limit[2] << 8 | stylus_in_a_row_limit[3];
+		data->y_zitter = stylus_in_a_row_limit[4] << 8 | stylus_in_a_row_limit[5];
+		TOUCH_INFO_MSG("Set Stylus limit thr %d x_zitter %d y_zitter %d \n", data->stylus_in_a_row_cnt_thr, data->x_zitter, data->y_zitter);
 	}
 
 	/* Set KnockCode Delay after RESET */
@@ -1165,9 +1201,11 @@ static void mxt_proc_t6_messages(struct mxt_data *data, u8 *msg)
 		if (mxt_patchevent_get(PATCH_EVENT_TA)) {
 			TOUCH_DEBUG_MSG("   Stage 1 : USB/TA \n");
 			if (factorymode)
-				mxt_patch_event(global_mxt_data, CHARGER_PLUGGED_AAT);
+				global_mxt_data->knock_on_mode = CHARGER_PLUGGED_AAT;
 			else
-				mxt_patch_event(global_mxt_data, CHARGER_PLUGGED);
+				global_mxt_data->knock_on_mode = CHARGER_PLUGGED;
+
+			mxt_patch_event(global_mxt_data, global_mxt_data->knock_on_mode);
 		}
 
 #if defined(CONFIG_TOUCHSCREEN_LGE_LPWG)
@@ -1175,17 +1213,19 @@ static void mxt_proc_t6_messages(struct mxt_data *data, u8 *msg)
 			if (data->lpwg_mode == LPWG_DOUBLE_TAP) {
 				TOUCH_DEBUG_MSG("   Stage 2 : Double Tap \n");
 				if (mxt_patchevent_get(PATCH_EVENT_TA)) {
-					mxt_patch_event(global_mxt_data, CHARGER_KNOCKON_SLEEP);
+					data->knock_on_mode = CHARGER_KNOCKON_SLEEP;
 				} else {
-					mxt_patch_event(global_mxt_data, NOCHARGER_KNOCKON_SLEEP);
+					data->knock_on_mode = NOCHARGER_KNOCKON_SLEEP;
 				}
+				mxt_patch_event(global_mxt_data, data->knock_on_mode);
 			} else if(data->lpwg_mode == LPWG_MULTI_TAP) {
 				TOUCH_DEBUG_MSG("   Stage 2 : Multi Tap \n");
 				if (mxt_patchevent_get(PATCH_EVENT_TA)) {
-					mxt_patch_event(global_mxt_data, CHARGER_KNOCKON_SLEEP + (PATCH_EVENT_PAIR_NUM * (data->g_tap_cnt - 1)));
+					data->knock_on_mode = CHARGER_KNOCKON_SLEEP + PATCH_EVENT_PAIR_NUM;
 				} else {
-					mxt_patch_event(global_mxt_data, NOCHARGER_KNOCKON_SLEEP + (PATCH_EVENT_PAIR_NUM * (data->g_tap_cnt - 1)));
+					data->knock_on_mode = NOCHARGER_KNOCKON_SLEEP + PATCH_EVENT_PAIR_NUM;
 				}
+				mxt_patch_event(global_mxt_data, data->knock_on_mode);
 			}
 		}
 #else
@@ -1813,11 +1853,11 @@ static int mxt_proc_t37_message(struct mxt_data *data, u8 *msg_buf)
 	int y = 0;
 	int ret = 0;
 
-	#if 0
+#if 0
 	TOUCH_INFO_MSG("t37: %d, %d, %d, %d, %d, %d, %d, %d, %d\n",
 		msg_buf[0], msg_buf[1], msg_buf[2], msg_buf[3],
 		msg_buf[4], msg_buf[5], msg_buf[6], msg_buf[7], msg_buf[8]);
-	#endif
+#endif
 
 	object = mxt_get_object(data, MXT_DEBUG_DIAGNOSTIC_T37);
 
@@ -1879,10 +1919,14 @@ retry:
 		g_tci_press[i].x = x;
 		g_tci_press[i].y = y;
 
+		TOUCH_DEBUG_MSG("%d tap press x: %5u, y: %5u cnt: %d\n", i, x, y, cnt);
+
 		x = (buf[cnt + 5] << 8) | buf[cnt + 4];
 		y = (buf[cnt + 7] << 8) | buf[cnt + 6];
 		g_tci_report[i].x = x;
 		g_tci_report[i].y = y;
+
+		TOUCH_DEBUG_MSG("%d tap release x: %5u, y: %5u cnt: %d\n", i, x, y, cnt);
 	}
 
 	if (buf)
@@ -1897,7 +1941,42 @@ error:
 
 	return 1;
 }
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+static void mxt_proc_t93_messages(struct mxt_data *data, u8 *message)
+{
+	u8 lpwg_mode_msg = 0;
+	u8 lpwg_fail_msg = 0;
+	if (data->in_bootloader)
+		return;
 
+	lpwg_mode_msg = message[1];
+	lpwg_fail_msg = message[2];
+
+	TOUCH_INFO_MSG("T93 lpwg_mode_msg:0x%x, lpwg_fail_msg:0x%x \n",lpwg_mode_msg, lpwg_fail_msg);
+
+	if ( lpwg_mode_msg & 0x01){
+		if(data->pdata->realtime_use_debug_reason)
+			save_lpwg_debug_reason_print(data);
+
+		mxt_t6_command(data, MXT_COMMAND_DIAGNOSTIC, UDF_MESSAGE_COMMAND, false);
+		mxt_proc_t37_message(data, message);
+		wake_unlock(&touch_wake_lock);
+		wake_lock_timeout(&touch_wake_lock, msecs_to_jiffies(3000));
+		hrtimer_try_to_cancel(&data->multi_tap_timer);
+		if (!hrtimer_callback_running(&data->multi_tap_timer))
+			hrtimer_start(&data->multi_tap_timer, ktime_set(0, MS_TO_NS(MXT_WAITED_UDF_TIME)), HRTIMER_MODE_REL);
+	} else if ( lpwg_mode_msg & 0x02 ) {
+		if(data->pdata->realtime_use_debug_reason)
+			save_lpwg_debug_reason_print(data);
+
+		TOUCH_INFO_MSG("T93 Knock ON!!\n");
+		wake_unlock(&touch_wake_lock);
+		wake_lock_timeout(&touch_wake_lock, msecs_to_jiffies(3000));
+		send_uevent(knockon_event);
+	}
+
+}
+#else
 static void mxt_proc_t93_messages(struct mxt_data *data, u8 *message)
 {
 	u8 msg = 0;
@@ -1912,20 +1991,19 @@ static void mxt_proc_t93_messages(struct mxt_data *data, u8 *message)
 	if ( msg & 0x01){
 		mxt_t6_command(data, MXT_COMMAND_DIAGNOSTIC, UDF_MESSAGE_COMMAND, false);
 		mxt_proc_t37_message(data, message);
+		wake_unlock(&touch_wake_lock);
 		wake_lock_timeout(&touch_wake_lock, msecs_to_jiffies(3000));
-		mxt_active_mode_start(data);
-//		if (data->lpwg_mode == LPWG_MULTI_TAP) {
-			hrtimer_try_to_cancel(&data->multi_tap_timer);
-			if (!hrtimer_callback_running(&data->multi_tap_timer))
-				hrtimer_start(&data->multi_tap_timer, ktime_set(0, MS_TO_NS(MXT_WAITED_UDF_TIME)), HRTIMER_MODE_REL);
-//		} else if (data->lpwg_mode == LPWG_DOUBLE_TAP) {
-//			send_uevent(knockon_event);
-//		}
+		hrtimer_try_to_cancel(&data->multi_tap_timer);
+		if (!hrtimer_callback_running(&data->multi_tap_timer))
+			hrtimer_start(&data->multi_tap_timer, ktime_set(0, MS_TO_NS(MXT_WAITED_UDF_TIME)), HRTIMER_MODE_REL);
 	} else if ( msg & 0x02 ) {
 		TOUCH_INFO_MSG("T93 Knock ON!!\n");
+		wake_unlock(&touch_wake_lock);
+		wake_lock_timeout(&touch_wake_lock, msecs_to_jiffies(3000));
 		send_uevent(knockon_event);
 	}
 }
+#endif
 #endif
 
 
@@ -1999,13 +2077,26 @@ static void mxt_proc_t100_message(struct mxt_data *data, u8 *message)
 	u8 height;
 	u8 width;
 	static int pre_id = 0;
+	static int pre_x = 0;
+	static int pre_y = 0;
+	static int  return_cnt = 0;
 
 	/* do not report events if input device not yet registered */
 	if (!data->enable_reporting){
 		TOUCH_DEBUG_MSG( "return event\n");
+		if(return_cnt++ > 30) {
+			TOUCH_ERR_MSG( "recalibration\n");
+			touch_disable_irq(data->irq);
+			queue_delayed_work(touch_wq, &data->work_delay_cal, msecs_to_jiffies(10));
+			data->delayed_cal = false;
+			msleep(50);
+			touch_enable_irq(data->irq);
+			return_cnt = 0;
+		}
 		return;
 	}
 
+	return_cnt = 0;
 	id = message[0] - data->T100_reportid_min - 2;
 
 	status = message[1];
@@ -2019,14 +2110,6 @@ static void mxt_proc_t100_message(struct mxt_data *data, u8 *message)
 	height = message[data->t100_aux_resv];
 	width = message[data->t100_aux_resv+1];
 
-#if 0//def T100_AREA_W_H_IN_2BYTES
-	if(data->t100_aux_ampl && data->t100_aux_area && data->t100_aux_resv){
-		area  = message[7] & MXT_T100_AREA_MASK;
-		height= message[8] & MXT_T100_HEIGHT_MASK;
-		width = ((message[7] & MXT_T100_WIDTH_MSB_MASK)>>3) | (message[8]>>5);
-	}
-#endif
-
 	if (status & MXT_T100_DETECT) {
 		/* Multiple bits may be set if the host is slow to read the
 		* status messages, indicating all the events that have
@@ -2037,19 +2120,90 @@ static void mxt_proc_t100_message(struct mxt_data *data, u8 *message)
 				pre_id = id;
 			}
 
-			if(pre_id == id && data->patch.src_item[MXT_PATCH_ITEM_USER4] == 0) {
-				if(data->stylus_in_a_row_cnt_thr < data->stylus_in_a_row_cnt++) {
-					data->patch.src_item[MXT_PATCH_ITEM_USER4] = 1;
-					TOUCH_INFO_MSG("Stylus Row Cnt OK \n");
+			if(data->patch.src_item[MXT_PATCH_ITEM_USER4] == 0)
+			{
+				if(pre_id == id) {
+					if(data->stylus_in_a_row_cnt_thr < data->stylus_in_a_row_cnt++) {
+						data->patch.src_item[MXT_PATCH_ITEM_USER4] = 1;
+						TOUCH_INFO_MSG("Stylus Continually Mode Enter \n");
+						data->stylus_in_a_row_cnt = 0;
+					}
+				}
+				else {
+					data->stylus_in_a_row_cnt = 0;
 				}
 			}
-			else {
-				data->stylus_in_a_row_cnt = 0;
+			else if(data->patch.src_item[MXT_PATCH_ITEM_USER4] == 1)
+			{
+				if(data->stylus_in_a_row_cnt == 0)
+				{
+					pre_x = x;
+					pre_y = y;
+				}
+#if 0
+                 TOUCH_DEBUG_MSG("pre_id:%d, id:%d, cnt : %d, x:%d, y:%d, pre_x:%d, pre_y:%d, x zit : %d Y zit : %d\n",
+								 pre_id, id, data->stylus_in_a_row_cnt,x,y,pre_x,pre_y, x - pre_x, y - pre_y);
+#endif
+				if(pre_id == id && pre_x <= (x + data->x_zitter) && pre_x >= (x - data->x_zitter) && pre_y <= (y + data->y_zitter) && pre_y >= (y - data->y_zitter))
+				{
+					if(data->stylus_in_a_row_cnt_thr < data->stylus_in_a_row_cnt++) {
+						data->patch.src_item[MXT_PATCH_ITEM_USER4] = 2;
+						TOUCH_INFO_MSG("Stylus Continually Mode Exit \n");
+						data->stylus_in_a_row_cnt = 0;
+					}
+				}
+				else
+				{
+					data->stylus_in_a_row_cnt = 0;
+				}
+			}
+			else if(data->patch.src_item[MXT_PATCH_ITEM_USER4] == 2)
+			{
+				if(data->stylus_in_a_row_cnt++ > 100) {
+					TOUCH_INFO_MSG("Stylus Continually Mode Re-Chk \n");
+					data->patch.src_item[MXT_PATCH_ITEM_USER4] = 0;
+                            data->stylus_in_a_row_cnt = 0;
+				}
 			}
 		}
 		else {
 			data->stylus_in_a_row_cnt = 0;
 		}
+
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+		if (is_self_cap_off && !is_finger_mode && !is_stylus_mode) {
+			if (id == 0 && (status & MXT_T100_TYPE_MASK) == MXT_T100_TYPE_FINGER) {
+				finger_mode_count++;
+				stylus_mode_count = 0;
+			} else if (id == 0 && (status & 0xFF) == 0xA4) {
+				stylus_mode_count++;
+				finger_mode_count = 0;
+			}
+
+			if (finger_mode_count > 2000) {
+				mxt_write_object(data, MXT_SPT_CTECONFIG_T46, 2, 80);
+				mxt_write_object(data, MXT_SPT_CTECONFIG_T46, 3, 80);
+				mxt_write_object(data, MXT_TOUCH_MULTITOUCHSCREEN_T100, 32, 30);
+
+				finger_mode_count = 0;
+				stylus_mode_count = 0;
+				is_finger_mode = true;
+				TOUCH_ERR_MSG("is_finger_mode is true\n");
+			}
+			if (stylus_mode_count > 100) {
+				finger_mode_count = 0;
+				stylus_mode_count = 0;
+				is_stylus_mode = true;
+				TOUCH_ERR_MSG("is_stylus_mode is true\n");
+			}
+		} else if(is_finger_mode) {
+			if (id == 0 && (status & MXT_T100_TYPE_MASK) == MXT_T100_TYPE_STYLUS) {
+				is_finger_mode = false;
+				TOUCH_ERR_MSG("is_finger_mode is false\n");
+				mxt_write_object(data, MXT_TOUCH_MULTITOUCHSCREEN_T100, 32, 8);
+			}
+		}
+#endif
 
 		if ((status & MXT_T100_STATUS_MASK) == MXT_T100_RELEASE || (status & MXT_T100_STATUS_MASK) == MXT_T100_SUPPRESSION) {
 			data->ts_data.curr_data[id].id = id;
@@ -2124,6 +2278,14 @@ static void mxt_proc_t100_message(struct mxt_data *data, u8 *message)
 #endif
 
 	} else {
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+		if (is_self_cap_off && !is_finger_mode && !is_stylus_mode) {
+			if ( (status & MXT_T100_STATUS_MASK) == MXT_T100_RELEASE) {
+				finger_mode_count = 0;
+			}
+		}
+#endif
+
 		/* Touch Release */
 		data->ts_data.curr_data[id].id = id;
 		data->ts_data.curr_data[id].status = FINGER_RELEASED;
@@ -2261,7 +2423,9 @@ static ssize_t mxt_update_patch_store(struct mxt_data *data, const char *buf, si
 		global_mxt_data = NULL;
 		TOUCH_ERR_MSG("%s global_mxt_data is NULL \n", __func__);
 	}
-	release_firmware(fw);
+
+	if(fw)
+		release_firmware(fw);
 
 	return 1;
 
@@ -2274,6 +2438,21 @@ out:
 	return 1;
 }
 
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+void check_touch_batt_temp(int therm_mode)
+{
+	if (global_mxt_data != NULL) {
+		TOUCH_INFO_MSG("[%s] thermal status = (%d)\n", __func__, therm_mode);
+		if(therm_mode) {
+			mxt_patch_event(global_mxt_data, HIGH_TEMP_SET);
+		}
+		else {
+			mxt_patch_event(global_mxt_data, HIGH_TEMP_UNSET);
+		}
+		thermal_status_mode = therm_mode;
+	}
+}
+#endif
 void trigger_usb_state_from_otg(int usb_type)
 {
 	TOUCH_INFO_MSG("USB trigger USB_type: %d \n", usb_type);
@@ -2327,8 +2506,10 @@ void trigger_usb_state_from_otg(int usb_type)
 #if defined(CONFIG_TOUCHSCREEN_LGE_LPWG)
 					if (global_mxt_data->lpwg_mode == LPWG_DOUBLE_TAP) {
 						mxt_patch_event(global_mxt_data, CHARGER_KNOCKON_WAKEUP);
+						global_mxt_data->knock_on_mode = CHARGER_KNOCKON_WAKEUP;
 					} else if (global_mxt_data->lpwg_mode == LPWG_MULTI_TAP) {
 						mxt_patch_event(global_mxt_data, CHARGER_KNOCKON_WAKEUP + PATCH_EVENT_PAIR_NUM);
+						global_mxt_data->knock_on_mode = CHARGER_KNOCKON_WAKEUP + PATCH_EVENT_PAIR_NUM;
 						/* Write TCHCNTTHR(Touch Count Threshold) for LPWG_MULTI_TAP */
 						global_mxt_data->error = mxt_write_reg(global_mxt_data->client, global_mxt_data->global_object->start_address+17, global_mxt_data->g_tap_cnt);
 						if (global_mxt_data->error)
@@ -2338,7 +2519,7 @@ void trigger_usb_state_from_otg(int usb_type)
 					mxt_patch_event(global_mxt_data, CHARGER_KNOCKON_WAKEUP);
 #endif
 				}
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 				else {
 					if (global_mxt_data->suspended == true) {
 						if (global_mxt_data->work_deepsleep_enabled) {
@@ -2358,8 +2539,10 @@ void trigger_usb_state_from_otg(int usb_type)
 #if defined(CONFIG_TOUCHSCREEN_LGE_LPWG)
 				if (global_mxt_data->lpwg_mode == LPWG_DOUBLE_TAP){
 					mxt_patch_event(global_mxt_data, NOCHARGER_KNOCKON_WAKEUP);
+					global_mxt_data->knock_on_mode = NOCHARGER_KNOCKON_WAKEUP;
 				} else if (global_mxt_data->lpwg_mode == LPWG_MULTI_TAP) {
 					mxt_patch_event(global_mxt_data, NOCHARGER_KNOCKON_WAKEUP + PATCH_EVENT_PAIR_NUM);
+					global_mxt_data->knock_on_mode = NOCHARGER_KNOCKON_WAKEUP + PATCH_EVENT_PAIR_NUM;
 					/* Write TCHCNTTHR(Touch Count Threshold) for LPWG_MULTI_TAP */
 					global_mxt_data->error = mxt_write_reg(global_mxt_data->client, global_mxt_data->global_object->start_address+17, global_mxt_data->g_tap_cnt);
 					if (global_mxt_data->error)
@@ -2386,15 +2569,6 @@ void trigger_usb_state_from_otg(int usb_type)
 	}
 }
 
-#if defined(CONFIG_MACH_MSM8926_E8LTE) || defined(CONFIG_MACH_MSM8226_E8WIFI)
-void check_touch_bat_therm(int therm_mode){
-	if (global_mxt_data!= NULL) {
-		TOUCH_INFO_MSG("[%s] thermal status = (%d)\n", __func__, therm_mode);
-		mxt_t6_command(global_mxt_data, MXT_COMMAND_CALIBRATE, 1, false);
-		thermal_status = therm_mode;
-	}
-}
-#endif
 
 static void mxt_proc_message_log(struct mxt_data *data, u8 type)
 {
@@ -2608,14 +2782,14 @@ static irqreturn_t mxt_process_messages_t44(struct mxt_data *data)
 		}
 		if (data->ts_data.curr_data[i].status == FINGER_RELEASED && data->ts_data.prev_data[i].status != FINGER_RELEASED) {
 			input_mt_slot(data->input_dev, data->ts_data.curr_data[i].id);
-			input_mt_report_slot_state(data->input_dev, data->ts_data.curr_data[i].tool, 0);
+			input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, 0);
 		}  else {
 			if(data->ts_data.curr_data[i].status == FINGER_RELEASED){
 				input_mt_slot(data->input_dev, data->ts_data.curr_data[i].id);
-				input_mt_report_slot_state(data->input_dev, data->ts_data.curr_data[i].tool, 0);
+				input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, 0);
 			} else {
 				input_mt_slot(data->input_dev, data->ts_data.curr_data[i].id);
-				input_mt_report_slot_state(data->input_dev, data->ts_data.curr_data[i].tool, 1);
+				input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, 1);
 				input_report_abs(data->input_dev, ABS_MT_TRACKING_ID, data->ts_data.curr_data[i].id);
 				input_report_abs(data->input_dev, ABS_MT_POSITION_X, data->ts_data.curr_data[i].x_position);
 				input_report_abs(data->input_dev, ABS_MT_POSITION_Y, data->ts_data.curr_data[i].y_position);
@@ -2703,10 +2877,135 @@ update_count:
 
 	return IRQ_HANDLED;
 }
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+static void save_lpwg_debug_reason_print(struct mxt_data *data)
+{
+	int i = 0;
+	struct mxt_object *object = NULL;
+	int len = 0;
+	u8 value[10];
+	char buf[100] = {0,};
 
+	mxt_t6_command(data, MXT_COMMAND_DIAGNOSTIC, UDF_MESSAGE_COMMAND, true);
+	mxt_t6_command(data, MXT_COMMAND_DIAGNOSTIC, MXT_DIAG_PAGE_DOWN, true);
+	object = mxt_get_object(data, MXT_DEBUG_DIAGNOSTIC_T37);
+	if (object) {
+		__mxt_read_reg(data->client, object->start_address + 2, 10, value);
+		for(i = 0;i < 10;i++) {
+			len += snprintf(buf + len, PAGE_SIZE - len, "0x%x, ", value[i]);
+		}
+		len += snprintf(buf + len, PAGE_SIZE - len, "\n");
+		TOUCH_INFO_MSG("LPWG DEBUG Reason : %s len:%d \n", buf, len);
+	}
+	else {
+		TOUCH_ERR_MSG("Failed get T37 Object\n");
+	}
+}
+static void save_lpwg_debug_reason(struct mxt_data *data, u8 *value)
+{
+	int i = 0;
+	struct mxt_object *object = NULL;
+	int len = 0;
+	char buf[100] = {0,};
+
+	mxt_t6_command(data, MXT_COMMAND_DIAGNOSTIC, UDF_MESSAGE_COMMAND, true);
+	mxt_t6_command(data, MXT_COMMAND_DIAGNOSTIC, MXT_DIAG_PAGE_DOWN, true);
+	object = mxt_get_object(data, MXT_DEBUG_DIAGNOSTIC_T37);
+	if (object) {
+		__mxt_read_reg(data->client, object->start_address + 2, 10, value);
+		for(i = 0;i < 10;i++) {
+			len += snprintf(buf + len, PAGE_SIZE - len, "0x%x, ", value[i]);
+		}
+		len += snprintf(buf + len, PAGE_SIZE - len, "\n");
+		TOUCH_INFO_MSG("LPWG DEBUG Reason : %s len:%d\n", buf, len);
+	}
+	else {
+		TOUCH_ERR_MSG("Failed get T37 Object\n");
+	}
+}
+static int mxt_lpwg_debug_interrupt_control(struct mxt_data* data, int mode)
+{
+	int ret = -1;
+	u8 value[2] = {0,};
+	u8 read_value[2] = {0,};
+	struct mxt_object *object = NULL;
+
+	TOUCH_INFO_MSG("%s \n", __func__);
+
+	if(!mode)
+		return 0;
+
+	object = mxt_get_object(data, MXT_PROCI_TOUCH_SEQUENCE_LOGGER_T93);
+	if (object) {
+		ret = __mxt_read_reg(data->client, object->start_address + 28, 2, read_value);
+		if(ret) {
+			TOUCH_ERR_MSG("%s Read Failed T93\n",__func__);
+			return ret;
+		}
+		else {
+			TOUCH_DEBUG_MSG("%s debug reason ctrl status:0x%x, 0x%x\n", __func__, read_value[0], read_value[1]);
+		}
+	}
+	else {
+		return ret;
+	}
+
+	if(data->lpwg_mode == LPWG_DOUBLE_TAP) {
+		value[0] = 0x1E;
+		value[1] = 0x00;
+	}
+	else if(data->lpwg_mode == LPWG_MULTI_TAP) {
+		value[0] = 0x3C;
+		value[1] = 0x00;
+	}
+
+	if((read_value[0] == value[0]) && (read_value[1] == value[1])){
+		TOUCH_DEBUG_MSG("T93 FAILRPTEN Field write skip\n");
+		return ret;
+	}
+
+	if (object) {
+		ret = __mxt_write_reg(data->client, object->start_address + 28, 2, value);
+		if(ret) {
+			TOUCH_ERR_MSG("%s Write Failed T93\n",__func__);
+			return ret;
+		}
+
+		ret = __mxt_read_reg(data->client, object->start_address + 28, 2, value);
+		if(ret) {
+			TOUCH_ERR_MSG("%s Read Failed T93\n",__func__);
+			return ret;
+		}
+		else {
+			TOUCH_DEBUG_MSG("%s new debug reason ctrl status:0x%x, 0x%x\n", __func__, value[0], value[1]);
+		}
+	}
+	return ret;
+}
+#endif
+/* touch_irq_handler
+ *
+ * When Interrupt occurs, it will be called before touch_thread_irq_handler.
+ *
+ * return
+ * IRQ_HANDLED: touch_thread_irq_handler will not be called.
+ * IRQ_WAKE_THREAD: touch_thread_irq_handler will be called.
+ */
+static irqreturn_t touch_irq_handler(int irq, void *dev_id)
+{
+	struct mxt_data *data = (struct mxt_data *)dev_id;
+	if (data->pm_state >= PM_SUSPEND) {
+		TOUCH_INFO_MSG("interrupt in suspend[%d]\n",data->pm_state);
+		data->pm_state = PM_SUSPEND_IRQ;
+		wake_lock_timeout(&pm_touch_wake_lock, msecs_to_jiffies(1000));
+		return IRQ_HANDLED;
+	}
+
+	return IRQ_WAKE_THREAD;
+}
 static irqreturn_t mxt_interrupt(int irq, void *dev_id)
 {
-	struct mxt_data *data = dev_id;
+	struct mxt_data *data = (struct mxt_data*)dev_id;
 	irqreturn_t ret = IRQ_NONE;
 
 	if (data->in_bootloader) {
@@ -2842,12 +3141,14 @@ static int mxt_hw_reset(struct mxt_data *data)
 
 	return 0;
 }
+#ifndef CONFIG_MACH_MSM8939_ALTEV2_LGU_KR /*not used*/
 static void mxt_power_reset(struct mxt_data *data)
 {
 	mxt_regulator_disable(data);
 	msleep(MXT_POWERON_DELAY);
 	mxt_regulator_enable(data);
 }
+#endif
 static void mxt_update_crc(struct mxt_data *data, u8 cmd, u8 value)
 {
 	/* on failure, CRC is set to 0 and config will always be downloaded */
@@ -2911,7 +3212,7 @@ static int mxt_set_t7_power_cfg(struct mxt_data *data, u8 sleep)
 	u16 tmp;
 
 	tmp = (u16)sizeof(data->t7_cfg);
-	
+
 	if (sleep == MXT_POWER_CFG_DEEPSLEEP)
 		new_config = &deepsleep;
 	else
@@ -3199,7 +3500,8 @@ release_mem:
 	TOUCH_INFO_MSG("kfree in %s \n", __func__);
 	kfree(config_mem);
 release:
-	release_firmware(cfg);
+	if(cfg)
+		release_firmware(cfg);
 
 	return ret;
 }
@@ -3438,7 +3740,7 @@ static int mxt_read_info_block(struct mxt_data *data)
 	size_t size = 0;
 	void *buf = NULL;
 	struct mxt_info *info = NULL;
-	u16 tmp = 0; 
+	u16 tmp = 0;
 	#if 0
 	u32 calculated_crc = 0;
 	u8 *crc_ptr = NULL;
@@ -3542,7 +3844,7 @@ static int mxt_read_t9_resolution(struct mxt_data *data)
 	u16 tmp = 0;
 
 	memset(&range, 0, sizeof(range));
-	
+
 	object = mxt_get_object(data, MXT_TOUCH_MULTI_T9);
 	if (!object)
 		return -EINVAL;
@@ -3592,18 +3894,15 @@ static void mxt_regulator_enable(struct mxt_data *data)
 	if(gpio_is_valid(data->pdata->gpio_reset)) {
 		gpio_set_value(data->pdata->gpio_reset, 0);
 	}
+	msleep(5);
 
 	/* vdd_ana enable */
 	if(gpio_is_valid(data->pdata->gpio_ldo2)) {
 		gpio_set_value(data->pdata->gpio_ldo2, 1);
 	}
+	msleep(5);
+
 	/* vcc_dig enable */
-
-	if(gpio_is_valid(data->pdata->gpio_ldo1)){
-		gpio_set_value(data->pdata->gpio_ldo1, 1);
-	}
-
-	/* vcc_i2c enable */
 	if (data->vcc_dig) {
 		error = regulator_enable(data->vcc_dig);
 		if (error < 0) {
@@ -3611,8 +3910,13 @@ static void mxt_regulator_enable(struct mxt_data *data)
 			return;
 		}
 	}
+	msleep(5);
 
-	data->regulator_status = 1;
+	/* vcc_i2c enable */
+	if(gpio_is_valid(data->pdata->gpio_ldo1)){
+		gpio_set_value(data->pdata->gpio_ldo1, 1);
+	}
+
 
 	INIT_COMPLETION(data->bl_completion);
 
@@ -3623,7 +3927,8 @@ static void mxt_regulator_enable(struct mxt_data *data)
 	}
 	msleep(MXT_RESET_TIME);
 
-	TOUCH_DEBUG_MSG("%s() reset:%d, ldo2:%d, ldo1:%d\n",__func__, gpio_get_value(data->pdata->gpio_reset), gpio_get_value(data->pdata->gpio_ldo2), gpio_get_value(data->pdata->gpio_ldo1));
+	TOUCH_INFO_MSG("%s() reset:%d, ldo2:%d, ldo1:%d\n",__func__, gpio_get_value(data->pdata->gpio_reset), gpio_get_value(data->pdata->gpio_ldo2), gpio_get_value(data->pdata->gpio_ldo1));
+	data->regulator_status = 1;
 }
 
 static void mxt_regulator_disable(struct mxt_data *data)
@@ -3639,6 +3944,11 @@ static void mxt_regulator_disable(struct mxt_data *data)
 	}
 
 	/* vcc_dig disable */
+	if(gpio_is_valid(data->pdata->gpio_ldo2)) {
+		gpio_set_value(data->pdata->gpio_ldo2, 0);
+	}
+
+	/* vdd_ana disable */
 	if (data->vcc_dig) {
 		error = regulator_disable(data->vcc_dig);
 		if (error < 0) {
@@ -3646,12 +3956,9 @@ static void mxt_regulator_disable(struct mxt_data *data)
 			return;
 		}
 	}
-	/* vdd_ana disable */
-	if(gpio_is_valid(data->pdata->gpio_ldo2)) 
-		gpio_set_value(data->pdata->gpio_ldo2, 0);
-	
+
 	/* vcc_i2c disable */
-	if(gpio_is_valid(data->pdata->gpio_ldo1)) 
+	if(gpio_is_valid(data->pdata->gpio_ldo1))
 		gpio_set_value(data->pdata->gpio_ldo1, 0);
 
 	TOUCH_INFO_MSG("%s \n", __func__);
@@ -3755,6 +4062,7 @@ static void mxt_read_fw_version(struct mxt_data *data)
 	TOUCH_INFO_MSG("Config CRC       = 0x%X  \n", data->config_crc);
 	TOUCH_INFO_MSG("Family Id        = 0x%02X \n", data->info->family_id);
 	TOUCH_INFO_MSG("Variant          = 0x%02X \n", data->info->variant_id);
+	TOUCH_INFO_MSG("Panel Type       = 0x%02X \n", data->panel_type);
 	TOUCH_INFO_MSG("==================================\n");
 }
 
@@ -3776,8 +4084,7 @@ static ssize_t mxt_testmode_ver_show(struct mxt_data *data, char *buf)
 {
 	ssize_t ret = 0;
 
-	ret += sprintf(buf+ret, "%d.%02d.%02d", data->pdata->fw_ver[0], data->pdata->fw_ver[1], data->pdata->fw_ver[2]);
-	ret += sprintf(buf+ret, "(%s)\n", data->pdata->product);
+	ret += sprintf(buf+ret, "%d.%02d.%02d (panel_type:0x%02X)", data->pdata->fw_ver[0], data->pdata->fw_ver[1], data->pdata->fw_ver[2], data->panel_type);
 
 	return ret;
 }
@@ -3795,7 +4102,7 @@ static ssize_t mxt_info_show(struct mxt_data *data, char *buf)
 	ret += sprintf(buf+ret, "Family Id        = 0x%02X \n", data->info->family_id);
 	ret += sprintf(buf+ret, "Variant          = 0x%02X \n", data->info->variant_id);
 	ret += sprintf(buf+ret, "Patch Date       = %d \n", data->patch.date);
-//	ret += sprintf(buf+ret, "Panel Type       = 0x%02X \n", data->panel_check_revB);
+	ret += sprintf(buf+ret, "Panel type       = 0x%02X \n", data->panel_type);
 
 	return ret;
 }
@@ -4118,7 +4425,8 @@ static int mxt_load_bin(struct device *dev, const char *name)
 disable_irq:
 	touch_disable_irq(data->irq);
 release_firmware:
-	release_firmware(fw);
+	if(fw)
+		release_firmware(fw);
 	return ret;
 }
 
@@ -4550,13 +4858,95 @@ static void write_file(char *filename, char *data, int time)
 
 }
 
+void log_file_size_check(char *fname)
+{
+	struct file *file;
+	loff_t file_size = 0;
+	int i = 0;
+	char buf1[128] = {0};
+	char buf2[128] = {0};
+	mm_segment_t old_fs = get_fs();
+	int ret = 0;
+
+	set_fs(KERNEL_DS);
+	if (fname) {
+		file = filp_open(fname, O_RDONLY, 0666);
+		sys_chmod(fname, 0666);
+	} else {
+		TOUCH_ERR_MSG("%s : fname is NULL, can not open FILE\n",
+				__func__);
+		goto error;
+	}
+
+	if (IS_ERR(file)) {
+		TOUCH_ERR_MSG("%s : ERR(%ld) Open file error [%s]\n",
+				__func__, PTR_ERR(file), fname);
+		goto error;
+	}
+
+	file_size = vfs_llseek(file, 0, SEEK_END);
+	TOUCH_INFO_MSG("%s : [%s] file_size = %lld\n",
+			__func__, fname, file_size);
+
+	filp_close(file, 0);
+
+	if (file_size > MAX_LOG_FILE_SIZE) {
+		TOUCH_INFO_MSG("%s : [%s] file_size(%lld) > MAX_LOG_FILE_SIZE(%d)\n",
+				__func__, fname, file_size, MAX_LOG_FILE_SIZE);
+
+		for (i = MAX_LOG_FILE_COUNT - 1; i >= 0; i--) {
+			if (i == 0)
+				sprintf(buf1, "%s", fname);
+			else
+				sprintf(buf1, "%s.%d", fname, i);
+
+			ret = sys_access(buf1, 0);
+
+			if (ret == 0) {
+				TOUCH_INFO_MSG("%s : file [%s] exist\n",
+						__func__, buf1);
+
+				if (i == (MAX_LOG_FILE_COUNT - 1)) {
+					if (sys_unlink(buf1) < 0) {
+						TOUCH_ERR_MSG("%s : failed to remove file [%s]\n",
+								__func__, buf1);
+						goto error;
+					}
+
+					TOUCH_INFO_MSG("%s : remove file [%s]\n",
+							__func__, buf1);
+				} else {
+					sprintf(buf2, "%s.%d",
+							fname,
+							(i + 1));
+
+					if (sys_rename(buf1, buf2) < 0) {
+						TOUCH_ERR_MSG("%s : failed to rename file [%s] -> [%s]\n",
+								__func__, buf1, buf2);
+						goto error;
+					}
+
+					TOUCH_INFO_MSG("%s : rename file [%s] -> [%s]\n",
+							__func__, buf1, buf2);
+				}
+			} else {
+				TOUCH_INFO_MSG("%s : file [%s] does not exist (ret = %d)\n",
+						__func__, buf1, ret);
+			}
+		}
+	}
+error:
+	set_fs(old_fs);
+	return;
+}
 static ssize_t mxt_run_delta_show(struct mxt_data *data, char *buf)
 {
 	ssize_t len = 0;
 	ssize_t ret_len = 0;
 	char *ref_buf = NULL;
 	int write_page = 1 << 14;
-	
+	char *fname = NULL;
+
 	mxt_power_block(POWERLOCK_SYSFS);
 
 	ref_buf = kzalloc(write_page, GFP_KERNEL);
@@ -4574,7 +4964,12 @@ static ssize_t mxt_run_delta_show(struct mxt_data *data, char *buf)
 
 	run_delta_read(data, ref_buf, &len);
 
-	write_file(DELTA_FILE_PATH, ref_buf, 0);
+	if (factory_boot)
+		fname =  DELTA_FILE_PATH_FACTORY;
+	else
+		fname = DELTA_FILE_PATH_NORMAL;
+	write_file(fname, ref_buf, 0);
+	log_file_size_check(fname);
 	msleep(30);
 
 	mxt_power_unblock(POWERLOCK_SYSFS);
@@ -4633,6 +5028,7 @@ static ssize_t mxt_run_rawdata_show(struct mxt_data *data, char *buf)
 	ssize_t ret_len = 0;
 	char *ref_buf = NULL;
 	int write_page = 1 << 14;
+	char *fname = NULL;
 
 	mxt_power_block(POWERLOCK_SYSFS);
 
@@ -4650,29 +5046,36 @@ static ssize_t mxt_run_rawdata_show(struct mxt_data *data, char *buf)
 	}
 
 	run_reference_read(data, ref_buf, &len);
-	
-	write_file(RAWDATA_FILE_PATH, ref_buf, 0);
+
+	if (factory_boot)
+		fname =  RAWDATA_FILE_PATH_FACTORY;
+	else
+		fname = RAWDATA_FILE_PATH_NORMAL;
+	write_file(fname, ref_buf, 0);
+	log_file_size_check(fname);
 	msleep(30);
 
 	mxt_power_unblock(POWERLOCK_SYSFS);
 	if(ref_buf)
 		kfree(ref_buf);
 
-	ret_len += snprintf(buf, PAGE_SIZE, "rawdata is saved to /mnt/sdcard/touch_rawdata.txt\n");
+	ret_len += snprintf(buf, PAGE_SIZE, "rawdata is saved to %s", fname);
 	return ret_len;
 }
 
 static ssize_t mxt_run_self_diagnostic_show(struct mxt_data *data, char *buf)
 {
+#if 0 /* remove unused variable */
 	int i = 0;
+#endif
 	int len = 0;
 	ssize_t info_len = 0;
 	ssize_t ref_len = 0;
 	char *ref_buf = NULL;
 	bool chstatus_result = 1;
 	bool rawdata_result = 1;
-
 	int write_page = 1 << 14;
+	char *fname = NULL;
 
 	mxt_power_block(POWERLOCK_SYSFS);
 
@@ -4687,6 +5090,9 @@ static ssize_t mxt_run_self_diagnostic_show(struct mxt_data *data, char *buf)
 		return (ssize_t)len;
 	}
 
+	TOUCH_INFO_MSG("MXT_COMMAND_CALIBRATE \n");
+	mxt_t6_command(data, MXT_COMMAND_CALIBRATE, 1, false);
+
 	ref_buf = kzalloc(write_page, GFP_KERNEL);
 	if (!ref_buf) {
 		TOUCH_ERR_MSG("%s Failed to allocate memory\n", __func__);
@@ -4695,9 +5101,10 @@ static ssize_t mxt_run_self_diagnostic_show(struct mxt_data *data, char *buf)
 		return 0;
 	}
 
+#if 0 /* remove unused variable */
 	/* allocation of full_cap */
 	data->full_cap = NULL;
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	data->full_cap = (int **)kzalloc(data->channel_size.size_x * sizeof(int *), GFP_KERNEL);
 	if(!data->full_cap)
 	{
@@ -4722,24 +5129,34 @@ static ssize_t mxt_run_self_diagnostic_show(struct mxt_data *data, char *buf)
 		data->full_cap[i] = kzalloc(data->info->matrix_ysize * sizeof(int), GFP_KERNEL);
 	}
 #endif
-	write_file(SELF_DIAGNOSTIC_FILE_PATH, buf, 1);
+#endif
+
+	if (factory_boot)
+		fname = SELF_DIAGNOSTIC_FILE_PATH_FACTORY;
+	else
+		fname = SELF_DIAGNOSTIC_FILE_PATH_NORMAL;
+	write_file(fname, buf, 1);
+	log_file_size_check(fname);
 	msleep(30);
 	len += mxt_info_show(data, buf);
 	len += snprintf(buf + len, PAGE_SIZE - len, "=======RESULT========\n");
 	info_len = (ssize_t)len;
 	len = mxt_selftest(data, buf, len);
-	write_file(SELF_DIAGNOSTIC_FILE_PATH, buf, 0);
+	write_file(fname, buf, 0);
+	log_file_size_check(fname);
 	msleep(30);
 	run_reference_read(data, ref_buf, &ref_len);
-	write_file(SELF_DIAGNOSTIC_FILE_PATH, ref_buf, 0);
+	write_file(fname, ref_buf, 0);
+	log_file_size_check(fname);
 	msleep(30);
 //	Do not use this function to avoid Watch dog.
 //	mxt_get_cap_diff(data);
 
 	kfree(ref_buf);
 
+#if 0 /* remove unused variable */
 	if (data->full_cap != NULL) {
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 		for(i = 0; i < data->channel_size.size_x; i++) {
 #else
 		for(i = 0; i < data->info->matrix_xsize; i++) {
@@ -4750,6 +5167,7 @@ static ssize_t mxt_run_self_diagnostic_show(struct mxt_data *data, char *buf)
 		kfree((int*)data->full_cap);
 		data->full_cap = NULL;
 	}
+#endif
 
 	if ((data->self_test_status[0] == 0x01) || (data->self_test_status[0] == 0x02))
 		chstatus_result = 0;
@@ -4855,7 +5273,7 @@ static void mxt_lpwg_enable(struct mxt_data *data, u32 value)
 	object = mxt_get_object(data, MXT_PROCI_TOUCH_SEQUENCE_LOGGER_T93);
 	if (!object)
 		return;
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	if (data->suspended && cradle_smart_cover_status()) {
 #else
 	if (data->suspended && gpio_get_value(HALL_IC_GPIO)) {
@@ -4876,19 +5294,21 @@ static void mxt_lpwg_enable(struct mxt_data *data, u32 value)
 			if (global_mxt_data->lpwg_mode == LPWG_DOUBLE_TAP) {
 				if (mxt_patchevent_get(PATCH_EVENT_TA)) {
 					TOUCH_INFO_MSG("Suspend : Knock On Enabled(TA) \n");
-					mxt_patch_event(global_mxt_data, CHARGER_KNOCKON_SLEEP);
+					data->knock_on_mode = CHARGER_KNOCKON_SLEEP;
 				} else {
 					TOUCH_INFO_MSG("Suspend : Knock On Enabled \n");
-					mxt_patch_event(global_mxt_data, NOCHARGER_KNOCKON_SLEEP);
+					data->knock_on_mode = NOCHARGER_KNOCKON_SLEEP;
 				}
+				mxt_patch_event(data, data->knock_on_mode);
 			} else if (global_mxt_data->lpwg_mode == LPWG_MULTI_TAP) {
 				if (mxt_patchevent_get(PATCH_EVENT_TA)) {
 					TOUCH_INFO_MSG("Suspend : Knock On Enabled(TA) \n");
-					mxt_patch_event(global_mxt_data, CHARGER_KNOCKON_SLEEP + PATCH_EVENT_PAIR_NUM);
+					data->knock_on_mode = CHARGER_KNOCKON_SLEEP + PATCH_EVENT_PAIR_NUM;
 				} else {
 					TOUCH_INFO_MSG("Suspend : Knock On Enabled \n");
-					mxt_patch_event(global_mxt_data, NOCHARGER_KNOCKON_SLEEP + PATCH_EVENT_PAIR_NUM);
+					data->knock_on_mode = NOCHARGER_KNOCKON_SLEEP + PATCH_EVENT_PAIR_NUM;
 				}
+				mxt_patch_event(data, data->knock_on_mode);
 				/* Write TCHCNTTHR(Touch Count Threshold) for LPWG_MULTI_TAP */
 				error = mxt_write_reg(data->client, object->start_address+17, data->g_tap_cnt);
 				if (error)
@@ -4902,11 +5322,11 @@ static void mxt_lpwg_enable(struct mxt_data *data, u32 value)
 
 	if(value == LPWG_DOUBLE_TAP){
 		data->is_knockONonly = true;
-		error = mxt_write_object(data, MXT_PROCI_TOUCH_SEQUENCE_LOGGER_T93, 22, 75);
+		error = mxt_write_object(data, MXT_PROCI_TOUCH_SEQUENCE_LOGGER_T93, 22, 110);
 		TOUCH_INFO_MSG("Set Knock ON range (10mm)\n");
 	}else if(value == LPWG_MULTI_TAP){
 		data->is_knockONonly = false;
-		error = mxt_write_object(data, MXT_PROCI_TOUCH_SEQUENCE_LOGGER_T93, 22, 52);
+		error = mxt_write_object(data, MXT_PROCI_TOUCH_SEQUENCE_LOGGER_T93, 22, 70);
 		TOUCH_INFO_MSG("Set Knock ON range (7mm)\n");
 	}
 }
@@ -4999,7 +5419,7 @@ static void lpwg_double_tap_check(struct mxt_data *data, u32 value)
 	int error = 0;
 	int knockOn_delay = 0; // 16ms/unit
 
-	TOUCH_INFO_MSG("%s Double Tap check\n", __func__);
+	TOUCH_INFO_MSG("%s Double Tap check value:%d\n", __func__, value);
 
 	if (value == 1) {
 		data->is_knockCodeDelay = true;
@@ -5066,11 +5486,33 @@ static void atmel_ts_lpwg_update_all(struct i2c_client* client, u32 code, u32* v
 			data->sensor &&  // Proximity FAR
 			!data->qcover) {  // QCover Open
 		mxt_lpwg_control(data, value[0], true);
+		if(data->mxt_knock_on_enable || data->mxt_multi_tap_enable) {
+			touch_disable_irq(data->irq);
+			touch_disable_irq_wake(data->irq);
+
+			mxt_gesture_mode_start(data);
+
+			touch_enable_irq(data->irq);
+			touch_enable_irq_wake(data->irq);
+		}
 	}
 	else if(!data->screen && // Screen Off
 			data->sensor &&  // Proximity NEAR
 			!data->qcover) {  // QCover Open
 		mxt_lpwg_control(data, value[0], false);
+	}
+	else if(data->screen) { // Screen On
+		touch_disable_irq(data->irq);
+		touch_disable_irq_wake(data->irq);
+		if(data->regulator_status == 0) {
+			mxt_regulator_enable(data);
+		}
+		mxt_active_mode_start(data);
+
+		touch_enable_irq(data->irq);
+	}
+	else {
+		TOUCH_DEBUG_MSG(" ELSE case\n");
 	}
 }
 
@@ -5213,10 +5655,7 @@ static ssize_t store_lpwg_notify(struct mxt_data *data, const char *buf, size_t 
 	int type = 0;
 	int value[4] = {0};
 
-	if (mutex_is_locked(&i2c_suspend_lock)) {
-		TOUCH_DEBUG_MSG("%s mutex_is_locked \n", __func__);
-	}
-
+	mutex_lock(&lpwg_lock);
 	sscanf(buf, "%d %d %d %d %d", &type, &value[0], &value[1], &value[2], &value[3]);
 	TOUCH_INFO_MSG("%s : %d %d %d %d %d\n", __func__, type, value[0], value[1], value[2], value[3]);
 
@@ -5252,6 +5691,7 @@ static ssize_t store_lpwg_notify(struct mxt_data *data, const char *buf, size_t 
 	default:
 		break;
 		}
+	mutex_unlock(&lpwg_lock);
 	return count;
 }
 #endif
@@ -5347,6 +5787,127 @@ static int mxt_read_pen_support(struct mxt_data *data)
 	return error;
 }
 #endif
+static ssize_t mxt_self_cap_show(struct mxt_data *data, char *buf)
+{
+	int len = 0;
+	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n", data->self_cap);
+	return len;
+}
+static ssize_t mxt_self_cap_store(struct mxt_data *data, const char *buf, size_t count)
+{
+	int value = 0;
+	sscanf(buf, "%d", &value);
+	TOUCH_DEBUG_MSG("%s : %d \n", __func__, value);
+	if(value  == 1){
+	    data->self_cap = value;
+		TOUCH_DEBUG_MSG(" Noise suppression \n");
+		mxt_patch_event(global_mxt_data,SELF_CAP_OFF_NOISE_SUPPRESSION );
+	} else if (value  == 0){
+	    data->self_cap = value;
+		TOUCH_DEBUG_MSG(" Noise recover \n");
+		mxt_patch_event(global_mxt_data,SELF_CAP_ON_NOISE_RECOVER );
+	}else{
+		TOUCH_DEBUG_MSG(" Do nothing\n");
+	}
+	return count;
+}
+static ssize_t mxt_noise_suppression_show(struct mxt_data *data, char *buf)
+{
+	int len = 0;
+	data->self_cap = 1;
+	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n", data->self_cap);
+	TOUCH_DEBUG_MSG("%s : %d \n", __func__, data->self_cap);
+	TOUCH_DEBUG_MSG(" Noise suppression \n");
+	mxt_patch_event(global_mxt_data,SELF_CAP_OFF_NOISE_SUPPRESSION );
+	return len;
+}
+static ssize_t mxt_noise_suppression_store(struct mxt_data *data, const char *buf, size_t count)
+{
+	int value = 0;
+	sscanf(buf, "%d", &value);
+	TOUCH_DEBUG_MSG("%s : %d \n", __func__, value);
+	if(value  == 1){
+	    data->self_cap = value;
+		TOUCH_DEBUG_MSG(" Noise suppression \n");
+		mxt_patch_event(global_mxt_data,SELF_CAP_OFF_NOISE_SUPPRESSION );
+	} else if (value  == 0){
+	    data->self_cap = value;
+		TOUCH_DEBUG_MSG(" Noise recover \n");
+		mxt_patch_event(global_mxt_data,SELF_CAP_ON_NOISE_RECOVER );
+	}else{
+		TOUCH_DEBUG_MSG(" Do nothing\n");
+	}
+	return count;
+}
+
+static ssize_t mxt_noise_recover_show(struct mxt_data *data, char *buf)
+{
+	int len = 0;
+	data->self_cap = 0;
+	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n", data->self_cap);
+	TOUCH_DEBUG_MSG("%s : %d \n", __func__, data->self_cap);
+	TOUCH_DEBUG_MSG(" Noise suppression recovered \n");
+	mxt_patch_event(global_mxt_data,SELF_CAP_ON_NOISE_RECOVER );
+	return len;
+}
+
+static ssize_t mxt_noise_recover_store(struct mxt_data *data, const char *buf, size_t count)
+{
+	int value = 0;
+	sscanf(buf, "%d", &value);
+	data->self_cap = value;
+	TOUCH_DEBUG_MSG("%s : %d \n", __func__, value);
+	if(value  == 1){
+	    data->self_cap = value;
+		TOUCH_DEBUG_MSG(" Noise suppression \n");
+		mxt_patch_event(global_mxt_data,SELF_CAP_OFF_NOISE_SUPPRESSION );
+	} else if (value  == 0){
+	    data->self_cap = value;
+		TOUCH_DEBUG_MSG(" Noise recover \n");
+		mxt_patch_event(global_mxt_data,SELF_CAP_ON_NOISE_RECOVER );
+	}else{
+		TOUCH_DEBUG_MSG(" Do nothing\n");
+	}
+	return count;
+}
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+static ssize_t show_lpwg_debug_reason(struct mxt_data *data, char *buf)
+{
+	int len = 0;
+	u8 value[2] = {0,};
+	struct mxt_object *object = NULL;
+
+	object = mxt_get_object(data, MXT_PROCI_TOUCH_SEQUENCE_LOGGER_T93);
+	if (object) {
+		__mxt_read_reg(data->client, object->start_address + 28, 2, value);
+		len += snprintf(buf + len, PAGE_SIZE - len, "0x%x, 0x%x \n", value[0], value[1]);
+		data->pdata->use_debug_reason = (value[0] | value[1]) ? 1 : 0;
+		TOUCH_DEBUG_MSG("%s debug reason ctrl 28th:0x%x, 29:0x%x, use_debug_reason:%d\n",
+				__func__, value[0], value[1], data->pdata->use_debug_reason);
+	}
+	else {
+		TOUCH_ERR_MSG("Failed get T93 Object\n");
+	}
+	return len;
+}
+
+static ssize_t show_save_lpwg_debug_reason(struct mxt_data *data, char *buf)
+{
+	int len = 0;
+	int i = 0;
+	u8 value[10] = {0,};
+
+	save_lpwg_debug_reason(data, value);
+
+	for(i = 0;i < 10;i++) {
+		len += snprintf(buf + len, PAGE_SIZE - len, "0x%x, ", value[i]);
+	}
+
+	len += snprintf(buf + len, PAGE_SIZE - len, "\n");
+
+	return len;
+}
+#endif
 static LGE_TOUCH_ATTR(fw_version, S_IRUGO, mxt_fw_version_show, NULL);
 static LGE_TOUCH_ATTR(hw_version, S_IRUGO, mxt_hw_version_show, NULL);
 static LGE_TOUCH_ATTR(testmode_ver, S_IRUGO | S_IWUSR, mxt_testmode_ver_show, NULL);
@@ -5375,15 +5936,22 @@ static LGE_TOUCH_ATTR(update_patch, S_IWUSR, NULL, mxt_update_patch_store);
 static LGE_TOUCH_ATTR(update_fw, S_IWUSR, NULL, mxt_update_fw_store);
 static LGE_TOUCH_ATTR(power_control, S_IRUGO | S_IWUSR, mxt_power_control_show, mxt_power_control_store);
 static LGE_TOUCH_ATTR(global_access_pixel, S_IWUSR | S_IRUSR, mxt_global_access_pixel_show, mxt_global_access_pixel_store);
-static LGE_TOUCH_ATTR(rebase, S_IWUSR | S_IRUSR, mxt_force_rebase_show, NULL);
+static LGE_TOUCH_ATTR(rebase, S_IWUSR | S_IRUGO, mxt_force_rebase_show, NULL);
 static LGE_TOUCH_ATTR(mfts, S_IWUSR | S_IRUSR, mxt_mfts_enable_show, mxt_mfts_enable_store);
 static LGE_TOUCH_ATTR(incoming_call, S_IRUGO | S_IWUSR, NULL, store_incoming_call);
 static LGE_TOUCH_ATTR(keyguard, S_IRUGO | S_IWUSR, NULL, store_keyguard_info);
 static LGE_TOUCH_ATTR(ime_status, S_IRUGO | S_IWUSR, NULL, store_ime_status);
 static LGE_TOUCH_ATTR(self_ref_check, S_IRUGO | S_IWUSR, mxt_show_self_ref, NULL);
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+static LGE_TOUCH_ATTR(lpwg_debug_reason, S_IRUGO | S_IWUSR, show_lpwg_debug_reason, NULL);
+static LGE_TOUCH_ATTR(save_lpwg_debug_reason, S_IRUGO | S_IWUSR, show_save_lpwg_debug_reason, NULL);
+#endif
 #ifdef CONFIG_TOUCHSCREEN_ATMEL_STYLUS_PEN
 static LGE_TOUCH_ATTR(pen_support, S_IRUGO | S_IWUSR, mxt_show_pen_support, NULL);
 #endif
+static LGE_TOUCH_ATTR(self_cap, S_IWUSR | S_IRUGO, mxt_self_cap_show, mxt_self_cap_store);
+static LGE_TOUCH_ATTR(noise_suppression, S_IWUSR | S_IRUGO, mxt_noise_suppression_show, mxt_noise_suppression_store);
+static LGE_TOUCH_ATTR(noise_recover, S_IWUSR | S_IRUGO, mxt_noise_recover_show, mxt_noise_recover_store);
 static struct attribute *lge_touch_attribute_list[] = {
 	&lge_touch_attr_fw_version.attr,
 	&lge_touch_attr_hw_version.attr,
@@ -5422,6 +5990,13 @@ static struct attribute *lge_touch_attribute_list[] = {
 #ifdef CONFIG_TOUCHSCREEN_ATMEL_STYLUS_PEN
 	&lge_touch_attr_pen_support.attr,
 #endif
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+	&lge_touch_attr_lpwg_debug_reason.attr,
+	&lge_touch_attr_save_lpwg_debug_reason.attr,
+#endif
+	&lge_touch_attr_self_cap.attr,
+	&lge_touch_attr_noise_suppression.attr,
+	&lge_touch_attr_noise_recover.attr,
 	NULL
 };
 
@@ -5492,16 +6067,18 @@ static void mxt_gesture_mode_start(struct mxt_data *data)
 #if defined(CONFIG_TOUCHSCREEN_LGE_LPWG)
 	if (data->lpwg_mode == LPWG_DOUBLE_TAP) {
 		if (mxt_patchevent_get(PATCH_EVENT_TA)) {
-			mxt_patch_event(data, CHARGER_KNOCKON_SLEEP);
+			data->knock_on_mode = CHARGER_KNOCKON_SLEEP;
 		} else {
-			mxt_patch_event(data, NOCHARGER_KNOCKON_SLEEP);
+			data->knock_on_mode = NOCHARGER_KNOCKON_SLEEP;
 		}
+		mxt_patch_event(data,data->knock_on_mode);
 	} else if (data->lpwg_mode == LPWG_MULTI_TAP) {
 		if (mxt_patchevent_get(PATCH_EVENT_TA)) {
-			mxt_patch_event(data, CHARGER_KNOCKON_SLEEP + PATCH_EVENT_PAIR_NUM);
+			data->knock_on_mode = CHARGER_KNOCKON_SLEEP + PATCH_EVENT_PAIR_NUM;
 		} else {
-			mxt_patch_event(data, NOCHARGER_KNOCKON_SLEEP + PATCH_EVENT_PAIR_NUM);
+			data->knock_on_mode = NOCHARGER_KNOCKON_SLEEP + PATCH_EVENT_PAIR_NUM;
 		}
+		mxt_patch_event(data,data->knock_on_mode);
 		/* Write TCHCNTTHR(Touch Count Threshold) for LPWG_MULTI_TAP */
 		error = mxt_write_reg(data->client, object->start_address+17, data->g_tap_cnt);
 		if (error)
@@ -5530,16 +6107,18 @@ static void mxt_active_mode_start(struct mxt_data *data)
 #if defined(CONFIG_TOUCHSCREEN_LGE_LPWG)
 	if (data->mxt_knock_on_enable || data->lpwg_mode == LPWG_DOUBLE_TAP){
 		if (mxt_patchevent_get(PATCH_EVENT_TA)) {
-			mxt_patch_event(data, CHARGER_KNOCKON_WAKEUP);
+			data->knock_on_mode = CHARGER_KNOCKON_WAKEUP;
 		} else {
-			mxt_patch_event(data, NOCHARGER_KNOCKON_WAKEUP);
+			data->knock_on_mode = NOCHARGER_KNOCKON_WAKEUP;
 		}
+		mxt_patch_event(data, data->knock_on_mode);
 	} else if (data->mxt_multi_tap_enable || data->lpwg_mode == LPWG_MULTI_TAP) {
 		if (mxt_patchevent_get(PATCH_EVENT_TA)) {
-			mxt_patch_event(data, CHARGER_KNOCKON_WAKEUP + PATCH_EVENT_PAIR_NUM);
+			data->knock_on_mode = CHARGER_KNOCKON_WAKEUP + PATCH_EVENT_PAIR_NUM;
 		} else {
-			mxt_patch_event(data, NOCHARGER_KNOCKON_WAKEUP + PATCH_EVENT_PAIR_NUM);
+			data->knock_on_mode = NOCHARGER_KNOCKON_WAKEUP + PATCH_EVENT_PAIR_NUM;
 		}
+		mxt_patch_event(data, data->knock_on_mode);
 		/* Write TCHCNTTHR(Touch Count Threshold) for LPWG_MULTI_TAP */
 		error = mxt_write_reg(data->client, object->start_address+17, data->g_tap_cnt);
 		if (error)
@@ -5585,18 +6164,26 @@ static void mxt_start(struct mxt_data *data)
 		mxt_regulator_enable(data);
 	}
 
-	// mxt_set_t7_power_cfg(data, MXT_POWER_CFG_RUN);
-/*
-	if (!mxt_patchevent_get(PATCH_EVENT_KNOCKON))
-		mxt_patch_event(global_mxt_data, DEEP_SLEEP_WAKEUP);
-*/
-	mxt_active_mode_start(data);
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+	if(data->lpwg_mode) {
+		save_lpwg_debug_reason_print(data);
+	}
+#endif
 
+	mxt_active_mode_start(data);
 	data->delayed_cal = true;
 
 #ifdef MXT_FACTORY
 	if (factorymode) {
 		mxt_patch_event(data, PATCH_EVENT_AAT);
+	}
+#endif
+
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+	if (data->lpwg_mode) {
+		int temp_mode = 0;
+		temp_mode = check_current_temp_mode(touch_current_temp);
+		select_temp_event_knock_on(temp_mode, 0);
 	}
 #endif
 
@@ -5621,6 +6208,7 @@ static void mxt_stop(struct mxt_data *data)
 	if (data->mxt_knock_on_enable) {
 #endif
 		mxt_gesture_mode_start(data);
+		mxt_t6_command(data, MXT_COMMAND_CALIBRATE, 1, false);
 	} else {
 		TOUCH_INFO_MSG("%s MXT_POWER_CFG_DEEPSLEEP\n", __func__);
 		// mxt_set_t7_power_cfg(data, MXT_POWER_CFG_DEEPSLEEP);
@@ -5636,6 +6224,11 @@ static void mxt_stop(struct mxt_data *data)
 #else
 	if (data->mxt_knock_on_enable) {
 #endif
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+		int temp_mode = 0;
+		temp_mode = check_current_temp_mode(touch_current_temp);
+		select_temp_event_knock_on(temp_mode, 1);
+#endif
 		touch_enable_irq(data->irq);
 		touch_enable_irq_wake(data->irq);
 	}
@@ -5645,9 +6238,10 @@ static int mxt_input_open(struct input_dev *dev)
 {
 	struct mxt_data *data = input_get_drvdata(dev);
 
-	mxt_start(data);
-
-	data->enable_reporting = true;
+	if(!data->mfts_enable) {
+		mxt_start(data);
+		data->enable_reporting = true;
+	}
 
 	return 0;
 }
@@ -5708,8 +6302,26 @@ static int mxt_parse_dt(struct device *dev, struct mxt_platform_data *pdata)
 		pdata->numtouch = temp_val;
 		TOUCH_DEBUG_MSG("DT : numtouch = %d\n", pdata->numtouch);
 	}
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+#ifndef CONFIG_MACH_MSM8939_ALTEV2_LGU_KR
 	if(lge_bd_rev > HW_REV_B) {
+#endif
+		rc = of_property_read_string(node, "atmel,fw_name_lgd",  &pdata->fw_name_lgd);
+		if (rc && (rc != -EINVAL)) {
+			TOUCH_ERR_MSG("DT : atmel,fw_name_lgd error \n");
+			pdata->fw_name_lgd = NULL;
+		} else {
+			TOUCH_DEBUG_MSG("DT : fw_name_lgd : %s \n", pdata->fw_name_lgd);
+		}
+
+		rc = of_property_read_string(node, "atmel,fw_name_laibao",  &pdata->fw_name_laibao);
+		if (rc && (rc != -EINVAL)) {
+			TOUCH_ERR_MSG("DT : atmel,fw_name_laibao error \n");
+			pdata->fw_name_laibao = NULL;
+		} else {
+			TOUCH_DEBUG_MSG("DT : fw_name_laibao : %s \n", pdata->fw_name_laibao);
+		}
+
 		rc = of_property_read_string(node, "atmel,fw_name",  &pdata->fw_name);
 		if (rc && (rc != -EINVAL)) {
 			TOUCH_ERR_MSG("DT : atmel,fw_name error \n");
@@ -5717,6 +6329,7 @@ static int mxt_parse_dt(struct device *dev, struct mxt_platform_data *pdata)
 		} else {
 			TOUCH_DEBUG_MSG("DT : fw_name : %s \n", pdata->fw_name);
 		}
+#ifndef CONFIG_MACH_MSM8939_ALTEV2_LGU_KR
 	}
 	else {
 		rc = of_property_read_string(node, "atmel,fw_name_gf2",  &pdata->fw_name_gf2);
@@ -5735,6 +6348,7 @@ static int mxt_parse_dt(struct device *dev, struct mxt_platform_data *pdata)
 			TOUCH_DEBUG_MSG("DT : fw_name_ogs : %s \n", pdata->fw_name_ogs);
 		}
 	}
+#endif
 #else
 	rc = of_property_read_string(node, "atmel,fw_name",  &pdata->fw_name);
 	if (rc && (rc != -EINVAL)) {
@@ -5805,6 +6419,25 @@ static int mxt_parse_dt(struct device *dev, struct mxt_platform_data *pdata)
 		TOUCH_DEBUG_MSG("DT : butt_check_enable: %d\n",pdata->butt_check_enable);
 	}
 
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+	rc = of_property_read_u32(node, "atmel,use_debug_reason", &temp_val);
+	if (rc && (rc != -EINVAL)) {
+		TOUCH_ERR_MSG( "DT : Unable to read use_debug_reason\n");
+		pdata->use_debug_reason = 0;
+	} else {
+		pdata->use_debug_reason = temp_val;
+		TOUCH_DEBUG_MSG("DT : use_debug_reason: %d\n",pdata->use_debug_reason);
+	}
+
+	rc = of_property_read_u32(node, "atmel,realtime_use_debug_reason", &temp_val);
+	if (rc && (rc != -EINVAL)) {
+		TOUCH_ERR_MSG( "DT : Unable to read realtime_use_debug_reason\n");
+		pdata->realtime_use_debug_reason = 0;
+	} else {
+		pdata->realtime_use_debug_reason = temp_val;
+		TOUCH_DEBUG_MSG("DT : use_debug_reason: %d\n",pdata->use_debug_reason);
+	}
+#endif
 	return 0;
 
 }
@@ -5940,7 +6573,7 @@ int mxt_initialize_t100_input_device(struct mxt_data *data)
 	input_set_abs_params(input_dev, ABS_MT_WIDTH_MINOR, 0, MXT_MAX_AREA, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0, data->max_x, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0, data->max_y, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_TOOL_TYPE, 0, MT_TOOL_MAX, 0, 0);
+//	input_set_abs_params(input_dev, ABS_MT_TOOL_TYPE, 0, MT_TOOL_MAX, 0, 0);
 
 	if (data->t100_aux_area)
 		input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, MXT_MAX_AREA, 0, 0);
@@ -6377,7 +7010,14 @@ static int mxt_flash_fw_on_probe(struct mxt_fw_info *fw_info)
 	//struct mxt_object *object = NULL;
 	//int ret = 0;
 
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+	if(!check_panel)
+		error = 1;
+	else
+		error = mxt_read_id_info(data);
+#else
 	error = mxt_read_id_info(data);
+#endif
 
 	if (error) {
 		/* need to check IC is in boot mode */
@@ -6605,7 +7245,7 @@ static int mxt_write_config(struct mxt_fw_info *fw_info)
 	struct mxt_object *object = NULL;
 	struct mxt_cfg_data *cfg_data = NULL;
 	u32 current_crc = 0;
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	u32 t38_cfg_crc = 0;
 	u8 buf_crc_t38[3] = {0};
 #endif
@@ -6637,7 +7277,7 @@ static int mxt_write_config(struct mxt_fw_info *fw_info)
 		return 0;
 	}
 
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	object = mxt_get_object(data, MXT_SPT_USERDATA_T38);
 
 	if(!object) {
@@ -6740,7 +7380,7 @@ static int mxt_write_config(struct mxt_fw_info *fw_info)
 
 	TOUCH_INFO_MSG("Configuration Updated \n");
 
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	TOUCH_DEBUG_MSG("Restore CRC value \n");
 	object = mxt_get_object(data, MXT_SPT_USERDATA_T38);
 
@@ -6805,7 +7445,7 @@ out:
 	return ret;
 }
 
-void mxt_request_firmware_work(const struct firmware *fw, void *context)
+int mxt_request_firmware_work(const struct firmware *fw, void *context)
 {
 	struct mxt_data *data = context;
 	int error = 0;
@@ -6813,11 +7453,14 @@ void mxt_request_firmware_work(const struct firmware *fw, void *context)
 	mxt_power_block(POWERLOCK_FW_UP);
 
 	data->fw_info.data = data;
-
-	error = mxt_verify_fw(&data->fw_info, fw);
-	if (error)
-		goto ts_rest_init;
-
+	if(fw) {
+		error = mxt_verify_fw(&data->fw_info, fw);
+		if (error)
+			goto ts_rest_init;
+	}
+	else {
+		goto out;
+	}
 	/* Skip update on boot up if firmware file does not have a header */
 	if (!data->fw_info.hdr_len)
 		goto ts_rest_init;
@@ -6848,9 +7491,10 @@ ts_rest_init:
 	}
 
 out:
-	release_firmware(fw);
+	if(fw)
+		release_firmware(fw);
 	mxt_power_unblock(POWERLOCK_FW_UP);
-	return;
+	return error;
 }
 
 int mxt_update_firmware(struct mxt_data *data, const char *fwname)
@@ -6868,7 +7512,11 @@ int mxt_update_firmware(struct mxt_data *data, const char *fwname)
 		}
 	}
 
-	mxt_request_firmware_work(fw, data);
+	error = mxt_request_firmware_work(fw, data);
+	if (error) {
+		TOUCH_ERR_MSG("%s error mxt_request_firmware_work \n", __func__);
+		return 1;
+	}
 
 	error = mxt_read_info_block(data);
 	if (error) {
@@ -6885,7 +7533,15 @@ int mxt_update_firmware(struct mxt_data *data, const char *fwname)
 	return 0;
 
 }
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+#define VCOM_30_OGS 		0x30
+#define VCOM_100_OGS 		0x00
+
+#define GF2 				0x00
+#define OGS_SITE_LGD 		0x01
+#define OGS_SITE_LAIBAO		0x02
+
+#define LGD_VCOM_100_NAME 	"atmel/altev2/VK815_0_05_05_OGS.fw"
 static int mxt_check_panel_type(struct mxt_data *data)
 {
 	u8 panel_type = 0;
@@ -6893,6 +7549,8 @@ static int mxt_check_panel_type(struct mxt_data *data)
 	int ret = 0;
 	int error = 0;
 	int result = -1;
+	u8 vcom_type = 0;
+	u8 ogs_site = 0;
 
 	error = mxt_table_initialize(data);
 	if (error) {
@@ -6900,11 +7558,6 @@ static int mxt_check_panel_type(struct mxt_data *data)
 		return result;
 	}
 
-	error = mxt_read_info_block(data);
-	if (error) {
-		TOUCH_ERR_MSG("%s error mxt_read_info_block \n", __func__);
-		return result;
-	}
 	object = mxt_get_object(data, MXT_SPT_USERDATA_T38);
 
 	if(object == NULL)
@@ -6912,59 +7565,89 @@ static int mxt_check_panel_type(struct mxt_data *data)
 
 	ret = mxt_read_mem(data, object->start_address + 0, 1, &panel_type);
 	if (ret) {
-			TOUCH_ERR_MSG("T38 Panel type read fail \n");
+		TOUCH_ERR_MSG("T38 Panel type read fail \n");
+		return result;
 	}
 
-	TOUCH_DEBUG_MSG("%s() panel_type:%d \n", __func__, panel_type);
+	TOUCH_INFO_MSG("%s() panel_type:%d \n", __func__, panel_type);
+
+	ogs_site = panel_type & 0x0F;
+	vcom_type = panel_type & 0xF0;
+	data->panel_type = panel_type;
+	TOUCH_INFO_MSG("%s() ogs_site:0x%x vcom_type:0x%x\n", __func__, ogs_site, vcom_type);
 
 	error = mxt_table_initialize(data);
 	if (error) {
 		TOUCH_ERR_MSG("Failed to initialize\n");
 		return result;
 	}
-
-	if(panel_type == 0x00) {
-		TOUCH_INFO_MSG("%s get Panel_type GFF2\n", __func__);
-		data->pdata->fw_name = data->pdata->fw_name_gf2;
+#ifndef CONFIG_MACH_MSM8939_ALTEV2_LGU_KR
+	if(lge_bd_rev <= HW_REV_B) {
+		if(panel_type == 0x00) {
+			TOUCH_INFO_MSG("%s get Panel_type GFF2\n", __func__);
+			data->pdata->fw_name = data->pdata->fw_name_gf2;
+		}
+		else if(panel_type == 0x01) {
+			TOUCH_INFO_MSG("%s get Panel_type OGS\n", __func__);
+			data->pdata->fw_name = data->pdata->fw_name_ogs;
+		}
+		else {
+			TOUCH_INFO_MSG("%s Error get Panel_type\n", __func__);
+			return result;
+		}
 	}
-	else if(panel_type == 0x01) {
-		TOUCH_INFO_MSG("%s get Panel_type OGS\n", __func__);
-		data->pdata->fw_name = data->pdata->fw_name_ogs;
+	else if(lge_bd_rev >= HW_REV_C) {
+#endif
+		if(vcom_type == VCOM_100_OGS) {
+			data->pdata->fw_name = LGD_VCOM_100_NAME;
+			data->pdata->use_debug_reason = 0;
+			data->pdata->realtime_use_debug_reason = 0;
+			TOUCH_INFO_MSG("Vcom 100 LGD Sample fw:%s\n", data->pdata->fw_name);
+		}
+		else if((vcom_type == VCOM_30_OGS) && (ogs_site == OGS_SITE_LGD) ) {
+			data->pdata->fw_name = data->pdata->fw_name_lgd;
+			TOUCH_INFO_MSG("Vcom 30 LGD Sample fw:%s\n", data->pdata->fw_name);
+		}
+		else if((vcom_type == VCOM_30_OGS) && (ogs_site == OGS_SITE_LAIBAO) ) {
+			data->pdata->fw_name = data->pdata->fw_name_laibao;
+			TOUCH_INFO_MSG("Vcom 30 LAIBAO Sample fw:%s\n", data->pdata->fw_name);
+		}
+		else {
+			TOUCH_ERR_MSG("%s Error get Panel_type\n", __func__);
+			return result;
+		}
+#ifndef CONFIG_MACH_MSM8939_ALTEV2_LGU_KR
 	}
-	else {
-		TOUCH_INFO_MSG("%s Error get Panel_type\n", __func__);
-		return result;
-	}
-
+#endif
 	TOUCH_INFO_MSG("%s  Panel_type:0x%x fw_name:%s\n", __func__, panel_type, data->pdata->fw_name);
-
+	check_panel = 1;
 	return (int)panel_type;
 }
 #endif
 static int mxt_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct mxt_data *data = NULL;
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	struct mxt_object *object = NULL;
 #endif
 	int error = 0;
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	int panel_type = 0;
 #endif
 
 	is_probing = true;
 	TOUCH_INFO_MSG("%s \n", __func__);
 
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	lge_bd_rev = lge_get_board_revno();
-#endif
-#if defined(CONFIG_MACH_MSM8926_E8LTE) || defined(CONFIG_MACH_MSM8226_E8WIFI)
-	touch_thermal_mode = 0;
 #endif
 
 	wake_lock_init(&touch_wake_lock, WAKE_LOCK_SUSPEND, "touch_wakelock");
+	wake_lock_init(&pm_touch_wake_lock, WAKE_LOCK_SUSPEND, "pm_touch_wakelock");
+
 	mutex_init(&i2c_suspend_lock);
 	mutex_init(&irq_lock);
+	mutex_init(&lpwg_lock);
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		TOUCH_ERR_MSG("i2c functionality check error\n");
@@ -7020,7 +7703,7 @@ static int mxt_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		TOUCH_ERR_MSG("Target does not use pinctrl(data->ts_pinctrl == NULL) \n");
 		data->ts_pinctrl = NULL;
 	}
-	
+
 	if (data->ts_pinctrl) {
 		data->ts_pinset_state_active = pinctrl_lookup_state(data->ts_pinctrl, "pmx_ts_active");
 		if (IS_ERR(data->ts_pinset_state_active))
@@ -7097,9 +7780,8 @@ static int mxt_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	TOUCH_INFO_MSG("request_threaded_irq %s \n", __func__);
-	error = request_threaded_irq(data->irq, NULL, mxt_interrupt,
-			IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_NO_SUSPEND, client->name, data);
-
+	error = request_threaded_irq(data->irq, touch_irq_handler, mxt_interrupt,
+			IRQF_TRIGGER_FALLING | IRQF_ONESHOT, client->name, data);
 	if (error) {
 		TOUCH_ERR_MSG("Failed to register interrupt\n");
 		goto err_free_pdata;
@@ -7117,7 +7799,8 @@ static int mxt_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		TOUCH_ERR_MSG("%s Failed to allocate memory\n", __func__);
 		goto err_free_pdata;
 	}
-#ifdef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) || defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+#ifndef CONFIG_MACH_MSM8939_ALTEV2_LGU_KR
 	if(lge_bd_rev <= HW_REV_B) {
 		panel_type = mxt_check_panel_type(data);
 		if(panel_type < 0) {
@@ -7131,22 +7814,31 @@ static int mxt_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		}
 		TOUCH_INFO_MSG("%s  Panel_type:%d fw_name:%s\n", __func__, panel_type, data->pdata->fw_name);
 	}
+	else if(lge_bd_rev >= HW_REV_C) {
+#endif
+		panel_type = mxt_check_panel_type(data);
+		if(panel_type < 0) {
+			TOUCH_ERR_MSG("check_panel_type Fail, check bootloader mode\n");
+			error = mxt_probe_bootloader(data, 1);
+			if(error) {
+				TOUCH_ERR_MSG("bootloader mode fail\n");
+				goto err_free_irq;
+			}
+		}
+#ifndef CONFIG_MACH_MSM8939_ALTEV2_LGU_KR
+	}
+#endif
 #endif
 	if (data->pdata->fw_name) {
 		error = mxt_update_firmware(data, data->pdata->fw_name);
 		if (error) {
 			TOUCH_ERR_MSG("Failed to request firmware\n");
-			TOUCH_ERR_MSG("%s retry after power reset\n", __func__);
-			mxt_power_reset(data);
-			error = mxt_update_firmware(data, data->pdata->fw_name);
-			if(error) {
-				TOUCH_ERR_MSG("%s Retry Fail\n", __func__);
-				goto err_free_irq;
-			}
+			goto err_free_irq;
 		}
 	}
 	else {
 		TOUCH_ERR_MSG("FW_NAME is NULL\n");
+		mxt_regulator_disable(data);
 		goto err_free_irq;
 	}
 	mxt_write_object(data, MXT_GEN_COMMAND_T6, MXT_COMMAND_REPORTALL, 1);
@@ -7210,7 +7902,7 @@ static int mxt_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	data->ref_chk = 0;
 
-#if 0//def MXT_FACTORY //temporary block 
+#if 0//def MXT_FACTORY //temporary block
 	if (lge_get_boot_mode() != LGE_BOOT_MODE_NORMAL ) {
 		factorymode = true;
 		TOUCH_INFO_MSG("Yes-factory factory = %d\n", factorymode);
@@ -7229,7 +7921,7 @@ static int mxt_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	data->suspended = true;
 	data->enable_reporting = false;
-#ifndef CONFIG_MACH_MSM8939_ALTEV2_VZW
+#if !defined(CONFIG_MACH_MSM8939_ALTEV2_VZW) && !defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
 	/* Self Reference Check */
 	object = mxt_get_object(global_mxt_data, MXT_SPT_USERDATA_T38);
 
@@ -7298,6 +7990,10 @@ static int mxt_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 #endif
 	trigger_usb_state_from_otg(g_usb_type);
+
+	factory_boot = lge_get_factory_boot();
+	TOUCH_INFO_MSG("factory boot check: %d\n", factory_boot);
+
 	TOUCH_INFO_MSG("%s success \n", __func__);
 	is_probing = false;
 
@@ -7344,24 +8040,169 @@ static int mxt_remove(struct i2c_client *client)
 
 		mutex_destroy(&i2c_suspend_lock);
 		mutex_destroy(&irq_lock);
+		mutex_destroy(&lpwg_lock);
 
+		wake_lock_destroy(&pm_touch_wake_lock);
 		wake_lock_destroy(&touch_wake_lock);
 	}
 
 	return 0;
 }
 
-static int mxt_suspend(struct device *device)
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+void change_temp_patch_event(int patch_event)
 {
-	TOUCH_INFO_MSG("%s \n", __func__);
-	mutex_lock(&i2c_suspend_lock);
+	if (global_mxt_data != NULL) {
+			TOUCH_INFO_MSG("%s patch event = %d\n", __func__, patch_event);
+			switch(patch_event){
+				case HIGH_TEMP_SET: /*13 or 19*/
+					mxt_patch_event(global_mxt_data, HIGH_TEMP_SET);
+					mxt_patch_event(global_mxt_data, LOW_TEMP_SET);
+					if (global_mxt_data->suspended)
+						mxt_patch_event(global_mxt_data, LOW_TEMP_KNOCKON_SET);
+					else
+						mxt_patch_event(global_mxt_data, LOW_TEMP_KNOCKON_UNSET);
+					break;
+				case HIGH_TEMP_UNSET: /*14 or 20*/
+					mxt_patch_event(global_mxt_data, HIGH_TEMP_UNSET);
+					mxt_patch_event(global_mxt_data, LOW_TEMP_UNSET);
+					mxt_patch_event(global_mxt_data, LOW_TEMP_KNOCKON_UNSET);
+					break;
+				case LOW_TEMP_SET: /*17*/
+					mxt_patch_event(global_mxt_data, LOW_TEMP_SET);
+					if (global_mxt_data->suspended)
+						mxt_patch_event(global_mxt_data, LOW_TEMP_KNOCKON_SET);
+					else
+						mxt_patch_event(global_mxt_data, LOW_TEMP_KNOCKON_UNSET);
+					break;
+				case LOW_TEMP_UNSET: /*18*/
+					mxt_patch_event(global_mxt_data, LOW_TEMP_UNSET);
+					mxt_patch_event(global_mxt_data, LOW_TEMP_KNOCKON_UNSET);
+					break;
+				case LOW_TEMP_KNOCKON_SET: /*19*/
+					mxt_patch_event(global_mxt_data, LOW_TEMP_KNOCKON_SET);
+					break;
+				case LOW_TEMP_KNOCKON_UNSET: /*20*/
+					mxt_patch_event(global_mxt_data, LOW_TEMP_KNOCKON_UNSET);
+					break;
+				default:
+					break;
+			}
+	}
+}
+
+int check_current_temp_mode(int current_temp)
+{
+	int temp_mode = NORMAL_TEMP_MODE;
+
+	if (current_temp >= HIGH_TEMP_SET_LEVEL) {
+		temp_mode = HIGH_TEMP_MODE;
+	} else if (current_temp <= LOW_TEMP_SET_LEVEL) {
+		temp_mode = LOW_TEMP_MODE;
+	} else {
+		temp_mode = NORMAL_TEMP_MODE;
+	}
+	return temp_mode;
+}
+
+void select_temp_event(int temp_mode)
+{
+	int patch_event = 0;
+
+	if (touch_previous_temp_mode == NORMAL_TEMP_MODE
+			&& temp_mode == HIGH_TEMP_MODE) {
+		patch_event = HIGH_TEMP_SET;
+	} else if (touch_previous_temp_mode == NORMAL_TEMP_MODE
+			&& temp_mode == LOW_TEMP_MODE) {
+		patch_event = LOW_TEMP_SET;
+	} else if (touch_previous_temp_mode == HIGH_TEMP_MODE
+			&& temp_mode == NORMAL_TEMP_MODE) {
+		patch_event = HIGH_TEMP_UNSET;
+	} else if (touch_previous_temp_mode == LOW_TEMP_MODE
+			&& temp_mode == NORMAL_TEMP_MODE) {
+		patch_event = LOW_TEMP_UNSET;
+	}
+	if (patch_event)
+		change_temp_patch_event(patch_event);
+
+	touch_previous_temp_mode = temp_mode;
+	TOUCH_INFO_MSG("%s temp_mode = %d, patch_event = %d\n", __func__, temp_mode, patch_event);
+}
+
+void select_temp_event_knock_on(int temp_mode, int lpwg_mode)
+{
+	int patch_event = 0;
+
+	if (temp_mode == LOW_TEMP_MODE || temp_mode == HIGH_TEMP_MODE) {
+		if (lpwg_mode) {
+			patch_event = LOW_TEMP_KNOCKON_SET;
+		} else {
+			patch_event = LOW_TEMP_KNOCKON_UNSET;
+		}
+	}
+	if (patch_event)
+		change_temp_patch_event(patch_event);
+
+	TOUCH_INFO_MSG("%s temp_mode = %d, lpwg_mode = %d,  patch_event = %d\n", __func__, temp_mode, lpwg_mode, patch_event);
+}
+
+void trigger_touch_temp(int temp)
+{
+	int temp_mode= 0;
+	bool is_changed = false;
+	TOUCH_INFO_MSG("%s temp = %d\n", __func__, temp);
+
+	if (touch_current_temp != temp)
+		is_changed = true;
+
+	if (is_changed) {
+		temp_mode = check_current_temp_mode(temp);
+		select_temp_event(temp_mode);
+		touch_current_temp = temp;
+	}
+}
+#endif
+
+static int mxt_suspend(struct device *dev)
+{
+	struct mxt_data *data = dev_get_drvdata(dev);
+	if(!is_probing) {
+		TOUCH_INFO_MSG("%s int status:%d\n", __func__, gpio_get_value(data->pdata->gpio_int));
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+		trigger_touch_temp(bq24296_get_batt_temp_origin()/10);
+#endif
+		data->pm_state = PM_SUSPEND;
+	}
 	return 0;
 }
 
-static int mxt_resume(struct device *device)
+static int mxt_resume(struct device *dev)
 {
-	TOUCH_INFO_MSG("%s \n", __func__);
-	mutex_unlock(&i2c_suspend_lock);
+	struct mxt_data *data = dev_get_drvdata(dev);
+
+	if(!is_probing) {
+		TOUCH_INFO_MSG("%s int status:%d\n", __func__, gpio_get_value(data->pdata->gpio_int));
+
+		if(data->pm_state == PM_SUSPEND_IRQ) {
+			struct irq_desc *desc = irq_to_desc(data->irq);
+
+			if (desc == NULL) {
+				TOUCH_ERR_MSG("Null Pointer from irq_to_desc\n");
+				return -ENOMEM;
+			}
+
+			data->pm_state = PM_RESUME;
+
+			irq_set_pending(data->irq);
+			check_irq_resend(desc, data->irq);
+
+			TOUCH_DEBUG_MSG("resend interrupt\n");
+
+			return 0;
+		}
+
+		data->pm_state = PM_RESUME;
+	}
 	return 0;
 }
 
@@ -7378,7 +8219,6 @@ static int mxt_fb_suspend(struct mxt_data *data)
 
 	mutex_lock(&input_dev->mutex);
 	data->enable_reporting = false;
-	touch_disable_irq(data->irq);
 
 	data->pdata->panel_on = POWER_OFF;
 	resume_flag = 0;
@@ -7386,15 +8226,11 @@ static int mxt_fb_suspend(struct mxt_data *data)
 	if (input_dev->users)
 		mxt_stop(data);
 
-#if defined(CONFIG_TOUCHSCREEN_LGE_LPWG)
-	if (data->lpwg_mode) {
-#else
-	if (data->mxt_knock_on_enable) {
-#endif
-		touch_enable_irq(data->irq);
-		touch_enable_irq_wake(data->irq);
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_LPWG_DEBUG_REASON
+	if(data->lpwg_mode) {
+		mxt_lpwg_debug_interrupt_control(data, data->pdata->use_debug_reason);
 	}
-
+#endif
 	mutex_unlock(&input_dev->mutex);
 	return 0;
 }

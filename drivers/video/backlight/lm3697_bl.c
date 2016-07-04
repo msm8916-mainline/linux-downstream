@@ -32,7 +32,9 @@
 //#include <linux/earlysuspend.h>
 //#include <mach/board_lge.h>
 
-
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+#include "../msm/mdss/lge/panel/oem_mdss_dsi_common.h"
+#endif
 
 #define I2C_BL_NAME                              "lm3697"
 #define MAX_BRIGHTNESS_LM3697                    0xFF
@@ -63,6 +65,9 @@ struct backlight_platform_data {
 	int factory_brightness;
 	int blmap_size;
 	char *blmap;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	char *blmap_u2;
+#endif
 };
 
 struct lm3697_device {
@@ -77,12 +82,18 @@ struct lm3697_device {
 	struct mutex bl_mutex;
 	int blmap_size;
 	char *blmap;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	char *blmap_u2;
+#endif
 };
 
 static const struct i2c_device_id lm3697_bl_id[] = {
 	{ I2C_BL_NAME, 0 },
 	{ },
 };
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+extern int lge_get_mode_type(void);
+#endif
 #if defined(CONFIG_BACKLIGHT_CABC_DEBUG_ENABLE)
 static int lm3697_read_reg(struct i2c_client *client, u8 reg, u8 *buf);
 #endif
@@ -106,6 +117,14 @@ int wireless_backlight_state(void)
 	return backlight_status;
 }
 EXPORT_SYMBOL(wireless_backlight_state);
+#endif
+
+#ifdef CONFIG_LGE_PM_THERMALE_BACKLIGHT_CHG_CONTROL
+int get_backlight_state(void)
+{
+	return backlight_status;
+}
+EXPORT_SYMBOL(get_backlight_state);
 #endif
 
 static void lm3697_hw_reset(void)
@@ -165,6 +184,9 @@ static void lm3697_set_main_current_level(struct i2c_client *client, int level)
 	struct lm3697_device *dev = i2c_get_clientdata(client);
 	int min_brightness = dev->min_brightness;
 	int max_brightness = dev->max_brightness;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+	int flag_mode = lge_get_mode_type();
+#endif
 
 	if (level == -BOOT_BRIGHTNESS)
 		level = dev->default_brightness;
@@ -180,6 +202,27 @@ static void lm3697_set_main_current_level(struct i2c_client *client, int level)
 			level = min_brightness;
 		else if (level > max_brightness)
 			level = max_brightness;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		if (flag_mode == LGE_PANEL_MODE_U2)
+		{
+			if (dev->blmap_u2) {
+				if (level < dev->blmap_size) {
+					cal_value = dev->blmap_u2[level];
+					pr_debug("%s cal_value U2 %d\n", __func__, cal_value);
+
+					lm3697_write_reg(client, 0x21, cal_value);
+					//lm3697_write_reg(client, 0x23, cal_value);
+				} else
+					dev_warn(&client->dev, "invalid index %d:%d\n", dev->blmap_size, level);
+			} else {
+				cal_value = level;
+				lm3697_write_reg(client, 0x21, cal_value);
+				//lm3697_write_reg(client, 0x23, cal_value);
+			}
+		}
+		else
+		{
+#endif
 		if (dev->blmap) {
 			if (level < dev->blmap_size) {
 				cal_value = dev->blmap[level];
@@ -196,6 +239,9 @@ static void lm3697_set_main_current_level(struct i2c_client *client, int level)
 			lm3697_write_reg(client, 0x21, cal_value);
 			//lm3697_write_reg(client, 0x23, cal_value);
 		}
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		}
+#endif
 	} else
 	{
 		pr_info("%s lm3697_write_reg... off??? level : %d\n", __func__, level);
@@ -231,6 +277,7 @@ static void lm3697_set_main_current_level_no_mapping(
 		lm3697_write_reg(client, 0x24, 0x00);
 	}
 	mutex_unlock(&main_lm3697_dev->bl_mutex);
+	pr_info("[LCD][LM3697] %s : backlight level=%d\n", __func__, level);
 }
 
 void lm3697_backlight_on(int level)
@@ -241,14 +288,22 @@ void lm3697_backlight_on(int level)
 		lm3697_hw_reset();
 
 		pr_info("[backlight] %s Enter lm3697 initial\n", __func__);
-		
+
+#if IS_ENABLED (CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		lm3697_write_reg(main_lm3697_dev->client, 0x1A, 0x00);  //OVP 16V, Freq 500kh
+		lm3697_write_reg(main_lm3697_dev->client, 0x16, 0x00);  //Exponential Mapping Mode
+		lm3697_write_reg(main_lm3697_dev->client, 0x17, 0x13);  //Bank A Full-scale current (20.2mA)
+		lm3697_write_reg(main_lm3697_dev->client, 0x24, 0x01);  //Enable Bank A / Disable Bank B
+		lm3697_write_reg(main_lm3697_dev->client, 0x10, 0x00);  //HVLED1 enable
+		lm3697_write_reg(main_lm3697_dev->client, 0x19, 0x01);  //HVLED1 Feedback Enable
+#else
 		lm3697_write_reg(main_lm3697_dev->client, 0x1A, 0x04);	//OVP 32V, Freq 500kh
 		lm3697_write_reg(main_lm3697_dev->client, 0x16, 0x01);	//Linear Mapping Mode
 		lm3697_write_reg(main_lm3697_dev->client, 0x17, 0x13);	//Bank A Full-scale current (20.2mA)
 		//lm3697_write_reg(main_lm3697_dev->client, 0x18, 0x13);	//Bank B Full-scale current (20.2mA)
 		lm3697_write_reg(main_lm3697_dev->client, 0x24, 0x01);	//Enable Bank A / Disable Bank B
 		lm3697_write_reg(main_lm3697_dev->client, 0x10, 0x00);	//HVLED1, 2, 3 enable
-		
+#endif
 		if( lm3697_pwm_enable ) {
 			/* Enble Feedback , disable	PWM for BANK A,B */
 		//	lm3697_write_reg(main_lm3697_dev->client, 0x01, 0x09);
@@ -289,7 +344,6 @@ void lm3697_lcd_backlight_set_level(int level)
 	if (level > MAX_BRIGHTNESS_LM3697)
 		level = MAX_BRIGHTNESS_LM3697;
 
-	pr_info("### %s level = (%d) \n ", __func__, level);
 	if (lm3697_i2c_client != NULL) {
 		if (level == 0) {
 			lm3697_backlight_off();
@@ -301,6 +355,28 @@ void lm3697_lcd_backlight_set_level(int level)
 	}
 }
 EXPORT_SYMBOL(lm3697_lcd_backlight_set_level);
+
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+void lm3697_set_level_no_mapping(int level)
+{
+    lm3697_set_main_current_level_no_mapping(main_lm3697_dev->client, level);
+}
+
+void lm3697_set_ramp_time(u32 interval)
+{
+    u32 value;
+
+    if(interval > 15)
+        interval = 15;
+    value = (interval << 4) | interval;
+    pr_debug("%s() : set value : 0x%x\n", __func__, value);
+    if (lm3697_i2c_client != NULL) {
+        lm3697_write_reg(main_lm3697_dev->client, 0x13, value);
+    } else {
+        pr_err("%s(): No client\n", __func__);
+    }
+}
+#endif
 
 static int bl_set_intensity(struct backlight_device *bd)
 {
@@ -515,21 +591,46 @@ static int lm3697_parse_dt(struct device *dev,
 		rc = of_property_read_u32_array(np, "lm3697,blmap", array, pdata->blmap_size);
 		if (rc) {
 			pr_err("%s:%d, uable to read backlight map\n",__func__, __LINE__);
+			kfree(array);
 			return -EINVAL;
 		}
 		pdata->blmap = kzalloc(sizeof(char) * pdata->blmap_size, GFP_KERNEL);
 
-		if (!pdata->blmap)
+		if (!pdata->blmap) {
+			kfree(array);
 			return -ENOMEM;
+		}
 
 		for (i = 0; i < pdata->blmap_size; i++ )
 			pdata->blmap[i] = (char)array[i];
 
+
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		rc = of_property_read_u32_array(np, "lm3697,blmap_u2", array, pdata->blmap_size);
+		if (rc) {
+			pr_err("%s:%d, unable to read backlight map for u2 mode\n",__func__, __LINE__);
+			kfree(array);
+			return -EINVAL;
+		}
+		pdata->blmap_u2 = kzalloc(sizeof(char) * pdata->blmap_size, GFP_KERNEL);
+
+		if (!pdata->blmap_u2) {
+			kfree(array);
+			return -ENOMEM;
+		}
+
+		for (i = 0; i < pdata->blmap_size; i++ )
+			pdata->blmap_u2[i] = (char)array[i];
+#endif
 		if (array)
 			kfree(array);
 
+
 	} else {
 		pdata->blmap = NULL;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		pdata->blmap_u2 = NULL;
+#endif
 	}
 
 	pr_info("[LM3697] %s gpio: %d, max_current: %d, min: %d, "
@@ -621,8 +722,22 @@ static int lm3697_probe(struct i2c_client *i2c_dev,
 			return -ENOMEM;
 		}
 		memcpy(dev->blmap, pdata->blmap, dev->blmap_size);
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		dev->blmap_u2 = kzalloc(sizeof(char) * dev->blmap_size, GFP_KERNEL);
+		if (!dev->blmap_u2) {
+			pr_err("%s: Failed to allocate memory\n", __func__);
+			return -ENOMEM;
+		}
+		memcpy(dev->blmap_u2, pdata->blmap_u2, dev->blmap_size);
+
+#endif
+
 	} else {
 		dev->blmap = NULL;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_AOD_SUPPORT)
+		dev->blmap_u2 = NULL;
+#endif
+
 	}
 
 	if (gpio_get_value(dev->gpio))

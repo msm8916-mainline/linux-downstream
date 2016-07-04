@@ -77,6 +77,7 @@ int write_file(char *filename, char *data)
 	set_fs(KERNEL_DS);
 
 	fd = sys_open(filename, O_WRONLY|O_CREAT|O_APPEND, 0666);
+	sys_chmod(filename, 0666);
 	if (fd < 0) {
 		TOUCH_INFO_MSG("%s :  Open file error [ %d ]\n", __func__, fd);
 		return fd;
@@ -92,17 +93,24 @@ int write_file(char *filename, char *data)
 int write_log(char *filename, char *data)
 {
 	int fd;
-	char *fname = "/mnt/sdcard/touch_self_test.txt";
+	char *fname = NULL;
 	int cap_file_exist = 0;
 
 	if (f54_window_crack || f54_window_crack_check_mode == 0) {
 		mm_segment_t old_fs = get_fs();
 		set_fs(KERNEL_DS);
 		if (filename == NULL) {
+			if (factory_boot)
+				fname =  "/data/touch/touch_self_test.txt";
+			else
+				fname = "/sdcard/touch_self_test.txt";
+
 			fd = sys_open(fname, O_WRONLY|O_CREAT|O_APPEND, 0666);
-			TOUCH_INFO_MSG("write log in /mnt/sdcard/touch_self_test.txt\n");
+			sys_chmod(fname, 0666);
+			TOUCH_INFO_MSG("write log in %s\n", fname);
 		} else {
 			fd = sys_open(filename, O_WRONLY|O_CREAT, 0666);
+			sys_chmod(filename, 0666);
 			TOUCH_INFO_MSG("write log in /sns/touch/cap_diff_test.txt\n");
 		}
 		TOUCH_INFO_MSG("[%s]write file open %s, fd : %d\n",
@@ -208,7 +216,7 @@ int get_limit(unsigned char Tx, unsigned char Rx, struct i2c_client client,
 		ret =  -1;
 		goto exit;
 	}
-	
+
 	if (breakpoint == NULL) {
 		TOUCH_INFO_MSG("%s : breakpoint is null\n", __func__);
 		ret =  -1;

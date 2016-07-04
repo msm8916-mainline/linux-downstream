@@ -48,14 +48,23 @@
 #define PS_ALS_SET_INTR           (PS_THH_BOTH_OUTSIDE | POLA_ACTIVEL | OUTPUT_LATCH | MODE_BOTH)
 #define PS_ALS_SET_PS_TH          (16)
 #define PS_ALS_SET_PS_TL          (4)
-#define PS_ALS_SET_ALS_TH         (0xFFFF)
-#define PS_ALS_SET_ALS_TL         (0x0000)
+#define PS_ALS_SET_ALS_TH         (0x0048)
+#define PS_ALS_SET_ALS_TL         (0x0044)
 #define PS_ALS_SET_MIN_DELAY_TIME (125)
 
 #define COEFFICIENT               (4)
+
+/*D1-5T-SW-INPUT@lge.com*/
+#ifdef CONFIG_OF
+signed long judge_coef[COEFFICIENT] = { 1130, 1424, 1751, 3015};
+signed long data0_coef[COEFFICIENT] = { 6803, 3667, 2054, 1520};
+signed long data1_coef[COEFFICIENT] = { 4714, 1941,  809,  504};
+#else
 const signed long judge_coef[COEFFICIENT] = { 1130, 1424, 1751, 3015};
 const signed long data0_coef[COEFFICIENT] = { 6803, 3667, 2054, 1520};
 const signed long data1_coef[COEFFICIENT] = { 4714, 1941,  809,  504};
+#endif
+
 
 /*
     PS_ALS_SET_MODE_CONTROL : ALS,PS function setting

@@ -217,7 +217,7 @@ struct qpnp_adc_tm_chip {
 	struct work_struct		trigger_high_thr_work;
 	struct work_struct		trigger_low_thr_work;
 	struct qpnp_adc_tm_sensor	sensor[0];
-#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
+#ifdef CONFIG_LGE_USB_G_MSM_OTG_ENABLE
 	bool   				usb_id_no_pull;
 #endif
 };
@@ -295,6 +295,7 @@ static struct qpnp_adc_tm_reverse_scale_fn adc_tm_rscale_fn[] = {
 	[SCALE_R_SMB_BATT_THERM] = {qpnp_adc_smb_btm_rscaler},
 	[SCALE_R_ABSOLUTE] = {qpnp_adc_absolute_rthr},
 	[SCALE_QRD_SKUH_RBATT_THERM] = {qpnp_adc_qrd_skuh_btm_scaler},
+	[SCALE_QRD_SKUE_RBATT_THERM] = {qpnp_adc_qrd_skue_btm_scaler},
 };
 
 static int32_t qpnp_adc_tm_read_reg(struct qpnp_adc_tm_chip *chip,
@@ -2126,7 +2127,7 @@ int32_t qpnp_adc_tm_usbid_configure(struct qpnp_adc_tm_chip *chip,
 				struct qpnp_adc_tm_btm_param *param)
 {
 	int32_t result = 0;
-#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
+#ifdef CONFIG_LGE_USB_G_MSM_OTG_ENABLE
 	if (chip->usb_id_no_pull)
 	{
 		pr_err("tm_usbid_configure p_mux1_1_1\n");
@@ -2136,7 +2137,7 @@ int32_t qpnp_adc_tm_usbid_configure(struct qpnp_adc_tm_chip *chip,
 	{
 #endif
 	param->channel = LR_MUX10_PU2_AMUX_USB_ID_LV;
-#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
+#ifdef CONFIG_LGE_USB_G_MSM_OTG_ENABLE
 		pr_err("pu2_amux\n");
 	}
 #endif
@@ -2359,7 +2360,7 @@ static int qpnp_adc_tm_probe(struct spmi_device *spmi)
 		goto fail;
 	}
 
-#ifdef CONFIG_USB_G_LGE_MSM_OTG_ENABLE
+#ifdef CONFIG_LGE_USB_G_MSM_OTG_ENABLE
 	chip->usb_id_no_pull = of_property_read_bool(node,"usb-id-no-pull");
 #endif
 #ifndef CONFIG_LGE_PM

@@ -17,7 +17,7 @@
 
 #define CAM_SENSOR_PINCTRL_STATE_SLEEP "cam_suspend"
 #define CAM_SENSOR_PINCTRL_STATE_DEFAULT "cam_default"
-#define CONFIG_MSM_CAMERA_DT_DEBUG
+/*#define CONFIG_MSM_CAMERA_DT_DEBUG*/
 
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
@@ -140,7 +140,7 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 	struct device_node *src_node = NULL;
 	struct msm_sensor_info_t *sensor_info;
 
-#if defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_CAMERA_USE_MAKER_ID)
+#if defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_CAMERA_USE_MAKER_ID) || defined(CONFIG_LGE_K5_CAMERA)
 	int32_t maker_id = 0;
 	int32_t gpio_maker = 0;
 	hw_rev_type rev_type = 0;
@@ -206,7 +206,23 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 		src_node = NULL;
 	}
 #endif
-
+#if defined(CONFIG_LG_TCS)
+	src_node = of_parse_phandle(of_node, "qcom,tcs-src", 0);
+        if (!src_node) {
+                pr_err("%s:%d src_node NULL\n", __func__, __LINE__);
+        } else {
+                rc = of_property_read_u32(src_node, "cell-index", &val);
+                CDBG("%s qcom,tcs cell index %d, rc %d\n", __func__,
+                        val, rc);
+                if (rc < 0) {
+                        pr_err("%s failed %d\n", __func__, __LINE__);
+                        goto ERROR;
+                }
+                sensor_info->subdev_id[SUB_MODULE_TCS] = val;
+                of_node_put(src_node);
+                src_node = NULL;
+        }
+#endif
 	src_node = of_parse_phandle(of_node, "qcom,eeprom-src", 0);
 	if (!src_node) {
 		CDBG("%s:%d eeprom src_node NULL\n", __func__, __LINE__);
@@ -222,6 +238,24 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 		of_node_put(src_node);
 		src_node = NULL;
 	}
+
+#if defined(CONFIG_MSM_OTP)
+	src_node = of_parse_phandle(of_node, "qcom,otp-src", 0);
+	if (!src_node) {
+		CDBG("%s:%d otp src_node NULL\n", __func__, __LINE__);
+	} else {
+		rc = of_property_read_u32(src_node, "cell-index", &val);
+		CDBG("%s qcom,otp cell index %d, rc %d\n", __func__,
+			val, rc);
+		if (rc < 0) {
+			pr_err("%s failed %d\n", __func__, __LINE__);
+			goto ERROR;
+		}
+		sensor_info->subdev_id[SUB_MODULE_OTP] = val;
+		of_node_put(src_node);
+		src_node = NULL;
+	}
+#endif
 
 	rc = of_property_read_u32(of_node, "qcom,eeprom-sd-index", &val);
 	if (rc != -EINVAL) {
@@ -338,7 +372,7 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 #if defined(CONFIG_LGE_YG_CAMERA)
 	if(sensor_info->subdev_id[SUB_MODULE_CSIPHY] == 1)
 		memcpy(sensor_info->maker_name, "cowell", 6);
-#elif defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_CAMERA_USE_MAKER_ID)
+#elif defined(CONFIG_LGE_G4STYLUS_CAMERA) || defined(CONFIG_LGE_CAMERA_USE_MAKER_ID) || defined(CONFIG_LGE_K5_CAMERA)
 /* Check module maker */
 	rev_type = lge_get_board_revno();
 
@@ -374,7 +408,7 @@ int msm_sensor_get_sub_module_index(struct device_node *of_node,
 	}else {
 		pr_info("%s hw_rev(%d), maker id is not needed\n", __func__, rev_type);
 	}
-#endif //defined(CONFIG_LGE_YG_CAMERA)
+#endif
 
 	*s_info = sensor_info;
 	return rc;
@@ -1387,7 +1421,7 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 				pr_err("%s: request gpio failed\n", __func__);
 
 				//LGE_CHANGE_S, goto 'power up fail routine' before return error, jongkwon.chae@lge.com
-			#if defined (CONFIG_MACH_MSM8916_C70W_KR) || defined(CONFIG_MSM8916_C90) || defined(CONFIG_MACH_MSM8916_C90N_GLOBAL_COM)
+			#if defined (CONFIG_MACH_MSM8916_C70W_KR) || defined(CONFIG_MSM8916_C90) || defined(CONFIG_MACH_MSM8916_C90_GLOBAL_COM)
 				rc = no_gpio;
 				goto power_up_failed;
 			#else

@@ -599,6 +599,7 @@
 		};
 
 		pmx_rd_nfc_int{
+			status = "ok";
 			qcom,pins = <&gp 21>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
@@ -616,6 +617,7 @@
 		};
 
 		pmx_nfc_reset{
+			status = "ok";
 			qcom,pins = <&gp 20>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
@@ -633,6 +635,7 @@
 		};
 
 		pmx_nfc_wake{
+			status = "ok";
 			qcom,pins = <&gp 118>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;

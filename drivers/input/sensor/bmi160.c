@@ -13229,6 +13229,9 @@ u8 foc_gyr_en, s16 *gyr_off_x, s16 *gyr_off_y, s16 *gyr_off_z)
 						timeout++;
 					}
 				}
+				//LGE_CHANGE_S D1-5T-SW-INPUT@lge.com
+				p_bmi160->delay_msec(BMI160_DELAY_SETTLING_TIME*100);
+				//LGE_CHANGE_E D1-5T-SW-INPUT@lge.com
 				if ((comres == SUCCESS) &&
 				(focstatus == C_BMI160_ONE_U8X)) {
 					comres +=

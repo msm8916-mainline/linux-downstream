@@ -11,7 +11,8 @@
 #include <linux/delay.h>
 #include <linux/workqueue.h>
 #include <linux/wakelock.h>         /* wake_lock, unlock */
-#if defined (CONFIG_MACH_MSM8916_YG_SKT_KR)
+#if defined (CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_M216N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || \
+    defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_KR) || defined(CONFIG_MACH_MSM8916_PH1_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_K5_KR) || defined(CONFIG_MACH_MSM8916_G4STYLUSW_KT_KR) || defined(CONFIG_MACH_MSM8916_M216N_KR)
 #include <mach/board_lge.h>
 #endif
 #include "../../broadcast_tdmb_drv_ifdef.h"
@@ -30,6 +31,11 @@
 #ifdef FEATURE_DMB_USE_PINCTRL
 #include <linux/pinctrl/consumer.h>
 #endif
+
+#if defined (CONFIG_MACH_MSM8916_PH1_GLOBAL_COM)
+#include <linux/regulator/consumer.h>
+#endif
+
 /* external function */
 extern int broadcast_fc8080_drv_if_isr(void);
 extern void tunerbb_drv_fc8080_isr_control(fci_u8 onoff);
@@ -42,7 +48,9 @@ static int broadcast_tdmb_fc8080_resume(struct spi_device *spi);
 
 /* SPI Data read using workqueue */
 //#define FEATURE_DMB_USE_WORKQUEUE
+#if defined (CONFIG_MACH_MSM8916_YG_SKT_KR) || defined (CONFIG_MACH_MSM8939_P1BSSN_SKT_KR) || defined(CONFIG_MACH_MSM8916_K5_KR) || defined(CONFIG_MACH_MSM8916_G4STYLUSW_KT_KR)
 #define FEATURE_DMB_USE_XO
+#endif
 //#define FEATURE_DMB_USE_BUS_SCALE
 //#define FEATURE_DMB_USE_PM_QOS
 
@@ -75,8 +83,12 @@ struct tdmb_fc8080_ctrl_blk
 #endif
     uint32                            dmb_en;
     uint32                            dmb_irq;
-#if defined (CONFIG_MACH_MSM8926_VFP_KR)||defined(CONFIG_MACH_MSM8916_YG_SKT_KR)
+#if defined (CONFIG_MACH_MSM8926_VFP_KR) || defined(CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_M216N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_GLOBAL_COM)
     uint32                            dmb_ant;
+#endif
+#if defined (CONFIG_MACH_MSM8916_PH1_GLOBAL_COM)
+    struct regulator                *vdd_reg;
+    uint32                           ldo_status;
 #endif
 };
 
@@ -94,7 +106,8 @@ static Device_drv device_fc8080 = {
     &broadcast_fc8080_drv_if_get_msc,
     &broadcast_fc8080_drv_if_reset_ch,
     &broadcast_fc8080_drv_if_user_stop,
-    &broadcast_fc8080_drv_if_select_antenna
+    &broadcast_fc8080_drv_if_select_antenna,
+    &broadcast_fc8080_drv_if_set_nation
 };
 
 #if 0
@@ -256,6 +269,7 @@ int tdmb_fc8080_power_on_retry(void)
 /*[BCAST002][E]*/
 int tdmb_fc8080_power_on(void)
 {
+
     int rc = FALSE;
 
     printk("tdmb_fc8080_power_on \n");
@@ -289,7 +303,15 @@ int tdmb_fc8080_power_on(void)
 #endif
 //        gpio_set_value(PM8058_GPIO_PM_TO_SYS(DMB_ANT_SEL_P-1), 0);
 //        gpio_set_value(PM8058_GPIO_PM_TO_SYS(DMB_ANT_SEL_N-1), 1);
-#if defined (CONFIG_MACH_MSM8926_VFP_KR)||defined(CONFIG_MACH_MSM8916_YG_SKT_KR)
+
+#if defined (CONFIG_MACH_MSM8916_PH1_GLOBAL_COM)
+        if(fc8080_ctrl_info.ldo_status == TRUE)
+        {
+            rc = regulator_enable(fc8080_ctrl_info.vdd_reg);
+        }
+#endif
+
+#if defined (CONFIG_MACH_MSM8926_VFP_KR) || defined(CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_M216N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_GLOBAL_COM)
         gpio_set_value(fc8080_ctrl_info.dmb_ant, 0);
 #endif
 
@@ -332,8 +354,15 @@ int tdmb_fc8080_power_off(void)
 
 //        gpio_set_value(PM8058_GPIO_PM_TO_SYS(DMB_ANT_SEL_P-1), 1);    // for ESD TEST
 //        gpio_set_value(PM8058_GPIO_PM_TO_SYS(DMB_ANT_SEL_N-1), 0);
-#if defined (CONFIG_MACH_MSM8926_VFP_KR)||defined(CONFIG_MACH_MSM8916_YG_SKT_KR)
+#if defined (CONFIG_MACH_MSM8926_VFP_KR) || defined(CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_M216N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_GLOBAL_COM)
         gpio_set_value(fc8080_ctrl_info.dmb_ant, 1);
+#endif
+
+#if defined (CONFIG_MACH_MSM8916_PH1_GLOBAL_COM)
+        if(fc8080_ctrl_info.ldo_status == TRUE)
+        {
+            regulator_disable(fc8080_ctrl_info.vdd_reg);
+        }
 #endif
 
 #ifdef FEATURE_DMB_USE_BUS_SCALE
@@ -564,7 +593,7 @@ static int tdmb_configure_gpios(void)
         printk("%s:Failed GPIO DMB_INT_N request!!!\n",__func__);
     }
 
-#if defined (CONFIG_MACH_MSM8926_VFP_KR )||defined(CONFIG_MACH_MSM8916_YG_SKT_KR)
+#if defined (CONFIG_MACH_MSM8926_VFP_KR ) || defined(CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_M216N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_PH1_GLOBAL_COM)
     fc8080_ctrl_info.dmb_ant = of_get_named_gpio(fc8080_ctrl_info.pdev->dev.of_node,"tdmb-fc8080,ant-gpio",0);
 
     rc = gpio_request(fc8080_ctrl_info.dmb_ant, "DMB_ANT");
@@ -582,6 +611,32 @@ static int tdmb_configure_gpios(void)
 
     return rc;
 }
+
+#if defined (CONFIG_MACH_MSM8916_PH1_GLOBAL_COM)
+static int tdmb_configure_ant_switch_voltage(void)
+{
+	int rc;
+	int err;
+
+    printk("set regulator voltage enter\n");
+
+    fc8080_ctrl_info.vdd_reg = regulator_get(&(fc8080_ctrl_info.pdev->dev), "tdmb-fc8080,vdd_sw");
+    if(IS_ERR(fc8080_ctrl_info.vdd_reg)){
+        err = PTR_ERR(fc8080_ctrl_info.vdd_reg);
+        return err;
+    }
+
+    if(regulator_count_voltages(fc8080_ctrl_info.vdd_reg) > 0)
+    {
+        rc = regulator_set_voltage(fc8080_ctrl_info.vdd_reg, 2500000, 3000000);
+    }
+
+    fc8080_ctrl_info.ldo_status = TRUE;
+    printk("set regulator voltage end\n");
+
+    return TRUE;
+}
+#endif
 
 static int broadcast_tdmb_fc8080_probe(struct spi_device *spi)
 {
@@ -641,6 +696,17 @@ static int broadcast_tdmb_fc8080_probe(struct spi_device *spi)
 
 #ifdef FEATURE_DMB_USE_PINCTRL
     tdmb_pinctrl_init();
+#endif
+
+#if defined (CONFIG_MACH_MSM8916_PH1_GLOBAL_COM)
+    if(tdmb_configure_ant_switch_voltage() == TRUE)
+    {
+        printk("broadcast_tdmb_fc8080_probe Antenna switch use LDO\n");
+    }
+    else
+    {
+        printk("broadcast_tdmb_fc8080_probe Antenna swtich not use LDO\n");
+    }
 #endif
 
 #ifdef FEATURE_DMB_USE_WORKQUEUE

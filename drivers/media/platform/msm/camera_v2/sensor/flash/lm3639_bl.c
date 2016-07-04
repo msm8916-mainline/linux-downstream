@@ -528,6 +528,9 @@ DEVICE_ATTR(lm3639_pwm, 0644, lcd_backlight_show_pwm, lcd_backlight_store_pwm);
 #endif
 
 #ifdef CONFIG_OF
+#if defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL) && defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+extern int get_display_id(void);
+#endif
 static int lm3639_parse_dt(struct device *dev,
 		struct backlight_platform_data *pdata)
 {
@@ -557,8 +560,14 @@ static int lm3639_parse_dt(struct device *dev,
 		array = kzalloc(sizeof(u32) * pdata->blmap_size, GFP_KERNEL);
 		if (!array)
 			return -ENOMEM;
-
+#if defined(CONFIG_JDI_INCELL_VIDEO_HD_PANEL) && defined(CONFIG_LGD_INCELL_DB7400_VIDEO_HD_DUAL_PANEL)
+	if(get_display_id()==0) //Primary is 0
 		rc = of_property_read_u32_array(np, "lm3639,blmap", array, pdata->blmap_size);
+	else
+		rc = of_property_read_u32_array(np, "lm3639,blmap2", array, pdata->blmap_size);
+#else
+		rc = of_property_read_u32_array(np, "lm3639,blmap", array, pdata->blmap_size);
+#endif
 		if (rc) {
 			pr_err("%s:%d, uable to read backlight map\n",__func__, __LINE__);
 			return -EINVAL;

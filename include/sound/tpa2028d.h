@@ -36,13 +36,13 @@ struct amp_cal {
 };
 
 #ifdef CONFIG_SND_SOC_TPA2028D_STEREO
-void set_amp_gain(int amp_no, int num);
+void set_amp_gain(int amp_no, int amp_state);
 #else
 void set_amp_gain(int num);
 #endif
 
 #if defined( CONFIG_ANDROID_SW_IRRC) && defined(CONFIG_MACH_APQ8064_AWIFI)
-void irrc_amp_off(int amp_no, int num);
+void irrc_amp_off(int amp_no, int amp_state);
 
 #endif
 

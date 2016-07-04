@@ -1,9 +1,0 @@
-*.o
-*.cmd
-.tmp_versions/
-Module.symvers
-*.ko
-*.mod.c
-modules.order
-cscope.out
-*.swp

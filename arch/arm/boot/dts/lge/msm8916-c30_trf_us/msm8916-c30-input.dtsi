@@ -11,8 +11,6 @@
  */
 
 &i2c_5 {
-	qcom,clk-freq-out = <400000>;
-
 	lu202x@0e {
 		compatible = "unified_driver,ver2";
 		reg = <0x0e>;

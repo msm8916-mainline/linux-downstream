@@ -83,8 +83,9 @@ static struct synaptics_ts_f12_info f12_info;
 
 struct synaptics_ts_data *syna_ts_data = NULL;
 
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
 extern void mdss_lcd_dsv_control(int enable);
-
+#endif
 #define RMI_DEVICE_CONTROL			0x01
 #define TOUCHPAD_SENSORS			0x12
 #define FLASH_MEMORY_MANAGEMENT			0x34
@@ -296,6 +297,9 @@ bool wakeup_by_swipe;
 /* Define EE_SHORT in order to enable sensor speed/noise/e_e short test */
 //#define EE_SHORT
 
+#define MAX_LOG_FILE_SIZE 	(10 * 1024 * 1024) /* 10 M byte */
+#define MAX_LOG_FILE_COUNT 	4
+
 extern void release_all_touch_event(struct lge_touch_data *ts);
 
 static u8 half_err_cnt;
@@ -325,6 +329,88 @@ void touch_disable_irq(unsigned int irq)
 	}
 }
 
+static void log_file_size_check(char *fname)
+{
+	struct file *file;
+	loff_t file_size = 0;
+	int i = 0;
+	char buf1[128] = {0};
+	char buf2[128] = {0};
+	mm_segment_t old_fs = get_fs();
+	int ret = 0;
+
+	set_fs(KERNEL_DS);
+	if (fname) {
+		file = filp_open(fname, O_RDONLY, 0666);
+		sys_chmod(fname, 0666);
+	} else {
+		TOUCH_ERR_MSG("%s : fname is NULL, can not open FILE\n",
+				__func__);
+		goto error;
+	}
+
+	if (IS_ERR(file)) {
+		TOUCH_ERR_MSG("%s : ERR(%ld) Open file error [%s]\n",
+				__func__, PTR_ERR(file), fname);
+		goto error;
+	}
+
+	file_size = vfs_llseek(file, 0, SEEK_END);
+	TOUCH_INFO_MSG("%s : [%s] file_size = %lld\n",
+			__func__, fname, file_size);
+
+	filp_close(file, 0);
+
+	if (file_size > MAX_LOG_FILE_SIZE) {
+		TOUCH_INFO_MSG("%s : [%s] file_size(%lld) > MAX_LOG_FILE_SIZE(%d)\n",
+				__func__, fname, file_size, MAX_LOG_FILE_SIZE);
+
+		for (i = MAX_LOG_FILE_COUNT - 1; i >= 0; i--) {
+			if (i == 0)
+				sprintf(buf1, "%s", fname);
+			else
+				sprintf(buf1, "%s.%d", fname, i);
+
+			ret = sys_access(buf1, 0);
+
+			if (ret == 0) {
+				TOUCH_INFO_MSG("%s : file [%s] exist\n",
+						__func__, buf1);
+
+				if (i == (MAX_LOG_FILE_COUNT - 1)) {
+					if (sys_unlink(buf1) < 0) {
+						TOUCH_ERR_MSG("%s : failed to remove file [%s]\n",
+								__func__, buf1);
+						goto error;
+					}
+
+					TOUCH_INFO_MSG("%s : remove file [%s]\n",
+							__func__, buf1);
+				} else {
+					sprintf(buf2, "%s.%d",
+							fname,
+							(i + 1));
+
+					if (sys_rename(buf1, buf2) < 0) {
+						TOUCH_ERR_MSG("%s : failed to rename file [%s] -> [%s]\n",
+								__func__, buf1, buf2);
+						goto error;
+					}
+
+					TOUCH_INFO_MSG("%s : rename file [%s] -> [%s]\n",
+							__func__, buf1, buf2);
+				}
+			} else {
+				TOUCH_INFO_MSG("%s : file [%s] does not exist (ret = %d)\n",
+						__func__, buf1, ret);
+			}
+		}
+	}
+error:
+	set_fs(old_fs);
+	return;
+}
+
 void write_time_log(char *filename, char *data, int data_include)
 {
 	int fd = 0;
@@ -349,11 +435,17 @@ void write_time_log(char *filename, char *data, int data_include)
 
 	set_fs(KERNEL_DS);
 
-	if (filename == NULL)
-		fname = "/mnt/sdcard/touch_self_test.txt";
-	else
+	if (filename == NULL) {
+		if (factory_boot)
+			fname = "/data/touch/touch_self_test.txt";
+		else
+			fname = "/sdcard/touch_self_test.txt";
+	} else {
 		fname = filename;
+	}
+
 	fd = sys_open(fname, O_WRONLY|O_CREAT|O_APPEND, 0666);
+	sys_chmod(fname, 0666);
 
 	TOUCH_INFO_MSG("write open %s, fd : %d\n",
 			(fd >= 0) ? "success" : "fail", fd);
@@ -383,6 +475,7 @@ void write_firmware_version_log(struct synaptics_ts_data *ts)
 			ver_outbuf += snprintf(version_string+ver_outbuf, 448-ver_outbuf, "-1\n");
 			ver_outbuf += snprintf(version_string+ver_outbuf, 448-ver_outbuf,
 					"Read Fail Touch IC Info\n");
+			kfree(version_string);
 			return;
 		}
 	}
@@ -1578,6 +1671,11 @@ static int synaptics_get_cap_diff(struct synaptics_ts_data *ts)
 	return ret;
 
 error_mem:
+	kfree(rx_cap_diff);
+	kfree(tx_cap_diff);
+	kfree(raw_cap);
+	kfree(f54_cap_wlog_buf);
+
 	TOUCH_INFO_MSG("error_mem\n");
 	return -ENOMEM;
 
@@ -1845,7 +1943,7 @@ static ssize_t show_synaptics_fw_version(struct i2c_client *client, char *buf)
 				ts->fw_info.fw_version);
 	else
 		ret += snprintf(buf+ret,
-				PAGE_SIZE-ret, 
+				PAGE_SIZE-ret,
 				"version : v%d.%02d\n",
 				((ts->fw_info.fw_version[3] & 0x80) >> 7),
 				(ts->fw_info.fw_version[3] & 0x7F));
@@ -2115,6 +2213,11 @@ static ssize_t show_sd(struct i2c_client *client, char *buf)
 				PAGE_SIZE-ret,
 				"state=[suspend]. we cannot use I2C, now. Test Result: Fail\n");
 	}
+
+	if (factory_boot)
+		log_file_size_check("/data/touch/touch_self_test.txt");
+	else
+		log_file_size_check("/sdcard/touch_self_test.txt");
 
 	return ret;
 }
@@ -3151,6 +3254,28 @@ static ssize_t store_mfts_enable(struct i2c_client *client, const char *buf, siz
 	return count;
 }
 
+static ssize_t show_factory_mode(struct i2c_client *client, char *buf)
+{
+	int ret;
+
+	ret = sprintf(buf, "%d\n", factory_boot);
+	TOUCH_INFO_MSG("factory_mode:%d\n", factory_boot);
+
+	return ret;
+}
+
+static ssize_t store_factory_mode(struct i2c_client *client, const char *buf, size_t count)
+{
+	int value;
+
+	sscanf(buf, "%d", &value);
+
+	factory_boot = value;
+	TOUCH_INFO_MSG("factory_mode:%d\n", factory_boot);
+
+	return count;
+}
+
 static LGE_TOUCH_ATTR(firmware, S_IRUGO | S_IWUSR, show_firmware, NULL);
 static LGE_TOUCH_ATTR(sd, S_IRUGO | S_IWUSR, show_sd, NULL);
 static LGE_TOUCH_ATTR(rawdata, S_IRUGO | S_IWUSR, show_rawdata, store_rawdata);
@@ -3178,6 +3303,7 @@ static LGE_TOUCH_ATTR(opcode, S_IRUGO | S_IWUSR, show_opcode, store_opcode);
 static LGE_TOUCH_ATTR(pen_support, S_IRUGO | S_IWUSR, show_pen_support, NULL);
 static LGE_TOUCH_ATTR(swipe_param, S_IRUGO | S_IWUSR, show_swipe_param, store_swipe_param);
 static LGE_TOUCH_ATTR(mfts, S_IRUGO | S_IWUSR, show_mfts_enable, store_mfts_enable);
+static LGE_TOUCH_ATTR(factory, S_IRUGO | S_IWUSR, show_factory_mode, store_factory_mode);
 
 static struct attribute *lge_specific_touch_attribute_list[] = {
 	&lge_touch_attr_firmware.attr,
@@ -3203,6 +3329,7 @@ static struct attribute *lge_specific_touch_attribute_list[] = {
 	&lge_touch_attr_pen_support.attr,
 	&lge_touch_attr_swipe_param.attr,
 	&lge_touch_attr_mfts.attr,
+	&lge_touch_attr_factory.attr,
 	NULL,
 };
 
@@ -3336,7 +3463,7 @@ static int get_swipe_info(struct synaptics_ts_data *ts)
 		swp->support_swipe = SUPPORT_SWIPE;
 		swp->swipe_enable_mask = 0x01;
 		swp->swipe_gesture = 0x04;
-		swp->swipe_min_distance = 10;
+		swp->swipe_min_distance = 16;
 		swp->swipe_ratio_threshold = 200;
 		swp->swipe_ratio_check_period = 5;
 		swp->swipe_ratio_check_min_distance = 2;
@@ -4075,7 +4202,9 @@ enum error_type synaptics_ts_get_data(struct i2c_client *client,
 			TOUCH_ERR_MSG("%s,: ESD device_status_reg=0x%02X, interrupt_status_reg=0x%02X\n", __func__,
 					ts->ts_data.device_status_reg,
 					ts->ts_data.interrupt_status_reg);
+#if defined(CONFIG_LGD_INCELL_PHASE3_VIDEO_HD_PT_PANEL)
 			mdss_lcd_dsv_control(0);
+#endif
 			return IGNORE_EVENT;
 		} else {
 			goto error;

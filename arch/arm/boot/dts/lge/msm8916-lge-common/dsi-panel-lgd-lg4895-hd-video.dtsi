@@ -1,0 +1,412 @@
+&mdss_mdp {
+	dsi_lgd_incell_lg4895_hd_vid: qcom,mdss_dsi_lgd_incell_lg4895_hd_video{
+		compatible = "qcom,mdss-dsi-panel";
+		status = "disable";
+
+		qcom,mdss-dsi-panel-name = "LGD SiW LG4895 INCELL 720p video mode dsi panel";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,mdss-dsi-panel-destination = "display_1";
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-force-clock-lane-hs;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-lp11-init;
+		qcom,suspend-ulps-enabled;
+		qcom,mdss-dsi-tx-eot-append;
+		qcom,mdss-dsi-panel-width = <720>;
+		qcom,mdss-dsi-panel-height = <1360>;
+		qcom,mdss-dsi-h-front-porch = <100>;
+		qcom,mdss-dsi-h-back-porch = <32>;
+		qcom,mdss-dsi-h-pulse-width = <4>;
+		qcom,mdss-dsi-h-sync-skew = <1>;
+		qcom,mdss-dsi-h-sync-pulse = <4>;
+		qcom,mdss-dsi-v-front-porch = <700>;
+		qcom,mdss-dsi-v-back-porch = <26>;
+		qcom,mdss-dsi-v-pulse-width = <1>;
+		qcom,mdss-dsi-h-left-border = <0>;
+		qcom,mdss-dsi-h-right-border = <0>;
+		qcom,mdss-dsi-v-top-border = <0>;
+		qcom,mdss-dsi-v-bottom-border = <0>;
+		qcom,mdss-pan-physical-width-dimension = <71>;
+		qcom,mdss-pan-physical-height-dimension = <126>;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-underflow-color = <0>;
+		qcom,mdss-dsi-border-color = <0>;
+		qcom,mdss-dsi-on-command-rev0 = [
+			/* MCAP */
+			39 01 00 00 00 00 02
+				B0 AC
+			39 01 00 00 00 00 05
+				B1 10 20 20 20
+			39 01 00 00 00 00 0D
+				B2 02 00 21 20 48 3B 65 10 40
+				40 60 60
+			39 01 00 00 00 00 05
+				B4 00 A9 00 19
+			39 01 00 00 00 00 18
+				BB 36 00 25 D0 50 02 A0 22 00
+				C8 02 08 50 00 02 02 02 02 02
+				02 00 00 00
+			39 01 00 00 00 00 0A
+				BD D0 03 02 94 03 03 12 20 22
+			39 01 00 00 00 00 08
+				BE E0 E0 09 C9 C8 F8 00
+			39 01 00 00 00 00 02
+				BF 60
+			39 01 00 00 00 00 07
+				C1 01 E8 F0 C2 41 00
+			39 01 00 00 00 00 04
+				C2 A2 10 10
+			39 01 00 00 00 00 07
+				C3 15 2F 2F 04 26 21
+			39 01 00 00 00 00 04
+				C4 A2 E0 2E
+			39 01 00 00 00 00 06
+				C5 25 22 20 17 17
+			39 01 00 00 00 00 0D
+				C7 10 22 00 28 00 24 24 24 00
+				E1 E1 E1
+			39 01 00 00 00 00 05
+				CA 00 00 B0 FF
+			39 01 00 00 00 00 0F
+				CC 22 2F 11 26 21 24 02 24 24
+				24 07 3F 3F 3F
+
+			/* U2 clock setting - START */
+			// controled through sysfs
+			/* U2 clock setting - END */
+
+			/* Gamma Settings - START */
+			39 01 00 00 00 00 0B
+				D0 23 43 60 63 42 04 00 A0 C0 62
+			39 01 00 00 00 00 0B
+				D1 23 43 60 63 42 04 00 A0 C0 62
+			39 01 00 00 00 00 0B
+				D2 23 43 60 63 42 04 00 A0 C0 62
+			39 01 00 00 00 00 0B
+				D3 23 43 60 63 42 04 00 A0 C0 62
+			39 01 00 00 00 00 0B
+				D4 23 43 60 63 42 04 00 A0 C0 62
+			39 01 00 00 00 00 0B
+				D5 23 43 60 63 42 04 00 A0 C0 62
+			/* Gamma Settings - END */
+
+			39 01 00 00 00 00 16
+				E4 C3 60 41 45 66 CC CB CA C9
+				C7 C8 0F 0F 0F 0F 0F 0F 0F 0F
+				0F 0F
+			39 01 00 00 00 00 09
+				E5 41 40 90 44 14 00 00 00
+
+			/* MIE - Start */
+			39 01 00 00 00 00 05
+				EF 00 23 00 01
+			39 01 00 00 00 00 06
+				F1 00 43 83 C0 FF
+			15 01 00 00 00 00 02 ED 42
+			/* MIE - End */
+
+			/* CABC - Start(currently blocked) */
+			/* CABC - End */
+
+			/* Sleep out command & wait 100ms */
+			05 01 00 00 64 00 01 11
+			/* Display on command & wait 75ms */
+			05 01 00 00 49 00 01 29
+		];
+		qcom,mdss-dsi-on-command = [
+			/* MCAP */
+			39 01 00 00 00 00 02
+				B0 AC
+			39 01 00 00 00 00 05
+				B1 10 20 AA 20
+			39 01 00 00 00 00 0D
+				B2 02 00 A1 20 48 00 C5 10 0F
+				0F 39 50
+			39 01 00 00 00 00 05
+				B4 00 A9 00 19
+			39 01 00 00 00 00 18
+				BB 36 00 25 D0 50 4E A0 22 00
+				C8 02 08 50 00 02 02 02 02 02
+				02 00 00 00
+			39 01 00 00 00 00 0A
+				BD D0 03 02 94 03 03 12 20 22
+			39 01 00 00 00 00 08
+				BE E0 E0 C9 C9 C8 F8 00
+			39 01 00 00 00 00 02
+				BF 60
+			39 01 00 00 00 00 07
+				C1 01 E8 F0 C2 C1 00
+			39 01 00 00 00 00 04
+				C2 91 10 10
+			39 01 00 00 00 00 07
+				C3 15 2F 2F 04 66 21
+			39 01 00 00 00 00 04
+				C4 01 A0 2E
+			39 01 00 00 00 00 06
+				C5 25 22 20 17 17
+			39 01 00 00 00 00 0D
+				C7 10 22 00 28 00 5B 5B 5B 00
+				E1 CD E1
+			39 01 00 00 00 00 05
+				CA 00 00 B0 FF
+			39 01 00 00 00 00 0F
+				CC 80 0F 11 26 21 24 02 24 24
+				24 07 3F 3F 3F
+
+			/* U2 clock setting - START */
+			// controled through sysfs
+			/* U2 clock setting - END */
+
+			/* Gamma Settings - START */
+			39 01 00 00 00 00 0B
+				D0 23 33 60 53 42 04 00 A0 C0 62
+			39 01 00 00 00 00 0B
+				D1 23 33 60 53 42 04 00 A0 C0 62
+			39 01 00 00 00 00 0B
+				D2 23 33 60 53 42 04 00 A0 C0 62
+			39 01 00 00 00 00 0B
+				D3 23 33 60 53 42 04 00 A0 C0 62
+			39 01 00 00 00 00 0B
+				D4 23 33 60 53 42 04 00 A0 C0 62
+			39 01 00 00 00 00 0B
+				D5 23 33 60 53 42 04 00 A0 C0 62
+			/* Gamma Settings - END */
+
+			39 01 00 00 00 00 16
+				E4 C3 60 41 C5 C6 CC CB CA C9
+				C7 C8 0F 0F 0F 0F 0F 0F 0F 0F
+				0F 0F
+			39 01 00 00 00 00 09
+				E5 41 41 90 44 00 00 00 00
+
+			/* MIE - Start */
+			39 01 00 00 00 00 05
+				EF 00 23 00 01
+			/* MIE - End */
+
+			/* CABC - Start(currently blocked) */
+			/* CABC - End */
+
+			/* Sleep out command & wait 100ms */
+			05 01 00 00 64 00 01 11
+			/* Display on command & wait 75ms */
+			05 01 00 00 49 00 01 29
+		];
+		qcom,mdss-dsi-off-command = [
+			/* Sleep in command & wait 100ms */
+			05 01 00 00 64 00 01 10
+		];
+		qcom,mdss-dsi-lut-update-command = [
+		];
+		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-lut-update-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-traffic-mode = "non_burst_sync_pulse";
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+		//qcom,mdss-dsi-hfp-power-mode;
+		//qcom,mdss-dsi-hbp-power-mode;
+		//qcom,mdss-dsi-hsa-power-mode;
+		qcom,mdss-dsi-lane-hs = <1>;
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-panel-timings = [AD 28 1A 00 52 54 20 2C 21 03 04 00];
+		qcom,mdss-dsi-t-clk-post = <0x03>;
+		qcom,mdss-dsi-t-clk-pre = <0x22>;
+
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <255>;
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+		qcom,mdss-dsi-reset-sequence = <0 5>,<1 5>;
+		qcom,cont-splash-enabled;
+
+		/* SRE cmds set START*/
+		qcom,sre-control-dsi-state = "dsi_lp_mode";
+		lge,sre-cmds-off = [
+		];
+		lge,sre-cmds-on = [
+		];
+		/* SRE cmds set END*/
+
+		qcom,img-tune-control-dsi-state = "dsi_lp_mode";
+		lge,sharpness-cmds-on = [
+		];
+		lge,sharpness-cmds-off = [
+		];
+		lge,color_enhancement-cmds-on = [
+		];
+		lge,color_enhancement-cmds-off = [
+		];
+
+		/* Panel mode switch cmds set */
+		qcom,mode-control-dsi-state = "dsi_lp_mode";
+		lge,mode-change-cmds-u2-to-u1 = [
+			/* Write Content Adaptive Brightness Control */
+			15 01 00 00 00 00 02 55 81
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 0A 9F
+			/* Partial Area */
+			39 01 00 00 00 00 05 30 00 A0 0A 9F
+			/* Partial Mode On */
+			05 01 00 00 00 00 01 12
+		];
+		lge,mode-change-cmds-u3-to-u1 = [
+			/* Write Content Adaptive Brightness Control */
+			15 01 00 00 00 00 02 55 81
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 00 00
+			/* Partial Area */
+			39 01 00 00 00 00 05 30 00 A0 0A 9F
+			/* Partial Mode On */
+			05 01 00 00 00 00 01 12
+		];
+		lge,mode-change-cmds-u1-to-u2 = [
+			/* Write Content Adaptive Brightness Control */
+			15 01 00 00 00 00 02 55 00
+			/* Tearing Effect Line Off */
+			05 01 00 00 00 00 01 34
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 30 00
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 00 9F
+			/* Partial Area */
+			39 01 00 00 00 00 05 30 00 00 00 9F
+			/* Partial Mode On + 20ms Delay */
+			05 01 00 00 14 00 01 12
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 00 00
+		];
+		lge,mode-change-cmds-u3-to-u2 = [
+			/* Consider "Memory Write" command & 3 full-frames were sent */
+			/* U2 BGR_On */
+			//39 01 00 00 00 00 02 CA 80
+			/* RAM write(+50ms delay) */
+			//05 01 00 00 64 00 01 2C
+			/* Partial On(+100ms delay) */
+			05 01 00 00 64 00 01 12
+		];
+		lge,mode-change-cmds-u1-to-u3 = [
+			/* Write Content Adaptive Brightness Control */
+			15 01 00 00 00 00 02 55 81
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 00 00
+			/* Normmal DisplayMode On */
+			05 01 00 00 00 00 01 13
+		];
+		lge,mode-change-cmds-u2-to-u3 = [
+			/* Normal On(+100ms delay) */
+			05 01 00 00 64 00 01 13
+		];
+		lge,mode-change-cmds-u3-to-u0 = [
+			/* Normal On(+100ms delay) */
+			05 01 00 00 64 00 01 12
+		];
+		lge,mode-change-cmds-u3-ready = [
+			/*  Memory Enable*/
+			39 01 00 00 00 00 06 E7 00 00 00 30 00
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 0A 9F
+		];
+		lge,mode-change-cmds-proximity-u2-to-u3 = [
+			/* Write Content Adaptive Brightness Control */
+			15 01 00 00 00 00 02 55 81
+			/* Switchable Power Domain Control */
+			39 01 00 00 00 00 03 C6 1B 55
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 0A 9F
+			/* Normmal DisplayMode On + 33ms */
+			05 01 00 00 21 00 01 13
+		];
+		lge,mode-change-cmds-proximity-u3-to-u2 = [
+			/* Write Content Adaptive Brightness Control */
+			15 01 00 00 00 00 02 55 00
+			/* Tearing Effect Line Off */
+			05 01 00 00 00 00 01 34
+			/* Memory Option Setting */
+			39 01 00 00 00 00 06 E7 00 00 00 00 00
+			/* Switchable Power Domain Control */
+			39 01 00 00 00 00 03 C6 04 55
+			/* Page Address Set */
+			39 01 00 00 00 00 05 2B 00 00 00 9F
+			/* Partial Area */
+			39 01 00 00 00 00 05 30 00 00 00 9F
+			/* Partial Mode On + 20ms */
+			05 01 00 00 14 00 01 12
+		];
+
+		lge,mode-change-cmds-memwrite = [
+			/* Temporally for check U2 mode - START */
+			/* U2 BGR_On */
+			39 01 00 00 00 00 02 CA 80
+			/* RAM write(+50ms delay) */
+			05 01 00 00 32 00 01 2C
+			/* Temporally for check U2 mode - END */
+		];
+
+		qcom,blmap-size = <256>;
+		qcom,blmap = <
+			0
+			105 105 105 105 105 105 105 105 105 105
+			105 106 106 106 107 107 108 108 108 109
+			109 109 110 110 112 114 115 117 119 121
+			123 125 126 128 130 132 134 136 138 140
+			142 144 145 147 149 151 153 155 157 163
+			169 174 180 186 192 198 204 209 215 221
+			221 222 222 223 223 224 224 225 225 226
+			226 227 227 239 251 263 275 287 298 310
+			322 334 346 358 366 374 381 389 397 405
+			412 420 428 436 443 451 459 471 483 494
+			506 518 530 541 553 565 577 588 600 610
+			620 630 640 650 660 670 680 690 700 710
+			720 732 745 757 770 782 794 807 819 832
+			844 856 869 881 897 912 928 944 959 975
+			991 1007 1022 1038 1054 1069 1085 1105 1124 1144
+			1164 1184 1203 1223 1243 1262 1282 1301 1320 1339
+			1358 1377 1396 1415 1434 1453 1472 1491 1510 1529
+			1548 1568 1588 1609 1629 1649 1669 1689 1709 1730
+			1750 1770 1790 1814 1838 1863 1887 1911 1935 1959
+			1983 2008 2032 2056 2080 2103 2126 2149 2172 2195
+			2218 2241 2264 2287 2310 2333 2356 2388 2420 2452
+			2485 2517 2549 2581 2613 2645 2678 2710 2742 2774
+			2806 2837 3869 2900 2932 2963 2995 3026 3058 3090
+			3121 3153 3185 3217 3249 3281 3313 3345 3377 3409
+			3441 3473 3505 3537 3577 3618 3658 3698 3738 3779
+			3819 3859 3899 3940 3980
+			>;
+
+		lge,panel_power_sequence = <
+			0	/*pre_msm_dss_enable_vreg*/
+			0	/*post_msm_dss_enable_vreg*/
+			0	/*pre_mdss_dsi_panel_reset*/
+			0	/*post_mdss_dsi_panel_reset*/
+			1	/*pre_mdss_dsi_panel_power_ctrl*/
+			1	/*post_mdss_dsi_panel_power_ctrl*/
+			0	/*post_mdss_dsi_blank*/
+			1	/*post_mdss_dsi_panel_on*/
+			0	/*post_mdss_dsi_panel_off*/
+			1	/*lge_mdss_dsi_event_handler*/
+			1	/*lge_msm_dss_enable_vreg*/
+			1	/*lge_mdss_dsi_request_gpios*/
+			1	/*lge_mdss_dsi_panel_reset*/
+			0	/*lge_mdss_dsi_lane_config*/
+			1	/*lge_mdss_dsi_ctrl_probe*/
+			1	/*lge_dsi_panel_device_register*/
+			1	/*lge_mdss_panel_parse_dt*/
+			0	/*lge_panel_device_create*/
+			1	/*lge_mdss_dsi_cmdlist_commit*/
+			1	/*lge_mdss_dsi_panel_init*/
+			0	/*lge_dump_mdss_reg*/
+			0	/*lge_mdss_xlog_tout_handler_default*/
+			0	/*lge_mdss_create_xlog_debug*/
+			1	/*lge_mdss_dsi_panel_bl_ctrl*/
+			>;
+	};
+};

@@ -36,13 +36,10 @@
 #include <linux/slab.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of_gpio.h>
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-#include <linux/err.h>
-#endif
-#if defined(CONFIG_LGE_PM_FACTORY_TESTMODE) || defined(CONFIG_LAF_G_DRIVER)
-#include <mach/board_lge.h>
-#define TRUE    1
-#define FALSE   0
+#include <soc/qcom/lge/lge_boot_mode.h>
+#if defined(CONFIG_MSM8909_CF)
+#include <linux/fb.h>
+#include <linux/notifier.h>
 #endif
 
 #define LP5521_PROGRAM_LENGTH		32	/* in bytes */
@@ -73,7 +70,6 @@
 #define LP5521_REG_R_PROG_MEM		0x10
 #define LP5521_REG_G_PROG_MEM		0x30
 #define LP5521_REG_B_PROG_MEM		0x50
-
 #define LP5521_PROG_MEM_BASE		LP5521_REG_R_PROG_MEM
 #define LP5521_PROG_MEM_SIZE		0x20
 
@@ -187,56 +183,38 @@ static const struct lp5521_wait_param lp5521_wait_params[LP5521_CYCLE_MAX] = {
 	},
 };
 
-
+/* for default current */
 static struct lp5521_led_config lp5521_led_config[] = {
 	{
 		.name = "R",
 		.chan_nr	= 0,
-#if defined(CONFIG_MACH_MSM8926_X5_VZW) || defined(CONFIG_MACH_MSM8926_X5_SPR) || defined(CONFIG_MACH_MSM8X10_W3C_VZW) || defined(CONFIG_MACH_MSM8X10_W5C_VZW)|| defined(CONFIG_MACH_MSM8926_JAGC_SPR) || defined(CONFIG_MACH_MSM8X10_W5C_SPR_US)//UX requirment for X5 Model - default current 55%
-		.led_current	= 55,
-		.max_current	= 55,
-#else
 		.led_current	= 180,
 		.max_current	= 180,
-#endif
 	},
 	{
 		.name = "G",
 		.chan_nr	= 1,
-#if defined(CONFIG_MACH_MSM8926_X5_VZW) || defined(CONFIG_MACH_MSM8926_X5_SPR) || defined(CONFIG_MACH_MSM8X10_W3C_VZW) || defined(CONFIG_MACH_MSM8X10_W5C_VZW)|| defined(CONFIG_MACH_MSM8926_JAGC_SPR) || defined(CONFIG_MACH_MSM8X10_W5C_SPR_US) //UX requirment for X5 Model - default current 55%
-		.led_current	= 55,
-		.max_current	= 55,
-#else
 		.led_current	= 180,
 		.max_current	= 180,
-#endif
 	},
 	{
 		.name = "B",
 		.chan_nr	= 2,
-#if defined(CONFIG_MACH_MSM8926_X5_VZW) || defined(CONFIG_MACH_MSM8926_X5_SPR) || defined(CONFIG_MACH_MSM8X10_W3C_VZW) || defined(CONFIG_MACH_MSM8X10_W5C_VZW)|| defined(CONFIG_MACH_MSM8926_JAGC_SPR) || defined(CONFIG_MACH_MSM8X10_W5C_SPR_US)//UX requirment for X5 Model - default current 55%
-		.led_current	= 55,
-		.max_current	= 55,
-#else
 		.led_current	= 180,
 		.max_current	= 180,
-#endif
 	},
 };
 
 static struct lp5521_led_pattern board_led_patterns[] = {
 	{
 		/* ID_POWER_ON = 1 */
-#if defined(CONFIG_MACH_MSM8X10_W3C_VZW) || defined(CONFIG_MACH_MSM8926_X5_VZW) || defined(CONFIG_MACH_MSM8X10_W5C_VZW) //VZW requiremnt chang start pattern
-		.g = mode1_green,
-		.b = mode1_blue,
-		.size_g = ARRAY_SIZE(mode1_green),
-		.size_b = ARRAY_SIZE(mode1_blue),
-#else
 		.r = mode1_red,
+#ifndef CONFIG_MACH_MSM8916_PH1_VZW
 		.g = mode1_green,
 		.b = mode1_blue,
+#endif
 		.size_r = ARRAY_SIZE(mode1_red),
+#ifndef CONFIG_MACH_MSM8916_PH1_VZW
 		.size_g = ARRAY_SIZE(mode1_green),
 		.size_b = ARRAY_SIZE(mode1_blue),
 #endif
@@ -257,8 +235,13 @@ static struct lp5521_led_pattern board_led_patterns[] = {
 	},
 	{
 		/* ID_CHARGING_FULL = 4 */
+#ifdef CONFIG_MACH_MSM8916_PH1_VZW
+		.r = mode4_red,
+		.size_r = ARRAY_SIZE(mode4_red),
+#else
 		.g = mode4_green,
 		.size_g = ARRAY_SIZE(mode4_green),
+#endif
 	},
 	{
 		/* ID_CALENDAR_REMIND = 5 */
@@ -269,19 +252,12 @@ static struct lp5521_led_pattern board_led_patterns[] = {
 	},
 	{
 		/* ID_POWER_OFF = 6 */
-#if defined(CONFIG_MACH_MSM8X10_W3C_VZW) || defined(CONFIG_MACH_MSM8926_X5_VZW) || defined(CONFIG_MACH_MSM8X10_W5C_VZW) //VZW requiremnt chang start pattern
-		.g = mode6_green,
-		.b = mode6_blue,	
-		.size_g = ARRAY_SIZE(mode6_green),
-		.size_b = ARRAY_SIZE(mode6_blue),	
-#else
 		.r = mode6_red,
 		.g = mode6_green,
 		.b = mode6_blue,
 		.size_r = ARRAY_SIZE(mode6_red),
 		.size_g = ARRAY_SIZE(mode6_green),
 		.size_b = ARRAY_SIZE(mode6_blue),
-#endif
 	},
 	{
 		/* ID_MISSED_NOTI = 7 */
@@ -292,7 +268,6 @@ static struct lp5521_led_pattern board_led_patterns[] = {
 		.size_g = ARRAY_SIZE(mode7_green),
 		.size_b = ARRAY_SIZE(mode7_blue),
 	},
-
 	/* for dummy pattern IDs (defined LGLedRecord.java) */
 	{
 		/* ID_ALARM = 8 */
@@ -312,7 +287,6 @@ static struct lp5521_led_pattern board_led_patterns[] = {
 	{
 		/* ID_VOLUME_DOWN = 13 */
 	},
-
 	{
 		/* ID_FAVORITE_MISSED_NOTI = 14 */
 		.r = mode8_red,
@@ -444,12 +418,11 @@ static struct lp5521_led_pattern board_led_patterns[] = {
 		.size_g = ARRAY_SIZE(mode17_green),
 		.size_b = ARRAY_SIZE(mode17_blue),
 	},
-	/* for dummy pattern IDs (defined LGLedRecord.java) */
 	{
-		/* ID_ = 36 */
+		/* ID_NONE = 36 */
 	},
 	{
-		/* ID_INCALL = 37 */
+		/* ID_URGENT_CALL_MISSED_NOTI = 37 */
 		.r = mode18_red,
 		.g = mode18_green,
 		.b = mode18_blue,
@@ -465,40 +438,23 @@ static struct lp5521_led_pattern board_led_patterns[] = {
 
 struct lp5521_chip      *chip;
 
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-static int lp5521_regulator_power_on(struct lp5521_chip *chip, bool on);
-#endif
-
 static void lp5521_enable(bool state)
 {
 	int ret = 0;
-	LP5521_INFO_MSG("LP5521: [%s] state = %d\n", __func__, state);
+	LP5521_INFO_MSG("[%s] state = %d\n", __func__, state);
 
 	if (!gpio_is_valid(chip->rgb_led_en)) {
 		pr_err("rgb_led_en gpio_request failed for %d ret=%d\n", chip->rgb_led_en, ret);
 		return;
 	}
 
-	if(state){
+	if (state) {
 		gpio_set_value(chip->rgb_led_en, 1);
-		LP5521_INFO_MSG("LP5521: [%s] RGB_EN(gpio #%d) set to HIGH\n", __func__, chip->rgb_led_en);
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-		if (lp5521_regulator_power_on(chip, true) < 0)
-			pr_err("[LP5521] vddio_i2c regulator power on fail\n");
-		else
-			pr_info("[LP5521] vddio_i2c regulator power on\n");
-#endif
-	}else{
+		LP5521_INFO_MSG("[%s] RGB_EN(gpio #%d) set to HIGH\n", __func__, chip->rgb_led_en);
+	} else {
 		gpio_set_value(chip->rgb_led_en, 0);
-		LP5521_INFO_MSG("LP5521: [%s] RGB_EN(gpio #%d) set to LOW\n", __func__, chip->rgb_led_en);
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-		if (lp5521_regulator_power_on(chip, false) < 0)
-			pr_err("[LP5521] vddio_i2c regulator power off fail\n");
-		else
-			pr_info("[LP5521] vddio_i2c regulator power off\n");
-#endif
+		LP5521_INFO_MSG("[%s] RGB_EN(gpio #%d) set to LOW\n", __func__, chip->rgb_led_en);
 	}
-
 	return;
 }
 
@@ -512,6 +468,31 @@ static struct lp5521_platform_data lp5521_pdata = {
 	.enable = lp5521_enable
 };
 
+#if defined(CONFIG_MSM8909_CF)
+static int lp5521_fb_suspend(struct i2c_client *client);
+static int lp5521_fb_resume(struct i2c_client *client);
+static int lp5521_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
+{
+	struct fb_event *evdata = (struct fb_event *)data;
+	int *blank = NULL;
+
+	if (lge_get_boot_mode() == LGE_BOOT_MODE_QEM_56K) {
+		struct lp5521_chip * chip = container_of(self, struct lp5521_chip, fb_notifier_block);
+
+		LP5521_INFO_MSG("[%s] lp5521_notifier_callback()\n", __func__);
+		if (evdata && evdata->data && event == FB_EVENT_BLANK
+				&& chip && chip->client) {
+			blank = evdata->data;
+			if (*blank == FB_BLANK_UNBLANK) {
+				lp5521_fb_resume(chip->client);
+			} else if (*blank == FB_BLANK_POWERDOWN) {
+				lp5521_fb_suspend(chip->client);
+			}
+		}
+	}
+	return 0;
+}
+#endif
 
 static inline struct lp5521_led *cdev_to_led(struct led_classdev *cdev)
 {
@@ -992,15 +973,20 @@ static void lp5521_run_led_pattern(int mode, struct lp5521_chip *chip)
 	struct i2c_client *cl = chip->client;
 	int num_patterns = chip->pdata->num_patterns;
 
+#if 0 /* FIX ME */
+	if (mode >= 1000) {
+		mode = mode - 1000;
+	}
+#endif
+
 	chip->id_pattern_play = mode;
 
-    #ifdef CONFIG_MACH_APQ8064_GVDCM
-	if(mode == PATTERN_FELICA_ON  || mode == PATTERN_GPS_ON)
-	{
-		mode = num_patterns - (PATTERN_GPS_ON - mode);
+#if 0
+	/* this process is not need, because dummy pattern defined in board file */
+	if (mode == PATTERN_FAVORITE_MISSED_NOTI || mode == PATTERN_CHARGING_COMPLETE_50 || mode == PATTERN_CHARGING_50) {
+		mode = num_patterns - (PATTERN_CHARGING_50 - mode);
 	}
-	#endif
-
+#endif
 	if (mode > num_patterns || !(chip->pdata->patterns)) {
 		chip->id_pattern_play = PATTERN_OFF;
 		LP5521_INFO_MSG("[%s] invalid pattern!", __func__);
@@ -1043,6 +1029,7 @@ static ssize_t store_led_pattern(struct device *dev,
 	struct lp5521_chip *chip = i2c_get_clientdata(to_i2c_client(dev));
 	unsigned long val;
 	int ret;
+
 	LP5521_INFO_MSG("[%s] pattern id : %s", __func__, buf);
 
 	ret = strict_strtoul(buf, 10, &val);
@@ -1085,6 +1072,11 @@ static ssize_t store_led_current_index(struct device *dev,
 
 	if (!chip)
 		return 0;
+
+#if 0 /* FIX ME */
+	LP5521_INFO_MSG("[%s] prevent change current_index", __func__);
+	return 0;
+#endif
 
 	chip->current_index = val;
 
@@ -1135,7 +1127,7 @@ static enum lp5521_wait_type _find_wait_cycle_type(unsigned int ms)
 }
 
 static void _set_wait_cmd(struct lp5521_pattern_cmd *cmd,
-			unsigned int ms, u8 jump)
+			unsigned int ms, u8 jump, unsigned int off)
 {
 	enum lp5521_wait_type type = _find_wait_cycle_type(ms);
 	unsigned int loop = ms / lp5521_wait_params[type].cycle;
@@ -1147,28 +1139,53 @@ static void _set_wait_cmd(struct lp5521_pattern_cmd *cmd,
 	WARN_ON(!cmd_msb);
 	WARN_ON(loop > 64);
 
-	/* wait command */
-	cmd->r[cmd->pc_r++] = cmd_msb;
-	cmd->r[cmd->pc_r++] = CMD_WAIT_LSB;
-	cmd->g[cmd->pc_g++] = cmd_msb;
-	cmd->g[cmd->pc_g++] = CMD_WAIT_LSB;
-	cmd->b[cmd->pc_b++] = cmd_msb;
-	cmd->b[cmd->pc_b++] = CMD_WAIT_LSB;
+	if (off) {
+		if (loop > 1) {
+			if (loop > 128)
+				loop = 128;
 
-	/* branch command : if wait time is bigger than cycle msec,
-			branch is used for command looping */
-	if (loop > 1) {
-		branch = (5 << 13) | ((loop - 1) << 7) | jump;
-		msb = (branch >> 8) & 0xFF;
-		lsb = branch & 0xFF;
+			lsb = ((loop-1) & 0xff) | 0x80;
+			/* wait command */
+			cmd->r[cmd->pc_r++] = cmd_msb;
+			cmd->r[cmd->pc_r++] = lsb;
+			cmd->g[cmd->pc_g++] = cmd_msb;
+			cmd->g[cmd->pc_g++] = lsb;
+			cmd->b[cmd->pc_b++] = cmd_msb;
+			cmd->b[cmd->pc_b++] = lsb;
+		} else {
+			/* wait command */
+			cmd->r[cmd->pc_r++] = cmd_msb;
+			cmd->r[cmd->pc_r++] = CMD_WAIT_LSB;
+			cmd->g[cmd->pc_g++] = cmd_msb;
+			cmd->g[cmd->pc_g++] = CMD_WAIT_LSB;
+			cmd->b[cmd->pc_b++] = cmd_msb;
+			cmd->b[cmd->pc_b++] = CMD_WAIT_LSB;
+		}
+	} else {
+		/* wait command */
+		cmd->r[cmd->pc_r++] = cmd_msb;
+		cmd->r[cmd->pc_r++] = CMD_WAIT_LSB;
+		cmd->g[cmd->pc_g++] = cmd_msb;
+		cmd->g[cmd->pc_g++] = CMD_WAIT_LSB;
+		cmd->b[cmd->pc_b++] = cmd_msb;
+		cmd->b[cmd->pc_b++] = CMD_WAIT_LSB;
 
-		cmd->r[cmd->pc_r++] = msb;
-		cmd->r[cmd->pc_r++] = lsb;
-		cmd->g[cmd->pc_g++] = msb;
-		cmd->g[cmd->pc_g++] = lsb;
-		cmd->b[cmd->pc_b++] = msb;
-		cmd->b[cmd->pc_b++] = lsb;
+		/* branch command : if wait time is bigger than cycle msec,
+							branch is used for command looping */
+		if (loop > 1) {
+			branch = (5 << 13) | ((loop - 1) << 7) | jump;
+			msb = (branch >> 8) & 0xFF;
+			lsb = branch & 0xFF;
+
+			cmd->r[cmd->pc_r++] = msb;
+			cmd->r[cmd->pc_r++] = lsb;
+			cmd->g[cmd->pc_g++] = msb;
+			cmd->g[cmd->pc_g++] = lsb;
+			cmd->b[cmd->pc_b++] = msb;
+			cmd->b[cmd->pc_b++] = lsb;
+		}
 	}
+
 }
 
 static inline bool _is_pc_overflow(struct lp5521_led_pattern *ptn)
@@ -1190,8 +1207,8 @@ static ssize_t store_led_blink(struct device *dev,
 	struct lp5521_pattern_cmd cmd = { };
 	u8 jump_pc = 0;
 
-	sscanf(buf, "0x%06x %d %d", &rgb, &on, &off);
-	LP5521_INFO_MSG("[%s] rgb=0x%06x, on=%d, off=%d\n",__func__, rgb, on, off);
+	sscanf(buf, "0x%06x,%d,%d", &rgb, &on, &off);
+	LP5521_INFO_MSG("[%s] rgb=0x%06x, on=%d, off=%d\n", __func__, rgb, on, off);
 	lp5521_run_led_pattern(PATTERN_OFF, chip);
 
 	on = min_t(unsigned int, on, MAX_BLINK_TIME);
@@ -1199,19 +1216,21 @@ static ssize_t store_led_blink(struct device *dev,
 
 	if (!rgb || !on || !off) {
 		chip->id_pattern_play = PATTERN_OFF;
+		LP5521_INFO_MSG("[%s] pattern_off\n", __func__);
 		return len;
 	} else {
 		chip->id_pattern_play = PATTERN_BLINK_ON;
+		LP5521_INFO_MSG("[%s] pattern_blink_on\n", __func__);
 	}
 
 	/* on */
 	_set_pwm_cmd(&cmd, rgb);
-	_set_wait_cmd(&cmd, on, jump_pc);
+	_set_wait_cmd(&cmd, on, jump_pc, 0);
 	jump_pc = cmd.pc_r / 2; /* 16bit size program counter */
 
 	/* off */
 	_set_pwm_cmd(&cmd, 0);
-	_set_wait_cmd(&cmd, off, jump_pc);
+	_set_wait_cmd(&cmd, off, jump_pc, 1);
 
 	ptn.r = cmd.r;
 	ptn.size_r = cmd.pc_r;
@@ -1326,7 +1345,6 @@ static int lp5521_init_led(struct lp5521_led *led,
 		led->cdev.name = name;
 	}
 
-	LP5521_INFO_MSG("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$led->cdev.name = %s $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n", led->cdev.name);
 	res = led_classdev_register(dev, &led->cdev);
 	if (res < 0) {
 		dev_err(dev, "couldn't register led on channel %d\n", chan);
@@ -1343,130 +1361,138 @@ static int lp5521_init_led(struct lp5521_led *led,
 	return 0;
 }
 
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-static int lp5521_regulator_configure(struct lp5521_chip *chip, bool on)
+static int lp5521_vdd_control(struct i2c_client *client)
 {
-	struct i2c_client *client = chip->client;
-	struct lp5521_platform_data *pdata = chip->pdata;
-	int rc;
+	static struct regulator *vdd = NULL;
+	int error = 0;
+	LP5521_INFO_MSG("[%s] start\n", __func__);
 
-	if (on == false)
-		goto hw_shutdown;
-
-	if (pdata->i2c_pull_up) {
-		pdata->vcc_i2c = regulator_get(&client->dev, "ti,vddio_i2c");
-		if (IS_ERR(pdata->vcc_i2c)) {
-			rc = PTR_ERR(pdata->vcc_i2c);
-			dev_err(&client->dev, "Regulator get failed rc=%d\n", rc);
-			goto error_get_vtg_i2c;
+	if (vdd == NULL) {
+		vdd = regulator_get(&client->dev, "vdd");
+		if (IS_ERR(vdd))
+		{
+			error = PTR_ERR(vdd);
+			LP5521_INFO_MSG("[%s] failed to get regulator (error = %d)\n", __func__, error);
+			vdd = NULL;
+			return error;
 		}
-		if (regulator_count_voltages(pdata->vcc_i2c) > 0) {
-			rc = regulator_set_voltage(pdata->vcc_i2c, pdata->vddio_i2c_supply_min,
-				pdata->vddio_i2c_supply_max);
-			if (rc) {
-				dev_err(&client->dev, "regulator set_vtg failed rc=%d\n", rc);
-				goto error_set_vtg_i2c;
-			}
+		error = regulator_set_voltage(vdd, 2800000, 2800000);
+		if (error < 0) {
+			LP5521_INFO_MSG("[%s] failed to set regulator voltage (error = %d)\n", __func__, error);
+			return error;
 		}
 	}
-	return 0;
 
-error_set_vtg_i2c:
-	if (pdata->i2c_pull_up)
-		regulator_put(pdata->vcc_i2c);
-error_get_vtg_i2c:
-	return rc;
-
-hw_shutdown:
-	if (pdata->i2c_pull_up) {
-		if (regulator_count_voltages(pdata->vcc_i2c) > 0)
-			regulator_set_voltage(pdata->vcc_i2c, 0, pdata->vddio_i2c_supply_max);
-
-		regulator_put(pdata->vcc_i2c);
+	if (!regulator_is_enabled(vdd)) {
+		LP5521_INFO_MSG("[%s] pm8916_l10 regulator is disabled\n", __func__);
+		error = regulator_enable(vdd);
+		if (error < 0) {
+			LP5521_INFO_MSG("[%s] failed to enable regulator (error = %d)\n", __func__, error);
+			return error;
+		}
+		msleep(15);
+		error = regulator_disable(vdd);
+		if (error < 0) {
+			LP5521_INFO_MSG("[%s] failed to disable regulator (error = %d)\n", __func__, error);
+			return error;
+		}
+	} else {
+		LP5521_INFO_MSG("[%s] pm8916_l10 regulator is enabled\n", __func__);
 	}
+
 	return 0;
 }
-#endif
 
-#if defined(CONFIG_LGE_PM_FACTORY_TESTMODE) || defined(CONFIG_LAF_G_DRIVER)
-static bool lp5521_start_pattern_disable_condition(void)
+static int lp5521_vio_control(struct i2c_client *client, int isOn)
 {
-	bool laf_mode_check, boot_mode_check;
-	enum lge_boot_mode_type boot_mode;
-	enum lge_laf_mode_type laf_mode;
+	static struct regulator *vio = NULL;
+	int error = 0;
+	LP5521_INFO_MSG("[%s] start\n", __func__);
 
-	laf_mode = lge_get_laf_mode();
-	if (laf_mode == LGE_LAF_MODE_LAF){
-		laf_mode_check = TRUE;
-	}else laf_mode_check= FALSE;
-
-	boot_mode = lge_get_boot_mode();
-	switch(boot_mode){
-		case LGE_BOOT_MODE_QEM_56K:
-		case LGE_BOOT_MODE_QEM_130K:
-		case LGE_BOOT_MODE_QEM_910K:
-		case LGE_BOOT_MODE_PIF_56K:
-		case LGE_BOOT_MODE_PIF_130K:
-		case LGE_BOOT_MODE_PIF_910K:
-			boot_mode_check = TRUE;
-			break;
-		default:
-			boot_mode_check = FALSE;
-			break;
+	if (vio == NULL) {
+		vio = regulator_get(&client->dev, "vio");
+		if (IS_ERR(vio))
+		{
+			error = PTR_ERR(vio);
+			LP5521_INFO_MSG("[%s] failed to get regulator (error = %d)\n", __func__, error);
+			vio = NULL;
+			return error;
+		}
+		error = regulator_set_voltage(vio, 1800000, 1800000);
+		if (error < 0) {
+			LP5521_INFO_MSG("[%s] failed to set regulator voltage (error = %d)\n", __func__, error);
+			return error;
+		}
 	}
 
-	if( laf_mode_check == TRUE || boot_mode_check == TRUE)
-		return TRUE;
-	else
-		return FALSE;
+	if (isOn == 1) {
+		error = regulator_enable(vio);
+		if (error < 0) {
+			LP5521_INFO_MSG("[%s] failed to enable regulator (error = %d)\n", __func__, error);
+			return error;
+		}
+	} else {
+		error = regulator_disable(vio);
+		if (error < 0) {
+			LP5521_INFO_MSG("[%s] failed to disable regulator (error = %d)\n", __func__, error);
+			return error;
+		}
+	}
+
+	return 0;
 }
-#endif
 
 static int lp5521_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 
-	int ret =0, i, led;
+	int ret = 0, i, led;
 	u8 buf = 0;
+#ifdef CONFIG_OF
+	u32 *array;
+#endif
 
 	LP5521_INFO_MSG("[%s] start\n", __func__);
-	printk("[%s] start\n", __func__);
 
 #ifdef CONFIG_OF
-    if (&client->dev.of_node)
-    {
-        chip = devm_kzalloc(&client->dev, sizeof(struct lp5521_chip), GFP_KERNEL);
-        if (!chip)
-        {
-            pr_err("%s: Failed to allocate memory\n", __func__);
-            return -ENOMEM;
-        }
-        {
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-		ret = of_property_read_u32(client->dev.of_node, "ti,vddio_i2c_supply_min", &(lp5521_pdata.vddio_i2c_supply_min));
-		ret = of_property_read_u32(client->dev.of_node, "ti,vddio_i2c_supply_max", &(lp5521_pdata.vddio_i2c_supply_max));
-		ret = of_property_read_u32(client->dev.of_node, "ti,vddio_i2c_load_ua", &(lp5521_pdata.vddio_i2c_load_ua));
-		lp5521_pdata.i2c_pull_up = of_property_read_bool(client->dev.of_node, "ti,i2c-pull-up");
-#endif
+	if (&client->dev.of_node) {
+		chip = devm_kzalloc(&client->dev, sizeof(struct lp5521_chip), GFP_KERNEL);
+		if (!chip) {
+			pr_err("%s: Failed to allocate memory\n", __func__);
+			return -ENOMEM;
+		}
 		chip->rgb_led_en = of_get_named_gpio(client->dev.of_node, "ti,led_en", 0);
-		//chip->rgb_led_en = 120;
-		LP5521_INFO_MSG("chip->rgb_led_en ==%d \n", chip->rgb_led_en);
-		if (!gpio_is_valid(chip->rgb_led_en))
-		{
+		if (!gpio_is_valid(chip->rgb_led_en)) {
 			pr_err("Fail to get named gpio for rgb_led_en.\n");
 			goto fail0;
-		}
-		else
-		{
+		} else {
 			ret = gpio_request(chip->rgb_led_en, "rgb_led_en");
-			if(ret) {
-				pr_err("request reset gpio failed, ret=%d\n", ret);
+			if (ret) {
+				pr_err("request reset gpio failed, rc=%d\n", ret);
 				gpio_free(chip->rgb_led_en);
 				goto fail0;
 			}
 		}
+
+		array = kzalloc(sizeof(u32) * LP5521_MAX_LEDS, GFP_KERNEL);
+		if (array) {
+			ret = of_property_read_u32_array(client->dev.of_node, "ti,led_current", array, LP5521_MAX_LEDS);
+		}
+
+		if (ret) {
+			LP5521_INFO_MSG("use default current value\n");
+		} else {
+			for (i = 0; i < LP5521_MAX_LEDS; i++) {
+				lp5521_pdata.led_config[i].led_current = array[i];
+				lp5521_pdata.led_config[i].max_current = array[i];
+				LP5521_INFO_MSG("current value[%d] = %d\n", i, array[i]);
+			}
+		}
+		kfree(array);
+	} else {
+		dev_err(&client->dev, "lp5521 probe of_node fail\n");
+		return -ENODEV;
 	}
-    }
 #else
 	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip) {
@@ -1474,39 +1500,20 @@ static int lp5521_probe(struct i2c_client *client,
 		return -ENOMEM;
 	}
 #endif
+
 	i2c_set_clientdata(client, chip);
 	chip->client = client;
 
 	mutex_init(&chip->lock);
 
 	chip->pdata = &lp5521_pdata;
-	if(chip->pdata)
-		printk("------------------- chip->pdata = not NULL -------------------\n");
 
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-	ret = lp5521_regulator_configure(chip, true);
-	if (ret) {
-		i2c_set_clientdata(client, NULL);
-		devm_kfree(&client->dev, chip);
-		pr_err("[LP5521] lp5521_regulator configure fail ret=%d\n", ret);
-		return -ENODEV;
-	}
-	if (lp5521_regulator_power_on(chip, true) < 0){
-		dev_err(&client->dev, "vddio_i2c regulator power on fail\n");
-	}
-	else{
-		dev_info(&client->dev, "vddio_i2c regulator power on\n");
-	}
-#endif
+	lp5521_vio_control(client, 1);
+	gpio_direction_output(chip->rgb_led_en, 0);
+    usleep_range(1000, 2000); /* Keep enable down at least 1ms */
 
-	//gpio_tlmm_config((unsigned)GPIO_CFG(chip->rgb_led_en, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_4MA), (unsigned)GPIO_CFG_ENABLE);
-	usleep_range(1000, 2000);
-	gpio_set_value((chip->rgb_led_en), 0);
-	usleep_range(1000, 2000); /* Keep enable down at least 1ms */
-	gpio_set_value((chip->rgb_led_en), 1);
-	//gpio_direction_output(chip->rgb_led_en, 1);
-	printk("!!!!!!!!!!!! gpio-get-value =  %d!!!!!!!!!!!\n",gpio_get_value(chip->rgb_led_en));
-	usleep_range(1000, 2000); /* Keep enable down at least 1ms */
+	gpio_direction_output(chip->rgb_led_en, 1);
+    usleep_range(1000, 2000); /* Keep enable down at least 1ms */
 
 	lp5521_write(client, LP5521_REG_RESET, 0xff);
 	usleep_range(10000, 20000); /*
@@ -1521,7 +1528,6 @@ static int lp5521_probe(struct i2c_client *client,
 	 * LP5521_REG_ENABLE register will not have any effect - strange!
 	 */
 	ret = lp5521_read(client, LP5521_REG_R_CURRENT, &buf);
-	printk("LP5521_REG_R_CURR_DEFAULT buf = %x\n",buf);
 	if (ret || buf != LP5521_REG_R_CURR_DEFAULT) {
 		dev_err(&client->dev, "error in resetting chip\n");
 		goto fail2;
@@ -1529,6 +1535,7 @@ static int lp5521_probe(struct i2c_client *client,
 	usleep_range(10000, 20000);
 
 	ret = lp5521_detect(client);
+
 	if (ret) {
 		dev_err(&client->dev, "Chip not found\n");
 		goto fail2;
@@ -1571,33 +1578,46 @@ static int lp5521_probe(struct i2c_client *client,
 
 	/* Initialize current index for auto brightness (max step) */
 	chip->current_index = PATTERN_CURRENT_INDEX_STEP_HAL;
+
 	ret = lp5521_register_sysfs(client);
 	if (ret) {
 		dev_err(&client->dev, "registering sysfs failed\n");
 		goto fail2;
 	}
 
-	/*tempolary delete start pattern off because system UI does not working */
-#if defined(CONFIG_LGE_PM_FACTORY_TESTMODE) || defined(CONFIG_LAF_G_DRIVER)
-	if(!lp5521_start_pattern_disable_condition())
+#if defined(CONFIG_MSM8909_CF)
+	chip->fb_notifier_block.notifier_call = lp5521_notifier_callback;
+	LP5521_INFO_MSG("[%s] fb_register_client()\n", __func__);
+	if ((ret = fb_register_client(&chip->fb_notifier_block))) {
+		LP5521_INFO_MSG("unable to register fb_notifier callback: %d\n", ret);
+		goto fail3;
+	}
 #endif
-		lp5521_run_led_pattern(1, chip); //1: Power On pattern number
-	LP5521_INFO_MSG("[%s] pattern id : 1(Power on)", __func__);
-	LP5521_INFO_MSG("[%s] complete\n", __func__);
+
+	if (lge_get_boot_mode() == LGE_BOOT_MODE_NORMAL) {
+        printk("debug_core 1 normal boot led");
+		lp5521_run_led_pattern(1, chip); /* 1: Power On pattern number */
+		LP5521_INFO_MSG("[%s] pattern id : 1(Power on)", __func__);
+		LP5521_INFO_MSG("[%s] complete\n", __func__);
+	}
 
 	return ret;
+
+#if defined(CONFIG_MSM8909_CF)
+fail3:
+	fb_unregister_client(&chip->fb_notifier_block);
+#endif
 fail2:
 	for (i = 0; i < chip->num_leds; i++) {
 		led_classdev_unregister(&chip->leds[i].cdev);
 		cancel_work_sync(&chip->leds[i].brightness_work);
 	}
 fail1:
-    {
-        if (lp5521_pdata.enable)
-	        lp5521_pdata.enable(0);
-    }
+		if (lp5521_pdata.enable)
+			lp5521_pdata.enable(0);
+		lp5521_vio_control(client, 0);
 fail0:
-    gpio_free(chip->rgb_led_en);
+	gpio_free(chip->rgb_led_en);
 
 	return ret;
 }
@@ -1618,13 +1638,13 @@ static int lp5521_remove(struct i2c_client *client)
 
 	if (chip->pdata->enable)
 		chip->pdata->enable(0);
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-	lp5521_regulator_configure(chip, false);
-#endif
-
+	lp5521_vio_control(client, 0);
 	if (chip->pdata->release_resources)
 		chip->pdata->release_resources();
 
+#if defined(CONFIG_MSM8909_CF)
+	fb_unregister_client(&chip->fb_notifier_block);
+#endif
 	devm_kfree(&client->dev, chip);
 	LP5521_INFO_MSG("[%s] complete\n", __func__);
 	return 0;
@@ -1654,65 +1674,66 @@ static void lp5521_shutdown(struct i2c_client *client)
 
 	if (chip->pdata->enable)
 		chip->pdata->enable(0);
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-	lp5521_regulator_configure(chip, false);
-#endif
-
+	lp5521_vio_control(client, 0);
 	if (chip->pdata->release_resources)
 		chip->pdata->release_resources();
 
+#if defined(CONFIG_MSM8909_CF)
+	fb_unregister_client(&chip->fb_notifier_block);
+#endif
 	devm_kfree(&client->dev, chip);
 	LP5521_INFO_MSG("[%s] complete\n", __func__);
 }
 
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-static int reg_set_optimum_mode_check(struct regulator *reg, int load_uA)
+#if defined(CONFIG_MSM8909_CF)
+static int lp5521_fb_suspend(struct i2c_client *client)
 {
-	return (regulator_count_voltages(reg) > 0) ?
-		regulator_set_optimum_mode(reg, load_uA) : 0;
+	struct lp5521_chip *chip = i2c_get_clientdata(client);
+
+	if (!chip || !chip->pdata) {
+		LP5521_INFO_MSG("[%s] null pointer check!\n", __func__);
+	return 0;
+	}
+
+	LP5521_INFO_MSG("[%s] id_pattern_play = %d\n", __func__, chip->id_pattern_play);
+	if (chip->pdata->enable && chip->id_pattern_play == PATTERN_OFF) {
+		LP5521_INFO_MSG("[%s] RGB_EN set to LOW\n", __func__);
+		chip->pdata->enable(0);
+		lp5521_vio_control(client, 0);
+	}
+	return 0;
 }
 
-static int lp5521_regulator_power_on(struct lp5521_chip *chip, bool on)
+static int lp5521_fb_resume(struct i2c_client *client)
 {
-	struct i2c_client *client = chip->client;
-	struct lp5521_platform_data *pdata = chip->pdata;
-	int rc;
+	struct lp5521_chip *chip = i2c_get_clientdata(client);
+	int ret = 0;
 
-	if (on == false)
-		goto power_off;
-
-	if (pdata->i2c_pull_up) {
-		rc = reg_set_optimum_mode_check(pdata->vcc_i2c, pdata->vddio_i2c_load_ua);
-		if (rc < 0) {
-			dev_err(&client->dev, "Regulator vcc_i2c set_opt failed rc=%d\n", rc);
-			goto error_reg_opt_i2c;
-		}
-
-		rc = regulator_enable(pdata->vcc_i2c);
-		if (rc) {
-			dev_err(&client->dev, "Regulator vcc_i2c enable failed rc=%d\n", rc);
-			goto error_reg_en_vcc_i2c;
-		}
+	if (!chip || !chip->pdata) {
+		LP5521_INFO_MSG("[%s] null pointer check!\n", __func__);
+		return 0;
 	}
 
-	msleep(130); /* FIXME */
+	LP5521_INFO_MSG("[%s] id_pattern_play = %d\n", __func__, chip->id_pattern_play);
 
-	return 0;
+		if (chip->pdata->enable && chip->id_pattern_play == PATTERN_OFF) {
+			LP5521_INFO_MSG("[%s] RGB_EN set to HIGH\n", __func__);
+			lp5521_vio_control(client, 1);
+			chip->pdata->enable(0);
+			usleep_range(1000, 2000); /* Keep enable down at least 1ms */
+			chip->pdata->enable(1);
+			usleep_range(1000, 2000); /* 500us abs min. */
+#if 1 /* FIX ME - I2C error */
+			lp5521_write(client, LP5521_REG_RESET, 0xff);
+			usleep_range(10000, 20000);
+			ret = lp5521_configure(client);
+			if (ret < 0) {
+				dev_err(&client->dev, "error configuring chip\n");
+			}
+#endif
+		}
 
-error_reg_en_vcc_i2c:
-	if (pdata->i2c_pull_up)
-		reg_set_optimum_mode_check(pdata->vcc_i2c, 0);
-error_reg_opt_i2c:
-	return rc;
-
-power_off:
-	if (pdata->i2c_pull_up) {
-		reg_set_optimum_mode_check(pdata->vcc_i2c, 0);
-		regulator_disable(pdata->vcc_i2c);
-	}
-	msleep(50); /* FIXME */
-
-	return 0;
+	return ret;
 }
 #endif
 
@@ -1723,15 +1744,14 @@ static int lp5521_suspend(struct i2c_client *client, pm_message_t mesg)
 	if (!chip || !chip->pdata) {
 		LP5521_INFO_MSG("[%s] null pointer check!\n", __func__);
 	return 0;
-}
+	}
 
 	LP5521_INFO_MSG("[%s] id_pattern_play = %d\n", __func__, chip->id_pattern_play);
-    {
-	    if (chip->pdata->enable && chip->id_pattern_play == PATTERN_OFF) {
-		    LP5521_INFO_MSG("[%s] RGB_EN set to LOW\n", __func__);
-		    chip->pdata->enable(0);
-	    }
-    }
+	if (chip->pdata->enable && chip->id_pattern_play == PATTERN_OFF) {
+		LP5521_INFO_MSG("[%s] RGB_EN set to LOW\n", __func__);
+		chip->pdata->enable(0);
+		lp5521_vio_control(client, 0);
+	}
 	return 0;
 }
 
@@ -1747,32 +1767,24 @@ static int lp5521_resume(struct i2c_client *client)
 
 	LP5521_INFO_MSG("[%s] id_pattern_play = %d\n", __func__, chip->id_pattern_play);
 
-
-    {
-	    if (chip->pdata->enable && chip->id_pattern_play == PATTERN_OFF) {
-		    LP5521_INFO_MSG("[%s] RGB_EN set to HIGH\n", __func__);
-#if 0  // modify for I2c fail when resume
-		    chip->pdata->enable(0);
-		    usleep_range(1000, 2000); /* Keep enable down at least 1ms */
-#endif
-		    chip->pdata->enable(1);
-		    usleep_range(1000, 2000); /* 500us abs min. */
-#if 0  // modify for I2c fail when resume
-		    lp5521_write(client, LP5521_REG_RESET, 0xff);
-		    usleep_range(10000, 20000);
-#endif
-#ifdef CONFIG_LEDS_LP5521_GPIO_I2C_PULL_UP_CONTROL
-			ret = lp5521_detect(client);
-			if (ret) {
-				dev_err(&client->dev, "Chip not found\n");
+		if (chip->pdata->enable && chip->id_pattern_play == PATTERN_OFF) {
+			LP5521_INFO_MSG("[%s] RGB_EN set to HIGH\n", __func__);
+			lp5521_vio_control(client, 1);
+			lp5521_vdd_control(client); /* to control LU202x vdd for leakage */
+			chip->pdata->enable(0);
+			usleep_range(1000, 2000); /* Keep enable down at least 1ms */
+			chip->pdata->enable(1);
+			usleep_range(1000, 2000); /* 500us abs min. */
+#if 1 /* FIX ME - I2C error */
+			lp5521_write(client, LP5521_REG_RESET, 0xff);
+			usleep_range(10000, 20000);
+			ret = lp5521_configure(client);
+			if (ret < 0) {
+				dev_err(&client->dev, "error configuring chip\n");
 			}
 #endif
-		    ret = lp5521_configure(client);
-		    if (ret < 0) {
-			    dev_err(&client->dev, "error configuring chip\n");
-		    }
-        }
-    }
+		}
+
 	return ret;
 }
 
@@ -1781,21 +1793,20 @@ static const struct i2c_device_id lp5521_id[] = {
 	{ }
 };
 
-//#ifdef CONFIG_OF
+#ifdef CONFIG_OF
 static struct of_device_id lp5521_match_table[] = {
 	{ .compatible = "ti,lp5521",},
-	//{ .compatible = "lp5521",},
 	{ },
 };
-//#endif
+#endif
 
 static struct i2c_driver lp5521_driver = {
 	.driver = {
-        .owner  = THIS_MODULE,
+		.owner  = THIS_MODULE,
 		.name	= "lp5521",
-//#ifdef CONFIG_OF
+#ifdef CONFIG_OF
 		.of_match_table = lp5521_match_table,
-//#endif
+#endif
 	},
 	.probe		= lp5521_probe,
 	.remove		= lp5521_remove,
@@ -1811,11 +1822,7 @@ static struct i2c_driver lp5521_driver = {
 
 static int __init lp5521_dev_init(void)
 {
-	int temp = 0;
-	temp = i2c_add_driver(&lp5521_driver);
-	printk("[lp5521_dev_init] temp = %d\n",temp);
-	//return i2c_add_driver(&lp5521_driver);
-	return temp;
+	return i2c_add_driver(&lp5521_driver);
 }
 module_init(lp5521_dev_init);
 

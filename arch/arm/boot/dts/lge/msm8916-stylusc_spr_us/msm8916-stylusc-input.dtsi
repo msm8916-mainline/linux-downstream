@@ -13,6 +13,16 @@
 &i2c_5 {
 	qcom,clk-freq-out = <400000>;
 
+	melfas_mit300@34 {
+		status = "ok";
+		lge,product = "L0M45P1CY5";
+		lge,fw_image = "melfas/mit300/p1s/melfas_mip4.bin";
+		lge,p5_product = "L0M45P5CY5";
+		lge,p5_fw_image = "melfas/mit300/p1s/melfas_mip4.bin";
+		use_security_mode = <1>;
+		use_security_all = <1>;
+	};
+
 	synaptics_td4191_dsx@20 {
 		status = "disable";
 	};
@@ -35,6 +45,11 @@
 		use_debug_reason = <0>;
 		use_security_mode = <1>;
 		use_security_all = <1>;
+	};
+
+	melfas_mit300@34 {
+		status = "ok";
+		active_area_gap = <60>;
 	};
 };
 

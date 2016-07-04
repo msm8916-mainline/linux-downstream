@@ -2,6 +2,8 @@
 obj-y	+=  lgtp_common_driver.o
 obj-y	+=  lgtp_platform_api.o
 obj-y	+=  lgtp_model_config.o
+obj-y   +=  lgtp_touch_notify.o
+
 
 ifeq ($(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS), y)
 obj-y 	+= S3320/
@@ -11,8 +13,13 @@ ifeq ($(CONFIG_MSM8916_C90), y)
 obj-y   += S3320/
 endif
 
+ifeq ($(CONFIG_MSM8916_C70), y)
+obj-y   += S3320/
+endif
+
 ifeq ($(CONFIG_MSM8916_P1C), y)
 obj-y   += S3320/
+obj-y   += MIT300/
 endif
 
 ifeq ($(CONFIG_TOUCHSCREEN_LU201X), y)
@@ -39,6 +46,18 @@ ifeq ($(CONFIG_TOUCHSCREEN_LGE_MELFAS), y)
 obj-y 	+= MIT200/
 endif
 
-ifeq ($(CONFIG_TOUCHSCREEN_LGE_SYNAPTICS_YG), y)
+ifeq ($(CONFIG_TOUCHSCREEN_MSM8916_YG), y)
+obj-y   += S3320/
+endif
+
+ifeq ($(CONFIG_TOUCHSCREEN_MSM8916_C100N), y)
+obj-y   += S3320/
+endif
+
+ifeq ($(CONFIG_TOUCHSCREEN_MSM8916_M216N), y)
+obj-y   += S3320/
+endif
+
+ifeq ($(CONFIG_TOUCHSCREEN_MSM8916_M216), y)
 obj-y   += S3320/
 endif

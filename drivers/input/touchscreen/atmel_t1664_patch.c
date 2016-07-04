@@ -21,6 +21,13 @@ static u8 t255_user[MXT_PATCH_USER_DATA_MAX];
 struct touch_pos tpos_data;
 struct touch_supp tsupp_data;
 
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+extern bool is_patch_event_12;
+extern bool is_self_cap_off;
+extern bool is_finger_mode;
+extern bool is_stylus_mode;
+#endif
+
 static void mxt_patch_init_userdata(void)
 {
 	memset(t255_user, 0, MXT_PATCH_USER_DATA_MAX);
@@ -1127,6 +1134,14 @@ int mxt_patch_event(struct mxt_data *data, u8 event_id)
 	u16* pevent_addr = NULL;
 
 	TOUCH_INFO_MSG("Patch event %d\n", event_id);
+#if defined(CONFIG_MACH_MSM8939_ALTEV2_LGU_KR)
+	if (event_id == SELF_CAP_OFF_NOISE_SUPPRESSION) {
+		is_self_cap_off = true;
+		is_finger_mode = false;
+		is_stylus_mode = false;
+	} else if (event_id == SELF_CAP_ON_NOISE_RECOVER)
+		is_self_cap_off = false;
+#endif
 
 	if (!data) {
 		TOUCH_PATCH_INFO_MSG("%s addr is null\n", __func__);

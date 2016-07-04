@@ -13,4 +13,5 @@ obj-$(CONFIG_LGE_HANDLE_PANIC) += lge_handle_panic.o
 obj-$(CONFIG_LCD_KCAL) += lge_kcal_ctrl.o
 obj-$(CONFIG_MACH_LGE) += lge_lcd_misc_ctrl.o
 obj-$(CONFIG_PRE_SELF_DIAGNOSIS) += lge_pre_selfd.o
+obj-$(CONFIG_LGE_SENSOR_UNIFIED_NODE) += lge_sensors_sysfs.o
 CFLAGS_lge_bootloader_log.o += -I$(srctree)/arch/arm/mach-msm/include

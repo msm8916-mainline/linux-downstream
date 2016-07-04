@@ -15,25 +15,25 @@
 
 	lge,no-init-cable = <0 0 0>;
 	lge,cable-mhl-1k = <5000 500 500>;
-	lge,cable-u-28p7k = <5500 1100 500>;
-	lge,cable-28p7k = <6000 1100 500>;
+	lge,cable-u-28p7k = <5500 1200 500>;
+	lge,cable-28p7k = <6000 1200 500>;
 	lge,cable-56k = <200000 1500 1500>;
-	lge,cable-100k = <239000 1100 500>;
+	lge,cable-100k = <239000 1200 500>;
 	lge,cable-130k = <340000 1500 1500>;
-	lge,cable-180k = <400000 1100 500>;
-	lge,cable-200k = <410000 1100 500>;
-	lge,cable-220k = <485000 1100 500>;
-	lge,cable-270k = <560000 1100 500>;
-	lge,cable-330k = <735000 1100 500>;
-	lge,cable-620k = <955000 1100 500>;
+	lge,cable-180k = <400000 1200 500>;
+	lge,cable-200k = <410000 1200 500>;
+	lge,cable-220k = <485000 1200 500>;
+	lge,cable-270k = <560000 1200 500>;
+	lge,cable-330k = <735000 1200 500>;
+	lge,cable-620k = <955000 1200 500>;
 	lge,cable-910k = <1140000 1500 1500>;
-	lge,cable-none = <1900000 1100  500>;
+	lge,cable-none = <1900000 1200  500>;
 
 	qcom,vddmax-mv = <4350>;
 	qcom,vddsafe-mv = <4380>;
 	qcom,vinmin-mv = <4470>;
 	qcom,tchg-mins = <480>;
-	qcom,btc-disabled;
+	qcom,btc-disabled = <1>;
 	qcom,resume-soc = <98>;
 	qcom,disable-vbatdet-based-recharge;
 };
@@ -42,11 +42,14 @@
 	qcom,msm-thermal {
 		qcom,freq-control-mask = <0xf>;
 		qcom,core-control-mask = <0xe>;
-		qcom,hotplug-temp = <94>;
-		qcom,hotplug-temp-hysteresis = <15>;
-		qcom,freq-mitigation-temp = <94>;
-		qcom,freq-mitigation-temp-hysteresis = <10>;
-		qcom,freq-mitigation-value = <400000>;
+		qcom,hotplug-temp = <110>;
+		qcom,hotplug-temp-hysteresis = <20>;
+		qcom,freq-mitigation-temp = <110>;
+		qcom,freq-mitigation-temp-hysteresis = <20>;
+		qcom,freq-mitigation-value = <960000>;
+		qcom,limit-temp = <90>;
+		qcom,freq-step = <1>;
+		qcom,core-limit-temp = <100>;
 		};
 };
 
@@ -115,42 +118,29 @@ qcom,pm8916@0 {
 
 / {
 	BL51YF_LGC_3000MAH_BATTERY: rt,lgc-battery-data {
-		rt,vgpara_hcap = <0x8155 0x825A 0x8341 0x8455 0x8501>;
-		rt,vgpara_lcap = <0x8141 0x8225 0x8350 0x845A 0x8501>;
+		rt,vgpara_hcap = <0x8155 0x825A 0x8337 0x8455 0x8501>;
+		rt,vgpara_lcap = <0x8141 0x8225 0x8337 0x8455 0x8501>;
 		rt,r1_gain_hcap = < 1 150 0 100 1 150>;
 		rt,r2_gain_hcap = < 1 375 0 550 1 375>;
-		rt,r3_gain_hcap = < 1 175 0 225 1 175>;
-		rt,r4_gain_hcap = < 1 150 0 25  1 150>;
+		rt,r3_gain_hcap = < 1 150 0 100 0 150>;
+		rt,r4_gain_hcap = < 1 150 0 0   1 150>;
 		rt,r1_gain_lcap = < 1 75  0 200 1 75>;
 		rt,r2_gain_lcap = < 1 110 1 10  1 110>;
-		rt,r3_gain_lcap = < 1 225 0 225 1 225>;
-		rt,r4_gain_lcap = < 1 150 0 50  1 150>;
-	};
-
-	BL51YF_TECHNOPHILE_3000MAH_BATTERY: rt,technophile-battery-data {
-		rt,vgpara_hcap = <0x814B 0x8223 0x831E 0x8473 0x8501>;
-		rt,vgpara_lcap = <0x814B 0x8219 0x833C 0x8478 0x8501>;
-		rt,r1_gain_hcap = < 1 225 0 125 1 225>;
-		rt,r2_gain_hcap = < 1 50  0 325 1 50>;
-		rt,r3_gain_hcap = < 0 0   0 125 0 0>;
-		rt,r4_gain_hcap = < 1 375 1 50  1 375>;
-		rt,r1_gain_lcap = < 1 225 0 0   1 225>;
-		rt,r2_gain_lcap = < 0 0   0 50  0 0>;
-		rt,r3_gain_lcap = < 1 125 0 100 1 125>;
-		rt,r4_gain_lcap = < 1 375 1 75  1 375>;
+		rt,r3_gain_lcap = < 1 150 0 100 1 150>;
+		rt,r4_gain_lcap = < 1 150 0 0   1 150>;
 	};
 
 	BL51YF_DEFAULT_3000MAH_BATTERY: rt,default-battery-data {
-		rt,vgpara_hcap = <0x8155 0x825A 0x8341 0x8455 0x8501>;
-		rt,vgpara_lcap = <0x8141 0x8225 0x8350 0x845A 0x8501>;
+		rt,vgpara_hcap = <0x8155 0x825A 0x8337 0x8455 0x8501>;
+		rt,vgpara_lcap = <0x8141 0x8225 0x8337 0x8455 0x8501>;
 		rt,r1_gain_hcap = < 1 150 0 100 1 150>;
 		rt,r2_gain_hcap = < 1 375 0 550 1 375>;
-		rt,r3_gain_hcap = < 1 175 0 225 1 175>;
-		rt,r4_gain_hcap = < 1 150 0 25  1 150>;
+		rt,r3_gain_hcap = < 1 150 0 100 0 150>;
+		rt,r4_gain_hcap = < 1 150 0 0   1 150>;
 		rt,r1_gain_lcap = < 1 75  0 200 1 75>;
 		rt,r2_gain_lcap = < 1 110 1 10  1 110>;
-		rt,r3_gain_lcap = < 1 225 0 225 1 225>;
-		rt,r4_gain_lcap = < 1 150 0 50  1 150>;
+		rt,r3_gain_lcap = < 1 150 0 100 1 150>;
+		rt,r4_gain_lcap = < 1 150 0 0   1 150>;
 	};
 };
 
@@ -197,7 +187,6 @@ qcom,pm8916@0 {
 		rt,vgcomp0 = <0xAB>;
 		rt,temp_base = <5 5 25 45>;
 		rt,lgc-battery-data = <&BL51YF_LGC_3000MAH_BATTERY>;
-		rt,technophile-battery-data = <&BL51YF_TECHNOPHILE_3000MAH_BATTERY>;
 		rt,default-battery-data = <&BL51YF_DEFAULT_3000MAH_BATTERY>;
 	};
 
@@ -212,30 +201,28 @@ qcom,pm8916@0 {
 		ti,ext-chg-disen-gpio = <&msm_gpio 17 0>;
 		ti,term-current-ma = <150>;
 		ti,vbat-max-mv = <4400>;		/* Step unit 20 mV, battery available voltage(x = 4.375) : x-0.025 ~ x ~ x+0.025 */
-		ti,safety-time = <480>;
 		ti,vin-limit-mv = <4540>;
 		/* Pins config setting */
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&bq24262_int_active &bq24262_ext_stat_active>;
-		pinctrl-1 = <&bq24262_int_sleep &bq24262_ext_stat_sleep
-				&nc_sleep>;
+		pinctrl-1 = <&bq24262_int_sleep &bq24262_ext_stat_sleep>;
 
 /* Each model is defferently value */
 		lge,no-init-cable = <0 0 0>;
 		lge,cable-mhl-1k = <5000 500 500>;
-		lge,cable-u-28p7k = <5500 1100 500>;
-		lge,cable-28p7k = <6000 1100 500>;
+		lge,cable-u-28p7k = <5500 1200 500>;
+		lge,cable-28p7k = <6000 1200 500>;
 		lge,cable-56k = <200000 1500 1500>;
-		lge,cable-100k = <239000 1100 500>;
+		lge,cable-100k = <239000 1200 500>;
 		lge,cable-130k = <340000 1500 1500>;
-		lge,cable-180k = <400000 1100 500>;
-		lge,cable-200k = <410000 1100 500>;
-		lge,cable-220k = <485000 1100 500>;
-		lge,cable-270k = <560000 1100 500>;
-		lge,cable-330k = <735000 1100 500>;
-		lge,cable-620k = <955000 1100 500>;
+		lge,cable-180k = <400000 1200 500>;
+		lge,cable-200k = <410000 1200 500>;
+		lge,cable-220k = <485000 1200 500>;
+		lge,cable-270k = <560000 1200 500>;
+		lge,cable-330k = <735000 1200 500>;
+		lge,cable-620k = <955000 1200 500>;
 		lge,cable-910k = <1140000 1500 1500>;
-		lge,cable-none = <1900000 1100  500>;
+		lge,cable-none = <1900000 1200  500>;
 
 		qcom,bq24262-vadc = <&pm8916_vadc>;
 	};

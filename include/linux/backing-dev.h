@@ -107,6 +107,9 @@ struct backing_dev_info {
 	struct dentry *debug_dir;
 	struct dentry *debug_stats;
 #endif
+#ifdef CONFIG_CHECK_SYNC_TIME
+	unsigned int max_sync_count;
+#endif
 };
 
 int bdi_init(struct backing_dev_info *bdi);
@@ -217,6 +220,10 @@ static inline unsigned long bdi_stat_error(struct backing_dev_info *bdi)
 
 int bdi_set_min_ratio(struct backing_dev_info *bdi, unsigned int min_ratio);
 int bdi_set_max_ratio(struct backing_dev_info *bdi, unsigned int max_ratio);
+
+#ifdef CONFIG_CHECK_SYNC_TIME
+int bdi_set_max_sync_count(struct backing_dev_info *bdi, unsigned int max_sync_count);
+#endif
 
 /*
  * Flags in backing_dev_info::capability

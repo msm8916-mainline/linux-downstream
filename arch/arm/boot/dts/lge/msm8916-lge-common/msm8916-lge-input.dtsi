@@ -126,6 +126,95 @@
 		lu202x,max_y = <800>;
 	};
 
+	melfas_mit300@34 {
+		status = "disable";
+		compatible = "melfas,mit300";
+		reg = <0x34>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2>;
+		lge,rst-gpio    =       <&msm_gpio 12 0x00>;
+		lge,int-gpio    =       <&msm_gpio 13 0x00>;
+		lge,i2c-pull-up = 	<1>;
+		lge,sda-gpio    =       <&msm_gpio 18 0x00>;
+		lge,scl-gpio    =       <&msm_gpio 19 0x00>;
+		lge,id-gpio     =       <&msm_gpio 0 0x00>;
+		lge,id2-gpio    =       <&msm_gpio 0 0x00>;
+
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend";               /*Touch GPIO pin name setting*/
+		pinctrl-0 = <&ts_int_active>;       /*Touch GPIO pin active setting*/
+		pinctrl-1 = <&ts_int_suspend>;   /*Touch GPIO pin suspend setting*/
+
+		/* IC Type. This should be matched with proper device. */
+		/*      0 : MMS-100S Series. MMS-128S , MMS-134S */
+		/*      1 : MMS-100A Series. MMS-136 , MMS-144 , MMS-152 */
+		/*      2 : MIT Series. MIT-200, MIT300 - AIT(Advanced Incell Touch) Two chip solution(DIC,TIC)*/
+		lge,auto_fw_update = <1>;
+		lge,ic_type = <2>;
+		lge,maker = "Melfas";
+
+		/* panel status check */
+		openshort_enable = <1>;
+
+		/* Limitation Value. */
+		raw_data_max = <3700>; /*<42125>;*/
+		raw_data_min = <800>; /*<11394>;*/
+		raw_data_margin = <0>; /*<1000>;*/
+		raw_data_otp_min = <15000>;
+		raw_data_otp_max = <39000>;
+		open_short_max = <4060>;
+		open_short_min = <800>;
+		cm_delta = <25>;
+		cm_jitter = <40>;
+
+		/* platform_data->caps */
+		button_support = <0>;
+		button_name = <>;
+		is_width_supported = <1>;
+		is_pressure_supported = <1>;
+		is_id_supported = <1>;
+		max_width = <30>;
+		max_pressure = <0xff>;
+		max_id = <10>;
+		x_max = <720>;
+		y_max = <1280>;
+		lcd_x = <720>;
+		lcd_y = <1280>;
+		operation_mode = <1>;
+		key_type = <3>;
+		report_mode = <0>;
+		delta_pos_threshold = <0>;
+		panel_id = "L", "?", "?", "?";
+
+		/* platform_data->role */
+		booting_delay = <50>;
+		reset_delay = <5>;
+		suspend_pwr = <0>;
+		resume_pwr = <1>;
+		ghost_detection_enable = <0>;
+		use_crack_mode = <0>;
+		active_area_gap = <40>;
+		use_security_mode = <0>;
+		use_security_all = <0>;
+		quickcover_x1 = <94>;
+		quickcover_x2 = <625>;
+		quickcover_y1 = <0>;
+		quickcover_y2 = <531>;
+
+		/* platform_data->pwr*/
+		/* type 0: none(default) */
+		/*      1: gpio */
+		/*      2: regulator */
+		/* name if type == 1, gpio active condition "low" or "high" */
+		/*      if type == 2, sypply name for regulator */
+		/* value if type == 1, gpio pin no. */
+		/*       if type == 2, regulator voltage */
+
+		vdd_type0 = <0>;
+		vdd_name0 = "high";
+		vdd_value0 = <&msm_gpio 34 0x00>;
+		vdd-supply = <0>;
+	};
+
 	synaptics_td4191_dsx@20 {
 		compatible = "synaptics,dsx";
 		reg = <0x20>;

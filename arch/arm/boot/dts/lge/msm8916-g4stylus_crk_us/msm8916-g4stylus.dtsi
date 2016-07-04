@@ -11,6 +11,18 @@
  */
 
 / {
+	memory {
+		secure_mem: secure_region@0 {
+			status = "disabled";
+		};
+        modem_adsp_mem: modem_adsp_region@0 {
+            linux,reserve-contiguous-region;
+            linux,reserve-region;
+            linux,remove-completely;
+            reg = <0x0 0x86800000 0x0 0x05000000>;
+            label = "modem_adsp_mem";
+        };
+    };
 	aliases {
 		serial0 = &blsp1_uart2;
 		i2c1 = &i2c_1; /* i2c_1 BLSP1 QUP1 */
@@ -25,6 +37,12 @@
 };
 
 &soc {
+	qcom,ion {
+		qcom,ion-heap@8 {
+			status = "disabled";
+		};
+	};
+
 	i2c_1: i2c@78b5000 { /* BLSP1 QUP1 */
 		compatible = "qcom,i2c-msm-v2";
 		#address-cells = <1>;
@@ -169,23 +187,23 @@
 };
 
 &qcom_tzlog {
-	status = "disabled";
+	status = "ok";
 };
 
 &qcom_rng {
-	status = "disabled";
+	status = "ok";
 };
 
 &qcom_crypto {
-	status = "disabled";
+	status = "ok";
 };
 
 &qcom_cedev {
-	status = "disabled";
+	status = "ok";
 };
 
 &qcom_seecom {
-	status = "disabled";
+	status = "ok";
 };
 
 &rpm_bus {

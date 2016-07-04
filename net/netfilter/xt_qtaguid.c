@@ -1173,7 +1173,7 @@ static void iface_stat_update(struct net_device *net_dev, bool stash_only)
 		 net_dev->name, stats->rx_bytes, stats->tx_bytes);
 	spin_unlock_bh(&iface_stat_list_lock);
 }
-//DATA_USAGE
+
 /* Guarantied to return a net_device that has a name */
 static void get_dev_and_dir(const struct sk_buff *skb,
 			    struct xt_action_param *par,
@@ -1205,7 +1205,7 @@ static void get_dev_and_dir(const struct sk_buff *skb,
 			 (*el_dev)->name);
 	}
 }
-//DATA_USAGE
+
 /*
  * Update stats for the specified interface from the skb.
  * Do nothing if the entry
@@ -1217,7 +1217,6 @@ static void iface_stat_update_from_skb(const struct sk_buff *skb,
 {
 	struct iface_stat *entry;
 	const struct net_device *el_dev;
-//DATA_USAGE
 	enum ifs_tx_rx direction;
 	int bytes = skb->len;
 	int proto;
@@ -1240,7 +1239,7 @@ static void iface_stat_update_from_skb(const struct sk_buff *skb,
 
 	IF_DEBUG("qtaguid[%d]: %s(%s): entry=%p\n", par->hooknum,  __func__,
 		 el_dev->name, entry);
-//DATA_USAGE
+
 	data_counters_update(&entry->totals_via_skb, 0, direction, proto,
 			     bytes);
 	spin_unlock_bh(&iface_stat_list_lock);
@@ -1630,7 +1629,6 @@ static void account_for_uid(const struct sk_buff *skb,
 			    struct xt_action_param *par)
 {
 	const struct net_device *el_dev;
-//DATA_USAGE
 	enum ifs_tx_rx direction;
 	int proto;
 
@@ -1644,7 +1642,6 @@ static void account_for_uid(const struct sk_buff *skb,
 			   skb->sk ? skb->sk : alternate_sk,
 			   direction,
 			   proto, skb->len);
-//DATA_USAGE
 }
 
 static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)

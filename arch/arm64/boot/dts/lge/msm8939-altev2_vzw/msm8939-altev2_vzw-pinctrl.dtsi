@@ -427,6 +427,22 @@
 			};
 		};
 
+		/* BQ24296 STAT pin config */
+		bq24296_stat_pin_rev_10 {
+			qcom,pins = <&gp 56>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "bq24296_stat_gpio";
+			bq24296_stat_active_rev_10: bq24296_stat_active {
+				drive-strength = <6>;   /* 6 MA */
+				bias-pull-up;           /* PULL UP*/
+			};
+			bq24296_stat_sleep_rev_10: bq24296_stat_sleep {
+				drive-strength = <6>;   /* 6 MA */
+				bias-pull-up;           /* PULL UP */
+			};
+		};
+
 		/* BQ24296 CE pin config */
 		bq24296_chg_en_pin {
 			qcom,pins = <&gp 32>;
@@ -541,7 +557,7 @@
                         qcom,pin-func = <1>;
                         label = "spi0-active";
                         /* active state */
-                        spi0_default: default {
+                        spi0_default: spi0_default {
                                 drive-strength = <12>; /* 12 MA */
                                 bias-disable = <0>; /* No PULL */
                         };
@@ -554,7 +570,7 @@
                         qcom,pin-func = <0>;
                         label = "spi0-suspend";
                         /* suspended state */
-                        spi0_sleep: sleep {
+                        spi0_sleep: spi0_sleep {
                                 drive-strength = <2>; /* 2 MA */
                                 bias-disable = <0>; /* No PULL */
                         };

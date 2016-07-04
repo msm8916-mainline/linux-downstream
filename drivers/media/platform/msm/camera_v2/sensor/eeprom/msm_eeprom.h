@@ -24,6 +24,30 @@
 
 struct msm_eeprom_ctrl_t;
 
+#if defined(CONFIG_MACH_MSM8916_E7IILTE_SPR_US) || \
+	defined(CONFIG_MACH_MSM8916_C50N_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8916_C50_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8916_C50DS_GLOBAL_COM) || \
+	defined(CONFIG_MACH_MSM8916_Y50_TRF_US) || \
+	defined(CONFIG_MACH_MSM8916_Y50C_TRF_US) || \
+	defined(CONFIG_MACH_MSM8916_C50_TRF_US) || \
+	defined(CONFIG_MACH_MSM8916_C50_CRK_US) || \
+	defined(CONFIG_MACH_MSM8916_C30_TRF_US) || \
+	defined(CONFIG_MACH_MSM8916_C30C_TRF_US)
+
+	#define HI544_LGIT_MODULE
+
+#elif defined(CONFIG_MACH_MSM8916_C70_CRK_US) || \
+	defined(CONFIG_MACH_MSM8916_C70_RGS_CA)   || \
+	defined(CONFIG_MACH_MSM8916_C70_USC_US)   || \
+	defined(CONFIG_MACH_MSM8916_C50_MPCS_US)  || \
+	defined(CONFIG_MACH_MSM8916_C50_TMO_US)   || \
+	defined(CONFIG_MACH_MSM8916_C50_SPR_US)
+
+	#define HI544_COWEL_MODULE
+
+#endif
+
 #define DEFINE_MSM_MUTEX(mutexname) \
 	static struct mutex mutexname = __MUTEX_INITIALIZER(mutexname)
 
@@ -44,6 +68,38 @@ struct msm_eeprom_ctrl_t {
 	uint8_t is_supported;
 	struct msm_eeprom_board_info *eboard_info;
 	uint32_t subdev_id;
+
+#if defined(CONFIG_MACH_LGE)
+	struct list_head link;
+	enum camb_position_t position;
+#endif
 };
+
+
+typedef enum {
+	BigEndian,
+	LittleEndian,
+} Endian;
+
+#define MODULE_VENDOR_ID 0x700
+
+//Module Selector
+int32_t msm_eeprom_checksum_imtech(struct msm_eeprom_ctrl_t *e_ctrl);
+int32_t msm_eeprom_checksum_lgit(struct msm_eeprom_ctrl_t *e_ctrl);
+int32_t msm_eeprom_checksum_cowell(struct msm_eeprom_ctrl_t *e_ctrl);
+
+//Module CheckSum routine
+int32_t msm_eeprom_checksum_cowell_hi841(struct msm_eeprom_ctrl_t *e_ctrl);
+int32_t msm_eeprom_checksum_cowell_imx258(struct msm_eeprom_ctrl_t *e_ctrl);
+int32_t msm_eeprom_checksum_imtech_ov8858(struct msm_eeprom_ctrl_t *e_ctrl);
+int32_t msm_eeprom_checksum_imtech_t4kb3(struct msm_eeprom_ctrl_t *e_ctrl);
+int32_t msm_eeprom_checksum_imtech_hi841(struct msm_eeprom_ctrl_t *e_ctrl);
+int32_t msm_eeprom_checksum_lgit_v0d(struct msm_eeprom_ctrl_t *e_ctrl);
+int32_t msm_eeprom_checksum_lgit_v0d_t4ka3(struct msm_eeprom_ctrl_t *e_ctrl);
+int32_t msm_eeprom_checksum_lgit_hi553(struct msm_eeprom_ctrl_t *e_ctrl);
+
+//Helper function for arithmetic shifted addition / just accumulation
+uint32_t shiftedSum (struct msm_eeprom_ctrl_t *e_ctrl, uint32_t startAddr, uint32_t endAddr, Endian endian);
+uint32_t accumulation (struct msm_eeprom_ctrl_t *e_ctrl, uint32_t startAddr, uint32_t endAddr);
 
 #endif

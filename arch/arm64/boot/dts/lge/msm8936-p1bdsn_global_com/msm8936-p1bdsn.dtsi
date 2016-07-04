@@ -11,7 +11,7 @@
  */
 
 
-#include "msm8936-p1bdsn-pinctrl.dtsi"
+#include "msm8936-p1b-pinctrl.dtsi"
 
 / {
 	aliases {
@@ -132,13 +132,13 @@
 	};
 };
 #include "../msm8936-common.dtsi"
-#include "msm8936-p1bdsn-panel.dtsi"
-#include "msm8936-p1bdsn-sensor.dtsi"
-#include "msm8936-p1bdsn-usb.dtsi"
-#include "msm8936-p1bdsn-input.dtsi"
-#include "msm8936-p1bdsn-misc.dtsi"
-#include "msm8936-p1bdsn-pm.dtsi"
-#include "msm8936-p1bdsn-camera.dtsi"
-#include "msm8936-p1bdsn-connectivity.dtsi"
-#include "msm8936-p1bdsn-sound.dtsi"
-#include "msm8936-p1bdsn-nfc.dtsi"
+#include "msm8936-p1b-panel.dtsi"
+#include "msm8936-p1b-sensor.dtsi"
+#include "msm8936-p1b-usb.dtsi"
+#include "msm8936-p1b-input.dtsi"
+#include "msm8936-p1b-misc.dtsi"
+#include "msm8936-p1b-pm.dtsi"
+#include "msm8936-p1b-camera.dtsi"
+#include "msm8936-p1b-connectivity.dtsi"
+#include "msm8936-p1b-sound.dtsi"
+#include "msm8936-p1b-nfc.dtsi"

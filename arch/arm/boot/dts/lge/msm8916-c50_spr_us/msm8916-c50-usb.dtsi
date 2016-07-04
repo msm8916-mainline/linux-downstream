@@ -14,6 +14,3 @@
 	qcom,phy-vadc = <&pm8916_vadc>;
 };
 
-&android_usb {
-	qcom,streaming-func = "mtp";
-};

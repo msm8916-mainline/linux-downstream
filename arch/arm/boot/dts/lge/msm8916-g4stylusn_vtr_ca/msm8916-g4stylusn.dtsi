@@ -15,6 +15,13 @@
 		secure_mem: secure_region@0 {
 			status = "disabled";
 		};
+        modem_adsp_mem: modem_adsp_region@0 {
+            linux,reserve-contiguous-region;
+            linux,reserve-region;
+            linux,remove-completely;
+            reg = <0x0 0x86800000 0x0 0x05000000>;
+            label = "modem_adsp_mem";
+        };
 	};
 	aliases {
 		serial0 = &blsp1_uart2;
@@ -80,7 +87,6 @@
 
 &sdhc_1 {
 	vdd-supply = <&pm8916_l8>;
-	qcom,vdd-always-on;
 	qcom,vdd-voltage-level = <2900000 2900000>;
 	qcom,vdd-current-level = <200 400000>;
 

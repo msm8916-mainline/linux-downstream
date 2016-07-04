@@ -11,28 +11,6 @@
  */
 
 / {
-	memory {
-		secure_mem: secure_region@0 {
-			status = "disabled";
-		};
-
-		modem_adsp_mem: modem_adsp_region@0 {
-			linux,reserve-contiguous-region;
-			linux,reserve-region;
-			linux,remove-completely;
-			reg = <0x0 0x86800000 0x0 0x04D00000>;
-			label = "modem_adsp_mem";
-		};
-
-		peripheral_mem: pheripheral_region@0 {
-			linux,reserve-contiguous-region;
-			linux,reserve-region;
-			linux,remove-completely;
-			reg = <0x0 0x8b800000 0x0 0x0600000>;
-			label = "peripheral_mem";
-		};
-	};
-
 	aliases {
 		serial0 = &blsp1_uart2;
 		i2c1 = &i2c_1; /* i2c_1 BLSP1 QUP1 */
@@ -40,19 +18,12 @@
 };
 
 &blsp1_uart2 {
-	status = "disable";
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&uart_active>;
-	pinctrl-1 = <&uart_sleep>;
+	status = "ok";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart_console_sleep>;
 };
 
 &soc {
-	qcom,ion {
-		qcom,ion-heap@8 {
-			status = "disabled";
-		};
-	};
-
 	i2c_1: i2c@78b5000 { /* BLSP1 QUP1 */
 		compatible = "qcom,i2c-msm-v2";
 		#address-cells = <1>;

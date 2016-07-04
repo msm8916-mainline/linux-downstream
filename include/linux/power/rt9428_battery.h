@@ -48,6 +48,7 @@ enum {
 #define RT9428_SOCL_MASK	0x1F
 #define RT9428_SOCL_MAX		32
 #define RT9428_SOCL_MIN		1
+#define RT9428_SCEN_MASK	0x40
 
 struct rt9428_platform_data {
 	unsigned int full_design;

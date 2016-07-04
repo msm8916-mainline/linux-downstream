@@ -36,6 +36,7 @@
 #include <linux/file.h>
 #include <linux/syscalls.h>
 #include <linux/async.h>
+#include <mach/board_lge.h>
 
 #include "lge_ts_core.h"
 

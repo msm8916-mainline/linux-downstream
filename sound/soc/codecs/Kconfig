@@ -371,9 +371,20 @@ config SND_SOC_WCD9306
 config SND_SOC_WCD9330
         tristate
 
+config SND_SOC_WSA881X
+        tristate
+
+config SND_SOC_WCD9335
+        tristate
+
+config SND_SOC_WSA881X
+        tristate
+	select REGMAP_SWR
+
 config SND_SOC_WCD9XXX
 	tristate
 	default y if SND_SOC_WCD9320=y || SND_SOC_WCD9306=y || SND_SOC_WCD9330=y
+	default y if SND_SOC_WCD9335=y
 
 config SND_SOC_MSM8X10_WCD
 	tristate
@@ -383,10 +394,19 @@ config SND_SOC_MSM8X16_WCD
 
 config SND_SOC_WCD_CPE
 	tristate
-	default y if SND_SOC_WCD9330=y
+	default y if SND_SOC_WCD9330=y || SND_SOC_WCD9335=y
 
 config SND_SOC_MSM8909_WCD
 	tristate
+
+config AUDIO_EXT_CLK
+	tristate
+	default y if SND_SOC_WCD9335=y || SND_SOC_WCD9330=y || SND_SOC_MSM8X16_WCD=y
+	default y if SND_SOC_MSM8909_WCD
+
+config SND_SOC_WCD_MBHC
+	tristate
+	default y if SND_SOC_MSM8909_WCD=y || SND_SOC_MSM8X16_WCD=y
 
 config SND_SOC_WL1273
 	tristate
@@ -569,3 +589,11 @@ config SND_SOC_ZDET_ENABLE
         default n
         help
         Recalibrates dce_z and sta_z parameters. Say Y here to enable
+
+config LGE_ENABLE_HDSET_MIC_BIAS_FOR_MITS
+    bool "hdset mic bias enable for mits"
+    default n
+
+config LGE_ENABLE_HDSET_FACTORY
+    bool "change headset det time debounce time 3 to 1000 for hookkey test"
+    default n

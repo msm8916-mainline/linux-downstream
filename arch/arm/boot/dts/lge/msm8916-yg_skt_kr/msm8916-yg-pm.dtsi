@@ -34,8 +34,9 @@
 	qcom,vinmin-mv = <4500>;
 	qcom,tchg-mins = <480>;
 	qcom,btc-disabled;
-	qcom,resume-soc = <96>;
+	qcom,resume-soc = <97>;
 	qcom,disable-vbatdet-based-recharge;
+	qcom,charger-detect-eoc;
 };
 
 &soc {
@@ -47,6 +48,9 @@
 		qcom,freq-mitigation-temp = <110>;
 		qcom,freq-mitigation-temp-hysteresis = <20>;
 		qcom,freq-mitigation-value = <960000>;
+		qcom,limit-temp = <90>;
+		qcom,freq-step = <1>;
+		qcom,core-limit-temp = <100>;
 		};
 };
 

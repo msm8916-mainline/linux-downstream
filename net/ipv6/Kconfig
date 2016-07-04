@@ -275,4 +275,15 @@ config LGP_DATA_BUGFIX_IPV6_ADDRCONF_KERNEL_CRASH
     ---help---
     During DAD process, if the interface of ipv6 were down, kernel crash will be occured.
 
+config LGP_DATA_IMPROVE_QCT_EPDG_CONNECTION_TIME
+    bool "IPv6: reduce QCT ePDG connection time"
+    ---help---
+    remove random delay time before send NS.
+
+config LGE_DHCPV6_WIFI
+    bool "IPv6: Stateless DHCPV6 support"
+    default n
+    ---help---
+    If you enable stateless dhcpv6 feature in Wi-Fi network, say Y
+
 endif # IPV6

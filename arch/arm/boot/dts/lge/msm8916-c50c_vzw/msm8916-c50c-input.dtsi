@@ -23,9 +23,8 @@
 		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_evdd_ldo_suspend>;	/*Touch GPIO pin suspend setting*/
 		/* change AVDD(MIT-200) power control - L16 independent power - Rev.B */
 
-		lge,fw_image = "melfas/mit200/c50c_vzw/L0M45P1CY5_00_58.fw";
-		slope_max = <111>;
-		slope_min = <89>;
+		lge,fw_image = "melfas/mit200/c50c_vzw/L0M45P1CY5_01_02.fw";
+
 		/* platform_data->pwr*/
 		/* type 0: none(default) */
 		/*      1: gpio */

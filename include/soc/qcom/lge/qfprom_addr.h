@@ -1,7 +1,8 @@
 #ifndef __MACH_QFPROM_ADDR_8936_H__
 #define __MACH_QFPROM_ADDR_8936_H__
 
-#define SEC_PATH "/dev/block/platform/7824900.sdhci/by-name/sec"
+//#define SEC_PATH "/dev/block/platform/7824900.sdhci/by-name/sec"
+#define SEC_PATH "/dev/block/bootdevice/by-name/sec"
 /* QFPROM address to blow */
 #define QFPROM_CTRL_BASE            (0x00058000)
 

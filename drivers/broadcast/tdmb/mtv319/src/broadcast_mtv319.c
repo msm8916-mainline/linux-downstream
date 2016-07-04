@@ -69,7 +69,7 @@ struct tdmb_mtv319_ctrl_blk
 	struct platform_device		*pdev;
 	uint32				dmb_en;
 	uint32				dmb_irq;
-#ifdef CONFIG_MACH_MSM8916_YG_SKT_KR
+#if defined(CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_M216N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_K5_KR)
 	uint32				dmb_ldo;
 	uint32				dmb_ant;
 #endif
@@ -129,7 +129,7 @@ int tdmb_mtv319_power_on(void)
 #endif
 		wake_lock(&mtv319_ctrl_info.wake_lock);
 
-#ifdef CONFIG_MACH_MSM8916_YG_SKT_KR
+#if defined(CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_M216N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) 
 		gpio_set_value(mtv319_ctrl_info.dmb_ldo, 1);
 		gpio_set_value(mtv319_ctrl_info.dmb_ant, 0);
 #endif
@@ -168,7 +168,7 @@ int tdmb_mtv319_power_off(void)
 
 		//gpio_set_value(MTV319_DMB_RESET_N, 0);
 		gpio_set_value(mtv319_ctrl_info.dmb_en, 0);
-#ifdef CONFIG_MACH_MSM8916_YG_SKT_KR
+#if defined(CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_M216N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM) 
 		gpio_set_value(mtv319_ctrl_info.dmb_ldo, 0);
 		gpio_set_value(mtv319_ctrl_info.dmb_ant, 1);
 #endif
@@ -338,7 +338,7 @@ static int tdmb_configure_gpios(void)
 	}
 	gpio_direction_input(mtv319_ctrl_info.dmb_irq);
 
-#ifdef CONFIG_MACH_MSM8916_YG_SKT_KR
+#if defined(CONFIG_MACH_MSM8916_YG_SKT_KR) || defined(CONFIG_MACH_MSM8916_C100N_KR) || defined(CONFIG_MACH_MSM8916_M216N_KR) || defined(CONFIG_MACH_MSM8916_C100N_GLOBAL_COM) || defined(CONFIG_MACH_MSM8916_C100_GLOBAL_COM)  
 	mtv319_ctrl_info.dmb_ldo = of_get_named_gpio(mtv319_ctrl_info.pdev->dev.of_node,"tdmb-mtv319,ldo-gpio",0);
 	rc = gpio_request(mtv319_ctrl_info.dmb_ldo, "DMB_LDO");
 	if (rc < 0) {

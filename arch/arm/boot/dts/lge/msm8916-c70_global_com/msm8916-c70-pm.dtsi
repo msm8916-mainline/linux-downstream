@@ -135,6 +135,7 @@ qcom,pm8916@0 {
 	qcom,lgc-battery-data = <&lge_lgc_2100mah_batterydata>;
 	qcom,tocad-battery-data = <&lge_tocad_2100mah_batterydata>;
 	qcom,byd-battery-data = <&lge_byd_2100mah_batterydata>;
+	qcom,resume-soc = <96>;
 };
 
 &pm8916_vadc {

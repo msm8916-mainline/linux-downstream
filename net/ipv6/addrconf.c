@@ -210,6 +210,9 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 	.max_addresses		= IPV6_MAX_ADDRESSES,
 	.accept_ra_defrtr	= 1,
 	.accept_ra_pinfo	= 1,
+#ifdef CONFIG_LGE_DHCPV6_WIFI
+	.ra_info_flag		= 0,
+#endif
 #ifdef CONFIG_IPV6_ROUTER_PREF
 	.accept_ra_rtr_pref	= 1,
 	.rtr_probe_interval	= 60 * HZ,
@@ -223,6 +226,7 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 	.disable_ipv6		= 0,
 	.accept_dad		= 1,
 	.accept_ra_prefix_route = 1,
+	.accept_ra_mtu		= 1,
 };
 
 static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
@@ -246,6 +250,9 @@ static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
 	.max_addresses		= IPV6_MAX_ADDRESSES,
 	.accept_ra_defrtr	= 1,
 	.accept_ra_pinfo	= 1,
+#ifdef CONFIG_LGE_DHCPV6_WIFI
+	.ra_info_flag		= 0,
+#endif
 #ifdef CONFIG_IPV6_ROUTER_PREF
 	.accept_ra_rtr_pref	= 1,
 	.rtr_probe_interval	= 60 * HZ,
@@ -259,6 +266,7 @@ static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
 	.disable_ipv6		= 0,
 	.accept_dad		= 1,
 	.accept_ra_prefix_route = 1,
+	.accept_ra_mtu		= 1,
 };
 
 /* IPv6 Wildcard Address and Loopback Address defined by RFC2553 */
@@ -2152,7 +2160,7 @@ void addrconf_prefix_rcv(struct net_device *dev, u8 *opt, int len, bool sllao)
 
 // LGE_CHANGE_S, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
 #ifdef CONFIG_LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER
-    printk(KERN_DEBUG "[LGE_DATA][%s()] The prefix is received now !", __func__);
+    ADBG((KERN_DEBUG "[LGE_DATA][%s()] The prefix is received now !", __func__));
 #endif
 // LGE_CHANGE_E, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
 
@@ -3226,11 +3234,13 @@ static int addrconf_ifdown(struct net_device *dev, int how)
 	spin_unlock_bh(&addrconf_hash_lock);
 #endif
 
-	/* Step 5: Discard multicast list */
-	if (how)
+	/* Step 5: Discard anycast and multicast list */
+	if (how) {
+		ipv6_ac_destroy_dev(idev);
 		ipv6_mc_destroy_dev(idev);
-	else
+	} else {
 		ipv6_mc_down(idev);
+	}
 
 	idev->tstamp = jiffies;
 
@@ -3260,7 +3270,7 @@ static void addrconf_rs_timer(unsigned long data)
 // LGE_CHANGE_S, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
     if (idev->if_flags & IF_RA_RCVD){
 #ifdef CONFIG_LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER
-printk(KERN_DEBUG "[LGE_DATA][%s()] The RA msg had been received!", __func__);
+ADBG((KERN_DEBUG "[LGE_DATA][%s()] The RA msg had been received!", __func__));
 #endif
         goto out;
     }
@@ -3276,7 +3286,7 @@ printk(KERN_DEBUG "[LGE_DATA][%s()] The RA msg had been received!", __func__);
         spin_unlock(&ifp->lock);
 // LGE_CHANGE_S, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
 #ifdef CONFIG_LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER
-        printk(KERN_DEBUG "[LGE_DATA][%s()][stage 2] rs is sent now!", __func__);
+        ADBG((KERN_DEBUG "[LGE_DATA][%s()][stage 2] rs is sent now!", __func__));
 #endif
 // LGE_CHANGE_E, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
 		ndisc_send_rs(idev->dev, &ifp->addr, &in6addr_linklocal_allrouters);
@@ -3306,11 +3316,22 @@ static void addrconf_dad_kick(struct inet6_ifaddr *ifp)
 		rand_num = 0;
 	else
 		rand_num = net_random() % (idev->cnf.rtr_solicit_delay ? : 1);
-
+#ifdef CONFIG_IPV6_OPTIMISTIC_DAD
+#ifdef CONFIG_LGP_DATA_IMPROVE_QCT_EPDG_CONNECTION_TIME
+    if(idev->dev->name != NULL && strlen(idev->dev->name)>5 && !strncmp(idev->dev->name,"rmnet",5)){
+        printk(KERN_DEBUG "[LGE_DATA] enhance ePDG PDN  connection time !\n");
+        rand_num = 0;
+    }
+    if(idev->dev->name != NULL && strlen(idev->dev->name)>7 && !strncmp(idev->dev->name,"r_rmnet",7)){
+        printk(KERN_DEBUG "[LGE_DATA] enhance ePDG r_rmnet  connection time !\n");
+        rand_num = 0;
+    }
+#endif
+#endif
     ifp->probes = idev->cnf.dad_transmits;
 // LGE_CHANGE_S, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
 #ifdef CONFIG_LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER
-    printk(KERN_DEBUG "[LGE_DATA][%s()] dad_transmits == %d, ramd_num == %lu", __func__, idev->cnf.dad_transmits, rand_num);
+    ADBG((KERN_DEBUG "[LGE_DATA][%s()] dad_transmits == %d, ramd_num == %lu", __func__, idev->cnf.dad_transmits, rand_num));
 #endif
 // LGE_CHANGE_E, [LGE_DATA][LGP_DATA_TCPIP_SLAAC_IPV6_ALLOCATION_BOOSTER], heeyeon.nah@lge.com, 2013-05-21
 	addrconf_mod_timer(ifp, AC_DAD, rand_num);
@@ -3328,12 +3349,12 @@ static void addrconf_dad_start(struct inet6_ifaddr *ifp)
     char CurrentInterfaceName[6]={0};//initializing
     ipv6AddrType = ipv6_addr_type(&ifp->addr);
 
-    printk(KERN_DEBUG "[LGE_DATA][%s()] dad_start! dev_name == %s", __func__, dev->name);
-    printk(KERN_DEBUG "[LGE_DATA][%s()] ipv6_addr_type == %d", __func__, ipv6AddrType);
+    ADBG((KERN_DEBUG "[LGE_DATA][%s()] dad_start! dev_name == %s", __func__, dev->name));
+    ADBG((KERN_DEBUG "[LGE_DATA][%s()] ipv6_addr_type == %d", __func__, ipv6AddrType));
 
     strncpy(CurrentInterfaceName,dev->name,5);
     if(CurrentInterfaceName == NULL){
-        printk(KERN_DEBUG "[LGE_DATA] CurrentInterfaceName is NULL !\n");
+        ADBG((KERN_DEBUG "[LGE_DATA] CurrentInterfaceName is NULL !\n"));
         return;
     }
 #endif
@@ -4402,7 +4423,11 @@ static inline void ipv6_store_devconf(struct ipv6_devconf *cnf,
 	array[DEVCONF_DISABLE_IPV6] = cnf->disable_ipv6;
 	array[DEVCONF_ACCEPT_DAD] = cnf->accept_dad;
 	array[DEVCONF_FORCE_TLLAO] = cnf->force_tllao;
-	array[DEVCONF_NDISC_NOTIFY] = cnf->ndisc_notify;
+	array[DEVCONF_ACCEPT_RA_MTU] = cnf->accept_ra_mtu;
+#ifdef CONFIG_LGE_DHCPV6_WIFI
+	array[DEVCONF_RA_INFO_FLAG] = cnf->ra_info_flag;
+#endif
+
 }
 
 static inline size_t inet6_ifla6_size(void)
@@ -5170,6 +5195,22 @@ static struct addrconf_sysctl_table
 		{
 			.procname	= "accept_ra_prefix_route",
 			.data		= &ipv6_devconf.accept_ra_prefix_route,
+			.maxlen		= sizeof(int),
+			.mode		= 0644,
+			.proc_handler	= proc_dointvec,
+		},
+#ifdef CONFIG_LGE_DHCPV6_WIFI
+		{
+			.procname		= "ra_info_flag",
+			.data			= &ipv6_devconf.ra_info_flag,
+			.maxlen 		= sizeof(int),
+			.mode			= 0644,
+			.proc_handler	= proc_dointvec
+		},
+#endif
+		{
+			.procname	= "accept_ra_mtu",
+			.data		= &ipv6_devconf.accept_ra_mtu,
 			.maxlen		= sizeof(int),
 			.mode		= 0644,
 			.proc_handler	= proc_dointvec,

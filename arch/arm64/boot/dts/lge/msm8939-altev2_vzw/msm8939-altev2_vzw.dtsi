@@ -20,7 +20,7 @@
 		i2c3 = &i2c_3; /* i2c_3 BLSP1 QUP3 */
 	};
     chosen {
-             bootargs = "boot_cpus=0,1,4,5,6,7 sched_enable_hmp=1";
+             bootargs = "boot_cpus=0,3,4,5,6,7 sched_enable_hmp=1";
     };
 
 };
@@ -41,6 +41,57 @@
 	};
 	blsp1_uart1: serial@78af000 {
 		status = "disabled";
+	};
+	msm_gpu: qcom,kgsl-3d0@1C00000 {
+		/* Power levels */
+		qcom,gpu-pwrlevels {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			compatible = "qcom,gpu-pwrlevels";
+
+			qcom,gpu-pwrlevel@0 {
+				reg = <0>;
+				qcom,gpu-freq = <550000000>;
+				qcom,bus-freq = <4>;
+			};
+
+			qcom,gpu-pwrlevel@1 {
+				reg = <1>;
+				qcom,gpu-freq = <465000000>;
+				qcom,bus-freq = <3>;
+			};
+
+			qcom,gpu-pwrlevel@2 {
+				reg = <2>;
+				qcom,gpu-freq = <400000000>;
+				qcom,bus-freq = <2>;
+			};
+
+			qcom,gpu-pwrlevel@3 {
+				reg = <3>;
+				qcom,gpu-freq = <310000000>;
+				qcom,bus-freq = <1>;
+			};
+
+			qcom,gpu-pwrlevel@4 {
+				reg = <4>;
+				qcom,gpu-freq = <266670000>;
+				qcom,bus-freq = <1>;
+			};
+
+			qcom,gpu-pwrlevel@5 {
+				reg = <5>;
+				qcom,gpu-freq = <220000000>;
+				qcom,bus-freq = <1>;
+			};
+
+			qcom,gpu-pwrlevel@6 {
+				reg = <6>;
+				qcom,gpu-freq = <19200000>;
+				qcom,bus-freq = <0>;
+			};
+		};
 	};
 };
 

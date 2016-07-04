@@ -1,4 +1,4 @@
- /* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ /* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,7 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#define DEBUG
+
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -142,7 +142,12 @@ static struct wcd9xxx_mbhc_config wcd9xxx_mbhc_cfg = {
 #else
 	.detect_extn_cable = true,
 #endif
+#ifdef CONFIG_MACH_LGE
+	.micbias_enable_flags = 1 << MBHC_MICBIAS_ENABLE_THRESHOLD_HEADSET |
+				1 << MBHC_MICBIAS_ENABLE_REGULAR_HEADSET,
+#else
 	.micbias_enable_flags = 1 << MBHC_MICBIAS_ENABLE_THRESHOLD_HEADSET,
+#endif
 	.insert_detect = true,
 	.swap_gnd_mic = NULL,
 	.cs_enable_flags = (1 << MBHC_CS_ENABLE_POLLING |
@@ -205,21 +210,21 @@ static void *def_codec_mbhc_cal(void)
 	btn_high = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg,
 					       MBHC_BTN_DET_V_BTN_HIGH);
 	btn_low[0] = -50;
-	btn_high[0] = 180; // Hook
-	btn_low[1] = 181;
-	btn_high[1] = 182;
-	btn_low[2] = 183;
-	btn_high[2] = 300; //+
-	btn_low[3] = 301;
-	btn_high[3] = 340;
-	btn_low[4] = 341;
-	btn_high[4] = 350;
-	btn_low[5] = 351;
-	btn_high[5] = 370;
-	btn_low[6] = 371;
-	btn_high[6] = 380;
-	btn_low[7] = 381;
-	btn_high[7] = 660; //-
+	btn_high[0] = 110;
+	btn_low[1] = 111;
+	btn_high[1] = 190;
+	btn_low[2] = 191;
+	btn_high[2] = 359;
+	btn_low[3] = 360;
+	btn_high[3] = 750;
+	btn_low[4] = 751;
+	btn_high[4] = 752;
+	btn_low[5] = 753;
+	btn_high[5] = 754;
+	btn_low[6] = 755;
+	btn_high[6] = 756;
+	btn_low[7] = 757;
+	btn_high[7] = 758;
 	n_ready = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg, MBHC_BTN_DET_N_READY);
 	n_ready[0] = 80;
 	n_ready[1] = 12;
@@ -314,7 +319,7 @@ if (!flag_mute_spk_for_swirrc){
 			*/
 			set_amp_gain(spk-1, MSM8939_SPK_ON);
 			msm8939_ext_spk_pamp |= spk;
-			printk("%s: CONFIG_SND_SOC_TPA2028D_STEREO.  spk = %d\n",__func__,spk);
+			pr_debug("%s: CONFIG_SND_SOC_TPA2028D_STEREO.  spk = %d\n",__func__,spk);
 		}
 #else
 		if (gpio_is_valid(ext_spk_amp_gpio)) {
@@ -361,7 +366,7 @@ static void msm8939_ext_spk_power_amp_off(u32 spk)
 		//if(boost_on && (spk & LO_2_SPK_AMP)){
 		if (ext_boost_gpio >= 0) {
 			gpio_direction_output(ext_boost_gpio, 0);
-			printk("%s: Disabled 5V external supply for external amp. spk = %d\n",
+			pr_debug("%s: Disabled 5V external supply for external amp. spk = %d\n",
 					__func__,spk);
 
 			set_amp_gain(spk-1, MSM8939_SPK_OFF);
@@ -396,7 +401,7 @@ static int msm8939_ext_spkramp_event(struct snd_soc_dapm_widget *w,
 			struct snd_kcontrol *k, int event)
 {
 
-	pr_err("%s()\n", __func__);
+	pr_debug("%s()\n", __func__);
 
 	if (SND_SOC_DAPM_EVENT_ON(event)) {
 		if (!strncmp(w->name, "Lineout_1 amp", 14))
@@ -757,6 +762,54 @@ static int msm_slim_0_tx_ch_put(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
+static int msm_btsco_rate_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: msm_btsco_rate  = %d", __func__, msm_btsco_rate);
+#ifdef CONFIG_MACH_LGE
+	switch (msm_btsco_rate) {
+	case BTSCO_RATE_16KHZ:
+		ucontrol->value.integer.value[0] = 1;
+		break;
+	case BTSCO_RATE_8KHZ:
+	default:
+		ucontrol->value.integer.value[0] = 0;
+		break;
+	}
+#else
+	ucontrol->value.integer.value[0] = msm_btsco_rate;
+#endif
+
+	return 0;
+}
+
+static int msm_btsco_rate_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ucontrol->value.integer.value[0]) {
+#ifdef CONFIG_MACH_LGE
+	case 0:
+		msm_btsco_rate = BTSCO_RATE_8KHZ;
+		break;
+	case 1:
+		msm_btsco_rate = BTSCO_RATE_16KHZ;
+		break;
+#else
+	case 8000:
+		msm_btsco_rate = SAMPLING_RATE_8KHZ;
+		break;
+	case 16000:
+		msm_btsco_rate = SAMPLING_RATE_16KHZ;
+		break;
+#endif
+	default:
+		msm_btsco_rate = SAMPLING_RATE_8KHZ;
+		break;
+	}
+	pr_debug("%s: msm_btsco_rate = %d\n", __func__, msm_btsco_rate);
+	return 0;
+}
+
 static const struct snd_soc_dapm_widget msm8x16_dapm_widgets[] = {
 
 	SND_SOC_DAPM_SUPPLY("MCLK",  SND_SOC_NOPM, 0, 0,
@@ -783,6 +836,11 @@ static const struct snd_soc_dapm_widget msm8x16_dapm_widgets[] = {
 #endif
 	SND_SOC_DAPM_SPK("Lineout_1 amp", msm8939_ext_spkramp_event),
 	SND_SOC_DAPM_SPK("Lineout_2 amp", msm8939_ext_spkramp_event),
+};
+
+static const char *const btsco_rate_text[] = {"8000", "16000"};
+static const struct soc_enum msm_btsco_enum[] = {
+	SOC_ENUM_SINGLE_EXT(2, btsco_rate_text),
 };
 
 static const char *const spk_function[] = {"Off", "On"};
@@ -813,6 +871,8 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 			slim0_rx_bit_format_get, slim0_rx_bit_format_put),
 	SOC_ENUM_EXT("SLIM_0_RX SampleRate", msm_snd_enum[4],
 			slim0_rx_sample_rate_get, slim0_rx_sample_rate_put),
+	SOC_ENUM_EXT("Internal BTSCO SampleRate", msm_btsco_enum[0],
+			msm_btsco_rate_get, msm_btsco_rate_put),
 };
 
 static int msm_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -1134,6 +1194,7 @@ static int msm_audrx_init_tomtom(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "ANC EAR");
 	snd_soc_dapm_ignore_suspend(dapm, "ANC HEADPHONE");
 
+
 	snd_soc_dapm_sync(dapm);
 
 	snd_soc_dai_set_channel_map(codec_dai, ARRAY_SIZE(tx_ch),
@@ -1201,9 +1262,21 @@ static int msm_audrx_init_tomtom(struct snd_soc_pcm_runtime *rtd)
 	tomtom_register_ext_clk_cb(msm_snd_enable_codec_ext_clk,
 				   msm_snd_get_ext_clk_cnt,
 				   rtd->codec);
+
 	return 0;
 out:
 	return err;
+}
+
+static void codec_enable_qfuse(struct snd_soc_codec *codec)
+{
+	if(codec == NULL ||
+		strcmp(codec->name, "tomtom_codec"))
+		return;
+
+	msm_snd_enable_codec_ext_clk(codec, 1, false);
+	tomtom_enable_qfuse_sensing(codec);
+	msm_snd_enable_codec_ext_clk(codec, 0, false);
 }
 
 static void hs_detect_work(struct work_struct *work)
@@ -1221,6 +1294,7 @@ static void hs_detect_work(struct work_struct *work)
 	if (ret < 0)
 		pr_err("%s: Failed to intialise mbhc %d\n", __func__, ret);
 
+	codec_enable_qfuse(pdata->codec);
 	/*
 	 *  Set pdata->codec back to NULL, to ensure codec pointer
 	 *  is not referenced further from this structure.
@@ -2166,6 +2240,40 @@ static struct snd_soc_dai_link msm8x16_dai[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 	},
+	//TODO:CHECK Hw27, 28
+	/*
+	{ // hw:x,27
+		.name = "QUAT_MI2S Hostless",
+		.stream_name = "QUAT_MI2S Hostless",
+		.cpu_dai_name = "QUAT_MI2S_RX_HOSTLESS",
+		.platform_name = "msm-pcm-hostless",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		// this dainlink has playback support
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+	},
+	{ // hw:x, 28
+		.name = "QCHAT",
+		.stream_name = "QCHAT",
+		.cpu_dai_name   = "QCHAT",
+		.platform_name  = "msm-pcm-voice",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		// this dainlink has playback support
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_QCHAT,
+	},
+	*/
 	/* Backend I2S DAI Links */
 	{
 		.name = LPASS_BE_INT_BT_SCO_RX,
@@ -2433,7 +2541,7 @@ static int msm8939_populate_dai_link_component_of_node(
 						"asoc-platform-names",
 						dai_link[i].platform_name);
 			if (index < 0) {
-				pr_err("%s: No match found for platform name: %s\n",
+				pr_debug("%s: No match found for platform name: %s\n",
 					__func__, dai_link[i].platform_name);
 				ret = index;
 				goto cpu_dai;
@@ -2458,9 +2566,7 @@ cpu_dai:
 						 "asoc-cpu-names",
 						 dai_link[i].cpu_dai_name);
 			if (index < 0) {
-				/* pr_debug("cpu-names not found index = %d\n", i);
-				 * remove debugging log of qct to reduce generation of heat.
-				 */
+				pr_debug("cpu-names not found index = %d\n", i);
 				goto codec_dai;
 			}
 			phandle = of_parse_phandle(cdev->of_node, "asoc-cpu",

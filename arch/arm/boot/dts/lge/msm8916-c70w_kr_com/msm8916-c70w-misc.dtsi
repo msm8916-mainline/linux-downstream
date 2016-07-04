@@ -16,7 +16,7 @@
 		interrupt-parent = <&msm_gpio>;
 		interrupts = <117 0x0>;
 		hallic-pouch-irq-gpio = <&msm_gpio 117 0x00>;
-		status = "disable";
+		status = "okay";
 	};
 };
 
@@ -25,11 +25,11 @@
 		qcom,vibrator@c000 {
 			status = "ok";
 			qcom,vib-timeout-ms = <15000>;
-			qcom,vib-vtg-level-mV = <3000>;
+			qcom,vib-vtg-level-mV = <3100>;
 		};
 
 		qcom,pwm@bc00 {
-			status = "disable";
+			status = "okay";
 			compatible = "qcom,qpnp-pwm";
 			reg = <0xbc00 0x100>;
 			reg-names = "qpnp-lpg-channel-base";

@@ -633,9 +633,9 @@
 		};
 
 		tlmm_gpio_key {
-			qcom,pins = <&gp 107>, <&gp 108>, <&gp 109>;
+			qcom,pins = <&gp 107>, <&gp 108>;
 			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <3>;
+			qcom,num-grp-pins = <2>;
 			label = "tlmm_gpio_key";
 			gpio_key_active: gpio_key_active {
 				drive-strength = <2>;
@@ -754,37 +754,53 @@
 			};
 		};
 
-		apds99xx_int_pin {
-			/* Ambient light and proximity sensor apds9930 and apds9900 */
+		/* apds9130 irq pin config */
+		apds9130_int_pin {
 			qcom,pins = <&gp 113>;
-			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
-			label = "apds99xx-irq";
-			apds99xx_default: apds99xx_default {
-				drive-strength = <6>;
-				bias-pull-up;
+			qcom,pin-func = <0>;
+			label = "apds9130_int_pin";
+			apds9130_int_active: apds9130_int_active {
+				drive-strength = <6>;   /* 6 MA */
+				bias-pull-up;           /* PULL UP*/
 			};
-			apds99xx_sleep: apds99xx_sleep {
-				drive-strength = <2>;
-				bias-pull-down;
+			apds9130_int_suspend: apds9130_int_suspend {
+				drive-strength = <6>;   /* 6 MA */
+				bias-disable; 		/* NO PULL */
 			};
 		};
 
-		/*mpu6050_int_pin {
-
+		/* bma2x2 irq pin config */
+		bma2x2_int_pin {
 			qcom,pins = <&gp 115>;
-			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
-			label = "mpu6050-irq";
-			mpu6050_default: mpu6050_default {
-				drive-strength = <6>;
-				bias-pull-up;
+			qcom,pin-func = <0>;
+			label = "bma2x2_int_pin";
+			bma2x2_int_active: bma2x2_int_active {
+				drive-strength = <6>;   /* 6 MA */
+				bias-pull-up;           /* PULL UP*/
 			};
-			mpu6050_sleep: mpu6050_sleep {
-				drive-strength = <2>;
-				bias-pull-down;
+			bma2x2_int_suspend: bma2x2_int_suspend {
+				drive-strength = <6>;   /* 6 MA */
+				bias-disable; 		/* NO PULL */
 			};
-		};*/
+		};
+
+		/* bmm drdy pin config */
+		bmm_drdy_pin {
+	                qcom,pins = <&gp 69>;
+	                qcom,pin-func = <0>;
+	                qcom,num-grp-pins = <1>;
+	                label = "bmm_drdy_pin";
+	                bmm_drdy_active: bmm_drdy_active {
+	                          drive-strength = <6>;
+	                          bias-pull-up;
+	                };
+	                bmm_drdy_suspend: bmm_drdy_suspend {
+	                           drive-strength = <6>;
+	                           bias-pull-down;
+	                };
+	        };
 
 		ak8963_int_pin {
 			qcom,pins = <&gp 69>;
@@ -1092,6 +1108,19 @@
 				bias-disable = <0>; /* No PULL */
 			};
 		};
+
+		cam_sensor_mclk0_sleep {
+			/* MCLK */
+			qcom,pins = <&gp 26>;
+			qcom,num-grp-pins = <1>;
+			label = "cam-sensor-mclk0-sleep";
+			/* suspend state */
+			cam_sensor_mclk0_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
+			};
+		};
+
 		cam_sensor_mclk1 {
 			/* MCLK */
 			qcom,pins = <&gp 27>;
@@ -1105,10 +1134,22 @@
 			};
 		};
 
+		cam_sensor_mclk1_sleep {
+			/* MCLK */
+			qcom,pins = <&gp 27>;
+			qcom,num-grp-pins = <1>;
+			label = "cam-sensor-mclk1-sleep";
+			/* suspend state */
+			cam_sensor_mclk1_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
+			};
+		};
+
 		cam_sensor_rear {
 			/* RESET, STANDBY */
-			qcom,pins =  <&gp 35>;
-			qcom,num-grp-pins = <1>;
+			qcom,pins =  <&gp 35>, <&gp 120>, <&gp 121>;
+			qcom,num-grp-pins = <3>;
 			qcom,pin-func = <0>;
 			label = "cam-sensor-rear";
 			/* active state */
@@ -1118,16 +1159,89 @@
 			};
 		};
 
+		cam_sensor_rear_sleep {
+			/* RESET */
+			qcom,pins =  <&gp 35>, <&gp 120>, <&gp 121>;
+			qcom,num-grp-pins = <3>;
+			qcom,pin-func = <0>;
+			label = "cam-sensor-rear-sleep";
+			/*suspended state */
+			cam_sensor_rear_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
+			};
+		};
+
 		cam_sensor_front {
-			/* RESET, STANDBY */
-			qcom,pins = <&gp 28>;
-			qcom,num-grp-pins = <1>;
+			/* RESET */
+			qcom,pins = <&gp 28>, <&gp 120>, <&gp 121>;
+			qcom,num-grp-pins = <3>;
 			qcom,pin-func = <0>;
 			label = "cam_sensor_front";
 			/* active state */
 			cam_sensor_front_default: default {
 				drive-strength = <2>; /* 2 MA */
 				bias-disable = <0>; /* No PULL */
+			};
+		};
+
+		cam_sensor_front_sleep {
+			/* RESET */
+			qcom,pins = <&gp 28>, <&gp 120>, <&gp 121>;
+			qcom,num-grp-pins = <3>;
+			qcom,pin-func = <0>;
+			label = "cam_sensor_front_sleep";
+			/*suspended state */
+			cam_sensor_front_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down = <0>; /* PULL DOWN */
+			};
+		};
+
+		cam_ldaf_enable {
+			qcom,pins =  <&gp 109>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "cam-ldaf-enable";
+			/* active state */
+			cam_ldaf_enable_default: default {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable = <0>; /* No PULL */
+			};
+		};
+
+		cam_ldaf_enable_sleep {
+			qcom,pins =  <&gp 109>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "cam-ldaf-enable-sleep";
+			/*suspended state */
+			cam_ldaf_enable_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
+			};
+		};
+
+		cam_ldaf_interrupt {
+			qcom,pins =  <&gp 114>;
+			qcom,num-grp-pins = <1>;
+			label = "cam-ldaf-interrupt";
+			/* active state */
+			cam_ldaf_interrupt_default: default {
+				drive-strength = <8>; /* 2 MA */
+				input-enable;
+				bias-high-impedance;
+			};
+		};
+
+		cam_ldaf_interrupt_sleep {
+			qcom,pins =  <&gp 114>;
+			qcom,num-grp-pins = <1>;
+			label = "cam-ldaf-interrupt-sleep";
+			/*suspended state */
+			cam_ldaf_interrupt_sleep: sleep {
+				drive-strength = <8>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
 			};
 		};
 

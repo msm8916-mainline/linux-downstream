@@ -31,6 +31,9 @@ obj-$(CONFIG_CS5535_MFGPT)	+= cs5535-mfgpt.o
 obj-$(CONFIG_HP_ILO)		+= hpilo.o
 obj-$(CONFIG_APDS9802ALS)	+= apds9802als.o
 obj-$(CONFIG_APDS9930)		+= apds993x.o
+ifeq ($(CONFIG_APDS9930_DEBUG),y)
+	EXTRA_CFLAGS += -DAPDS9930_DEBUG_LOG
+endif
 obj-$(CONFIG_ISL29003)		+= isl29003.o
 obj-$(CONFIG_ISL29020)		+= isl29020.o
 obj-$(CONFIG_USB_HSIC_SMSC_HUB) += smsc_hub.o
@@ -73,3 +76,5 @@ obj-y				+= qcom/
 obj-$(CONFIG_SENSORS_APDS993X)	+= apds993x.o
 obj-$(CONFIG_LGE_EVENT_LOCK) += lge_factory_misc.o
 obj-$(CONFIG_ANDROID_SW_IRRC)       += android_irrc.o
+obj-$(CONFIG_UID_CPUTIME) 	+= uid_cputime.o
+obj-$(CONFIG_ITSON_API)		+= itson_module1/

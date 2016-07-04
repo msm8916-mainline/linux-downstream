@@ -22,7 +22,9 @@
 #include <linux/slab.h>
 #include <linux/qcom_iommu.h>
 #include <linux/msm_iommu_domains.h>
+#ifdef CONFIG_LGE_UNDERRUN
 #include <linux/pm_qos.h>
+#endif
 #include <media/msm_vidc.h>
 #include "msm_vidc_common.h"
 #include "msm_vidc_debug.h"
@@ -38,7 +40,7 @@
 
 struct msm_vidc_drv *vidc_driver;
 
-uint32_t msm_vidc_pwr_collapse_delay = 2000;
+uint32_t msm_vidc_pwr_collapse_delay = 10000;
 
 static inline struct msm_vidc_inst *get_vidc_inst(struct file *filp, void *fh)
 {
@@ -46,7 +48,12 @@ static inline struct msm_vidc_inst *get_vidc_inst(struct file *filp, void *fh)
 					struct msm_vidc_inst, event_handler);
 }
 
+#ifdef CONFIG_LGE_UNDERRUN
 static struct pm_qos_request msm_v4l2_vidc_pm_qos_request;
+static int lge_get_v4l2_vidc_pm_qos_request_class(void) {
+	return msm_v4l2_vidc_pm_qos_request.pm_qos_class;
+}
+#endif
 
 static int msm_v4l2_open(struct file *filp)
 {
@@ -64,8 +71,12 @@ static int msm_v4l2_open(struct file *filp)
 		core->id, vid_dev->type);
 		return -ENOMEM;
 	}
+	#ifdef CONFIG_LGE_UNDERRUN
 	dprintk(VIDC_ERR, "msm_vidc: pm_qos_add_request, 1000uSec\n");
-	pm_qos_add_request(&msm_v4l2_vidc_pm_qos_request, PM_QOS_CPU_DMA_LATENCY, 1000);
+	if (lge_get_v4l2_vidc_pm_qos_request_class () == PM_QOS_RESERVED) {
+		pm_qos_add_request(&msm_v4l2_vidc_pm_qos_request, PM_QOS_CPU_DMA_LATENCY, 1000);
+	}
+	#endif
 	clear_bit(V4L2_FL_USES_V4L2_FH, &vdev->flags);
 	filp->private_data = &(vidc_inst->event_handler);
 	trace_msm_v4l2_vidc_open_end("msm_v4l2_open end");
@@ -86,10 +97,12 @@ static int msm_v4l2_close(struct file *filp)
 			"Failed in %s for release output buffers\n", __func__);
 
 	rc = msm_vidc_close(vidc_inst);
+	#ifdef CONFIG_LGE_UNDERRUN
 	dprintk(VIDC_ERR, "msm_vidc: pm_qos_update_request, PM_QOS_DEFAULT_VALUE\n");
 	pm_qos_update_request(&msm_v4l2_vidc_pm_qos_request, PM_QOS_DEFAULT_VALUE);
 	dprintk(VIDC_ERR, "msm_vidc: pm_qos_remove_request\n");
 	pm_qos_remove_request(&msm_v4l2_vidc_pm_qos_request);
+	#endif
 	trace_msm_v4l2_vidc_close_end("msm_v4l2_close end");
 	return rc;
 }

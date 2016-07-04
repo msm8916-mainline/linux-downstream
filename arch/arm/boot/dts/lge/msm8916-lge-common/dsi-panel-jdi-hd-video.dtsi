@@ -1,7 +1,6 @@
 &mdss_mdp {
     dsi_jdi_r69338_vid: qcom,mdss_dsi_r69338_720p_video{
             lge,has-dsv;
-            lge,display_id = <0>;
             compatible = "qcom,mdss-dsi-panel";
             status = "disable";
             qcom,cont-splash-enabled;
