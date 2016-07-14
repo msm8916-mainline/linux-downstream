@@ -66,7 +66,7 @@ static int mms_isc_read_status(struct mms_ts_info *info)
 			msleep(1);
 		} else {
 			dev_err(&info->client->dev, "%s [ERROR] wrong value [0x%02X]\n",
-				__func__, result);
+					__func__, result);
 			ret = -1;
 			msleep(1);
 		}
@@ -74,8 +74,8 @@ static int mms_isc_read_status(struct mms_ts_info *info)
 
 	if (!cnt) {
 		dev_err(&info->client->dev,
-			"%s [ERROR] count overflow - cnt [%d] status [0x%02X]\n",
-			__func__, cnt, result);
+				"%s [ERROR] count overflow - cnt [%d] status [0x%02X]\n",
+				__func__, cnt, result);
 		goto ERROR;
 	}
 
@@ -166,7 +166,7 @@ ERROR:
  * Command : Program Page
  */
 static int mms_isc_program_page(struct mms_ts_info *info, int offset,
-				const u8 *data, int length)
+		const u8 *data, int length)
 {
 	u8 write_buf[134] = ISC_CMD_PROGRAM_PAGE;
 
@@ -192,7 +192,7 @@ static int mms_isc_program_page(struct mms_ts_info *info, int offset,
 	}
 
 	dev_dbg(&info->client->dev, "%s [DONE] - Offset[0x%04X] Length[%d]\n",
-		__func__, offset, length);
+			__func__, offset, length);
 
 	return 0;
 
@@ -226,7 +226,7 @@ ERROR:
  * Flash chip firmware (main function)
  */
 int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data,
-				size_t fw_size, bool force, bool section)
+		size_t fw_size, bool force, bool section)
 {
 
 	struct mms_bin_hdr *fw_hdr;
@@ -266,10 +266,10 @@ int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data,
 	//Check firmware file
 	if (memcmp(CHIP_FW_CODE, &fw_hdr->tag[4], 4)) {
 		dev_err(&client->dev, "%s [ERROR] F/W file is not for %s\n",
-			__func__, CHIP_NAME);
+				__func__, CHIP_NAME);
 
 		nRet = fw_err_file_type;
-		goto ERROR;
+		goto EXIT;
 	}
 
 	//Check chip firmware version
@@ -282,45 +282,44 @@ int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data,
 
 	if (retires < 0) {
 		dev_err(&client->dev,
-			"%s [ERROR] cannot read chip firmware version\n",__func__);
+				"%s [ERROR] cannot read chip firmware version\n",__func__);
 
 		memset(ver_chip, 0xFFFF, sizeof(ver_chip));
 		dev_dbg(&client->dev,
-			"%s - Chip firmware version is set to [0xFFFF]\n", __func__);
+				"%s - Chip firmware version is set to [0xFFFF]\n", __func__);
 	} else {
 		dev_dbg(&client->dev,
-			"%s - Chip firmware version [0x%04X 0x%04X 0x%04X 0x%04X]\n",
-			__func__, ver_chip[0], ver_chip[1], ver_chip[2], ver_chip[3]);
+				"%s - Chip firmware version [0x%04X 0x%04X 0x%04X 0x%04X]\n",
+				__func__, ver_chip[0], ver_chip[1], ver_chip[2], ver_chip[3]);
 	}
 
 	//Set update flag
 	dev_dbg(&client->dev,
-		"%s - Firmware file info : Sections[%d] Offset[0x%08X] Length[0x%08X]\n",
-		__func__, fw_hdr->section_num, fw_hdr->binary_offset, fw_hdr->binary_length);
+			"%s - Firmware file info : Sections[%d] Offset[0x%08X] Length[0x%08X]\n",
+			__func__, fw_hdr->section_num, fw_hdr->binary_offset, fw_hdr->binary_length);
 
 	for (i = 0; i < fw_hdr->section_num; i++, offset += sizeof(struct mms_fw_img)) {
 		img[i] = (struct mms_fw_img *)(fw_data + offset);
 		ver_file[i] = img[i]->version;
 
 		dev_dbg(&client->dev,
-			"%s - Section info : Section[%d] Version[0x%04X] StartPage[%d]"
-			" EndPage[%d] Offset[0x%08X] Length[0x%08X]\n",
-			__func__, i, img[i]->version, img[i]->start_page,
-			img[i]->end_page,img[i]->offset, img[i]->length);
+				"%s - Section info : Section[%d] Version[0x%04X] StartPage[%d]"
+				" EndPage[%d] Offset[0x%08X] Length[0x%08X]\n",
+				__func__, i, img[i]->version, img[i]->start_page,
+				img[i]->end_page,img[i]->offset, img[i]->length);
 
 		dev_err(&client->dev,
-			"%s - Section[%d] IC: %04X / BIN: %04X\n",
-			__func__, i, ver_chip[i], ver_file[i]);
+				"%s - Section[%d] IC: %04X / BIN: %04X\n",
+				__func__, i, ver_chip[i], ver_file[i]);
 
 		//Compare section version
-		//if (ver_chip[i] < ver_file[i] || ver_chip[i] > ver_file[i] + 0x20) {
-		if (ver_chip[i] != ver_file[i]) {	// for K7
+		if (ver_chip[i] < ver_file[i] || ver_chip[i] > ver_file[i] + 0x20) {
 			//Set update flag
 			update_flag = true;
 			update_flags[i] = true;
 
 			dev_info(&client->dev,
-				"%s - Section[%d] is need to be updated.", __func__, i);
+					"%s - Section[%d] is need to be updated.", __func__, i);
 		}
 	}
 
@@ -339,7 +338,7 @@ int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data,
 	if (update_flag == false) {
 		nRet = fw_err_uptodate;
 		dev_err(&client->dev,
-			"%s [DONE] Chip firmware is already up-to-date\n", __func__);
+				"%s [DONE] Chip firmware is already up-to-date\n", __func__);
 		goto EXIT;
 	}
 
@@ -390,7 +389,7 @@ int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data,
 
 	//Erase first page
 	dev_info(&client->dev, "%s - Erase first page : Offset[0x%04X]\n",
-				__func__, offsetStart);
+			__func__, offsetStart);
 	nRet = mms_isc_erase_page(info, offsetStart);
 	if (nRet != 0) {
 		dev_err(&client->dev, "%s [ERROR] clear first page failed\n", __func__);
@@ -399,8 +398,8 @@ int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data,
 
 	//Flash firmware
 	dev_info(&client->dev, "%s - Start Download : Offset Start[0x%04X] End[0x%04X]\n",
-				__func__, nOffset, offsetStart);
-	while( nOffset >= offsetStart )
+			__func__, nOffset, offsetStart);
+	while (nOffset >= offsetStart)
 	{
 		dev_dbg(&client->dev, "%s - Downloading : Offset[0x%04X]\n", __func__, nOffset);
 
@@ -420,9 +419,9 @@ int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data,
 		if (memcmp(&data[nOffset], cpydata, ISC_PAGE_SIZE)) {
 #if MMS_FW_UPDATE_DEBUG
 			print_hex_dump(KERN_ERR, "Firmware Page Write : ",
-				DUMP_PREFIX_OFFSET, 16, 1, data, ISC_PAGE_SIZE, false);
+					DUMP_PREFIX_OFFSET, 16, 1, data, ISC_PAGE_SIZE, false);
 			print_hex_dump(KERN_ERR, "Firmware Page Read : ",
-				DUMP_PREFIX_OFFSET, 16, 1, cpydata, ISC_PAGE_SIZE, false);
+					DUMP_PREFIX_OFFSET, 16, 1, cpydata, ISC_PAGE_SIZE, false);
 #endif
 			dev_err(&client->dev, "%s [ERROR] verify page failed\n", __func__);
 
@@ -446,7 +445,7 @@ int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data,
 	//Check chip firmware version
 	if (mms_get_fw_version_u16(info, ver_chip)) {
 		dev_err(&client->dev,
-			"%s [ERROR] cannot read chip firmware version after flash\n", __func__);
+				"%s [ERROR] cannot read chip firmware version after flash\n", __func__);
 
 		nRet = -1;
 		goto ERROR;
@@ -454,9 +453,9 @@ int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data,
 		for (i = 0; i < fw_hdr->section_num; i++) {
 			if (ver_chip[i] != ver_file[i]) {
 				dev_err(&client->dev,
-					"%s [ERROR] version mismatch after flash."
-					" Section[%d] : Chip[0x%04X] != File[0x%04X]\n",
-					__func__, i, ver_chip[i], ver_file[i]);
+						"%s [ERROR] version mismatch after flash."
+						" Section[%d] : Chip[0x%04X] != File[0x%04X]\n",
+						__func__, i, ver_chip[i], ver_file[i]);
 
 				nRet = -1;
 				goto ERROR;
@@ -466,10 +465,14 @@ int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data,
 
 	nRet = 0;
 	dev_err(&client->dev, "%s [DONE]\n", __func__);
-	goto EXIT;
+	goto DONE;
 
 ERROR:
 	dev_err(&client->dev, "%s [ERROR]\n", __func__);
+
+DONE:
+	kfree(cpydata);
+	kfree(data);
 
 EXIT:
 	kfree(img);

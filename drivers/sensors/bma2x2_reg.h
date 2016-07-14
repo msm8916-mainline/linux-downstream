@@ -23,7 +23,14 @@
 #define SLOPE_Y_INDEX			6
 #define SLOPE_Z_INDEX			7
 #define BMA2X2_MAX_DELAY		200
+#define BMA2X2_MIN_DELAY		10
+
+#ifndef CONFIG_SENSORS_ACCELEROMETER_2G
 #define BMA2X2_RANGE_SET		5  /* +/- 4G */
+#else
+#define BMA2X2_RANGE_SET		3  /* +/- 2G */
+#endif
+
 #define BMA2X2_BW_SET			12 /* 125HZ  */
 
 #define LOW_G_INTERRUPT				REL_Z
@@ -1248,8 +1255,6 @@ static int bma2x2_set_mode(struct i2c_client *client,
 			u8 mode, u8 enabled_mode);
 static int bma2x2_get_mode(struct i2c_client *client, u8 *mode);
 static int bma2x2_get_fifo_mode(struct i2c_client *client, u8 *fifo_mode);
-
-static int bma2x2_open_cal(struct i2c_client *client);
 
 
 #endif

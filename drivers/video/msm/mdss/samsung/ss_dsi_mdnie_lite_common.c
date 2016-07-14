@@ -34,7 +34,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #define MDNIE_LITE_TUN_DEBUG
 
 #ifdef MDNIE_LITE_TUN_DEBUG
-#define DPRINT(x...)	printk(KERN_ERR "[mdnie_lite] " x)
+#define DPRINT(x...)	printk(KERN_ERR "[mdnie_mdss] " x)
 #else
 #define DPRINT(x...)
 #endif
@@ -75,166 +75,193 @@ char outdoor_name[][NAME_STRING_MAX] = {
 	"OUTDOOR_ON_MODE",
 };
 
-#if defined(CONFIG_DUAL_PANEL)
+
+void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd,
+	struct dsi_cmd_desc *tune_data_dsi0, struct dsi_cmd_desc *tune_data_dsi1, struct mdnie_lite_tun_type *mdnie_tune_state)
+{
+	if (vdd == NULL || !vdd->support_mdnie_lite)
+		return;
+
+	/* DUAL PANEL CHECK */
+	if (!IS_ERR_OR_NULL(tune_data_dsi0) && !IS_ERR_OR_NULL(tune_data_dsi1)) {
+		if (vdd->support_hall_ic) {
+			if (tune_data_dsi0 && tune_data_dsi1 && mdnie_tune_state) {
+				/* foder open : 0(primary panel), close : 1(secondary panel)*/
+				if (!vdd->display_ststus_dsi[DSI_CTRL_0].hall_ic_status) {
+					/* primary(internal) panel */
+					vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
+					vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
+				} else {
+					/* secondary(external) panel */
+					vdd->mdnie_tune_data[DSI_CTRL_1].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi1;
+					vdd->mdnie_tune_data[DSI_CTRL_1].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi1_bypass_mdnie_size;
+				}
+
+				DPRINT("DUAL index : %d hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n",
+					vdd->display_ststus_dsi[DSI_CTRL_0].hall_ic_status, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
+					mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode);
+
+				mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
+			} else
+				DPRINT("DUAL Command Tx Fail,  tune_data_dsi0=%p, tune_data_dsi1=%p,vdd=%p, mdnie_tune_state=%p \n",
+					tune_data_dsi0, tune_data_dsi0, vdd, mdnie_tune_state);
+		} else {
+			if (tune_data_dsi0 && tune_data_dsi1 && mdnie_tune_state) {
+				vdd->mdnie_tune_data[0].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
+				vdd->mdnie_tune_data[0].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
+
+				vdd->mdnie_tune_data[1].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi1;
+				vdd->mdnie_tune_data[1].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi1_bypass_mdnie_size;
+
+				/* TODO: Tx command */
+				DPRINT("DUAL Command Tx Fail(TODO  DUAL PANEL),  tune_data_dsi0=%p, tune_data_dsi1=%p,vdd=%p, mdnie_tune_state=%p \n",
+					tune_data_dsi0, tune_data_dsi0, vdd, mdnie_tune_state);
+			} else
+				DPRINT("DUAL Command Tx Fail,  tune_data_dsi0=%p, tune_data_dsi1=%p,vdd=%p, mdnie_tune_state=%p \n",
+					tune_data_dsi0, tune_data_dsi0, vdd, mdnie_tune_state);
+		}
+	} else {
+		if (tune_data_dsi0 && mdnie_tune_state) {
+			DPRINT("SINGLE index : %d hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d mdnie_outdoor : %d\n",
+				mdnie_tune_state->index, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
+				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode, mdnie_tune_state->outdoor);
+
+			if (vdd->ctrl_dsi[DSI_CTRL_0]->cmd_sync_wait_broadcast) { /* Dual DSI */
+				vdd->mdnie_tune_data[DSI_CTRL_1].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
+				vdd->mdnie_tune_data[DSI_CTRL_1].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
+				mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_1], PANEL_MDNIE_TUNE);
+			} else { /* Single DSI */
+				vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
+				vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
+				mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
+			}
+		} else
+			DPRINT("SINGLE Command Tx Fail,  tune_data_dsi0=%p, vdd=%p, mdnie_tune_state=%p \n", tune_data_dsi0, vdd, mdnie_tune_state);
+	}
+}
+
 int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 {
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
+	struct mdnie_lite_tun_type *real_mdnie_tune_state = NULL;
 	struct dsi_cmd_desc *tune_data_dsi0 = NULL;
 	struct dsi_cmd_desc *tune_data_dsi1 = NULL;
 
-	if (!vdd->support_mdnie_lite) return 0;
+	if (vdd == NULL || !vdd->support_mdnie_lite) return 0;
 
 	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
+		real_mdnie_tune_state = mdnie_tune_state;
 		/*
 		*	Checking HBM mode first.
 		*/
-		if (mdnie_tune_state->vdd->auto_brightness == HBM_MODE)
+		if (mdnie_tune_state->vdd->auto_brightness >= HBM_MODE && mdnie_tune_state->vdd->bl_level == 255)
+			mdnie_tune_state->hbm_enable = true;
+		else if (mdnie_tune_state->vdd->auto_brightness >= HBM_MODE && vdd->dtsi_data[mdnie_tune_state->index].outdoor_mode_support)
 			mdnie_tune_state->hbm_enable = true;
 		else
 			mdnie_tune_state->hbm_enable = false;
+
 		/*
 		* mDnie priority
 		* Accessibility > HBM > Screen Mode
 		*/
-		if (mdnie_tune_state->mdnie_bypass == BYPASS_ENABLE)
-			tune_data_dsi1 = tune_data_dsi0 = mdnie_data.DSI0_BYPASS_MDNIE;
-		else if (mdnie_tune_state->mdnie_accessibility == COLOR_BLIND)
-			tune_data_dsi1 = tune_data_dsi0  = mdnie_data.DSI0_COLOR_BLIND_MDNIE;
-		else if (mdnie_tune_state->mdnie_accessibility == NEGATIVE)
-			tune_data_dsi1 = tune_data_dsi0  = mdnie_data.DSI0_NEGATIVE_MDNIE;
-		else if (mdnie_tune_state->mdnie_accessibility == GRAYSCALE)
-			tune_data_dsi1 = tune_data_dsi0  = mdnie_data.DSI0_GRAYSCALE_MDNIE;
-		else if (mdnie_tune_state->mdnie_accessibility == GRAYSCALE_NEGATIVE)
-			tune_data_dsi1 = tune_data_dsi0  = mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE;
-		else if (mdnie_tune_state->hbm_enable == true)
-			if ((mdnie_tune_state->mdnie_app == BROWSER_APP) || (mdnie_tune_state->mdnie_app == eBOOK_APP))
-				tune_data_dsi1 = tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_TEXT_MDNIE;
+		if (mdnie_tune_state->mdnie_bypass == BYPASS_ENABLE) {
+			if (mdnie_tune_state->index == DSI_CTRL_0)
+				tune_data_dsi0 = mdnie_data.DSI0_BYPASS_MDNIE;
 			else
-				tune_data_dsi1 = tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_MDNIE;
-		else if (mdnie_tune_state->hmt_color_temperature)
-			tune_data_dsi0 = mdnie_data.hmt_color_temperature_tune_value_dsi0[mdnie_tune_state->hmt_color_temperature];
-		else {
-			if (mdnie_tune_state->index == 0)
+				tune_data_dsi1 = mdnie_data.DSI1_BYPASS_MDNIE;
+		} else if (mdnie_tune_state->mdnie_accessibility == COLOR_BLIND) {
+			if (mdnie_tune_state->index == DSI_CTRL_0)
+				tune_data_dsi0  = mdnie_data.DSI0_COLOR_BLIND_MDNIE;
+			else
+				tune_data_dsi1  = mdnie_data.DSI1_COLOR_BLIND_MDNIE;
+		} else if (mdnie_tune_state->mdnie_accessibility == NEGATIVE) {
+			if (mdnie_tune_state->index == DSI_CTRL_0)
+				tune_data_dsi0  = mdnie_data.DSI0_NEGATIVE_MDNIE;
+			else
+				tune_data_dsi1  = mdnie_data.DSI1_NEGATIVE_MDNIE;
+		} else if (mdnie_tune_state->mdnie_accessibility == CURTAIN) {
+			if (mdnie_tune_state->index == DSI_CTRL_0)
+				tune_data_dsi0  = mdnie_data.DSI0_CURTAIN;
+			else
+				tune_data_dsi1  = mdnie_data.DSI1_CURTAIN;
+		} else if (mdnie_tune_state->mdnie_accessibility == GRAYSCALE) {
+			if (mdnie_tune_state->index == DSI_CTRL_0)
+				tune_data_dsi0  = mdnie_data.DSI0_GRAYSCALE_MDNIE;
+			else
+				tune_data_dsi1  = mdnie_data.DSI1_GRAYSCALE_MDNIE;
+		} else if (mdnie_tune_state->mdnie_accessibility == GRAYSCALE_NEGATIVE) {
+			if (mdnie_tune_state->index == DSI_CTRL_0)
+				tune_data_dsi0  = mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE;
+			else
+				tune_data_dsi1  = mdnie_data.DSI1_GRAYSCALE_NEGATIVE_MDNIE;
+		} else if (mdnie_tune_state->hbm_enable == true) {
+			if (vdd->dtsi_data[mdnie_tune_state->index].hbm_ce_text_mode_support && \
+				((mdnie_tune_state->mdnie_app == BROWSER_APP) || (mdnie_tune_state->mdnie_app == eBOOK_APP)))
+					if (mdnie_tune_state->index == DSI_CTRL_0)
+						tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_TEXT_MDNIE;
+					else
+						tune_data_dsi1  = mdnie_data.DSI1_HBM_CE_TEXT_MDNIE;
+			else {
+				if (mdnie_tune_state->index == DSI_CTRL_0)
+					tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_MDNIE;
+				else
+					tune_data_dsi1  = mdnie_data.DSI1_HBM_CE_MDNIE;
+			}
+		} else if (mdnie_tune_state->hmt_color_temperature) {
+			if (mdnie_tune_state->index == DSI_CTRL_0)
+				tune_data_dsi0 = mdnie_data.hmt_color_temperature_tune_value_dsi0[mdnie_tune_state->hmt_color_temperature];
+			else
+				tune_data_dsi1 = mdnie_data.hmt_color_temperature_tune_value_dsi1[mdnie_tune_state->hmt_color_temperature];
+		} else if (mdnie_tune_state->mdnie_app == EMAIL_APP) {
+			/*
+				Some kind of panel doesn't suooprt EMAIL_APP mode, but SSRM module use same control logic.
+				It means SSRM doesn't consider panel unique character.
+				To support this issue eBOOK_APP used insted of EMAIL_APP under EMAIL_APP doesn't exist status..
+			*/
+			if (mdnie_tune_state->index == DSI_CTRL_0) {
+				tune_data_dsi0 = mdnie_data.mdnie_tune_value_dsi0[mdnie_tune_state->mdnie_app][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
+
+				if(!tune_data_dsi0)
+					tune_data_dsi0 = mdnie_data.mdnie_tune_value_dsi0[eBOOK_APP][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
+			} else {
+				tune_data_dsi1= mdnie_data.mdnie_tune_value_dsi1[mdnie_tune_state->mdnie_app][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
+
+				if(!tune_data_dsi1)
+					tune_data_dsi1= mdnie_data.mdnie_tune_value_dsi1[eBOOK_APP][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
+			}
+		} else {
+			if (mdnie_tune_state->index == DSI_CTRL_0)
 				tune_data_dsi0 = mdnie_data.mdnie_tune_value_dsi0[mdnie_tune_state->mdnie_app][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
 			else
 				tune_data_dsi1 = mdnie_data.mdnie_tune_value_dsi1[mdnie_tune_state->mdnie_app][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
 		}
 
-		if (!tune_data_dsi0 && !mdnie_tune_state->index) {
-			DPRINT("%s index : %d tune_data is NULL hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n", __func__,
+		if (!tune_data_dsi0 && (mdnie_tune_state->index == DSI_CTRL_0)) {
+			DPRINT("%s index : %d tune_data is NULL hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d mdnie_outdoor : %d\n", __func__,
 				mdnie_tune_state->index, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
-				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode);
+				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode, mdnie_tune_state->outdoor);
 			return -EFAULT;
-		} else if (!tune_data_dsi1 && mdnie_tune_state->index) {
-			DPRINT("%s index : %d tune_data is NULL hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n", __func__,
-				mdnie_tune_state->index, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
-				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode);
-			return -EFAULT;
-		} else {
-			DPRINT("%s index : %d hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n", __func__,
-				mdnie_tune_state->index, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
-				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode);
-		}
-	}
-
-	vdd->mdnie_tune_data[0].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
-	vdd->mdnie_tune_data[0].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
-
-	vdd->mdnie_tune_data[1].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi1;
-	vdd->mdnie_tune_data[1].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
-
-	if (tune_data_dsi0 && tune_data_dsi1 && vdd && mdnie_tune_state) {
-		/* TODO: Tx command */
-	}
-
-
-	return 0;
-}
-#else
-int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
-{
-	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
-	struct dsi_cmd_desc *tune_data_dsi0 = NULL;
-
-	if (vdd == NULL || !vdd->support_mdnie_lite) return 0;
-
-	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
-		/*
-		*	Checking HBM mode first.
-		*/
-		if (mdnie_tune_state->vdd->auto_brightness == HBM_MODE)
-			mdnie_tune_state->hbm_enable = true;
-		else
-			mdnie_tune_state->hbm_enable = false;
-
-		/*
-		* mDnie priority
-		* Accessibility > HBM > Screen Mode
-		*/
-		if (mdnie_tune_state->mdnie_bypass == BYPASS_ENABLE)
-			tune_data_dsi0 = mdnie_data.DSI0_BYPASS_MDNIE;
-		else if (mdnie_tune_state->mdnie_accessibility == COLOR_BLIND)
-			tune_data_dsi0  = mdnie_data.DSI0_COLOR_BLIND_MDNIE;
-		else if (mdnie_tune_state->mdnie_accessibility == NEGATIVE)
-			tune_data_dsi0  = mdnie_data.DSI0_NEGATIVE_MDNIE;
-		else if (mdnie_tune_state->mdnie_accessibility == CURTAIN)
-			tune_data_dsi0  = mdnie_data.DSI0_CURTAIN;
-		else if (mdnie_tune_state->mdnie_accessibility == GRAYSCALE)
-			tune_data_dsi0  = mdnie_data.DSI0_GRAYSCALE_MDNIE;
-		else if (mdnie_tune_state->mdnie_accessibility == GRAYSCALE_NEGATIVE)
-			tune_data_dsi0  = mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE;
-		else if (mdnie_tune_state->hbm_enable == true)
-			if (vdd->dtsi_data[vdd->support_panel_max - 1].hbm_ce_text_mode_support && \
-				((mdnie_tune_state->mdnie_app == BROWSER_APP) || (mdnie_tune_state->mdnie_app == eBOOK_APP)))
-				tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_TEXT_MDNIE;
-			else
-				tune_data_dsi0  = mdnie_data.DSI0_HBM_CE_MDNIE;
-		else if (mdnie_tune_state->hmt_color_temperature)
-			tune_data_dsi0 = mdnie_data.hmt_color_temperature_tune_value_dsi0[mdnie_tune_state->hmt_color_temperature];
-		else if (mdnie_tune_state->mdnie_app == EMAIL_APP) {
-			/* 
-				Some kind of panel doesn't suooprt EMAIL_APP mode, but SSRM module use same control logic.
-				It means SSRM doesn't consider panel unique character.
-				To support this issue eBOOK_APP used insted of EMAIL_APP under EMAIL_APP doesn't exist status..
-			*/
-			tune_data_dsi0 = mdnie_data.mdnie_tune_value_dsi0[mdnie_tune_state->mdnie_app][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
-
-			if(!tune_data_dsi0)
-				tune_data_dsi0 = mdnie_data.mdnie_tune_value_dsi0[eBOOK_APP][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
-		} else
-			tune_data_dsi0 = mdnie_data.mdnie_tune_value_dsi0[mdnie_tune_state->mdnie_app][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
-
-		if (!tune_data_dsi0 && !mdnie_tune_state->index) {
+		} else if (!tune_data_dsi1 && (mdnie_tune_state->index == DSI_CTRL_1)) {
 			DPRINT("%s index : %d tune_data is NULL hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n", __func__,
 				mdnie_tune_state->index, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
 				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode);
 			return -EFAULT;
 		} else if (likely(tune_data_dsi0)) {
-			DPRINT("%s index : %d hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n", __func__,
-				mdnie_tune_state->index, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
-				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode);
 			mdnie_tune_state->scr_white_red = tune_data_dsi0[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]];
 			mdnie_tune_state->scr_white_green = tune_data_dsi0[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]];
 			mdnie_tune_state->scr_white_blue = tune_data_dsi0[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]];
-
+		} else if (likely(tune_data_dsi1)) {
+			mdnie_tune_state->scr_white_red = tune_data_dsi1[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]];
+			mdnie_tune_state->scr_white_green = tune_data_dsi1[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]];
+			mdnie_tune_state->scr_white_blue = tune_data_dsi1[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]];
 		}
 	}
 
-	if (tune_data_dsi0 && vdd && mdnie_tune_state) {
-                if(vdd->ctrl_dsi[DSI_CTRL_0]->cmd_sync_wait_broadcast) { /* Dual DSI */
-                        vdd->mdnie_tune_data[DSI_CTRL_1].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
-                        vdd->mdnie_tune_data[DSI_CTRL_1].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
-                        mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_1], PANEL_MDNIE_TUNE);
-                } else { /* Single DSI */
-                        vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
-                        vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
-                        mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
-                }
-        } else
-		DPRINT("Command Tx Fail,  tune_data_dsi0=%p, vdd=%p, mdnie_tune_state=%p \n", tune_data_dsi0, vdd, mdnie_tune_state);
+	send_dsi_tcon_mdnie_register(vdd, tune_data_dsi0, tune_data_dsi1, real_mdnie_tune_state);
+
 	return 0;
 }
-#endif
 
 static ssize_t mode_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -275,11 +302,12 @@ static ssize_t mode_store(struct device *dev,
 			value++;
 
 		mdnie_tune_state->mdnie_mode = value;
+
+		DPRINT("%s mode : %d\n", __func__, mdnie_tune_state->mdnie_mode);
 	}
 
-	DPRINT("%s mode : %d\n", __func__, mdnie_tune_state->mdnie_mode);
-
 	update_dsi_tcon_mdnie_register(vdd);
+
 	return size;
 }
 
@@ -347,9 +375,8 @@ static ssize_t scenario_store(struct device *dev,
 			vdd = mdnie_tune_state->vdd;
 
 		mdnie_tune_state->mdnie_app = value;
+		DPRINT("%s APP : %d\n", __func__, mdnie_tune_state->mdnie_app);
 	}
-
-	DPRINT("%s APP : %d\n", __func__, mdnie_tune_state->mdnie_app);
 
 	update_dsi_tcon_mdnie_register(vdd);
 
@@ -392,9 +419,9 @@ static ssize_t outdoor_store(struct device *dev,
 			vdd = mdnie_tune_state->vdd;
 
 		mdnie_tune_state->outdoor = value;
-	}
 
-	DPRINT("outdoor value = %d, APP = %d\n", value, mdnie_tune_state->mdnie_app);
+		DPRINT("outdoor value = %d, APP = %d\n", value, mdnie_tune_state->mdnie_app);
+	}
 
 	update_dsi_tcon_mdnie_register(vdd);
 
@@ -437,9 +464,9 @@ static ssize_t bypass_store(struct device *dev,
 			mdnie_tune_state->mdnie_bypass = BYPASS_ENABLE;
 		else
 			mdnie_tune_state->mdnie_bypass = BYPASS_DISABLE;
-	}
 
-	DPRINT("%s bypass : %s value : %d\n", __func__, mdnie_tune_state->mdnie_bypass ? "ENABLE" : "DISABLE", value);
+		DPRINT("%s bypass : %s value : %d\n", __func__, mdnie_tune_state->mdnie_bypass ? "ENABLE" : "DISABLE", value);
+	}
 
 	update_dsi_tcon_mdnie_register(vdd);
 
@@ -511,8 +538,13 @@ static ssize_t accessibility_store(struct device *dev,
 		} else if (cmd_value == COLOR_BLIND) {
 			mdnie_tune_state->mdnie_accessibility = COLOR_BLIND;
 
-			memcpy(&mdnie_data.DSI0_COLOR_BLIND_MDNIE_2[mdnie_data.mdnie_color_blinde_cmd_offset],
-					buffer, MDNIE_COLOR_BLINDE_CMD_SIZE);
+			if (!IS_ERR_OR_NULL(mdnie_data.DSI0_COLOR_BLIND_MDNIE_2))
+				memcpy(&mdnie_data.DSI0_COLOR_BLIND_MDNIE_2[mdnie_data.mdnie_color_blinde_cmd_offset],
+						buffer, MDNIE_COLOR_BLINDE_CMD_SIZE);
+
+			if (!IS_ERR_OR_NULL(mdnie_data.DSI1_COLOR_BLIND_MDNIE_2))
+				memcpy(&mdnie_data.DSI1_COLOR_BLIND_MDNIE_2[mdnie_data.mdnie_color_blinde_cmd_offset],
+						buffer, MDNIE_COLOR_BLINDE_CMD_SIZE);
 
 		} else if (cmd_value == CURTAIN) {
 			mdnie_tune_state->mdnie_accessibility = CURTAIN;
@@ -523,13 +555,13 @@ static ssize_t accessibility_store(struct device *dev,
 		} else if (cmd_value == ACCESSIBILITY_OFF) {
 			mdnie_tune_state->mdnie_accessibility = ACCESSIBILITY_OFF;
 		}  else
-			pr_info("%s ACCESSIBILITY_MAX", __func__);
+			DPRINT("%s ACCESSIBILITY_MAX", __func__);
 	}
 
 #if defined(CONFIG_64BIT)
-	pr_info("%s cmd_value : %d size : %lu", __func__, cmd_value, size);
+	DPRINT("%s cmd_value : %d size : %lu", __func__, cmd_value, size);
 #else
-	pr_info("%s cmd_value : %d size : %u", __func__, cmd_value, size);
+	DPRINT("%s cmd_value : %d size : %u", __func__, cmd_value, size);
 #endif
 
 	update_dsi_tcon_mdnie_register(vdd);
@@ -553,17 +585,18 @@ static ssize_t sensorRGB_store(struct device *dev,
 {
 	int white_red, white_green, white_blue;
 	struct mdnie_lite_tun_type *mdnie_tune_state = NULL;
+	struct mdnie_lite_tun_type *real_mdnie_tune_state = NULL;
 	struct dsi_cmd_desc *data_dsi0 = NULL;
 	struct dsi_cmd_desc *tune_data_dsi0 = NULL;
-#if defined(CONFIG_DUAL_PANEL)
 	struct dsi_cmd_desc *data_dsi1 = NULL;
 	struct dsi_cmd_desc *tune_data_dsi1 = NULL;
-#endif
 	struct samsung_display_driver_data *vdd = NULL;
 
 	sscanf(buf, "%d %d %d", &white_red, &white_green, &white_blue);
 
 	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
+		real_mdnie_tune_state = mdnie_tune_state;
+
 		if (!vdd)
 			vdd = mdnie_tune_state->vdd;
 
@@ -574,18 +607,13 @@ static ssize_t sensorRGB_store(struct device *dev,
 				mdnie_tune_state->scr_white_green = (char)white_green;
 				mdnie_tune_state->scr_white_blue= (char)white_blue;
 
-#if defined(CONFIG_DUAL_PANEL)
 				DPRINT("%s: white_red = %d, white_green = %d, white_blue = %d %u %u %u %u\n", __func__, white_red, white_green, white_blue,
 					mdnie_data.dsi0_rgb_sensor_mdnie_1_size,
 					mdnie_data.dsi0_rgb_sensor_mdnie_2_size,
 					mdnie_data.dsi1_rgb_sensor_mdnie_1_size,
 					mdnie_data.dsi1_rgb_sensor_mdnie_2_size);
-#else
-				DPRINT("%s: white_red = %d, white_green = %d, white_blue = %d %u %u \n", __func__, white_red, white_green, white_blue,
-					mdnie_data.dsi0_rgb_sensor_mdnie_1_size,
-					mdnie_data.dsi0_rgb_sensor_mdnie_2_size);
-#endif
-				if (mdnie_tune_state->index == 0) {
+
+				if (mdnie_tune_state->index == DSI_CTRL_0) {
 					tune_data_dsi0 = mdnie_data.DSI0_RGB_SENSOR_MDNIE;
 
 					data_dsi0 = mdnie_data.mdnie_tune_value_dsi0[mdnie_tune_state->mdnie_app][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
@@ -599,50 +627,24 @@ static ssize_t sensorRGB_store(struct device *dev,
 						mdnie_data.DSI0_RGB_SENSOR_MDNIE_2[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]] = white_blue;
 					}
 				} else {
-#if defined(CONFIG_DUAL_PANEL)
 					tune_data_dsi1 = mdnie_data.DSI1_RGB_SENSOR_MDNIE;
 
 					data_dsi1 = mdnie_data.mdnie_tune_value_dsi1[mdnie_tune_state->mdnie_app][mdnie_tune_state->mdnie_mode][mdnie_tune_state->outdoor];
 
 					if (data_dsi1) {
-						memcpy(mdnie_data.DSI1_RGB_SENSOR_MDNIE_1, data_dsi0[mdnie_data.mdnie_step_index[MDNIE_STEP1]].payload, mdnie_data.dsi1_rgb_sensor_mdnie_1_size);
-						memcpy(mdnie_data.DSI1_RGB_SENSOR_MDNIE_2, data_dsi0[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload, mdnie_data.dsi1_rgb_sensor_mdnie_1_size);
+						memcpy(mdnie_data.DSI1_RGB_SENSOR_MDNIE_1, data_dsi1[mdnie_data.mdnie_step_index[MDNIE_STEP1]].payload, mdnie_data.dsi1_rgb_sensor_mdnie_1_size);
+						memcpy(mdnie_data.DSI1_RGB_SENSOR_MDNIE_2, data_dsi1[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload, mdnie_data.dsi1_rgb_sensor_mdnie_2_size);
 
 						mdnie_data.DSI1_RGB_SENSOR_MDNIE_2[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]] = white_red;
 						mdnie_data.DSI1_RGB_SENSOR_MDNIE_2[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]] = white_green;
 						mdnie_data.DSI1_RGB_SENSOR_MDNIE_2[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]] = white_blue;
 					}
-#else
-					pr_info("%s not dual panel", __func__);
-#endif
 				}
 		}
 	}
 
-#if defined(CONFIG_DUAL_PANEL)
-	vdd->mdnie_tune_data[0].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
-	vdd->mdnie_tune_data[0].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
+	send_dsi_tcon_mdnie_register(vdd, tune_data_dsi0, tune_data_dsi1, real_mdnie_tune_state);
 
-	vdd->mdnie_tune_data[1].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi1;
-	vdd->mdnie_tune_data[1].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
-
-	if (tune_data_dsi0 && tune_data_dsi1 && mdnie_tune_state->vdd && mdnie_tune_state) {
-		/* TODO: Tx command */
-	}
-#else
-	if (tune_data_dsi0 && vdd && mdnie_tune_state) {
-		if(vdd->ctrl_dsi[DSI_CTRL_0]->cmd_sync_wait_broadcast) { /* Dual DSI */
-			vdd->mdnie_tune_data[DSI_CTRL_1].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
-			vdd->mdnie_tune_data[DSI_CTRL_1].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
-			mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_1], PANEL_MDNIE_TUNE);
-		} else { /* Single DSI */
-			vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
-			vdd->mdnie_tune_data[DSI_CTRL_0].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi0_bypass_mdnie_size;
-			mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
-                }
-	} else
-		DPRINT("Command Tx Fail,  tune_data_dsi0=%p, vdd=%p, mdnie_tune_state=%p \n", tune_data_dsi0, vdd, mdnie_tune_state);
-#endif
 	return size;
 }
 
@@ -678,9 +680,9 @@ static ssize_t cabc_store(struct device *dev,
 			mdnie_tune_state->cabc_bypass = BYPASS_DISABLE;
 		else
 			mdnie_tune_state->cabc_bypass = BYPASS_ENABLE;
-	}
 
-	DPRINT("%s bypass : %s value : %d\n", __func__, mdnie_tune_state->cabc_bypass ? "ENABLE" : "DISABLE", value);
+		DPRINT("%s bypass : %s value : %d\n", __func__, mdnie_tune_state->cabc_bypass ? "ENABLE" : "DISABLE", value);
+	}
 
 	config_cabc(value);
 
@@ -728,9 +730,10 @@ static ssize_t hmt_color_temperature_store(struct device *dev,
 
 		backup = mdnie_tune_state->hmt_color_temperature;
 		mdnie_tune_state->hmt_color_temperature = value;
+
+		DPRINT("%s : (%d) -> (%d)\n", __func__, backup, value);
 	}
 
-	DPRINT("%s : (%d) -> (%d)\n", __func__, backup, value);
 	update_dsi_tcon_mdnie_register(vdd);
 
 	return size;
@@ -751,54 +754,54 @@ void create_tcon_mdnie_node(void)
 	struct samsung_display_driver_data *vdd = samsung_get_vdd();
 
 	if (IS_ERR_OR_NULL(vdd)) {
-		pr_err("%s vdd is error", __func__);
+		DPRINT("%s vdd is error", __func__);
 	};
 
 	tune_mdnie_dev = device_create(mdnie_class, NULL, 0, NULL,  "mdnie");
 	if (IS_ERR(tune_mdnie_dev))
-		pr_err("Failed to create device(mdnie)!\n");
+		DPRINT("Failed to create device(mdnie)!\n");
 
 	/* APP */
 	if (device_create_file(tune_mdnie_dev, &dev_attr_scenario) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_scenario.attr.name);
+		DPRINT("Failed to create device file(%s)!\n", dev_attr_scenario.attr.name);
 
 	/* MODE */
 	if (device_create_file(tune_mdnie_dev, &dev_attr_mode) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_mode.attr.name);
+		DPRINT("Failed to create device file(%s)!\n", dev_attr_mode.attr.name);
 
 	/* OUTDOOR */
 	if (device_create_file(tune_mdnie_dev, &dev_attr_outdoor) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_outdoor.attr.name);
+		DPRINT("Failed to create device file(%s)!\n", dev_attr_outdoor.attr.name);
 
 	/* MDNIE ON/OFF */
 	if (device_create_file(tune_mdnie_dev, &dev_attr_bypass) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_bypass.attr.name);
+		DPRINT("Failed to create device file(%s)!\n", dev_attr_bypass.attr.name);
 #if 0
 	/* NEGATIVE */
 	if (device_create_file
 		(tune_mdnie_dev, &dev_attr_negative) < 0)
-		pr_err("Failed to create device file(%s)!\n",
+		DPRINT("Failed to create device file(%s)!\n",
 			dev_attr_negative.attr.name);
 #endif
 	/* COLOR BLIND */
 	if (device_create_file(tune_mdnie_dev, &dev_attr_accessibility) < 0)
-		pr_err("Failed to create device file(%s)!=n", dev_attr_accessibility.attr.name);
+		DPRINT("Failed to create device file(%s)!=n", dev_attr_accessibility.attr.name);
 
 	if (device_create_file
 		(tune_mdnie_dev, &dev_attr_sensorRGB) < 0)
-		pr_err("Failed to create device file(%s)!=n",
+		DPRINT("Failed to create device file(%s)!=n",
 			dev_attr_sensorRGB.attr.name);
 
 	/* hmt_color_temperature */
 	if (device_create_file
 		(tune_mdnie_dev, &dev_attr_hmt_color_temperature) < 0)
-		pr_err("Failed to create device file(%s)!=n",
+		DPRINT("Failed to create device file(%s)!=n",
 			dev_attr_hmt_color_temperature.attr.name);
 
-	if(vdd->support_cabc)
 	/* CABC ON/OFF */
-	if (device_create_file(tune_mdnie_dev, &dev_attr_cabc) < 0)
-		pr_err("Failed to create device file(%s)!\n", dev_attr_cabc.attr.name);
+	if(vdd->support_cabc)
+		if (device_create_file(tune_mdnie_dev, &dev_attr_cabc) < 0)
+			DPRINT("Failed to create device file(%s)!\n", dev_attr_cabc.attr.name);
 }
 
 struct mdnie_lite_tun_type* init_dsi_tcon_mdnie_class(int index, struct samsung_display_driver_data *vdd_data)
@@ -809,7 +812,7 @@ struct mdnie_lite_tun_type* init_dsi_tcon_mdnie_class(int index, struct samsung_
 		mdnie_class = class_create(THIS_MODULE, "mdnie");
 
 		if (IS_ERR(mdnie_class)) {
-			pr_err("Failed to create class(mdnie)!\n");
+			DPRINT("Failed to create class(mdnie)!\n");
 			goto out;
 		} else
 			create_tcon_mdnie_node();
@@ -821,15 +824,15 @@ struct mdnie_lite_tun_type* init_dsi_tcon_mdnie_class(int index, struct samsung_
 		kzalloc(sizeof(struct mdnie_lite_tun_type), GFP_KERNEL);
 
 	if (!mdnie_tune_state) {
-		pr_info("%s allocation fail", __func__);
+		DPRINT("%s allocation fail", __func__);
 		goto out;
 	} else {
 		mdnie_tune_state->vdd = vdd_data;
 
 		mdnie_tune_state->index = index;
 		mdnie_tune_state->mdnie_bypass = BYPASS_DISABLE;
-		if(mdnie_tune_state->vdd->support_cabc)
-		mdnie_tune_state->cabc_bypass = BYPASS_DISABLE;
+		if (mdnie_tune_state->vdd->support_cabc)
+			mdnie_tune_state->cabc_bypass = BYPASS_DISABLE;
 		mdnie_tune_state->hbm_enable = false;
 
 		mdnie_tune_state->mdnie_app = UI_APP;
@@ -848,7 +851,7 @@ struct mdnie_lite_tun_type* init_dsi_tcon_mdnie_class(int index, struct samsung_
 	}
 
 	/* Set default link_stats as DSI_HS_MODE for mdnie tune data */
-	vdd_data->mdnie_tune_data[0].mdnie_tune_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;
+	vdd_data->mdnie_tune_data[index].mdnie_tune_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;
 
 	return mdnie_tune_state;
 
@@ -856,42 +859,46 @@ out :
 	return 0;
 }
 
+void coordinate_tunning_multi(int index, char (*coordinate_data_multi[MAX_MODE])[COORDINATE_DATA_SIZE], int mdnie_tune_index, int scr_wr_addr, int data_size)
+{
+	int i, j;
+	struct dsi_cmd_desc *coordinate_tunning_data = NULL;
+
+	if (index == DSI_CTRL_0) {
+		for(i = 0; i < MAX_APP_MODE; i++) {
+			for(j = 0; j < MAX_MODE; j++) {
+				if((mdnie_data.mdnie_tune_value_dsi0[i][j][0] != NULL) && (i != eBOOK_APP) && (j != READING_MODE)) {
+					coordinate_tunning_data = mdnie_data.mdnie_tune_value_dsi0[i][j][0];
+					coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]] = coordinate_data_multi[j][mdnie_tune_index][0];
+					coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]] = coordinate_data_multi[j][mdnie_tune_index][2];
+					coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]] = coordinate_data_multi[j][mdnie_tune_index][4];
+				}
+			}
+		}
+	} else {
+		for(i = 0; i < MAX_APP_MODE; i++) {
+			for(j = 0; j < MAX_MODE; j++) {
+				if((mdnie_data.mdnie_tune_value_dsi1[i][j][0] != NULL) && (i != eBOOK_APP) && (j != READING_MODE)) {
+					coordinate_tunning_data = mdnie_data.mdnie_tune_value_dsi1[i][j][0];
+					coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]] = coordinate_data_multi[j][mdnie_tune_index][0];
+					coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]] = coordinate_data_multi[j][mdnie_tune_index][2];
+					coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]] = coordinate_data_multi[j][mdnie_tune_index][4];
+				}
+			}
+		}
+	}
+}
+
 void coordinate_tunning(int index, char *coordinate_data, int scr_wr_addr, int data_size)
 {
 	int i, j;
 	char white_r, white_g, white_b;
 	struct dsi_cmd_desc *coordinate_tunning_data = NULL;
-	if (index == 0) {
-#if 0
-		memcpy(&mdnie_data.DSI0_BROWSER_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_GALLERY_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_UI_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_VIDEO_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_VT_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_EBOOK_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_TDMB_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
 
-		memcpy(&mdnie_data.DSI0_BROWSER_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_GALLERY_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_UI_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_VIDEO_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_VT_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_EBOOK_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_TDMB_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-
-		memcpy(&mdnie_data.DSI0_BROWSER_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_CAMERA_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_GALLERY_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_UI_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_VIDEO_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_VT_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI0_TDMB_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-
-		memcpy(&mdnie_data.DSI0_CAMERA_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-#endif
-		for(i = 0; i < MAX_APP_MODE; i++) {
-			for(j = 0; j < MAX_MODE; j++) {
-				if(mdnie_data.mdnie_tune_value_dsi0[i][j][0] != NULL) {
+	if (index == DSI_CTRL_0) {
+		for (i = 0; i < MAX_APP_MODE; i++) {
+			for (j = 0; j < MAX_MODE; j++) {
+				if (mdnie_data.mdnie_tune_value_dsi0[i][j][0] != NULL) {
 					coordinate_tunning_data = mdnie_data.mdnie_tune_value_dsi0[i][j][0];
 					white_r = coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]];
 					white_g = coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]];
@@ -905,34 +912,20 @@ void coordinate_tunning(int index, char *coordinate_data, int scr_wr_addr, int d
 			}
 		}
 	} else {
-#if defined(CONFIG_DUAL_PANEL)
-		memcpy(&mdnie_data.DSI1_BROWSER_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_GALLERY_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_UI_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_VIDEO_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_VT_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_EBOOK_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_TDMB_DYNAMIC_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-
-		memcpy(&mdnie_data.DSI1_BROWSER_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_GALLERY_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_UI_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_VIDEO_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_VT_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_EBOOK_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_TDMB_STANDARD_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-
-		memcpy(&mdnie_data.DSI1_BROWSER_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_CAMERA_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_GALLERY_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_UI_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_VIDEO_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_VT_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-		memcpy(&mdnie_data.DSI1_TDMB_AUTO_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-
-		memcpy(&mdnie_data.DSI1_CAMERA_MDNIE_2[scr_wr_addr], coordinate_data, data_size);
-#else
-		pr_info("%s not dual panel", __func__);
-#endif
+		for (i = 0; i < MAX_APP_MODE; i++) {
+			for (j = 0; j < MAX_MODE; j++) {
+				if (mdnie_data.mdnie_tune_value_dsi1[i][j][0] != NULL) {
+					coordinate_tunning_data = mdnie_data.mdnie_tune_value_dsi1[i][j][0];
+					white_r = coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]];
+					white_g = coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]];
+					white_b = coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]];
+					if ((white_r == 0xff) && (white_g == 0xff) && (white_b == 0xff)) {
+						coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET]] = coordinate_data[0];
+						coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET]] = coordinate_data[2];
+						coordinate_tunning_data[mdnie_data.mdnie_step_index[MDNIE_STEP2]].payload[mdnie_data.address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET]] = coordinate_data[4];
+					}
+				}
+			}
+		}
 	}
 }

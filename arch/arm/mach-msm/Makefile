@@ -49,6 +49,8 @@ CFLAGS_msm_vibrator.o += -Idrivers/staging/android
 
 obj-$(CONFIG_SM5502_MUIC) += sec-switch.o
 obj-$(CONFIG_SM5504_MUIC) += sec-switch.o
+obj-$(CONFIG_SM5703_MUIC) += sec-switch.o
+
 obj-$(CONFIG_MSM_LPM_TEST) += test-lpm.o
 
 

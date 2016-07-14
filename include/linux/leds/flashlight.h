@@ -45,9 +45,13 @@ struct flashlight_ops {
     int (*list_color_temperature)(struct flashlight_device *, int);
     int (*strobe_charge)(struct flashlight_device *,
                          flashlight_charge_event_cb, void *, int);
+#if defined(CONFIG_FLED_SM5703) || defined(CONFIG_LEDS_SM5705)
+    int (*strobe)(struct flashlight_device *, int);
+#else
     int (*strobe)(struct flashlight_device *);
-	int (*suspend)(struct flashlight_device *, pm_message_t);
-	int (*resume)(struct flashlight_device *);
+#endif
+    int (*suspend)(struct flashlight_device *, pm_message_t);
+    int (*resume)(struct flashlight_device *);
 };
 
 struct flashlight_properties {
@@ -101,7 +105,12 @@ extern int flashlight_set_strobe_timeout(
 extern int flashlight_set_mode(struct flashlight_device *flashlight_dev,
                                int mode);
 
+extern int flashlight_flash(struct flashlight_device *flashlight_dev, int turn_way);
+#if defined(CONFIG_FLED_SM5703) || defined(CONFIG_LEDS_SM5705)
+extern int flashlight_strobe(struct flashlight_device *flashlight_dev, int turn_way);
+#else
 extern int flashlight_strobe(struct flashlight_device *flashlight_dev);
+#endif
 
 /* flashlight_charge_event_cb(void *data, int remains)
  * description :

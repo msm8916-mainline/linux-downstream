@@ -629,7 +629,8 @@ static int mdss_mdp_map_buffer(struct mdss_mdp_img_data *data)
 						mdss_get_iommu_domain(domain),
 						0, SZ_4K, 0, &data->addr,
 						&data->len, 0, 0);
-			data->mapped = true;
+			if (!IS_ERR_VALUE(ret))
+				data->mapped = true;
 		} else {
 			ret = ion_phys(iclient, data->srcp_ihdl,
 					&data->addr, (size_t *) &data->len);
@@ -714,16 +715,17 @@ void mdss_mdp_data_free(struct mdss_mdp_data *data)
 {
 	int i;
 
+	mdss_iommu_ctrl(1);
 	for (i = 0; i < data->num_planes && data->p[i].len; i++)
 		mdss_mdp_put_img(&data->p[i]);
-
+	mdss_iommu_ctrl(0);
 	data->num_planes = 0;
 }
 
 int mdss_mdp_calc_phase_step(u32 src, u32 dst, u32 *out_phase)
 {
 	u32 unit, residue, result;
-        struct mdss_data_type *mdata = mdss_mdp_get_mdata();
+	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
 
 	if (src == 0 || dst == 0)
 		return -EINVAL;

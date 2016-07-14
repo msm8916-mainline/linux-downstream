@@ -137,6 +137,7 @@
 #define DVFS_STAGE_NONE		0
 #define TOUCH_BOOSTER_OFF_TIME	300
 #define TOUCH_BOOSTER_CHG_TIME  200
+#define SECOND_MINLOCK_FOR_LEVEL1
 #endif
 
 enum ist30xx_commands {

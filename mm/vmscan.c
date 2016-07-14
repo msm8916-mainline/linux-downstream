@@ -90,6 +90,8 @@ struct scan_control {
 
 	int order;
 
+	int swappiness;
+
 	/* Scan (total_size >> priority) pages at once */
 	int priority;
 
@@ -104,6 +106,13 @@ struct scan_control {
 	 * are scanned.
 	 */
 	nodemask_t	*nodemask;
+
+	/*
+	 * Reclaim pages from a vma. If the page is shared by other tasks
+	 * it is zapped from a vma without reclaim so it ends up remaining
+	 * on memory until last task zap it.
+	 */
+	struct vm_area_struct *target_vma;
 
 #ifdef CONFIG_RUNTIME_COMPCACHE
 	struct rtcc_control *rc;
@@ -829,7 +838,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		struct address_space *mapping;
 		struct page *page;
 		int may_enter_fs;
-		enum page_references references = PAGEREF_RECLAIM_CLEAN;
+		enum page_references references = PAGEREF_RECLAIM;
 		bool dirty, writeback;
 
 		cond_resched();
@@ -841,7 +850,8 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 			goto keep;
 
 		VM_BUG_ON(PageActive(page));
-		VM_BUG_ON(page_zone(page) != zone);
+		if (zone)
+			VM_BUG_ON(page_zone(page) != zone);
 
 		sc->nr_scanned++;
 
@@ -985,7 +995,8 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 		 * processes. Try to unmap it here.
 		 */
 		if (page_mapped(page) && mapping) {
-			switch (try_to_unmap(page, ttu_flags)) {
+			switch (try_to_unmap(page,
+					ttu_flags, sc->target_vma)) {
 			case SWAP_FAIL:
 				goto activate_locked;
 			case SWAP_AGAIN:
@@ -1005,7 +1016,7 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 			 */
 			if (page_is_file_cache(page) &&
 					(!current_is_kswapd() ||
-					 !zone_is_reclaim_dirty(zone))) {
+				(zone && !zone_is_reclaim_dirty(zone)))) {
 				/*
 				 * Immediately reclaim when written back.
 				 * Similar in principal to deactivate_page()
@@ -1112,18 +1123,25 @@ free_it:
 		 * appear not as the counts should be low
 		 */
 		list_add(&page->lru, &free_pages);
+		/*
+		 * If pagelist are from multiple zones, we should decrease
+		 * NR_ISOLATED_ANON + x on freed pages in here.
+		 */
+		if (!zone)
+			dec_zone_page_state(page, NR_ISOLATED_ANON +
+					page_is_file_cache(page));
 		continue;
 
 cull_mlocked:
 		if (PageSwapCache(page))
 			try_to_free_swap(page);
 		unlock_page(page);
-		putback_lru_page(page);
+		list_add(&page->lru, &ret_pages);
 		continue;
 
 activate_locked:
 		/* Not a candidate for swapping, so reclaim swap space. */
-		if (PageSwapCache(page) && vm_swap_full())
+		if (PageSwapCache(page) && vm_swap_full(page_swap_info(page)))
 			try_to_free_swap(page);
 		VM_BUG_ON(PageActive(page));
 		SetPageActive(page);
@@ -1155,6 +1173,8 @@ unsigned long reclaim_clean_pages_from_list(struct zone *zone,
 		.gfp_mask = GFP_KERNEL,
 		.priority = DEF_PRIORITY,
 		.may_unmap = 1,
+		/* Doesn't allow to write out dirty page */
+		.may_writepage = 0,
 	};
 	unsigned long ret, dummy1, dummy2, dummy3, dummy4, dummy5;
 	struct page *page, *next;
@@ -1172,9 +1192,45 @@ unsigned long reclaim_clean_pages_from_list(struct zone *zone,
 			TTU_UNMAP|TTU_IGNORE_ACCESS,
 			&dummy1, &dummy2, &dummy3, &dummy4, &dummy5, true);
 	list_splice(&clean_pages, page_list);
-	__mod_zone_page_state(zone, NR_ISOLATED_FILE, -ret);
+	mod_zone_page_state(zone, NR_ISOLATED_FILE, -ret);
 	return ret;
 }
+
+#ifdef CONFIG_PROCESS_RECLAIM
+unsigned long reclaim_pages_from_list(struct list_head *page_list,
+					struct vm_area_struct *vma)
+{
+	struct scan_control sc = {
+		.gfp_mask = GFP_KERNEL,
+		.priority = DEF_PRIORITY,
+		.may_writepage = 1,
+		.may_unmap = 1,
+		.may_swap = 1,
+		.target_vma = vma,
+	};
+
+	unsigned long nr_reclaimed;
+	struct page *page;
+	unsigned long dummy1, dummy2, dummy3, dummy4, dummy5;
+
+	list_for_each_entry(page, page_list, lru)
+		ClearPageActive(page);
+
+	nr_reclaimed = shrink_page_list(page_list, NULL, &sc,
+			TTU_UNMAP|TTU_IGNORE_ACCESS,
+			&dummy1, &dummy2, &dummy3, &dummy4, &dummy5, true);
+
+	while (!list_empty(page_list)) {
+		page = lru_to_page(page_list);
+		list_del(&page->lru);
+		dec_zone_page_state(page, NR_ISOLATED_ANON +
+				page_is_file_cache(page));
+		putback_lru_page(page);
+	}
+
+	return nr_reclaimed;
+}
+#endif
 
 /*
  * Attempt to remove the specified page from its LRU.  Only take this page
@@ -1409,11 +1465,6 @@ static int __too_many_isolated(struct zone *zone, int file,
 static int too_many_isolated(struct zone *zone, int file,
 		struct scan_control *sc, int safe)
 {
-#ifdef CONFIG_RUNTIME_COMPCACHE
-	if (get_rtcc_status() == 1)
-		return 0;
-#endif /* CONFIG_RUNTIME_COMPCACHE */
-
 	if (current_is_kswapd())
 		return 0;
 
@@ -1894,7 +1945,7 @@ static int vmscan_swappiness(struct scan_control *sc)
 		return sc->rc->swappiness;
 #endif /* CONFIG_RUNTIME_COMPCACHE */
 	if (global_reclaim(sc))
-		return vm_swappiness;
+		return sc->swappiness;
 	return mem_cgroup_swappiness(sc->target_mem_cgroup);
 }
 
@@ -2738,6 +2789,11 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 #else
 		.may_swap = 1,
 #endif /* CONFIG_RUNTIME_COMPCACHE */
+#ifdef CONFIG_ZSWAP
+		.swappiness = vm_swappiness / 2,
+#else
+		.swappiness = vm_swappiness,
+#endif
 		.order = order,
 		.priority = DEF_PRIORITY,
 		.target_mem_cgroup = NULL,
@@ -2780,6 +2836,7 @@ unsigned long mem_cgroup_shrink_node_zone(struct mem_cgroup *memcg,
 		.may_unmap = 1,
 		.may_swap = !noswap,
 		.order = 0,
+		.swappiness = vm_swappiness,
 		.priority = 0,
 		.target_mem_cgroup = memcg,
 	};
@@ -2820,6 +2877,7 @@ unsigned long try_to_free_mem_cgroup_pages(struct mem_cgroup *memcg,
 		.may_swap = !noswap,
 		.nr_to_reclaim = SWAP_CLUSTER_MAX,
 		.order = 0,
+		.swappiness = vm_swappiness,
 		.priority = DEF_PRIORITY,
 		.target_mem_cgroup = memcg,
 		.nodemask = NULL, /* we don't care the placement */
@@ -2938,7 +2996,11 @@ static bool pgdat_balanced(pg_data_t *pgdat, int order, int classzone_idx)
 	}
 
 	if (order)
+#ifdef CONFIG_TIGHT_PGDAT_BALANCE
+		return balanced_pages >= (managed_pages >> 1);
+#else
 		return balanced_pages >= (managed_pages >> 2);
+#endif
 	else
 		return true;
 }
@@ -3094,6 +3156,7 @@ static unsigned long balance_pgdat(pg_data_t *pgdat, int order,
 #endif /* CONFIG_KSWAPD_NOSWAP */
 		.may_writepage = !laptop_mode,
 		.order = order,
+		.swappiness = vm_swappiness,
 		.target_mem_cgroup = NULL,
 	};
 	count_vm_event(PAGEOUTRUN);
@@ -3635,6 +3698,7 @@ unsigned long shrink_all_memory(unsigned long nr_to_reclaim)
 		.nr_to_reclaim = nr_to_reclaim,
 		.hibernation_mode = 1,
 		.order = 0,
+		.swappiness = vm_swappiness,
 		.priority = DEF_PRIORITY,
 	};
 	struct shrink_control shrink = {
@@ -3828,6 +3892,7 @@ static int __zone_reclaim(struct zone *zone, gfp_t gfp_mask, unsigned int order)
 		.nr_to_reclaim = max(nr_pages, SWAP_CLUSTER_MAX),
 		.gfp_mask = (gfp_mask = memalloc_noio_flags(gfp_mask)),
 		.order = order,
+		.swappiness = vm_swappiness,
 		.priority = ZONE_RECLAIM_PRIORITY,
 	};
 	struct shrink_control shrink = {

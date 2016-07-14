@@ -380,10 +380,12 @@ err_add_regulator_devs:
 err_init_irq:
 	wake_lock_destroy(&(chip->irq_wake_lock));
 	mutex_destroy(&chip->io_lock);
-	kfree(chip);
 irq_base_err:
-err_mfd_nomem:
 err_i2cfunc_not_support:
+	kfree(chip);
+err_mfd_nomem:
+	if(pdata)
+		kfree(pdata);
 err_parse_dt:
 err_dt_nomem:
 	return ret;
@@ -439,6 +441,9 @@ int s2mu003_mfd_resume(struct device *dev)
 
 static void s2mu003_mfd_shutdown(struct i2c_client *client)
 {
+	struct i2c_client *i2c = client;
+	/* Force to enable charger & reset charger before shutdown */
+	s2mu003_set_bits(i2c, S2MU003_CHG_CTRL3, S2MU003_CHG_EN_MASK);
 }
 
 static const struct i2c_device_id s2mu003_mfd_id_table[] = {

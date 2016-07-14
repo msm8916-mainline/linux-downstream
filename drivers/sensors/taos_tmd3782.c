@@ -88,11 +88,11 @@ enum {
 	OFF = 0,
 	ON = 1,
 };
-#define Atime_ms		504  /*50.4 ms*/
-#define DGF				625
-#define R_Coef1			(-580)
-#define G_Coef1			(1010)
-#define B_Coef1			(80)
+#define Atime_ms		500  /*50.0 ms*/
+#define DGF				578
+#define R_Coef1			(340)
+#define G_Coef1			(1000)
+#define B_Coef1			(310)
 #define IR_R_Coef1			(-1)
 #define IR_G_Coef1			(109)
 #define IR_B_Coef1			(-29)
@@ -109,7 +109,7 @@ enum {
 #define TAOS_PROX_MIN			0
 
 #define OFFSET_ARRAY_LENGTH		10
-#define OFFSET_FILE_PATH	"/efs/prox_cal"
+#define OFFSET_FILE_PATH	"/efs/FactoryApp/prox_cal"
 
 #define CAL_SKIP_ADC	204
 #define CAL_FAIL_ADC	480
@@ -249,25 +249,51 @@ static void sensor_power_on_vdd(struct taos_data *info, int onoff)
 	if (!info->lvs1_1p8) {
 		info->lvs1_1p8 =
 			regulator_get(&info->i2c_client->dev, "reg_vio");
-		if(!info->lvs1_1p8){
+		if(IS_ERR(info->lvs1_1p8)){
 			pr_err("%s: regulator_get for lvs1_1p8 failed\n",
 				__func__);
-			return ;
+		}
+	}
+	if (!info->vdd_2p85) {
+		info->vdd_2p85 =
+			regulator_get(&info->i2c_client->dev, "reg_vdd");
+		if(IS_ERR(info->vdd_2p85)){
+			pr_err("%s: regulator_get for vdd_2p85 failed\n",
+				__func__);
 		}
 	}
 	if (onoff == 1) {
-		ret = regulator_enable(info->lvs1_1p8);
-		if (ret)
-			pr_err("%s: Failed to enable regulator lvs1_1p8.\n",
-				__func__);
-	} else if (onoff == 0) {
-		if (regulator_is_enabled(info->lvs1_1p8)) {
-			ret = regulator_disable(info->lvs1_1p8);
+		if(!(IS_ERR(info->lvs1_1p8))) {
+			ret = regulator_enable(info->lvs1_1p8);
 			if (ret)
-				pr_err("%s: error lvs1_1p8 disabling regulator\n",
+				pr_err("%s: Failed to enable regulator lvs1_1p8.\n",
 					__func__);
 		}
+		if(!(IS_ERR(info->vdd_2p85))) {
+			ret = regulator_enable(info->vdd_2p85);
+			if (ret)
+				pr_err("%s: Failed to enable regulator vdd_2p85.\n",
+					__func__);
+		}
+	} else if (onoff == 0) {
+		if(!(IS_ERR(info->lvs1_1p8))) {
+			if (regulator_is_enabled(info->lvs1_1p8)) {
+				ret = regulator_disable(info->lvs1_1p8);
+				if (ret)
+					pr_err("%s: error lvs1_1p8 disabling regulator\n",
+						__func__);
+			}
+		}
+		if(!(IS_ERR(info->vdd_2p85))) {
+			if (regulator_is_enabled(info->vdd_2p85)) {
+				ret = regulator_disable(info->vdd_2p85);
+				if (ret)
+					pr_err("%s: error vdd_2p85 disabling regulator\n",
+						__func__);
+			}
+		}
 	}
+
 	msleep(30);
 	return;
 }
@@ -367,13 +393,16 @@ static int taos_chip_on(struct taos_data *taos)
 	u8 temp_val;
 	u8 reg_cntrl;
 
-	/*sensor_power_on_vdd(taos,ON);*/
+#ifndef CONFIG_SENSORS_TMD3782S_VDD_LEDA
 	tmd3782_leden_gpio_onoff(taos, 1);
+#endif
 
 	temp_val = CNTL_PWRON;
 	ret = opt_i2c_write(taos, (CMD_REG|CNTRL), &temp_val);
 	if (ret < 0)
 		gprintk("opt_i2c_write to clr ctrl reg failed\n");
+
+	usleep_range(3000, 3100); // A minimum interval of 2.4ms must pass after PON is enabled.
 
 	temp_val = taos->pdata->als_time;
 	ret = opt_i2c_write(taos, (CMD_REG|ALS_TIME), &temp_val);
@@ -425,9 +454,10 @@ static int taos_chip_off(struct taos_data *taos)
 		return ret;
 	}
 
-	/*sensor_power_on_vdd(taos,OFF);*/
+#ifndef CONFIG_SENSORS_TMD3782S_VDD_LEDA
 	tmd3782_leden_gpio_onoff(taos, OFF);
 	msleep(20);
+#endif
 
 	return ret;
 }
@@ -513,9 +543,7 @@ static int taos_get_lux(struct taos_data *taos)
 	}
 
 	/* calculate lux */
-	taos->irdata =
-		(reddata*IR_R_Coef1 + grndata*IR_G_Coef1 + bludata*IR_B_Coef1
-			- clrdata*IR_C_Coef1) / IR_Coef1;
+	taos->irdata = (reddata + grndata + bludata - clrdata) / 2;
 
 	/* remove ir from counts*/
 	rp1 = taos->reddata - taos->irdata;
@@ -1137,6 +1165,24 @@ static ssize_t prox_trim_show(struct device *dev,
 	return sprintf(buf, "%d\n", taos->pdata->prox_rawdata_trim);
 }
 
+static ssize_t prox_trim_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct taos_data *taos = dev_get_drvdata(dev);
+	int trim_value = (u8)(taos->pdata->prox_rawdata_trim);
+	int err = 0;
+
+	err = kstrtoint(buf, 10, &trim_value);
+	pr_info("%s, trim_value = %d\n", __func__, trim_value);
+	if (err < 0)
+		pr_err("%s, kstrtoint failed.", __func__);
+
+	taos->pdata->prox_rawdata_trim = trim_value;
+
+	return size;
+}
+
+
 static ssize_t get_vendor_name(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -1233,7 +1279,9 @@ static DEVICE_ATTR(thresh_high, 0644, thresh_high_show,
 	thresh_high_store);
 static DEVICE_ATTR(thresh_low, 0644, thresh_low_show,
 	thresh_low_store);
-static DEVICE_ATTR(prox_trim, S_IRUGO, prox_trim_show, NULL);
+static DEVICE_ATTR(prox_trim, S_IRUGO| S_IWUSR | S_IWGRP,
+	prox_trim_show, prox_trim_store);
+
 static struct device_attribute *prox_sensor_attrs[] = {
 	&dev_attr_state,
 	&dev_attr_prox_avg,
@@ -1567,7 +1615,6 @@ static int taos_i2c_probe(struct i2c_client *client,
 			  const struct i2c_device_id *id)
 {
 	int ret = -ENODEV,err;
-	int chipid = 0;
 	struct input_dev *input_dev;
 	struct taos_data *taos;
 	struct taos_platform_data *pdata = NULL;
@@ -1625,9 +1672,9 @@ static int taos_i2c_probe(struct i2c_client *client,
 	tmd3782_leden_gpio_onoff(taos, 1);
 
 	/* ID Check */
-	chipid = i2c_smbus_read_byte_data(client, CMD_REG | CHIPID);
-	if (chipid != CHIP_ID) {
-		pr_err("%s: i2c read error [%X]\n", __func__, chipid);
+	ret = i2c_smbus_read_byte_data(client, CMD_REG | CHIPID);
+	if (ret != CHIP_ID) {
+		pr_err("%s: i2c read error [%X]\n", __func__, ret);
 		goto err_chip_id_or_i2c_error;
 	}
 
@@ -1766,10 +1813,10 @@ static int taos_i2c_probe(struct i2c_client *client,
 		pr_err("%s: could not setup irq\n", __func__);
 		goto err_setup_irq;
 	}
-	/*sensor_power_on_vdd(taos,0);*/
+#ifndef CONFIG_SENSORS_TMD3782S_VDD_LEDA
 	tmd3782_leden_gpio_onoff(taos, OFF);
 	msleep(20);
-
+#endif
 	goto done;
 	/* error, unwind it all */
 err_devicetree:
@@ -1860,6 +1907,8 @@ static int taos_i2c_remove(struct i2c_client *client)
 			taos_light_disable(taos);
 		taos->pdata->power(false);
 		sensor_power_on_vdd(taos,0);
+		regulator_put(taos->vdd_2p85);
+		regulator_put(taos->lvs1_1p8);
 		tmd3782_leden_gpio_onoff(taos, 0);
 		if (taos->pdata->enable >= 0)
 			gpio_free(taos->pdata->enable);

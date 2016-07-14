@@ -1441,7 +1441,7 @@ static int get_base_luminance(struct SMART_DIM *pSmart)
 	int cnt;
 	int base_luminance[LUMINANCE_MAX][2];
 
-		memcpy(base_luminance, base_luminance_revC, sizeof(base_luminance_revC));
+	memcpy(base_luminance, base_luminance_revC, sizeof(base_luminance_revC));
 
 	for (cnt = 0; cnt < LUMINANCE_MAX; cnt++)
 		if (base_luminance[cnt][0] == pSmart->brightness_level)
@@ -1457,7 +1457,7 @@ static int get_gamma_curve(struct SMART_DIM *pSmart)
 
 static int get_gradation_offset(int table_index, int index)
 {
-		return gradation_offset_revC[table_index][index];
+	return gradation_offset_revC[table_index][index];
 }
 
 static int get_rgb_offset(int table_index, int index)

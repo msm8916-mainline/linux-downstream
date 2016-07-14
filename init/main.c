@@ -83,6 +83,13 @@
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
+#ifdef CONFIG_TIMA_RKP
+#include <asm/cp15.h>
+#ifdef CONFIG_TIMA_RKP_COHERENT_TT
+#include <linux/memblock.h>
+#endif
+#endif /* CONFIG_TIMA_RKP */
+
 #ifdef CONFIG_X86_LOCAL_APIC
 #include <asm/smp.h>
 #endif
@@ -237,6 +244,24 @@ static int __init loglevel(char *str)
 
 early_param("loglevel", loglevel);
 
+#if defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8929)
+/* check uart boot */
+int jig_boot_clk_limit = 0;
+static int __init jig_status_phone(char *str)
+{
+	int jig_val;
+
+	if(get_option(&str, &jig_val)) {
+		jig_boot_clk_limit |= jig_val;
+		printk(KERN_INFO "%s = %d\n", __func__, jig_boot_clk_limit);
+		return 0;
+	}
+
+	return -EINVAL;
+}
+early_param("uart_dbg", jig_status_phone);
+#endif
+
 /* Change NUL term back to "=", to make "param" the whole string. */
 static int __init repair_env_string(char *param, char *val, const char *unused)
 {
@@ -356,6 +381,21 @@ static void __init setup_command_line(char *command_line)
 	strcpy (saved_command_line, boot_command_line);
 	strcpy (static_command_line, command_line);
 }
+
+#ifdef CONFIG_TIMA_RKP_30
+#define PGT_BIT_ARRAY_LENGTH 0x40000
+unsigned long pgt_bit_array[PGT_BIT_ARRAY_LENGTH];
+EXPORT_SYMBOL(pgt_bit_array);
+/* Block of Code for RKP initialization */
+static noinline void rkp_init(void)
+{
+#ifdef CONFIG_TIMA_RKP_COHERENT_TT
+	struct memblock_type *type = (struct memblock_type*)(&memblock.memory);
+	tima_send_cmd2(type->cnt, __pa(type->regions), 0x3f804221);
+#endif /* CONFIG_TIMA_RKP_COHERENT_TT */
+	tima_send_cmd5((unsigned long)_stext, (unsigned long)init_mm.pgd, (unsigned long)__init_begin, (unsigned long)__init_end,(unsigned long)__pa(pgt_bit_array),0x3f80c221);
+}
+#endif
 
 /*
  * We need to finalize in a non-__init function or else race conditions
@@ -518,6 +558,9 @@ asmlinkage void __init start_kernel(void)
 	boot_init_stack_canary();
 	mm_init_owner(&init_mm, &init_task);
 	mm_init_cpumask(&init_mm);
+#ifdef CONFIG_TIMA_RKP
+        rkp_init();
+#endif
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();
 	setup_per_cpu_areas();
@@ -830,11 +873,18 @@ static noinline void __init kernel_init_freeable(void);
 static int __ref kernel_init(void *unused)
 {
 	kernel_init_freeable();
-	
+
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();
 	free_initmem();
 	mark_rodata_ro();
+
+#ifdef CONFIG_TIMA_RKP
+#ifndef CONFIG_TIMA_RKP_30
+	tima_send_cmd4((unsigned long)_stext, (unsigned long)init_mm.pgd, (unsigned long)__init_begin, (unsigned long)__init_end, 0x3f80c221);
+#endif
+#endif
+
 	system_state = SYSTEM_RUNNING;
 	numa_default_policy();
 

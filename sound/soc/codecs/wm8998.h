@@ -20,6 +20,4 @@
 #define WM8998_FLL1_REFCLK 3
 #define WM8998_FLL2_REFCLK 4
 
-extern int wn8998_aif2_force_enable(struct snd_soc_codec *codec);
-
 #endif

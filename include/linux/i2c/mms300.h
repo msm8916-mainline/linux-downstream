@@ -33,8 +33,8 @@
 
 #elif defined(CONFIG_SEC_E5_PROJECT)
 #define BOOT_VERSION 0x06
-#define CORE_VERSION 0x28
-#define FW_VERSION 0x12
+#define CORE_VERSION 0x32
+#define FW_VERSION 0x15
 
 #elif defined(CONFIG_SEC_FORTUNA_PROJECT)
 #define BOOT_VERSION 0x06

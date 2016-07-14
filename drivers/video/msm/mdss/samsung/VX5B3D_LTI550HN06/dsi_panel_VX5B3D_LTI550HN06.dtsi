@@ -71,17 +71,18 @@
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-force-clk-lane-hs = <1>;
-		qcom,mdss-dsi-reset-sequence = <0 10>, <1 70>;
+		qcom,mdss-dsi-reset-sequence = <0 5>, <1 10>;
 		qcom,mdss-pan-physical-width-dimension = <896>; /* ?<Width> real size of panel in mm */
 		qcom,mdss-pan-physical-height-dimension = <504>; /*?<Height> real size of panel in mm */
 
 		samsung,blic-discharging-delay-us = <1000000>;/*temp T4 -1s*/
-		samsung,mdss-power-on-reset-delay-us = <500000>;
+		samsung,mdss-power-on-reset-delay-us = <1000>;
 		samsung,mdss-dsi-off-reset-delay-us = <1000>;
 
 		qcom,mdss-dsi-lp11-init;
-		qcom,mdss-dsi-init-delay-us = <200>;
+		qcom,mdss-dsi-init-delay-us = <10>;
 		samsung,tft-common-support;
+		samsung,backlight-gpio-config;
 		qcom,mdss-dsi-force-clk-lane-hs;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_ss_pwm";
 	};

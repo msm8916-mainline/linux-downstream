@@ -241,9 +241,10 @@ static void zram_meta_free(struct zram_meta *meta)
 	kfree(meta);
 }
 
-static struct zram_meta *zram_meta_alloc(u64 disksize)
+static struct zram_meta *zram_meta_alloc(int device_id, u64 disksize)
 {
 	size_t num_pages;
+	char pool_name[8];
 	struct zram_meta *meta = kmalloc(sizeof(*meta), GFP_KERNEL);
 	if (!meta)
 		goto out;
@@ -266,7 +267,8 @@ static struct zram_meta *zram_meta_alloc(u64 disksize)
 		goto free_buffer;
 	}
 
-	meta->mem_pool = zs_create_pool(GFP_NOIO | __GFP_HIGHMEM |
+	snprintf(pool_name, sizeof(pool_name), "zram%d", device_id);
+	meta->mem_pool = zs_create_pool(pool_name, GFP_NOIO | __GFP_HIGHMEM |
 					__GFP_NOWARN, NULL);
 	if (!meta->mem_pool) {
 		pr_err("Error creating memory pool\n");
@@ -669,7 +671,7 @@ static ssize_t disksize_store(struct device *dev,
 		return -EINVAL;
 
 	disksize = PAGE_ALIGN(disksize);
-	meta = zram_meta_alloc(disksize);
+	meta = zram_meta_alloc(zram->disk->first_minor, disksize);
 	down_write(&zram->init_lock);
 	if (zram->init_done) {
 		up_write(&zram->init_lock);
@@ -906,6 +908,7 @@ static int create_device(struct zram *zram, int device_id)
 	zram->disk->private_data = zram;
 	snprintf(zram->disk->disk_name, 16, "zram%d", device_id);
 
+	__set_bit(QUEUE_FLAG_FAST, &zram->queue->queue_flags);
 	/* Actual capacity set using syfs (/sys/block/zram<id>/disksize */
 	set_capacity(zram->disk, 0);
 

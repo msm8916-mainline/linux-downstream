@@ -51,9 +51,6 @@ struct cpufreq_limit_handle *cpufreq_limit_get(unsigned long min_freq,
 	if (!handle)
 		return ERR_PTR(-ENOMEM);
 
-	pr_debug("%s: %s,%lu,%lu\n", __func__, handle->label, handle->min,
-			handle->max);
-
 	handle->min = min_freq;
 	handle->max = max_freq;
 
@@ -61,6 +58,9 @@ struct cpufreq_limit_handle *cpufreq_limit_get(unsigned long min_freq,
 		strcpy(handle->label, label);
 	else
 		strncpy(handle->label, label, sizeof(handle->label) - 1);
+
+	pr_debug("%s: %s,%lu,%lu\n", __func__, handle->label, handle->min,
+			handle->max);
 
 	mutex_lock(&cpufreq_limit_lock);
 	list_add_tail(&handle->node, &cpufreq_limit_requests);
@@ -77,7 +77,7 @@ struct cpufreq_limit_handle *cpufreq_limit_get(unsigned long min_freq,
  *			a cpufreq_limit_handle
  * @handle	a cpufreq_limit_handle that has been requested
  */
-int cpufreq_limit_put(struct cpufreq_limit_handle *handle)
+int cpufreq_limit_put(struct cpufreq_limit_handle *handle, int release)
 {
 	int i;
 
@@ -94,6 +94,13 @@ int cpufreq_limit_put(struct cpufreq_limit_handle *handle)
 	for_each_online_cpu(i)
 		cpufreq_update_policy(i);
 
+#if defined(CONFIG_ARCH_MSM8939)||defined(CONFIG_ARCH_MSM8929)
+	if (release && handle->min) { /* min limit */
+		for_each_online_cpu(i)
+			atomic_notifier_call_chain(&load_alert_notifier_head, 0, (void *)(long)i);
+	}
+#endif
+
 	kfree(handle);
 	return 0;
 }
@@ -106,6 +113,7 @@ struct cpufreq_limit_hmp {
 	unsigned int		big_cpu_end;
 	unsigned long		big_min_freq;
 	unsigned long		big_max_freq;
+	unsigned long		big_min_lock;
 	unsigned long		little_min_freq;
 	unsigned long		little_max_freq;
 	unsigned long		little_min_lock;
@@ -119,11 +127,21 @@ struct cpufreq_limit_hmp hmp_param = {
 	.little_cpu_end			= 7,
 	.big_cpu_start			= 0,
 	.big_cpu_end			= 3,
+#if defined(CONFIG_ARCH_MSM8939)
 	.big_min_freq			= 1036800,
 	.big_max_freq			= 1497600,
+	.big_min_lock			= 499200,
 	.little_min_freq		= 200000, // 400000 Khz
 	.little_max_freq		= 556800, // 1113600 Khz
 	.little_min_lock		= 400000, // 800000 Khz
+#else
+	.big_min_freq			= 960000,
+	.big_max_freq			= 1363200,
+	.big_min_lock			= 533333,
+	.little_min_freq		= 249600, // 499200 Khz
+	.little_max_freq		= 499200, // 998400 Khz
+	.little_min_lock		= 400000, // 800000 Khz
+#endif
 	.little_divider			= 2,
 	.hmp_boost_type			= 1,
 	.hmp_boost_active		= 0,
@@ -137,6 +155,7 @@ ssize_t cpufreq_limit_get_table(char *buf)
 {
 	ssize_t len = 0;
 	int i, count = 0;
+	unsigned int freq;
 
 	struct cpufreq_frequency_table *table;
 
@@ -151,7 +170,6 @@ ssize_t cpufreq_limit_get_table(char *buf)
 		count = i;
 
 	for (i = count; i >= 0; i--) {
-		unsigned int freq;
 		freq = table[i].frequency;
 
 		if (freq == CPUFREQ_ENTRY_INVALID || freq < hmp_param.big_min_freq)
@@ -160,9 +178,15 @@ ssize_t cpufreq_limit_get_table(char *buf)
 		len += sprintf(buf + len, "%u ", freq);
 	}
 
-#ifdef CONFIG_ARCH_MSM8939
+#if defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8929)
 	// for SSRM early access
+#if defined(CONFIG_SEC_A7_PROJECT) || defined(CONFIG_SEC_A8_PROJECT) // R2
 	len += sprintf(buf + len, "556800 499200 400000 266666 249600 200000 124800 100000\n");
+#elif defined(CONFIG_ARCH_MSM8929)
+	len += sprintf(buf + len, "499200 400000 266666 249600 200000 124800 100000\n");
+#else // R3
+	len += sprintf(buf + len, "604800 556800 499200 400000 266666 249600 200000 124800 100000\n");
+#endif
 #else
 	/* Little cluster table */
 	table = cpufreq_frequency_get_table(hmp_param.little_cpu_start);
@@ -175,7 +199,6 @@ ssize_t cpufreq_limit_get_table(char *buf)
 		count = i;
 
 	for (i = count; i >= 0; i--) {
-		unsigned int freq;
 		freq = table[i].frequency / hmp_param.little_divider;
 
 		if (freq == CPUFREQ_ENTRY_INVALID)
@@ -234,6 +257,7 @@ static int cpufreq_limit_hmp_boost(int enable)
 static int cpufreq_limit_adjust_freq(struct cpufreq_policy *policy,
 		unsigned long *min, unsigned long *max)
 {
+	unsigned int hmp_boost_active = 0;
 
 	pr_debug("%s+: cpu=%d, min=%ld, max=%ld\n", __func__, policy->cpu, *min, *max);
 
@@ -243,6 +267,10 @@ static int cpufreq_limit_adjust_freq(struct cpufreq_policy *policy,
 		}
 		else { /* Little clock */
 			*min *= hmp_param.little_divider;
+#if defined(CONFIG_ARCH_MSM8939)||defined(CONFIG_ARCH_MSM8929)
+			if ( unlikely(*min == 533332) ) // DVFS user tries to set 266666, must be changed 533333 Hz
+				*min = *min + 1;
+#endif
 		}
 
 		if (*max >= hmp_param.big_min_freq) { /* Big clock */
@@ -250,15 +278,18 @@ static int cpufreq_limit_adjust_freq(struct cpufreq_policy *policy,
 		}
 		else { /* Little clock */
 			*max *= hmp_param.little_divider;
+#if defined(CONFIG_ARCH_MSM8939)||defined(CONFIG_ARCH_MSM8929)
+			if ( unlikely(*max == 533332) ) // DVFS user tries to set 266666, must be changed 533333 Hz
+				*max = *max + 1;
+#endif
 		}
 	}
 	else { /* BIG */
-		unsigned int hmp_boost_active = 0;
 		if (*min >= hmp_param.big_min_freq) { /* Big clock */
 			hmp_boost_active = 1;
 		}
 		else { /* Little clock */
-			*min = policy->cpuinfo.min_freq;
+			*min = hmp_param.big_min_lock;
 			hmp_boost_active = 0;
 		}
 
@@ -267,7 +298,7 @@ static int cpufreq_limit_adjust_freq(struct cpufreq_policy *policy,
 				hmp_param.big_min_freq, *max);
 		}
 		else { /* Little clock */
-			*max = policy->cpuinfo.min_freq;
+			*max = hmp_param.big_min_lock;
 			hmp_boost_active = 0;
 		}
 		cpufreq_limit_hmp_boost(hmp_boost_active);
@@ -421,6 +452,7 @@ static ssize_t show_big_cpu_num(struct kobject *kobj, struct attribute *attr, ch
 
 show_one_ulong(big_min_freq, big_min_freq);
 show_one_ulong(big_max_freq, big_max_freq);
+show_one_ulong(big_min_lock, big_min_lock);
 show_one_ulong(little_min_freq, little_min_freq);
 show_one_ulong(little_max_freq, little_max_freq);
 show_one_ulong(little_min_lock, little_min_lock);
@@ -471,6 +503,7 @@ static ssize_t store_big_cpu_num(struct kobject *a, struct attribute *b,
 
 store_one(big_min_freq, big_min_freq);
 store_one(big_max_freq, big_max_freq);
+store_one(big_min_lock, big_min_lock);
 store_one(little_min_freq, little_min_freq);
 store_one(little_max_freq, little_max_freq);
 store_one(little_min_lock, little_min_lock);
@@ -515,6 +548,7 @@ define_one_global_rw(little_cpu_num);
 define_one_global_rw(big_cpu_num);
 define_one_global_rw(big_min_freq);
 define_one_global_rw(big_max_freq);
+define_one_global_rw(big_min_lock);
 define_one_global_rw(little_min_freq);
 define_one_global_rw(little_max_freq);
 define_one_global_rw(little_min_lock);
@@ -529,6 +563,7 @@ static struct attribute *limit_attributes[] = {
 	&big_cpu_num.attr,
 	&big_min_freq.attr,
 	&big_max_freq.attr,
+	&big_min_lock.attr,
 	&little_min_freq.attr,
 	&little_max_freq.attr,
 	&little_min_lock.attr,

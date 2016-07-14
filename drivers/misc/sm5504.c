@@ -108,7 +108,7 @@ static int bcd_scan = 0;		// L Cable check
 #define CHG_TYPE_CDP			(1 << 1)
 #define CHG_TYPE_DCP			(1 << 0)
 #define DEV_T3_CHARGER_MASK	(CHG_TYPE_SDP | CHG_TYPE_CDP | \
-				CHG_TYPE_DCP)
+				CHG_TYPE_DCP | CHG_SDP_TIMEOUT)
 #define DEV_LCABLE_MASK		(CHG_TYPE_DCP | CHG_TYPE_SDP)
 
 #define DEV_LANHUB		(1 << 9)
@@ -202,7 +202,7 @@ struct sm5504_usbsw {
 	int				adc;
 	bool				undefined_attached;
 	/* muic current attached device */
-	enum muic_attached_dev		attached_dev;
+	muic_attached_dev		attached_dev;
 #if defined(CONFIG_MUIC_SM5504_SUPPORT_LANHUB_TA)
 	unsigned int			previous_dock;
 	unsigned int			lanhub_ta_status;
@@ -371,13 +371,15 @@ static void sm5504_reg_init(struct sm5504_usbsw *usbsw)
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
 
 #endif
+
 	/* vbus delay 300ms -> 140ms */
-	ret = i2c_smbus_read_byte_data(client, 0x20);
+	/* DEV_TYPE_MODE 1: JIG USB type change by RID only */
+	ret = i2c_smbus_read_byte_data(client, REG_RESERVED_1);
 	if (ret < 0)
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
-	ret = ret | 0x08;
+	ret = ret | 0x08 | 0x40;
 	pr_info("%s 0x20 =  (0x%x)\n",__func__,ret);
-	ret = i2c_smbus_write_byte_data(client, 0x20, ret);
+	ret = i2c_smbus_write_byte_data(client, REG_RESERVED_1, ret);
 	if (ret < 0)
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
 
@@ -1029,7 +1031,8 @@ static int sm5504_attach_dev(struct sm5504_usbsw *usbsw)
 		}
 	} else {
 		/* USB */
-		if (val1 & DEV_USB || val2 & DEV_T2_USB_MASK ) {
+		if ((val1 & DEV_USB || val2 & DEV_T2_USB_MASK ) &&
+				(val3 != CHG_SDP_TIMEOUT)) {
 			pr_info("[SM5504 MUIC] USB Connected\n");
 			pdata->callback(CABLE_TYPE_USB, SM5504_ATTACHED);
 			usbsw->attached_dev = ATTACHED_DEV_USB_MUIC;
@@ -1217,8 +1220,8 @@ static int sm5504_detach_dev(struct sm5504_usbsw *usbsw)
 	}
 #endif
 	/* USB */
-	if (usbsw->dev1 & DEV_USB ||
-			usbsw->dev2 & DEV_T2_USB_MASK) {
+	if ((usbsw->dev1 & DEV_USB || usbsw->dev2 & DEV_T2_USB_MASK) &&
+			(usbsw->dev3 != CHG_SDP_TIMEOUT)) {
 		pr_info("[MUIC] USB Disonnected\n");
 		pdata->callback(CABLE_TYPE_USB, SM5504_DETACHED);
 	} else if (usbsw->dev1 & DEV_USB_CHG) {

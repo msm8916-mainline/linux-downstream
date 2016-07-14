@@ -210,7 +210,7 @@
 };
 &soc {
 	mdss_dsi0: qcom,mdss_dsi@1a98000 {
-                qcom,dsi-pref-prim-pan = <&dsi_sdc_wxga_vid>;
+		qcom,dsi-pref-prim-pan = <&dsi_sdc_wxga_vid>;
 		gdsc-supply = <&gdsc_mdss>;
 		vdda-supply = <&pm8916_l2>;
 		vddio-supply = <&pm8916_l5>;

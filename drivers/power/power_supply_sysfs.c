@@ -175,6 +175,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(charge_now),
 	POWER_SUPPLY_ATTR(charge_avg),
 	POWER_SUPPLY_ATTR(charge_counter),
+	POWER_SUPPLY_ATTR(charge_otg_control),
 	POWER_SUPPLY_ATTR(charge_counter_shadow),
 	POWER_SUPPLY_ATTR(constant_charge_current),
 	POWER_SUPPLY_ATTR(constant_charge_current_max),
@@ -212,6 +213,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(resistance),
 	POWER_SUPPLY_ATTR(resistance_capacitive),
 	POWER_SUPPLY_ATTR(resistance_id),
+	POWER_SUPPLY_ATTR(resistance_now),
 	/* Local extensions */
 	POWER_SUPPLY_ATTR(usb_hc),
 	POWER_SUPPLY_ATTR(usb_otg),
@@ -223,6 +225,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(model_name),
 	POWER_SUPPLY_ATTR(manufacturer),
 	POWER_SUPPLY_ATTR(serial_number),
+	POWER_SUPPLY_ATTR(afc_charger_mode),
 	POWER_SUPPLY_ATTR(battery_type),
 };
 

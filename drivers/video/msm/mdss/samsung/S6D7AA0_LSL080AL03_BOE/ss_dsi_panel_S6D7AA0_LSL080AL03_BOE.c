@@ -77,8 +77,8 @@ static void backlight_tft_late_on(struct mdss_dsi_ctrl_pdata *ctrl)
 			ctrl->panel_data.set_backlight(&ctrl->panel_data, LCD_DEFAUL_BL_LEVEL);
 		is_first_boot = 0;
 	}
-	if(vdd->init_bl_level)
-		mdss_samsung_brightness_dcs(ctrl, vdd->init_bl_level);
+	if(vdd->bl_level)
+		mdss_samsung_brightness_dcs(ctrl, vdd->bl_level);
 }
 static int mdss_panel_off_pre(struct mdss_dsi_ctrl_pdata *ctrl)
 {

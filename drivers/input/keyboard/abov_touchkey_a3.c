@@ -73,9 +73,9 @@
 static struct device *sec_touchkey;
 
 #define TK_FW_PATH_BIN "abov/abov_tk_a3.fw"
-#define FW_VERSION 0x0D
-#define FW_CHECKSUM_H 0x47
-#define FW_CHECKSUM_L 0xB0
+#define FW_VERSION 0x0F
+#define FW_CHECKSUM_H 0x8B
+#define FW_CHECKSUM_L 0x48
 
 /* Force FW update if module# is different */
 #define FORCE_FW_UPDATE_DIFF_MODULE

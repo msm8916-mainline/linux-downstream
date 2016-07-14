@@ -14,6 +14,11 @@
 
 #include <linux/bitops.h>
 
+#ifdef CONFIG_MST_LDO
+#define MST_GPIO_D_MINUS 20
+#define MST_GPIO_D_PLUS 21
+#endif
+
 enum msm_gpiomux_setting {
 	GPIOMUX_ACTIVE = 0,
 	GPIOMUX_SUSPENDED,

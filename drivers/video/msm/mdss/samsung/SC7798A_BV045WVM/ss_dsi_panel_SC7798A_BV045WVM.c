@@ -30,7 +30,13 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
  *
 */
 #include "ss_dsi_panel_SC7798A_BV045WVM.h"
+#if defined(CONFIG_SEC_XCOVER3_PROJECT)
+#include "ss_dsi_mdnie_SC7798A_BV045WVM_XCOVER3.h"
+#else
 #include "ss_dsi_mdnie_SC7798A_BV045WVM.h"
+#endif
+
+static int is_first_boot = 1;
 
 static int mdss_panel_on_pre(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -47,7 +53,24 @@ static int mdss_panel_on_pre(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	return true;
 }
+static void update_mdnie_tft_cmds(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
 
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return;
+	}
+
+	if (!mdss_panel_attach_get(ctrl)) {
+		pr_err("%s: mdss_panel_attach_get(%d) : %d\n",__func__, ctrl->ndx, mdss_panel_attach_get(ctrl));
+		return;
+	}
+
+	if (vdd->support_mdnie_lite)
+		update_dsi_tcon_mdnie_register(vdd);
+
+}
 static int mdss_panel_on_post(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
@@ -60,6 +83,12 @@ static int mdss_panel_on_post(struct mdss_dsi_ctrl_pdata *ctrl)
 	pr_info("%s %d\n", __func__, ctrl->ndx);
 
 	mdss_samsung_cabc_update();
+
+	if(is_first_boot){
+		if (ctrl->panel_data.set_backlight)
+			ctrl->panel_data.set_backlight(&ctrl->panel_data, LCD_DEFAUL_BL_LEVEL);
+		is_first_boot = 0;
+	}
 
 	return true;
 }
@@ -86,8 +115,10 @@ static struct dsi_panel_cmds * mdss_brightness_tft_pwm(struct mdss_dsi_ctrl_pdat
 		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
 		return NULL;
 	}
-
-	vdd->scaled_level = get_scaled_level(vdd, ctrl->ndx);
+	if (vdd->auto_brightness == 6) /* Outdoor Mode */
+		vdd->scaled_level = 249;
+	else /* Normal Mode */
+		vdd->scaled_level = get_scaled_level(vdd, ctrl->ndx);
 
 	pr_info("%s bl_level : %d scaled_level : %d\n", __func__, vdd->bl_level, vdd->scaled_level);
 
@@ -96,10 +127,40 @@ static struct dsi_panel_cmds * mdss_brightness_tft_pwm(struct mdss_dsi_ctrl_pdat
 	return &vdd->dtsi_data[ctrl->ndx].tft_pwm_tx_cmds[vdd->panel_revision];
 }
 
+static void mdss_panel_tft_outdoormode_update(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
+	struct mdss_panel_data *pdata;
+	struct mdnie_lite_tun_type *mdnie_tune_state;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return;
+	}
+	pr_info("%s: tft panel outdoor_mode update\n", __func__);
+
+	/* MDNIE Outdoor Mode Setting*/
+	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
+		if (vdd->auto_brightness == 6)
+			mdnie_tune_state->outdoor = OUTDOOR_ON_MODE;
+		else
+			mdnie_tune_state->outdoor = OUTDOOR_OFF_MODE;
+
+		pr_info("%s : MDNIE Outdoor Mode : %d\n", __func__, mdnie_tune_state->outdoor);
+	}
+
+	pdata = &vdd->ctrl_dsi[DISPLAY_1]->panel_data;
+
+	/* Update Panel Brightness */
+	mutex_lock(&vdd->mfd_dsi[DISPLAY_1]->bl_lock);
+	pdata->set_backlight(pdata, vdd->bl_level);
+	mutex_unlock(&vdd->mfd_dsi[DISPLAY_1]->bl_lock);
+}
+
 static void dsi_update_mdnie_data(void)
 {
 	/* Update mdnie command */
-	mdnie_data.DSI0_COLOR_BLIND_MDNIE_2 = NULL;
+	mdnie_data.DSI0_COLOR_BLIND_MDNIE_2 = DSI0_COLOR_ADJUSTMENT_MDNIE_CMDS;
 	mdnie_data.DSI0_RGB_SENSOR_MDNIE_1 = NULL;
 	mdnie_data.DSI0_RGB_SENSOR_MDNIE_2 = NULL;
 	mdnie_data.DSI0_UI_DYNAMIC_MDNIE_2 = NULL;
@@ -123,10 +184,12 @@ static void dsi_update_mdnie_data(void)
 	mdnie_data.DSI0_EBOOK_STANDARD_MDNIE_2 = NULL;
 	mdnie_data.DSI0_EBOOK_AUTO_MDNIE_2 = NULL;
 
-	mdnie_data.DSI0_BYPASS_MDNIE = NULL;
+	mdnie_data.DSI0_BYPASS_MDNIE = DSI0_BYPASS_MDNIE;
 	mdnie_data.DSI0_NEGATIVE_MDNIE = DSI0_NEGATIVE_MDNIE;
-	mdnie_data.DSI0_COLOR_BLIND_MDNIE = NULL;
-	mdnie_data.DSI0_HBM_CE_MDNIE = NULL;
+	mdnie_data.DSI0_GRAYSCALE_MDNIE = DSI0_GRAYSCALE_MDNIE;
+	mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE = DSI0_GRAYSCALE_NEGATIVE_MDNIE;
+	mdnie_data.DSI0_COLOR_BLIND_MDNIE = DSI0_COLOR_ADJUSTMENT_MDNIE;
+	mdnie_data.DSI0_HBM_CE_MDNIE = DSI0_OUTDOOR_MDNIE;
 	mdnie_data.DSI0_RGB_SENSOR_MDNIE = NULL;
 	mdnie_data.DSI0_CURTAIN = NULL;
 	mdnie_data.DSI0_UI_DYNAMIC_MDNIE = DSI0_UI_MDNIE;
@@ -152,27 +215,27 @@ static void dsi_update_mdnie_data(void)
 	mdnie_data.DSI0_GALLERY_NATURAL_MDNIE = DSI0_GALLERY_MDNIE;
 	mdnie_data.DSI0_GALLERY_MOVIE_MDNIE = DSI0_GALLERY_MDNIE;
 	mdnie_data.DSI0_GALLERY_AUTO_MDNIE = DSI0_GALLERY_MDNIE;
-	mdnie_data.DSI0_VT_DYNAMIC_MDNIE = NULL;
-	mdnie_data.DSI0_VT_STANDARD_MDNIE = NULL;
-	mdnie_data.DSI0_VT_NATURAL_MDNIE = NULL;
-	mdnie_data.DSI0_VT_MOVIE_MDNIE = NULL;
-	mdnie_data.DSI0_VT_AUTO_MDNIE = NULL;
-	mdnie_data.DSI0_BROWSER_DYNAMIC_MDNIE = NULL;
-	mdnie_data.DSI0_BROWSER_STANDARD_MDNIE = NULL;
-	mdnie_data.DSI0_BROWSER_NATURAL_MDNIE = NULL;
-	mdnie_data.DSI0_BROWSER_MOVIE_MDNIE = NULL;
-	mdnie_data.DSI0_BROWSER_AUTO_MDNIE = NULL;
-	mdnie_data.DSI0_EBOOK_DYNAMIC_MDNIE = NULL;
-	mdnie_data.DSI0_EBOOK_STANDARD_MDNIE = NULL;
-	mdnie_data.DSI0_EBOOK_NATURAL_MDNIE = NULL;
-	mdnie_data.DSI0_EBOOK_MOVIE_MDNIE = NULL;
-	mdnie_data.DSI0_EBOOK_AUTO_MDNIE = NULL;
-	mdnie_data.DSI0_EMAIL_AUTO_MDNIE = NULL;
+	mdnie_data.DSI0_VT_DYNAMIC_MDNIE = DSI0_VT_MDNIE;
+	mdnie_data.DSI0_VT_STANDARD_MDNIE = DSI0_VT_MDNIE;
+	mdnie_data.DSI0_VT_NATURAL_MDNIE = DSI0_VT_MDNIE;
+	mdnie_data.DSI0_VT_MOVIE_MDNIE = DSI0_VT_MDNIE;
+	mdnie_data.DSI0_VT_AUTO_MDNIE = DSI0_VT_MDNIE;
+	mdnie_data.DSI0_BROWSER_DYNAMIC_MDNIE = DSI0_BROWSER_MDNIE;
+	mdnie_data.DSI0_BROWSER_STANDARD_MDNIE = DSI0_BROWSER_MDNIE;
+	mdnie_data.DSI0_BROWSER_NATURAL_MDNIE = DSI0_BROWSER_MDNIE;
+	mdnie_data.DSI0_BROWSER_MOVIE_MDNIE = DSI0_BROWSER_MDNIE;
+	mdnie_data.DSI0_BROWSER_AUTO_MDNIE = DSI0_BROWSER_MDNIE;
+	mdnie_data.DSI0_EBOOK_DYNAMIC_MDNIE = DSI0_EBOOK_MDNIE;
+	mdnie_data.DSI0_EBOOK_STANDARD_MDNIE = DSI0_EBOOK_MDNIE;
+	mdnie_data.DSI0_EBOOK_NATURAL_MDNIE = DSI0_EBOOK_MDNIE;
+	mdnie_data.DSI0_EBOOK_MOVIE_MDNIE = DSI0_EBOOK_MDNIE;
+	mdnie_data.DSI0_EBOOK_AUTO_MDNIE = DSI0_EBOOK_MDNIE;
+	mdnie_data.DSI0_EMAIL_AUTO_MDNIE = DSI0_EMAIL_MDNIE;
 
 	mdnie_data.mdnie_tune_value_dsi0 = mdnie_tune_value_dsi0;
 
 	/* Update MDNIE data related with size, offset or index */
-	mdnie_data.dsi0_bypass_mdnie_size = ARRAY_SIZE(DSI0_UI_MDNIE);
+	mdnie_data.dsi0_bypass_mdnie_size = ARRAY_SIZE(DSI0_BYPASS_MDNIE);
 	mdnie_data.mdnie_color_blinde_cmd_offset = MDNIE_COLOR_BLINDE_CMD_OFFSET;
 	mdnie_data.mdnie_step_index[MDNIE_STEP1] = MDNIE_STEP1_INDEX;
 	mdnie_data.mdnie_step_index[MDNIE_STEP2] = MDNIE_STEP2_INDEX;
@@ -188,6 +251,7 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	pr_info("%s : %s", __func__, vdd->panel_name);
 
 	vdd->support_panel_max = SC7798A_BV045WVM_SUPPORT_PANEL_COUNT;
+	vdd->manufacture_id_dsi[vdd->support_panel_max - 1] = get_lcd_attached("GET");
 	vdd->support_mdnie_lite = true;
 	vdd->mdnie_tune_size1 = 113;
 	vdd->mdnie_tune_size2 = 0;
@@ -220,6 +284,8 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_brightness_vint = NULL;
 	vdd->panel_func.samsung_brightness_gamma = NULL;
 	vdd->brightness[0].brightness_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;
+	vdd->panel_func.samsung_backlight_late_on = update_mdnie_tft_cmds;
+	vdd->mdss_panel_tft_outdoormode_update=mdss_panel_tft_outdoormode_update;
 
 	dsi_update_mdnie_data();
 	mdss_panel_attach_set(vdd->ctrl_dsi[DISPLAY_1], true);
@@ -228,15 +294,13 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 static int __init samsung_panel_init(void)
 {
 	struct samsung_display_driver_data *vdd = samsung_get_vdd();
-	//char panel_string[] = "ss_dsi_panel_SC7798A_BV045WVM_WVGA";
+	char panel_string[] = "ss_dsi_panel_SC7798A_BV045WVM_WVGA";
 
 	vdd->panel_name = mdss_mdp_panel + 8;
 	pr_info("%s : %s\n", __func__, vdd->panel_name);
 
-	//if (!strncmp(vdd->panel_name, panel_string, strlen(panel_string)))
+	if (!strncmp(vdd->panel_name, panel_string, strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = mdss_panel_init;
-	//else
-	//	vdd->panel_func.samsung_panel_init = NULL;
 
 	return 0;
 }

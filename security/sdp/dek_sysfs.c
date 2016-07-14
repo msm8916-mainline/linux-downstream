@@ -1,3 +1,22 @@
+/*
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
+ *
+ * Sensitive Data Protection
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
 #include <linux/kernel.h>
 #include <linux/stat.h>
 #include <linux/string.h>
@@ -48,7 +67,7 @@ static ssize_t dek_set_asym_alg(struct device *dev,
 	return -1;
 }
 
-static DEVICE_ATTR(asym_alg, S_IRUGO | S_IWUGO, dek_show_asym_alg, dek_set_asym_alg);
+static DEVICE_ATTR(asym_alg, S_IRUSR | S_IWUSR, dek_show_asym_alg, dek_set_asym_alg);
 
 int dek_create_sysfs_asym_alg(struct device *d) {
 	int error;

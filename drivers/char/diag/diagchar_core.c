@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -328,21 +328,28 @@ fail:
 	return -ENOMEM;
 }
 
-static int diagchar_close(struct inode *inode, struct file *file)
+
+static int diag_remove_client_entry(struct file *file)
 {
 	int i = -1;
-	struct diagchar_priv *diagpriv_data = file->private_data;
+	struct diagchar_priv *diagpriv_data = NULL;
 	struct diag_dci_client_tbl *dci_entry = NULL;
 	unsigned long flags;
 
-	pr_debug("diag: process exit %s\n", current->comm);
-	if (!(file->private_data)) {
-		pr_alert("diag: Invalid file pointer");
+	if(!driver)
 		return -ENOMEM;
+
+	mutex_lock(&driver->diag_file_mutex);
+	if (!file) {
+		mutex_unlock(&driver->diag_file_mutex);
+		return -ENOENT;
+	}
+	if (!(file->private_data)) {
+		mutex_unlock(&driver->diag_file_mutex);
+		return -EINVAL;
 	}
 
-	if (!driver)
-		return -ENOMEM;
+	diagpriv_data = file->private_data;
 
 	if(driver->silent_log_pid) {
 		put_pid(driver->silent_log_pid);
@@ -353,7 +360,7 @@ static int diagchar_close(struct inode *inode, struct file *file)
 	* This will specially help in case of ungraceful exit of any DCI client
 	* This call will remove any pending registrations of such client
 	*/
-	dci_entry = dci_lookup_client_entry_pid(current->pid);
+	dci_entry = dci_lookup_client_entry_pid(current->tgid);
 	if (dci_entry)
 		diag_dci_deinit_client(dci_entry);
 	/* If the exiting process is the socket process */
@@ -409,11 +416,18 @@ static int diagchar_close(struct inode *inode, struct file *file)
 			driver->client_map[i].pid = 0;
 			kfree(diagpriv_data);
 			diagpriv_data = NULL;
+			file->private_data = 0;
 			break;
 		}
 	}
 	mutex_unlock(&driver->diagchar_mutex);
+	mutex_unlock(&driver->diag_file_mutex);
 	return 0;
+}
+
+static int diagchar_close(struct inode *inode, struct file *file)
+{
+	return diag_remove_client_entry(file);
 }
 
 int diag_find_polling_reg(int i)
@@ -901,19 +915,6 @@ static int diag_switch_logging(int requested_mode)
 					driver->logging_mode);
 		return 0;
 	}
-
-	if (requested_mode != MEMORY_DEVICE_MODE)
-		diag_update_real_time_vote(DIAG_PROC_MEMORY_DEVICE,
-					   MODE_REALTIME, ALL_PROC);
-	else
-		diag_update_proc_vote(DIAG_PROC_MEMORY_DEVICE, VOTE_UP,
-				      ALL_PROC);
-
-	if (!(requested_mode == MEMORY_DEVICE_MODE &&
-					driver->logging_mode == USB_MODE))
-		queue_work(driver->diag_real_time_wq,
-						&driver->diag_real_time_work);
-
 	mutex_lock(&driver->diagchar_mutex);
 	temp = driver->logging_mode;
 	driver->logging_mode = requested_mode;
@@ -935,6 +936,7 @@ static int diag_switch_logging(int requested_mode)
 				pr_err("socket process, status: %d\n",
 					status);
 			}
+			driver->socket_process = NULL;
 		}
 	} else if (driver->logging_mode == SOCKET_MODE) {
 		driver->socket_process = current;
@@ -953,6 +955,19 @@ static int diag_switch_logging(int requested_mode)
 	}
 
 	driver->logging_process_id = current->tgid;
+	if (driver->logging_mode != MEMORY_DEVICE_MODE) {
+		diag_update_real_time_vote(DIAG_PROC_MEMORY_DEVICE,
+						MODE_REALTIME, ALL_PROC);
+	} else {
+		diag_update_proc_vote(DIAG_PROC_MEMORY_DEVICE, VOTE_UP,
+						ALL_PROC);
+	}
+
+	if (!(driver->logging_mode == MEMORY_DEVICE_MODE &&
+					temp == USB_MODE))
+		queue_work(driver->diag_real_time_wq,
+						&driver->diag_real_time_work);
+
 	status = diag_mux_switch_logging(new_mode);
 	if (status) {
 		if (requested_mode == MEMORY_DEVICE_MODE)
@@ -1452,7 +1467,7 @@ static ssize_t diagchar_read(struct file *file, char __user *buf, size_t count,
 	int index = -1, i = 0, ret = 0;
 	int data_type;
 	int copy_dci_data = 0;
-	int exit_stat;
+	int exit_stat = 0;
 	int write_len = 0;
 
 	for (i = 0; i < driver->num_clients; i++)
@@ -1480,7 +1495,7 @@ static ssize_t diagchar_read(struct file *file, char __user *buf, size_t count,
 		COPY_USER_SPACE_OR_EXIT(buf, data_type, sizeof(int));
 		/* place holder for number of data field */
 		ret += sizeof(int);
-		exit_stat = diag_md_copy_to_user(buf, &ret);
+		exit_stat = diag_md_copy_to_user(buf, &ret, count);
 		goto exit;
 	} else if (driver->data_ready[index] & USER_SPACE_DATA_TYPE) {
 		/* In case, the thread wakes up and the logging mode is
@@ -1493,7 +1508,9 @@ static ssize_t diagchar_read(struct file *file, char __user *buf, size_t count,
 		data_type = driver->data_ready[index] & DEINIT_TYPE;
 		COPY_USER_SPACE_OR_EXIT(buf, data_type, 4);
 		driver->data_ready[index] ^= DEINIT_TYPE;
-		goto exit;
+		mutex_unlock(&driver->diagchar_mutex);
+		diag_remove_client_entry(file);
+		return ret;
 	}
 
 	if (driver->data_ready[index] & MSG_MASKS_TYPE) {
@@ -1892,7 +1909,6 @@ static ssize_t diagchar_write(struct file *file, const char __user *buf,
 						 POOL_TYPE_HDLC);
 	if (!buf_hdlc) {
 		ret = -ENOMEM;
-		driver->used = 0;
 		goto fail_free_copy;
 	}
 	if (HDLC_OUT_BUF_SIZE < (2*payload_size) + 3) {
@@ -2356,6 +2372,7 @@ static int __init diagchar_init(void)
 	driver->rsp_buf_ctxt = SET_BUF_CTXT(APPS_DATA, SMD_CMD_TYPE, 1);
 	buf_hdlc_ctxt = SET_BUF_CTXT(APPS_DATA, SMD_DATA_TYPE, 1);
 	mutex_init(&driver->diagchar_mutex);
+	mutex_init(&driver->diag_file_mutex);
 	mutex_init(&driver->delayed_rsp_mutex);
 	init_waitqueue_head(&driver->wait_q);
 	init_waitqueue_head(&driver->smd_wait_q);
