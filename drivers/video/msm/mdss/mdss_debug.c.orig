@@ -98,8 +98,13 @@ static ssize_t mdss_debug_base_offset_read(struct file *file,
 	if (*ppos)
 		return 0;	/* the end */
 
+<<<<<<< HEAD
+	len = snprintf(buf, sizeof(buf), "0x%08zx %zx\n", dbg->off, dbg->cnt);
+	if (len < 0)
+=======
 	len = snprintf(buf, sizeof(buf), "0x%08x %x\n", dbg->off, dbg->cnt);
 	if (len < 0 || len >= sizeof(buf))
+>>>>>>> 94a8a0f... [kernel] Security patch (CVE-2016-2465 & CVE-2016-2489)
 		return 0;
 
 	if ((count < sizeof(buf)) || copy_to_user(buff, buf, len))

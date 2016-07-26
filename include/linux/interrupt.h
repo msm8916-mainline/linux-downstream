@@ -497,8 +497,8 @@ static inline int tasklet_trylock(struct tasklet_struct *t)
 
 static inline void tasklet_unlock(struct tasklet_struct *t)
 {
-        smp_mb__before_atomic();
-        clear_bit(TASKLET_STATE_RUN, &(t)->state);
+	smp_mb__before_atomic();
+	clear_bit(TASKLET_STATE_RUN, &(t)->state);
 }
 
 static inline void tasklet_unlock_wait(struct tasklet_struct *t)

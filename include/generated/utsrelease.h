@@ -1,1 +1,1 @@
-#define UTS_RELEASE "3.10.49-gcd39628-dirty"
+#define UTS_RELEASE "3.10.49-ge30790f"
