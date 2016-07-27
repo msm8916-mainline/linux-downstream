@@ -673,6 +673,8 @@ static ssize_t mdss_debug_perf_mode_write(struct file *file,
 
 	if (copy_from_user(buf, user_buf, count))
 		return -EFAULT;
+        
+        buf[count]=0;
 
 	buf[count] = 0;	/* end of string */
 
@@ -809,7 +811,9 @@ static ssize_t mdss_debug_perf_panic_write(struct file *file,
 		return -EFAULT;
 
 	if (copy_from_user(buf, user_buf, count))
-		return -EFAULT;
+      		return -EFAULT;
+
+        buf[count]=0;
 
 	buf[count] = 0;	/* end of string */
 
