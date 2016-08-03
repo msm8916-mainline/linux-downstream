@@ -1038,7 +1038,7 @@ static int __init pcal6416a_gpio_init(void)
 	return i2c_add_driver(&pcal6416a_gpio_driver);
 }
 
-module_init(pcal6416a_gpio_init);
+subsys_initcall(pcal6416a_gpio_init);
 
 static void __exit pcal6416a_gpio_exit(void)
 {

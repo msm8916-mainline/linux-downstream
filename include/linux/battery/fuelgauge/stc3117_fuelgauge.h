@@ -60,7 +60,7 @@
 #define CHG_MIN_CURRENT     200   /* min charge current in mA                       */
 #define CHG_END_CURRENT      20   /* end charge current in mA                       */
 #define APP_MIN_CURRENT     (-5)  /* minimum application current consumption in mA ( <0 !) */
-#define APP_MIN_VOLTAGE	    3300  /* application cut-off voltage                    */
+#define APP_MIN_VOLTAGE	    3100  /* application cut-off voltage                    */
 #define TEMP_MIN_ADJ		 (-5) /* minimum temperature for gain adjustment */
 
 #define VMTEMPTABLE        { 85, 90, 100, 160, 320, 440, 840 }  /* normalized VM_CNF at 60, 40, 25, 10, 0, -10°C, -20°C */

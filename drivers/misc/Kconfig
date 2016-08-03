@@ -395,13 +395,6 @@ config SAMSUNG_JACK
 	 To samsung jack is reviewed and supported in all the
 	 samsung devices.
 
-config SAMSUNG_JACK_WATCH_DOG_RESET_WORK_AROUND
-	bool "prevent watch dog reset by ear det interrupt storming"
-	depends on SAMSUNG_JACK
-	default n
-	help
-	This is SW workaround code for watch dog reset due to HW
-
 config EARJACK_ADC_SYSFS
 	bool "EarJack & BTN adc sysfs"
 	depends on SAMSUNG_JACK
@@ -580,6 +573,25 @@ config SM5502_MUIC
 	help
 	  This option enables SILICON MITUS MUIC.
 
+config SM5703_MUIC
+	bool "SILICON MITUS MUIC"
+	default n
+	help
+	  This option enables SILICON MITUS MUIC.	  
+
+config MUIC_NOTI
+	bool "MUIC notifier support"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the MUIC attached device status change notification.
+
+config S2MM001_VBUS_CHECK
+	bool "S2MM001 MUIC VBUS CHECK"
+	default n
+	help
+	  This option enables VBUS CHECKER for S2MM001.
+
 config SM5504_MUIC
 	bool "SILICON MITUS MUIC"
 	default n
@@ -643,6 +655,15 @@ config MUIC_SM5502_SUPPORT_LANHUB_TA
 	  or loading) of the Lattice ECP3 FPGA family via SPI.
 
 	  If unsure, say N.
+
+config MUIC_SM5703_SUPPORT_LANHUB_TA
+	bool "SM5703 Muic Lanhub TA support"
+	depends on SM5703_MUIC && !SEC_FACTORY
+	default n
+	help
+	 This option enable the LANHUB + TA Support for the SM5502 MUIC
+	 Disabling the option for the FACTORY Binaries due to delay issue
+	 in the Factory Test PGM.
 
 config SRAM
 	bool "Generic on-chip SRAM driver"
@@ -816,6 +837,11 @@ config QCOM_LIQUID_DOCK
 	  This option enables support for the USB and Ethernet ports found on
 	  the docking station of various models of Qualcomm Technology's
 	  LiQUID Mobile Development Platforms.
+config UID_CPUTIME
+	tristate "Per-UID cpu time statistics"
+	depends on PROFILING
+	help
+	  Per UID based cpu time statistics exported to /proc/uid_cputime
 
 config SEC_MISC
 	bool "Samsung P series miscellaneous driver"
@@ -866,4 +892,6 @@ source "drivers/misc/altera-stapl/Kconfig"
 source "drivers/misc/mei/Kconfig"
 source "drivers/misc/vmw_vmci/Kconfig"
 source "drivers/misc/qcom/Kconfig"
+source "drivers/misc/tzdev/Kconfig"
+source "drivers/misc/bhy/Kconfig"
 endmenu

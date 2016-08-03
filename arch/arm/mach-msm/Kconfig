@@ -105,10 +105,13 @@ config ARCH_MSM8909
 	select CPU_FREQ_MSM
 	select CPU_FREQ
 	select PM_DEVFREQ
+	select PM_OPP
 	select MSM_DEVFREQ_DEVBW
 	select DEVFREQ_SIMPLE_DEV
 	select DEVFREQ_GOV_MSM_BW_HWMON
 	select MSM_BIMC_BWMON
+	select MSM_JTAG_MM if CORESIGHT_ETM
+	select RCU_BOOST if DEBUG_KMEMLEAK
 
 config ARCH_MSM8916
 	bool "MSM8916"
@@ -148,6 +151,14 @@ config ARCH_MSM8916
 	select ARCH_WANT_KMAP_ATOMIC_FLUSH
 	select MSM_RPM_LOG
 	select MSM_JTAGV8 if CORESIGHT_ETMV4
+	select RCU_BOOST if DEBUG_KMEMLEAK
+
+config ARCH_MSM8929
+	bool "MSM8929"
+	depends on ARCH_MSM8916
+	help
+	  The SAMSUNG intend to divide MSM8916 & MSM8929 KERNEL feature to cover many
+	  products using these ARCH_8916/8929 series chipset unlike QC SRC government.
 
 config ARCH_MSM8939
 	bool "MSM8939"
@@ -367,26 +378,39 @@ config SEC_8939_PROJECT
 	  help
 	   Support for Samsung 8939 Project
 
+config 3G_DDR_SUPPORT
+	  default n
+	  bool "3GB DDR RAM support"
+	  help
+	   Support for 3GB DDR RAM
+
 config SEC_A7_PROJECT
   depends on ARCH_MSM8916
 		  default n
 	  bool "Samsung A7 Project"
 		  help
 		  Support for Samsung A7 Project
-		  
+
 config MACH_A73G_EUR_OPEN
 	depends on SEC_A7_PROJECT
 		default n
 		bool "Samsung A73G EUR Open"
 		help
 		  Support for Samsung A73G Eur Open device.
-		  
+
 config MACH_A7_EUR_OPEN
   depends on SEC_A7_PROJECT
 	  default n
 	  bool "Samsung A7 EUR Open"
 	  help
 	  Support for Samsung A7 Eur Open device.
+
+config MACH_A7_KOR_OPEN
+  depends on SEC_A7_PROJECT
+          default n
+          bool "Samsung A7 KOR Open"
+          help
+          Support for Samsung A7 KOR Open device.
 
 config SEC_A3_PROJECT
     depends on ARCH_MSM8916
@@ -401,6 +425,34 @@ config MACH_A3U_EUR_OPEN
         bool "Samsung A3U EUR Open"
         help
           Support for Samsung A3U EUR Open device.
+
+config SEC_A3_EUR_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung A3 EUR Project"
+	help
+	  Support for Samsung A3 EUR Project
+
+config MACH_A3_EUR_OPEN
+	depends on SEC_A3_EUR_PROJECT
+	default n
+	bool "Samsung A3 EUR OPEN"
+	help
+	  Support for Samsung A3 EUR OPEN device.
+
+config SEC_A33G_EUR_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung A33G EUR Project"
+	help
+	  Support for Samsung A33G EUR Project
+
+config MACH_A33G_EUR_OPEN
+	depends on SEC_A33G_EUR_PROJECT
+	default n
+	bool "Samsung A33G EUR Open"
+	help
+	  Support for Samsung A33G EUR Open device.
 
 config SEC_A5_PROJECT
     depends on ARCH_MSM8916
@@ -429,6 +481,77 @@ config MACH_A5U_KOR_OPEN
         bool "Samsung A5U KOR Open"
         help
           Support for Samsung A5U KOR Open device.
+
+config SEC_A5_EUR_PROJECT
+	depends on ARCH_MSM8916
+		default n
+		bool "Samsung A5 EUR Project"
+		help
+		  Support for Samsung A5 EUR Project
+
+config MACH_A5_EUR_OPEN
+	depends on SEC_A5_EUR_PROJECT
+		default n
+		bool "Samsung A5 EUR Open"
+		help
+		  Support for Samsung A5 EUR Open device.
+		  
+config SEC_A53G_EUR_PROJECT
+	depends on ARCH_MSM8916
+		default n
+		bool "Samsung A53G EUR Project"
+		help
+		  Support for Samsung A53G EUR Project
+		  
+config MACH_A53G_EUR_OPEN
+	depends on SEC_A53G_EUR_PROJECT
+		default n
+		bool "Samsung A53G EUR Open"
+		help
+		  Support for Samsung A53G EUR Open device.
+
+config SEC_GTEL_PROJECT
+    depends on ARCH_MSM8916
+        default n
+        bool "Samsung GTEL Project"
+        help
+          Support for Samsung GTEL Project
+
+config MACH_GTEL_USA_VZW
+    depends on SEC_GTEL_PROJECT
+        default n
+        bool "Samsung GTEL USA VZW"
+        help
+          Support for Samsung GTEL USA VZW device.
+
+config SEC_GTES_PROJECT
+    depends on ARCH_MSM8916
+        default n
+        bool "Samsung GTES Project"
+        help
+          Support for Samsung Galaxy Tab E S Project
+
+config MACH_GTES_USA_SPR
+    depends on SEC_GTES_PROJECT
+        default n
+        bool "Samsung GTES USA SPR"
+        help
+          Support for Samsung GTES USA SPR device.
+
+config MACH_GTES_USA_USC
+    depends on SEC_GTES_PROJECT
+        default n
+        bool "Samsung GTES USA USC"
+        help
+          Support for Samsung GTES USA USC device.
+
+
+config MACH_GTELWIFI_USA_OPEN
+    depends on SEC_GTEL_PROJECT
+        default n
+        bool "Samsung GTELWIFI USA OPEN"
+        help
+          Support for Samsung GTELWIFI USA OPEN device.
 
 config SEC_K5_PROJECT
   depends on ARCH_MSM8916
@@ -472,6 +595,196 @@ config MACH_A8_CHN_OPEN
 	  help
 	  Support for Samsung A8 CHN Open device.
 
+config SEC_A5X_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung A5X Project"
+	help
+	  Support for Samsung A5X Project
+
+config MACH_A5X_CHN_OPEN
+	depends on SEC_A5X_PROJECT
+	default n
+	bool "Samsung A5X CHN Open"
+	help
+	  Support for Samsung A5X CHN Open device.
+
+config SEC_A7X_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung A7X Project"
+	help
+	  Support for Samsung A7X Project
+
+config MACH_A7X_CHN_OPEN
+	depends on SEC_A7X_PROJECT
+	default n
+	bool "Samsung A7X CHN Open"
+	help
+	  Support for Samsung A7X CHN Open device.
+
+config SEC_O7_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung O7 Project"
+	help
+	  Support for Samsung O7 Project
+
+config MACH_O7_CHN_OPEN
+	depends on SEC_O7_PROJECT
+	default n
+	bool "Samsung O7 China Open"
+	help
+	  Support for Samsung O7 China Open device.
+
+config MACH_O7_SWA_OPEN
+	depends on SEC_O7_PROJECT
+	default n
+	bool "Samsung O7 SWA Open"
+	help
+	  Support for Samsung O7 SWA Open device.
+
+config SEC_J3_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung J3 Project"
+	help
+	  Support for Samsung J3 Project
+
+config MACH_J3LTE_CHN_CTC
+	depends on SEC_J3_PROJECT
+	default n
+	bool "Samsung J3LTE CHN CTC"
+	help
+	  Support for Samsung J3LTE CHN CTC device.
+
+
+config MACH_J3LTE_USA_SPR
+	depends on SEC_J3_PROJECT
+	default n
+	bool "Samsung J3LTE USA SPR"
+	help
+	  Support for Samsung J3LTE USA SPR device.
+
+config MACH_J3LTE_USA_VZW
+	depends on SEC_J3_PROJECT
+	default n
+	bool "Samsung J3LTE USA VZW"
+	help
+	  Support for Samsung J3LTE USA VZW device.
+
+config MACH_J3LTE_USA_USC
+	depends on SEC_J3_PROJECT
+	default n
+	bool "Samsung J3LTE USA USC"
+	help
+	  Support for Samsung J3LTE USA USC device.
+
+config MACH_J3LTE_KOR_OPEN
+	depends on SEC_J3_PROJECT
+	default n
+	bool "Samsung J3LTE KOR OPEN"
+	help
+	  Support for Samsung J3LTE KOR OPEN device.
+
+config SEC_J1X_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung J1X Project"
+	help
+	  Support for Samsung J1X Project
+
+config MACH_J1XLTE_USA_SPR
+	depends on SEC_J1X_PROJECT
+	default n
+	bool "Samsung J1XLTE USA SPR"
+	help
+	  Support for Samsung J1XLTE USA SPR device.
+
+config MACH_J1XLTE_USA_TFNVZW
+	depends on SEC_J1X_PROJECT
+	default n
+	bool "Samsung J1XLTE USA TFNVZW"
+	help
+	  Support for Samsung J1XLTE USA TFNVZW device.
+	  
+config SEC_J5X_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung J5X Project"
+	help
+	  Support for Samsung J5X Project
+
+config MACH_J5XLTE_EUR_OPEN
+	depends on SEC_J5X_PROJECT
+	default n
+	bool "Samsung J5XLTE EUR OPEN"
+	help
+	  Support for Samsung J5XLTE EUR OPEN device.
+
+config MACH_J5XLTE_KOR_OPEN
+	depends on SEC_J5X_PROJECT
+	default n
+	bool "Samsung J5XLTE KOR OPEN"
+	help
+	  Support for Samsung J5XLTE KOR OPEN device.
+
+config MACH_J5XLTE_MEA_JV
+	depends on SEC_J5X_PROJECT
+	default n
+	bool "Samsung J5XLTE MEA JV"
+	help
+	  Support for Samsung J5XLTE MEA JV device.
+	  
+config MACH_J5XLTE_MEA_TUR
+	depends on SEC_J5X_PROJECT
+	default n
+	bool "Samsung J5XLTE MEA TUR"
+	help
+	  Support for Samsung J5XLTE MEA TUR device.
+
+config SEC_J5_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung J5 Project"
+	help
+	  Support for Samsung J5 Project
+
+config MACH_J5LTE_EUR_OPEN
+	depends on SEC_J5_PROJECT
+	default n
+	bool "Samsung J5LTE EUR OPEN"
+	help
+	  Support for Samsung J5LTE EUR OPEN device.
+
+config MACH_J53G_EUR_OPEN
+	depends on SEC_J5_PROJECT
+	default n
+	bool "Samsung J53G EUR OPEN"
+	help
+	  Support for Samsung J53G EUR OPEN device.
+	  
+config SEC_J5N_PROJECT
+        depends on ARCH_MSM8916
+        default n
+        bool "Samsung J5N Project"
+        help
+          Support for Samsung J5N Project
+
+config MACH_J5NLTE_EUR_OPEN
+        depends on SEC_J5N_PROJECT
+        default n
+        bool "Samsung J5NLTE EUR OPEN"
+        help
+          Support for Samsung J5NLTE EUR OPEN device.
+
+config MACH_J5X3G_MEA_JV
+	depends on SEC_J5X_PROJECT
+	default n
+	bool "Samsung J5X3G MEA JV"
+	help
+	  Support for Samsung J5X3G MEA JV device.
+
 config SEC_J1_PROJECT
 	depends on ARCH_MSM8916
 		default n
@@ -485,6 +798,26 @@ config MACH_J1_VZW
 		bool "Samsung J1 Verizon"
 		help
 		  Support for Samsung J1 Verizon device.
+config SEC_J7_PROJECT
+	depends on ARCH_MSM8929
+		default n
+		bool "Samsung J7 Project"
+		help
+		  Support for Samsung J7 Project
+
+config MACH_J7_CHN_CMCC
+	depends on SEC_J7_PROJECT
+		default n
+		bool "Samsung J7 CHN CMCC "
+		help
+		  Support for Samsung J7 CHN CMCC device.
+		 
+config MACH_J7_USA_SPR
+	depends on SEC_J7_PROJECT
+		default n
+		bool "Samsung J7 USA SPR "
+		help
+		  Support for Samsung J7 USA SPR device.
 
 config SEC_E5_PROJECT
     depends on ARCH_MSM8916
@@ -558,12 +891,40 @@ config MACH_E73G_SEA_OPEN
 	help
 	  Support for Samsung E73G SEA Open device.
 
+config MACH_E73G_EUR_OPEN
+	depends on SEC_E7_PROJECT
+	default n
+	bool "Samsung E73G EUR Open"
+	help
+	  Support for Samsung E73G EUR Open device.
+
+config SEC_ON7N_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung ON7N Project"
+	help
+	  Support for Samsung ON7N Project
+
+config MACH_ON7NLTE_KOR_SKT
+	depends on SEC_ON7N_PROJECT
+	default n
+	bool "Samsung ON7NLTE KOR SKT"
+	help
+	  Support for Samsung ON7NLTE KOR SKT device.
+
 config SEC_GT58_PROJECT
     depends on ARCH_MSM8916
         default n
         bool "Samsung GT5 8 Project"
         help
           Support for Samsung GT5 8 Project
+
+config MACH_GT58_CAN_BMC
+    depends on SEC_GT58_PROJECT
+        default n
+        bool "Samsung GT5 8 LTE CAN BMC"
+        help
+          Support for Samsung GT5 8 LTE CAN BMC device.
 
 config MACH_GT58_EUR_OPEN
     depends on SEC_GT58_PROJECT
@@ -726,33 +1087,12 @@ config MACH_FORTUNA_SPR
         help
           Support for Samsung FORTUNA USA SPR device.
 
-config SEC_A5_EUR_PROJECT
-	depends on ARCH_MSM8916
-		default n
-		bool "Samsung A5 EUR Project"
-		help
-			Support for Samsung A5 EUR Project
-
-config MACH_A5_EUR_OPEN
-	depends on SEC_A5_EUR_PROJECT
-		default n
-		bool "Samsung A5 EUR Open"
-		help
-		  Support for Samsung A5 EUR Open device.
-
-config SEC_A53G_EUR_PROJECT
-	depends on ARCH_MSM8916
-		default n
-		bool "Samsung A53G EUR Project"
-		help
-		  Support for Samsung A53G EUR Project
-
-config MACH_A53G_EUR_OPEN
-	depends on SEC_A53G_EUR_PROJECT
-		default n
-		bool "Samsung A53G EUR Open"
-		help
-		  Support for Samsung A53G EUR Open device.
+config MACH_FORTUNA_ACG
+    depends on SEC_FORTUNA_PROJECT
+        default n
+        bool "Samsung FORTUNA USA ACG"
+        help
+          Support for Samsung FORTUNA USA ACG device.
 
 config SEC_ROSSA_PROJECT
     depends on ARCH_MSM8916
@@ -782,6 +1122,20 @@ config MACH_ROSSA_VZW
 	help
 	  Support for Samsung ROSSA Verizon device.
 
+config SEC_XCOVER3_PROJECT
+    depends on ARCH_MSM8916
+	default n
+	bool "Samsung XCOVER3 Project"
+	help
+	  Support for Samsung XCOVER3 Project
+
+config MACH_XCOVER3_DCM
+    depends on SEC_XCOVER3_PROJECT
+	default n
+	bool "Samsung XCOVER3 docomo"
+	help
+	  Support for Samsung XCOVER3 docomo device.
+
 config SEC_SIGNUM_PROJECT
     depends on ARCH_MSM8916
         default n
@@ -795,6 +1149,20 @@ config MACH_SIGNUMLTE_EUR_OPEN
         bool "Samsung SIGNUM LTE EUR OPEN"
         help
           Support for Samsung SIGNUM LTE EUR OPEN device.
+
+config SEC_MATISSEVE_PROJECT
+    depends on ARCH_MSM8916
+        default n
+        bool "Samsung MATISSEVE Project"
+        help
+          Support for Samsung MATISSEVE Project
+
+config MACH_MATISSEVEWIFI_EUR_OPEN
+    depends on SEC_MATISSEVE_PROJECT
+        default n
+        bool "Samsung MATISSEVE WIFI EUR Open"
+        help
+          Support for Samsung MATISSEVE WIFI EUR Open device.
 
 config MSM_KRAIT_TBB_ABORT_HANDLER
 	bool "Krait TBB/TBH data abort handler"
@@ -875,7 +1243,8 @@ config PHYS_OFFSET
 	default "0x00000000" if ARCH_APQ8084
 	default "0x00000000" if ARCH_MSM8226
 	default "0x00000000" if ARCH_MSM8610
-	default "0x80000000" if ARCH_MSM8916
+	default "0x80000000" if ARCH_MSM8916 && !3G_DDR_SUPPORT
+	default "0x20000000" if ARCH_MSM8916 && 3G_DDR_SUPPORT
 	default "0x0b600000" if ARCH_FSM9900
 	default "0x00000000" if ARCH_FSM9010
 	default "0x00000000" if ARCH_MDM9630
@@ -1479,6 +1848,10 @@ config KNOX_KAP
        bool "Enable KNOX KAP mode"
        default n
 
+config SEC_DEBUG_ENABLE_QSEE
+	bool "Enable QSEE Log"
+	default n
+
 config TIMA_LKMAUTH
        bool "Enable LKM authentication TIMA feature"
        default n
@@ -1511,6 +1884,70 @@ config TIMA_LOG
        default n
        help
          TIMA Log dumping support
+
+config TIMA_RKP
+       bool "Enable RKP (Realtime Kernel Protection) TIMA feature"
+       default n
+       help
+         This is enabled from defconfig
+
+config TIMA_RKP_30
+       bool "Enable RKP TIMA 3.0 features"
+       depends on (ARCH_MSM8974PRO || ARCH_MSM8226 || ARCH_APQ8084 ||  ARCH_MSM8916)
+       depends on TIMA_RKP
+       default y
+       help
+         RKP 3.0 features
+
+config TIMA_RKP_COHERENT_TT
+       bool
+       depends on TIMA_RKP_30
+       default y
+       help
+         RKP cache coherence feature- depends on corresponding TZ RKP code!!!
+
+config TIMA_RKP_L1_TABLES
+       bool
+       depends on TIMA_RKP
+       default y
+       help
+         TIMA takes over management of L1 tables.
+
+config TIMA_RKP_L2_TABLES
+       bool
+       depends on TIMA_RKP
+       default y
+       help
+         TIMA takes over management L2 tables
+
+config TIMA_RKP_L2_GROUP
+        bool
+        depends on TIMA_RKP_L2_TABLES
+        default n
+        help
+         TIMA groups page table writes; enable only with cache coherence
+
+config TIMA_RKP_LAZY_MMU
+        bool
+        depends on TIMA_RKP_L2_TABLES
+        default y
+        help
+         TIMA lazy MMU for L2 pages
+
+config  TIMA_RKP_EMUL_CP15_INSTR
+        bool
+        depends on TIMA_RKP_30
+        default n
+        help
+         RKP emulates CP15 instructions affecting MMU
+
+config TIMA_RKP_DEBUG
+       bool
+       depends on TIMA_RKP
+       default n
+       help
+         TIMA debug infrastructure.
+
 config KRAIT_REGULATOR
 	bool "Support Kraits powered via ganged regulators in the pmic"
 	help
@@ -1540,6 +1977,30 @@ config FSM9900_GSM_NL
 	  The DIQ functionality is disabled and the UART functionality is enabled.
 	  The serial port connection can be established to communicate with the
 	  GSM NL module.
+
+config RTC_AUTO_PWRON
+        bool "RTC Auto Power on PM8x16 PMICs"
+        depends on ARCH_MSM8916
+        default n
+        help
+          Support for the auto power on alarm on the PM8X16 PMIC.
+          Say Y if you want to enable this feature.
+
+config RTC_AUTO_PWRON_PARAM
+        bool "RTC Auto Power on with param PM8x16 PMICs"
+        depends on RTC_AUTO_PWRON
+        default n
+        help
+          This option is used to prevent invalid RTC alarm power on.
+          Say Y if you want to enable this feature.
+
+config BARCODE_PAINTER
+        bool "Bootloader Barcode Print MSM8916"
+        depends on ARCH_MSM8916
+        default n
+        help
+          This option is used to add Barcode Print Func.
+          Say Y if you want to enable this feature.
 
 config SAMSUNG_PRODUCT_SHIP
         bool "set up for product shipping"

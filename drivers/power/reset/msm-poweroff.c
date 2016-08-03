@@ -227,6 +227,9 @@ static void halt_spmi_pmic_arbiter(void)
 
 static void msm_restart_prepare(const char *cmd)
 {
+#ifdef CONFIG_QCOM_HARDREBOOT_IMPLEMENTATION
+	bool need_warm_reset = false;
+#endif
 	unsigned long value;
 	unsigned int warm_reboot_set = 0;
 #ifndef CONFIG_SEC_DEBUG
@@ -257,6 +260,58 @@ static void msm_restart_prepare(const char *cmd)
 #endif
 #endif
 #endif
+/* Qualcomm has provided support to implement PMIC warm reboot for recovery/fastboot/RTC cases.
+However, Samsung implemation already supports more usecases including nvrestore, nvbackup, EDL, LPM etc.
+Hence Qualcomm's PMIC hard reboot implementation has been taken, but disabled. */
+#ifdef CONFIG_QCOM_HARDREBOOT_IMPLEMENTATION
+	if (qpnp_pon_check_hard_reset_stored()) {
+		/* Set warm reset as true when device is in dload mode
+		 *  or device doesn't boot up into recovery, bootloader or rtc.
+		 */
+		if (get_dload_mode() ||
+			((cmd != NULL && cmd[0] != '\0') &&
+			strcmp(cmd, "recovery") &&
+			strcmp(cmd, "bootloader") &&
+			strcmp(cmd, "rtc")))
+			need_warm_reset = true;
+	} else {
+		need_warm_reset = (get_dload_mode() ||
+				(cmd != NULL && cmd[0] != '\0'));
+	}
+
+	/* Hard reset the PMIC unless memory contents must be maintained. */
+	if (need_warm_reset) {
+		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
+	} else {
+		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
+	}
+	 if (cmd != NULL) {
+                if (!strncmp(cmd, "bootloader", 10)) {
+                        qpnp_pon_set_restart_reason(
+                                PON_RESTART_REASON_BOOTLOADER);
+                        __raw_writel(0x77665500, restart_reason);
+                } else if (!strncmp(cmd, "recovery", 8)) {
+                        qpnp_pon_set_restart_reason(
+                                PON_RESTART_REASON_RECOVERY);
+                        __raw_writel(0x77665502, restart_reason);
+                } else if (!strcmp(cmd, "rtc")) {
+                        qpnp_pon_set_restart_reason(
+                                PON_RESTART_REASON_RTC);
+                        __raw_writel(0x77665503, restart_reason);
+                } else if (!strncmp(cmd, "oem-", 4)) {
+                        unsigned long code;
+                        int ret;
+                        ret = kstrtoul(cmd + 4, 16, &code);
+                        if (!ret)
+                                __raw_writel(0x6f656d00 | (code & 0xff),
+                                             restart_reason);
+                } else if (!strncmp(cmd, "edl", 3)) {
+                        enable_emergency_dload_mode();
+                } else {
+                        __raw_writel(0x77665501, restart_reason);
+                }
+        }
+#else
 	pr_info("preparing for restart now\n");
 	warm_reboot_set = 0;
 
@@ -353,6 +408,7 @@ static void msm_restart_prepare(const char *cmd)
 	}
 #else
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
+#endif
 #endif
 	flush_cache_all();
 

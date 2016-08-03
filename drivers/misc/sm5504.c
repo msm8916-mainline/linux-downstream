@@ -202,7 +202,7 @@ struct sm5504_usbsw {
 	int				adc;
 	bool				undefined_attached;
 	/* muic current attached device */
-	enum muic_attached_dev		attached_dev;
+	muic_attached_dev		attached_dev;
 #if defined(CONFIG_MUIC_SM5504_SUPPORT_LANHUB_TA)
 	unsigned int			previous_dock;
 	unsigned int			lanhub_ta_status;
@@ -371,13 +371,15 @@ static void sm5504_reg_init(struct sm5504_usbsw *usbsw)
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
 
 #endif
+
 	/* vbus delay 300ms -> 140ms */
-	ret = i2c_smbus_read_byte_data(client, 0x20);
+	/* DEV_TYPE_MODE 1: JIG USB type change by RID only */
+	ret = i2c_smbus_read_byte_data(client, REG_RESERVED_1);
 	if (ret < 0)
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
-	ret = ret | 0x08;
+	ret = ret | 0x08 | 0x40;
 	pr_info("%s 0x20 =  (0x%x)\n",__func__,ret);
-	ret = i2c_smbus_write_byte_data(client, 0x20, ret);
+	ret = i2c_smbus_write_byte_data(client, REG_RESERVED_1, ret);
 	if (ret < 0)
 		dev_err(&client->dev, "%s: err %d\n", __func__, ret);
 

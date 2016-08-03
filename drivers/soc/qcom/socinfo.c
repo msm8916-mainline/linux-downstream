@@ -117,7 +117,8 @@ const char *hw_platform_subtype[] = {
 	[PLATFORM_SUBTYPE_UNKNOWN] = "Unknown",
 	[PLATFORM_SUBTYPE_CHARM] = "charm",
 	[PLATFORM_SUBTYPE_STRANGE] = "strange",
-	[PLATFORM_SUBTYPE_STRANGE_2A] = "strange_2a,"
+	[PLATFORM_SUBTYPE_STRANGE_2A] = "strange_2a",
+	[PLATFORM_SUBTYPE_INVALID] = "Invalid",
 };
 
 /* Used to parse shared memory.  Must match the modem. */
@@ -189,6 +190,13 @@ struct socinfo_v9 {
 	uint32_t foundry_id;
 };
 
+struct socinfo_v10 {
+	struct socinfo_v9 v9;
+
+	/* only valid when format==10*/
+	uint32_t serial_number;
+};
+
 static union {
 	struct socinfo_v1 v1;
 	struct socinfo_v2 v2;
@@ -199,6 +207,7 @@ static union {
 	struct socinfo_v7 v7;
 	struct socinfo_v8 v8;
 	struct socinfo_v9 v9;
+	struct socinfo_v10 v10;
 } *socinfo;
 
 static struct msm_soc_info cpu_of_id[] = {
@@ -466,9 +475,15 @@ static struct msm_soc_info cpu_of_id[] = {
 
 	/* 8909 IDs */
 	[245] = {MSM_CPU_8909, "MSM8909"},
+	[258] = {MSM_CPU_8909, "MSM8209"},
+	[259] = {MSM_CPU_8909, "MSM8208"},
+	[265] = {MSM_CPU_8909, "APQ8009"},
+	[275] = {MSM_CPU_8909, "MSM8609"},
 	[260] = {MSM_CPU_8909, "MDMFERRUM"},
 	[261] = {MSM_CPU_8909, "MDMFERRUM"},
 	[262] = {MSM_CPU_8909, "MDMFERRUM"},
+	[300] = {MSM_CPU_8909, "MSM8909W"},
+	[301] = {MSM_CPU_8909, "APQ8009W"},
 
 	/* ZIRC IDs */
 	[234] = {MSM_CPU_ZIRC, "MSMZIRC"},
@@ -512,6 +527,10 @@ static struct socinfo_v1 dummy_socinfo = {
 	.version = 1,
 };
 
+#ifdef CONFIG_SEC_DEBUG_SUBSYS
+const char *soc_revision;
+EXPORT_SYMBOL(soc_revision);
+#endif
 uint32_t socinfo_get_id(void)
 {
 	return (socinfo) ? socinfo->v1.id : 0;
@@ -716,10 +735,14 @@ msm_get_platform_subtype(struct device *dev,
 		}
 		return snprintf(buf, PAGE_SIZE, "%-.32s\n",
 					qrd_hw_platform_subtype[hw_subtype]);
+	} else {
+		if (hw_subtype >= PLATFORM_SUBTYPE_INVALID) {
+			pr_err("Invalid hardware platform subtype\n");
+			hw_subtype = PLATFORM_SUBTYPE_INVALID;
+		}
+		return snprintf(buf, PAGE_SIZE, "%-.32s\n",
+			hw_platform_subtype[hw_subtype]);
 	}
-
-	return snprintf(buf, PAGE_SIZE, "%-.32s\n",
-		hw_platform_subtype[hw_subtype]);
 }
 
 static ssize_t
@@ -1035,6 +1058,7 @@ static void __init populate_soc_sysfs_files(struct device *msm_soc_device)
 	device_create_file(msm_soc_device, &select_image);
 
 	switch (legacy_format) {
+	case 10:
 	case 9:
 		 device_create_file(msm_soc_device,
 					&msm_soc_attr_foundry_id);
@@ -1075,6 +1099,20 @@ static void __init populate_soc_sysfs_files(struct device *msm_soc_device)
 
 	return;
 }
+
+#ifdef CONFIG_SEC_DEBUG_SUBSYS
+static void  __init soc_revision_populate(void)
+{
+	uint32_t soc_version = socinfo_get_version();
+
+	soc_revision = kasprintf(GFP_KERNEL, "%u.%u",
+			SOCINFO_VERSION_MAJOR(soc_version),
+			SOCINFO_VERSION_MINOR(soc_version));
+	pr_info("%s: soc_revision %s\n", __func__, soc_revision);
+	return;
+
+}
+#endif
 
 static void  __init soc_info_populate(struct soc_device_attribute *soc_dev_attr)
 {
@@ -1210,6 +1248,22 @@ static void socinfo_print(void)
 			socinfo->v7.pmic_die_revision,
 			socinfo->v9.foundry_id);
 		break;
+	case 10:
+		pr_info("%s: v%u, id=%u, ver=%u.%u, raw_id=%u, raw_ver=%u, hw_plat=%u, hw_plat_ver=%u\n accessory_chip=%u, hw_plat_subtype=%u, pmic_model=%u, pmic_die_revision=%u foundry_id=%u serial_number=%u\n",
+			__func__,
+			socinfo->v1.format,
+			socinfo->v1.id,
+			SOCINFO_VERSION_MAJOR(socinfo->v1.version),
+			SOCINFO_VERSION_MINOR(socinfo->v1.version),
+			socinfo->v2.raw_id, socinfo->v2.raw_version,
+			socinfo->v3.hw_platform, socinfo->v4.platform_version,
+			socinfo->v5.accessory_chip,
+			socinfo->v6.hw_platform_subtype,
+			socinfo->v7.pmic_model,
+			socinfo->v7.pmic_die_revision,
+			socinfo->v9.foundry_id,
+			socinfo->v10.serial_number);
+		break;
 
 	default:
 		pr_err("%s: Unknown format found\n", __func__);
@@ -1225,6 +1279,12 @@ int __init socinfo_init(void)
 		return 0;
 
 	socinfo = smem_find(SMEM_HW_SW_BUILD_ID,
+				sizeof(struct socinfo_v10),
+				0,
+				SMEM_ANY_HOST_FLAG);
+
+	if (IS_ERR_OR_NULL(socinfo))
+		socinfo = smem_find(SMEM_HW_SW_BUILD_ID,
 				sizeof(struct socinfo_v9),
 				0,
 				SMEM_ANY_HOST_FLAG);
@@ -1294,6 +1354,9 @@ int __init socinfo_init(void)
 	socinfo_print();
 	arch_read_hardware_id = msm_read_hardware_id;
 	socinfo_init_done = true;
+#ifdef CONFIG_SEC_DEBUG_SUBSYS
+	soc_revision_populate();
+#endif
 
 	return 0;
 }

@@ -1,6 +1,7 @@
 /*
  * Arizona MFD internals
  *
+ * Copyright 2014 CirrusLogic, Inc.
  * Copyright 2012 Wolfson Microelectronics plc
  *
  * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
@@ -27,6 +28,10 @@ enum arizona_type {
 	WM8280 = 4,
 	WM8998 = 5,
 	WM1814 = 6,
+	WM8285 = 7,
+	WM1840 = 8,
+	WM1831 = 9,
+	CS47L24 = 10,
 };
 
 #define ARIZONA_IRQ_GP1                    0
@@ -104,14 +109,19 @@ enum arizona_type {
 #define ARIZONA_IRQ_HP1R_SC_POS           72
 #define ARIZONA_IRQ_HP1L_SC_NEG           73
 #define ARIZONA_IRQ_HP1L_SC_POS           74
+#define ARIZONA_IRQ_FLL3_LOCK             75
+#define ARIZONA_IRQ_FLL3_CLOCK_OK         76
 
-#define ARIZONA_NUM_IRQ                   75
+#define ARIZONA_NUM_IRQ                   77
 
 #define ARIZONA_HP_SHORT_IMPEDANCE        4
 struct snd_soc_dapm_context;
+struct arizona_extcon_info;
 
 struct arizona {
 	struct regmap *regmap;
+	struct regmap *regmap_32bit;
+
 	struct device *dev;
 
 	enum arizona_type type;
@@ -120,6 +130,7 @@ struct arizona {
 	int num_core_supplies;
 	struct regulator_bulk_data core_supplies[ARIZONA_MAX_CORE_SUPPLIES];
 	struct regulator *dcvdd;
+	struct notifier_block dcvdd_notifier;
 
 	struct arizona_pdata pdata;
 
@@ -135,12 +146,14 @@ struct arizona {
 	unsigned int hp_ena;
 
 	unsigned int hp_impedance;
+	struct arizona_extcon_info *extcon_info;
 
 	struct mutex clk_lock;
 	int clk32k_ref;
 
 	struct mutex subsys_max_lock;
 	unsigned int subsys_max_rq;
+	bool subsys_max_cached;
 
 	struct snd_soc_dapm_context *dapm;
 
@@ -151,6 +164,11 @@ struct arizona {
 
 	uint16_t out_comp_coeff;
 	uint8_t out_comp_enabled;
+
+	bool micvdd_regulated;
+#if defined(CONFIG_PM_SLEEP) && defined(CONFIG_MFD_ARIZONA_DEFERRED_RESUME)
+	struct work_struct deferred_resume_work;
+#endif
 };
 
 #define ARIZONA_DVFS_SR1_RQ          0x00000001
@@ -173,7 +191,9 @@ int arizona_set_irq_wake(struct arizona *arizona, int irq, int on);
 int wm5102_patch(struct arizona *arizona);
 int florida_patch(struct arizona *arizona);
 int wm8997_patch(struct arizona *arizona);
-int wm8998_patch(struct arizona *arizona);
+int vegas_patch(struct arizona *arizona);
+int clearwater_patch(struct arizona *arizona);
+int cs47l24_patch(struct arizona *arizona);
 
 extern int arizona_of_get_named_gpio(struct arizona *arizona, const char *prop,
 				     bool mandatory);

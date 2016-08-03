@@ -298,6 +298,9 @@ static int __r5033_current_limit_to_setting(int current_limit)
 	return -EINVAL;
 }
 
+#if defined(CONFIG_MACH_FORTUNA_SPR) || defined(CONFIG_MACH_FORTUNA_TMO) || defined(CONFIG_MACH_FORTUNA_ACG)
+extern int poweroff_charging;
+#endif
 
 static void rt5033_set_input_current_limit(struct rt5033_charger_data *charger,
 		int current_limit)
@@ -323,6 +326,15 @@ static void rt5033_set_input_current_limit(struct rt5033_charger_data *charger,
 		}
 	}
 	else{
+#if defined(CONFIG_MACH_FORTUNA_SPR) || defined(CONFIG_MACH_FORTUNA_TMO) || defined(CONFIG_MACH_FORTUNA_ACG)
+		/*Soft Start Charging*/
+		if((charger->cable_type != POWER_SUPPLY_TYPE_BATTERY) && !poweroff_charging){
+			rt5033_assign_bits(i2c, RT5033_CHG_CTRL1, RT5033_AICR_LIMIT_MASK,
+				(1) << RT5033_AICR_LIMIT_SHIFT);
+			pr_info("%s: Soft Start Charging\n", __func__);
+			msleep(100);
+		}
+#endif
 		rt5033_assign_bits(i2c, RT5033_CHG_CTRL1, RT5033_AICR_LIMIT_MASK,
 		(data) << RT5033_AICR_LIMIT_SHIFT);
 		pr_info("%s: AICR Enabled", __func__);
@@ -525,6 +537,7 @@ static void rt5033_configure_charger(struct rt5033_charger_data *charger)
 	int eoc;
 	int input_current_limit;
 	union power_supply_propval val;
+	union power_supply_propval chg_mode,swelling_state;
 
 	pr_info("%s : Set config charging\n", __func__);
 	if (charger->charging_current < 0) {
@@ -566,8 +579,32 @@ static void rt5033_configure_charger(struct rt5033_charger_data *charger)
 
 	charger->charging_current = charger->pdata->charging_current_table
 				    [charger->cable_type].fast_charging_current;
-	eoc = charger->pdata->charging_current_table
-	      [charger->cable_type].full_check_current_1st;
+
+	if (charger->pdata->full_check_type_2nd == SEC_BATTERY_FULLCHARGED_CHGPSY)
+	{
+#if defined(CONFIG_BATTERY_SWELLING)
+		psy_do_property("battery", get,
+				POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT, swelling_state);
+#else
+		swelling_state.intval = 0;
+#endif
+		psy_do_property("battery", get, POWER_SUPPLY_PROP_CHARGE_NOW, chg_mode);
+
+		if (chg_mode.intval == SEC_BATTERY_CHARGING_2ND || swelling_state.intval) {
+			eoc = charger->pdata->charging_current_table
+					[charger->cable_type].full_check_current_2nd;
+
+			/* change full_charged status */
+			charger->full_charged = false;
+		} else {
+			eoc = charger->pdata->charging_current_table
+					[charger->cable_type].full_check_current_1st;
+		}
+	}
+	else {
+		eoc = charger->pdata->charging_current_table
+				[charger->cable_type].full_check_current_1st;
+	}
 	/* Fast charge and Termination current */
 	pr_info("%s : fast charging current (%dmA)\n",
 		__func__, charger->charging_current);
@@ -894,6 +931,10 @@ static int sec_chg_set_property(struct power_supply *psy,
 		pr_info("%s: float voltage(%d)\n", __func__, val->intval);
 		rt5033_set_regulation_voltage(charger, val->intval);
 		break;
+		
+	case POWER_SUPPLY_PROP_CURRENT_AVG:
+		charger->charging_current = val->intval;
+		__rt5033_set_fast_charging_current(charger, val->intval);
 #endif
 #if defined(CONFIG_MACH_KOR_EARJACK_WR)
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_MAX:
@@ -1105,7 +1146,6 @@ static irqreturn_t rt5033_chg_ieoc_irq_handler(int irq, void *data)
 	struct rt5033_charger_data *info = data;
 	struct i2c_client *iic = info->rt5033->i2c_client;
 	int eoc_reg;
-	union power_supply_propval value;
 	cancel_delayed_work(&info->eoc_timeout_work);
 	mutex_lock(&info->io_lock);
 #if defined(CONFIG_MACH_KOR_EARJACK_WR)
@@ -1129,9 +1169,6 @@ static irqreturn_t rt5033_chg_ieoc_irq_handler(int irq, void *data)
 		pr_info("%s : Full charged\n", __func__);
 		info->full_charged = true;
 		info->eoc_cnt = 0;
-		value.intval = POWER_SUPPLY_STATUS_FULL;
-		psy_do_property("battery", set,
-				POWER_SUPPLY_PROP_STATUS, value);
 	} else {
 		pr_info("%s : Reset EOC detection\n", __func__);
 		msleep(10);
@@ -1361,6 +1398,22 @@ static int rt5033_charger_parse_dt(struct device *dev,
 		pdata->is_750kHz_switching);
 	pr_info("%s : is_fixed_switching = %d\n", __func__,
 		pdata->is_fixed_switching);
+		
+	np = of_find_node_by_name(NULL, "battery");
+	if (!np) {
+		pr_info("%s : np NULL\n", __func__);
+		return -ENODATA;
+	}
+	ret = of_property_read_u32(np, "battery,full_check_type",
+			&pdata->full_check_type);
+	if (ret)
+		pr_info("%s: full_check_type is Empty\n", __func__);
+
+	ret = of_property_read_u32(np, "battery,full_check_type_2nd",
+			&pdata->full_check_type_2nd);
+	if (ret)
+		pr_info("%s: full_check_type_2nd is Empty\n", __func__);
+	
 	np = of_find_node_by_name(NULL, "charger");
 	if (!np) {
 		pr_info("%s : np NULL\n", __func__);

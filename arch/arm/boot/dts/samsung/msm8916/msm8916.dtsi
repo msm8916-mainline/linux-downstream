@@ -12,6 +12,7 @@
 
 #include "skeleton64.dtsi"
 #include <dt-bindings/clock/msm-clocks-8916.h>
+#include <dt-bindings/clock/msm-clocks-a7.h>
 
 / {
 	model = "Qualcomm Technologies, Inc. MSM8916";
@@ -201,7 +202,8 @@
 				<&dai_mi2s0>, <&dai_mi2s1>, <&dai_mi2s2>, <&dai_mi2s3>,
 				<&sb_0_rx>, <&sb_0_tx>, <&sb_1_rx>, <&sb_1_tx>,
 				<&sb_3_rx>, <&sb_3_tx>, <&sb_4_rx>, <&sb_4_tx>,
-				<&bt_sco_rx>, <&bt_sco_tx>, <&int_fm_rx>, <&int_fm_tx>,
+				<&bt_sco_rx>, <&bt_sco_tx>, <&bt_a2dp_rx>,
+				<&int_fm_rx>, <&int_fm_tx>,
 				<&afe_pcm_rx>, <&afe_pcm_tx>, <&afe_proxy_rx>, <&afe_proxy_tx>,
 				<&incall_record_rx>, <&incall_record_tx>, <&incall_music_rx>,
 				<&incall_music_2_rx>;
@@ -213,11 +215,12 @@
 				"msm-dai-q6-dev.16390", "msm-dai-q6-dev.16391",
 				"msm-dai-q6-dev.16392", "msm-dai-q6-dev.16393",
 				"msm-dai-q6-dev.12288", "msm-dai-q6-dev.12289",
-				"msm-dai-q6-dev.12292", "msm-dai-q6-dev.12293",
-				"msm-dai-q6-dev.224", "msm-dai-q6-dev.225",
-				"msm-dai-q6-dev.241", "msm-dai-q6-dev.240",
-				"msm-dai-q6-dev.32771", "msm-dai-q6-dev.32772",
-				"msm-dai-q6-dev.32773", "msm-dai-q6-dev.32770";
+				"msm-dai-q6-dev.12290", "msm-dai-q6-dev.12292",
+				"msm-dai-q6-dev.12293", "msm-dai-q6-dev.224",
+				"msm-dai-q6-dev.225", "msm-dai-q6-dev.241",
+				"msm-dai-q6-dev.240", "msm-dai-q6-dev.32771",
+				"msm-dai-q6-dev.32772", "msm-dai-q6-dev.32773",
+				"msm-dai-q6-dev.32770";
 		asoc-codec = <&stub_codec>, <&pm8916_tombak_dig>;
 		asoc-codec-names = "msm-stub-codec.1", "tombak_codec";
 	};
@@ -354,7 +357,7 @@
 		qcom,sensor-id = <0 1 2 4 5>;
 	};
 
-	qcom,clock-a7@0b011050 {
+	clock_cpu: qcom,clock-a7@0b011050 {
 		compatible = "qcom,clock-a53-8916";
 		reg = <0x0b011050 0x8>;
 		reg-names = "rcg-base";
@@ -363,6 +366,7 @@
 		clocks = <&clock_gcc clk_gpll0_ao_clk_src>,
 			 <&clock_gcc clk_a53sspll>;
 		clock-names = "clk-4", "clk-5";
+		#clock-cells = <1>;
 		qcom,speed0-bin-v0 =
 			<          0 0>,
 			<  200000000 1>,
@@ -381,12 +385,11 @@
 		qcom,src-dst-ports = <1 512>;
 		qcom,active-only;
 		qcom,bw-tbl =
-			/*  73 9.60 MHz */
-			/* 381  50MHz */
 			<  762 /* 100 MHz */>,
 			< 1525 /* 200 MHz */>,
 			< 3051 /* 400 MHz */>,
 			< 4066 /* 533 MHz */>;
+		qcom,ab-percent = < 30 >;
 	};
 
 	qcom,armbw-pm {
@@ -407,9 +410,15 @@
 		};
 	};
 
-	qcom,msm-cpufreq@0 {
+	qcom,msm-cpufreq {
 		reg = <0 4>;
 		compatible = "qcom,msm-cpufreq";
+		clocks = <&clock_cpu  clk_a7ssmux>,
+			 <&clock_cpu  clk_a7ssmux>,
+			 <&clock_cpu  clk_a7ssmux>,
+			 <&clock_cpu  clk_a7ssmux>;
+		clock-names = "cpu0_clk", "cpu1_clk",
+				"cpu2_clk", "cpu3_clk";
 		qcom,cpufreq-table =
 			 <  200000 >,
 			 <  400000 >,
@@ -528,6 +537,7 @@
 		qcom,hsusb-otg-phy-type = <2>;
 		qcom,hsusb-otg-mode = <3>;
 		qcom,hsusb-otg-otg-control = <2>;
+		qcom,hsusb-otg-disable-reset;
 		qcom,dp-manual-pullup;
 		qcom,hsusb-otg-mpm-dpsehv-int = <49>;
 		qcom,hsusb-otg-mpm-dmsehv-int = <58>;
@@ -1051,6 +1061,11 @@
 			compatible = "qcom,msm-dai-q6-dev";
 			qcom,msm-dai-q6-dev-id = <12289>;
 		};
+		
+		bt_a2dp_rx: qcom,msm-dai-q6-bt-a2dp-rx {
+			compatible = "qcom,msm-dai-q6-dev";
+			qcom,msm-dai-q6-dev-id = <12290>;
+		};		
 
 		int_fm_rx: qcom,msm-dai-q6-int-fm-rx {
 			compatible = "qcom,msm-dai-q6-dev";
@@ -1389,8 +1404,10 @@
 		clocks = <&clock_rpm clk_xo_wlan_clk>,
 			 <&clock_rpm clk_rf_clk2>,
 			 <&clock_debug clk_gcc_debug_mux>,
-			 <&clock_gcc clk_wcnss_m_clk>;
-		clock-names = "xo", "rf_clk", "measure", "wcnss_debug";
+			 <&clock_gcc clk_wcnss_m_clk>,
+			 <&clock_gcc clk_gcc_snoc_qosgen_clk>;
+		clock-names = "xo", "rf_clk", "measure", "wcnss_debug",
+				"snoc_qosgen";
 
 		qcom,has-autodetect-xo;
 		qcom,wlan-rx-buff-count = <512>;
@@ -1746,7 +1763,6 @@
 		qcom,clock-names = "core_clk", "iface_clk", "bus_clk";
 		qcom,clock-configs = <0x1 0x0 0x0>;
 		qcom,sw-power-collapse;
-		qcom,enable-minimum-voting;
 		qcom,load-freq-tbl = <352800 228570000 0xffffffff>,
 			<352800 228570000 0x55555555>,
 			<244800 160000000 0xffffffff>,
@@ -1808,6 +1824,16 @@
 					<63 512 677600 1331000>, /* 720p 60 fps */
 					<63 512 677600 1331000>; /* 1080p 30 fps */
 				qcom,bus-configs = <0x030fcfff>;
+			};
+			qcom,msm-bus-client@2 {
+				qcom,msm-bus,name = "venus-arm9-ddr";
+				qcom,msm-bus,num-cases = <2>;
+				qcom,msm-bus,num-paths = <1>;
+				qcom,msm-bus,vectors-KBps =
+					<63 512 0 0>,
+					<63 512 1000 1000>;
+				qcom,bus-configs = <0x00000000>;
+				qcom,bus-passive;
 			};
 		};
 	};
@@ -2074,3 +2100,151 @@
 		qcom,thermal-node;
 	};
 };
+
+&soc {
+	/* Samsung Feature for all MSM8916 models */
+	input_booster {
+		status = "disabled";
+		compatible = "input_booster";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* +++ Old input booster version +++ */
+	/*	DVFS_STAGE_NONE		0x0001	: 0000 0000 0000 0001
+		DVFS_STAGE_SINGLE	0x0002	: 0000 0000 0000 0010
+		DVFS_STAGE_DUAL		0x0004	: 0000 0000 0000 0100*/
+
+		booster,tsp_stage = <0x0007>;	// supported stage with OR operation
+		booster,tkey_stage = <0x0001>;	// supported stage with OR operation
+		booster,wacom_stage = <0x0001>;	// supported stage with OR operation
+
+		booster,level = <2>;			// default level
+		booster,head = <200 1190400 0>;	// default head value <time cpu_freq bimc_freq>
+		booster,tail = <300 998400 0>;	// default tail value <time cpu_freq bimc_freq>
+		/* --- Old input booster version --- */
+
+		booster_key@1 {
+			input_booster,label = "KEY";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <1190400>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <200>;
+			input_booster,tail_times = <0>;
+
+		};
+		booster_key@2 {
+			input_booster,label = "TOUCHKEY";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <998400>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <0>;
+			input_booster,tail_times = <300>;
+		};
+		booster_key@3 {
+			input_booster,label = "TOUCH";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			input_booster,levels = <1 2 3>;
+
+			/* Frequency table */
+			/* for level	:	1_Head, 2_Head, 2_Tail */
+			input_booster,cpu_freqs = <1190400 1190400 998400>;
+			input_booster,bimc_freqs = <0 0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 200 0>;
+			input_booster,tail_times = <0 0 300>;
+		};
+		booster_key@4 { // Input Booster +
+			input_booster,label = "MULTITOUCH";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1190400 1190400>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <1000 0>;
+			input_booster,tail_times = <0 500>;
+		};
+		booster_key@5 {
+			input_booster,label = "KEYBOARD";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1190400 1190400>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 200>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@6 {
+			input_booster,label = "MOUSE";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1190400 998400>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		};
+		booster_key@7 {
+			input_booster,label = "MOUSE WHEEL";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1190400 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@8 {
+			input_booster,label = "PEN HOVER";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <1190400 998400>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		}; // Input Booster -
+		/* If you need to add new key type, add it this position */
+	};
+};
+

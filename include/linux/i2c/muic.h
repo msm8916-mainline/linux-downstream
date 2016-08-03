@@ -58,7 +58,7 @@ enum cable_type_t {
 };
 
 /* MUIC attached device type */
-enum muic_attached_dev {
+typedef enum {
     ATTACHED_DEV_NONE_MUIC = 0,
     ATTACHED_DEV_USB_MUIC,
     ATTACHED_DEV_CDP_MUIC,
@@ -76,7 +76,7 @@ enum muic_attached_dev {
     ATTACHED_DEV_JIG_USB_ON_MUIC,
     ATTACHED_DEV_CHARGING_CABLE_MUIC,
     ATTACHED_DEV_UNKNOWN_MUIC
-};
+} muic_attached_dev;
 
 enum {
 	LANHUB = 0,

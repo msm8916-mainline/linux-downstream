@@ -48,6 +48,15 @@ config FUELGAUGE_RT5033
 	 This driver source code implemented
 	 all functions for RT5033 fuel gauge.
 
+config FUELGAUGE_SM5703
+	tristate "SM5703 fuel gauge driver"
+	depends on BATTERY_SAMSUNG
+	help
+	 Say Y to include support
+	 for SiliconMitus SM5703 fuel gauge driver.
+	 This driver source code implemented
+	 all functions for SM5703 fuel gauge.
+
 config FUELGAUGE_DUMMY
 	tristate "dummy fuel gauge driver"
 	default n
@@ -233,6 +242,15 @@ config PREVENT_SOC_JUMP
 	help
 		Say Y to prevent soc jump
 
+config FUELGAUGE_SM5705
+	tristate "Siliconmitus SM5705 Fuel Gauge"
+	default n
+	depends on I2C
+	help
+	  SM5705 is fuel-gauge systems for lithium-ion (Li+) batteries
+	  in handheld and portable equipment. The SM5705 is configured
+	  to operate with a single lithium cell
+
 # Charger
 
 config CHARGER_DUMMY
@@ -410,10 +428,50 @@ config CHARGER_RT5033
 	 This driver source code implemented
 	 all functions for RT5033 charger.
 
+config CHARGER_SM5418
+	tristate "SM5418 charger driver"
+	default n
+	help
+	 Say Y to include support
+	 for SM5418 charger driver.
+	 This driver source code implemented
+	 all functions for SMB5418 charger.
+
+config CHARGER_SM5703
+	tristate "SM5703 charger driver"
+	default n
+	help
+	 Say Y to include support
+	 for SM5703 charger driver.
+	 This driver source code implemented
+	 all functions for SM5703 charger.
+
+config CHARGER_SM5703_SOFT_START_CHARGING
+	bool "SM5703 soft step charging"
+	default n
+	depends on CHARGER_SM5703
+	help
+	  Say Y here to enable support for SM5703 soft step charging
+	  You have to define CHARGER_SM5703
+
+config CHARGER_SM5703_DUALPATH
+	bool "SM5703 dual path"
+	default n
+	depends on CHARGER_SM5703
+	help
+	  Say Y here to enable support for SM5703 dual path setting for removal model in S/W
+	  You have to define CHARGER_SM5703
+
+config CHARGER_SM5705
+	tristate "SM5705 battery charger support"
+	depends on BATTERY_SAMSUNG
+	help
+	  Say Y here to enable support for the SM5705 charger
+
 config AFC_CHARGER_MODE
 	bool "afc charging support in sec battery driver"
 	default n
-	depends on CHARGER_MAX77843
+	depends on CHARGER_SM5705
 	help
 	  Say Y to include support for sec afc charging support
 
@@ -468,6 +526,12 @@ config SIOP_CHARGING_LIMIT_CURRENT
 	help
 	  set SIOP charging limit current.
 
+config DISABLE_MINIMUM_SIOP_CHARGING
+	bool "Minimum siop charging current limit"
+	default n
+	help
+	  set minimum value of siop charging current limit to usb"
+
 config EN_OOPS
 	bool "enable oops filter"
 	default n
@@ -480,3 +544,14 @@ config MACH_KOR_EARJACK_WR
 	depends on BATTERY_SAMSUNG
 	help
 	  Say Y to enable earjack-noise workaround at charging
+
+config STORE_MODE
+	bool "enable store mode"
+	default n
+	help
+	  Say Y to enable CONFIG_STORE_MODE
+config SW_SELF_DISCHARGING
+	bool "enable sw_self_discharging"
+	default n
+	help
+	  Say Y to enable CONFIG_SW_SELF_DISCHARGING

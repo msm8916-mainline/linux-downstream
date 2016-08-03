@@ -210,6 +210,9 @@ static void gic_unmask_irq(struct irq_data *d)
 
 static void gic_disable_irq(struct irq_data *d)
 {
+	/* don't lazy-disable PPIs */
+	if (gic_irq(d) < 32)
+		gic_mask_irq(d);
 	if (gic_arch_extn.irq_disable)
 		gic_arch_extn.irq_disable(d);
 }
@@ -265,6 +268,14 @@ void gic_show_pending_irq(void)
 			pending[j] &= enabled;
 			pr_err("Pending irqs[%d] %lx\n", j, pending[j]);
 		}
+	}
+	if (pending[6] == 0x800000) { // pending irq is cpu_bwmon
+		pr_err("Clear Pending irqs 215\n");
+		writel_relaxed(pending[6], base +
+		GIC_DIST_PENDING_CLEAR + 6 * 4);
+		pending[6] = readl_relaxed(base +
+		GIC_DIST_PENDING_SET + 6 * 4);
+		pr_err("Read again : pending irqs[6] %lx\n", pending[6]);
 	}
 }
 

@@ -627,6 +627,26 @@ static int msm_sec_dha_put(struct snd_kcontrol *kcontrol,
 		dha_mode, dha_select, dha_param);
 	return ret;
 }
+
+static int msm_sec_addMode_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int msm_sec_addMode_put(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	int ret = 0;
+	int enable = ucontrol->value.integer.value[0];
+
+	pr_debug("%s: addMode enable=%d\n", __func__, enable);
+	ret = voice_sec_set_addMode_data(voc_get_session_id(VOICE_SESSION_NAME),
+		enable);
+	ret = voice_sec_set_addMode_data(voc_get_session_id(VOICE2_SESSION_NAME),
+		enable);
+	return ret;
+}
 #endif /* CONFIG_SAMSUNG_AUDIO */
 
 static struct snd_kcontrol_new msm_voice_controls[] = {
@@ -648,8 +668,10 @@ static struct snd_kcontrol_new msm_voice_controls[] = {
 #ifdef CONFIG_SAMSUNG_AUDIO				
 	SOC_SINGLE_MULTI_EXT("Sec Set DHA data", SND_SOC_NOPM, 0, 65535, 0, 14,
 				msm_sec_dha_get, msm_sec_dha_put),
-	SOC_SINGLE_EXT("Loopback Enable", SND_SOC_NOPM, 0, 1, 0,
+	SOC_SINGLE_EXT("Loopback Enable", SND_SOC_NOPM, 0, LOOPBACK_MAX, 0,
 				msm_loopback_get, msm_loopback_put),
+	SOC_SINGLE_EXT("AddMode Enable", SND_SOC_NOPM, 0, 1, 0,
+				msm_sec_addMode_get, msm_sec_addMode_put),
 #endif /* CONFIG_SAMSUNG_AUDIO */
 	SOC_SINGLE_MULTI_EXT("HD Voice Enable", SND_SOC_NOPM, 0, VSID_MAX, 0, 2,
 			     NULL, msm_voice_hd_voice_put),

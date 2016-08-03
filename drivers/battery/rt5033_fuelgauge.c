@@ -1404,6 +1404,32 @@ static void sec_fg_get_atomic_capacity(
 	fuelgauge->capacity_old = val->intval;
 }
 
+static int sec_fg_check_capacity_max(
+				struct sec_fuelgauge_info *fuelgauge, int capacity_max)
+{
+	int new_capacity_max = capacity_max;
+
+	if (new_capacity_max < (fuelgauge->pdata->capacity_max -
+			fuelgauge->pdata->capacity_max_margin - 10)) {
+		new_capacity_max =
+			(fuelgauge->pdata->capacity_max -
+			fuelgauge->pdata->capacity_max_margin);
+
+		dev_info(&fuelgauge->client->dev, "%s: set capacity max(%d --> %d)\n",
+			__func__, capacity_max, new_capacity_max);
+	} else if (new_capacity_max > (fuelgauge->pdata->capacity_max +
+			fuelgauge->pdata->capacity_max_margin)) {
+		new_capacity_max =
+			(fuelgauge->pdata->capacity_max +
+			fuelgauge->pdata->capacity_max_margin);
+
+		dev_info(&fuelgauge->client->dev, "%s: set capacity max(%d --> %d)\n",
+			__func__, capacity_max, new_capacity_max);
+	}
+
+	return new_capacity_max;
+}
+
 static int sec_fg_calculate_dynamic_scale(
 				struct sec_fuelgauge_info *fuelgauge, int capacity)
 {
@@ -1437,8 +1463,8 @@ static int sec_fg_calculate_dynamic_scale(
 	}
 
 	if (capacity != 100) {
-		fuelgauge->capacity_max =
-			(fuelgauge->capacity_max * 100 / capacity);
+		fuelgauge->capacity_max = sec_fg_check_capacity_max(
+			fuelgauge, (fuelgauge->capacity_max * 100 / capacity));
 	} else  {
 		fuelgauge->capacity_max =
 			(fuelgauge->capacity_max * 99 / 100);
@@ -1731,14 +1757,14 @@ static int rt5033_fg_set_property(struct power_supply *psy,
 			fuelgauge->is_charging = false;
 		else
 			fuelgauge->is_charging = true;
-		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RESET) {
 			fuelgauge->initial_update_of_soc = true;
 			if (!sec_hal_fg_reset(fuelgauge->client))
 				return -EINVAL;
+			else
+				break;
 		}
-		break;
 	case POWER_SUPPLY_PROP_TEMP:
 	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
 		if (!sec_hal_fg_set_property(fuelgauge->client, psp, val))
@@ -1748,7 +1774,7 @@ static int rt5033_fg_set_property(struct power_supply *psy,
 		dev_info(&fuelgauge->client->dev,
 				"%s: capacity_max changed, %d -> %d\n",
 				__func__, fuelgauge->capacity_max, val->intval);
-		fuelgauge->capacity_max = val->intval;
+		fuelgauge->capacity_max = sec_fg_check_capacity_max(fuelgauge, val->intval);
 		fuelgauge->initial_update_of_soc = true;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:

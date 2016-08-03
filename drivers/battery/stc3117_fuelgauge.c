@@ -456,7 +456,7 @@ static int STC311x_SaveVMCnf(struct i2c_client *client)
 #endif
 
 	STC31xx_WriteWord(client, STC311x_REG_VM_CNF, GG_Ram.reg.VM_cnf);
-	printk("STC3117 : GG_Ram.reg.VM_cnf=%d",GG_Ram.reg.VM_cnf);
+	printk("STC3117 : GG_Ram.reg.VM_cnf=%d\n",GG_Ram.reg.VM_cnf);
 
 #if 0 // only for STC3115
 	if (BattData.Vmode) {
@@ -1074,6 +1074,10 @@ static int STC31xx_Task(struct i2c_client *client, GasGauge_DataTypeDef *GG)
 		GG->Current = 0;
 		GG->RemTime = -1;   /* means no estimated time available */
 		GG->Temperature = 250;
+		GG->AvgVoltage = 0;
+		GG->AvgCurrent = 0;
+		GG->AvgTemperature = 0;
+		GG->AvgSOC = 0;
 	} else {
 		//Check battery presence
 		if ((BattData.STC_Status & M_BATFAIL) == 0)
@@ -1095,8 +1099,12 @@ static int STC31xx_Task(struct i2c_client *client, GasGauge_DataTypeDef *GG)
 		if (value < (APP_MIN_VOLTAGE + 200) && value > (APP_MIN_VOLTAGE - 500)) {
 			if (value < APP_MIN_VOLTAGE)
 				BattData.SOC = 0;
-			else
+			else{
+				printk("STC3117_Task(early_empty_compensation): 3100 < value(%d) < 3300\n", value);
+				printk("STC3117_Task(early_empty_compensation): before BattData.SOC(%d)\n", BattData.SOC);
 				BattData.SOC = BattData.SOC * (value - APP_MIN_VOLTAGE) / 200;
+				printk("STC3117_Task(early_empty_compensation): new BattData.SOC(%d)\n", BattData.SOC);
+			}
 		}
 
 		BattData.AccVoltage += (BattData.Voltage - BattData.AvgVoltage);
@@ -1172,7 +1180,7 @@ static int STC31xx_Task(struct i2c_client *client, GasGauge_DataTypeDef *GG)
 	STC311x_WriteRamData(client, GG_Ram.db);
 
 #ifdef STC3117_DEBUG
-	printk("STC3117:%s vol=%d, curr=%d, temp=%d, SOC=%d, ocv=%d, avg_vol=%d, avd_curr=%d, avg_temp=%d, avg_soc=%d, GGsts=%c, STCsts=0x%x, ExtTemp=%d, Count=%d, HRSOC=%d, CC_cnf=0x%x, VM_cnf=0x%x, CC_adj=0x%x, VM_adj=0x%x, Online=%d, BattSts=%d\n",
+	printk("STC3117:%s vol=%d, curr=%d, temp=%d, SOC=%d, ocv=%d, avg_vol=%d, avg_curr=%d, avg_temp=%d, avg_soc=%d, GGsts=%c, STCsts=0x%x, ExtTemp=%d, Count=%d, HRSOC=%d, CC_cnf=0x%x, VM_cnf=0x%x, CC_adj=0x%x, VM_adj=0x%x, Online=%d, BattSts=%d\n",
 		  __func__, GG->Voltage, GG->Current, GG->Temperature, GG->SOC, GG->OCV, GG->AvgVoltage, GG->AvgCurrent, GG->AvgTemperature, GG->AvgSOC, GG_Ram.reg.GG_Status, BattData.STC_Status, GG->ForceExternalTemperature, BattData.ConvCounter, BattData.HRSOC, GG_Ram.reg.CC_cnf, GG_Ram.reg.VM_cnf, BattData.CC_adj, BattData.VM_adj, BattData.BattOnline, BattData.BattState);
 #endif
 
@@ -1256,6 +1264,15 @@ static int STC31xx_Init(struct i2c_client *client, GasGauge_DataTypeDef *GG)
 	BattData.Alm_Vbat = GG->Alm_Vbat;
 	BattData.RelaxThreshold = GG->RelaxCurrent;
 
+	/* Init averaging */
+	BattData.AvgVoltage = 0;
+	BattData.AvgCurrent = 0;
+	BattData.AvgTemperature = 0;
+	BattData.AvgSOC = 0;  /* in 0.1% unit  */
+	BattData.AccVoltage = 0;
+	BattData.AccCurrent = 0;
+	BattData.AccTemperature = 0;
+	BattData.AccSOC = 0;
 	// BATD
 	BattData.BattOnline = 1;
 
@@ -1282,11 +1299,12 @@ static int STC31xx_Init(struct i2c_client *client, GasGauge_DataTypeDef *GG)
 
 	BattData.Ropt = 0;
 	BattData.Nropt = 0;
-	
+
 	/* check RAM valid */
 	STC311x_ReadRamData(client, GG_Ram.db);
 
-	if ((GG_Ram.reg.TstWord != RAM_TSTWORD) || (calcCRC8(GG_Ram.db,RAM_SIZE)!=0)) {
+	if ((GG_Ram.reg.TstWord != RAM_TSTWORD) || (calcCRC8(GG_Ram.db,RAM_SIZE)!=0) || \
+		(BattData.CC_cnf != STC31xx_ReadWord(client, STC311x_REG_CC_CNF))) {
 #ifdef STC3117_DEBUG
 		printk("STC3117:%s Invalid RAM!, Initialize RAM data.\n", __func__);
 #endif
@@ -1466,8 +1484,8 @@ bool sec_hal_fg_fuelalert_init(struct i2c_client *client, int soc)
 		}
 	}
 
-	//if (res < 0)
-		//return false;  //jibin for temp
+	if (res < 0)
+		return false;
 
 	return true;
 }

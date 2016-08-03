@@ -52,6 +52,9 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #include <asm/div64.h>
 #include <linux/interrupt.h>
 #include <linux/msm-bus.h>
+#include <linux/hall.h>
+#include <linux/sync.h>
+#include <linux/sw_sync.h>
 
 #include "../../mdss/mdss.h"
 #include "../../mdss/mdss_panel.h"
@@ -61,7 +64,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #define LCD_DEBUG(X, ...) pr_info("[MDSS]%s:"X, __func__, ## __VA_ARGS__);
 
 #define MAX_PANEL_NAME_SIZE 100
-#define DEFAULT_BRIGHTNESS 180
+#define DEFAULT_BRIGHTNESS 255
 
 #define SUPPORT_PANEL_COUNT 2
 #define SUPPORT_PANEL_REVISION 20
@@ -78,6 +81,9 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 
 /* Register dump info */
 #define MAX_INTF_NUM 2
+
+/* Panel Unique Cell ID Byte count */
+#define MAX_CELL_ID 11
 
 enum mipi_samsung_cmd_list {
 	PANEL_CMD_NULL,
@@ -138,6 +144,18 @@ enum {
 	TE_FITTING_STEP2 = BIT(5),
 };
 
+/* foder open : 0, close : 1 */
+enum {
+	HALL_IC_OPEN,
+	HALL_IC_CLOSE,
+	HALL_IC_UNDEFINED,
+};
+
+enum BLIC_EVENT {
+	BLIC_INIT_EVENT,
+	BLIC_MAX_EVENT,
+};
+
 struct te_fitting_lut {
 	int te_duration;
 	int value;
@@ -167,6 +185,15 @@ struct candella_lux_map {
 	int *cmd_idx;
 	int lux_tab_size;
 	int bkl[256];
+};
+struct hbm_candella_lux_map {
+	int *lux_tab;
+	int *cmd_idx;
+	int lux_tab_size;
+	int *from;
+	int *end;
+	int *auto_level;
+	int hbm_min_lv;
 };
 
 struct samsung_display_dtsi_data {
@@ -198,6 +225,7 @@ struct samsung_display_dtsi_data {
 	struct dsi_panel_cmds manufacture_id2_rx_cmds[SUPPORT_PANEL_REVISION];
 	struct dsi_panel_cmds manufacture_date_rx_cmds[SUPPORT_PANEL_REVISION];
 	struct dsi_panel_cmds ddi_id_rx_cmds[SUPPORT_PANEL_REVISION];
+	struct dsi_panel_cmds cell_id_rx_cmds[SUPPORT_PANEL_REVISION];
 	struct dsi_panel_cmds rddpm_rx_cmds[SUPPORT_PANEL_REVISION];
 
 	struct dsi_panel_cmds mtp_read_sysfs_rx_cmds[SUPPORT_PANEL_REVISION];
@@ -265,6 +293,7 @@ struct samsung_display_dtsi_data {
 	struct dsi_panel_cmds tft_pwm_tx_cmds[SUPPORT_PANEL_REVISION];
 	struct dsi_panel_cmds blic_dimming_cmds[SUPPORT_PANEL_REVISION];
 	struct candella_lux_map scaled_level_map_table[SUPPORT_PANEL_REVISION];
+	struct hbm_candella_lux_map hbm_candela_map_table[SUPPORT_PANEL_REVISION];
 
 	/* Command for nv read */
 	struct dsi_panel_cmds packet_size_tx_cmds[SUPPORT_PANEL_REVISION];
@@ -310,6 +339,9 @@ struct samsung_display_dtsi_data {
 	/* Backlight IC discharge delay */
 	int blic_discharging_delay_tft;
 	int cabc_delay;
+
+	/* Outdoor mode */
+	int outdoor_mode_support; 
 };
 
 struct samsung_brightenss_data {
@@ -331,6 +363,8 @@ struct display_status {
 
 	int elvss_value;
 	int disp_on_pre;
+	int hall_ic_status;
+	int hall_ic_mode_change_trigger;
 };
 
 struct hmt_status {
@@ -381,6 +415,7 @@ struct panel_func {
 	int (*samsung_panel_revision)(struct mdss_dsi_ctrl_pdata *ctrl);
 	int (*samsung_manufacture_date_read)(struct mdss_dsi_ctrl_pdata *ctrl);
 	int (*samsung_ddi_id_read)(struct mdss_dsi_ctrl_pdata *ctrl);
+	int (*samsung_cell_id_read)(struct mdss_dsi_ctrl_pdata *ctrl);
 	int (*samsung_hbm_read)(struct mdss_dsi_ctrl_pdata *ctrl);
 	int (*samsung_mdnie_read)(struct mdss_dsi_ctrl_pdata *ctrl);
 	int (*samsung_smart_dimming_init)(struct mdss_dsi_ctrl_pdata *ctrl);
@@ -429,6 +464,7 @@ struct panel_func {
 	void (*samsung_bl_ic_pwm_en)(int enable);
 	void (*samsung_bl_ic_i2c_ctrl)(int scaled_level);
 	void (*samsung_bl_ic_outdoor)(int enable);
+	void (*samsung_backlight_ic_power_on)(int enable);
 
 	/*LVDS*/
 	void (*samsung_ql_lvds_register_set)(struct mdss_dsi_ctrl_pdata *ctrl);
@@ -458,6 +494,8 @@ struct samsung_display_driver_data {
 	*	PANEL COMMON DATA
 	*/
 	struct mutex vdd_lock;
+	struct mutex vdd_blank_unblank_lock;
+	struct mutex vdd_hall_ic_lock;
 
 	int vdd_blank_mode[SUPPORT_PANEL_COUNT];
 
@@ -467,11 +505,15 @@ struct samsung_display_driver_data {
 
 	int support_alpm;
 
+	int support_hall_ic;
+	struct notifier_block hall_ic_notifier_display;
+
 	int panel_attach_status; /* 0bit->DSI0 1bit->DSI1 */
 
 	int panel_revision;
 
 	char *panel_name;
+	char *panel_vendor;
 
 	int recovery_boot_mode;
 
@@ -483,9 +525,9 @@ struct samsung_display_driver_data {
 	int bl_level;
 	int candela_level;
 	int cmd_idx;
-	int init_bl_level;
 
 	int acl_status;
+	int weakness_hbm_comp;
 	int siop_status;
 	bool mdnie_tuning_enable_tft;
 	int mdnie_tune_size1;
@@ -524,6 +566,10 @@ struct samsung_display_driver_data {
 
 	int ddi_id_loaded_dsi[SUPPORT_PANEL_COUNT];
 	int ddi_id_dsi[SUPPORT_PANEL_COUNT][5];
+
+	/* Panel Unique Cell ID */
+	int cell_id_loaded_dsi[SUPPORT_PANEL_COUNT];
+	int cell_id_dsi[SUPPORT_PANEL_COUNT][MAX_CELL_ID];
 
 	int hbm_loaded_dsi[SUPPORT_PANEL_COUNT];
 
@@ -581,12 +627,10 @@ int mdss_backlight_tft_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_tft_autobrightness_cabc_update(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_samsung_panel_data_read(struct mdss_dsi_ctrl_pdata *ctrl, struct dsi_panel_cmds *cmds, char *buffer, int level_key);
 void mdss_samsung_cabc_update(void);
-#if defined(CONFIG_DUAL_PANEL)
-int dsi_tcon_mdnie_tune_cmd(struct samsung_display_driver_data *vdd, struct dsi_cmd_desc *dsi0_data, struct dsi_cmd_desc *dsi1_data, int tune_cnt);
-#else
-int dsi_tcon_mdnie_tune_cmd(struct samsung_display_driver_data *vdd, struct dsi_cmd_desc *dsi0_data, int tune_cnt);
-#endif
+
 int get_lcd_attached(char *mode);
+int get_lcd_attached_secondary(char *mode);
+
 struct samsung_display_driver_data * check_valid_ctrl(struct mdss_dsi_ctrl_pdata *ctrl);
 
 char mdss_panel_id0_get(struct mdss_dsi_ctrl_pdata *ctrl);
@@ -600,12 +644,15 @@ void mdss_samsung_dump_regs(void);
 void mdss_samsung_dsi_dump_regs(int dsi_num);
 void mdss_mdp_underrun_dump_info(void);
 void mdss_samsung_dsi_te_check(void);
+void mdss_samsung_fence_dump(struct sync_fence *fence);
 
 /* BRIGHTNESS RELATED FUNCTION */
 int get_cmd_index(struct samsung_display_driver_data *vdd, int ndx);
 int get_candela_value(struct samsung_display_driver_data *vdd, int ndx);
 int mdss_samsung_brightness_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level);
 void mdss_samsung_brightness_tft_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int level);
+void set_auto_brightness_value(struct samsung_display_driver_data *vdd, int ndx);
+
 /* TFT BL DCS RELATED FUNCTION */
 int get_scaled_level(struct samsung_display_driver_data *vdd, int ndx);
 
@@ -626,15 +673,13 @@ int hmt_bright_update(struct mdss_dsi_ctrl_pdata *ctrl);
 int hmt_enable(struct mdss_dsi_ctrl_pdata *ctrl, int enable);
 int hmt_reverse_update(struct mdss_dsi_ctrl_pdata *ctrl, int enable);
 
+/* HALL IC FUNCTION */
+int display_ndx_check(struct mdss_dsi_ctrl_pdata *ctrl);
+int samsung_display_hall_ic_status(struct notifier_block *nb,
+			unsigned long hall_ic, void *data);
+
 /* SAMSUNG COMMON HEADER*/
 #include "ss_dsi_smart_dimming_common.h"
 #include "ss_dsi_mdnie_lite_common.h" /* MDNIE_LITE_COMMON_HEADER */
-
-/* SAMSUNG MODEL HEADER */
-#include "EA8061V_AMS497EE01/ss_dsi_panel_EA8061V_AMS497EE01.h"
-#include "NT71391_BP080WX7/ss_dsi_panel_NT71391_BP080WX7.h"
-#include "EA8061_/ss_dsi_panel_EA8061_.h"
-#include "S6E88A0_AMS452EF01/ss_dsi_panel_S6E88A0_AMS452EF01.h"
-/*	PANEL_HEADER END	*/
 
 #endif

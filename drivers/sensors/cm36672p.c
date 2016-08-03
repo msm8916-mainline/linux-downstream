@@ -56,28 +56,25 @@
 #define REG_PS_DATA	0x08
 
 /* Intelligent Cancelation*/
-#define PROXIMITY_CANCELATION
-#ifdef PROXIMITY_CANCELATION
-#define SUCCESS		1
-#define FAIL		0
-#define ERROR		-1
-#define CAL_SKIP_ADC	8
-#define CAL_FAIL_ADC	18
-#define CANCELATION_FILE_PATH	"/efs/prox_cal"
-#endif
+#define CAL_SKIP_ADC	8 /*(nondetect threshold *60% :  8)*/
+#define CAL_FAIL_ADC	20 /*(detect threshold : 19)*/
+#define CANCELATION_FILE_PATH	"/efs/FactoryApp/prox_cal"
 
 #define PROX_READ_NUM	40
 
  /* proximity sensor default value for register */
-#define DEFAULT_HI_THD	0x0022
-#define DEFAULT_LOW_THD	0x001E
-#define CANCEL_HI_THD	0x0022
-#define CANCEL_LOW_THD	0x001E
+#define DEFAULT_HI_THD	0x0011
+#define DEFAULT_LOW_THD	0x000d
+#define CANCEL_HI_THD	0x000a
+#define CANCEL_LOW_THD	0x0007
 
-#define DEFAULT_CONF1	0x0320
-#define DEFAULT_CONF3	0x4200
+#define DEFAULT_CONF1	0x0320 /* PS_INT = (1:1), PS_PERS = (1:0) */
+#if defined(CONFIG_SENSORS_CM36672P_SMART_PERS)
+#define DEFAULT_CONF3	0x4010 /* PS_MS = 1, PS_SMART_PERS = 1 */
+#else
+#define DEFAULT_CONF3	0x4000 /* PS_MS = 1, PS_SMART_PERS = 0 */
+#endif
 #define DEFAULT_TRIM	0x0000
-
 
 enum {
 	REG_ADDR = 0,
@@ -98,15 +95,28 @@ enum {
 	PS_REG_NUM,
 };
 
+enum {
+	CAL_FAIL = 0,
+	CAL_CANCELATION,
+	CAL_SKIP,
+};
+
 /*
 * NOTE:
-* Since PS integration time and LED current would be different by HW rev or Project,
-* we move the setting value to device tree. Please refer to the value below.
+* Since PS Duty, PS integration time and LED current
+* would be different by HW rev or Project,
+* we move the setting value to device tree.
+* Please refer to the value below.
+*
+* PS_DUTY (CONF1, 0x03_L)
+* 1/40 = 0, 1/80 = 1, 1/160 = 2, 1/320 = 3
+*
 * PS_IT (CONF1, 0x03_L)
 * 1T = 0, 1.5T = 1, 2T = 2, 2.5T = 3, 3T = 4, 3.5T = 5, 4T = 6, 8T = 7
 *
 * LED_I (CONF3, 0x04_H)
-* 50mA = 0, 75mA = 1, 100mA = 2, 120mA = 3, 140mA = 4, 160mA = 5, 180mA = 6, 200mA = 7
+* 50mA = 0, 75mA = 1, 100mA = 2, 120mA = 3,
+* 140mA = 4, 160mA = 5, 180mA = 6, 200mA = 7
 */
 static u16 ps_reg_init_setting[PS_REG_NUM][2] = {
 	{REG_PS_CONF1, DEFAULT_CONF1},
@@ -127,18 +137,18 @@ struct cm36672p_data {
 	struct workqueue_struct *prox_wq;
 	struct work_struct work_prox;
 	struct device *proximity_dev;
-#if defined(CONFIG_MACH_J1_VZW) || defined(CONFIG_MACH_E5_USA_TFN)
 	struct regulator *vdd;
-	struct regulator *vio;
-#endif
+	struct regulator *vled;
+
 	ktime_t prox_poll_delay;
 	atomic_t enable;
 	int irq;
 	int avg[3];
-	unsigned int uProxCalResult;
+	unsigned int prox_cal_result;
 };
 
-static int proximity_regulator_onoff(struct device *dev, bool onoff);
+static int proximity_vdd_onoff(struct device *dev, bool onoff);
+static int proximity_vled_onoff(struct device *dev, bool onoff);
 
 int cm36672p_i2c_read_word(struct cm36672p_data *data, u8 command, u16 *val)
 {
@@ -173,7 +183,7 @@ int cm36672p_i2c_read_word(struct cm36672p_data *data, u8 command, u16 *val)
 			return err;
 		}
 	}
-	pr_err("%s, i2c transfer error ret=%d\n", __func__, err);
+	SENSOR_ERR("i2c transfer error ret=%d\n", err);
 	return err;
 }
 
@@ -192,24 +202,11 @@ int cm36672p_i2c_write_word(struct cm36672p_data *data, u8 command,
 		if (err >= 0)
 			return 0;
 	}
-	pr_err("%s, i2c transfer error(%d)\n", __func__, err);
+	SENSOR_ERR("i2c transfer error(%d)\n", err);
 	return err;
 }
 
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-static int leden_gpio_onoff(struct cm36672p_data *data, bool onoff)
-{
-	struct cm36672p_platform_data *pdata = data->pdata;
 
-	gpio_set_value(pdata->leden_gpio, onoff);
-	if (onoff)
-		msleep(20);
-
-	return 0;
-}
-#endif
-
-#ifdef PROXIMITY_CANCELATION
 static int proximity_open_cancelation(struct cm36672p_data *data)
 {
 	struct file *cancel_filp = NULL;
@@ -219,12 +216,11 @@ static int proximity_open_cancelation(struct cm36672p_data *data)
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	cancel_filp = filp_open(CANCELATION_FILE_PATH, O_RDONLY, 0666);
+	cancel_filp = filp_open(CANCELATION_FILE_PATH, O_RDONLY, 0);
 	if (IS_ERR(cancel_filp)) {
 		err = PTR_ERR(cancel_filp);
 		if (err != -ENOENT)
-			pr_err("%s, Can't open cancelation file\n",
-				__func__);
+			SENSOR_ERR("Can't open cancelation file\n");
 		set_fs(old_fs);
 		return err;
 	}
@@ -233,7 +229,7 @@ static int proximity_open_cancelation(struct cm36672p_data *data)
 		(char *)&ps_reg_init_setting[PS_CANCEL][CMD],
 		sizeof(u16), &cancel_filp->f_pos);
 	if (err != sizeof(u16)) {
-		pr_err("%s, Can't read the cancel data from file\n", __func__);
+		SENSOR_ERR("Can't read the cancel data from file\n");
 		err = -EIO;
 	}
 
@@ -249,8 +245,7 @@ static int proximity_open_cancelation(struct cm36672p_data *data)
 			CANCEL_LOW_THD;
 	}
 
-	pr_info("%s, prox_cal= 0x%x, high_thresh= 0x%x, low_thresh= 0x%x\n",
-		__func__,
+	SENSOR_INFO("prox_cal= 0x%x, high_thresh= 0x%x, low_thresh= 0x%x\n",
 		ps_reg_init_setting[PS_CANCEL][CMD],
 		ps_reg_init_setting[PS_THD_HIGH][CMD],
 		ps_reg_init_setting[PS_THD_LOW][CMD]);
@@ -271,31 +266,30 @@ static int proximity_store_cancelation(struct device *dev, bool do_calib)
 
 	if (do_calib) {
 		mutex_lock(&data->read_lock);
-		cm36672p_i2c_read_word(data,
-			REG_PS_DATA, &ps_data);
+		cm36672p_i2c_read_word(data, REG_PS_DATA, &ps_data);
 		mutex_unlock(&data->read_lock);
 
-		if (ps_data < CAL_SKIP_ADC) {
+		if (ps_data*100 < (data->pdata->default_low_thd *60)/*CAL_SKIP_ADC 60%*/) {
 			/*SKIP*/
 			ps_reg_init_setting[PS_CANCEL][CMD] =
 				data->pdata->default_trim;
-			pr_info("%s:crosstalk <= %d\n", __func__, CAL_SKIP_ADC);
-			data->uProxCalResult = 2;
-		} else if (ps_data < CAL_FAIL_ADC) {
+			SENSOR_INFO("crosstalk <= %d/100\n", (data->pdata->default_low_thd *60)/*CAL_SKIP_ADC*/);
+			data->prox_cal_result = CAL_SKIP;
+		} else if (ps_data <= data->pdata->default_hi_thd/*CAL_FAIL_ADC*/) {
 			/*CANCELATION*/
 			ps_reg_init_setting[PS_CANCEL][CMD] =
 				ps_data + data->pdata->default_trim;
-			pr_info("%s:crosstalk_offset = %u", __func__, ps_data);
-			data->uProxCalResult = 1;
+			SENSOR_INFO("crosstalk_offset = %u", ps_data);
+			data->prox_cal_result = CAL_CANCELATION;
 		} else {
 			/*FAIL*/
 			ps_reg_init_setting[PS_CANCEL][CMD] =
 				data->pdata->default_trim;
-			pr_info("%s:crosstalk > %d\n", __func__, CAL_FAIL_ADC);
-			data->uProxCalResult = 0;
+			SENSOR_INFO("crosstalk > %d\n", data->pdata->default_hi_thd/*CAL_FAIL_ADC*/);
+			data->prox_cal_result = CAL_FAIL;
 		}
 
-		if (data->uProxCalResult == 1) {
+		if (data->prox_cal_result == CAL_CANCELATION) {
 			ps_reg_init_setting[PS_THD_HIGH][CMD] =
 				data->pdata->cancel_hi_thd ?
 				data->pdata->cancel_hi_thd :
@@ -327,26 +321,22 @@ static int proximity_store_cancelation(struct device *dev, bool do_calib)
 			DEFAULT_LOW_THD;
 	}
 
-	if ((data->uProxCalResult == 1) || !do_calib) {
-	err = cm36672p_i2c_write_word(data, REG_PS_CANC,
-		ps_reg_init_setting[PS_CANCEL][CMD]);
-	if (err < 0)
-		pr_err("%s, ps_canc_reg is failed. %d\n", __func__,
-			err);
-	err = cm36672p_i2c_write_word(data, REG_PS_THD_HIGH,
-		ps_reg_init_setting[PS_THD_HIGH][CMD]);
-	if (err < 0)
-		pr_err("%s: ps_high_reg is failed. %d\n", __func__,
-			err);
-	err = cm36672p_i2c_write_word(data, REG_PS_THD_LOW,
-		ps_reg_init_setting[PS_THD_LOW][CMD]);
-	if (err < 0)
-		pr_err("%s: ps_low_reg is failed. %d\n", __func__,
-			err);
+	if ((data->prox_cal_result == CAL_CANCELATION) || !do_calib) {
+		err = cm36672p_i2c_write_word(data, REG_PS_CANC,
+			ps_reg_init_setting[PS_CANCEL][CMD]);
+		if (err < 0)
+			SENSOR_ERR("ps_canc_reg is failed. %d\n", err);
+		err = cm36672p_i2c_write_word(data, REG_PS_THD_HIGH,
+			ps_reg_init_setting[PS_THD_HIGH][CMD]);
+		if (err < 0)
+			SENSOR_ERR("ps_high_reg is failed. %d\n", err);
+		err = cm36672p_i2c_write_word(data, REG_PS_THD_LOW,
+			ps_reg_init_setting[PS_THD_LOW][CMD]);
+		if (err < 0)
+			SENSOR_ERR("ps_low_reg is failed. %d\n", err);
 	}
 
-	pr_info("%s: prox_cal = 0x%x, ps_high_thresh = 0x%x, ps_low_thresh = 0x%x\n",
-		__func__,
+	SENSOR_INFO("cancel= 0x%x, high_thresh= 0x%x, low_thresh= 0x%x\n",
 		ps_reg_init_setting[PS_CANCEL][CMD],
 		ps_reg_init_setting[PS_THD_HIGH][CMD],
 		ps_reg_init_setting[PS_THD_LOW][CMD]);
@@ -355,9 +345,9 @@ static int proximity_store_cancelation(struct device *dev, bool do_calib)
 	set_fs(KERNEL_DS);
 
 	cancel_filp = filp_open(CANCELATION_FILE_PATH,
-		O_CREAT | O_TRUNC | O_WRONLY | O_SYNC, 0666);
+		O_CREAT | O_TRUNC | O_WRONLY | O_SYNC, 0660);
 	if (IS_ERR(cancel_filp)) {
-		pr_err("%s, Can't open cancelation file\n", __func__);
+		SENSOR_ERR("Can't open cancelation file\n");
 		set_fs(old_fs);
 		err = PTR_ERR(cancel_filp);
 		return err;
@@ -367,7 +357,7 @@ static int proximity_store_cancelation(struct device *dev, bool do_calib)
 		(char *)&ps_reg_init_setting[PS_CANCEL][CMD],
 		sizeof(u16), &cancel_filp->f_pos);
 	if (err != sizeof(u16)) {
-		pr_err("%s, Can't write the cancel data to file\n", __func__);
+		SENSOR_ERR("Can't write the cancel data to file\n");
 		err = -EIO;
 	}
 
@@ -391,14 +381,13 @@ static ssize_t proximity_cancel_store(struct device *dev,
 	else if (sysfs_streq(buf, "0")) /* reset cancelation value */
 		do_calib = false;
 	else {
-		pr_err("%s, invalid value %d\n", __func__, *buf);
+		SENSOR_ERR("invalid value %d\n", *buf);
 		return -EINVAL;
 	}
 
 	err = proximity_store_cancelation(dev, do_calib);
 	if (err < 0) {
-		pr_err("%s, proximity_store_cancelation() failed\n",
-			__func__);
+		SENSOR_ERR("proximity_store_cancelation() failed\n");
 		return err;
 	}
 
@@ -420,10 +409,9 @@ static ssize_t proximity_cancel_pass_show(struct device *dev,
 {
 	struct cm36672p_data *data = dev_get_drvdata(dev);
 
-	pr_info("%s, %u\n", __func__, data->uProxCalResult);
-	return snprintf(buf, PAGE_SIZE, "%u\n", data->uProxCalResult);
+	SENSOR_INFO("%u\n", data->prox_cal_result);
+	return snprintf(buf, PAGE_SIZE, "%u\n", data->prox_cal_result);
 }
-#endif
 
 static ssize_t proximity_enable_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
@@ -437,31 +425,27 @@ static ssize_t proximity_enable_store(struct device *dev,
 	else if (sysfs_streq(buf, "0"))
 		new_value = false;
 	else {
-		pr_err("%s, invalid value %d\n", __func__, *buf);
+		SENSOR_ERR("invalid value %d\n", *buf);
 		return -EINVAL;
 	}
 
 	pre_enable = atomic_read(&data->enable);
-	pr_info("%s, new_value = %d, pre_enable = %d\n",
-		__func__, new_value, pre_enable);
+	SENSOR_INFO("new_value = %d, pre_enable = %d\n",
+		new_value, pre_enable);
 
 	if (new_value && !pre_enable) {
 		int i, ret;
 
-#if defined(CONFIG_MACH_J1_VZW) || defined(CONFIG_MACH_E5_USA_TFN)
-		proximity_regulator_onoff(dev, ON);
-#endif
+		if(data->pdata->vdd_always_on == 0)
+			proximity_vdd_onoff(dev, ON);
+		proximity_vled_onoff(dev, ON);
+
 		atomic_set(&data->enable, ON);
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-		leden_gpio_onoff(data, ON);
-#endif
-#ifdef PROXIMITY_CANCELATION
 		/* open cancelation data */
 		ret = proximity_open_cancelation(data);
 		if (ret < 0 && ret != -ENOENT)
-			pr_err("%s, proximity_open_cancelation() failed\n",
-				__func__);
-#endif
+			SENSOR_ERR("proximity_open_cancelation() failed\n");
+
 		/* enable settings */
 		for (i = 0; i < PS_REG_NUM; i++) {
 			cm36672p_i2c_write_word(data,
@@ -480,15 +464,13 @@ static ssize_t proximity_enable_store(struct device *dev,
 		disable_irq(data->irq);
 		/* disable settings */
 		cm36672p_i2c_write_word(data, REG_PS_CONF1, 0x0001);
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-		leden_gpio_onoff(data, OFF);
-#endif
 		atomic_set(&data->enable, OFF);
-#if defined(CONFIG_MACH_J1_VZW) || defined(CONFIG_MACH_E5_USA_TFN)
-		proximity_regulator_onoff(dev, OFF);
-#endif
+		proximity_vled_onoff(dev, OFF);
+		if(data->pdata->vdd_always_on == 0)
+			proximity_vdd_onoff(dev, OFF);
+
 	}
-	pr_info("%s, enable = %d\n", __func__, atomic_read(&data->enable));
+	SENSOR_INFO("enable = %d\n", atomic_read(&data->enable));
 
 	return size;
 }
@@ -535,16 +517,17 @@ static ssize_t proximity_avg_store(struct device *dev,
 	else if (sysfs_streq(buf, "0"))
 		new_value = false;
 	else {
-		pr_err("%s, invalid value %d\n", __func__, *buf);
+		SENSOR_ERR("invalid value %d\n", *buf);
 		return -EINVAL;
 	}
 
-	pr_info("%s, average enable = %d\n", __func__, new_value);
+	SENSOR_INFO("average enable = %d\n", new_value);
 	if (new_value) {
 		if (atomic_read(&data->enable) == OFF) {
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-			leden_gpio_onoff(data, ON);
-#endif
+			if(data->pdata->vdd_always_on == 0)
+				proximity_vdd_onoff(dev, ON);
+			proximity_vled_onoff(dev, ON);
+
 			cm36672p_i2c_write_word(data, REG_PS_CONF1,
 				ps_reg_init_setting[PS_CONF1][CMD]);
 		}
@@ -556,9 +539,9 @@ static ssize_t proximity_avg_store(struct device *dev,
 		if (atomic_read(&data->enable) == OFF) {
 			cm36672p_i2c_write_word(data, REG_PS_CONF1,
 				0x0001);
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-			leden_gpio_onoff(data, OFF);
-#endif
+			proximity_vled_onoff(dev, OFF);
+			if(data->pdata->vdd_always_on == 0)
+				proximity_vdd_onoff(dev, OFF);
 		}
 	}
 
@@ -577,7 +560,7 @@ static ssize_t proximity_trim_show(struct device *dev,
 static ssize_t proximity_thresh_high_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	pr_info("%s = %u,%u\n", __func__,
+	SENSOR_INFO("%u,%u\n",
 		ps_reg_init_setting[PS_THD_HIGH][CMD],
 		ps_reg_init_setting[PS_THD_LOW][CMD]);
 	return snprintf(buf, PAGE_SIZE, "%u,%u\n",
@@ -594,21 +577,18 @@ static ssize_t proximity_thresh_high_store(struct device *dev,
 
 	err = kstrtou16(buf, 10, &thresh_value);
 	if (err < 0)
-		pr_err("%s, kstrtoint failed.\n", __func__);
+		SENSOR_ERR("kstrtoint failed\n");
 
 	if (thresh_value > 2) {
 		ps_reg_init_setting[PS_THD_HIGH][CMD] = thresh_value;
 		err = cm36672p_i2c_write_word(data, REG_PS_THD_HIGH,
 			ps_reg_init_setting[PS_THD_HIGH][CMD]);
 		if (err < 0)
-			pr_err("%s, cm36672_ps_high_reg is failed. %d\n",
-				__func__, err);
-		pr_info("%s, new high threshold = 0x%x\n",
-			__func__, thresh_value);
+			SENSOR_ERR("cm36672_ps_high_reg is failed. %d\n", err);
+		SENSOR_INFO("new high threshold = 0x%x\n", thresh_value);
 		msleep(150);
 	} else
-		pr_err("%s, wrong high threshold value(0x%x)!!\n",
-			__func__, thresh_value);
+		SENSOR_ERR("wrong high threshold value(0x%x)\n", thresh_value);
 
 	return size;
 }
@@ -616,7 +596,7 @@ static ssize_t proximity_thresh_high_store(struct device *dev,
 static ssize_t proximity_thresh_low_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	pr_info("%s = %u,%u\n", __func__,
+	SENSOR_INFO("%u,%u\n",
 		ps_reg_init_setting[PS_THD_HIGH][CMD],
 		ps_reg_init_setting[PS_THD_LOW][CMD]);
 
@@ -634,21 +614,18 @@ static ssize_t proximity_thresh_low_store(struct device *dev,
 
 	err = kstrtou16(buf, 10, &thresh_value);
 	if (err < 0)
-		pr_err("%s, kstrtoint failed.", __func__);
+		SENSOR_ERR("kstrtoint failed\n");
 
 	if (thresh_value > 2) {
 		ps_reg_init_setting[PS_THD_LOW][CMD] = thresh_value;
 		err = cm36672p_i2c_write_word(data, REG_PS_THD_LOW,
 			ps_reg_init_setting[PS_THD_LOW][CMD]);
 		if (err < 0)
-			pr_err("%s, cm36672_ps_low_reg is failed. %d\n",
-				__func__, err);
-		pr_info("%s, new low threshold = 0x%x\n",
-			__func__, thresh_value);
+			SENSOR_ERR("cm36672_ps_low_reg is failed. %d\n", err);
+		SENSOR_INFO("new low threshold = 0x%x\n", thresh_value);
 		msleep(150);
 	} else
-		pr_err("%s, wrong low threshold value(0x%x)!!\n",
-			__func__, thresh_value);
+		SENSOR_ERR("wrong low threshold value(0x%x)\n", thresh_value);
 
 	return size;
 }
@@ -660,9 +637,11 @@ static ssize_t proximity_state_show(struct device *dev,
 	u16 ps_data;
 
 	if (atomic_read(&data->enable) == OFF) {
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-		leden_gpio_onoff(data, ON);
-#endif
+
+		if(data->pdata->vdd_always_on == 0)
+			proximity_vdd_onoff(dev, ON);
+		proximity_vled_onoff(dev, ON);
+
 		cm36672p_i2c_write_word(data, REG_PS_CONF1,
 			ps_reg_init_setting[PS_CONF1][CMD]);
 	}
@@ -673,9 +652,10 @@ static ssize_t proximity_state_show(struct device *dev,
 
 	if (atomic_read(&data->enable) == OFF) {
 		cm36672p_i2c_write_word(data, REG_PS_CONF1, 0x0001);
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-		leden_gpio_onoff(data, OFF);
-#endif
+
+		proximity_vled_onoff(dev, OFF);
+		if(data->pdata->vdd_always_on == 0)
+			proximity_vdd_onoff(dev, OFF);
 	}
 
 	return snprintf(buf, PAGE_SIZE, "%u\n", ps_data);
@@ -695,12 +675,10 @@ static ssize_t cm36672p_name_show(struct device *dev,
 }
 
 
-#ifdef PROXIMITY_CANCELATION
 static DEVICE_ATTR(prox_cal, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_cancel_show, proximity_cancel_store);
 static DEVICE_ATTR(prox_offset_pass, S_IRUGO, proximity_cancel_pass_show,
 	NULL);
-#endif
 static DEVICE_ATTR(prox_avg, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_avg_show, proximity_avg_store);
 static DEVICE_ATTR(prox_trim, S_IRUSR | S_IRGRP,
@@ -711,14 +689,12 @@ static DEVICE_ATTR(thresh_low, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_thresh_low_show, proximity_thresh_low_store);
 static DEVICE_ATTR(state, S_IRUGO, proximity_state_show, NULL);
 static DEVICE_ATTR(raw_data, S_IRUGO, proximity_state_show, NULL);
-static DEVICE_ATTR(vendor, S_IRUSR | S_IRGRP, cm36672p_vendor_show, NULL);
-static DEVICE_ATTR(name, S_IRUSR | S_IRGRP, cm36672p_name_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, cm36672p_vendor_show, NULL);
+static DEVICE_ATTR(name, S_IRUGO, cm36672p_name_show, NULL);
 
 static struct device_attribute *prox_sensor_attrs[] = {
-#ifdef PROXIMITY_CANCELATION
 	&dev_attr_prox_cal,
 	&dev_attr_prox_offset_pass,
-#endif
 	&dev_attr_prox_avg,
 	&dev_attr_prox_trim,
 	&dev_attr_thresh_high,
@@ -739,27 +715,28 @@ irqreturn_t proximity_irq_thread_fn(int irq, void *user_data)
 	int enabled;
 #ifdef CM36672P_DEBUG
 	static int count;
-	pr_info("%s\n", __func__);
+	SENSOR_INFO("\n");
 #endif
 
 	enabled = atomic_read(&data->enable);
 	val = gpio_get_value(data->pdata->irq);
 	cm36672p_i2c_read_word(data, REG_PS_DATA, &ps_data);
 #ifdef CM36672P_DEBUG
-	pr_info("%s, enabled = %d, count = %d\n", __func__, enabled, count++);
+	SENSOR_INFO("enabled = %d, count = %d\n", enabled, count++);
 #endif
 
 	if (enabled) {
-		/* 0 is close, 1 is far */
-		input_report_abs(data->proximity_input_dev, ABS_DISTANCE,
-			val);
-		input_sync(data->proximity_input_dev);
+		if (((!val) && (ps_data >= ps_reg_init_setting[PS_THD_HIGH][CMD] )) ||
+			(val && (ps_data <= ps_reg_init_setting[PS_THD_LOW][CMD]))) {
+				/* 0 is close, 1 is far */
+				input_report_abs(data->proximity_input_dev, ABS_DISTANCE,
+				val);
+				input_sync(data->proximity_input_dev);
+		}
 	}
-
 	wake_lock_timeout(&data->prx_wake_lock, 3 * HZ);
 
-	pr_info("%s, val = %u, ps_data = %u (close:0, far:1)\n",
-		__func__, val, ps_data);
+	SENSOR_INFO("val = %u, ps_data = %u (close:0, far:1)\n", val, ps_data);
 
 	return IRQ_HANDLED;
 }
@@ -807,25 +784,84 @@ static enum hrtimer_restart cm36672_prox_timer_func(struct hrtimer *timer)
 	return HRTIMER_RESTART;
 }
 
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-static int setup_leden_gpio(struct cm36672p_data *data)
+static int proximity_vdd_onoff(struct device *dev, bool onoff)
 {
+	struct cm36672p_data *data = dev_get_drvdata(dev);
 	int ret;
-	struct cm36672p_platform_data *pdata = data->pdata;
 
-	ret = gpio_request(pdata->leden_gpio, "prox_en");
-	if (ret < 0)
-		pr_err("%s, gpio %d request failed (%d)\n",
-			__func__, pdata->leden_gpio, ret);
+	SENSOR_INFO("%s\n", (onoff) ? "on" : "off");
 
-	ret = gpio_direction_output(pdata->leden_gpio, 1);
-	if (ret)
-		pr_err("%s: unable to set_direction for prox_en [%d]\n",
-			__func__, pdata->leden_gpio);
+	if (!data->vdd) {
+		SENSOR_INFO("VDD get regulator\n");
+		data->vdd = devm_regulator_get(dev, "cm36672p,vdd");
+		if (IS_ERR(data->vdd)) {
+			SENSOR_ERR("cannot get vdd\n");
+			data->vdd = NULL;
+			return -ENOMEM;
+		}
 
-	return ret;
+		if(!regulator_get_voltage(data->vdd))
+			regulator_set_voltage(data->vdd, 3000000, 3300000);
+	}
+
+	if (onoff) {
+		ret = regulator_enable(data->vdd);
+		if (ret)
+			SENSOR_ERR("Failed to enable vdd.\n");
+		usleep_range(10000, 11000);
+	} else {
+		ret = regulator_disable(data->vdd);
+		if (ret)
+			SENSOR_ERR("Failed to disable vdd.\n");
+	}
+
+	SENSOR_INFO("end \n");
+	return 0;
 }
-#endif
+
+static int proximity_vled_onoff(struct device *dev, bool onoff)
+{
+	struct cm36672p_data *data = dev_get_drvdata(dev);
+	int ret;
+
+	SENSOR_INFO("%s, ldo:%d\n", (onoff) ? "on" : "off", data->pdata->vled_ldo);
+
+	// ldo -control
+	if(data->pdata->vled_ldo)
+	{
+		gpio_set_value(data->pdata->vled_ldo, onoff);
+		return 0;
+	}
+
+	// regulator - control
+	if (!data->vled) {
+		SENSOR_INFO("VLED get regulator\n");
+		data->vled = devm_regulator_get(dev, "cm36672p,vio"); /*will be deprecated. use 'vled'  */
+		if (IS_ERR(data->vled)) {
+			SENSOR_ERR("cannot get vio\n");
+			
+			data->vled = devm_regulator_get(dev, "cm36672p,vled");
+			if (IS_ERR(data->vled)) {
+				SENSOR_ERR("cannot get vled\n");
+				data->vled = NULL;
+				return -ENOMEM;
+			}
+		}
+	}
+
+	if (onoff) {
+		ret = regulator_enable(data->vled);
+		if (ret)
+			SENSOR_ERR("Failed to enable vled.\n");
+		usleep_range(10000, 11000);
+	} else {
+		ret = regulator_disable(data->vled);
+		if (ret)
+			SENSOR_ERR("Failed to disable vled.\n");
+	}
+
+	return 0;
+}
 
 static int setup_reg_cm36672p(struct cm36672p_data *data)
 {
@@ -838,8 +874,7 @@ static int setup_reg_cm36672p(struct cm36672p_data *data)
 			ps_reg_init_setting[i][REG_ADDR],
 			ps_reg_init_setting[i][CMD]);
 		if (ret < 0) {
-			pr_err("%s, cm36672_ps_reg is failed. %d\n",
-				__func__, ret);
+			SENSOR_ERR("cm36672_ps_reg is failed. %d\n", ret);
 			return ret;
 		}
 	}
@@ -850,7 +885,7 @@ static int setup_reg_cm36672p(struct cm36672p_data *data)
 	ret = cm36672p_i2c_read_word(data, REG_PS_DATA, &tmp);
 	mutex_unlock(&data->read_lock);
 	if (ret < 0) {
-		pr_err("%s, read ps_data failed\n", __func__);
+		SENSOR_ERR("read ps_data failed\n");
 		ret = -EIO;
 	}
 
@@ -869,15 +904,13 @@ static int setup_irq_cm36672p(struct cm36672p_data *data)
 
 	ret = gpio_request(pdata->irq, "gpio_proximity_out");
 	if (ret < 0) {
-		pr_err("%s, gpio %d request failed (%d)\n",
-			__func__, pdata->irq, ret);
+		SENSOR_ERR("gpio %d request failed(%d)\n", pdata->irq, ret);
 		return ret;
 	}
 
 	ret = gpio_direction_input(pdata->irq);
 	if (ret < 0) {
-		pr_err("%s, failed to set gpio %d as input (%d)\n",
-			__func__, pdata->irq, ret);
+		SENSOR_ERR("failed to set gpio %d as input(%d)\n", pdata->irq, ret);
 		gpio_free(pdata->irq);
 		return ret;
 	}
@@ -887,8 +920,8 @@ static int setup_irq_cm36672p(struct cm36672p_data *data)
 		IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
 		"proximity_int", data);
 	if (ret < 0) {
-		pr_err("%s: request_irq(%d) failed for gpio %d (%d)\n",
-			__func__, data->irq, pdata->irq, ret);
+		SENSOR_ERR("request_irq(%d) failed for gpio %d (%d)\n",
+			data->irq, pdata->irq, ret);
 		gpio_free(pdata->irq);
 		return ret;
 	}
@@ -897,106 +930,6 @@ static int setup_irq_cm36672p(struct cm36672p_data *data)
 	disable_irq(data->irq);
 
 	return ret;
-}
-
-
-static int proximity_regulator_onoff(struct device *dev, bool onoff)
-{
-#if defined(CONFIG_MACH_J1_VZW) || defined(CONFIG_MACH_E5_USA_TFN)
-	struct cm36672p_data *data = dev_get_drvdata(dev);
-#else
-	struct regulator *vdd;
-	struct regulator *vio;
-#endif
-	int ret;
-
-	pr_info("%s %s\n", __func__, (onoff) ? "on" : "off");
-
-#if defined(CONFIG_MACH_J1_VZW) || defined(CONFIG_MACH_E5_USA_TFN)
-	if (!data->vdd){
-		pr_info("%s VDD get regulator\n", __func__);
-		data->vdd = devm_regulator_get(dev, "cm36672p,vdd");
-		if (IS_ERR(data->vdd)) {
-			pr_err("%s, cannot get vdd\n", __func__);
-			return -ENOMEM;
-		}
-		regulator_set_voltage(data->vdd, 2850000, 2850000);
-	}
-#else
-	vdd = devm_regulator_get(dev, "cm36672p,vdd");
-	if (IS_ERR(vdd)) {
-		pr_err("%s, cannot get vdd\n", __func__);
-		return -ENOMEM;
-	} else if (!regulator_get_voltage(vdd)) {
-		regulator_set_voltage(vdd, 2850000, 2850000);
-	}
-#endif
-
-#ifdef CONFIG_MACH_J1_VZW
-	if (!data->vio){
-		pr_info("%s VIO get regulator\n", __func__);
-		data->vio = devm_regulator_get(dev, "cm36672p,vio");
-		if (IS_ERR(data->vio)) {
-			pr_err("%s, cannot get vio\n", __func__);
-			devm_regulator_put(data->vdd);
-			return -ENOMEM;
-		}
-		regulator_set_voltage(data->vio, 1800000, 1800000);
-	}
-#elif !defined(CONFIG_MACH_E5_USA_TFN)
-	vio = devm_regulator_get(dev, "cm36672p,vio");
-	if (IS_ERR(vio)) {
-		pr_err("%s, cannot get vio\n", __func__);
-		devm_regulator_put(vdd);
-		return -ENOMEM;
-	} else if (!regulator_get_voltage(vio)) {
-		regulator_set_voltage(vio, 1800000, 1800000);
-	}
-#endif
-
-	if (onoff) {
-#if defined(CONFIG_MACH_J1_VZW) || defined(CONFIG_MACH_E5_USA_TFN)
-		ret = regulator_enable(data->vdd);
-#else
-		ret = regulator_enable(vdd);
-#endif
-		if (ret)
-			pr_err("%s: Failed to enable vdd.\n", __func__);
-		msleep(20);
-#ifdef CONFIG_MACH_J1_VZW
-		ret = regulator_enable(data->vio);
-#elif !defined(CONFIG_MACH_E5_USA_TFN)
-		ret = regulator_enable(vio);
-#endif
-		if (ret)
-			pr_err("%s: Failed to enable vio.\n", __func__);
-		msleep(20);
-	} else {
-#if defined(CONFIG_MACH_J1_VZW) || defined(CONFIG_MACH_E5_USA_TFN)
-		ret = regulator_disable(data->vdd);
-#else
-		ret = regulator_disable(vdd);
-#endif
-		if (ret)
-			pr_err("%s: Failed to disable vdd.\n", __func__);
-		msleep(20);
-#ifdef CONFIG_MACH_J1_VZW
-		ret = regulator_disable(data->vio);
-#elif !defined(CONFIG_MACH_E5_USA_TFN)
-		ret = regulator_disable(vio);
-#endif
-		if (ret)
-			pr_err("%s: Failed to disable vio.\n", __func__);
-		msleep(20);
-	}
-
-#if !defined(CONFIG_MACH_J1_VZW) && !defined(CONFIG_MACH_E5_USA_TFN)
-	pr_info("%s VDD & VIO put\n", __func__);
-	devm_regulator_put(vdd);
-	devm_regulator_put(vio);
-	msleep(20);
-#endif
-	return 0;
 }
 
 
@@ -1010,63 +943,83 @@ static int cm36672p_parse_dt(struct device *dev,
 	int ret;
 	u32 temp;
 
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-	pdata->leden_gpio = of_get_named_gpio_flags(np, "cm36672p,leden_gpio",
-		0, &flags);
-	if (pdata->leden_gpio < 0) {
-		pr_err("%s, get prox_leden_gpio error\n", __func__);
+	if (pdata == NULL)
 		return -ENODEV;
+
+	pdata->vled_ldo = of_get_named_gpio_flags(np, "cm36672p,vled_ldo",
+		0, &flags);
+	if (pdata->vled_ldo < 0) {
+		SENSOR_ERR("fail to get vled_ldo: means to use regulator as vLED\n");
+		pdata->vled_ldo = 0;
 	}
-#endif
+	else
+		gpio_direction_output(pdata->vled_ldo, 0);
+
+	pdata->vdd_always_on = 1;
+	ret = of_property_read_u32(np, "cm36672p,vdd_always_on",
+		&pdata->vdd_always_on);
+
 
 	pdata->irq = of_get_named_gpio_flags(np, "cm36672p,irq_gpio", 0,
 		&flags);
 	if (pdata->irq < 0) {
-		pr_err("%s, get prox_int error\n", __func__);
+		SENSOR_ERR("get prox_int error\n");
 		return -ENODEV;
 	}
 
 	ret = of_property_read_u32(np, "cm36672p,default_hi_thd",
 		&pdata->default_hi_thd);
 	if (ret < 0) {
-		pr_err("%s, Cannot set default_hi_thd\n", __func__);
+		SENSOR_ERR("Cannot set default_hi_thd\n");
 		pdata->default_hi_thd = DEFAULT_HI_THD;
 	}
 
 	ret = of_property_read_u32(np, "cm36672p,default_low_thd",
 		&pdata->default_low_thd);
 	if (ret < 0) {
-		pr_err("%s, Cannot set default_low_thd\n", __func__);
+		SENSOR_ERR("Cannot set default_low_thd\n");
 		pdata->default_low_thd = DEFAULT_LOW_THD;
 	}
 
 	ret = of_property_read_u32(np, "cm36672p,cancel_hi_thd",
 		&pdata->cancel_hi_thd);
 	if (ret < 0) {
-		pr_err("%s, Cannot set cancel_hi_thd\n", __func__);
+		SENSOR_ERR("Cannot set cancel_hi_thd\n");
 		pdata->cancel_hi_thd = CANCEL_HI_THD;
 	}
 
 	ret = of_property_read_u32(np, "cm36672p,cancel_low_thd",
 		&pdata->cancel_low_thd);
 	if (ret < 0) {
-		pr_err("%s, Cannot set cancel_low_thd\n", __func__);
-		ps_reg_init_setting[PS_THD_LOW][CMD] = CANCEL_LOW_THD;
+		SENSOR_ERR("Cannot set cancel_low_thd\n");
+		pdata->cancel_low_thd = CANCEL_LOW_THD;
 	}
 
+	/* Proximity Duty ratio Register Setting */
+	ret = of_property_read_u32(np, "cm36672p,ps_duty", &temp);
+	if (ret < 0) {
+		SENSOR_ERR("Cannot set ps_duty\n");
+		ps_reg_init_setting[PS_CONF1][CMD] |= DEFAULT_CONF1;
+	} else {
+		temp = temp << 6;
+		ps_reg_init_setting[PS_CONF1][CMD] |= temp;
+	}
+
+	/* Proximity Integration Time Register Setting */
 	ret = of_property_read_u32(np, "cm36672p,ps_it", &temp);
 	if (ret < 0) {
-		pr_err("%s, Cannot set ps_it\n", __func__);
-		ps_reg_init_setting[PS_CONF1][CMD] = DEFAULT_CONF1;
+		SENSOR_ERR("Cannot set ps_it\n");
+		ps_reg_init_setting[PS_CONF1][CMD] |= DEFAULT_CONF1;
 	} else {
 		temp = temp << 1;
 		ps_reg_init_setting[PS_CONF1][CMD] |= temp;
 	}
 
+	/* Proximity LED Current Register Setting */
 	ret = of_property_read_u32(np, "cm36672p,led_current", &temp);
 	if (ret < 0) {
-		pr_err("%s, Cannot set led_current\n", __func__);
-		ps_reg_init_setting[PS_CONF3][CMD] = DEFAULT_CONF3;
+		SENSOR_ERR("Cannot set led_current\n");
+		ps_reg_init_setting[PS_CONF3][CMD] |= DEFAULT_CONF3;
 	} else {
 		temp = temp << 8;
 		ps_reg_init_setting[PS_CONF3][CMD] |= temp;
@@ -1075,12 +1028,18 @@ static int cm36672p_parse_dt(struct device *dev,
 	ret = of_property_read_u32(np, "cm36672p,default_trim",
 		&pdata->default_trim);
 	if (ret < 0) {
-		pr_err("%s, Cannot set default_trim\n", __func__);
+		SENSOR_ERR("Cannot set default_trim\n");
 		pdata->default_trim = DEFAULT_TRIM;
 	}
+
 	ps_reg_init_setting[PS_THD_LOW][CMD] = pdata->default_low_thd;
 	ps_reg_init_setting[PS_THD_HIGH][CMD] = pdata->default_hi_thd;
 	ps_reg_init_setting[PS_CANCEL][CMD] = pdata->default_trim;
+
+	SENSOR_INFO("initial CONF1 = 0x%X, CONF3 = 0x%X, vdd_alwayson_on: %d, vled_ldo: %d\n",
+		ps_reg_init_setting[PS_CONF1][CMD],
+		ps_reg_init_setting[PS_CONF3][CMD],
+		pdata->vdd_always_on, pdata->vled_ldo);
 
 	return 0;
 }
@@ -1098,38 +1057,33 @@ static int cm36672p_i2c_probe(struct i2c_client *client,
 	struct cm36672p_data *data = NULL;
 	struct cm36672p_platform_data *pdata = NULL;
 
-	pr_info("%s, Probe Start!\n", __func__);
+	SENSOR_INFO("start\n");
+
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		pr_err("%s, i2c functionality check failed!\n",
-			__func__);
+		SENSOR_ERR("i2c functionality check failed!\n");
 		return -ENODEV;
 	}
 
 	data = kzalloc(sizeof(struct cm36672p_data), GFP_KERNEL);
 	if (!data) {
-		pr_err("%s, failed to alloc memory for RGB sensor module data\n",
-			__func__);
+		SENSOR_ERR("failed to alloc memory for sensor drv data\n");
 		return -ENOMEM;
 	}
 
 	if (client->dev.of_node) {
 		pdata = devm_kzalloc(&client->dev,
-		sizeof(struct cm36672p_platform_data), GFP_KERNEL);
-		if (!pdata) {
-			dev_err(&client->dev, "Failed to allocate memory\n");
-			ret = -ENOMEM;
-			goto exit;
-		}
+			sizeof(struct cm36672p_platform_data), GFP_KERNEL);
 		ret = cm36672p_parse_dt(&client->dev, pdata);
 		if (ret)
-			goto exit;
-	} else
+			goto err_parse_dt;
+	} else {
 		pdata = client->dev.platform_data;
+	}
 
 	if (!pdata) {
-		pr_err("%s, missing pdata!\n", __func__);
+		SENSOR_ERR("missing pdata!\n");
 		ret = -ENOMEM;
-		goto exit;
+		goto err_no_pdata;
 	}
 
 	data->pdata = pdata;
@@ -1141,43 +1095,29 @@ static int cm36672p_i2c_probe(struct i2c_client *client,
 	wake_lock_init(&data->prx_wake_lock, WAKE_LOCK_SUSPEND,
 		"prx_wake_lock");
 
-	proximity_regulator_onoff(&client->dev, ON);
 
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-	/* setup led_en_gpio */
-	ret = setup_leden_gpio(data);
-	if (ret) {
-		pr_err("%s, could not setup leden_gpio\n", __func__);
-		goto err_setup_leden_gpio;
-	}
-	leden_gpio_onoff(data, ON);
-#endif
+	proximity_vdd_onoff(&client->dev, ON);
+	proximity_vled_onoff(&client->dev, ON);
 
 	/* Check if the device is there or not. */
 	ret = cm36672p_i2c_write_word(data, REG_PS_CONF1, 0x0001);
 	if (ret < 0) {
-		pr_err("%s, cm36672 is not connected.(%d)\n", __func__,
-			ret);
+		SENSOR_ERR("cm36672 is not connected(%d)\n", ret);
 		goto err_setup_dev;
 	}
 
 	/* setup initial registers */
 	ret = setup_reg_cm36672p(data);
 	if (ret < 0) {
-		pr_err("%s, could not setup regs\n", __func__);
+		SENSOR_ERR("could not setup regs\n");
 		goto err_setup_dev;
 	}
-
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-	leden_gpio_onoff(data, OFF);
-#endif
 
 	/* allocate proximity input_device */
 	data->proximity_input_dev = input_allocate_device();
 	if (!data->proximity_input_dev) {
-		pr_err("%s, could not allocate proximity input device\n",
-			__func__);
-		goto err_input_alloc_device;
+		SENSOR_ERR("could not allocate proximity input device\n");
+		goto err_setup_dev;
 	}
 
 	input_set_drvdata(data->proximity_input_dev, data);
@@ -1189,29 +1129,28 @@ static int cm36672p_i2c_probe(struct i2c_client *client,
 
 	ret = input_register_device(data->proximity_input_dev);
 	if (ret < 0) {
-		pr_err("%s, could not register input device\n",
-			__func__);
+		SENSOR_ERR("could not register input device\n");
 		goto err_input_register_device;
 	}
 
 	ret = sensors_create_symlink(&data->proximity_input_dev->dev.kobj,
 		data->proximity_input_dev->name);
 	if (ret < 0) {
-		pr_err("%s, create_symlink error\n", __func__);
+		SENSOR_ERR("create_symlink error\n");
 		goto err_sensors_create_symlink_prox;
 	}
 
 	ret = sysfs_create_group(&data->proximity_input_dev->dev.kobj,
 		&proximity_attribute_group);
 	if (ret) {
-		pr_err("%s, could not create sysfs group\n", __func__);
+		SENSOR_ERR("could not create sysfs group\n");
 		goto err_sysfs_create_group_proximity;
 	}
 
 	/* setup irq */
 	ret = setup_irq_cm36672p(data);
 	if (ret) {
-		pr_err("%s, could not setup irq\n", __func__);
+		SENSOR_ERR("could not setup irq\n");
 		goto err_setup_irq;
 	}
 
@@ -1226,8 +1165,7 @@ static int cm36672p_i2c_probe(struct i2c_client *client,
 	data->prox_wq = create_singlethread_workqueue("cm36672_prox_wq");
 	if (!data->prox_wq) {
 		ret = -ENOMEM;
-		pr_err("%s, could not create prox workqueue\n",
-			__func__);
+		SENSOR_ERR("could not create prox workqueue\n");
 		goto err_create_prox_workqueue;
 	}
 	/* this is the thread function we run on the work queue */
@@ -1235,23 +1173,21 @@ static int cm36672p_i2c_probe(struct i2c_client *client,
 
 	/* set sysfs for proximity sensor */
 	ret = sensors_register(data->proximity_dev,
-		data, prox_sensor_attrs,
-			"proximity_sensor");
+		data, prox_sensor_attrs, "proximity_sensor");
 	if (ret) {
-		pr_err("%s, cound not register proximity sensor device(%d).\n",
-			__func__, ret);
-		goto prox_sensor_register_failed;
+		SENSOR_ERR("failed to register proximity dev(%d)\n", ret);
+		goto err_prox_sensor_register;
 	}
 
-#if defined(CONFIG_MACH_J1_VZW) || defined(CONFIG_MACH_E5_USA_TFN)
-	proximity_regulator_onoff(&client->dev, OFF);
-#endif
+	proximity_vled_onoff(&client->dev, OFF);
+	if(data->pdata->vdd_always_on == 0)
+		proximity_vdd_onoff(&client->dev, OFF);
 
-	pr_info("%s is success.\n", __func__);
+	SENSOR_INFO("success\n");
 	return ret;
 
 /* error, unwind it all */
-prox_sensor_register_failed:
+err_prox_sensor_register:
 	destroy_workqueue(data->prox_wq);
 err_create_prox_workqueue:
 	free_irq(data->irq, data);
@@ -1266,93 +1202,77 @@ err_sensors_create_symlink_prox:
 	input_unregister_device(data->proximity_input_dev);
 err_input_register_device:
 	input_free_device(data->proximity_input_dev);
-err_input_alloc_device:
 err_setup_dev:
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-	leden_gpio_onoff(data, OFF);
-	gpio_free(data->pdata->leden_gpio);
-err_setup_leden_gpio:
-#endif
+	proximity_vled_onoff(&client->dev, OFF);
+	if(data->pdata->vled_ldo)
+		gpio_free(data->pdata->vled_ldo);
+	
+	proximity_vdd_onoff(&client->dev, OFF);
+
 	wake_lock_destroy(&data->prx_wake_lock);
 	mutex_destroy(&data->read_lock);
-	proximity_regulator_onoff(&client->dev, OFF);
-exit:
+err_no_pdata:
+err_parse_dt:
+	if(pdata) devm_kfree(&client->dev, pdata);
 	kfree(data);
 
-	pr_err("%s is FAILED (%d)\n", __func__, ret);
+	SENSOR_ERR("failed (%d)\n", ret);
 	return ret;
 }
 
 static int cm36672p_i2c_remove(struct i2c_client *client)
 {
-	struct cm36672p_data *data = i2c_get_clientdata(client);
+	SENSOR_INFO("\n");
+	return 0;
+}
 
-	/* free irq */
-	if (atomic_read(&data->enable)) {
+static void cm36672p_i2c_shutdown(struct i2c_client *client)
+{
+	struct cm36672p_data *data = i2c_get_clientdata(client);
+	int pre_enable;
+
+	SENSOR_INFO("\n");
+
+	pre_enable = atomic_read(&data->enable);
+	SENSOR_INFO("pre_enable = %d\n", pre_enable);
+
+	if (pre_enable == 1) {
 		disable_irq_wake(data->irq);
 		disable_irq(data->irq);
+		cm36672p_i2c_write_word(data, REG_PS_CONF1, 0x0001);
+		proximity_vled_onoff(&client->dev, 0);
 	}
-	free_irq(data->irq, data);
-	gpio_free(data->pdata->irq);
-
-	/* device off */
-	if (atomic_read(&data->enable))
-		cm36672p_i2c_write_word(data, REG_PS_CONF1,
-			0x0001);
-
-#if defined(CONFIG_MACH_J1_VZW) || defined(CONFIG_MACH_E5_USA_TFN)
-	if(data->vdd)
-	{
-		pr_info("%s VDD put\n", __func__);
-		devm_regulator_put(data->vdd);
-	}
-
-	if(data->vio)
-	{
-		pr_info("%s VIO put\n", __func__);
-		devm_regulator_put(data->vio);
-	}
-#endif
-
-	/* destroy workqueue */
-	destroy_workqueue(data->prox_wq);
-
-	/* sysfs destroy */
-	sensors_unregister(data->proximity_dev, prox_sensor_attrs);
-	sensors_remove_symlink(&data->proximity_input_dev->dev.kobj,
-		data->proximity_input_dev->name);
-
-	/* input device destroy */
-	sysfs_remove_group(&data->proximity_input_dev->dev.kobj,
-		&proximity_attribute_group);
-	input_unregister_device(data->proximity_input_dev);
-
-#if defined(CONFIG_SENSORS_LEDA_EN_GPIO)
-	leden_gpio_onoff(data, OFF);
-	gpio_free(data->pdata->leden_gpio);
-#endif
-
-	/* lock destroy */
-	mutex_destroy(&data->read_lock);
-	wake_lock_destroy(&data->prx_wake_lock);
-
-	kfree(data);
-#ifndef CONFIG_MACH_J1_VZW
-	proximity_regulator_onoff(&client->dev, OFF);
-#endif
-
-	return 0;
+	proximity_vdd_onoff(&client->dev, 0);
+	SENSOR_INFO("done\n");
 }
 
 static int cm36672p_suspend(struct device *dev)
 {
-	pr_info("%s is called.\n", __func__);
+	struct cm36672p_data *data = dev_get_drvdata(dev);
+	int enable;
+
+	SENSOR_INFO("is called.\n");
+
+	enable = atomic_read(&data->enable);
+
+	if (enable == 1) {
+		disable_irq(data->irq);
+	}
 	return 0;
 }
 
 static int cm36672p_resume(struct device *dev)
 {
-	pr_info("%s is called.\n", __func__);
+	struct cm36672p_data *data = dev_get_drvdata(dev);
+	int enable;
+
+	SENSOR_INFO("is called.\n");
+
+	enable = atomic_read(&data->enable);
+
+	if (enable == 1){
+		enable_irq(data->irq);
+	}
 	return 0;
 }
 
@@ -1364,7 +1284,6 @@ static struct of_device_id cm36672p_match_table[] = {
 #else
 #define cm36672p_match_table NULL
 #endif
-
 
 static const struct i2c_device_id cm36672p_device_id[] = {
 	{"cm36672p", 0},
@@ -1387,6 +1306,7 @@ static struct i2c_driver cm36672p_i2c_driver = {
 	},
 	.probe = cm36672p_i2c_probe,
 	.remove = cm36672p_i2c_remove,
+	.shutdown = cm36672p_i2c_shutdown,
 	.id_table = cm36672p_device_id,
 };
 

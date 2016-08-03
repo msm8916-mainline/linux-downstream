@@ -221,9 +221,10 @@ void mdss_xlog_tout_handler(const char *name, ...)
 	mdss_xlog_dump();
 
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
+	mdss_samsung_dsi_te_check();
 	mdss_samsung_dump_regs();
 
-	if (dsi0_addr)
+//	if (dsi0_addr)
 		mdss_samsung_dsi_dump_regs(0);
 
 	if (dsi1_addr)
@@ -231,9 +232,7 @@ void mdss_xlog_tout_handler(const char *name, ...)
 
 	mdss_samsung_dsi_te_check();
 
-	mdss_mdp_underrun_dump_info();
-
-	if (dead)
+	if(dead)
 		panic(name);
 #endif
 

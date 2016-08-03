@@ -259,6 +259,7 @@ config SND_SOC_MSM8X16
 	select SND_SOC_MSM_STUB
 	select SND_SOC_MSM_HOSTLESS_PCM
 	select SND_SOC_MSM8X16_WCD
+#	select SND_SOC_WSA881X
 	select SLIMBUS
 	select MFD_CORE
 	select SND_DYNAMIC_MINORS
@@ -284,15 +285,18 @@ config SND_SOC_MSM8909
 	select SND_SOC_MSM_STUB
 	select SND_SOC_MSM_HOSTLESS_PCM
 	select SND_SOC_MSM8909_WCD
+#	select SND_SOC_WSA881X
 	select SLIMBUS
 	select MFD_CORE
 	select SND_DYNAMIC_MINORS
 	select QTI_PP
 	select DTS_SRS_TM
-	select DOLBY_DAP
+#	select DOLBY_DAP
 	select MSM_QDSP6_APRV3
 	select MSM_QDSP6V2_CODECS
+	select SND_SOC_CPE
 	select SND_HWDEP
+	select DOLBY_DS2
 	help
 	 To add support for SoC audio on MSM8909.
 	 This will enable sound soc drivers which
@@ -360,16 +364,6 @@ config SAMSUNG_AUDIO
 config SND_SOC_MSM8X16_WM5102
 	tristate "SoC I2S Audio support for wm5102 on MSM8x16"
 	depends on ARCH_MSM8916
-	select SND_SOC_QDSP6V2
-	select SND_SOC_MSM_STUB
-	select SND_SOC_MSM_HOSTLESS_PCM
-	select SLIMBUS	
-	select MFD_CORE
-	select SND_DYNAMIC_MINORS
-	select DTS_SRS_TM
-	select MSM_QDSP6_APRV3
-	select MSM_QDSP6V2_CODECS
-	select SND_HWDEP
 	select SND_SOC_WM5102
 	select MFD_WM5102
 	select SND_SOC_MSM8X16_ARIZONA
@@ -379,16 +373,6 @@ config SND_SOC_MSM8X16_WM5102
 config SND_SOC_MSM8X16_FLORIDA
 	tristate "SoC I2S Audio support for Florida on MSM8x16"
 	depends on ARCH_MSM8916
-	select SND_SOC_QDSP6V2
-	select SND_SOC_MSM_STUB
-	select SND_SOC_MSM_HOSTLESS_PCM
-	select SLIMBUS	
-	select MFD_CORE
-	select SND_DYNAMIC_MINORS
-	select DTS_SRS_TM	
-	select MSM_QDSP6_APRV3
-	select MSM_QDSP6V2_CODECS
-	select SND_HWDEP
 	select SND_SOC_FLORIDA
 	select MFD_FLORIDA
 	select SND_SOC_MSM8X16_ARIZONA
@@ -398,18 +382,8 @@ config SND_SOC_MSM8X16_FLORIDA
 config SND_SOC_MSM8X16_WM1814
 	tristate "SoC I2S Audio support for WM1814 on MSM8x16"
 	depends on ARCH_MSM8916
-	select SND_SOC_QDSP6V2
-	select SND_SOC_MSM_STUB
-	select SND_SOC_MSM_HOSTLESS_PCM
-	select SLIMBUS	
-	select MFD_CORE
-	select SND_DYNAMIC_MINORS
-	select DTS_SRS_TM	
-	select MSM_QDSP6_APRV3
-	select MSM_QDSP6V2_CODECS
-	select SND_HWDEP
-	select SND_SOC_WM8998
-	select MFD_WM8998
+	select SND_SOC_VEGAS
+	select MFD_VEGAS
 	select SND_SOC_MSM8X16_ARIZONA
 	help
 		Say Y if you want to add support for SoC audio on the Pacific.
@@ -461,5 +435,11 @@ config MACH_KOR_EARJACK_WR
 	default n
 	help
 	  Say Y to enable earjack-noise workaround at charging
+
+config JACK_AUDIO
+	bool "Low Latency mode for JAM"
+	default n
+	help
+	  Say Y to add new DAI for JAM
 
 endmenu
