@@ -28,9 +28,6 @@
 #include <linux/input-polldev.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of.h>
-/*  [FEATURE]-Add-BEGIN by TCTSZ fangyou.wang, 2014/4/15,CR-65173 gsensor driver add */
-#include <linux/of_gpio.h>
-/*  [FEATURE]-Add-END by TCTSZ fangyou.wang */
 
 #define ACCEL_INPUT_DEV_NAME	"accelerometer"
 #define DEVICE_NAME		"kxtj9"
@@ -75,32 +72,6 @@
 #define KXTJ9_VDD_MAX_UV	3300000
 #define KXTJ9_VIO_MIN_UV	1750000
 #define KXTJ9_VIO_MAX_UV	1950000
-
-/*  [FEATURE]-Add-BEGIN by TCTSZ fangyou.wang, 2014/4/15,CR-65173 gsensor driver add */
-/******************************************************************************
-
- * Accelerometer WHO_AM_I return value
-
- *****************************************************************************/
-
-#define KIONIX_ACCEL_WHO_AM_I_KXTE9 		0x00
-
-#define KIONIX_ACCEL_WHO_AM_I_KXTF9 		0x01
-
-#define KIONIX_ACCEL_WHO_AM_I_KXTI9_1001 	0x04
-
-#define KIONIX_ACCEL_WHO_AM_I_KXTIK_1004 	0x05
-
-#define KIONIX_ACCEL_WHO_AM_I_KXTJ9_1005 	0x07
-
-#define KIONIX_ACCEL_WHO_AM_I_KXTJ9_1007 	0x08
-
-#define KIONIX_ACCEL_WHO_AM_I_KXCJ9_1008 	0x0A
-
-#define KIONIX_ACCEL_WHO_AM_I_KXTJ2_1009 	0x09
-
-#define KIONIX_ACCEL_WHO_AM_I_KXCJK_1013 	0x11
-/*  [FEATURE]-Add-END by TCTSZ fangyou.wang */
 
 /*
  * The following table lists the maximum appropriate poll interval for each
@@ -751,44 +722,8 @@ static int kxtj9_verify(struct kxtj9_data *tj9)
 		goto out;
 	}
 
-/*  [FEATURE]-Add-BEGIN by TCTSZ fangyou.wang, 2014/4/15,CR-65173 gsensor driver add */
-//	retval = (retval != 0x05 && retval != 0x07 && retval != 0x08)
-//			? -EIO : 0;
-
-	switch (retval) {
-		case KIONIX_ACCEL_WHO_AM_I_KXTE9:
-			printk("this accelerometer is a KXTE9.\n");
-			break;
-		case KIONIX_ACCEL_WHO_AM_I_KXTF9:
-			printk("this accelerometer is a KXTF9.\n");
-			break;
-		case KIONIX_ACCEL_WHO_AM_I_KXTI9_1001:
-			printk("this accelerometer is a KXTI9-1001.\n");
-			break;
-		case KIONIX_ACCEL_WHO_AM_I_KXTIK_1004:
-			printk("this accelerometer is a KXTIK-1004.\n");
-			break;
-		case KIONIX_ACCEL_WHO_AM_I_KXTJ9_1005:
-			printk("this accelerometer is a KXTJ9-1005.\n");
-			break;
-		case KIONIX_ACCEL_WHO_AM_I_KXTJ9_1007:
-			printk("this accelerometer is a KXTJ9-1007.\n");
-			break;
-		case KIONIX_ACCEL_WHO_AM_I_KXCJ9_1008:
-			printk("this accelerometer is a KXCJ9-1008.\n");
-			break;
-
-		case KIONIX_ACCEL_WHO_AM_I_KXTJ2_1009:
-			printk("<2>""this accelerometer is a KXTJ2-1009.\n");
-			break;
-		case KIONIX_ACCEL_WHO_AM_I_KXCJK_1013:
-			printk("this accelerometer is a KXCJK-1013.\n");
-			break;
-		default:
-			return -EIO;
-	}
-	return 0;
-/*  [FEATURE]-Add-END by TCTSZ fangyou.wang */
+	retval = (retval != 0x05 && retval != 0x07 && retval != 0x08)
+			? -EIO : 0;
 
 out:
 	return retval;
@@ -872,9 +807,7 @@ static int kxtj9_parse_dt(struct device *dev,
 		kxtj9_pdata->res_ctl = RES_12BIT;
 	else
 		kxtj9_pdata->res_ctl = RES_8BIT;
-/*  [FEATURE]-Add-BEGIN by TCTSZ fangyou.wang, 2014/4/15,CR-65173 gsensor driver add */
-	kxtj9_pdata->irq_gpio = of_get_named_gpio_flags(np, "interrupt-gpios",0, &kxtj9_pdata->irq_gpio_flags);
-/*  [FEATURE]-Add-END by TCTSZ fangyou.wang, 2014/4/15,CR-65173*/
+
 	return 0;
 }
 #else
@@ -884,36 +817,6 @@ static int kxtj9_parse_dt(struct device *dev,
 	return -ENODEV;
 }
 #endif /* !CONFIG_OF */
-
-/*  [FEATURE]-Add-BEGIN by TCTSZ fangyou.wang, 2014/4/15,CR-65173 gsensor driver add */
-static int kxtj_irq_pin_config(struct kxtj9_data *tj9)
-{
-	int err=-1;
-	struct i2c_client *client=tj9->client;
-	if (gpio_is_valid(tj9->pdata.irq_gpio)) {
-		err = gpio_request(tj9->pdata.irq_gpio, "kxtj9_irq");
-		if (err) {
-			dev_err(&client->dev, "Unable to request irq gpio [%d]\n",
-				tj9->pdata.irq_gpio);
-			return err;
-		}
-		err = gpio_direction_input(tj9->pdata.irq_gpio);
-		if (err) {
-			dev_err(&client->dev, "Unable to set direction for irq gpio [%d]\n",
-				tj9->pdata.irq_gpio);
-			gpio_free(tj9->pdata.irq_gpio);
-			return err;
-		}
-	} else {
-		dev_err(&client->dev, "Invalid irq gpio [%d]!\n",
-			tj9->pdata.irq_gpio);
-		err = -EINVAL;
-		return err;
-	}
-
-	return err;
-}
-/*  [FEATURE]-Add-END by TCTSZ fangyou.wang, 2014/4/15,CR-65173 */
 
 static int kxtj9_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
@@ -990,20 +893,13 @@ static int kxtj9_probe(struct i2c_client *client,
 	tj9->cdev.delay_msec = tj9->pdata.init_interval;
 	tj9->cdev.sensors_enable = kxtj9_enable_set;
 	tj9->cdev.sensors_poll_delay = kxtj9_poll_delay_set;
-	err = sensors_classdev_register(&client->dev, &tj9->cdev);
+	err = sensors_classdev_register(&tj9->input_dev->dev, &tj9->cdev);
 	if (err) {
 		dev_err(&client->dev, "class device create failed: %d\n", err);
 		goto err_power_off;
 	}
 
 	if (client->irq) {
-/*  [FEATURE]-Add-BEGIN by TCTSZ fangyou.wang, 2014/4/15,CR-65173 gsensor driver add */
-		err=kxtj_irq_pin_config(tj9);
-		if (err) {
-			dev_err(&client->dev, "set gpio to irq failed: %d\n", err);
-			goto err_power_off;
-		}
-/*  [FEATURE]-Add-END by TCTSZ fangyou.wang, 2014/4/15,CR-65173 */
 		/* If in irq mode, populate INT_CTRL_REG1 and enable DRDY. */
 		tj9->int_ctrl |= KXTJ9_IEN | KXTJ9_IEA | KXTJ9_IEL;
 		tj9->ctrl_reg1 |= DRDYE;

@@ -77,8 +77,6 @@
 
 #define NAME_BUFFER_SIZE 256
 
-#define HAVE_HALL
-
 #define PINCTRL_STATE_ACTIVE	"pmx_ts_active"
 #define PINCTRL_STATE_SUSPEND	"pmx_ts_suspend"
 #define PINCTRL_STATE_RELEASE	"pmx_ts_release"

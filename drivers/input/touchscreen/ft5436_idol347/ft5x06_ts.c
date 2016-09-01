@@ -29,6 +29,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/firmware.h>
 #include <linux/debugfs.h>
+#include <linux/wakelock.h>
 #include "ft5x06_ts.h"
 
 #if XINAN_5436_TEST//xinan01
@@ -73,6 +74,9 @@
 /* [PLATFORM]-Mod-END by TCTNB.ZXZ */
 //[FEATURE] Add by TCT-NB tianhongwei end
 #define FT_DRIVER_VERSION	0x02
+
+#define TRULY 0x79
+#define CHAOSHENG 0x57
 
 #define FT_META_REGS		3
 #define FT_ONE_TCH_LEN		6
@@ -308,6 +312,7 @@ u8 cover_on;
 
 };
 bool is_ft5x06 = false;//furong add
+struct wake_lock ft5436_wakelock;
 
 static int ft5x06_i2c_read(struct i2c_client *client, char *writebuf,
 			   int writelen, char *readbuf, int readlen);
@@ -323,7 +328,7 @@ static struct workqueue_struct *ft5x06_wq_cover;
 static struct workqueue_struct *ft5x06_wq;
 static struct ft5x06_ts_data *g_ft5x06_ts_data;
 static bool init_ok=false;
-
+static int wake_up_enable_counter = 0;
 #if defined(FOCALTECH_TP_GESTURE)
 
 /* [PLATFORM]-Mod-BEGIN by TCTNB.YQJ, FR797197, 2014/11/28 modify for 5x36 tp register of gesture  */
@@ -333,6 +338,7 @@ static bool init_ok=false;
 #define  GESTURE_DB 0x24
 #define  GESTURE_C 0x18
 /* [PLATFORM]-Mod-END by TCTNB.YQJ */
+static int ft_tp_suspend(struct ft5x06_ts_data *data);
 
 static struct class * tp_gesture_class;
 static struct device * tp_gesture_dev;
@@ -702,6 +708,11 @@ static void tp_prox_sensor_enable(struct i2c_client *client, int enable)
 	}
 	ft5x0x_read_reg(client, 0xB0, &state);
 	printk(" proximity function status[0x%x]\n",state);
+	if((!enable) && (g_ft5x06_ts_data->suspended)&&(g_ft5x06_ts_data->gesture_id > 0))
+	{
+		printk("double click function enable again \n");
+		ft_tp_suspend(g_ft5x06_ts_data);
+	}
 
 	return;
 }
@@ -749,6 +760,12 @@ ssize_t ft_virtual_proximity_enable_store(struct device *pDevice, struct device_
 	{
 		sscanf(pBuf, "%d", &enable);
 		vps_set_enable(enable);
+		if(g_ft5x06_ts_data->gesture_id == 0){
+			if(enable)
+				device_init_wakeup(&g_ft5x06_ts_data->client->dev, 1);
+			else
+				device_init_wakeup(&g_ft5x06_ts_data->client->dev, 0);
+		}
 	}
 	return nSize;
 }
@@ -992,6 +1009,7 @@ static void ft5x06_update_fw_vendor_id(struct ft5x06_ts_data *data)
 	err = ft5x06_i2c_read(client, &reg_addr, 1, &data->fw_vendor_id, 1);
 	if (err < 0)
 		dev_err(&client->dev, "fw vendor id read failed");
+	printk("[Fu]fw_vendor_id=0x%x\n", data->fw_vendor_id);
 }
 
 //[FEATURE] Add by TCT-NB tianhongwei 09/06/2014 PR.683447 tp rawdata test(driver sild).
@@ -1101,12 +1119,14 @@ static int ft_tp_interrupt(struct ft5x06_ts_data *data)
 				input_sync(data->input_dev);
 				input_report_key(data->input_dev, KEY_UNLOCK, 0);
 				input_sync(data->input_dev);
+				printk("[Fu]gesture KEY_UNLOCK\n");				
 			} else
 			if ( 0x02 == data->gesture_id) {
 				input_report_key(data->input_dev, KEY_POWER, 1);
 				input_sync(data->input_dev);
 				input_report_key(data->input_dev, KEY_POWER, 0);
 				input_sync(data->input_dev);
+				printk("[Fu]gesture KEY_POWER\n");
 			}
 		} else {
 			printk("gesture_id, reg_value=0x%x \n", reg_value);
@@ -1161,14 +1181,20 @@ static irqreturn_t ft5x06_ts_interrupt(int irq, void *dev_id)
 		{
 			input_report_abs(vps_ft5436->proximity_dev, ABS_DISTANCE, 0);
 			input_sync(vps_ft5436->proximity_dev);
+			printk("[Fu]close\n");
 		}
 		else if(proximity_status == 0xE0)
 		{
+			wake_lock_timeout(&ft5436_wakelock, 1*HZ);
 			input_report_abs(vps_ft5436->proximity_dev, ABS_DISTANCE, 1);
 			input_sync(vps_ft5436->proximity_dev);
+			printk("[Fu]leave\n");
 		}
 	}
 #endif
+
+	//if (vps_ft5436->proximity_function && data->suspended == true) //furong.add pr1020712, 2015,08.11
+	//	return IRQ_HANDLED;
 	rc = ft5x06_i2c_read(data->client, &reg, 1,
 			buf, data->tch_data_len);
 	if (rc < 0) {
@@ -1432,9 +1458,10 @@ static int ft_tp_suspend(struct ft5x06_ts_data *data)
 		data->gesture_set = 0x01;
 #endif
 
-		if (device_may_wakeup(&data->client->dev))
+		if (device_may_wakeup(&data->client->dev)&& (wake_up_enable_counter == 0))
 		{
 			err=enable_irq_wake(data->client->irq);
+			wake_up_enable_counter ++;
 		}
 		data->suspended = true;
 		return err ;
@@ -1453,9 +1480,10 @@ static int ft_tp_resume(struct ft5x06_ts_data *data)
 		ft5x06_i2c_write(data->client, txbuf, sizeof(txbuf));
 		data->gesture_set = 0x00;//clean flag
 
-		if (device_may_wakeup(&data->client->dev))
+		if (device_may_wakeup(&data->client->dev) && (wake_up_enable_counter > 0))
 		{
 			disable_irq_wake(data->client->irq);
+			wake_up_enable_counter --;
 		}
 		data->suspended = false;
 		msleep(100);
@@ -1482,9 +1510,15 @@ static int ft5x06_ts_suspend(struct device *dev)
 		dev_info(dev, "Already in suspend state\n");
 		return 0;
 	}
+	//data->suspended = true;
 #ifdef CONFIG_TOUCHPANEL_PROXIMITY_SENSOR
-	if(vps_ft5436->proximity_function)
+	if(vps_ft5436->proximity_function) {
+		if ((wake_up_enable_counter == 0)&&(device_may_wakeup(&data->client->dev))) {
+			enable_irq_wake(data->client->irq);
+			wake_up_enable_counter ++;
+		}
 		return 0;
+	}
 #endif
 	disable_irq(data->client->irq);
 
@@ -1543,20 +1577,30 @@ static int ft5x06_ts_resume(struct device *dev)
 	struct ft5x06_ts_data *data = g_ft5x06_ts_data;//dev_get_drvdata(dev);
 	int err;
 	u8 w_buf[FT_MAX_WR_BUF] = {0};
+
+	if (device_may_wakeup(&data->client->dev)&& (wake_up_enable_counter > 0))
+	{
+		disable_irq_wake(data->client->irq);
+		wake_up_enable_counter --;
+	}
 	if (!data->suspended) {
 		dev_dbg(dev, "Already in awake state\n");
 		return 0;
 	}
+	//data->suspended = false;
+	input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, 0);//furong add 2015.03.23
+	input_sync(data->input_dev);//furong add
 
 #if defined(FOCALTECH_TP_GESTURE)
 	if ( data->gesture_id > 0) {
 		ft_tp_resume(data);
 //wxc [begin] add reset during gesture_awake 12/22/2015
-#if 0
+#if 1//0
 	if (gpio_is_valid(data->pdata->reset_gpio)) {
 		gpio_set_value_cansleep(data->pdata->reset_gpio, 0);
 		msleep(data->pdata->hard_rst_dly);
 		gpio_set_value_cansleep(data->pdata->reset_gpio, 1);
+		msleep(data->pdata->soft_rst_dly);
 	}
 #endif	
 //wxc [end] add reset during gesture_awake 12/22/2015
@@ -1564,8 +1608,9 @@ static int ft5x06_ts_resume(struct device *dev)
 		queue_work(ft5x06_wq, &data->work);
 #endif
 
-		input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, 0);//furong add 2015.03.23
-		input_sync(data->input_dev);//furong add
+
+input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, 0);//furong add 2015.03.23
+input_sync(data->input_dev);//furong add
 
 		return 0;
 	}
@@ -1584,20 +1629,20 @@ static int ft5x06_ts_resume(struct device *dev)
 			return err;
 		}
 	}
-
+#if 1
 	if (gpio_is_valid(data->pdata->reset_gpio)) {
 		gpio_set_value_cansleep(data->pdata->reset_gpio, 0);
 		msleep(data->pdata->hard_rst_dly);
 		gpio_set_value_cansleep(data->pdata->reset_gpio, 1);
 	}
-
+#endif
 	msleep(data->pdata->soft_rst_dly);
 	w_buf[0] = FT_REG_RESET_FW;
 	ft5x06_i2c_write(data->client, w_buf, 1);
 
 	enable_irq(data->client->irq);
-
 	data->suspended = false;
+
 #if defined(USB_CHARGE_DETECT)
 	queue_work(ft5x06_wq, &data->work);
 #endif
@@ -2024,6 +2069,18 @@ static int ft5x06_fw_upgrade_arbitrate(struct i2c_client *client)
 }
 #endif
 
+static unsigned int booting_into_recovery = 0;
+static int __init get_boot_mode(char *str)
+{
+       if (strcmp("boot_with_recovery", str) == 0) {
+               booting_into_recovery = 1;
+       }
+
+       printk("zakk: booting_into_recovery=%d\n", booting_into_recovery);
+       return 0;
+}
+__setup("androidboot.boot_reason=", get_boot_mode);
+
 static int ft5x06_fw_upgrade(struct device *dev, bool force)
 {
 	struct ft5x06_ts_data *data = dev_get_drvdata(dev);
@@ -2045,9 +2102,27 @@ static int ft5x06_fw_upgrade(struct device *dev, bool force)
 	}
 #endif
 
-	rc = request_firmware(&fw, data->fw_name, dev);
+	ft5x06_update_fw_vendor_id(data);
+
+	printk("[Fu]%s, booting_into_recovery=%d\n", __func__, booting_into_recovery);
+
+	if(!booting_into_recovery) {
+		if (data->fw_vendor_id == TRULY) {
+			rc = request_firmware(&fw, data->fw_name, dev);
+		} else if (data->fw_vendor_id == CHAOSHENG) {
+			strcpy(data->fw_name, "chaosheng_fw.bin");
+			rc = request_firmware(&fw, data->fw_name, dev);//furong modify, 2015.07.01, for ChaoSheng ft5436, pr1030423
+		} else {
+			printk("[Fu]unknown fw_vendor_id error");
+			rc = -1;
+		} 
+	} else {
+		//recovery mode, don't upgrade. 2015.09.23. furong
+		return rc;
+	} 
+
 	if (rc < 0) {
-		dev_err(dev, "Request firmware failed - %s (%d)\n",
+		dev_err(dev, "[Fu]Request firmware failed - %s (%d)\n",
 						data->fw_name, rc);
 		return rc;
 	}
@@ -2068,9 +2143,9 @@ static int ft5x06_fw_upgrade(struct device *dev, bool force)
 	fw_file_min = FT_FW_FILE_MIN_VER(fw);
 	fw_file_sub_min = FT_FW_FILE_SUB_MIN_VER(fw);
 
-	dev_info(dev, "Current firmware: %d.%d.%d", data->fw_ver[0],
+	printk("[Fu]Current firmware: %d.%d.%d", data->fw_ver[0],
 				data->fw_ver[1], data->fw_ver[2]);
-	dev_info(dev, "New firmware: %d.%d.%d", fw_file_maj,
+	printk("[Fu]New firmware: %d.%d.%d", fw_file_maj,
 				fw_file_min, fw_file_sub_min);
 
 	if (force)
@@ -3477,6 +3552,7 @@ INIT_WORK(&data->work_cover, ft5x06_change_leather_cover_switch);
 	}
 
 	data->family_id = pdata->family_id;
+	wake_up_enable_counter = 0;
 
 	vps_ft5436 = kzalloc(sizeof(struct virtualpsensor), GFP_KERNEL);
 	if (!vps_ft5436) {
@@ -3651,8 +3727,10 @@ g_ft5x06_ts_data = data;
 //[FEATURE] Add by TCT-NB tianhongwei end
 	w_buf[0] = FT_REG_RESET_FW;
 	ft5x06_i2c_write(client, w_buf, 1);
-init_ok=true;
-printk("~~~~~ ft5x06_ts_probe end\n");
+	init_ok=true;
+	wake_lock_init(&ft5436_wakelock,WAKE_LOCK_SUSPEND, "ft5436");
+
+	printk("~~~~~ ft5x06_ts_probe end\n");
 	return 0;
 
 free_debug_dir:
@@ -3745,6 +3823,7 @@ static int ft5x06_ts_remove(struct i2c_client *client)
 #endif
 //[FEATURE] Add by TCT-NB tianhongwei end
 	input_unregister_device(data->input_dev);
+	wake_lock_destroy(&ft5436_wakelock);
 
 	return 0;
 }

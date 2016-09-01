@@ -488,6 +488,11 @@ static void kionix_accel_grp1_report_accel_data(struct kionix_accel_driver
 	struct input_dev *input_dev = acceld->input_dev;
 	int loop = KIONIX_I2C_RETRY_COUNT;
 
+	//add by huangshenglin@hoperun,2016/1/4, task-1252678 ,sync event->time with hal.+++
+	ktime_t timestamp;
+	timestamp = ktime_get_boottime();
+	//add by huangshenglin@hoperun,2016/1/4 sync event->time with hal.--
+
 	if (atomic_read(&acceld->accel_enabled) > 0) {
 		if (atomic_read(&acceld->accel_enable_resume) > 0) {
 			while (loop) {
@@ -550,6 +555,10 @@ static void kionix_accel_grp1_report_accel_data(struct kionix_accel_driver
 							 ABS_Z,
 							 acceld->accel_data
 							 [acceld->axis_map_z]);
+					//add by huangshenglin@hoperun,2016/1/4, task-1252678 ,sync event->time with hal.+++
+					input_event(acceld->input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+					input_event(acceld->input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
+					//add by huangshenglin@hoperun,2016/1/4 sync event->time with hal.--
 					input_sync(acceld->input_dev);
 				}
 
@@ -955,6 +964,10 @@ static void kionix_accel_grp4_report_accel_data(struct kionix_accel_driver
 	struct input_dev *input_dev = acceld->input_dev;
 	int loop;
 
+        //add by wanghanhua@hoperun,2016/01/19, task-1400637 ,sync event->time with hal.
+        ktime_t timestamp;
+        timestamp = ktime_get_boottime();
+        //add by wanghanhua@hoperun,2016/01/19 sync event->time with hal.
 	/* Only read the output registers if enabled */
 	if (atomic_read(&acceld->accel_enabled) > 0) {
 		if (atomic_read(&acceld->accel_enable_resume) > 0) {
@@ -1019,6 +1032,10 @@ static void kionix_accel_grp4_report_accel_data(struct kionix_accel_driver
 							 ABS_Z,
 							 acceld->accel_data
 							 [acceld->axis_map_z]);
+                                        //add by wanghanhua@hoperun,2016/1/19, task-1400637,sync event->time with hal.
+                                        input_event(acceld->input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+                                        input_event(acceld->input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
+                                        //add by wanghanhua@hoperun,2016/01/19 sync event->time with hal
 					input_sync(acceld->input_dev);
 				}
 				write_unlock(&acceld->rwlock_accel_data);

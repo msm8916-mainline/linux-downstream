@@ -2421,7 +2421,13 @@ static void *module_alloc_update_bounds(unsigned long size)
 	return ret;
 }
 
-#ifdef CONFIG_DEBUG_KMEMLEAK
+#if defined(CONFIG_DEBUG_KMEMLEAK) && defined(CONFIG_DEBUG_MODULE_SCAN_OFF)
+static void kmemleak_load_module(const struct module *mod,
+				 const struct load_info *info)
+{
+	kmemleak_no_scan(mod->module_core);
+}
+#elif defined(CONFIG_DEBUG_KMEMLEAK)
 static void kmemleak_load_module(const struct module *mod,
 				 const struct load_info *info)
 {
@@ -3205,28 +3211,14 @@ static int load_module(struct load_info *info, const char __user *uargs,
 
 	err = module_sig_check(info);
 	if (err)
-		goto skip_wlan_sig_check;
+		goto free_copy;
 
 	err = elf_header_check(info);
 	if (err)
 		goto free_copy;
-skip_wlan_sig_check:
+
 	/* Figure out module layout, and allocate all the memory. */
 	mod = layout_and_allocate(info, flags);
-	if(err)
-	  {
-	     if(strncmp(mod->name, "wlan", strlen("wlan")) != 0)
-		 {
-		       printk(KERN_ERR "init_module: failed module verification of %s.\n: ",mod->name);
-               goto free_copy;
-		 }
-	     else
-	       {
-            info->sig_ok =	true;
-			printk(KERN_ERR "init_module: skip module verification of %s.\n: ",mod->name);
-        }
-	  }
-
 	if (IS_ERR(mod)) {
 		err = PTR_ERR(mod);
 		goto free_copy;
@@ -3358,7 +3350,7 @@ SYSCALL_DEFINE3(init_module, void __user *, umod,
 	if (err)
 		return err;
 
-	pr_warn("init_module: umod=%p, len=%lu, uargs=%p\n",
+	pr_debug("init_module: umod=%p, len=%lu, uargs=%p\n",
 	       umod, len, uargs);
 
 	err = copy_module_from_user(umod, len, &info);

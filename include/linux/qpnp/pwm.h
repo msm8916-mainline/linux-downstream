@@ -152,12 +152,6 @@ int pwm_lut_config(struct pwm_device *pwm, int period_us,
 int pwm_config_us(struct pwm_device *pwm,
 		int duty_us, int period_us);
 
-#ifdef CONFIG_TCT_8X16_POP10
-//[PLATFORM]-Add-BEGIN by TCTSZ.jing.huang, 2014/08/19, use nanosecond to increase accuracy
-int pwm_config_ns(struct pwm_device *pwm, int duty_ns, int period_ns);
-//[PLATFORM]-Add-END by TCTSZ.jing.huang, 2014/08/19
-#endif
-
 /* Standard APIs supported */
 /*
  * pwm_request - request a PWM device

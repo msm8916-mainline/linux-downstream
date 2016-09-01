@@ -14,7 +14,6 @@ endif
 targets += dtbs
 targets += $(addprefix ../, $(DTB_LIST))
 endif
-
 $(obj)/../%.dtb: $(src)/%.dts FORCE
 	$(call if_changed_dep,dtc)
 

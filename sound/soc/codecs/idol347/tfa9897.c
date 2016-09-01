@@ -37,9 +37,12 @@ static int g_tfa9897_cnt = 0;
     printk("%s(%d)\n", __func__, __LINE__)
 #else
 #define b_codec_dbg(format, arg...) do {} while (0)
-#define b_codec_err(format, arg...) do {} while (0)
 #define b_codec_info(format, arg...) do {} while (0)
 #define b_codec_warn(format, arg...) do {} while (0)
+#define b_codec_trace(format, arg...) do {} while (0)
+
+#define b_codec_err(format, arg...) \
+    printk(KERN_ERR AUDIO_NAME ": " format, ## arg)
 #endif
 
 
@@ -93,7 +96,7 @@ static int hex2dec(u8 ch)
 static int raw_i2c_read(struct i2c_client *client, char *buf, int count)
 {
     if (count != i2c_master_recv(client, buf, count)){
-        b_codec_dbg("i2c_master_recv error\n");
+        b_codec_err("i2c_master_recv error\n");
         return -1;
     }
 
@@ -103,7 +106,7 @@ static int raw_i2c_read(struct i2c_client *client, char *buf, int count)
 static int raw_i2c_write(struct i2c_client *client, char *buf, int count)
 {
     if(count != i2c_master_send(client, buf, count)){
-        b_codec_dbg("i2c_master_send error\n");
+        b_codec_err("i2c_master_send error\n");
         return -1;
     }
 
@@ -123,17 +126,17 @@ static int tfa9897_read(struct i2c_client *client, int reg)
 
     rc = raw_i2c_write(client, (char *)(&reg), 1);
     if (rc) {
-        b_codec_dbg("tfa9897_read w 0x%02x\n", reg);
+        b_codec_err("tfa9897_read w 0x%02x\n", reg);
         return -1;
     }
 
     rc = raw_i2c_read(client, (char *)(&tmp_data), 2);
     if (rc) {
-        b_codec_dbg("tfa9897_read r 0x%02x\n", reg);
+        b_codec_err("tfa9897_read r 0x%02x\n", reg);
         return -1;
     }
-    reg_data = be16_to_cpu(tmp_data);
 
+    reg_data = be16_to_cpu(tmp_data);
     b_codec_dbg("tmp_data=0x%04x, reg_data=0x%04x\n", tmp_data, reg_data);
 
     return reg_data;
@@ -161,7 +164,7 @@ static int tfa9897_write_word(struct i2c_client *client, int reg, int data)
 
     rc = raw_i2c_write(client, (char *)buf, 3);
     if (rc < 0) {
-        b_codec_dbg("%s chip addr=0x%02x err = %d\n", __func__, client->addr, rc);
+        b_codec_err("%s chip addr=0x%02x err = %d\n", __func__, client->addr, rc);
     }
 
     return 0;
@@ -235,10 +238,9 @@ void tfa9897_switch(struct tfa9897_sys_data_s  *tfa9897_sys, int lr, int onoff)
     u32 pin;
     int ret = 0;
 
-    b_codec_trace();
     ret = pinctrl_select_state(tfa9897_sys->pinctrl, tfa9897_sys->pinctrl_state_active);
     if (ret) {
-        b_codec_trace();
+        b_codec_err("select tfa9897_sys->pinctrl active error\n");
     }
 
     if (lr == SPK_REV_TOP_SWITCH)
@@ -277,7 +279,7 @@ static int tfa9897_pinctrl_init(struct tfa9897_sys_data_s *sys_data)
 	sys_data->pinctrl = devm_pinctrl_get(&(sys_data->client1->dev));
 	if (IS_ERR_OR_NULL(sys_data->pinctrl)) {
 		ret = PTR_ERR(sys_data->pinctrl);
-        b_codec_trace();
+        b_codec_err("devm_pinctrl_get failed\n");
 		goto err_pinctrl_get;
 	}
 
@@ -285,26 +287,26 @@ static int tfa9897_pinctrl_init(struct tfa9897_sys_data_s *sys_data)
 		sys_data->pinctrl_state_active = pinctrl_lookup_state(sys_data->pinctrl, "nxp9897_spk_rcv2_switch_active");
 		if (IS_ERR_OR_NULL(sys_data->pinctrl_state_active)) {
 			ret = PTR_ERR(sys_data->pinctrl_state_active);
-			b_codec_trace();
+			b_codec_err("get nxp9897_spk_rcv2_switch_active failed\n");
 			goto err_pinctrl_lookup;
 		}
 
 		sys_data->pinctrl_state_suspend = pinctrl_lookup_state(sys_data->pinctrl, "nxp9897_spk_rcv2_switch_suspend");
 		if (IS_ERR_OR_NULL(sys_data->pinctrl_state_suspend)) {
 			ret = PTR_ERR(sys_data->pinctrl_state_suspend);
-			b_codec_trace();
+            b_codec_err("get nxp9897_spk_rcv2_switch_suspend failed\n");
 			goto err_pinctrl_lookup;
 		}
 		sys_data->spk_box_id_active = pinctrl_lookup_state(sys_data->pinctrl, "nxp9897_spk_box_id2_active");
 		if (IS_ERR_OR_NULL(sys_data->spk_box_id_active)) {
 			ret = PTR_ERR(sys_data->spk_box_id_active);
-			b_codec_trace();
+            b_codec_err("get nxp9897_spk_box_id2_active failed\n");
 			goto err_pinctrl_lookup;
 		}
 		sys_data->spk_box_id_suspend = pinctrl_lookup_state(sys_data->pinctrl, "nxp9897_spk_box_id2_suspend");
 		if (IS_ERR_OR_NULL(sys_data->spk_box_id_suspend)) {
 			ret = PTR_ERR(sys_data->spk_box_id_suspend);
-			b_codec_trace();
+            b_codec_err("get nxp9897_spk_box_id2_suspend failed\n");
 			goto err_pinctrl_lookup;
 		}
 	}
@@ -312,39 +314,39 @@ static int tfa9897_pinctrl_init(struct tfa9897_sys_data_s *sys_data)
 		sys_data->pinctrl_state_active = pinctrl_lookup_state(sys_data->pinctrl, "nxp9897_spk_rcv_switch_active");
 		if (IS_ERR_OR_NULL(sys_data->pinctrl_state_active)) {
 			ret = PTR_ERR(sys_data->pinctrl_state_active);
-			b_codec_trace();
+            b_codec_err("get nxp9897_spk_rcv_switch_active failed\n");
 			goto err_pinctrl_lookup;
 		}
 
 		sys_data->pinctrl_state_suspend = pinctrl_lookup_state(sys_data->pinctrl, "nxp9897_spk_rcv_switch_suspend");
 		if (IS_ERR_OR_NULL(sys_data->pinctrl_state_suspend)) {
 			ret = PTR_ERR(sys_data->pinctrl_state_suspend);
-			b_codec_trace();
+            b_codec_err("get nxp9897_spk_rcv_switch_suspend failed\n");
 			goto err_pinctrl_lookup;
 		}
 		sys_data->spk_box_id_active = pinctrl_lookup_state(sys_data->pinctrl, "nxp9897_spk_box_id_active");
 		if (IS_ERR_OR_NULL(sys_data->spk_box_id_active)) {
 			ret = PTR_ERR(sys_data->spk_box_id_active);
-			b_codec_trace();
+            b_codec_err("get nxp9897_spk_box_id_active failed\n");
 			goto err_pinctrl_lookup;
 		}
 		sys_data->spk_box_id_suspend = pinctrl_lookup_state(sys_data->pinctrl, "nxp9897_spk_box_id_suspend");
 		if (IS_ERR_OR_NULL(sys_data->spk_box_id_suspend)) {
 			ret = PTR_ERR(sys_data->spk_box_id_suspend);
-			b_codec_trace();
+            b_codec_err("get nxp9897_spk_box_id_suspend failed\n");
 			goto err_pinctrl_lookup;
 		}
 	}
 
 	ret = pinctrl_select_state(sys_data->pinctrl, sys_data->pinctrl_state_active);
 	if (ret) {
-        b_codec_trace();
+        b_codec_err("select sys_data->pinctrl_state_active failed\n");
 		return ret;
 	}
 
 	ret = pinctrl_select_state(sys_data->pinctrl, sys_data->spk_box_id_active);
 	if (ret) {
-        b_codec_trace();
+        b_codec_err("select sys_data->spk_box_id_active failed\n");
 		return ret;
 	}
 
@@ -363,11 +365,11 @@ static int tfa9897_parse_dt(struct tfa9897_sys_data_s *sys_data)
 {
     struct device_node *np = sys_data->client1->dev.of_node;
 
-    b_codec_dbg("idol347_board_id=0x%02lx\n", idol347_board_id);
+    printk("idol347_board_id=0x%02lx\n", idol347_board_id);
 
     sys_data->reset_pin = of_get_named_gpio_flags(np, "tfa,rst-gpio", 0, &(sys_data->reset_pin_flags));
     if (sys_data->reset_pin < 0) {
-        b_codec_dbg("reset err  %d\n", sys_data->reset_pin);
+        b_codec_err("reset err  %d\n", sys_data->reset_pin);
         return sys_data->reset_pin;
     }
 
@@ -375,17 +377,17 @@ static int tfa9897_parse_dt(struct tfa9897_sys_data_s *sys_data)
         b_codec_dbg("pio3 or newer board\n");
         sys_data->switch1_ctl_pin = of_get_named_gpio_flags(np, "tfa,spk-rcv2-switch1", 0, &(sys_data->switch1_pin_flags));
         if (sys_data->switch1_ctl_pin < 0) {
-            b_codec_dbg("sw1 err  %d\n", sys_data->switch1_ctl_pin);
+            b_codec_err("sw1 err  %d\n", sys_data->switch1_ctl_pin);
             return sys_data->switch1_ctl_pin;
         }
         sys_data->switch2_ctl_pin = of_get_named_gpio_flags(np, "tfa,spk-rcv2-switch2", 0, &(sys_data->switch2_pin_flags));
         if (sys_data->switch2_ctl_pin < 0) {
-            b_codec_dbg("sw2 err  %d\n", sys_data->switch2_ctl_pin);
+            b_codec_err("sw2 err  %d\n", sys_data->switch2_ctl_pin);
             return sys_data->switch2_ctl_pin;
         }
         sys_data->spk_box_id_pin = of_get_named_gpio_flags(np, "tfa,spk-box-id2", 0, &(sys_data->spk_box_id_flags));
         if (sys_data->spk_box_id_pin < 0) {
-            b_codec_dbg("sw2 err  %d\n", sys_data->spk_box_id_pin);
+            b_codec_err("sw2 err  %d\n", sys_data->spk_box_id_pin);
             return sys_data->spk_box_id_pin;
         }
     }
@@ -393,17 +395,17 @@ static int tfa9897_parse_dt(struct tfa9897_sys_data_s *sys_data)
         b_codec_dbg("pio2 or older board\n");
         sys_data->switch1_ctl_pin = of_get_named_gpio_flags(np, "tfa,spk-rcv-switch1", 0, &(sys_data->switch1_pin_flags));
         if (sys_data->switch1_ctl_pin < 0) {
-            b_codec_dbg("sw1 err  %d\n", sys_data->switch1_ctl_pin);
+            b_codec_err("sw1 err  %d\n", sys_data->switch1_ctl_pin);
             return sys_data->switch1_ctl_pin;
         }
         sys_data->switch2_ctl_pin = of_get_named_gpio_flags(np, "tfa,spk-rcv-switch2", 0, &(sys_data->switch2_pin_flags));
         if (sys_data->switch2_ctl_pin < 0) {
-            b_codec_dbg("sw2 err  %d\n", sys_data->switch2_ctl_pin);
+            b_codec_err("sw2 err  %d\n", sys_data->switch2_ctl_pin);
             return sys_data->switch2_ctl_pin;
         }
         sys_data->spk_box_id_pin = of_get_named_gpio_flags(np, "tfa,spk-box-id", 0, &(sys_data->spk_box_id_flags));
         if (sys_data->spk_box_id_pin < 0) {
-            b_codec_dbg("sw2 err  %d\n", sys_data->spk_box_id_pin);
+            b_codec_err("sw2 err  %d\n", sys_data->spk_box_id_pin);
             return sys_data->spk_box_id_pin;
         }
     }
@@ -414,34 +416,35 @@ static int tfa9897_parse_dt(struct tfa9897_sys_data_s *sys_data)
 static int tfa9897_config_pins(struct tfa9897_sys_data_s *sys_data)
 {
     if (gpio_request(sys_data->reset_pin, "tfa9897_reset") < 0) {
-        b_codec_dbg("gpio err  %d\n", sys_data->reset_pin);
+        b_codec_err("gpio reset err  %d\n", sys_data->reset_pin);
         return -1;
     }
     gpio_direction_output(sys_data->reset_pin, 0);
 
 
     if (gpio_request(sys_data->switch1_ctl_pin, "tfa9897_switch1") < 0) {
-        b_codec_dbg("gpio err %d\n", sys_data->switch1_ctl_pin);
+        b_codec_err("gpio switch1_ctl_pin err %d\n", sys_data->switch1_ctl_pin);
         return -1;
     }
     gpio_direction_output(sys_data->switch1_ctl_pin, 0);
 
 
     if (gpio_request(sys_data->switch2_ctl_pin, "tfa9897_switch2") < 0) {
-        b_codec_dbg("gpio err %d\n", sys_data->switch2_ctl_pin);
+        b_codec_err("gpio switch2_ctl_pin err %d\n", sys_data->switch2_ctl_pin);
         return -1;
     }
     gpio_direction_output(sys_data->switch2_ctl_pin, 0);
     return  0;
 }
+
 static int tfa9897_get_speaker_id(struct tfa9897_sys_data_s *sys_data)
 {
     if (gpio_request(sys_data->spk_box_id_pin, "tfa9897_spk_box_id") < 0) {
-        b_codec_dbg("gpio err  %d\n", sys_data->spk_box_id_pin);
+        b_codec_err("gpio spk_box_id_pin err  %d\n", sys_data->spk_box_id_pin);
         return -1;
     }
 	sys_data->spk_box_id = gpio_get_value(sys_data->spk_box_id_pin);
-    b_codec_dbg("\n\n### SPK TYPE = %s ###\n", sys_data->spk_box_id?"LC":"AAC");
+    printk("\n\n### SPK TYPE = %s ###\n", sys_data->spk_box_id?"LC":"AAC");
 
     return  0;
 }
@@ -456,7 +459,7 @@ static int tfa9897_regulator_init(struct tfa9897_sys_data_s *sys_data)
      * */
     sys_data->vdd = regulator_get(&sys_data->client1->dev, "vdd");
     if (IS_ERR(sys_data->vdd)) {
-        b_codec_dbg("%s %d get vdd error\n", __func__, __LINE__);
+        b_codec_err("%s %d get vdd error\n", __func__, __LINE__);
         goto err_get_vdd;
     }
 
@@ -464,14 +467,14 @@ static int tfa9897_regulator_init(struct tfa9897_sys_data_s *sys_data)
     {
         rc = regulator_set_voltage(sys_data->vdd, 1800000, 1800000);
         if (rc) {
-            b_codec_dbg("%s %d set vdd error\n", __func__, __LINE__);
+            b_codec_err("%s %d set vdd error\n", __func__, __LINE__);
             goto err_set_vdd;
         }
     }
 
     rc = regulator_enable(sys_data->vdd);
     if (rc) {
-        dev_err(&sys_data->client1->dev, "Regulator vdd enable failed rc=%d\n", rc);
+        b_codec_err("Regulator vdd enable failed rc=%d\n", rc);
         return rc;
     }
 
@@ -493,7 +496,6 @@ static int g_nxp_rcv_state = 0;
 
 int tfa98xx_codec_get_speaker_amp_control(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    printk("#B get %s  spk  state %d\n", __func__, g_nxp_spk_state);
     ucontrol->value.integer.value[0] = g_nxp_spk_state;
     return 0;
 }
@@ -501,7 +503,7 @@ int tfa98xx_codec_get_speaker_amp_control(struct snd_kcontrol *kcontrol, struct 
 int tfa98xx_codec_put_speaker_amp_control(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
     int state = ucontrol->value.enumerated.item[0];
-    printk("\n\n\n>>>>> %s  set  %d\n\n\n", __func__, state);
+    printk("\n>> %s  set  %d <<\n", __func__, state);
 
     if (state)
     {
@@ -520,7 +522,6 @@ int tfa98xx_codec_put_speaker_amp_control(struct snd_kcontrol *kcontrol, struct 
 
 int tfa98xx_codec_get_rcv_amp_control(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    printk("#B get %s  rcv state %d\n", __func__, g_nxp_rcv_state);
     ucontrol->value.integer.value[0] = g_nxp_rcv_state;
     return 0;
 }
@@ -528,7 +529,8 @@ int tfa98xx_codec_get_rcv_amp_control(struct snd_kcontrol *kcontrol, struct snd_
 int tfa98xx_codec_put_rcv_amp_control(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
     int state = ucontrol->value.enumerated.item[0];
-    printk("\n\n\n>>>>> %s  set  %d\n\n\n", __func__, state);
+
+    printk("\n>>> %s  set  %d <<\n", __func__, state);
 
     if (state)
     {
@@ -563,7 +565,8 @@ int tfa98xx_codec_get_ftm_spk_top_control(struct snd_kcontrol *kcontrol, struct 
 int tfa98xx_codec_put_ftm_spk_top_control(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
     int state = ucontrol->value.enumerated.item[0];
-    printk("\n\n\n>>>>> %s  set  %d\n\n\n", __func__, state);
+
+    printk("\n>>> %s  set  %d <<\n", __func__, state);
 
     if (state)
     {
@@ -602,7 +605,8 @@ int tfa98xx_codec_get_ftm_spk_btm_control(struct snd_kcontrol *kcontrol, struct 
 int tfa98xx_codec_put_ftm_spk_btm_control(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
     int state = ucontrol->value.enumerated.item[0];
-    printk("\n\n\n>>>>> %s  set  %d\n\n\n", __func__, state);
+
+    printk("\n>> %s  set  %d <<\n", __func__, state);
 
     if (state)
     {
@@ -647,7 +651,8 @@ int tfa98xx_codec_get_ftm_rcv_top_control(struct snd_kcontrol *kcontrol, struct 
 int tfa98xx_codec_put_ftm_rcv_top_control(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
     int state = ucontrol->value.enumerated.item[0];
-    printk("\n\n\n>>>>> %s  set  %d\n\n\n", __func__, state);
+
+    printk("\n>> %s  set  %d <<\n", __func__, state);
 
     if (state)
     {
@@ -685,7 +690,8 @@ int tfa98xx_codec_get_ftm_rcv_btm_control(struct snd_kcontrol *kcontrol, struct 
 int tfa98xx_codec_put_ftm_rcv_btm_control(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
     int state = ucontrol->value.enumerated.item[0];
-    printk("\n\n\n>>>>> %s  set  %d\n\n\n", __func__, state);
+
+    printk("\n>> %s  set  %d <<\n", __func__, state);
 
     if (state)
     {
@@ -758,13 +764,11 @@ static const struct snd_kcontrol_new tfa98xx_snd_controls[] = {
 
 static int tfa98xx_codec_probe(struct snd_soc_codec *codec)
 {
-    b_codec_trace();
     return 0;
 }
 
 static int tfa98xx_codec_remove(struct snd_soc_codec *codec)
 {
-    b_codec_trace();
     return 0;
 }
 
@@ -798,7 +802,7 @@ static int tfa9897_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id 
     b_codec_dbg("tfa98xx_snd_controls = %d\n", (int)ARRAY_SIZE(tfa98xx_snd_controls));
 
     if (i2c->addr != TFA9897_I2C_ADDR_TOP && i2c->addr != TFA9897_I2C_ADDR_BTM) {
-        b_codec_dbg("unknow tfa9897 = 0x%02x\n", i2c->addr);
+        b_codec_err("unknow tfa9897 = 0x%02x\n", i2c->addr);
         return -1;
     }
 
@@ -818,7 +822,7 @@ static int tfa9897_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id 
     if (i2c->addr == TFA9897_I2C_ADDR_TOP)
     {
         g_tfa9897_sys->client1 = i2c;
-        b_codec_trace();
+        printk("%s init resource\n", __func__);
     }
     else
     {
@@ -826,7 +830,7 @@ static int tfa9897_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id 
         // if 0x036, get all smartPA  reg codec
         //
         g_tfa9897_sys->client2 = i2c;
-        b_codec_trace();
+        printk("%s noinit resource\n", __func__);
         goto reg_codec;
     }
 
@@ -857,8 +861,10 @@ static int tfa9897_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id 
 
     tfa9897_get_speaker_id(g_tfa9897_sys);
     b_codec_trace();
+
     tfa9897_debug_init(i2c);
     b_codec_trace();
+
     tfa9897_sysfs_init();
 
     g_tfa9897_cnt++;
@@ -874,7 +880,6 @@ reg_codec:
 
 static int tfa9897_i2c_remove(struct i2c_client *client)
 {
-    b_codec_dbg("%s(%d)\n",__FUNCTION__,__LINE__);
     return 0;
 }
 

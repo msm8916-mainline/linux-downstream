@@ -117,16 +117,14 @@ void mdss_check_dsi_ctrl_status(struct work_struct *work, uint32_t interval)
 								__func__);
 		return;
 	}
-#ifdef CONFIG_TCT_8X16_IDOL347
-        /* Add esd code by ChangShengBao Start*/
-         if(!pdata->panel_info.esd_rdy)
-        {
-            pr_warn("%s: unblank not complete,reschedule check status\n", __func__);
-            schedule_delayed_work(&pstatus_data->check_status, msecs_to_jiffies(interval));
-            return;
-        }
-        /* Add esd code by ChangShengBao End */
-#endif
+
+	if (!pdata->panel_info.esd_rdy) {
+		pr_warn("%s: unblank not complete, reschedule check status\n",
+			__func__);
+		schedule_delayed_work(&pstatus_data->check_status,
+				msecs_to_jiffies(interval));
+		return;
+	}
 
 	mdp5_data = mfd_to_mdp5_data(pstatus_data->mfd);
 	ctl = mfd_to_ctl(pstatus_data->mfd);
@@ -135,15 +133,6 @@ void mdss_check_dsi_ctrl_status(struct work_struct *work, uint32_t interval)
 		pr_err("%s: Display is off\n", __func__);
 		return;
 	}
-
-#ifndef CONFIG_TCT_8X16_IDOL347
-	if (ctl->power_state == MDSS_PANEL_POWER_OFF) {
-		schedule_delayed_work(&pstatus_data->check_status,
-			msecs_to_jiffies(interval));
-		pr_debug("%s: ctl not powered on\n", __func__);
-		return;
-	}
-#endif
 
 	if (ctrl_pdata->status_mode == ESD_TE) {
 		mdss_check_te_status(ctrl_pdata, pstatus_data, interval);
@@ -158,16 +147,17 @@ void mdss_check_dsi_ctrl_status(struct work_struct *work, uint32_t interval)
 	 * lock to fix issues so that ESD thread would not block other
 	 * overlay operations. Need refine this lock for command mode
 	 */
+	mutex_lock(&ctrl_pdata->mutex);
 
-	mutex_lock(&ctl->offlock);
 	if (mipi->mode == DSI_CMD_MODE)
 		mutex_lock(&mdp5_data->ov_lock);
-
+	mutex_lock(&ctl->offlock);
 	if (mdss_panel_is_power_off(pstatus_data->mfd->panel_power_state) ||
 			pstatus_data->mfd->shutdown_pending) {
+		mutex_unlock(&ctl->offlock);
 		if (mipi->mode == DSI_CMD_MODE)
 			mutex_unlock(&mdp5_data->ov_lock);
-		mutex_unlock(&ctl->offlock);
+		mutex_unlock(&ctrl_pdata->mutex);
 		pr_err("%s: DSI turning off, avoiding panel status check\n",
 							__func__);
 		return;
@@ -191,10 +181,10 @@ void mdss_check_dsi_ctrl_status(struct work_struct *work, uint32_t interval)
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 	ret = ctrl_pdata->check_status(ctrl_pdata);
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
-
+	mutex_unlock(&ctl->offlock);
 	if (mipi->mode == DSI_CMD_MODE)
 		mutex_unlock(&mdp5_data->ov_lock);
-	mutex_unlock(&ctl->offlock);
+	mutex_unlock(&ctrl_pdata->mutex);
 
 	if ((pstatus_data->mfd->panel_power_state == MDSS_PANEL_POWER_ON)) {
 		if (ret > 0)

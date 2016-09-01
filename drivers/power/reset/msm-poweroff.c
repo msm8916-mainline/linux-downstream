@@ -63,7 +63,11 @@ static void *emergency_dload_mode_addr;
 static bool scm_dload_supported;
 
 static int dload_set(const char *val, struct kernel_param *kp);
+#ifdef TCT_TARGET_PERSIST_DLOAD
+static int download_mode = 1;
+#else
 static int download_mode = 0;
+#endif
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
 static int panic_prep_restart(struct notifier_block *this,
@@ -217,6 +221,7 @@ static void msm_restart_prepare(const char *cmd)
 #ifdef CONFIG_MSM_SUBSYSTEM_RESTART
 	extern char panic_subsystem[];
 #endif /* CONFIG_MSM_SUBSYSTEM_RESTART */
+	bool need_warm_reset = false;
 
 #ifdef CONFIG_MSM_DLOAD_MODE
 
@@ -229,18 +234,42 @@ static void msm_restart_prepare(const char *cmd)
 			(in_panic || restart_mode == RESTART_DLOAD));
 #endif
 
+	if (qpnp_pon_check_hard_reset_stored()) {
+		/* Set warm reset as true when device is in dload mode
+		 *  or device doesn't boot up into recovery, bootloader or rtc.
+		 */
+		if (get_dload_mode() ||
+			((cmd != NULL && cmd[0] != '\0') &&
+			strcmp(cmd, "recovery")))
+#if 0
+			strcmp(cmd, "bootloader") &&
+			strcmp(cmd, "rtc")))
+#endif
+			need_warm_reset = true;
+	} else {
+		need_warm_reset = (get_dload_mode() ||
+				(cmd != NULL && cmd[0] != '\0'));
+	}
+
 	/* Hard reset the PMIC unless memory contents must be maintained. */
-	if (get_dload_mode() || (restart_mode == RESTART_DLOAD) || (cmd != NULL && cmd[0] != '\0'))
+	if (need_warm_reset || (restart_mode == RESTART_DLOAD)) {
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
-	else
+	} else {
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
+	}
 
 	if (cmd != NULL) {
 		if (!strncmp(cmd, "bootloader", 10)) {
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_BOOTLOADER);
 			__raw_writel(0x77665500, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_RECOVERY);
 			__raw_writel(0x77665502, restart_reason);
 		} else if (!strcmp(cmd, "rtc")) {
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_RTC);
 			__raw_writel(0x77665503, restart_reason);
 		} else if (!strncmp(cmd, "oem-", 4)) {
 			unsigned long code;
@@ -365,11 +394,6 @@ static void do_msm_poweroff(void)
 		.arginfo = SCM_ARGS(2),
 	};
 
-/* [PLATFORM]-Add-BEGIN by TCTNB.FLF, FR-837171, 2014/11/14, add log for charger autotest */
-#ifdef CONFIG_TCT_8X16_COMMON
-	pr_err("TCTNB_SHUTDOWN Powering off the SoC\n");
-#endif
-/* [PLATFORM]-Mod-END by TCTNB.FLF */
 	pr_notice("Powering off the SoC\n");
 #ifdef CONFIG_MSM_DLOAD_MODE
 	set_dload_mode(0);

@@ -390,6 +390,9 @@ int msm_jpeg_platform_init(struct platform_device *pdev,
 	JPEG_DBG("%s:%d] success\n", __func__, __LINE__);
 
 	pgmn_dev->state = MSM_JPEG_INIT;
+	/*BugFix BEGIN TCTNJ jianeng.yuan, Jpeg panic the system ,1759524  case:02380763*/
+	enable_irq(jpeg_irq);
+	/*BugFix END TCTNJ jianeng.yuan, Jpeg panic the system ,1759524  case:02380763*/
 	return rc;
 
 fail_request_irq:
@@ -423,7 +426,9 @@ int msm_jpeg_platform_release(struct resource *mem, void *base, int irq,
 
 	struct msm_jpeg_device *pgmn_dev =
 		(struct msm_jpeg_device *) context;
-
+	/*BugFix BEGIN TCTNJ jianeng.yuan, Jpeg panic the system ,1759524  case:02380763*/
+	disable_irq(irq);
+	/*BugFix END TCTNJ jianeng.yuan, Jpeg panic the system ,1759524  case:02380763*/
 	free_irq(irq, context);
 
 	msm_jpeg_detach_iommu(pgmn_dev);

@@ -40,9 +40,6 @@ extern int pm_async_enabled;
 /* drivers/base/power/main.c */
 extern struct list_head dpm_list;	/* The active device list */
 
-/* driver/base/power/main.c */
-extern int device_suspend_time_threshold;
-
 static inline struct device *to_device(struct list_head *entry)
 {
 	return container_of(entry, struct device, power.entry);

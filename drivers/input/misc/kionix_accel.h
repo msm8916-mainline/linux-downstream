@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * [BUFFIX]-Mod by huangshenglin@hoperun,porting L->M, task-1175888,2015/12/17
  */
 #ifndef __KIONIX_ACCEL_H__
 #define __KIONIX_ACCEL_H__

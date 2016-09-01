@@ -27,6 +27,15 @@ config MMC_PERF_PROFILING
 	  If you say Y here, support will be added for collecting
 	  performance numbers at the MMC Queue and Host layers.
 
+config MMC_DISABLE_BUFFER_ERROR_LOG
+	bool "MMC debugging"
+	depends on MMC != n
+	default y
+	help
+          This is an option for use by developers; If you say N here,
+	  device will output the I/O error log. Sometimes this will
+	  lead to crash.
+
 if MMC
 
 source "drivers/mmc/core/Kconfig"

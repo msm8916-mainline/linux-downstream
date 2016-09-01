@@ -619,6 +619,11 @@ config QCOM_LIQUID_DOCK
 	  This option enables support for the USB and Ethernet ports found on
 	  the docking station of various models of Qualcomm Technology's
 	  LiQUID Mobile Development Platforms.
+config UID_CPUTIME
+	tristate "Per-UID cpu time statistics"
+	depends on PROFILING
+	help
+	  Per UID based cpu time statistics exported to /proc/uid_cputime
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
@@ -630,8 +635,8 @@ source "drivers/misc/altera-stapl/Kconfig"
 source "drivers/misc/mei/Kconfig"
 source "drivers/misc/vmw_vmci/Kconfig"
 source "drivers/misc/qcom/Kconfig"
-# [PLATFORM]-Mod-BEGIN by TCTNB.XQJ, 2014/08/14, add sensor driver.
-source "drivers/misc/tct_sensor/Kconfig"
-# [PLATFORM]-Mod-END by TCTNB.XQJ
+
+# [PLATFORM]-Mod-BEGIN by huangshenglin@hoperun for task-1191012, 2015/12/21, add sensor driver.
 source "drivers/misc/idol347_sensor/Kconfig"
+# [PLATFORM]-Mod-END by huangshenglin@hoperun
 endmenu

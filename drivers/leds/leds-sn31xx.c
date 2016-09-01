@@ -1,3 +1,4 @@
+/*fangang.luo 2015.12.17 task:1176409 START*/
 /*
  * leds-sn31xx.c - RGB LED Driver
  *
@@ -355,7 +356,7 @@ static void sn31xx_set_led1g_brightness(struct led_classdev *led_cdev,
         container_of(led_cdev, struct sn31xx_led, cdev_led1g);
  
 	sn31xx_power_set(led,1);
-	 pr_err("  gpio=%d\n",led->en_gpio);
+	 //pr_err("  gpio=%d\n",led->en_gpio);
 	gpio_direction_output(led->en_gpio, 1);/*[BUGFIX]-Add by TCTNB.XQJ,PR-817507 2014/10/23,add  led ic sn31xx,gpio is used for led ic*/
     if (value == LED_OFF)
        {   
@@ -389,7 +390,7 @@ static void sn31xx_set_led1g_blink(struct led_classdev *led_cdev,u8 bblink)
 										struct sn31xx_led, cdev_led1g);
 
 	sn31xx_power_set(led,1);
-	    pr_err("  gpio=%d\n",led->en_gpio);
+	   // pr_err("  gpio=%d\n",led->en_gpio);
        gpio_direction_output(led->en_gpio, 1);/*[BUGFIX]-Add by TCTNB.XQJ,PR-817507 2014/10/23,add  led ic sn31xx,gpio is used for led ic*/
 	msleep(100);
 	if(bblink==1) {
@@ -460,7 +461,7 @@ static ssize_t store_blink(struct device *dev, struct device_attribute *attr,
 
       struct led_classdev *led_cdev = dev_get_drvdata(dev);
       u8 bblink;
-      pr_err("in %s,name=%s\n",__func__,led_cdev->name);
+      //pr_err("in %s,name=%s\n",__func__,led_cdev->name);
       if(*buf=='0')
         bblink=0;
       else   if(*buf=='2')
@@ -550,7 +551,7 @@ static int sn31xx_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, led);
 	
 /*[BUGFIX]-Add by TCTNB.XQJ,PR-817507 2014/10/23,add  led ic sn31xx,gpio is used for led ic*/	
-    pr_err("sn31 gpio=%d\n",led->en_gpio);
+   // pr_err("sn31 gpio=%d\n",led->en_gpio);
 	ret = gpio_request(led->en_gpio, "sn31_en");
 	if (ret)
 		return  -ENODEV;
@@ -582,10 +583,10 @@ static int sn31xx_probe(struct i2c_client *client,
 		i++;
 	    	ret=   sn31xx_init(client);
 	}while(ret < 0 && i <=10);
-	printk("gyc    %s:%d      ret=%d,i2c communications num =%d\n",__func__,__LINE__,ret,i);
 	
     if (ret < 0)
         goto exit3;
+	printk("gyc    %s ok. \n",__func__);
 
 
 	sn31xx_power_set(led, 0);
@@ -670,3 +671,4 @@ late_initcall(sn31xx_i2c_init);
 MODULE_AUTHOR("flf<longfei.feng@tcl.com>");
 MODULE_DESCRIPTION("sn31xx LED driver");
 MODULE_LICENSE("GPL v2");
+/*fangang.luo 2015.12.17 task:1176409 END*/

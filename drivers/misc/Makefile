@@ -30,7 +30,7 @@ obj-$(CONFIG_SGI_GRU)		+= sgi-gru/
 obj-$(CONFIG_CS5535_MFGPT)	+= cs5535-mfgpt.o
 obj-$(CONFIG_HP_ILO)		+= hpilo.o
 obj-$(CONFIG_APDS9802ALS)	+= apds9802als.o
-#obj-$(CONFIG_APDS9930)		+= apds993x.o //xqj
+obj-$(CONFIG_APDS9930)		+= apds993x.o
 obj-$(CONFIG_ISL29003)		+= isl29003.o
 obj-$(CONFIG_ISL29020)		+= isl29020.o
 obj-$(CONFIG_USB_HSIC_SMSC_HUB) += smsc_hub.o
@@ -67,10 +67,7 @@ obj-$(CONFIG_TI_DRV2667) += ti_drv2667.o
 obj-$(CONFIG_QPNP_MISC) += qpnp-misc.o
 obj-$(CONFIG_QCOM_LIQUID_DOCK)	+= qcom_liquid_dock.o
 obj-y				+= qcom/
-# [PLATFORM]-Mod-BEGIN by TCTNB.XQJ, 2014/08/14, add sensor driver.
-ifdef CONFIG_TCT_8X16_ALTO45_LATAM_B28
-obj-$(CONFIG_TCT_8X16_ALTO45_LATAM_B28)          += tct_sensor/
-endif
-# [PLATFORM]-Mod-END by TCTNB.XQJ
-obj-$(CONFIG_PN547_I2C) += pn547.o #add for PR778335 by pingping,jiang 20140827
+# [PLATFORM]-Mod-BEGIN by huangshenglin@hoperun for task-1191012, 2015/12/21, add sensor driver.
 obj-$(CONFIG_TCT_8X16_IDOL347)          += idol347_sensor/
+# [PLATFORM]-Mod-END by huangshenglin@hoperun
+obj-$(CONFIG_UID_CPUTIME) 	+= uid_cputime.o

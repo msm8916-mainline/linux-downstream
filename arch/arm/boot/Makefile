@@ -16,7 +16,6 @@ include $(srctree)/$(MACHINE)/Makefile.boot
 endif
 include $(srctree)/arch/arm/boot/dts/Makefile
 
-include $(srctree)/arch/arm/boot/dts/Makefile
 ifneq ($(DTSSUBDIR),)
 DTSSUBDIR_INCS=$(foreach DIR, $(DTSSUBDIR), $(addsuffix /Makefile, $(addprefix $(srctree)/arch/arm/boot/dts/, $(DIR))))
 include $(DTSSUBDIR_INCS)
@@ -40,7 +39,11 @@ DTB_LIST := $(addsuffix .dtb,$(DTB_NAMES))
 else
 DTB_LIST := $(dtb-y)
 endif
-DTB_OBJS := $(addprefix $(obj)/dts/,$(DTB_LIST))
+ifndef CONFIG_TCT_8X16_COMMON
+DTB_OBJS := $(addprefix $(obj)/dts/qcom/,$(DTB_LIST))
+else
+DTB_OBJS := $(addprefix $(obj)/dts/$(TARGET_PRODUCT)/,$(DTB_LIST))
+endif
 
 ifeq ($(CONFIG_XIP_KERNEL),y)
 

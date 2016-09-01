@@ -540,30 +540,7 @@ config SPI_SPIDEV
 
 	  Note that this application programming interface is EXPERIMENTAL
 	  and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
-# [PLATFORM]-Add-BEGIN by TCTSZ.chenhui, 2014/07/23, INFRARED FUNCTION
-config ICE40_INFRARED
-        tristate "infrared ice40"
-        help
-          This supports user mode SPI protocol drivers for infrared.
 
-          Note that this application programming interface is EXPERIMENTAL
-          and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
-config PEEL_INFRARED
-        tristate "peel infrared"
-        help
-          This supports user mode SPI protocol drivers for infrared.
-
-          Note that this application programming interface is EXPERIMENTAL
-          and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
-
-config COM_INFRARED
-        tristate "com infrared"
-        help
-          This supports user mode SPI protocol drivers for infrared.
-
-          Note that this application programming interface is EXPERIMENTAL
-          and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
-# [PLATFORM]-Add-END by TCTSZ.chenhui, 2014/07/23, PEEL INFRARED FUNCTION
 config SPI_TLE62X0
 	tristate "Infineon TLE62X0 (for power switching)"
 	depends on SYSFS

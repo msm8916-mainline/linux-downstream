@@ -10,8 +10,7 @@ obj-$(CONFIG_OV5645) += ov5645.o
 obj-$(CONFIG_OV5645) += ov7695.o
 obj-$(CONFIG_GC0339_ALTO5) += gc0339_alto5.o
 obj-$(CONFIG_TCT_8X16_ALTO5) += ov5670_truly_otp.o
-obj-$(CONFIG_HI351) += hi351.o
-
+obj-$(CONFIG_GC0310) += gc0310.o
 #[PLATFORM]-Add-BEGIN by TCTSZ.yaohui.zeng, 2014/07/26, Add 1st Front camera Hi258 for POP10
 obj-$(CONFIG_HI258_POP10) += hi258_pop10.o
 #[PLATFORM]-Add-END by TCTSZ.yaohui.zeng, 2014/07/26

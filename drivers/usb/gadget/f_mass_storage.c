@@ -355,7 +355,7 @@ struct fsg_dev {
 	struct usb_ep		*bulk_out;
 };
 
-//[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+//[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 #if defined(CONFIG_JRD_CD_ROM_EMUM_EJECT) && !defined (FEATURE_TCTNB_MMITEST)
 #define JRD_SCSI_1B 0x1b
 #define JRD_SCSI_06 0x06
@@ -365,7 +365,7 @@ struct fsg_dev {
 
 
 #define MASS_STORAGE_ONLY_PID "AF00"
-#define JRD_USB_SWITCH_DELAY 500 /*500ms*/ 
+#define JRD_USB_SWITCH_DELAY 500 /*500ms*/
 
 
 #ifndef TRUE
@@ -386,7 +386,7 @@ static char idProduct_buff[16];
 static void jrd_ms_do_switch_cb(struct work_struct *work);
 DECLARE_DELAYED_WORK(jrd_ms_do_switch_struct, jrd_ms_do_switch_cb);
 #endif
-//[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+//[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 
 static inline int __fsg_is_set(struct fsg_common *common,
 			       const char *func, unsigned line)
@@ -587,7 +587,7 @@ static int fsg_setup(struct usb_function *f,
 				w_length != 1)
 			return -EDOM;
 		VDBG(fsg, "get max LUN\n");
-                //[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+        //[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 		#if defined(CONFIG_JRD_CD_ROM_EMUM_EJECT) && !defined (FEATURE_TCTNB_MMITEST)
                 printk(KERN_ERR "CONFIG_JRD_CD_ROM_EMUM_EJECT enabled(Y)");
                 if((remove_cd_rom_flag || is_power_off_charging) && is_cd_rom_inited)
@@ -599,9 +599,9 @@ static int fsg_setup(struct usb_function *f,
                 {
                     *(u8 *)req->buf = fsg->common->nluns - 1;
                 }
-                #else
+        #else
                 printk(KERN_ERR "CONFIG_JRD_CD_ROM_EMUM_EJECT disabled(N)");
-                //[BUGFIX]-Add-BEGIN by TCTNB.93391,03/13/2015,942554,USB driver manual install
+                //[BUGFIX]-Add-BEGIN by TCTNB.93391,03/13/2015,942554,USB driver manual install
                 if (fsg->common->cdev->desc.idProduct == 0xAFF0)
                 {
                     *(u8 *)req->buf = fsg->common->nluns - 1;
@@ -610,9 +610,9 @@ static int fsg_setup(struct usb_function *f,
                 {
                     *(u8 *)req->buf = 0;
                 }
-                //[BUGFIX]-Add-END by TCTNB.93391,03/13/2015,942554,USB driver manual install
-                #endif
-                //[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+                //[BUGFIX]-Add-END by TCTNB.93391,03/13/2015,942554,USB driver manual install
+        #endif
+        //[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 
 		/* Respond with data/status */
 		req->length = min((u16)1, w_length);
@@ -2002,7 +2002,7 @@ static int check_command_size_in_blocks(struct fsg_common *common,
 			mask, needs_medium, name);
 }
 
-//[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+//[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 #if defined(CONFIG_JRD_CD_ROM_EMUM_EJECT) && !defined (FEATURE_TCTNB_MMITEST)
 static int jrd_file_write(const char *path, const char *value)
 {
@@ -2072,7 +2072,7 @@ static int jrd_do_scsi_command(struct fsg_common *common, struct fsg_buffhd	*bh)
 		}
                 remove_cd_rom_flag = TRUE;
 
-                schedule_delayed_work_on(0, &jrd_ms_do_switch_struct, JRD_USB_SWITCH_DELAY);
+                schedule_delayed_work(&jrd_ms_do_switch_struct, JRD_USB_SWITCH_DELAY);
                 reply = common->data_size_from_cmnd;
 	  }
 	  break;
@@ -2086,7 +2086,7 @@ static int jrd_do_scsi_command(struct fsg_common *common, struct fsg_buffhd	*bh)
 		}
                 remove_cd_rom_flag = TRUE;
 
-                schedule_delayed_work_on(0, &jrd_ms_do_switch_struct, 0);
+                schedule_delayed_work(&jrd_ms_do_switch_struct, 0);
                 reply = common->data_size_from_cmnd;
 	  }
 	  break;
@@ -2110,7 +2110,7 @@ void jrd_enum_cdrom(void)
 }
 EXPORT_SYMBOL(jrd_enum_cdrom);
 #endif
-//[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+//[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 
 static int do_scsi_command(struct fsg_common *common)
 {
@@ -2288,9 +2288,9 @@ static int do_scsi_command(struct fsg_common *common)
 		reply = check_command(common, 6, DATA_DIR_NONE,
 				      (1<<1) | (1<<4), 0,
 				      "START-STOP UNIT");
-            //[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
-	    #if defined(CONFIG_JRD_CD_ROM_EMUM_EJECT) && !defined (FEATURE_TCTNB_MMITEST)
-                if (reply == 0)
+//[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+#if defined(CONFIG_JRD_CD_ROM_EMUM_EJECT) && !defined (FEATURE_TCTNB_MMITEST)
+		if (reply == 0)
 		{
 			if(common->curlun->cdrom)
 			{
@@ -2300,13 +2300,13 @@ static int do_scsi_command(struct fsg_common *common)
 			}
 			reply = do_start_stop(common);
 		}
-		#else
+#else
 		if (reply == 0)
 			reply = do_start_stop(common);
 
 		printk("start stop reply: %d\n",reply);
-		#endif
-	    //[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+#endif
+//[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 		break;
 
 	case SYNCHRONIZE_CACHE:
@@ -2385,8 +2385,8 @@ static int do_scsi_command(struct fsg_common *common)
 
 	default:
 unknown_cmnd:
-        //[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
-	    #if defined(CONFIG_JRD_CD_ROM_EMUM_EJECT) && !defined (FEATURE_TCTNB_MMITEST)
+//[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+#if defined(CONFIG_JRD_CD_ROM_EMUM_EJECT) && !defined (FEATURE_TCTNB_MMITEST)
 		reply = jrd_do_scsi_command(common, bh);
 		if(reply >= 0)
 		{
@@ -2394,8 +2394,8 @@ unknown_cmnd:
 		  break;
 		}
 		//printk("invalid scsi command 0x%02x\n", common->cmnd[0]);
-		#endif
-	    //[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+#endif
+//[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 		common->data_size_from_cmnd = 0;
 		sprintf(unknown, "Unknown x%02x", common->cmnd[0]);
 		reply = check_command(common, common->cmnd_size,

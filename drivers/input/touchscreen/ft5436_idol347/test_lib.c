@@ -116,7 +116,7 @@ struct Test_ConfigParam_FT5X46{
 #define Item_RawDataTest_HighFreq "RawDataTest_HighFreq"
 
 #define Item_WeakShortTest_CG_Min "WeakShortTest_CG"
-#define Item_WeakShortTest_CC_Min "WeakShortTest_CC"/*综合测试软件命名有误*/
+#define Item_WeakShortTest_CC_Min "WeakShortTest_CC"/*\D7酆喜\E2\CA\D4\C8\ED\BC\FE\C3\FC\C3\FB\D3\D0\CE\F3*/
 
 #define Special_RawDataTest_Low_Min "RawData_Min_Low_Tx"
 #define Special_RawDataTest_Low_Max "RawData_Max_Low_Tx"
@@ -626,7 +626,7 @@ static void GetTestParam(void)
 		}			
 	}	
 
-	//////读取阈值，若无特殊设置，则以Basic_Threshold替代
+	//////\B6\C1取\E3\D0值\A3\AC\C8\F4\CE\DE\CC\D8\CA\E2\C9\E8\D6茫\AC\D4\F2\D2\D4Basic_Threshold\CC\E6\B4\FA
 	for(i=0; i<2; i++) 
 	{		
 
@@ -812,7 +812,7 @@ static void GetTestParam(void)
 		}			
 	}	
 	
-	//////读取阈值，若无特殊设置，则以Basic_Threshold替代
+	//////\B6\C1取\E3\D0值\A3\AC\C8\F4\CE\DE\CC\D8\CA\E2\C9\E8\D6茫\AC\D4\F2\D2\D4Basic_Threshold\CC\E6\B4\FA
 	for(i=0; i<2; i++) 
 	{		
 
@@ -905,7 +905,7 @@ static void GetTestParam(void)
 		}			
 	}	
 
-	//////读取阈值，若无特殊设置，则以Basic_Threshold替代
+	//////\B6\C1取\E3\D0值\A3\AC\C8\F4\CE\DE\CC\D8\CA\E2\C9\E8\D6茫\AC\D4\F2\D2\D4Basic_Threshold\CC\E6\B4\FA
 	for(i=0; i<2; i++) 
 	{		
 
@@ -1353,7 +1353,7 @@ boolean TestItem_RawDataTest_FT5X46(void)
 	short min_value, max_value;
 	FTS_DBG("==============================Test Item: -----  RawDataTest_FT5X46\n");
 
-	//设置低频点
+	//\C9\E8\D6玫\CD频\B5\E3
 	if(g_TestParam_FT5X46.RawDataTest_LowFreq == 1)
 	{
 		bUse = true;
@@ -1439,7 +1439,7 @@ boolean TestItem_RawDataTest_FT5X46(void)
 
 	}
 
-	//设置高频点
+	//\C9\E8\D6酶\DF频\B5\E3
 	if(g_TestParam_FT5X46.RawDataTest_HighFreq== 1)
 	{
 		bUse = true;
@@ -1544,28 +1544,28 @@ TEST_END:
 
 /*==================================================================================
 
-微短路量产FW方面相关寄存器及功能如下：
-ShortTestEn（0x07）：     微短路测试使能寄存器
-ValLBuf0 （0xF4）：     ValL数据寄存器0
-ValLBuf0 （0xF5）：     ValL数据寄存器1
+微\B6\CC路\C1\BF\B2\FAFW\B7\BD\C3\E6\CF\E0\B9丶拇\E6\C6\F7\BC\B0\B9\A6\C4\DC\C8\E7\CF拢\BA
+ShortTestEn\A3\A80x07\A3\A9\A3\BA     微\B6\CC路\B2\E2\CA\D4使\C4芗拇\E6\C6\F7
+ValLBuf0 \A3\A80xF4\A3\A9\A3\BA     ValL\CA\FD\BE菁拇\E6\C6\F70
+ValLBuf0 \A3\A80xF5\A3\A9\A3\BA     ValL\CA\FD\BE菁拇\E6\C6\F71
 
-微短路量产测试时Host端所需操作：
-1. 微短路测试使能
-Host:  W 07 01          // 主机发送使能后微短路测试一次；然后重新恢复到工厂模式
+微\B6\CC路\C1\BF\B2\FA\B2\E2\CA\D4时Host\B6\CB\CB\F9\D0\E8\B2\D9\D7\F7\A3\BA
+1. 微\B6\CC路\B2\E2\CA\D4使\C4\DC
+Host:  W 07 01          // \D6\F7\BB\FA\B7\A2\CB\CD使\C4芎\F3微\B6\CC路\B2\E2\CA\D4一\B4危\BB然\BA\F3\D6\D8\D0禄指\B4\B5\BD\B9\A4\B3\A7模式
 
-2. 测试数据读取
-Host:  W F4  R FF     // 将自短和互短测试的所有ValL数据读出：GroundValL[64]和MutualValL[64] 
-3. 数据说明：
+2. \B2\E2\CA\D4\CA\FD\BE荻\C1取
+Host:  W F4  R FF     // \BD\AB\D7远毯突\A5\B6滩\E2\CA缘\C4\CB\F9\D3\D0ValL\CA\FD\BE荻\C1\B3\F6\A3\BAGroundValL[64]\BA\CDMutualValL[64] 
+3. \CA\FD\BE\DD说\C3\F7\A3\BA
 
 Offset:  0x00~0x01
 
 Ground_ShortTest:
-地短路校准：2   Byte          
-地短路数据：(TxNum+RxNum)*2   Byte  // Tx在前，Rx在后
+\B5囟\CC路校准\A3\BA2   Byte          
+\B5囟\CC路\CA\FD\BE荩\BA(TxNum+RxNum)*2   Byte  // Tx\D4\DA前\A3\ACRx\D4诤\F3
 
 Mutual_ShortTest:
-互短路校准：2  Byte
-互短路数据：(TxNum+RxNum)*2   Byte  // Tx在前，Rx在后
+\BB\A5\B6\CC路校准\A3\BA2  Byte
+\BB\A5\B6\CC路\CA\FD\BE荩\BA(TxNum+RxNum)*2   Byte  // Tx\D4\DA前\A3\ACRx\D4诤\F3
 ==================================================================================*/
 #if 0
 static boolean TestItem_WeakShortTest(void)
@@ -1590,8 +1590,8 @@ static boolean TestItem_WeakShortTest(void)
 
 
 	FTS_DBG("==============================Test Item: -----  Weak Short-Circuit Test \n");
-	//TxNum寄存器：0x02(Read Only)
-	//RxNum寄存器：0x03(Read Only)	
+	//TxNum\BC拇\E6\C6\F7\A3\BA0x02(Read Only)
+	//RxNum\BC拇\E6\C6\F7\A3\BA0x03(Read Only)	
 
 	focal_msleep(100);
 	ReCode = ReadReg(0x02, &iTxNum);//Get Tx
@@ -1608,7 +1608,7 @@ static boolean TestItem_WeakShortTest(void)
 
 	iChannelNum = iTxNum + iRxNum;
 	iMaxTx = iTxNum;
-	iAllAdcDataNum = 1 + (1 + iTxNum + iRxNum)*2;//总通道数 + 对地校准数据 + 通道间校准数据 + Offset
+	iAllAdcDataNum = 1 + (1 + iTxNum + iRxNum)*2;//\D7\DC通\B5\C0\CA\FD + \B6缘\D8校准\CA\FD\BE\DD + 通\B5\C0\BC\E4校准\CA\FD\BE\DD + Offset
 
 	//iAdcData = kmalloc(sizeof(int)*iAllAdcDataNum, GFP_KERNEL);// = new int[iAllAdcDataNum];
 	memset(iAdcData, 0, sizeof(iAdcData));
@@ -1660,7 +1660,7 @@ static boolean TestItem_WeakShortTest(void)
 
 	//FTS_DBG("CC: %d, CG: %d, Tx: %d, Rx: %d\n", iMin_CC, iMin_CG, iTxNum, iRxNum);
 
-	/////////////////////////////////////////////对地数据
+	/////////////////////////////////////////////\B6缘\D8\CA\FD\BE\DD
 	//::GetPrivateProfileString("BaseSet","Weak_Short_Min","992", str.GetBuffer(MAX_PATH),MAX_PATH,g_strIniFile);
 	//int iMin_CG = atoi(str);
 
@@ -1675,17 +1675,17 @@ static boolean TestItem_WeakShortTest(void)
 	for(i = 0; i < iChannelNum; i++)
 	{
 		iDsen = iAdcData[i+2];
-		if((2047+iDoffset) - iDsen <= 0)//小于等于0，直接判PASS
+		if((2047+iDoffset) - iDsen <= 0)//小\D3诘\C8\D3\DA0\A3\AC直\BD\D3\C5\D0PASS
 		{
 			continue;
 		}
 
-		//采用新的公式进行计算
+		//\B2\C9\D3\C3\D0碌墓\AB式\BD\F8\D0屑\C6\CB\E3
 		/*fGShortResistance[i] = (float)( iDsen - iDoffset + 410 ) * 251 * fKcal / (10*( 2047 + iDoffset - iDsen )) - 3;*/
 		fGShortResistance[i] = ( iDsen - iDoffset + 410 ) * 251 * fKcal / (10*( 2047 + iDoffset - iDsen )) - 3;
 
 		if(fGShortResistance[i] < 0) fGShortResistance[i] = 0;
-		if((iMin_CG > fGShortResistance[i]) || (iDsen - iDoffset < 0))//小于等于0，直接判0欧短路
+		if((iMin_CG > fGShortResistance[i]) || (iDsen - iDoffset < 0))//小\D3诘\C8\D3\DA0\A3\AC直\BD\D3\C5\D00欧\B6\CC路
 		{
 			if(iCount == 0)
 				FTS_DBG("Short Circuit (Channel and Ground):\n");	
@@ -1703,7 +1703,7 @@ static boolean TestItem_WeakShortTest(void)
 		bRet = false;
 	}
 
-	/////////////////////////////////////////////通道间数据
+	/////////////////////////////////////////////通\B5\C0\BC\E4\CA\FD\BE\DD
 	//::GetPrivateProfileString("BaseSet","Weak_Short_Min_CC","992", str.GetBuffer(MAX_PATH),MAX_PATH,g_strIniFile);
 	//int iMin_CC = atoi(str);
 
@@ -1720,7 +1720,7 @@ static boolean TestItem_WeakShortTest(void)
 		//if(iDsen - iDrefn <= 0)  continue;
 		if(iDsen - iMaxD<= 0)  continue;
 
-		//采用新的公式
+		//\B2\C9\D3\C3\D0碌墓\AB式
 		/*fMShortResistance[i] = ( (float)1931 / ( iDsen - iDoffset - 116 ) * 16  - 19 ) *  fKcal - 6;*/
 		//fMShortResistance[i] = ( (1931* 16) / ( iDsen - iDoffset - 116 )   - 19 ) *  fKcal - 6;//last fomula
 		fMShortResistance[i] = ( ((2047 + iDoffset - iMaxD) / ( iDsen - iMaxD) ) *24 - 27 ) *  fKcal - 6;
@@ -1768,28 +1768,28 @@ TEST_END:
 #endif
 /*==================================================================================
 
-微短路量产FW方面相关寄存器及功能如下：
-ShortTestEn（0x07）：     微短路测试使能寄存器
-ValLBuf0 （0xF4）：     ValL数据寄存器0
-ValLBuf0 （0xF5）：     ValL数据寄存器1
+微\B6\CC路\C1\BF\B2\FAFW\B7\BD\C3\E6\CF\E0\B9丶拇\E6\C6\F7\BC\B0\B9\A6\C4\DC\C8\E7\CF拢\BA
+ShortTestEn\A3\A80x07\A3\A9\A3\BA     微\B6\CC路\B2\E2\CA\D4使\C4芗拇\E6\C6\F7
+ValLBuf0 \A3\A80xF4\A3\A9\A3\BA     ValL\CA\FD\BE菁拇\E6\C6\F70
+ValLBuf0 \A3\A80xF5\A3\A9\A3\BA     ValL\CA\FD\BE菁拇\E6\C6\F71
 
-微短路量产测试时Host端所需操作：
-1. 微短路测试使能
-Host:  W 07 01          // 主机发送使能后微短路测试一次；然后重新恢复到工厂模式
+微\B6\CC路\C1\BF\B2\FA\B2\E2\CA\D4时Host\B6\CB\CB\F9\D0\E8\B2\D9\D7\F7\A3\BA
+1. 微\B6\CC路\B2\E2\CA\D4使\C4\DC
+Host:  W 07 01          // \D6\F7\BB\FA\B7\A2\CB\CD使\C4芎\F3微\B6\CC路\B2\E2\CA\D4一\B4危\BB然\BA\F3\D6\D8\D0禄指\B4\B5\BD\B9\A4\B3\A7模式
 
-2. 测试数据读取
-Host:  W F4  R FF     // 将自短和互短测试的所有ValL数据读出：GroundValL[64]和MutualValL[64] 
-3. 数据说明：
+2. \B2\E2\CA\D4\CA\FD\BE荻\C1取
+Host:  W F4  R FF     // \BD\AB\D7远毯突\A5\B6滩\E2\CA缘\C4\CB\F9\D3\D0ValL\CA\FD\BE荻\C1\B3\F6\A3\BAGroundValL[64]\BA\CDMutualValL[64] 
+3. \CA\FD\BE\DD说\C3\F7\A3\BA
 
 Offset:  0x00~0x01
 
 Ground_ShortTest:
-地短路校准：2   Byte          
-地短路数据：(TxNum+RxNum)*2   Byte  // Tx在前，Rx在后
+\B5囟\CC路校准\A3\BA2   Byte          
+\B5囟\CC路\CA\FD\BE荩\BA(TxNum+RxNum)*2   Byte  // Tx\D4\DA前\A3\ACRx\D4诤\F3
 
 Mutual_ShortTest:
-互短路校准：2  Byte
-互短路数据：(TxNum+RxNum)*2   Byte  // Tx在前，Rx在后
+\BB\A5\B6\CC路校准\A3\BA2  Byte
+\BB\A5\B6\CC路\CA\FD\BE荩\BA(TxNum+RxNum)*2   Byte  // Tx\D4\DA前\A3\ACRx\D4诤\F3
 
 ==================================================================================*/
 #if 0
@@ -1805,12 +1805,12 @@ static int WeakShort_GetAdcData( int AllAdcDataLen, int *pRevBuffer )
 	//if(pDataSend == NULL)	return 0x0d;
 
 
-	ReCode = WriteReg(0x07, 0x01);// 主机发送使能后微短路测试一次
+	ReCode = WriteReg(0x07, 0x01);// \D6\F7\BB\FA\B7\A2\CB\CD使\C4芎\F3微\B6\CC路\B2\E2\CA\D4一\B4\CE
 	if(ReCode < ERROR_CODE_OK)return ReCode;
 
 	focal_msleep(200);
 
-	for(i = 0; i < 40; i++)//准备好数据后，FW将0x07寄存器置为0
+	for(i = 0; i < 40; i++)//准\B1\B8\BA\C3\CA\FD\BE莺\F3\A3\ACFW\BD\AB0x07\BC拇\E6\C6\F7\D6\C3为0
 	{
 		focal_msleep(50);//SysDelay(5);
 		ReCode = ReadReg(0x07, &Data);
@@ -1949,14 +1949,14 @@ unsigned char GetTxSC_CB(unsigned char index, unsigned char *pcbValue)
 {
 	unsigned char ReCode = ERROR_CODE_OK;
 	unsigned char wBuffer[4];
-	if(index<128)//单个读取
+	if(index<128)//\B5\A5\B8\F6\B6\C1取
 	{	
 		*pcbValue = 0;
 
 		WriteReg(REG_ScCbAddrR, index);
 		ReCode = ReadReg(REG_ScCbBuf0, pcbValue);
 	}
-	else//连续读取，长度为index-128
+	else//\C1\AC\D0\F8\B6\C1取\A3\AC\B3\A4\B6\C8为index-128
 	{
 		
 		//unsigned char rBuffer[2];
@@ -2018,9 +2018,9 @@ boolean TestItem_SCapCbTest()
 			memset(SCap_rawData, 0, sizeof(SCap_rawData));
 			memset(pReadData, 0, sizeof(pReadData));
 			
-			//防水CB
+			//\B7\C0水CB
 			I2C_wBuffer[0] = REG_ScCbBuf0;
-			ReCode = WriteReg( 0x44, 1 );//自容工作方式选择:  1：防水 0:非防水
+			ReCode = WriteReg( 0x44, 1 );//\D7\D4\C8莨\A4\D7\F7\B7\BD式选\D4\F1:  1\A3\BA\B7\C0水 0:\B7欠\C0水
 			StartScan();
 			ReCode = WriteReg( REG_ScCbAddrR, 0 );
 			
@@ -2036,9 +2036,9 @@ boolean TestItem_SCapCbTest()
 				printk("zax SCap_rawData1  %d   \n",pReadData[index + SCap_iRxNum]);
 			}
 
-			//非防水rawdata
+			//\B7欠\C0水rawdata
 			I2C_wBuffer[0] = REG_ScCbBuf0;
-			ReCode = WriteReg( 0x44, 0 );//自容工作方式选择:  1：防水 0:非防水
+			ReCode = WriteReg( 0x44, 0 );//\D7\D4\C8莨\A4\D7\F7\B7\BD式选\D4\F1:  1\A3\BA\B7\C0水 0:\B7欠\C0水
 			StartScan();
 			ReCode = WriteReg( REG_ScCbAddrR, 0 );
 			//ReCode = theDevice.m_cHidDev[m_NumDevice]->HY_IIC_IO( theDevice.m_cHidDev[m_NumDevice]->hDevice, I2C_wBuffer, 1, pReadData, g_ScreenSetParam.iRxNum + g_ScreenSetParam.iTxNum );
@@ -2067,7 +2067,7 @@ boolean TestItem_SCapCbTest()
 		printk("Failed to Scan SCap CB!!\n");
 	}
 
-	//----------------------------------------------------------判断超过范围的rawData
+	//----------------------------------------------------------\C5卸铣\AC\B9\FD\B7\B6围\B5\C4rawData
 
 
 	//if(ReCode == ERROR_CODE_OK)
@@ -2141,7 +2141,7 @@ boolean TestItem_SCapCbTest()
 			printk("Max SCap CB: %d, Min SCap CB: %d, Deviation Value: %d, Average Value: %d\n", iMax, iMin, iMax - iMin, iAvg);
 			//TestResultInfo(str);
 
-			////>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>收集测试数据，存入CSV文件
+			////>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\CA占\AF\B2\E2\CA\D4\CA\FD\BE荩\AC\B4\E6\C8\EBCSV\CE募\FE
 			/*
 			strTemp = "";
 			for(int i = 0; i < 2; i++)
@@ -2155,7 +2155,7 @@ boolean TestItem_SCapCbTest()
 			}
 			SaveTestData( strTemp, 2, SCap_iRxNum );
 			*/
-			////<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<收集测试数据，存入CSV文件
+			////<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\CA占\AF\B2\E2\CA\D4\CA\FD\BE荩\AC\B4\E6\C8\EBCSV\CE募\FE
 		}
 		bFlag=NeedProofOffTest(regData);
 		printk("NeedProofOffTest %d		%d\n", bFlag,g_TestParam_FT5X46.SCapCbTest_SetWaterproof_OFF);
@@ -2224,7 +2224,7 @@ boolean TestItem_SCapCbTest()
 			printk("Max SCap CB: %d, Min SCap CB: %d, Deviation Value: %d, Average Value: %d\n", iMax, iMin, iMax - iMin, iAvg);
 			//TestResultInfo(str);
 
-			////>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>收集测试数据，存入CSV文件
+			////>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\CA占\AF\B2\E2\CA\D4\CA\FD\BE荩\AC\B4\E6\C8\EBCSV\CE募\FE
 			/*
 			strTemp = "";
 			for(int i = 0; i < 2; i++)
@@ -2238,7 +2238,7 @@ boolean TestItem_SCapCbTest()
 			}
 			SaveTestData(strTemp, 2, SCap_iRxNum, 2);
 			*/
-			////<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<收集测试数据，存入CSV文件
+			////<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\CA占\AF\B2\E2\CA\D4\CA\FD\BE荩\AC\B4\E6\C8\EBCSV\CE募\FE
 		}
 	}
 	else
@@ -2398,7 +2398,7 @@ boolean TestItem_SCapRawDataTest()
 			memset(prawData, 0, sizeof(prawData));
  
 			
-			//防水rawdata
+			//\B7\C0水rawdata
 			//printk("zax TestItem_SCapRawDataTest (SCap_iRxNum + SCap_iTxNum)*2 %d %d 	%d\n",SCap_iTxNum,SCap_iRxNum,(SCap_iRxNum + SCap_iTxNum)*2);
 			
 			for(i=0;i<2;i++)
@@ -2409,7 +2409,7 @@ boolean TestItem_SCapRawDataTest()
 			memcpy( SCap_rawData[0+SCap_iTxNum], prawData, sizeof(int)*SCap_iRxNum );
 			memcpy( SCap_rawData[1+SCap_iTxNum], prawData + SCap_iRxNum, sizeof(int)*SCap_iTxNum );
 
-            		//非防水rawdata
+            		//\B7欠\C0水rawdata
             		for(i=0;i<2;i++)
 				ReCode = ReadRawData(0, 0xAB, (SCap_iRxNum + SCap_iTxNum)*2, prawData );
 
@@ -2436,7 +2436,7 @@ boolean TestItem_SCapRawDataTest()
 		printk("Failed to Scan SCap RawData! \n");
 	}
 
-	//----------------------------------------------------------判断超过范围的rawData
+	//----------------------------------------------------------\C5卸铣\AC\B9\FD\B7\B6围\B5\C4rawData
 
 
 	//if(ReCode == ERROR_CODE_OK)
@@ -2506,7 +2506,7 @@ boolean TestItem_SCapRawDataTest()
 			printk("Max SCap RawData: %d, Min SCap RawData: %d, Deviation Value: %d, Average Value: %d\n", iMax, iMin, iMax - iMin, iAvg);
 			//TestResultInfo(str);
 
-			////>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>收集测试数据，存入CSV文件
+			////>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\CA占\AF\B2\E2\CA\D4\CA\FD\BE荩\AC\B4\E6\C8\EBCSV\CE募\FE
 			/*
 			strTemp = "";
 			for(int i = 0; i < 2; i++)
@@ -2520,7 +2520,7 @@ boolean TestItem_SCapRawDataTest()
 			}
 			SaveTestData(strTemp, 2, SCap_iRxNum);
 			*/
-			////<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<收集测试数据，存入CSV文件
+			////<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\CA占\AF\B2\E2\CA\D4\CA\FD\BE荩\AC\B4\E6\C8\EBCSV\CE募\FE
 		}
 		bFlag=NeedProofOffTest(regData);
 		if(g_TestParam_FT5X46.SCapRawDataTest_SetWaterproof_OFF && bFlag)
@@ -2586,7 +2586,7 @@ boolean TestItem_SCapRawDataTest()
 			printk("Max SCap RawData: %d, Min SCap RawData: %d, Deviation Value: %d, Average Value: %d\n", iMax, iMin, iMax - iMin, iAvg);
 			//TestResultInfo(str);
 
-			////>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>收集测试数据，存入CSV文件
+			////>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\CA占\AF\B2\E2\CA\D4\CA\FD\BE荩\AC\B4\E6\C8\EBCSV\CE募\FE
 			/*
 			strTemp = "";
 			for(int i = 0; i < 2; i++)
@@ -2600,7 +2600,7 @@ boolean TestItem_SCapRawDataTest()
 			}
 			SaveTestData(strTemp, 2, SCap_iRxNum, 2);
 			*/
-			////<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<收集测试数据，存入CSV文件
+			////<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\CA占\AF\B2\E2\CA\D4\CA\FD\BE荩\AC\B4\E6\C8\EBCSV\CE募\FE
 		}
 	}
 	else

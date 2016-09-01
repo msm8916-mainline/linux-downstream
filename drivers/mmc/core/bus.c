@@ -444,6 +444,13 @@ int mmc_add_card(struct mmc_card *card)
 			       mmc_hostname(card->host), __func__, ret);
 		/* Default timeout is 10 seconds */
 		card->idle_timeout = RUNTIME_SUSPEND_DELAY_MS;
+/* [PLATFORM]-Add-BEGIN by TCTNB.FLF, PR-989190, 2015/05/29, fix short interruptions during music playback, ref caes#02021448 */
+#ifdef CONFIG_TCT_8X16_IDOL3
+		if(card->type==1) {
+				card->idle_timeout = 10000000;
+		}
+#endif
+/* [PLATFORM]-Add-END by TCTNB.FLF */
 	}
 
 	mmc_card_set_present(card);

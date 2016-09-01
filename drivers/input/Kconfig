@@ -193,16 +193,12 @@ config INPUT_KEYCOMBO
 	  To compile this driver as a module, choose M here: the
 	  module will be called keycombo.
 
-#ADD Begin by TCTSZ-weihong.chen,2014-07-29,Add debug interface for input devices.
-config INPUT_DEBUG
-       tristate "debug interface for input devices"
-       depends on INPUT
-       help
-         Say Y here if you want to add some debug interface
-
-         To compile this driver as a module, choose M here: the module will
-         be called hall_sensor.
-#ADD End by TCTSZ-weihong.chen,2014-7-29,Add debug interface for input devices.
+config SENSORS_HALL
+	bool "Hall sensor"
+	depends on INPUT
+	---help---
+	 Say y here if you want to use this hall sensor driver, it
+	 is like a switch. For example, lid.
 
 comment "Input Device Drivers"
 

@@ -29,7 +29,7 @@ obj-$(CONFIG_INPUT_DM355EVM)		+= dm355evm_keys.o
 obj-$(CONFIG_INPUT_GP2A)		+= gp2ap002a00f.o
 obj-$(CONFIG_INPUT_GPIO_TILT_POLLED)	+= gpio_tilt_polled.o
 obj-$(CONFIG_INPUT_GPIO)		+= gpio_event.o gpio_matrix.o gpio_input.o gpio_output.o gpio_axis.o
-obj-$(CONFIG_INPUT_HBTP_INPUT)		+= hbtp_input.o
+obj-$(CONFIG_INPUT_HBTP_INPUT)		+= hbtp_input.o hbtp_vm.o
 obj-$(CONFIG_HP_SDC_RTC)		+= hp_sdc_rtc.o
 obj-$(CONFIG_INPUT_IMS_PCU)		+= ims-pcu.o
 obj-$(CONFIG_INPUT_IXP4XX_BEEPER)	+= ixp4xx-beeper.o
@@ -71,15 +71,13 @@ obj-$(CONFIG_SENSORS_STK3X1X)		+= stk3x1x.o
 obj-$(CONFIG_SENSORS_CAPELLA_CM36283)	+= cm36283.o
 obj-$(CONFIG_SENSORS_MPU6050)		+= mpu6050.o
 obj-$(CONFIG_SENSORS_AKM8963)		+= akm8963.o
-#[PLATFORM]-Mod-BGEIN by TCTNB.XQJ,2014/08/014, bug 758901,758937 add sensors
-ifndef CONFIG_TCT_8X16_ALTO45_LATAM_B28
 obj-$(CONFIG_SENSORS_AKM09911)		+= akm09911.o
 obj-$(CONFIG_SENSORS_LIS3DH)		+= lis3dh_acc.o
+obj-$(CONFIG_SENSORS_AP3426)		+= ap3426.o
 obj-$(CONFIG_SENSORS_BMA2X2)	+= bstclass.o
 
 obj-$(CONFIG_SENSORS_BMA2X2)	+= bma2x2.o
-obj-$(CONFIG_SENSORS_HALL) += hall.o
-obj-$(CONFIG_SENSORS_PSENSOR)	+= sx9500.o iqs128.o
+obj-$(CONFIG_SENSORS_LTR553)	+= ltr553.o
 
 ifeq ($(CONFIG_SENSORS_BMA2X2_ENABLE_INT1),y)
 	EXTRA_CFLAGS += -DBMA2X2_ENABLE_INT1
@@ -91,9 +89,7 @@ endif
 #yongzhong.cheng,2014/07/24,PR 724584: add proximity and light sensor config begin
 obj-$(CONFIG_SENSORS_TSL2772)	+= tsl277x.o
 #yongzhong.cheng,2014/07/24,PR 724584: add proximity and light sensor config end
-endif
-# [PLATFORM]-Mod-END by TCTNB.XQJ
-#[BUFFIX]-Add-bgein by TCTNB.XQJ, PR-797187,789423, 797185,2014/11/14,finish sensors drirver
-obj-$(CONFIG_GYRO_BMG160)	+= bmg160.o bmg160_driver.o #[BUFFIX]-Add- by TCTNB.XQJ, PR-789449,2014/11/16,add gyro drirver
+#[BUFFIX]-Add-bgein by huangshenglin@hoperun, task-1175896,1175888,2015/12/17,finish sensors drirver
+obj-$(CONFIG_GYRO_BMG160)	+= bmg160.o bmg160_driver.o #[BUFFIX]-Add- by TCTNB.XQJ, task1175896,2015/12/17,add gyro drirver
 obj-$(CONFIG_INPUT_KXTJ9)	+= kionix_accel.o
 #[BUFFIX]-End-by TCTNB.XQJ,

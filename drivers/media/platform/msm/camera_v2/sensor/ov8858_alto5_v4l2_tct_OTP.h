@@ -322,11 +322,11 @@ OV8858_write_i2c(0x3d81, 0x01);
 
 mdelay(5);
 temp2 = OV8858_read_i2c(start_addr + 0);
-printk("[0x7020] = %d  \n",temp2);
+//printk("[0x7020] = %d  \n",temp2);
 temp3 = OV8858_read_i2c(start_addr + 1);
-printk("[0x7021] = %d  \n",temp3);
+//printk("[0x7021] = %d  \n",temp3);
 temp = OV8858_read_i2c(start_addr + 2);
-printk("[0x7022] = %d  \n",temp);
+//printk("[0x7022] = %d  \n",temp);
 (*otp_ptr).rg_ratio = (OV8858_read_i2c(start_addr)<<2) + ((temp>>6) & 0x03);
 (*otp_ptr).bg_ratio = (OV8858_read_i2c(start_addr + 1)<<2) + ((temp>>4) & 0x03);
 
@@ -396,7 +396,7 @@ if (i>2) {
 	// no valid wb OTP data
 	return 1;
 }
-printk("index = %d",otp_index);
+//printk("index = %d",otp_index);
 ov8858_read_otp_wb(otp_index, &current_otp);
 
 rg = current_otp.rg_ratio ;
@@ -404,7 +404,7 @@ bg = current_otp.bg_ratio;
 
 //calculate G gain
 
-printk("OTP:RG_G/RG_C=[%d:%d],BG_G/BG_C=[%d:%d]\n", OV8858_RG_Ratio_Typical, rg, OV8858_BG_Ratio_Typical, bg);
+//printk("OTP:RG_G/RG_C=[%d:%d],BG_G/BG_C=[%d:%d]\n", OV8858_RG_Ratio_Typical, rg, OV8858_BG_Ratio_Typical, bg);
 nR_G_gain = (OV8858_RG_Ratio_Typical*1000) / rg;
 nB_G_gain = (OV8858_BG_Ratio_Typical*1000) / bg;
 nG_G_gain = 1000;
@@ -467,7 +467,7 @@ printk("read lenc[%d] = %x \n",i,(* otp_ptr).lenc[i]);
 sum_result = sum_lsc%255 + 1;
 check_sum = OV8858_read_i2c(end_addr);
 //#if OV8858_ALTO5_CMCC_OTP_DEBUG_ON
-printk("sum_lsc = %d,  sum_result = %d,  check_sum =%d  \n",sum_lsc,sum_result,check_sum);
+//printk("sum_lsc = %d,  sum_result = %d,  check_sum =%d  \n",sum_lsc,sum_result,check_sum);
 //#endif
 // clear otp buffer
 for (i=start_addr; i<=end_addr; i++) {
@@ -563,7 +563,7 @@ int ov8858_idol3_update_otp_wb(struct msm_camera_i2c_client *i2c_client)
 			// no valid wb OTP data
 			return 1;
 		}
-		printk("index = %d",otp_index);
+		//printk("index = %d",otp_index);
 		ov8858_read_otp_wb(otp_index, &current_otp);
 
 		rg = current_otp.rg_ratio ;
@@ -571,7 +571,7 @@ int ov8858_idol3_update_otp_wb(struct msm_camera_i2c_client *i2c_client)
 
 		//calculate G gain
 
-		printk("OTP:RG_G/RG_C=[%d:%d],BG_G/BG_C=[%d:%d]\n", OV8858_RG_Ratio_Typical, rg, OV8858_BG_Ratio_Typical, bg);
+		//printk("OTP:RG_G/RG_C=[%d:%d],BG_G/BG_C=[%d:%d]\n", OV8858_RG_Ratio_Typical, rg, OV8858_BG_Ratio_Typical, bg);
 		nR_G_gain = (OV8858_RG_Ratio_Typical*1000) / rg;
 		nB_G_gain = (OV8858_BG_Ratio_Typical*1000) / bg;
 		nG_G_gain = 1000;

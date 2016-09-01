@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * [BUFFIX]-Mod by huangshenglin@hoperun,porting L->M, task-1175888,2015/12/17
  */
 
 #include <linux/kernel.h>
@@ -954,7 +954,11 @@ static void kionix_accel_grp4_report_accel_data(struct kionix_accel_driver
 	int err;
 	struct input_dev *input_dev = acceld->input_dev;
 	int loop;
-
+	//add by huangshenglin@hoperun,2016/1/4, task-1252678 ,sync event->time with hal.+++
+	ktime_t timestamp;
+	timestamp = ktime_get_boottime();
+	//add by huangshenglin@hoperun,2016/1/4 sync event->time with hal.--
+	
 	/* Only read the output registers if enabled */
 	if (atomic_read(&acceld->accel_enabled) > 0) {
 		if (atomic_read(&acceld->accel_enable_resume) > 0) {
@@ -1019,6 +1023,10 @@ static void kionix_accel_grp4_report_accel_data(struct kionix_accel_driver
 							 ABS_Z,
 							 acceld->accel_data
 							 [acceld->axis_map_z]);
+	//add by huangshenglin@hoperun,2016/1/4, task-1252678 ,sync event->time with hal.+++
+					input_event(acceld->input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+					input_event(acceld->input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
+	//add by huangshenglin@hoperun,2016/1/4 sync event->time with hal.--
 					input_sync(acceld->input_dev);
 				}
 				write_unlock(&acceld->rwlock_accel_data);
@@ -1681,10 +1689,10 @@ static DEVICE_ATTR(enable, S_IRUGO | S_IWUSR | S_IWGRP | S_IWOTH,
 		   kionix_accel_get_enable, kionix_accel_set_enable);
 static DEVICE_ATTR(poll_delay, S_IRUGO | S_IWUSR | S_IWGRP | S_IWOTH,
 		   kionix_accel_get_delay, kionix_accel_set_delay);
-static DEVICE_ATTR(direct, S_IRUGO | S_IWUSR | S_IWGRP | S_IWOTH,
+static DEVICE_ATTR(direct, S_IRUGO | S_IWUSR | S_IWGRP,
 		   kionix_accel_get_direct, kionix_accel_set_direct);
 static DEVICE_ATTR(data, S_IRUGO, kionix_accel_get_data, NULL);
-static DEVICE_ATTR(cali, S_IRUGO | S_IWUSR | S_IWGRP | S_IWOTH,
+static DEVICE_ATTR(cali, S_IRUGO | S_IWUSR | S_IWGRP,
 		   kionix_accel_get_cali, kionix_accel_set_cali);
 
 static struct attribute *kionix_accel_attributes[] = {
@@ -2366,7 +2374,7 @@ static int kionix_accel_probe(struct i2c_client *client,
 	}
 
 	err =
-	    sysfs_create_group(&acceld->input_dev->dev.kobj,
+	    sysfs_create_group(&client->dev.kobj,
 			       &kionix_accel_attribute_group);
 	if (err) {
 		KMSGERR(&acceld->client->dev,

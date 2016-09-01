@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License version 2 and
@@ -24,57 +24,24 @@
 
 &i2c_4 {
 	smb1360_otg_supply: smb1360-chg-fg@14 {
-/* [PLATFORM]-Mod-BEGIN by TCTNB.FLF, PR-790435, 2014/11/12, fix irq blocks booting up*/
-
-        compatible = "qcom,smb1360-chg-fg";
-        reg = <0x14>;
-        interrupt-parent = <&msm_gpio>;
-        interrupts = <62 2>;
-        pinctrl-names = "default";
-        pinctrl-0 = <&smb_int_default>;
-        qcom,stat-pulsed-irq;
-        qcom,chg-inhibit-disabled;
-        qcom,float-voltage-mv = <4350>;
-        qcom,fg-cc-to-cv-mv = <4328>;
-	qcom,thermistor-c1-coeff = <0x86C8>;
-        qcom,iterm-ma = <100>;   // bug946997, wangjin modified, 2015/3/13
-        qcom,charging-timeout = <0>; //TMP modify by wqf for stability test, need to revert later
-        qcom,otg-batt-curr-limit = <1500>;
-        qcom,recharge-thresh-mv = <100>;
-        qcom,thermal-mitigation = <1500 700 600 0>;
-        qcom,fg-auto-recharge-soc = <99>;
-        qcom,empty-soc-disabled;
-        regulator-name = "smb1360_otg_vreg";
-        /* qcom,awake-min-soc; */
-        qcom,batt-profile-select;
-        qcom,smb1360-vadc = <&pm8916_vadc>;
-        qcom,batt-id-vref-uv = <1800000>;
-        qcom,batt-id-rpullup-kohm = <100>;
-        qcom,profile-a-rid-kohm = <33>;
-        qcom,profile-b-rid-kohm = <52>;
-	qcom,fg-batt-capacity-mah = <2910>;
-        qcom,fg-cc-soc-coeff = <0x81A1>;
-	qcom,fg-soc-max = <85>;
-        qcom,fg-soc-min = <15>;
-        qcom,fg-delta-soc = <1>;
-        qcom,shdn-after-pwroff;
-
-        qcom,config-hard-thresholds;
-        qcom,hot-bat-decidegc = <550>;
-	qcom,cold-bat-decidegc = <0>;   // changed as qcom suggestion
-
-	qcom,soft-jeita-supported;
-	qcom,warm-bat-decidegc = <450>;
-	qcom,cool-bat-decidegc = <100>;
-	qcom,warm-bat-mv = <4100>;
-	qcom,cool-bat-mv = <4350>;
-	qcom,warm-bat-ma = <1350>;
-	qcom,cool-bat-ma = <750>;
-/* [PLATFORM]-Mod-END by TCTNB.FLF */
+		compatible = "qcom,smb1360-chg-fg";
+		reg = <0x14>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <62 8>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&smb_int_default>;
+		//qcom,charging-disabled;  //remove by runzi for charger 20151216
+		qcom,empty-soc-disabled;
+		qcom,chg-inhibit-disabled;
+		qcom,float-voltage-mv = <4200>;
+		qcom,iterm-ma = <200>;
+		qcom,recharge-thresh-mv = <100>;
+		qcom,thermal-mitigation = <1500 700 600 0>;
+		regulator-name = "smb1360_otg_vreg";
 	};
 };
 
-&pm8916_chg {
+/*&pm8916_chg {
 	status = "ok";
 	qcom,use-external-charger;
 };
@@ -82,7 +49,7 @@
 &pm8916_bms {
 	status = "ok";
 	qcom,disable-bms;
-};
+};*/ //MODIFIED by jianeng.yuan, 2016-04-14,BUG-1941671
 
 &usb_otg {
 	qcom,hsusb-otg-mode = <3>;
@@ -95,8 +62,4 @@
 	vbus_otg-supply = <&smb1360_otg_supply>;
 };
 
-&cci {
-	qcom,camera@0 {
-		qcom,led-flash-src = <&led_flash0>;
-	};
-};
+

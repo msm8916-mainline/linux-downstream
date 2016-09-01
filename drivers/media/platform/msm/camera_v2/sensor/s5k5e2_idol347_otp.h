@@ -6,6 +6,7 @@
 #define S5K5E2_IDOL347_OTP_WB_FLAG_ADD                0x0A43
 #define S5K5E2_IDOL347_OTP_WB_DATA_ADD                0x0A0F
 #define S5K5E2_IDOL347_OTP_WB_GOLDEN_DATA_ADD        0x0A16
+#define S5K5E2_IDOL347_OTP_MID_AWB_CHECKSUM_ADD      0x0A42
 #define S5K5E2_IDOL347_OTP_MID_AWB_CHECKSUM_NUM        30
 #define S5K5E2_IDOL347_OTP_GAIN_DEFAULT                0x100
 
@@ -24,7 +25,7 @@ static int s5k5e2_idol347_read_otp(struct msm_sensor_ctrl_t * s_ctrl,uint8_t pag
     uint8_t  reVal = 0;
     uint16_t i = 0;
 
-    pr_err("s5k5e2_idol347 otp page:%d address:0x%x read_size:%d\n ", page, address, size);
+    //pr_err("s5k5e2_idol347 otp page:%d address:0x%x read_size:%d\n ", page, address, size);
 
     if ((buffer==NULL) || (size > S5K5E2_IDOL347_OTP_PAGE_FULL_SIZE)){
         pr_err("[JRD_CAM][S5K5E2OTP]error s5k5e2_idol347 read otp size=%d\n", size);
@@ -50,7 +51,7 @@ static int s5k5e2_idol347_read_otp(struct msm_sensor_ctrl_t * s_ctrl,uint8_t pag
 
 static uint32_t s5k5e2_idol347_otp_mid_awb_checksum(struct msm_sensor_ctrl_t * s_ctrl,uint8_t Page)
 {
-    uint8_t otpChecksumBuffer[S5K5E2_IDOL347_OTP_MID_AWB_CHECKSUM_NUM];
+    uint8_t otpChecksumBuffer[S5K5E2_IDOL347_OTP_MID_AWB_CHECKSUM_NUM], otpChecksumValue=0;
     int i4RetValue = 0;
     uint32_t i = 0, temp = 0;
 
@@ -62,10 +63,25 @@ static uint32_t s5k5e2_idol347_otp_mid_awb_checksum(struct msm_sensor_ctrl_t * s
         temp += otpChecksumBuffer[i];
     }
 
-    pr_err("MID AWB checksum temp=%d\n", temp);
+    //pr_err("MID AWB checksum temp=%d\n", temp);
+    /*Add for read checksum value*/
+    i4RetValue = s5k5e2_idol347_read_otp(s_ctrl, Page, S5K5E2_IDOL347_OTP_MID_AWB_CHECKSUM_ADD, &otpChecksumValue, 1);
+    if (i4RetValue < 0)
+    {
+        pr_err("fail to read s5k5e2_idol347 otp checksum value.\n");
+    }
+    else
+    {
+        pr_err("LJTAO: ochecksumValue=0x%X, tempChecksum=0x%X.\n", otpChecksumValue, ((temp % 255) + 1));
+    }
 
-    if (((temp % 255) + 1) == otpChecksumBuffer[S5K5E2_IDOL347_OTP_MID_AWB_CHECKSUM_NUM -1]){
+    if (((temp % 255) + 1) == otpChecksumValue)//otpChecksumBuffer[S5K5E2_IDOL347_OTP_MID_AWB_CHECKSUM_NUM -1])
+    {
         pr_err("MID AWB checksum successfully\n");
+        /*for (i = 0; i < S5K5E2_IDOL347_OTP_MID_AWB_CHECKSUM_NUM; i++)
+        {
+            pr_err("otpChecksumBuffer[0x%x]=%d\n", S5K5E2_IDOL347_OTP_BASE_ADD + i, otpChecksumBuffer[i]);
+        }*/
         return true;
     }else{
         pr_err("fail to MID AWB checksum\n");
@@ -118,7 +134,7 @@ static int32_t s5k5e2_idol347_otp_read_update_wb(struct msm_sensor_ctrl_t * s_ct
         return -1;
     }
 
-    pr_err("check otp awb successfully page=%d\n", page_index);
+    //pr_err("check otp awb successfully page=%d\n", page_index);
 
     if(awb_checksum_ready == false){
        i4RetValue = s5k5e2_idol347_otp_mid_awb_checksum(s_ctrl,page_index);
@@ -151,8 +167,8 @@ static int32_t s5k5e2_idol347_otp_read_update_wb(struct msm_sensor_ctrl_t * s_ct
         ((S5K5E2_BG_Ratio_Typical * 7) < (otp_awb.bg_ratio * 10)) && ((S5K5E2_BG_Ratio_Typical*13) > (otp_awb.bg_ratio * 10))
        )
     {
-        pr_err("rg_ratio=0x%x bg_ratio=0x%x golden_rg_ratio=0x%x golden_bg_ratio=0x%x\n",
-                    otp_awb.rg_ratio, otp_awb.bg_ratio, otp_awb.golden_rg_ratio, otp_awb.golden_bg_ratio);
+       // pr_err("rg_ratio=0x%x bg_ratio=0x%x golden_rg_ratio=0x%x golden_bg_ratio=0x%x\n",
+       //             otp_awb.rg_ratio, otp_awb.bg_ratio, otp_awb.golden_rg_ratio, otp_awb.golden_bg_ratio);
 
         if( otp_awb.bg_ratio < S5K5E2_BG_Ratio_Typical ){
             if( otp_awb.rg_ratio < S5K5E2_RG_Ratio_Typical){
@@ -193,7 +209,7 @@ static int32_t s5k5e2_idol347_otp_read_update_wb(struct msm_sensor_ctrl_t * s_ct
     }else{
         pr_err("[JRD_CAM][S5K5E2_IDOL347_OTP]fail to check awb rg_ratio and bg_ratio error\n");
     }
-    pr_err("end to s5k5e2_idol347 otp read update_wb\n");
+    //pr_err("end to s5k5e2_idol347 otp read update_wb\n");
 
     return 0;
 }

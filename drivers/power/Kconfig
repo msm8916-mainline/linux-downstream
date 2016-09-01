@@ -398,6 +398,12 @@ config SMB1360_CHARGER_FG
 	  The driver reports the status via the power supply framework.
 	  A status change triggers an IRQ via the device STAT pin.
 
+config SMB1360_BATTID_CHECK
+	bool "check battery id"
+	depends on SMB1360_CHARGER_FG
+	help
+	  Say Y to enable battery id check to disable charging func.
+
 config SMB358_CHARGER
 	tristate "SMB358 Battery Charger"
 	depends on I2C

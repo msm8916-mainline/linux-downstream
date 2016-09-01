@@ -53,6 +53,7 @@
 #define NCP6335D_VOUT_SEL_MASK		0x7F
 #define NCP6335D_SLEW_MASK		0x18
 #define NCP6335D_SLEW_SHIFT		0x3
+#define NCP6335D_TIME_DELAY_MASK	 0xE0 /*TCT-NB Tianhongwei modify 2015/11/05*/
 
 struct ncp6335d_info {
 	struct regulator_dev *regulator;
@@ -163,6 +164,7 @@ static int ncp6335d_enable(struct regulator_dev *rdev)
 	if (rc)
 		dev_err(dd->dev, "Unable to enable regualtor rc(%d)", rc);
 
+	printk(KERN_ERR"  %s:%d \n",__func__,__LINE__);
 	dump_registers(dd, dd->vsel_reg, __func__);
 
 	return rc;
@@ -173,6 +175,7 @@ static int ncp6335d_disable(struct regulator_dev *rdev)
 	int rc;
 	struct ncp6335d_info *dd = rdev_get_drvdata(rdev);
 
+	printk(KERN_ERR"  %s:%d \n",__func__,__LINE__);
 	rc = ncp6335x_update_bits(dd, dd->vsel_reg,
 					NCP6335D_ENABLE, 0);
 	if (rc)
@@ -217,7 +220,7 @@ static int ncp6335d_set_voltage(struct regulator_dev *rdev,
 	}
 
 	rc = ncp6335x_update_bits(dd, dd->vsel_reg,
-		NCP6335D_VOUT_SEL_MASK, (set_val & NCP6335D_VOUT_SEL_MASK));
+		0x80|NCP6335D_VOUT_SEL_MASK, (set_val & NCP6335D_VOUT_SEL_MASK)|0x80); //MODIFIED by jianeng.yuan, 2016-04-09,BUG-1928691
 	if (rc) {
 		dev_err(dd->dev, "Unable to set volatge (%d %d)\n",
 							min_uV, max_uV);
@@ -326,6 +329,7 @@ static int ncp6335d_restore_working_reg(struct device_node *node,
 
 	ret = ncp6335x_update_bits(dd, dd->vsel_reg,
 					NCP6335D_VOUT_SEL_MASK, val);
+	ncp6335x_read(dd, dd->vsel_reg, &val);/*TCT-NB Tianhongwei modify 2015/11/18*/
 	if (ret < 0) {
 		dev_err(dd->dev, "Failed to update working reg %d, ret = %d\n",
 			dd->vsel_reg,  ret);
@@ -393,7 +397,52 @@ static int ncp6335d_init(struct i2c_client *client, struct ncp6335d_info *dd,
 		dev_err(dd->dev, "Invalid VSEL ID %d\n", pdata->default_vsel);
 		return -EINVAL;
 	}
-
+/*TCT-NB Tianhongwei modify 2015/11/18*/
+	rc = ncp6335x_read(dd, dd->vsel_reg, &val);
+	if(val != 0xD8)
+	{
+		dev_err(&client->dev, "NCP6335D_PROGVSEL(0x%x), rc(0x%x)\n",dd->vsel_reg,val);
+		rc = ncp6335x_update_bits(dd, dd->vsel_reg,
+				0xFF, 0xD8);
+	}
+	rc = ncp6335x_read(dd, REG_NCP6335D_PGOOD, &val);
+	if(val != 0x10)
+	{
+		dev_err(&client->dev, "NCP6335D_PGOOD, rc(0x%x)\n",val);
+		rc = ncp6335x_update_bits(dd, REG_NCP6335D_PGOOD,
+				0xFF, 0x10);
+	}
+	rc = ncp6335x_read(dd, REG_NCP6335D_TIMING, &val);
+	if(val != 0x19)
+	{
+		dev_err(&client->dev, "REG_NCP6335D_TIMING, rc(0x%x)\n",val);
+		rc = ncp6335x_update_bits(dd, REG_NCP6335D_TIMING,
+				0xFF, 0x19);
+	}
+	rc = ncp6335x_read(dd, REG_NCP6335D_COMMAND, &val);
+	if(val != 0x01)
+	{
+		dev_err(&client->dev, "REG_NCP6335D_COMMAND, rc(0x%x)\n",val);
+		rc = ncp6335x_update_bits(dd, REG_NCP6335D_COMMAND,
+				0xFF, 0x01);
+	}
+	rc = ncp6335x_read(dd, 0x15, &val);
+	if(val != 0x80)
+	{
+		dev_err(&client->dev, "REG_NCP6335D_0x15, rc(0x%x)\n",val);
+		rc = ncp6335x_update_bits(dd, 0x15,
+				0xFF, 0x80);
+	}
+	rc = ncp6335x_read(dd, 0x16, &val);
+	if(val != 0xE3)
+	{
+		dev_err(&client->dev, "REG_NCP6335D_0x16, rc(0x%x)\n",val);
+		rc = ncp6335x_update_bits(dd, 0x16,
+				0xFF, 0xE3);
+	}
+	rc = ncp6335x_read(dd, dd->vsel_reg, &val);
+	dev_err(&client->dev, "NCP6335D_PROGVSEL(0x%x), rc(0x%x)\n",dd->vsel_reg,val);
+/*TCT-NB Tianhongwei end*/
 	if (of_property_read_bool(client->dev.of_node, "onnn,restore-reg")) {
 		rc = ncp6335d_restore_working_reg(client->dev.of_node, dd);
 		if (rc)
@@ -418,6 +467,8 @@ static int ncp6335d_init(struct i2c_client *client, struct ncp6335d_info *dd,
 					NCP6335D_PGOOD_DISCHG,
 					(pdata->discharge_enable ?
 					NCP6335D_PGOOD_DISCHG : 0));
+
+	ncp6335x_read(dd, REG_NCP6335D_PGOOD, &val);/*TCT-NB Tianhongwei modify 2015/11/18*/
 	if (rc) {
 		dev_err(dd->dev, "Unable to set Active Discharge rc(%d)\n", rc);
 		return -EINVAL;
@@ -436,6 +487,7 @@ static int ncp6335d_init(struct i2c_client *client, struct ncp6335d_info *dd,
 
 	rc = ncp6335x_update_bits(dd, REG_NCP6335D_TIMING,
 			NCP6335D_SLEW_MASK, val << NCP6335D_SLEW_SHIFT);
+	ncp6335x_read(dd, REG_NCP6335D_TIMING, &val);/*TCT-NB Tianhongwei modify 2015/11/18*/
 	if (rc)
 		dev_err(dd->dev, "Unable to set slew rate rc(%d)\n", rc);
 
@@ -443,6 +495,7 @@ static int ncp6335d_init(struct i2c_client *client, struct ncp6335d_info *dd,
 	rc = ncp6335x_update_bits(dd, REG_NCP6335D_COMMAND,
 				NCP6335D_SLEEP_MODE, pdata->sleep_enable ?
 						NCP6335D_SLEEP_MODE : 0);
+	ncp6335x_read(dd, REG_NCP6335D_COMMAND, &val);/*TCT-NB Tianhongwei modify 2015/11/18*/
 	if (rc)
 		dev_err(dd->dev, "Unable to set sleep mode (%d)\n", rc);
 

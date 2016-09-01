@@ -21,11 +21,14 @@ SE.  See the
  /*************** Definitions ******************/
 /* GENERAL */
 #define RPR521_DRV_NAME	"rpr521"
-#define DRIVER_VERSION		"1.0"
+#define DRIVER_VERSION		"2.0"
 
 #define THRES_TOLERANCE	 25//15	//I think this is a proper value. It should not be too big.
 #define THRES_DIFF		20		//I am not sure whether this is a proper value but I guess so. 
 #define THRES_DEFAULT_DIFF    40//30
+
+#define ROHM_CALIBRATE //xx modify in 2015.3.17
+
 
 //#define RPR400_INT		81	//don't use because I use client->irq instead
 
@@ -64,7 +67,7 @@ SE.  See the
 #define MASK_LONG         (0xFFFFFFFF)
 #define MASK_CHAR         (0xFF)
 #define BOTH_STANDBY	(0)
-#define ALS100MS	(0x5)
+#define PS50MS_ALS100MS	(0x5)  //grace modify in 2015.2.16
 #define PS100MS		(0x3)
 #define BOTH100MS	(0x6)
 #define PS10MS       (0x1)//grace modify in 2014.5.6
@@ -111,13 +114,13 @@ SE.  See the
 #define REG_INTERRUPT_MAX   (0x2F)
 
 /* INIT PARAM */
-#define PS_ALS_SET_MODE_CONTROL   (PS_DOUBLE_PULSE | BOTH100MS)//(NORMAL_MODE)
+#define PS_ALS_SET_MODE_CONTROL   (PS_DOUBLE_PULSE | PS50MS_ALS100MS)  //grace modify in 2015.2.16
 #define PS_DOUBLE_PULSE       (1 << 5)
-#define PS_ALS_SET_ALSPS_CONTROL  (LEDCURRENT_100MA | ALSGAIN_X2X2)	//Set high gain value to acquire high accuracy
+#define PS_ALS_SET_ALSPS_CONTROL  (LEDCURRENT_100MA | ALSGAIN_X1X1)	//Set high gain value to acquire high accuracy
 #define PS_ALS_SET_INTR_PERSIST   (PSGAIN_X1 | 0x1)
-#define PS_ALS_SET_INTR           (PS_THH_BOTH_OUTSIDE| POLA_ACTIVEL | OUTPUT_LATCH | MODE_PROXIMITY)
-#define PS_ALS_SET_PS_TH          (170)	//Customer should change the threshold value according to their mechanical design and measured data
-#define PS_ALS_SET_PS_TL          (120)	//Changed from (0x000)
+#define PS_ALS_SET_INTR           (PS_THH_BOTH_OUTSIDE| POLA_ACTIVEL | OUTPUT_LATCH | MODE_NONUSE) //grace modify in 2015.2.16
+#define PS_ALS_SET_PS_TH          (1000)	//grace modify in 2015.2.16
+#define PS_ALS_SET_PS_TL          (999)	//grace modify in 2015.2.16
 #define PS_ALS_SET_ALS_TH         (2000) 	//Compare with ALS_DATA0. ALS_Data equals 0.192*ALS_DATA0 roughly. Usually not used.
 #define PS_ALS_SET_ALS_TL         (0x0000)	//Usually not used.
 #define PS_ALS_SET_MIN_DELAY_TIME (100)	//Andy Mi: Changed from 125 to 100. I have no idea why it is 125 previously. 
@@ -191,7 +194,30 @@ struct ALS_PS_DATA {
 	struct sensors_classdev als_cdev;
 	struct sensors_classdev ps_cdev;
 
-    unsigned int type;
+    	unsigned int type;
+
+#ifdef ROHM_CALIBRATE
+	uint16_t psa;
+	uint16_t psi;	
+	uint16_t psi_set;	
+	uint16_t boot_ct;	
+	uint16_t boot_cali;
+	struct hrtimer ps_tune0_timer;	
+	struct workqueue_struct *rpr_ps_tune0_wq;
+       struct work_struct rpr_ps_tune0_work;
+	ktime_t ps_tune0_delay;
+	bool tune_zero_init_proc;
+	uint32_t ps_stat_data[3];
+	int data_count;
+	int rpr_max_min_diff;
+	int ps_nf;
+	int rpr_lt_n_ct;
+	int rpr_ht_n_ct;
+	uint16_t ps_th_h_boot;
+       uint16_t ps_th_l_boot;
+	bool first_boot;
+	uint16_t  ps;
+#endif	
 };
 
 #if 0  

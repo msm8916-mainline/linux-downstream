@@ -6,10 +6,10 @@
 #include "ini.h"
 
 #define Section_SpecialSet "SpecialSet"
-char CFG_SSL = '[';  /* 项标志符Section Symbol --可根据特殊需要进行定义更改，如 { }等*/
-char CFG_SSR = ']';  /* 项标志符Section Symbol --可根据特殊需要进行定义更改，如 { }等*/
-char CFG_NIS = ':';  /* name 与 index 之间的分隔符 */
-char CFG_NTS = '#';  /* 注释符*/
+char CFG_SSL = '[';  /* \CF\EE\B1\EA志\B7\FBSection Symbol --\BF筛\F9\BE\DD\CC\D8\CA\E2\D0\E8要\BD\F8\D0卸\A8\D2\E5\B8\FC\B8模\AC\C8\E7 { }\B5\C8*/
+char CFG_SSR = ']';  /* \CF\EE\B1\EA志\B7\FBSection Symbol --\BF筛\F9\BE\DD\CC\D8\CA\E2\D0\E8要\BD\F8\D0卸\A8\D2\E5\B8\FC\B8模\AC\C8\E7 { }\B5\C8*/
+char CFG_NIS = ':';  /* name \D3\EB index 之\BC\E4\B5姆指\F4\B7\FB */
+char CFG_NTS = '#';  /* 注\CA头\FB*/
 
 char * ini_str_trim_r(char * buf);
 char * ini_str_trim_l(char * buf);
@@ -19,16 +19,16 @@ static long atol(char *nptr);
 
 
 /*************************************************************
-Function: 获得key的值
-Input: char * filedata　文件；char * section　项值；char * key　键值
-Output: char * value　key的值
+Function: \BB\F1\B5\C3key\B5\C4值
+Input: char * filedata\A1\A1\CE募\FE\A3\BBchar * section\A1\A1\CF\EE值\A3\BBchar * key\A1\A1\BC\FC值
+Output: char * value\A1\A1key\B5\C4值
 Return: 0		SUCCESS
--1		未找到section
--2		未找到key
--10		文件打开失败
--12		读取文件失败
--14		文件格式错误
--22		超出缓冲区大小
+-1		未\D5业\BDsection
+-2		未\D5业\BDkey
+-10		\CE募\FE\B4\F2\BF\AA失\B0\DC
+-12		\B6\C1取\CE募\FE失\B0\DC
+-14		\CE募\FE\B8\F1式\B4\ED\CE\F3
+-22		\B3\AC\B3\F6\BB\BA\B3\E5\C7\F8\B4\F3小
 Note: 
 *************************************************************/
 int ini_get_key(char *filedata, char * section, char * key, char * value)
@@ -48,7 +48,7 @@ int ini_get_key(char *filedata, char * section, char * key, char * value)
 	*value='\0';
 	//if (strcmp(section, Section_SpecialSet) == 0)
 	//	printk("[Focal][%s] search section !");
-	while(1) { /* 搜找项section */
+	while(1) { /* \CB\D1\D5\D2\CF\EEsection */
 
 		ret = CFG_ERR_READ_FILE;
 		n = ini_file_get_line(filedata+dataoff, buf1, MAX_CFG_BUF);
@@ -57,14 +57,14 @@ int ini_get_key(char *filedata, char * section, char * key, char * value)
 			goto r_cfg_end;
 		ret = CFG_SECTION_NOT_FOUND;
 		if(n < 0)
-			goto r_cfg_end; /* 文件尾，未发现 */ 
+			goto r_cfg_end; /* \CE募\FE尾\A3\AC未\B7\A2\CF\D6 */ 
 
 		if(n > MAX_CFG_BUF)
 			goto r_cfg_end;
 
 		n = strlen(ini_str_trim_l(ini_str_trim_r(buf1)));
 		if(n == 0 || buf1[0] == CFG_NTS)
-			continue;       /* 空行 或 注释行 */ 
+			continue;       /* \BF\D5\D0\D0 \BB\F2 注\CA\CD\D0\D0 */ 
 
 		ret = CFG_ERR_FILE_FORMAT;
 		if(n > 2 && ((buf1[0] == CFG_SSL && buf1[n-1] != CFG_SSR)))
@@ -75,13 +75,13 @@ int ini_get_key(char *filedata, char * section, char * key, char * value)
 			{
 				//if (strcmp(section, Section_SpecialSet) == 0)
 				//	printk("[Focal][%s] find section section = %s ! \n", __func__, section);
-				break; /* 找到项section */
+				break; /* \D5业\BD\CF\EEsection */
 			}
 		} 
 	} 
 	//if (strcmp(section, Section_SpecialSet) == 0)
 	//	printk("[Focal][%s] search key ! \n", __func__);	
-	while(1){ /* 搜找key */ 
+	while(1){ /* \CB\D1\D5\D2key */ 
 
 		ret = CFG_ERR_READ_FILE;
 		n = ini_file_get_line(filedata+dataoff, buf1, MAX_CFG_BUF);
@@ -90,16 +90,16 @@ int ini_get_key(char *filedata, char * section, char * key, char * value)
 			goto r_cfg_end;
 		ret = CFG_KEY_NOT_FOUND;
 		if(n < 0)
-			goto r_cfg_end;/* 文件尾，未发现key */ 
+			goto r_cfg_end;/* \CE募\FE尾\A3\AC未\B7\A2\CF\D6key */ 
 		n = strlen(ini_str_trim_l(ini_str_trim_r(buf1)));
 		if(n == 0 || buf1[0] == CFG_NTS) 
-			continue;       /* 空行 或 注释行 */ 
+			continue;       /* \BF\D5\D0\D0 \BB\F2 注\CA\CD\D0\D0 */ 
 		ret = CFG_KEY_NOT_FOUND; 
 		if(buf1[0] == CFG_SSL)
 		{
 			goto r_cfg_end;
 		}
-		if(buf1[n-1] == '+') { /* 遇+号表示下一行继续  */ 		
+		if(buf1[n-1] == '+') { /* \D3\F6+\BA疟\ED示\CF\C2一\D0屑\CC\D0\F8  */ 		
 			buf1[n-1] = 0x00; 
 			while(1) {			
 				ret = CFG_ERR_READ_FILE; 
@@ -108,11 +108,11 @@ int ini_get_key(char *filedata, char * section, char * key, char * value)
 				if(n < -1) 
 					goto r_cfg_end; 
 				if(n < 0) 
-					break;/* 文件结束 */ 
+					break;/* \CE募\FE\BD\E1\CA\F8 */ 
 
 				n = strlen(ini_str_trim_r(buf2)); 
 				ret = CFG_ERR_EXCEED_BUF_SIZE; 
-				if(n > 0 && buf2[n-1] == '+'){/* 遇+号表示下一行继续 */ 
+				if(n > 0 && buf2[n-1] == '+'){/* \D3\F6+\BA疟\ED示\CF\C2一\D0屑\CC\D0\F8 */ 
 					buf2[n-1] = 0x00; 
 					if( (strlen(buf1) + strlen(buf2)) > MAX_CFG_BUF) 
 						goto r_cfg_end; 
@@ -131,7 +131,7 @@ int ini_get_key(char *filedata, char * section, char * key, char * value)
 
 		ini_str_trim_l(ini_str_trim_r(key_ptr)); 
 		if(strcmp(key_ptr, key) != 0) 
-			continue;                                  /* 和key值不匹配 */ 
+			continue;                                  /* \BA\CDkey值\B2\BB匹\C5\E4 */ 
 		strcpy(value, val_ptr); 
 		break; 
 	} 
@@ -145,13 +145,13 @@ r_cfg_end:
 	return ret; 
 } 
 /*************************************************************
-Function: 获得所有section
-Input:  char *filename　文件,int max 最大可返回的section的个数
-Output: char *sections[]　存放section名字
-Return: 返回section个数。若出错，返回负数。
--10			文件打开出错
--12			文件读取错误
--14			文件格式错误
+Function: \BB\F1\B5\C3\CB\F9\D3\D0section
+Input:  char *filename\A1\A1\CE募\FE,int max \D7\EE\B4\F3\BF煞\B5\BB氐\C4section\B5母\F6\CA\FD
+Output: char *sections[]\A1\A1\B4\E6\B7\C5section\C3\FB\D7\D6
+Return: \B7\B5\BB\D8section\B8\F6\CA\FD\A1\A3\C8\F4\B3\F6\B4\ED\A3\AC\B7\B5\BB馗\BA\CA\FD\A1\A3
+-10			\CE募\FE\B4蚩\F6\B4\ED
+-12			\CE募\FE\B6\C1取\B4\ED\CE\F3
+-14			\CE募\FE\B8\F1式\B4\ED\CE\F3
 Note: 
 *************************************************************/
 int ini_get_sections(char *filedata, unsigned char * sections[], int max)
@@ -161,17 +161,17 @@ int ini_get_sections(char *filedata, unsigned char * sections[], int max)
 	int n, n_sections = 0, ret; 
 	int dataoff = 0;
 
-	while(1) {/*搜找项section */
+	while(1) {/*\CB\D1\D5\D2\CF\EEsection */
 		ret = CFG_ERR_READ_FILE;
 		n = ini_file_get_line(filedata+dataoff, buf1, MAX_CFG_BUF);
 		dataoff += n;
 		if(n < -1) 
 			goto cfg_scts_end; 
 		if(n < 0)
-			break;/* 文件尾 */ 
+			break;/* \CE募\FE尾 */ 
 		n = strlen(ini_str_trim_l(ini_str_trim_r(buf1)));
 		if(n == 0 || buf1[0] == CFG_NTS) 
-			continue;       /* 空行 或 注释行 */ 
+			continue;       /* \BF\D5\D0\D0 \BB\F2 注\CA\CD\D0\D0 */ 
 		ret = CFG_ERR_FILE_FORMAT;
 		if(n > 2 && ((buf1[0] == CFG_SSL && buf1[n-1] != CFG_SSR)))
 			goto cfg_scts_end;
@@ -180,7 +180,7 @@ int ini_get_sections(char *filedata, unsigned char * sections[], int max)
 				buf1[n-1] = 0x00;
 				strcpy((char *)sections[n_sections], buf1+1);
 				if (n_sections>=max)
-					break;		/* 超过可返回最大个数 */
+					break;		/* \B3\AC\B9\FD\BF煞\B5\BB\D8\D7\EE\B4\F3\B8\F6\CA\FD */
 			}
 			n_sections++;
 		} 
@@ -195,10 +195,10 @@ cfg_scts_end:
 
 
 /*************************************************************
-Function: 去除字符串右边的空字符
-Input:  char * buf 字符串指针
+Function: 去\B3\FD\D7址\FB\B4\AE\D3冶叩目\D5\D7址\FB
+Input:  char * buf \D7址\FB\B4\AE指\D5\EB
 Output: 
-Return: 字符串指针
+Return: \D7址\FB\B4\AE指\D5\EB
 Note: 
 *************************************************************/
 char * ini_str_trim_r(char * buf)
@@ -222,10 +222,10 @@ char * ini_str_trim_r(char * buf)
 }
 
 /*************************************************************
-Function: 去除字符串左边的空字符
-Input:  char * buf 字符串指针
+Function: 去\B3\FD\D7址\FB\B4\AE\D7\F3\B1叩目\D5\D7址\FB
+Input:  char * buf \D7址\FB\B4\AE指\D5\EB
 Output: 
-Return: 字符串指针
+Return: \D7址\FB\B4\AE指\D5\EB
 Note: 
 *************************************************************/
 char * ini_str_trim_l(char * buf)
@@ -249,12 +249,12 @@ char * ini_str_trim_l(char * buf)
 	return buf;
 }
 /*************************************************************
-Function: 从文件中读取一行
-Input:  FILE *fp 文件句柄；int maxlen 缓冲区最大长度
-Output: char *buffer 一行字符串
-Return: >0		实际读的长度
--1		文件结束
--2		读文件出错
+Function: \B4\D3\CE募\FE\D6卸\C1取一\D0\D0
+Input:  FILE *fp \CE募\FE\BE\E4\B1\FA\A3\BBint maxlen \BB\BA\B3\E5\C7\F8\D7\EE\B4蟪ざ\C8
+Output: char *buffer 一\D0\D0\D7址\FB\B4\AE
+Return: >0		实\BC识\C1\B5某\A4\B6\C8
+-1		\CE募\FE\BD\E1\CA\F8
+-2		\B6\C1\CE募\FE\B3\F6\B4\ED
 Note: 
 *************************************************************/
 static int ini_file_get_line(char *filedata, char *buffer, int maxlen)
@@ -265,19 +265,19 @@ static int ini_file_get_line(char *filedata, char *buffer, int maxlen)
 	for (i = 0, j = 0; i < maxlen; j++) { 
 		ch1 = filedata[j];
 		if (ch1 == '\n' || ch1 == 0x00) 
-			break; /* 换行 */ 
-		if (ch1 == '\f' || ch1 == 0x1A) {      /* '\f':换页符也算有效字符 */ 			
+			break; /* \BB\BB\D0\D0 */ 
+		if (ch1 == '\f' || ch1 == 0x1A) {      /* '\f':\BB\BB页\B7\FB也\CB\E3\D3\D0效\D7址\FB */ 			
 			buffer[i++] = ch1; 
 			break; 
 		}
 		if (ch1 != '\r') 
-			buffer[i++] = ch1;    /* 忽略回车符 */ 
+			buffer[i++] = ch1;    /* \BA\F6\C2曰爻\B5\B7\FB */ 
 	} 
 	buffer[i] = '\0'; 
 	return i+2; 
 } 
 /*************************************************************
-Function: 分离key和value
+Function: \B7\D6\C0\EBkey\BA\CDvalue
 key=val
 jack   =   liaoyuewang 
 |      |   | 
@@ -329,17 +329,17 @@ static int  ini_split_key_value(char *buf, char **key, char **val)
 int my_atoi(const char *str)
 {
 	int result = 0;
-	int signal = 1; /* 默认为正数 */
+	int signal = 1; /* 默\C8\CF为\D5\FD\CA\FD */
 	if((*str>='0'&&*str<='9')||*str=='-'||*str=='+') {
 		if(*str=='-'||*str=='+') { 
 			if(*str=='-')
-				signal = -1; /*输入负数*/
+				signal = -1; /*\CA\E4\C8敫篭CA\FD*/
 			str++;
 		}
 	}
 	else 
 		return 0;
-	/*开始转换*/
+	/*\BF\AA始转\BB\BB*/
 	while(*str>='0' && *str<='9')
 		result = result*10 + (*str++ - '0' );
 

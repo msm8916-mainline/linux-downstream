@@ -19,6 +19,7 @@
  * 14/11/28      Hu Jin       		optimize it
  * 15/01/23      Hu Jin       		optimize it
  * 15/03/19      Hu Jin       		optimize it
+ * 15/04/23      Hu Jin       		optimize the power on sequence
  * --------------------------------------------------------------------------------------
 */
 
@@ -35,12 +36,25 @@
 #include <linux/of_gpio.h>
 
 #include "ak4375.h"
+#define CONFIG_MOS_MASK_ENABLE 1
 //#define PLL_MICK96M_MODE
 #define CONFIG_DEBUG_FS_CODEC
+#define AK4375_DEBUG                    //used at debug mode
+#define AUDIO_NAME "#BC akm4375"
 #ifdef AK4375_DEBUG
 #define akdbgprt printk
 #else
 #define akdbgprt(format, arg...) do {} while (0)
+#endif
+
+#if CONFIG_MOS_MASK_ENABLE
+//can control
+struct class *mos_test_flag_class;
+struct device *mos_test_flag_dev;
+uint8_t mos_test_flag_enable = 0;
+#else
+//can not control
+uint8_t mos_test_flag_enable = 0;
 #endif
 
 /* AK4375 Codec Private Data */
@@ -297,7 +311,42 @@ static ssize_t reg_data_store(struct device *dev,
 	
 }
 
-static DEVICE_ATTR(reg_data, 0666, reg_data_show, reg_data_store);
+static DEVICE_ATTR(reg_data, 0664, reg_data_show, reg_data_store);
+#endif
+
+
+#if CONFIG_MOS_MASK_ENABLE
+static ssize_t mos_test_flag_show(struct device *dev,
+                                     struct device_attribute *attr, char *buf)
+{
+	printk("hujin read value = [%d]\n", mos_test_flag_enable);
+	return sprintf(buf, "0x%0x\n", mos_test_flag_enable);
+}
+
+static ssize_t mos_test_flag_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t size)
+{
+	//struct ft5x06_ts_data *data = NULL;
+	unsigned long val = 0xff;
+	ssize_t ret = -EINVAL;
+#if 0
+	data = dev_get_drvdata(dev);
+
+	if (data->suspended)
+		return ret;
+#endif
+	ret = kstrtoul(buf, 10, &val);
+	if (ret)
+		return ret;
+    mos_test_flag_enable = val;
+	printk("hujin setting value = [%d]\n", mos_test_flag_enable);
+
+	return size;
+}
+
+
+static DEVICE_ATTR(mos_test_flag, 0664, mos_test_flag_show, mos_test_flag_store);
 #endif
 
 static int enable_akm_pwdn(void)
@@ -318,7 +367,7 @@ static int enable_akm_pwdn(void)
 		return ret;
 	}
 
-    mdelay(1);
+    mdelay(2);
 
 	return 0;
 }
@@ -1544,12 +1593,12 @@ static int ak4375_suspend(struct snd_soc_codec *codec)
 #endif
 static int ak4375_resume(struct snd_soc_codec *codec)
 {
-
 	if(akm_enable == AKM_DISABLE){
 		pr_debug("hujin AKM resume, enable the AKM\n");
+        disable_akm_pwdn();
         enable_akm_pwdn();
+    	ak4375_init_reg(codec);
     }
-    ak4375_init_reg(codec);
 
 	return 0;
 }
@@ -1657,6 +1706,27 @@ static int setup_akm_mclk(struct i2c_client *i2c)
 }
 #endif
 
+#if CONFIG_MOS_MASK_ENABLE
+static void init_mos_test(void)
+{
+	mos_test_flag_class = class_create(THIS_MODULE, "mos_test_flag_enable");
+	if (IS_ERR(mos_test_flag_class))
+		pr_err("Failed to create class(mos_test_class)!\n");
+	mos_test_flag_dev = device_create(mos_test_flag_class,
+	                         NULL, 0, NULL, "device");
+	if (IS_ERR(mos_test_flag_dev))
+		pr_err("Failed to create device(mos_test_flag_dev)!\n");
+
+	// version
+	if (device_create_file(mos_test_flag_dev, &dev_attr_mos_test_flag) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_mos_test_flag.attr.name);
+
+	dev_set_drvdata(mos_test_flag_dev, NULL);
+
+    return ;
+}
+#endif
+
 static int ak4375_i2c_probe(struct i2c_client *i2c,
                             const struct i2c_device_id *id)
 {
@@ -1691,7 +1761,11 @@ static int ak4375_i2c_probe(struct i2c_client *i2c,
 	enable_akm_pwdn();
 #else
 	setup_akm_pwdn(i2c);
+	disable_akm_pwdn();
 	enable_akm_pwdn();
+#endif
+#if CONFIG_MOS_MASK_ENABLE
+    init_mos_test();
 #endif
 	return ret;
 }

@@ -25,10 +25,7 @@
 struct kxtj9_platform_data {
 	unsigned int min_interval;	/* minimum poll interval (in milli-seconds) */
 	unsigned int init_interval;	/* initial poll interval (in milli-seconds) */
-/*  [FEATURE]-Add-BEGIN by TCTSZ fangyou.wang, 2014/4/15,CR-65173 gsensor driver add */
-	int irq_gpio;
-	u32 irq_gpio_flags;
-/*  [FEATURE]-Add-END by TCTSZ fangyou.wang*/
+
 	/*
 	 * By default, x is axis 0, y is axis 1, z is axis 2; these can be
 	 * changed to account for sensor orientation within the host device.

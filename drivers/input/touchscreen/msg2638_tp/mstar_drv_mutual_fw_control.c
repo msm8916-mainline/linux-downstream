@@ -68,7 +68,10 @@ extern struct kobject *g_TouchKObj;
  * Note.
  * Please modify the name of the below .h depends on the vendor TP that you are using.
  */
-#include "IDOL3_V1.22_20150413.h"
+#include "Idol3_V1.25_20160504.h"
+//#include "IDOL3_V1.24_20150506.h"
+//#include "IDOL3_V1.23_20150422.h"
+//#include "IDOL3_V1.22_20150413.h"
 //#include "IDOL3_V1.21_20150403.h"
 //#include "IDOL3_V1.20_20150330.h"
 //#include "IDOL3_V1.18_150324.h" 	
@@ -125,6 +128,8 @@ struct input_dev *msc_device = NULL;  //add by furong to support TP Gesture
 extern atomic_t tp_suspended;	
 extern int proximity_enable;
 extern struct wake_lock tp_wakelock; //furong add 2015.04.09
+extern void DrvPlatformLyrEnableIrqWakeup(void);
+extern void DrvPlatformLyrDisableIrqWakeup(void);
 
 /*=============================================================*/
 // LOCAL FUNCTION DEFINITION
@@ -943,10 +948,14 @@ void DrvFwCtrlOpenGestureWakeup(u16 nMode)
 		printk("[Fu] gesture open fail, Data[0] = %d, Data[1]=%d\n", szDbBusRxData[0], szDbBusRxData[1]);
 
 	//add for phone in sleep can't wakeup
+	#if 0
 	if (device_may_wakeup(&g_I2cClient->dev))
 	{	
 		enable_irq_wake(g_I2cClient->irq);
 	} 
+	#else
+		DrvPlatformLyrEnableIrqWakeup();
+	#endif
     g_GestureWakeupFlag = 1; // gesture wakeup is enabled
     _gGestureWakeupValue = 0;
 }
@@ -973,10 +982,14 @@ void DrvFwCtrlCloseGestureWakeup(void)
     }
 */
 	//add for phone in sleep can't wakeup
+	#if 0
 	if (device_may_wakeup(&g_I2cClient->dev))
 	{
 		disable_irq_wake(g_I2cClient->irq);
 	} 
+	#else
+		DrvPlatformLyrDisableIrqWakeup();
+	#endif
 
     g_GestureWakeupFlag = 0; // gesture wakeup is disabled
 }

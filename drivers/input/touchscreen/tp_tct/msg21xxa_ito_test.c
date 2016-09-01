@@ -313,7 +313,7 @@ static u32 ito_test_get_TpType(void)
     return Major;
 }
 
-//modify:注意该项目tp数目
+//modify:注\D2\E2\B8\C3\CF\EE目tp\CA\FD目
 //#define TP_OF_X    (2)
 /* MUTTO is 1, JUNDA 2 , YEJI 5 */
 #define TP_OF_X    (1)
@@ -361,7 +361,7 @@ static u32 ito_test_choose_TpType(void)
         tpType = ito_test_get_TpType();
         ITO_TEST_DEBUG("tpType=%d;i=%d;\n",tpType,i);
         if(TP_OF_X==tpType
-           ||TP_OF_Y==tpType)//modify:注意该项目tp数目
+           ||TP_OF_Y==tpType)//modify:注\D2\E2\B8\C3\CF\EE目tp\CA\FD目
         {
             break;
         }
@@ -375,7 +375,7 @@ static u32 ito_test_choose_TpType(void)
         }
     }
 
-    if(TP_OF_X==tpType)//modify:注意该项目tp数目
+    if(TP_OF_X==tpType)//modify:注\D2\E2\B8\C3\CF\EE目tp\CA\FD目
     {
         open_1 = open_1_MUTTO;
         open_1B = open_1B_MUTTO;
@@ -411,7 +411,7 @@ static u32 ito_test_choose_TpType(void)
         ito_test_2r = ENABLE_2R_MUTTO;
     }
 #if 0
-    if(TP_OF_X==tpType)//modify:注意该项目tp数目
+    if(TP_OF_X==tpType)//modify:注\D2\E2\B8\C3\CF\EE目tp\CA\FD目
     {
         open_1 = open_1_X;
         open_1B = open_1B_X;

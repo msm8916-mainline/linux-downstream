@@ -173,11 +173,28 @@ static void ci13xxx_msm_reset(void)
 	}
 }
 
-//[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+static void ci13xxx_msm_mark_err_event(void)
+{
+	struct ci13xxx *udc = _udc;
+	struct msm_otg *otg;
+
+	if (udc == NULL)
+		return;
+
+	if (udc->transceiver == NULL)
+		return;
+
+	otg = container_of(udc->transceiver, struct msm_otg, phy);
+
+	/* This will trigger hardware reset before next connection */
+	otg->err_event_seen = true;
+}
+
+//[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 #if defined(CONFIG_JRD_CD_ROM_EMUM_EJECT) && !defined (FEATURE_TCTNB_MMITEST)
 extern void jrd_enum_cdrom(void);
 #endif
-//[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+//[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 
 static void ci13xxx_msm_notify_event(struct ci13xxx *udc, unsigned event)
 {
@@ -191,11 +208,11 @@ static void ci13xxx_msm_notify_event(struct ci13xxx *udc, unsigned event)
 	case CI13XXX_CONTROLLER_DISCONNECT_EVENT:
 		dev_info(dev, "CI13XXX_CONTROLLER_DISCONNECT_EVENT received\n");
 
-        //[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+        //[BUGFIX]-Add-BEGIN by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 		#if defined(CONFIG_JRD_CD_ROM_EMUM_EJECT) && !defined (FEATURE_TCTNB_MMITEST)
 		jrd_enum_cdrom();
 		#endif
-        //[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
+        //[BUGFIX]-Add-END by TCTNB.93391,10/17/2014,719974,USB driver autoinstall
 
 		ci13xxx_msm_disconnect();
 		ci13xxx_msm_resume();
@@ -211,6 +228,10 @@ static void ci13xxx_msm_notify_event(struct ci13xxx *udc, unsigned event)
 	case CI13XXX_CONTROLLER_RESUME_EVENT:
 		dev_info(dev, "CI13XXX_CONTROLLER_RESUME_EVENT received\n");
 		ci13xxx_msm_resume();
+		break;
+	case CI13XXX_CONTROLLER_ERROR_EVENT:
+		dev_info(dev, "CI13XXX_CONTROLLER_ERROR_EVENT received\n");
+		ci13xxx_msm_mark_err_event();
 		break;
 
 	default:

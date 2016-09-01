@@ -211,6 +211,7 @@ ext4_io_end_t *ext4_init_io_end(struct inode *inode, gfp_t flags)
  * structure to userspace ala Digital Unix's uerf system, but it's
  * probably not going to happen in my lifetime, due to LKML politics...
  */
+#ifndef CONFIG_MMC_DISABLE_BUFFER_ERROR_LOG //MODIFIED by mingjie.li, 2016-04-11,BUG-1780338
 static void buffer_io_error(struct buffer_head *bh)
 {
 	char b[BDEVNAME_SIZE];
@@ -218,6 +219,7 @@ static void buffer_io_error(struct buffer_head *bh)
 			bdevname(bh->b_bdev, b),
 			(unsigned long long)bh->b_blocknr);
 }
+#endif //MODIFIED by mingjie.li, 2016-04-11,BUG-1780338
 
 static void ext4_end_bio(struct bio *bio, int error)
 {
@@ -225,7 +227,11 @@ static void ext4_end_bio(struct bio *bio, int error)
 	struct inode *inode;
 	int i;
 	int blocksize;
+/*MODIFIED-BEGIN by mingjie.li, 2016-04-11,BUG-1780338*/
+#ifndef CONFIG_MMC_DISABLE_BUFFER_ERROR_LOG
 	sector_t bi_sector = bio->bi_sector;
+#endif
+/*MODIFIED-END by mingjie.li,BUG-1780338*/
 
 	BUG_ON(!io_end);
 	inode = io_end->inode;
@@ -265,8 +271,14 @@ static void ext4_end_bio(struct bio *bio, int error)
 				continue;
 			}
 			clear_buffer_async_write(bh);
+
+/*MODIFIED-BEGIN by mingjie.li, 2016-04-11,BUG-1780338*/
+#ifndef CONFIG_MMC_DISABLE_BUFFER_ERROR_LOG
 			if (error)
 				buffer_io_error(bh);
+#endif
+/*MODIFIED-END by mingjie.li,BUG-1780338*/
+
 		} while ((bh = bh->b_this_page) != head);
 		bit_spin_unlock(BH_Uptodate_Lock, &head->b_state);
 		local_irq_restore(flags);
@@ -277,6 +289,8 @@ static void ext4_end_bio(struct bio *bio, int error)
 
 	if (error) {
 		io_end->flag |= EXT4_IO_END_ERROR;
+
+#ifndef CONFIG_MMC_DISABLE_BUFFER_ERROR_LOG //MODIFIED by mingjie.li, 2016-04-11,BUG-1780338
 		ext4_warning(inode->i_sb, "I/O error writing to inode %lu "
 			     "(offset %llu size %ld starting block %llu)",
 			     inode->i_ino,
@@ -284,6 +298,8 @@ static void ext4_end_bio(struct bio *bio, int error)
 			     (long) io_end->size,
 			     (unsigned long long)
 			     bi_sector >> (inode->i_blkbits - 9));
+#endif //MODIFIED by mingjie.li, 2016-04-11,BUG-1780338
+
 	}
 
 	if (!(io_end->flag & EXT4_IO_END_UNWRITTEN)) {

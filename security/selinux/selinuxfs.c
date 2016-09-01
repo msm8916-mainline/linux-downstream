@@ -168,9 +168,11 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 		goto out;
 
 	if (new_value != selinux_enforcing) {
+        #ifndef TCL_TARGET_USER2ROOT //add by srpang for task 966865, begin
 		length = task_has_security(current, SECURITY__SETENFORCE);
 		if (length)
 			goto out;
+        #endif //add by srpang for task 966865, end
 		audit_log(current->audit_context, GFP_KERNEL, AUDIT_MAC_STATUS,
 			"enforcing=%d old_enforcing=%d auid=%u ses=%u",
 			new_value, selinux_enforcing,

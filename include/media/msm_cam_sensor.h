@@ -314,6 +314,7 @@ struct msm_camera_sensor_slave_info32 {
 	uint8_t  is_init_params_valid;
 	struct msm_sensor_init_params sensor_init_params;
 	uint8_t is_flash_supported;
+	enum msm_sensor_output_format_t output_format;
 };
 
 struct msm_camera_csid_lut_params32 {
@@ -591,7 +592,7 @@ struct sensor_init_cfg_data {
 		void *setting;
 	} cfg;
 };
-
+ /*[CAMERA]-ADD BEGIN by wenlong.song,2015-12-18,Task-1177157 ,for camera from L*/
 /*
 FotoNation begin
 */
@@ -611,7 +612,7 @@ struct sensor_ff_otp_data {
 /*
 FotoNation end
 */
-
+ /*[CAMERA]-ADD END by wenlong.song,2015-12-18,Task-1177157 ,for camera from L*/
 #define VIDIOC_MSM_SENSOR_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 1, struct sensorb_cfg_data)
 
@@ -651,7 +652,7 @@ FotoNation end
 /* [PLATFORM]-Add-END by TCTNB.qijiang.yu*/
 #define VIDIOC_MSM_FLASH_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 13, struct msm_flash_cfg_data_t)
-
+ /*[CAMERA]-ADD BEGIN by wenlong.song,2015-12-18,Task-1177157 ,for camera from L*/
 /*
 FotoNation begin
 */
@@ -668,6 +669,7 @@ FotoNation end
 #define VIDIOC_MSM_SENSOR_FRAMELENGTH \
     _IOWR('V', BASE_VIDIOC_PRIVATE + 16, uint32_t)     
 //wenyuan.li@tcl 20150228 bug936683 get framelength from kernel -
+ /*[CAMERA]-ADD END by wenlong.song,2015-12-18,Task-1177157 ,for camera from L*/
 #ifdef CONFIG_COMPAT
 struct msm_camera_i2c_reg_setting32 {
 	compat_uptr_t reg_setting;
@@ -675,6 +677,7 @@ struct msm_camera_i2c_reg_setting32 {
 	enum msm_camera_i2c_reg_addr_type addr_type;
 	enum msm_camera_i2c_data_type data_type;
 	uint16_t delay;
+	enum msm_camera_qup_i2c_write_batch_t qup_i2c_batch;
 };
 
 struct msm_actuator_tuning_params_t32 {

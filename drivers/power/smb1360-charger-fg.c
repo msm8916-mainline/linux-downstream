@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,6 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+/*begin  task id:1176413 driver porting for idol-355-L   2015.12.18---duanhanxing*/
 #define pr_fmt(fmt) "SMB:%s: " fmt, __func__
 
 #include <linux/i2c.h>
@@ -28,6 +29,12 @@
 #include <linux/of_gpio.h>
 #include <linux/bitops.h>
 #include <linux/qpnp/qpnp-adc.h>
+
+/* [PLATFORM]-ADD-BEGIN by TCTNB.WJ, 2015/02/10, CR783017 */
+#define UPDATE_IRQ_STAT(irq_reg, value) \
+		handlers[irq_reg - IRQ_A_REG].prev_val = value;
+/* [PLATFORM]-ADD-END by TCTNB.WJ, 2015/02/10, CR783017 */
+
 
 #define _SMB1360_MASK(BITS, POS) \
 	((unsigned char)(((1 << (BITS)) - 1) << (POS)))
@@ -81,11 +88,8 @@
 
 #define CFG_BATT_MISSING_REG		0x0D
 #define BATT_MISSING_SRC_THERM_BIT	BIT(1)
-/* [PLATFORM]-Mod-BEGIN by TCTNB.FLF, PR-790435, 2014/11/12, fix irq blocks booting up*/
-#ifdef CONFIG_TCT_8X16_IDOL3
 #define BATT_MISSING_SRC_BMD_BIT	BIT(0)
-#endif
-/* [PLATFORM]-Mod-END by TCTNB.FLF */
+
 
 #define CFG_FG_BATT_CTRL_REG		0x0E
 #define CFG_FG_OTP_BACK_UP_ENABLE	BIT(7)
@@ -351,6 +355,12 @@ struct smb1360_chip {
 	int				otg_fet_enable_gpio;
 
 	/* status tracking */
+	int				voltage_now;
+	int				current_now;
+	int				resistance_now;
+	int				temp_now;
+	int				soc_now;
+	int				fcc_mah;
 	bool				usb_present;
 	bool				batt_present;
 	bool				batt_hot;
@@ -687,35 +697,100 @@ unsigned int float_encode(int64_t float_val)
 	return final_val;
 }
 
+/* This function should be called after FG access granted. */
+#define FG_RESET_DELAY_MS	1500
+static int smb1360_force_fg_reset(struct smb1360_chip *chip)
+{
+	int rc = 0;
+
+	rc = smb1360_masked_write(chip, CMD_I2C_REG,
+			FG_RESET_BIT, FG_RESET_BIT);
+	if (rc) {
+		pr_err("Couldn't reset FG rc=%d\n", rc);
+		return rc;
+	}
+	/* 1.5 seconds delay to wait for FG reset complete */
+	msleep(FG_RESET_DELAY_MS);
+	rc = smb1360_masked_write(chip, CMD_I2C_REG,
+			FG_RESET_BIT, 0);
+	if (rc)
+		pr_err("Couldn't un-reset FG rc=%d\n", rc);
+
+	return rc;
+}
+
+#define FG_ACCESS_RETRY_COUNT		3
+#define FG_ACCESS_MAX_WAIT_COUNT	5
+#define FG_ACCESS_GRANTED_DELAY_MS	1500
 static int smb1360_enable_fg_access(struct smb1360_chip *chip)
 {
 	int rc;
-	u8 reg = 0, timeout = 50;
+	u8 reg = 0, count = 0, retry = 0;
 
-	rc = smb1360_masked_write(chip, CMD_I2C_REG, FG_ACCESS_ENABLED_BIT,
-							FG_ACCESS_ENABLED_BIT);
-	if (rc) {
-		pr_err("Couldn't enable FG access rc=%d\n", rc);
-		return rc;
-	}
-
-	while (timeout) {
-		/* delay for FG access to be granted */
-		msleep(200);
-		rc = smb1360_read(chip, IRQ_I_REG, &reg);
-		if (rc)
-			pr_err("Could't read IRQ_I_REG rc=%d\n", rc);
-		else if (reg & FG_ACCESS_ALLOWED_BIT)
+	while (retry < FG_ACCESS_RETRY_COUNT) {
+		rc = smb1360_masked_write(chip, CMD_I2C_REG,
+					FG_ACCESS_ENABLED_BIT,
+					FG_ACCESS_ENABLED_BIT);
+		if (rc) {
+			pr_err("Couldn't enable FG access rc=%d\n", rc);
+			return rc;
+		}
+		count = 0;
+		while (count < FG_ACCESS_MAX_WAIT_COUNT) {
+			/* delay for FG access to be granted */
+			msleep(FG_ACCESS_GRANTED_DELAY_MS);
+			rc = smb1360_read(chip, IRQ_I_REG, &reg);
+			if (rc) {
+				pr_err("Could't read IRQ_I_REG rc=%d\n", rc);
+				goto disable_access;
+			} else if (reg & FG_ACCESS_ALLOWED_BIT) {
+				pr_debug("FG access allowed bit set\n");
+				break;
+			}
+			count++;
+		}
+		if (count < FG_ACCESS_MAX_WAIT_COUNT) {
+			pr_debug("FG access granted at %d times\n", count);
 			break;
-		timeout--;
+		} else {
+			pr_debug("FG access timeout, reset FG to request again, retry = %d\n",
+							retry);
+			rc = smb1360_force_fg_reset(chip);
+			if (rc) {
+				pr_err("force FG reset failed, rc=%d\n", rc);
+				goto disable_access;
+			}
+			/*
+			 * restore the FG_ACCESS_EN bit to ensure the retry
+			 * start from beginning.
+			 */
+			rc = smb1360_masked_write(chip, CMD_I2C_REG,
+						FG_ACCESS_ENABLED_BIT, 0);
+			if (rc) {
+				pr_err("Couldn't disable FG access rc=%d\n",
+									rc);
+				return rc;
+			}
+		}
+		retry++;
 	}
 
-	pr_debug("timeout=%d\n", timeout);
-
-	if (!timeout)
-		return -EBUSY;
+	if (retry == FG_ACCESS_RETRY_COUNT) {
+		pr_err("request FG access failed\n");
+		rc = -EBUSY;
+		goto disable_access;
+	}
 
 	return 0;
+
+disable_access:
+	smb1360_masked_write(chip, CMD_I2C_REG, FG_ACCESS_ENABLED_BIT, 0);
+	return rc;
+}
+
+static inline bool is_device_suspended(struct smb1360_chip *chip)
+{
+	return !chip->resume_completed;
 }
 
 static int smb1360_disable_fg_access(struct smb1360_chip *chip)
@@ -897,6 +972,9 @@ static int smb1360_get_prop_batt_status(struct smb1360_chip *chip)
 	int rc;
 	u8 reg = 0, chg_type;
 
+	if (is_device_suspended(chip))
+		return POWER_SUPPLY_STATUS_UNKNOWN;
+
 	if (chip->batt_full)
 		return POWER_SUPPLY_STATUS_FULL;
 
@@ -938,6 +1016,9 @@ static int smb1360_get_prop_charge_type(struct smb1360_chip *chip)
 	int rc;
 	u8 reg = 0;
 	u8 chg_type;
+
+	if (is_device_suspended(chip))
+		return POWER_SUPPLY_CHARGE_TYPE_UNKNOWN;
 
 	rc = smb1360_read(chip, STATUS_3_REG, &reg);
 	if (rc) {
@@ -989,6 +1070,9 @@ static int smb1360_get_prop_batt_capacity(struct smb1360_chip *chip)
 		return 0;
 	}
 
+	if (is_device_suspended(chip))
+		return chip->soc_now;
+
 	rc = smb1360_read(chip, SHDW_FG_MSYS_SOC, &reg);
 	if (rc) {
 		pr_err("Failed to read FG_MSYS_SOC rc=%d\n", rc);
@@ -1003,13 +1087,18 @@ static int smb1360_get_prop_batt_capacity(struct smb1360_chip *chip)
 	pr_debug("msys_soc_reg=0x%02x, fg_soc=%d batt_full = %d\n", reg,
 						soc, chip->batt_full);
 
-	return chip->batt_full ? 100 : bound(soc, 0, 100);
+	chip->soc_now = (chip->batt_full ? 100 : bound(soc, 0, 100));
+
+	return chip->soc_now;
 }
 
 static int smb1360_get_prop_chg_full_design(struct smb1360_chip *chip)
 {
 	u8 reg[2];
 	int rc, fcc_mah = 0;
+
+	if (is_device_suspended(chip))
+		return chip->fcc_mah;
 
 	rc = smb1360_read_bytes(chip, SHDW_FG_CAPACITY, reg, 2);
 	if (rc) {
@@ -1021,13 +1110,18 @@ static int smb1360_get_prop_chg_full_design(struct smb1360_chip *chip)
 	pr_debug("reg[0]=0x%02x reg[1]=0x%02x fcc_mah=%d\n",
 				reg[0], reg[1], fcc_mah);
 
-	return fcc_mah * 1000;
+	chip->fcc_mah = fcc_mah * 1000;
+
+	return chip->fcc_mah;
 }
 
 static int smb1360_get_prop_batt_temp(struct smb1360_chip *chip)
 {
 	u8 reg[2];
 	int rc, temp = 0;
+
+	if (is_device_suspended(chip))
+		return chip->temp_now;
 
 	rc = smb1360_read_bytes(chip, SHDW_FG_BATT_TEMP, reg, 2);
 	if (rc) {
@@ -1042,13 +1136,18 @@ static int smb1360_get_prop_batt_temp(struct smb1360_chip *chip)
 	pr_debug("reg[0]=0x%02x reg[1]=0x%02x temperature=%d\n",
 					reg[0], reg[1], temp);
 
-	return temp;
+	chip->temp_now = temp;
+
+	return chip->temp_now;
 }
 
 static int smb1360_get_prop_voltage_now(struct smb1360_chip *chip)
 {
 	u8 reg[2];
 	int rc, temp = 0;
+
+	if (is_device_suspended(chip))
+		return chip->voltage_now;
 
 	rc = smb1360_read_bytes(chip, SHDW_FG_VTG_NOW, reg, 2);
 	if (rc) {
@@ -1062,7 +1161,9 @@ static int smb1360_get_prop_voltage_now(struct smb1360_chip *chip)
 	pr_debug("reg[0]=0x%02x reg[1]=0x%02x voltage=%d\n",
 				reg[0], reg[1], temp * 1000);
 
-	return temp * 1000;
+	chip->voltage_now = temp * 1000;
+
+	return chip->voltage_now;
 }
 
 static int smb1360_get_prop_batt_resistance(struct smb1360_chip *chip)
@@ -1071,6 +1172,9 @@ static int smb1360_get_prop_batt_resistance(struct smb1360_chip *chip)
 	u16 temp;
 	int rc;
 	int64_t resistance;
+
+	if (is_device_suspended(chip))
+		return chip->resistance_now;
 
 	rc = smb1360_read_bytes(chip, SHDW_FG_ESR_ACTUAL, reg, 2);
 	if (rc) {
@@ -1084,13 +1188,18 @@ static int smb1360_get_prop_batt_resistance(struct smb1360_chip *chip)
 	pr_debug("reg=0x%02x resistance=%lld\n", temp, resistance);
 
 	/* resistance in uohms */
-	return resistance;
+	chip->resistance_now = resistance;
+
+	return chip->resistance_now;
 }
 
 static int smb1360_get_prop_current_now(struct smb1360_chip *chip)
 {
 	u8 reg[2];
 	int rc, temp = 0;
+
+	if (is_device_suspended(chip))
+		return chip->current_now;
 
 	rc = smb1360_read_bytes(chip, SHDW_FG_CURR_NOW, reg, 2);
 	if (rc) {
@@ -1104,7 +1213,9 @@ static int smb1360_get_prop_current_now(struct smb1360_chip *chip)
 	pr_debug("reg[0]=0x%02x reg[1]=0x%02x current=%d\n",
 				reg[0], reg[1], temp * 1000);
 
-	return temp * 1000;
+	chip->current_now = temp * 1000;
+
+	return chip->current_now;
 }
 
 static int smb1360_set_minimum_usb_current(struct smb1360_chip *chip)
@@ -1120,12 +1231,13 @@ static int smb1360_set_minimum_usb_current(struct smb1360_chip *chip)
 		if (rc)
 			pr_err("Couldn't set ICL mA rc=%d\n", rc);
 
-		if (!(chip->workaround_flags & WRKRND_USB100_FAIL))
+		if (!(chip->workaround_flags & WRKRND_USB100_FAIL)) {
 			rc = smb1360_masked_write(chip, CMD_IL_REG,
 					USB_CTRL_MASK, USB_100_BIT);
 			if (rc)
 				pr_err("Couldn't configure for USB100 rc=%d\n",
 								rc);
+		}
 	} else {
 		pr_debug("USB min current set to 500mA\n");
 		rc = smb1360_masked_write(chip, CMD_IL_REG,
@@ -2952,7 +3064,7 @@ static int smb1360_check_batt_profile(struct smb1360_chip *chip)
 	rc = smb1360_read(chip, SHDW_FG_BATT_STATUS, &reg);
 	if (rc) {
 		pr_err("Couldn't read FG_BATT_STATUS rc=%d\n", rc);
-		goto fail_profile;
+		return rc;
 	}
 
 	loaded_profile = !!(reg & BATTERY_PROFILE_BIT) ?
@@ -2968,9 +3080,9 @@ static int smb1360_check_batt_profile(struct smb1360_chip *chip)
 				(div_u64(chip->connected_rid, 10)))
 			break;
 	}
-/* [PLATFORM]-MOD-BEGIN by TCTNB.WJ, 2015/04/17, add macro to diff with M823C and force Profile B */
-#ifdef CONFIG_TCT_8X16_IDOL3
-		i = BATTERY_PROFILE_B;
+/* [PLATFORM]-MOD-BEGIN by TCTNB.WJ, 2015/04/16, add macro to diff with M823C and force profile B */
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
+	i = BATTERY_PROFILE_B;
 #endif
 /* [PLATFORM]-MOD-END by TCTNB.WJ */
 
@@ -2996,58 +3108,29 @@ static int smb1360_check_batt_profile(struct smb1360_chip *chip)
 				BATT_PROFILE_SELECT_MASK, bid_mask);
 	if (rc) {
 		pr_err("Couldn't reset battery-profile rc=%d\n", rc);
-		goto fail_profile;
+		return rc;
 	}
 
-	/* enable FG access */
-	rc = smb1360_masked_write(chip, CMD_I2C_REG, FG_ACCESS_ENABLED_BIT,
-							FG_ACCESS_ENABLED_BIT);
+	rc = smb1360_enable_fg_access(chip);
 	if (rc) {
-		pr_err("Couldn't enable FG access rc=%d\n", rc);
-		goto fail_profile;
-	}
-
-	while (timeout) {
-		/* delay for FG access to be granted */
-		msleep(100);
-		rc = smb1360_read(chip, IRQ_I_REG, &reg);
-		if (rc) {
-			pr_err("Could't read IRQ_I_REG rc=%d\n", rc);
-			goto restore_fg;
-		}
-		if (reg & FG_ACCESS_ALLOWED_BIT)
-			break;
-		timeout--;
-	}
-	if (!timeout) {
-		pr_err("FG access timed-out\n");
-		rc = -EAGAIN;
-		goto restore_fg;
+		pr_err("disable fg access failed, rc=%d\n", rc);
+		return rc;
 	}
 
 	/* delay after handshaking for profile-switch to continue */
 	msleep(1500);
 
-	/* reset FG */
-	rc = smb1360_masked_write(chip, CMD_I2C_REG, FG_RESET_BIT,
-						FG_RESET_BIT);
+	rc = smb1360_force_fg_reset(chip);
 	if (rc) {
-		pr_err("Couldn't reset FG rc=%d\n", rc);
-		goto restore_fg;
-	}
-
-	/* un-reset FG */
-	rc = smb1360_masked_write(chip, CMD_I2C_REG, FG_RESET_BIT, 0);
-	if (rc) {
-		pr_err("Couldn't un-reset FG rc=%d\n", rc);
-		goto restore_fg;
+		pr_err("force FG reset failed, rc=%d\n", rc);
+		goto disable_fg_access;
 	}
 
 	/*  disable FG access */
-	rc = smb1360_masked_write(chip, CMD_I2C_REG, FG_ACCESS_ENABLED_BIT, 0);
+	rc = smb1360_disable_fg_access(chip);
 	if (rc) {
-		pr_err("Couldn't disable FG access rc=%d\n", rc);
-		goto restore_fg;
+		pr_err("disable fg access failed, rc=%d\n", rc);
+		goto disable_fg_access;
 	}
 
 	timeout = 10;
@@ -3057,7 +3140,7 @@ static int smb1360_check_batt_profile(struct smb1360_chip *chip)
 		rc = smb1360_read(chip, SHDW_FG_BATT_STATUS, &reg);
 		if (rc) {
 			pr_err("Could't read FG_BATT_STATUS rc=%d\n", rc);
-			goto restore_fg;
+			return rc;
 		}
 
 		reg = !!(reg & BATTERY_PROFILE_BIT);
@@ -3075,9 +3158,8 @@ static int smb1360_check_batt_profile(struct smb1360_chip *chip)
 
 	return 0;
 
-restore_fg:
-	smb1360_masked_write(chip, CMD_I2C_REG, FG_ACCESS_ENABLED_BIT, 0);
-fail_profile:
+disable_fg_access:
+	smb1360_disable_fg_access(chip);
 	return rc;
 }
 
@@ -3166,7 +3248,7 @@ static int smb1360_fg_config(struct smb1360_chip *chip)
 		rc = smb1360_read_bytes(chip, VOLTAGE_PREDICTED_REG, reg2, 2);
 		if (rc) {
 			pr_err("Failed to read VOLTAGE_PREDICTED rc=%d\n", rc);
-			goto disable_fg_reset;
+			goto disable_access;
 		}
 		v_predicted = (reg2[1] << 8) | reg2[0];
 		v_predicted = div_u64(v_predicted * 5000, 0x7FFF);
@@ -3174,7 +3256,7 @@ static int smb1360_fg_config(struct smb1360_chip *chip)
 		rc = smb1360_read_bytes(chip, SHDW_FG_VTG_NOW, reg2, 2);
 		if (rc) {
 			pr_err("Failed to read SHDW_FG_VTG_NOW rc=%d\n", rc);
-			goto disable_fg_reset;
+			goto disable_access;
 		}
 		v_now = (reg2[1] << 8) | reg2[0];
 		v_now = div_u64(v_now * 5000, 0x7FFF);
@@ -3192,24 +3274,13 @@ static int smb1360_fg_config(struct smb1360_chip *chip)
 					temp, chip->fg_reset_threshold_mv);
 			/* delay for the FG access to settle */
 			msleep(1500);
-
-			/* reset FG */
-			rc = smb1360_masked_write(chip, CMD_I2C_REG,
-					FG_RESET_BIT, FG_RESET_BIT);
+			rc = smb1360_force_fg_reset(chip);
 			if (rc) {
-				pr_err("Couldn't reset FG rc=%d\n", rc);
-				goto disable_fg_reset;
-			}
-
-			/* un-reset FG */
-			rc = smb1360_masked_write(chip, CMD_I2C_REG,
-						FG_RESET_BIT, 0);
-			if (rc) {
-				pr_err("Couldn't un-reset FG rc=%d\n", rc);
-				goto disable_fg_reset;
+				pr_err("FG reset failed, rc=%d\n", rc);
+				goto disable_access;
 			}
 		}
-disable_fg_reset:
+disable_access:
 		smb1360_disable_fg_access(chip);
 	}
 
@@ -3312,7 +3383,7 @@ disable_fg_reset:
 			if (rc) {
 				pr_err("Failed to read ACTUAL CAPACITY rc=%d\n",
 									rc);
-				goto disable_fg;
+				goto disable_fg_access;
 			}
 			fcc_mah = (reg2[1] << 8) | reg2[0];
 			if (fcc_mah == chip->batt_capacity_mah) {
@@ -3329,14 +3400,14 @@ disable_fg_reset:
 				if (rc) {
 					pr_err("Couldn't write batt-capacity rc=%d\n",
 									rc);
-					goto disable_fg;
+					goto disable_fg_access;
 				}
 				rc = smb1360_write_bytes(chip,
 					NOMINAL_CAPACITY_REG, reg2, 2);
 				if (rc) {
 					pr_err("Couldn't write batt-capacity rc=%d\n",
 									rc);
-					goto disable_fg;
+					goto disable_fg_access;
 				}
 
 				/* Update CC to SOC COEFF */
@@ -3349,7 +3420,7 @@ disable_fg_reset:
 					if (rc) {
 						pr_err("Couldn't write cc_soc_coeff rc=%d\n",
 									rc);
-						goto disable_fg;
+						goto disable_fg_access;
 					}
 				}
 			}
@@ -3364,7 +3435,7 @@ disable_fg_reset:
 								reg2, 2);
 			if (rc) {
 				pr_err("Couldn't write cutoff_mv rc=%d\n", rc);
-				goto disable_fg;
+				goto disable_fg_access;
 			}
 		}
 
@@ -3381,7 +3452,7 @@ disable_fg_reset:
 							reg2, 2);
 			if (rc) {
 				pr_err("Couldn't write fg_iterm rc=%d\n", rc);
-				goto disable_fg;
+				goto disable_fg_access;
 			}
 		}
 
@@ -3398,7 +3469,7 @@ disable_fg_reset:
 								reg2, 2);
 			if (rc) {
 				pr_err("Couldn't write fg_iterm rc=%d\n", rc);
-				goto disable_fg;
+				goto disable_fg_access;
 			}
 		}
 
@@ -3413,7 +3484,7 @@ disable_fg_reset:
 			if (rc) {
 				pr_err("Couldn't write cc_to_cv_mv rc=%d\n",
 								rc);
-				goto disable_fg;
+				goto disable_fg_access;
 			}
 		}
 
@@ -3426,7 +3497,7 @@ disable_fg_reset:
 			if (rc) {
 				pr_err("Couldn't write thermistor_c1_coeff rc=%d\n",
 							rc);
-				goto disable_fg;
+				goto disable_fg_access;
 			}
 		}
 
@@ -3438,7 +3509,7 @@ disable_fg_reset:
 			if (rc) {
 				dev_err(chip->dev, "Couldn't write to CFG_CHG_FUNC_CTRL_REG rc=%d\n",
 									rc);
-				goto disable_fg;
+				goto disable_fg_access;
 			}
 
 			reg = DIV_ROUND_UP(chip->fg_auto_recharge_soc *
@@ -3449,11 +3520,11 @@ disable_fg_reset:
 			if (rc) {
 				dev_err(chip->dev, "Couldn't write to FG_AUTO_RECHARGE_SOC rc=%d\n",
 									rc);
-				goto disable_fg;
+				goto disable_fg_access;
 			}
 		}
 
-disable_fg:
+disable_fg_access:
 		/* disable FG access */
 		smb1360_disable_fg_access(chip);
 	}
@@ -3587,6 +3658,7 @@ static int smb1360_jeita_init(struct smb1360_chip *chip)
 	return rc;
 }
 
+#define FG_POWERON_DELAY_MS	2000
 static int smb1360_hw_init(struct smb1360_chip *chip)
 {
 	int rc;
@@ -3600,6 +3672,8 @@ static int smb1360_hw_init(struct smb1360_chip *chip)
 		dev_err(chip->dev, "Couldn't configure for volatile rc = %d\n",
 				rc);
 		return rc;
+	} else {
+		msleep(FG_POWERON_DELAY_MS);
 	}
 
 	/* Bring SMB1360 out of shutdown, if it was enabled by default */
@@ -3607,6 +3681,8 @@ static int smb1360_hw_init(struct smb1360_chip *chip)
 	if (rc < 0) {
 		pr_err("smb1360 power on failed\n");
 		return rc;
+	} else {
+		msleep(FG_POWERON_DELAY_MS);
 	}
 
 	if (chip->rsense_10mohm) {
@@ -3795,10 +3871,18 @@ static int smb1360_hw_init(struct smb1360_chip *chip)
 		return rc;
 	}
 
+/* [PLATFORM]-ADD-BEGIN by TCTNB.WJ, PR-1023889, 2015/6/15, fix discharge issue if temp>45 & vol>4.1V */
+	/* disabling batt_ov end charge protection. */
+	rc = smb1360_masked_write(chip, 0x07, BIT(4), 0);
+	if (rc) {
+		dev_err(chip->dev, "Couldn't set batt_ov_end_charge rc = %d\n", rc);
+	}
+/* [PLATFORM]-ADD-END by TCTNB.WJ */
+
 	/* battery missing detection */
 	rc = smb1360_masked_write(chip, CFG_BATT_MISSING_REG,
 /* [PLATFORM]-Mod-BEGIN by TCTNB.FLF, PR-790435, 2014/11/12, fix irq blocks booting up*/
-#ifdef CONFIG_TCT_8X16_IDOL3
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
 				BATT_MISSING_SRC_THERM_BIT | BATT_MISSING_SRC_BMD_BIT,
 #else
 				BATT_MISSING_SRC_THERM_BIT,
@@ -3821,7 +3905,7 @@ static int smb1360_hw_init(struct smb1360_chip *chip)
 	if (chip->client->irq) {
 		mask = CHG_STAT_IRQ_ONLY_BIT
 /* [PLATFORM]-Mod-BEGIN by TCTNB.YuBin, PR-860661, 2014/12/18, change irq mode*/
-#ifndef CONFIG_TCT_8X16_IDOL3
+#if !defined(CONFIG_TCT_8X16_IDOL3) && !defined(CONFIG_TCT_8X16_M823_ORANGE)
 			| CHG_STAT_ACTIVE_HIGH_BIT
 #endif
 /* [PLATFORM]-Mod-END by TCTNB.YuBin */
@@ -3922,12 +4006,24 @@ static int smb1360_hw_init(struct smb1360_chip *chip)
 	return rc;
 }
 
+/* [PLATFORM]-MOD-BEGIN by TCTNB.WJ, 2015/04/17, add macro to diff with M823C and retry 10 times */
+#ifdef CONFIG_SMB1360_BATTID_CHECK
+#define RETRY_TIMES 10
+#endif
+/* [PLATFORM]-MOD-END by TCTNB.WJ */
+
 static int smb_parse_batt_id(struct smb1360_chip *chip)
 {
 	int rc = 0, rpull = 0, vref = 0;
 	int64_t denom, batt_id_uv;
 	struct device_node *node = chip->dev->of_node;
 	struct qpnp_vadc_result result;
+
+/* [PLATFORM]-MOD-BEGIN by TCTNB.WJ, 2015/04/17, add macro to diff with M823C and retry 10 times */
+#ifdef CONFIG_SMB1360_BATTID_CHECK
+	int i = 0;
+#endif
+/* [PLATFORM]-MOD-END by TCTNB.WJ */
 
 	chip->vadc_dev = qpnp_get_vadc(chip->dev, "smb1360");
 	if (IS_ERR(chip->vadc_dev)) {
@@ -3966,6 +4062,36 @@ static int smb_parse_batt_id(struct smb1360_chip *chip)
 		return rc;
 	}
 
+/* [PLATFORM]-MOD-BEGIN by TCTNB.WJ, 2015/04/17, add macro to diff with M823C and retry 10 times */
+#ifdef CONFIG_SMB1360_BATTID_CHECK
+	for(i=0; i<RETRY_TIMES; i++)
+	{
+		/* read battery ID */
+		rc = qpnp_vadc_read(chip->vadc_dev, LR_MUX2_BAT_ID, &result);
+		if (rc) {
+			pr_err("error reading batt id channel = %d, rc = %d\n",
+						LR_MUX2_BAT_ID, rc);
+			return rc;
+		}
+		batt_id_uv = result.physical;
+
+		if(!(batt_id_uv>500000 && batt_id_uv<700000) 
+			&& !(batt_id_uv>0 && batt_id_uv<100000) 
+			&& !(batt_id_uv>1600000 && batt_id_uv<1800000)
+		  )
+		{
+			pr_err("[%d]: batt_id(%lld) not in ranges, disable charging! \n", i, batt_id_uv);
+		}
+		else
+		{
+			pr_debug("[%d]: batt_id(%lld) in valid range ! \n", i, batt_id_uv);
+			break;
+		}
+	}
+
+	if(RETRY_TIMES==i)
+		chip->charging_disabled = true;
+#else
 	/* read battery ID */
 	rc = qpnp_vadc_read(chip->vadc_dev, LR_MUX2_BAT_ID, &result);
 	if (rc) {
@@ -3974,6 +4100,8 @@ static int smb_parse_batt_id(struct smb1360_chip *chip)
 		return rc;
 	}
 	batt_id_uv = result.physical;
+#endif
+/* [PLATFORM]-MOD-END by TCTNB.WJ */
 
 	if (batt_id_uv == 0) {
 		/* vadc not correct or batt id line grounded, report 0 kohms */
@@ -4302,6 +4430,7 @@ static int smb1360_probe(struct i2c_client *client,
 		return -ENOMEM;
 	}
 
+	chip->resume_completed = true;
 	chip->client = client;
 	chip->dev = &client->dev;
 	chip->usb_psy = usb_psy;
@@ -4334,7 +4463,6 @@ static int smb1360_probe(struct i2c_client *client,
 
 	device_init_wakeup(chip->dev, 1);
 	i2c_set_clientdata(client, chip);
-	chip->resume_completed = true;
 	mutex_init(&chip->irq_complete);
 	mutex_init(&chip->charging_disable_lock);
 	mutex_init(&chip->current_change_lock);
@@ -4574,7 +4702,7 @@ static int smb1360_suspend(struct device *dev)
 
 	rc = smb1360_write(chip, IRQ3_CFG_REG, IRQ3_SOC_FULL_BIT
 /* [PLATFORM]-Add-BEGIN by TCTNB.WJ, PR-881472, 2015/1/16, display soc error */
-#ifdef CONFIG_TCT_8X16_IDOL3
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
                     | IRQ3_SOC_CHANGE_BIT
 #endif
 /* [PLATFORM]-Add-END by TCTNB.WJ */
@@ -4683,3 +4811,4 @@ module_i2c_driver(smb1360_driver);
 MODULE_DESCRIPTION("SMB1360 Charger and Fuel Gauge");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("i2c:smb1360-chg-fg");
+/*end    task id:1176413 driver porting for idol-355-L   2015.12.18---duanhanxing*/

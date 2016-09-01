@@ -87,7 +87,7 @@ static bool imx214semco_read_otp(struct msm_sensor_ctrl_t * s_ctrl,uint8_t page,
 
 static int32_t imx214_update_awb_gain(struct msm_sensor_ctrl_t * s_ctrl,uint32_t R_gain, uint32_t G_gain, uint32_t B_gain)
 {
-    printk("[JRD_CAM][IMX214OTP]R_gain=0x%x G_gain=0x%x, B_GAB_gain=0x%x\n", R_gain, G_gain, B_gain);
+    //printk("[JRD_CAM][IMX214OTP]R_gain=0x%x G_gain=0x%x, B_GAB_gain=0x%x\n", R_gain, G_gain, B_gain);
 
     otp_i2c_write(s_ctrl,0x020E, G_gain>>8);
     otp_i2c_write(s_ctrl,0x020F, G_gain& 0xFF);
@@ -120,7 +120,7 @@ static uint32_t imx214_get_otp_af(struct msm_sensor_ctrl_t* s_ctrl)
     #define OTPBUF_AF_10CM_HIGH buffOTP[5]
     #define OTPBUF_AF_10CM_LOW  buffOTP[6]
 
-    printk("FN_FF: Dumping OTP AF info!.\n");
+    //printk("FN_FF: Dumping OTP AF info!.\n");
 
     for( j =0; j < 16; j++ )
     {
@@ -148,9 +148,9 @@ static uint32_t imx214_get_otp_af(struct msm_sensor_ctrl_t* s_ctrl)
         return af_otp;
     }
 
-    printk("FN_FF: OTPBUF_AF_G0: %d .\n", OTPBUF_AF_G0 );
-    printk("FN_FF: OTPBUF_AF_G1: %d .\n", OTPBUF_AF_G1 );
-    printk("FN_FF: OTPBUF_AF_G2: %d .\n", OTPBUF_AF_G2 );
+    //printk("FN_FF: OTPBUF_AF_G0: %d .\n", OTPBUF_AF_G0 );
+    //printk("FN_FF: OTPBUF_AF_G1: %d .\n", OTPBUF_AF_G1 );
+    //printk("FN_FF: OTPBUF_AF_G2: %d .\n", OTPBUF_AF_G2 );
 
     if( 0x01 == (OTPBUF_AF_G0 >> 6) )
         af_page = 0x00;
@@ -172,12 +172,12 @@ static uint32_t imx214_get_otp_af(struct msm_sensor_ctrl_t* s_ctrl)
         return af_otp;
     }
 
-    printk("FN_FF: OTPBUF_AF_INF_HIGH :%d .\n", (uint16_t)OTPBUF_AF_INF_HIGH );
+    /*printk("FN_FF: OTPBUF_AF_INF_HIGH :%d .\n", (uint16_t)OTPBUF_AF_INF_HIGH );
     printk("FN_FF: OTPBUF_AF_INF_LOW :%d .\n", (uint16_t)OTPBUF_AF_INF_LOW );
     printk("FN_FF: OTPBUF_AF_10CM_HIGH :%d .\n", (uint16_t)OTPBUF_AF_10CM_HIGH );
     printk("FN_FF: OTPBUF_AF_10CM_LOW :%d .\n", (uint16_t)OTPBUF_AF_10CM_LOW );
     printk("FN_FF: OTPBUF_AF_INF :%d .\n", (((uint16_t)OTPBUF_AF_INF_HIGH << 8) | OTPBUF_AF_INF_LOW)  );
-    printk("FN_FF: OTPBUF_AF_10CM :%d .\n", (((uint16_t)OTPBUF_AF_10CM_HIGH << 8) | OTPBUF_AF_10CM_LOW) );
+    printk("FN_FF: OTPBUF_AF_10CM :%d .\n", (((uint16_t)OTPBUF_AF_10CM_HIGH << 8) | OTPBUF_AF_10CM_LOW) );*/
 
     af_otp |= OTPBUF_AF_INF_LOW;
     af_otp |= ((uint32_t)OTPBUF_AF_INF_HIGH << 8);
@@ -232,7 +232,7 @@ static int imx214_get_otp(struct msm_sensor_ctrl_t * s_ctrl)
     uint32_t IMX214_RG_Ratio_Typical=0x00;
     uint32_t IMX214_BG_Ratio_Typical=0x00;
 
-    pr_err("%s,Start to read OTP\n",__func__);
+    //pr_err("%s,Start to read OTP\n",__func__);
     //check otp awb flag
     for( i = 0; i < 3; i++ ){
         imx214semco_read_otp(s_ctrl,i, IMX214OTP_WB_FLAG_ADD, flag, 1);//check page 0 1 2
@@ -248,7 +248,7 @@ static int imx214_get_otp(struct msm_sensor_ctrl_t * s_ctrl)
         return -1;
     }
 
-    pr_err("check otp awb successfully page\n");
+    //pr_err("check otp awb successfully page\n");
     //read otp awb data
     imx214semco_read_otp(s_ctrl,page_index, IMX214OTP_WB_DATA_ADD, otp_awb_data, 12);
 
@@ -344,7 +344,7 @@ static int imx214_8916_get_otp(struct msm_sensor_ctrl_t * s_ctrl)
 	        return -1;
 	    }
 
-	    pr_err("check otp awb successfully page\n");
+	    //pr_err("check otp awb successfully page\n");
 	    //read otp awb data
 	    imx214semco_read_otp(s_ctrl,page_index, IMX214OTP_WB_DATA_ADD, otp_awb_data, 12);
 

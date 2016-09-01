@@ -117,7 +117,11 @@ void snd_soc_jack_report_no_dapm(struct snd_soc_jack *jack, int status,
 {
 	jack->status &= ~mask;
 	jack->status |= status & mask;
-
+/* [AUDIO]-ADD BEGIN by fu.yu,2015-12-17,Task-1175997,for headset detect from L */
+	#if defined(CONFIG_TCT_8X16_IDOL347)
+		printk("[Fu]%s name=%s, status=0x%x\n", __func__, jack->jack->name, jack->status);
+	#endif
+/* [AUDIO]-ADD END by fu.yu,2015-12-17*/
 	snd_jack_report(jack->jack, jack->status);
 }
 EXPORT_SYMBOL_GPL(snd_soc_jack_report_no_dapm);

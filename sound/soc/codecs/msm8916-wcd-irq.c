@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -171,6 +171,7 @@ int wcd9xxx_spmi_request_irq(int irq, irq_handler_t handler,
 	map.linuxirq[irq] =
 		spmi_get_irq_byname(map.spmi[BIT_BYTE(irq)], NULL,
 				    irq_names[irq]);
+
 	if (strcmp(name, "mbhc sw intr"))
 		irq_flags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |
 			IRQF_ONESHOT;
@@ -178,6 +179,7 @@ int wcd9xxx_spmi_request_irq(int irq, irq_handler_t handler,
 		irq_flags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |
 			IRQF_ONESHOT | IRQF_NO_SUSPEND;
 	pr_debug("%s: name:%s irq_flags = %lx\n", __func__, name, irq_flags);
+
 	rc = devm_request_threaded_irq(&map.spmi[BIT_BYTE(irq)]->dev,
 				map.linuxirq[irq], NULL,
 				wcd9xxx_spmi_irq_handler,
@@ -186,7 +188,7 @@ int wcd9xxx_spmi_request_irq(int irq, irq_handler_t handler,
 #else
 	map.linuxirq[irq] =
 		spmi_get_irq_byname(map.spmi[BIT_BYTE(irq)], NULL,
-				    irq_names[irq]);
+				irq_names[irq]);
 	rc = devm_request_threaded_irq(&map.spmi[BIT_BYTE(irq)]->dev,
 				map.linuxirq[irq], NULL,
 				wcd9xxx_spmi_irq_handler,
@@ -194,11 +196,11 @@ int wcd9xxx_spmi_request_irq(int irq, irq_handler_t handler,
 				| IRQF_ONESHOT,
 				name, priv);
 #endif
-	if (rc < 0) {
-		dev_err(&map.spmi[BIT_BYTE(irq)]->dev,
-			"Can't request %d IRQ\n", irq);
-		return rc;
-	}
+		if (rc < 0) {
+			dev_err(&map.spmi[BIT_BYTE(irq)]->dev,
+				"Can't request %d IRQ\n", irq);
+			return rc;
+		}
 
 	dev_dbg(&map.spmi[BIT_BYTE(irq)]->dev,
 			"irq %d linuxIRQ: %d\n", irq, map.linuxirq[irq]);

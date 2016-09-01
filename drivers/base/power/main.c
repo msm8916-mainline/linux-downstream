@@ -229,35 +229,6 @@ static void dpm_wait_for_children(struct device *dev, bool async)
        device_for_each_child(dev, &async, dpm_wait_fn);
 }
 
-#ifdef CONFIG_SUSPEND_DEVICE_TIME_DEBUG
-static void suspend_time_debug_start(ktime_t *start) {
-    *start = ktime_get();
-}
-
-static void suspend_time_debug_report(const char *name, struct device *dev,
-                                      ktime_t starttime) {
-    ktime_t rettime;
-    s64 usecs64;
-    int usecs;
-
-    if (!dev->driver) return;
-
-    rettime = ktime_get();
-    usecs64 = ktime_to_us(ktime_sub(rettime, starttime));
-    usecs = usecs64;
-    if (usecs == 0) usecs = 1;
-
-    if (device_suspend_time_threshold
-        && usecs > device_suspend_time_threshold) pr_info("PM: device %s:%s %s too slow, it takes \t %ld.%03ld mses\n",
-                                                          dev->bus->name, dev_name(dev), name,
-                                                          usecs / USEC_PER_MSEC, usecs % USEC_PER_MSEC);
-}
-#else
-static void suspend_time_debug_start(ktime_t *start) { }
-static void suspend_time_debug_report(const char *name, struct device *dev,
-                                      ktime_t starttime) { }
-#endif /* CONFIG_SUSPEND_DEVICE_TIME_DEBUG */
-
 /**
  * pm_op - Return the PM operation appropriate for given PM event.
  * @ops: PM operations to choose from.
@@ -774,7 +745,6 @@ static bool is_async(struct device *dev)
 void dpm_resume(pm_message_t state)
 {
 	struct device *dev;
-    ktime_t starttime_debug;
 	ktime_t starttime = ktime_get();
 
 	might_sleep();
@@ -799,9 +769,7 @@ void dpm_resume(pm_message_t state)
 
 			mutex_unlock(&dpm_list_mtx);
 
-            suspend_time_debug_start(&starttime_debug);
 			error = device_resume(dev, state, false);
-            suspend_time_debug_report("resume", dev, starttime_debug);
 			if (error) {
 				suspend_stats.failed_resume++;
 				dpm_save_failed_step(SUSPEND_RESUME);
@@ -1282,7 +1250,6 @@ static int device_suspend(struct device *dev)
  */
 int dpm_suspend(pm_message_t state)
 {
-    ktime_t starttime_debug;
 	ktime_t starttime = ktime_get();
 	int error = 0;
 
@@ -1297,9 +1264,7 @@ int dpm_suspend(pm_message_t state)
 		get_device(dev);
 		mutex_unlock(&dpm_list_mtx);
 
-        suspend_time_debug_start(&starttime_debug);
 		error = device_suspend(dev);
-        suspend_time_debug_report("suspend", dev, starttime_debug);
 
 		mutex_lock(&dpm_list_mtx);
 		if (error) {

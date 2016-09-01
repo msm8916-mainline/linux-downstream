@@ -4,7 +4,8 @@ country 00:
 	# Channel 12 - 13.
 	(2457 - 2482 @ 40), (3, 20), PASSIVE-SCAN, NO-IBSS
 	# Channel 14. Only JP enables this and for 802.11b only
-	(2474 - 2494 @ 20), (3, 20), PASSIVE-SCAN, NO-IBSS, NO-OFDM
+	# delete 14 ch for 2634134/ 2634174
+	# (2474 - 2494 @ 20), (3, 20), PASSIVE-SCAN, NO-IBSS, NO-OFDM
 	# Channel 36 - 48
 	(5170 - 5250 @ 80), (3, 20), PASSIVE-SCAN, NO-IBSS
 	(5250 - 5330 @ 80), (3, 20), PASSIVE-SCAN, NO-IBSS
@@ -496,8 +497,8 @@ country HU: DFS-ETSI
 
 country ID:
 	# ref: http://www.postel.go.id/content/ID/regulasi/standardisasi/kepdir/bwa%205,8%20ghz.pdf
-	(2402 - 2482 @ 40), (N/A, 30)
-	(5735 - 5815 @ 80), (N/A, 30)
+	(2402 - 2482 @ 20), (N/A, 30)
+	(5735 - 5815 @ 20), (N/A, 30)
 
 country IE: DFS-ETSI
 	(2402 - 2482 @ 40), (N/A, 20)
@@ -547,7 +548,8 @@ country JM:
 
 country JP:
 	(2402 - 2482 @ 40), (N/A, 20)
-	(2474 - 2494 @ 20), (N/A, 20), NO-OFDM
+	# delete 14 ch for 2634134/ 2634174
+	# (2474 - 2494 @ 20), (N/A, 20), NO-OFDM
 	(5170 - 5250 @ 80), (N/A, 20)
 	(5250 - 5330 @ 80), (N/A, 20), DFS
 	(5490 - 5710 @ 80), (N/A, 20), DFS
@@ -1007,9 +1009,9 @@ country TC:
 
 country TW:
 	(2402 - 2472 @ 40), (N/A, 30)
-	(5270 - 5330 @ 40), (6, 17)
-	(5490 - 5590 @ 80), (6, 17), DFS
-	(5650 - 5730 @ 80), (6, 30), DFS
+	(5170 - 5250 @ 80), (6, 24)
+	(5250 - 5330 @ 80), (6, 24), DFS
+	(5490 - 5730 @ 80), (6, 24), DFS
 	(5735 - 5835 @ 80), (6, 30)
 
 country TD:

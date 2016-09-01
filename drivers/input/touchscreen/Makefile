@@ -82,43 +82,15 @@ obj-$(CONFIG_TOUCHSCREEN_MSTAR21XX)	+= msg21xx_ts.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_RMI4_DEV)	+= synaptics_rmi_dev.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE) 	+= synaptics_fw_update.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI4)		+= synaptics_i2c_rmi4.o
-
-
-# modify(add) by weihong.chen.sz for [pop10 support ft5526 ]begin . 20140820
-ifdef CONFIG_TCT_8X16_POP10
-obj-$(CONFIG_FT5X06_TOUCHPANEL_DRIVER_POP10)		+= pop10/ft5x06/
-endif
-# modify(add) by weihong.chen.sz for [pop10 support ft5526]end . 20140820
-# modify(add) by weihong.chen.sz for [pop10 support ft5526 ]begin . 20140820
-ifdef CONFIG_TCT_8X16_POP10
-obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI4_POP10)		+= pop10/synaptics_pop10/
-endif
-# modify(add) by weihong.chen.sz for [pop10 support ft5526]end . 20140820
 ifdef CONFIG_TCT_8X16_COMMON 
 obj-$(CONFIG_TCT_8X16_ALTO45_LATAM_B28)	+= tp_tct/
 obj-$(CONFIG_TCT_8X16_ALTO45_LATAM_B28)		+= gt9xx_v2/
 else
 obj-$(CONFIG_TOUCHSCREEN_GT9XX)		+= gt9xx/
 endif
-
-#[PLATFORM]-Add-BEGIN by TCTNB.ZXZ, FR-778074, 2014/09/20 add for msg2633 TP driver
-ifdef CONFIG_TCT_8X16_ALTO5_VDF
-obj-$(CONFIG_TOUCHSCREEN_FT5436)	+= tp_FT5436/
-obj-$(CONFIG_TOUCHSCREEN_MSG)		+= msg_tp/
-endif
-
-ifdef CONFIG_TCT_8X16_ALTO5_PREMIUM
-obj-$(CONFIG_TOUCHSCREEN_FT5436)	+= tp_FT5436/
-obj-$(CONFIG_TOUCHSCREEN_MSG)		+= msg_tp/
-endif
-
 ifdef CONFIG_TCT_8X16_IDOL347
 obj-$(CONFIG_TOUCHSCREEN_FT5436_IDOL347)	+= ft5436_idol347/
 obj-$(CONFIG_TOUCHSCREEN_MSG2638)	+= msg2638_tp/
-endif
-
-ifdef CONFIG_TCT_8X16_ALTO4
-obj-$(CONFIG_TOUCHSCREEN_FT6336)		+= ft6336/
 endif
 ifdef CONFIG_TCT_8X16_IDOL3
 obj-$(CONFIG_TOUCHSCREEN_FT5X36_IDOL3)		+= ft5x36_idol3/

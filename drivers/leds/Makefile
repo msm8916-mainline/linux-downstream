@@ -8,9 +8,14 @@ obj-$(CONFIG_LEDS_TRIGGERS)		+= led-triggers.o
 obj-$(CONFIG_LEDS_88PM860X)		+= leds-88pm860x.o
 obj-$(CONFIG_LEDS_ATMEL_PWM)		+= leds-atmel-pwm.o
 obj-$(CONFIG_LEDS_BD2802)		+= leds-bd2802.o
+
+#lfg 2015.12.17 task:1176409 START
 # [PLATFORM]-Add-BEGIN by TCTNB.FLF, PR-813549, 2014/10/18, add sn31 for alto5 global
-obj-$(CONFIG_LEDS_SN31XX)		+= leds-sn31xx.o
+obj-$(CONFIG_LEDS_SN31XX)              += leds-sn31xx.o
 # [PLATFORM]-Add-END by TCTNB.FLF
+obj-$(CONFIG_LEDS_KTD20XX)             += leds-ktd20xx.o   # [PLATFORM]-Add- by TCTNB.XQJ, PR-901590, 2015/01/22, add ktd20xxx led driver 
+#lfg 2015.12.17 task:1176409 END
+
 obj-$(CONFIG_LEDS_LOCOMO)		+= leds-locomo.o
 obj-$(CONFIG_LEDS_LM3530)		+= leds-lm3530.o
 obj-$(CONFIG_LEDS_LM3533)		+= leds-lm3533.o
@@ -60,13 +65,14 @@ obj-$(CONFIG_LEDS_MAX8997)		+= leds-max8997.o
 obj-$(CONFIG_LEDS_LM355x)		+= leds-lm355x.o
 obj-$(CONFIG_LEDS_BLINKM)		+= leds-blinkm.o
 obj-$(CONFIG_LEDS_MSM_GPIO_FLASH)	+= leds-msm-gpio-flash.o
-obj-$(CONFIG_GPIO_LED_FLASH_SGM3110_5) 	+= leds-sgm3110-5.o leds-msm-gpio-flash.o
 
 #[PLATFORM]-Add-BEGIN by TCTNB.YJ, for idol3 flash led driver.
 # obj-$(CONFIG_TCT_8X16_IDOL3)		+= leds-sgm3785.o
 obj-$(CONFIG_TCT_8X16_IDOL3)		+= leds-sgm3785-idol3.o
 #[PLATFORM]-Mod-END by TCTNB.YJ
 obj-$(CONFIG_GPIO_LED_FLASH_SGM3785_IDOL347)	+= leds-sgm3785-idol347.o
+obj-$(CONFIG_LEDS_AW2013)		+= leds-aw2013.o
+
 # LED SPI Drivers
 obj-$(CONFIG_LEDS_DAC124S085)		+= leds-dac124s085.o
 

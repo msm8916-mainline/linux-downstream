@@ -442,9 +442,9 @@ int of_batterydata_read_data(struct device_node *batterydata_container_node,
 	rc = of_property_read_string(best_node, "qcom,battery-type",
 							&battery_type);
 	if (!rc)
-		pr_err("%s loaded\n", battery_type);
+		pr_info("%s loaded\n", battery_type);
 	else
-		pr_err("%s loaded\n", best_node->name);
+		pr_info("%s loaded\n", best_node->name);
 
 	return of_batterydata_load_battery_data(best_node,
 					best_id_kohm, batt_data);

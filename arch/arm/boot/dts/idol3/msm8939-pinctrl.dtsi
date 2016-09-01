@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,6 +27,22 @@
 				interrupt-controller;
 				#interrupt-cells = <2>;
 				num_irqs = <122>;
+			};
+		};
+
+		cdc-ext-spk-pa {
+			qcom,pins = <&gp 0>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "cdc-ext-spk-pa";
+			cdc_ext_spk_pa_act: ext_spk_pa_on {
+				drive-strength = <8>;
+				output-low;
+				bias-pull-none;
+			};
+			cdc_ext_spk_pa_sus: ext_spk_pa_off {
+				drive-strength = <2>;
+				bias-disable;
 			};
 		};
 
@@ -309,7 +325,7 @@
                         qcom,pin-func = <1>;
                         label = "spi0-active";
                         /* active state */
-                        spi0_default: default {
+                        spi0_default: spi0_default {
                                 drive-strength = <12>; /* 12 MA */
                                 bias-disable = <0>; /* No PULL */
                         };
@@ -322,7 +338,7 @@
                         qcom,pin-func = <0>;
                         label = "spi0-suspend";
                         /* suspended state */
-                        spi0_sleep: sleep {
+                        spi0_sleep: spi0_sleep {
                                 drive-strength = <2>; /* 2 MA */
 			        bias-pull-down; /* PULL Down */
                         };
@@ -378,7 +394,7 @@
                         qcom,pin-func = <1>;
                         label = "spi5-active";
                         /* active state */
-                        spi5_default: default {
+                        spi5_default: spi5_default {
                                 drive-strength = <16>; /* 16 MA */
                                 bias-disable = <0>; /* No PULL */
                         };
@@ -391,7 +407,7 @@
                         qcom,pin-func = <0>;
                         label = "spi5-suspend";
                         /* suspended state */
-                        spi5_sleep: sleep {
+                        spi5_sleep: spi5_sleep {
                                 drive-strength = <2>; /* 2 MA */
                                 bias-disable = <0>; /* No PULL */
                         };
@@ -436,7 +452,6 @@
 			};
 		};
 
-		/*[PLATFORM]-Mod-BEGIN by TCTNB.WJ, 2015/3/9, remove HALL1(GPIO_36), bug943274 */
 		tlmm_gpio_key {
 			qcom,pins = <&gp 107>, <&gp 98>;  /* <&gp 36>, <&gp 108>, <&gp 109> */
 			qcom,pin-func = <0>;
@@ -525,6 +540,30 @@
 			};
 		};
 
+		mod_en_active {
+			qcom,pins = <&gp 97>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "mod_en_active";
+
+			mod_en_active: mod_en_active {
+				drive-strength = <16>;
+				output-high;
+			};
+		};
+
+		mod_en_suspend {
+			qcom,pins = <&gp 97>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "mod_en_suspend";
+
+			mod_en_suspend: mod_en_suspend {
+				drive-strength = <2>;
+				output-low;
+			};
+		};
+
 		disp_vsn_active {
 			qcom,pins = <&gp 77>;
 			qcom,pin-func = <0>;
@@ -549,6 +588,30 @@
 			};
 		};
 
+		ddic_rst_active {
+			qcom,pins = <&gp 25>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "ddic_rst_active";
+
+			ddic_rst_active: ddic_rst_active {
+				drive-strength = <16>;
+				output-high;
+			};
+		};
+
+		ddic_rst_suspend {
+			qcom,pins = <&gp 25>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "ddic_rst_suspend";
+
+			ddic_rst_suspend: ddic_rst_suspend {
+				drive-strength = <2>;
+				output-low;
+			};
+		};
+
 		pmx_ts_release {
 			qcom,pins = <&gp 13>, <&gp 12>;
 			qcom,num-grp-pins = <2>;
@@ -562,7 +625,7 @@
 
 		apds99xx_int_pin {
 			/* Ambient light and proximity sensor apds9930 and apds9900 */
-			qcom,pins = <&gp 34>;/*NB.THW modify 2014/11/17*/
+			qcom,pins = <&gp 113>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
 			label = "apds99xx-irq";
@@ -578,13 +641,13 @@
 
 		mpu6050_int_pin {
 			/* Gyroscope and accelerometer sensor combo */
-			qcom,pins = <&gp 97>;/*NB.THW modify 2014/11/17*/
+			qcom,pins = <&gp 115>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
 			label = "mpu6050-irq";
 			mpu6050_default: mpu6050_default {
 				drive-strength = <6>;
-				bias-pull-down;
+				bias-pull-up;
 			};
 			mpu6050_sleep: mpu6050_sleep {
 				drive-strength = <2>;
@@ -692,7 +755,7 @@
 			};
 			cdc_pdm_lines_sus: pdm_lines_off {
 				drive-strength = <2>;
-				bias-disable;
+				bias-pull-down;
 			};
 		};
 
@@ -715,21 +778,26 @@
 		pmx_mdss: pmx_mdss {
 			label = "mdss-pins";
 			qcom,pin-func = <0>;
-
+			/*MODIFIED-BEGIN by jianeng.yuan, 2016-04-14,BUG-1941671*/
+			qcom,num-grp-pins = <1>;
+			qcom,pins = <&gp 25>;
+			/*MODIFIED-END by jianeng.yuan,BUG-1941671*/
 			mdss_dsi_active: active {
 				drive-strength = <8>; /* 8 mA */
 				bias-disable = <0>; /* no pull */
-				output-high;
 			};
 			mdss_dsi_suspend: suspend {
 				drive-strength = <2>; /* 2 mA */
 				bias-pull-down; /* pull down */
-				output-low;
 			};
 		};
 
 		pmx_mdss_te: pmx_mdss_te {
 			label = "mdss-te-pin";
+			/*MODIFIED-BEGIN by jianeng.yuan, 2016-04-14,BUG-1941671*/
+			qcom,num-grp-pins = <1>;
+			qcom,pins = <&gp 24>;
+			/*MODIFIED-END by jianeng.yuan,BUG-1941671*/
 			qcom,pin-func = <1>;
 			mdss_te_active: active {
 				drive-strength = <2>; /* 2 mA */
@@ -990,6 +1058,25 @@
 */
 /* [PLATFORM]-Add-END by TCTNB.HJ*/
 
+/*MODIFIED-BEGIN by jianeng.yuan, 2016-04-14,BUG-1941671*/
+/*[BUFFIX]-Add-bgein  by TCTNB.XQJ, PR-797187,789423, 797185,2014/11/14,finish sensors drirver*/
+	akm_reset_pin {
+		qcom,pins = <&gp 100>;
+		qcom,pin-func = <0>;
+		qcom,num-grp-pins = <1>;
+		label = "akm_reset_pin";
+		akm_default: akm_default {
+			drive-strength = <6>;
+			bias-pull-up;
+		};
+		akm_sleep: akm_sleep {
+			drive-strength = <2>;
+			bias-pull-down;
+		};
+	};
+/*[BUFFIX]-End- by TCTNB.XQJ*/
+/*MODIFIED-END by jianeng.yuan,BUG-1941671*/
+
 /*NB.THW 2014/11/17 end*/
 		cci0_pinmux {
 			/* CLK, DATA */
@@ -1060,21 +1147,23 @@
 
 		cam_sensor_rear {
 			/* RESET, STANDBY */
-			qcom,pins =  <&gp 35>, <&gp 94>;
-			qcom,num-grp-pins = <2>;
+			//qcom,pins =  <&gp 35>, <&gp 94>;
+			//qcom,num-grp-pins = <2>;
+			qcom,pins =  <&gp 35>, <&gp 94>, <&gp 16>, <&gp 17>; //17 also used by front camera
+			qcom,num-grp-pins = <4>;
 			qcom,pin-func = <0>;
 			label = "cam-sensor-rear";
 			/* active state */
 			cam_sensor_rear_default: default {
-				drive-strength = <2>; /* 2 MA */
+				drive-strength = <4>; /* 4 MA */
 				bias-disable = <0>; /* No PULL */
 			};
 		};
 
 		cam_sensor_rear_sleep {
 			/* RESET, STANDBY */
-			qcom,pins =  <&gp 35>, <&gp 94>;
-			qcom,num-grp-pins = <2>;
+			qcom,pins =  <&gp 35>, <&gp 94>, <&gp 16>, <&gp 17>; //17 also used by front camera
+			qcom,num-grp-pins = <4>;
 			qcom,pin-func = <0>;
 			label = "cam-sensor-rear-sleep";
 			/*suspend state */
@@ -1086,8 +1175,10 @@
 
 		cam_sensor_front {
 			/* RESET, STANDBY */
-			qcom,pins = <&gp 28>, <&gp 33>;
-			qcom,num-grp-pins = <2>;
+			/*MODIFIED-BEGIN by jianeng.yuan, 2016-04-14,BUG-1941671*/
+			qcom,pins = <&gp 28>, <&gp 33>, <&gp 109>;//, <&gp 17>;//17 also used by rear camera
+			qcom,num-grp-pins = <3>;
+			/*MODIFIED-END by jianeng.yuan,BUG-1941671*/
 			qcom,pin-func = <0>;
 			label = "cam_sensor_front";
 			/* active state */
@@ -1099,8 +1190,10 @@
 
 		cam_sensor_front_sleep {
 			/* RESET, STANDBY */
-			qcom,pins = <&gp 28>, <&gp 33>;
-			qcom,num-grp-pins = <2>;
+			/*MODIFIED-BEGIN by jianeng.yuan, 2016-04-14,BUG-1941671*/
+			qcom,pins = <&gp 28>, <&gp 33>, <&gp 109>;//, <&gp 17>;////17 also used by rear camera
+			qcom,num-grp-pins = <3>;
+			/*MODIFIED-END by jianeng.yuan,BUG-1941671*/
 			qcom,pin-func = <0>;
 			label = "cam_sensor_front_sleep";
 			/*suspend state */
@@ -1113,7 +1206,8 @@
 		cam_sensor_flash {
 			/* FLSH_RESET,FLASH_EN,FLASH_NOW */
 			/*[PLATFORM]-Mod-BEGIN by TCTNB.WJ, 2015/1/4, conflict with HALL */
-			qcom,pins = <&gp 31>,<&gp 32> ;   /* <&gp 36> */
+			//qcom,pins = <&gp 31>,<&gp 32> ;   /* <&gp 36> */ //ljtao delete
+			qcom,pins = <&gp 2>,<&gp 32> ;
 			qcom,num-grp-pins = <2>;   /* <3>; */
 			/*[PLATFORM]-Mod-End */
 			qcom,pin-func = <0>;
@@ -1133,7 +1227,7 @@
 /* [PLATFORM]-Add-BEGIN by TCTNB.CY, PR-887679, 2014/12/31, lcd power ic gpio configure*/
 		lcd_power {
 			/* LCD power IC gpio configure*/
-			qcom,pins =  <&gp 106>, <&gp 105>;
+			qcom,pins =  <&gp 105>, <&gp 106>;
 			qcom,num-grp-pins = <2>;
 			qcom,pin-func = <0>;
 			label = "lcd_power";

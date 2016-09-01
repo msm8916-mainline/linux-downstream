@@ -22,9 +22,6 @@
 #include <linux/printk.h>
 #include <linux/list.h>
 #include <linux/pinctrl/consumer.h>
-#if defined(CONFIG_TCT_8X16_COMMON)
-#include <linux/clk.h>
-#endif
 
 /* #define CONFIG_GPIO_FLASH_DEBUG */
 #undef CDBG
@@ -66,57 +63,10 @@ static struct of_device_id led_gpio_flash_of_match[] = {
 	{.compatible = LED_GPIO_FLASH_DRIVER_NAME,},
 	{},
 };
-#if defined(CONFIG_TCT_8X16_COMMON)
-struct clk *flash_clk;
-struct pinctrl_state *pins_active;
-struct pinctrl_state *pins_sleep;
-int clk_is_prepare = 0;
-int flash_now_bk = 0;
-extern void pub_msm_tlmm_v4_gp_fn_gpio_32(uint pin_no, u32 func,	bool enable);
-#endif
- void led_gpio_brightness_set(struct led_classdev *led_cdev,
+
+static void led_gpio_brightness_set(struct led_classdev *led_cdev,
 				    enum led_brightness value)
 {
-#if defined(CONFIG_TCT_8X16_COMMON)
-	struct led_gpio_flash_data *flash_led =
-	    container_of(led_cdev, struct led_gpio_flash_data, cdev);
-	int brightness = value;
-	flash_led->flash_now = flash_now_bk;
-	//printk("%s: ~~~~brightness %d; flash_led->flash_now =%d\n", __func__,brightness,flash_led->flash_now);
-	if (brightness > LED_HALF) {
-		pub_msm_tlmm_v4_gp_fn_gpio_32(32,0,1);
-		gpio_direction_output(flash_led->flash_now, 1);
-		clk_is_prepare = 0;
-	}else if(brightness > LED_OFF){
-		pub_msm_tlmm_v4_gp_fn_gpio_32(32,2,1);
-	    if (brightness > 85) {
-		if(clk_is_prepare)
-		clk_disable_unprepare(flash_clk);
-		clk_set_rate(flash_clk, 24000);
-		clk_prepare_enable(flash_clk);
-		clk_is_prepare =1;
-	} else if (brightness > 42) {
-		if(clk_is_prepare)
-		clk_disable_unprepare(flash_clk);
-		clk_set_rate(flash_clk, 24001);
-		clk_prepare_enable(flash_clk);
-		clk_is_prepare =1;
-	} else if (brightness > LED_OFF) {
-		if(clk_is_prepare)
-		clk_disable_unprepare(flash_clk);
-		clk_set_rate(flash_clk, 24002);
-		clk_prepare_enable(flash_clk);
-		clk_is_prepare =1;
-	}
-	}else {
-		pub_msm_tlmm_v4_gp_fn_gpio_32(32,0,1);
-		gpio_direction_output(flash_led->flash_now, 0);
-		if(clk_is_prepare)
-		clk_disable_unprepare(flash_clk);
-		clk_is_prepare = 0;
-	}
-	return;
-#else
 	int rc = 0;
 	struct led_gpio_flash_data *flash_led =
 	    container_of(led_cdev, struct led_gpio_flash_data, cdev);
@@ -155,7 +105,6 @@ extern void pub_msm_tlmm_v4_gp_fn_gpio_32(uint pin_no, u32 func,	bool enable);
 	flash_led->brightness = brightness;
 err:
 	return;
-#endif
 }
 
 static enum led_brightness led_gpio_brightness_get(struct led_classdev
@@ -172,7 +121,10 @@ int led_gpio_flash_probe(struct platform_device *pdev)
 	const char *temp_str;
 	struct led_gpio_flash_data *flash_led = NULL;
 	struct device_node *node = pdev->dev.of_node;
-
+	const char *seq_name = NULL;
+	uint32_t array_flash_seq[2];
+	uint32_t array_torch_seq[2];
+	int i = 0;
 	flash_led = devm_kzalloc(&pdev->dev, sizeof(struct led_gpio_flash_data),
 				 GFP_KERNEL);
 	if (flash_led == NULL) {
@@ -185,34 +137,15 @@ int led_gpio_flash_probe(struct platform_device *pdev)
 	rc = of_property_read_string(node, "linux,default-trigger", &temp_str);
 	if (!rc)
 		flash_led->cdev.default_trigger = temp_str;
-/* [PLATFORM]-Add-BEGIN by TCTNB.qijiang.yu, 2014/05/07,  change for camera led flash Alto4.5 */
-#if defined(CONFIG_TCT_8X16_COMMON)
+
 	flash_led->pinctrl = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR(flash_led->pinctrl)) {
 		pr_err("%s:failed to get pinctrl\n", __func__);
 		return PTR_ERR(flash_led->pinctrl);
 	}
-	pins_active = pinctrl_lookup_state(flash_led->pinctrl,
-                PINCTRL_STATE_DEFAULT);
-    if (IS_ERR_OR_NULL(pins_active)) {
-        pr_err("ice40 Failed to lookup pinctrl default state\n");
-        return PTR_ERR(pins_active);
-    }
 
-    pins_sleep = pinctrl_lookup_state(flash_led->pinctrl,
-                PINCTRL_STATE_SLEEP);
-    if (IS_ERR_OR_NULL(pins_sleep)) {
-        pr_err("ice40 Failed to lookup pinctrl sleep state\n");
-        return PTR_ERR(pins_sleep);
-    }
-    rc = pinctrl_select_state(flash_led->pinctrl, pins_active);
-    if (rc) {
-        pr_err("%s: Can not set %s pins\n", __func__, PINCTRL_STATE_DEFAULT);
-    }
-#endif
-#if 0
 	flash_led->gpio_state_default = pinctrl_lookup_state(flash_led->pinctrl,
-		"ocp8110_default");
+		"flash_default");
 	if (IS_ERR(flash_led->gpio_state_default)) {
 		pr_err("%s:can not get active pinstate\n", __func__);
 		return -EINVAL;
@@ -222,10 +155,8 @@ int led_gpio_flash_probe(struct platform_device *pdev)
 		flash_led->gpio_state_default);
 	if (rc)
 		pr_err("%s:set state failed!\n", __func__);
-#endif
-/* [PLATFORM]-Add-END by TCTNB.qijiang.yu */
-	flash_led->flash_en = of_get_named_gpio(node, "qcom,flash-en", 0);
 
+	flash_led->flash_en = of_get_named_gpio(node, "qcom,flash-en", 0);
 	if (flash_led->flash_en < 0) {
 		dev_err(&pdev->dev,
 			"Looking up %s property in node %s failed. rc =  %d\n",
@@ -249,7 +180,6 @@ int led_gpio_flash_probe(struct platform_device *pdev)
 			"flash-now", node->full_name, flash_led->flash_now);
 		goto error;
 	} else {
-#if !(defined(CONFIG_TCT_8X16_COMMON))
 		rc = gpio_request(flash_led->flash_now, "FLASH_NOW");
 		if (rc) {
 			dev_err(&pdev->dev,
@@ -257,10 +187,6 @@ int led_gpio_flash_probe(struct platform_device *pdev)
 				__func__, flash_led->flash_now, rc);
 			goto error;
 		}
-#else
-     	flash_now_bk = flash_led->flash_now;
-		printk("flash_led->flash_now = %d \n",flash_led->flash_now);
-#endif
 	}
 
 	rc = of_property_read_string(node, "linux,name", &flash_led->cdev.name);
@@ -268,6 +194,74 @@ int led_gpio_flash_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "%s: Failed to read linux name. rc = %d\n",
 			__func__, rc);
 		goto error;
+	}
+
+	rc = of_property_read_u32_array(node, "qcom,flash-seq-val",
+		array_flash_seq, 2);
+
+	if (rc < 0) {
+		pr_err("%s get flash op seq failed %d\n",
+			__func__, __LINE__);
+		goto error;
+	}
+
+	rc = of_property_read_u32_array(node, "qcom,torch-seq-val",
+		array_torch_seq, 2);
+
+	if (rc < 0) {
+		pr_err("%s get torch op seq failed %d\n",
+			__func__, __LINE__);
+		goto error;
+	}
+
+	for (i = 0; i < 2; i++) {
+		rc = of_property_read_string_index(node,
+			"qcom,op-seq", i,
+			&seq_name);
+		CDBG("%s seq_name[%d] = %s\n", __func__, i,
+			seq_name);
+		if (rc < 0)
+			dev_err(&pdev->dev, "%s failed %d\n",
+				__func__, __LINE__);
+
+		if (!strcmp(seq_name, "flash_en")) {
+			flash_led->ctrl_seq[FLASH_EN].seq_type =
+				FLASH_EN;
+			CDBG("%s:%d seq_type[%d] %d\n", __func__, __LINE__,
+				i, flash_led->ctrl_seq[FLASH_EN].seq_type);
+			if (array_flash_seq[i] == 0)
+				flash_led->ctrl_seq[FLASH_EN].flash_on_val =
+					GPIO_OUT_LOW;
+			else
+				flash_led->ctrl_seq[FLASH_EN].flash_on_val =
+					GPIO_OUT_HIGH;
+
+			if (array_torch_seq[i] == 0)
+				flash_led->ctrl_seq[FLASH_EN].torch_on_val =
+					GPIO_OUT_LOW;
+			else
+				flash_led->ctrl_seq[FLASH_EN].torch_on_val =
+					GPIO_OUT_HIGH;
+		} else if (!strcmp(seq_name, "flash_now")) {
+			flash_led->ctrl_seq[FLASH_NOW].seq_type =
+				FLASH_NOW;
+			CDBG("%s:%d seq_type[%d] %d\n", __func__, __LINE__,
+				i, flash_led->ctrl_seq[i].seq_type);
+			if (array_flash_seq[i] == 0)
+				flash_led->ctrl_seq[FLASH_NOW].flash_on_val =
+					GPIO_OUT_LOW;
+			else
+				flash_led->ctrl_seq[FLASH_NOW].flash_on_val =
+					GPIO_OUT_HIGH;
+
+			if (array_torch_seq[i] == 0)
+				flash_led->ctrl_seq[FLASH_NOW].torch_on_val =
+					GPIO_OUT_LOW;
+			 else
+				flash_led->ctrl_seq[FLASH_NOW].torch_on_val =
+					GPIO_OUT_HIGH;
+		}
+
 	}
 
 	platform_set_drvdata(pdev, flash_led);
@@ -281,29 +275,6 @@ int led_gpio_flash_probe(struct platform_device *pdev)
 			__func__, rc);
 		goto error;
 	}
-#if defined(CONFIG_TCT_8X16_COMMON)
-	if (!of_get_property(node, "clock-names", NULL))
-		return 0;
-	flash_clk = devm_clk_get(&pdev->dev, "cam_sensor_flash");
-	if (IS_ERR(flash_clk)) {
-		rc = PTR_ERR(flash_clk);
-	if (rc != -EPROBE_DEFER)
-		pr_err("fail to get flash clk %d\n", rc);
-	}
-	if (flash_clk) {
-		rc = 0;// clk_set_rate(flash_clk, 19200000);
-	if (rc < 0) {
-		pr_err("fail to setting flash clk %d\n", rc);
-		}
-	}
-
-	if (flash_clk) {
-		rc = 0;//clk_prepare_enable(flash_clk);
-	if (rc < 0) {
-		pr_err("fail to enable flash clk %d\n", rc);
-		}
-	}
-#endif
 	pr_err("%s:probe successfully!\n", __func__);
 	return 0;
 

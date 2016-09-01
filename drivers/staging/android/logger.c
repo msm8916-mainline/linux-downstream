@@ -828,12 +828,6 @@ static int __init logger_init(void)
 	if (unlikely(ret))
 		goto out;
 
-    // Architecture-Add-Begin ArchiNO:(011.tct_log)
-    ret = create_log(LOGGER_LOG_TCT, CONFIG_LOGCAT_SIZE*1024);
-	if (unlikely(ret))
-		goto out;
-    // Architecture-Add-End
-
 out:
 	return ret;
 }

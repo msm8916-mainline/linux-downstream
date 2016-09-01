@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -28,6 +28,7 @@ static struct v4l2_file_operations msm_sensor_v4l2_subdev_fops;
 
 /* Static declaration */
 static struct msm_sensor_ctrl_t *g_sctrl[MAX_CAMERAS];
+ /*[CAMERA]-ADD BEGIN by wenlong.song,2015-12-18,Task-1177157 ,for camera from L*/
 extern int actuator_exist;
 static int file_is_create = 0;
 #if defined(CONFIG_TCT_8X16_ALTO5) || defined(CONFIG_TCT_8X16_POP10)
@@ -40,7 +41,7 @@ extern uint16_t ov5670_truly_otp_get_vcm_id(struct msm_sensor_ctrl_t *s_ctrl);
 extern uint16_t s5k5e2_check_module(struct msm_camera_i2c_client *i2c_client);
 #endif
 //[PLATFROM]-ADD-END
-
+ /*[CAMERA]-ADD END by wenlong.song,2015-12-18,Task-1177157 ,for camera from L*/
 static int msm_sensor_platform_remove(struct platform_device *pdev)
 {
 	struct msm_sensor_ctrl_t  *s_ctrl;
@@ -262,27 +263,26 @@ static int32_t msm_sensor_fill_actuator_subdevid_by_name(
 	/*if actuator exist, add subdev of actuator.
 	Modify-BEGIN by TCTNB.YQJ,07/14/2014,FR-695481 */
 	if(actuator_exist){
-		src_node = of_parse_phandle(of_node, "qcom,actuator-src", 0);
-		if (!src_node) {
-			CDBG("%s:%d src_node NULL\n", __func__, __LINE__);
-		} else {
-			rc = of_property_read_u32(src_node, "cell-index", &val);
-			CDBG("%s qcom,actuator cell index %d, rc %d\n", __func__,
-				val, rc);
-			if (rc < 0) {
-				pr_err("%s failed %d\n", __func__, __LINE__);
-				return -EINVAL;
-			}
-			*actuator_subdev_id = val;
-			of_node_put(src_node);
-			src_node = NULL;
+	src_node = of_parse_phandle(of_node, "qcom,actuator-src", 0);
+	if (!src_node) {
+		CDBG("%s:%d src_node NULL\n", __func__, __LINE__);
+	} else {
+		rc = of_property_read_u32(src_node, "cell-index", &val);
+		CDBG("%s qcom,actuator cell index %d, rc %d\n", __func__,
+			val, rc);
+		if (rc < 0) {
+			pr_err("%s failed %d\n", __func__, __LINE__);
+			return -EINVAL;
 		}
+		*actuator_subdev_id = val;
+		of_node_put(src_node);
+		src_node = NULL;
+	}
 	}
 
 	return rc;
 }
 
-#if 0
 static int32_t msm_sensor_fill_ois_subdevid_by_name(
 				struct msm_sensor_ctrl_t *s_ctrl)
 {
@@ -329,7 +329,7 @@ static int32_t msm_sensor_fill_ois_subdevid_by_name(
 
 	return rc;
 }
-#endif
+
 static int32_t msm_sensor_fill_slave_info_init_params(
 	struct msm_camera_sensor_slave_info *slave_info,
 	struct msm_sensor_info_t *sensor_info)
@@ -640,6 +640,24 @@ static void msm_sensor_fill_sensor_info(struct msm_sensor_ctrl_t *s_ctrl,
 	strlcpy(entity_name, s_ctrl->msm_sd.sd.entity.name, MAX_SENSOR_NAME);
 }
 
+/* static function definition */
+int32_t msm_sensor_driver_is_special_support(
+	struct msm_sensor_ctrl_t *s_ctrl,
+	char* sensor_name)
+{
+	int32_t rc = FALSE;
+	int32_t i = 0;
+	struct msm_camera_sensor_board_info *sensordata = s_ctrl->sensordata;
+	for (i = 0; i < sensordata->special_support_size; i++) {
+		if (!strcmp(sensordata->special_support_sensors[i],
+			sensor_name)) {
+			rc = TRUE;
+			break ;
+		}
+	}
+	return rc;
+}
+/* [PLATFORM]-Mod-BEGIN by TCTNB.YJ, add for rear camera on idol3  */
 static char vcm_type[8];
 static ssize_t vcm_type_read(struct class *class,
 				struct class_attribute *attr, char *buf)
@@ -659,8 +677,8 @@ static struct class *vcm_type_class;
 
 /* static function definition */
 
-/* [PLATFORM]-Mod-BEGIN by TCTNB.YJ, add for rear camera on idol3  */
-#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_IDOL347)
+
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_IDOL347)|| defined(CONFIG_TCT_8X16_M823_ORANGE)
 int32_t special_actuator4tct = 0;
 int32_t special_actuator_s5k3m2 = 0;
 #endif
@@ -674,8 +692,9 @@ int32_t msm_sensor_driver_probe(void *setting,
 	struct msm_camera_cci_client        *cci_client = NULL;
 	struct msm_camera_sensor_slave_info *slave_info = NULL;
 	struct msm_camera_slave_info        *camera_info = NULL;
-	int ret = 0;
+	int ret = 0;/* [PLATFORM]-Mod-BEGIN by TCTNB.YJ, add for rear camera on idol3  */
 	unsigned long                        mount_pos = 0;
+	uint32_t                             is_yuv;
 
 	/* Validate input parameters */
 	if (!setting) {
@@ -736,6 +755,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 			setting32.is_init_params_valid;
 		slave_info->sensor_init_params = setting32.sensor_init_params;
 		slave_info->is_flash_supported = setting32.is_flash_supported;
+		slave_info->output_format = setting32.output_format;
 	} else
 #endif
 	{
@@ -756,7 +776,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 	CDBG("sensor_id 0x%x", slave_info->sensor_id_info.sensor_id);
 	CDBG("size %d", slave_info->power_setting_array.size);
 	CDBG("size down %d", slave_info->power_setting_array.size_down);
-
+ /*[CAMERA]-ADD BEGIN by wenlong.song,2015-12-18,Task-1177157 ,for camera from L*/
 	if(!file_is_create){
 	/* vcm_type create (/<sysfs>/class/vcm_type) */
 	vcm_type_class = class_create(THIS_MODULE, "vcm_type");
@@ -772,7 +792,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 	}
 	file_is_create = 1;
 	}
-
+ /*[CAMERA]-ADD END by wenlong.song,2015-12-18,Task-1177157 ,for camera from L*/
 
 	if (slave_info->is_init_params_valid) {
 		CDBG("position %d",
@@ -821,6 +841,16 @@ int32_t msm_sensor_driver_probe(void *setting,
 
 		rc = 0;
 		goto free_slave_info;
+	}
+
+	if (s_ctrl->sensordata->special_support_size > 0) {
+		if (!msm_sensor_driver_is_special_support(s_ctrl,
+			slave_info->sensor_name)) {
+			pr_err("%s:%s is not support on this board\n",
+				__func__, slave_info->sensor_name);
+			rc = 0;
+			goto free_slave_info;
+		}
 	}
 
 	rc = msm_sensor_get_power_settings(setting, slave_info,
@@ -917,6 +947,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		goto free_camera_info;
 	}
+	 /*[CAMERA]-ADD BEGIN by wenlong.song,2015-12-18,Task-1177157 ,for camera from L*/
 #endif
 #ifdef CONFIG_TCT_8X16_ALTO5
 	if (!strcmp(s_ctrl->sensordata->sensor_name, "ov5670_truly_ff") ||
@@ -929,6 +960,12 @@ int32_t msm_sensor_driver_probe(void *setting,
         gpio_free(s_ctrl->sensordata->power_info.gpio_conf->gpio_num_info->gpio_num[SENSOR_GPIO_VDIG]);
 	}
 #endif // CONFIG_TCT_8X16_ALTO5
+	rc = msm_sensor_fill_ois_subdevid_by_name(s_ctrl);
+	if (rc < 0) {
+		pr_err("%s failed %d\n", __func__, __LINE__);
+		goto free_camera_info;
+	}
+
 	/* Power up and probe sensor */
 	rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
 	if (rc < 0) {
@@ -994,6 +1031,7 @@ int32_t msm_sensor_driver_probe(void *setting,
 		}
 	}
 #endif // CONFIG_TCT_8X16_POP10
+ /*[CAMERA]-ADD END by wenlong.song,2015-12-18,Task-1177157 ,for camera from L*/
 //[PLATFROM]-ADD-END TCTSZ.ZKX
 	pr_err("%s probe succeeded", slave_info->sensor_name);
 
@@ -1042,9 +1080,12 @@ int32_t msm_sensor_driver_probe(void *setting,
 		goto free_camera_info;
 	}
 	/* Update sensor mount angle and position in media entity flag */
-	mount_pos = s_ctrl->sensordata->sensor_info->position << 16;
-	mount_pos = mount_pos | ((s_ctrl->sensordata->sensor_info->
-		sensor_mount_angle / 90) << 8);
+	is_yuv = (slave_info->output_format == MSM_SENSOR_YCBCR) ? 1 : 0;
+	mount_pos = is_yuv << 25 |
+		(s_ctrl->sensordata->sensor_info->position << 16) |
+		((s_ctrl->sensordata->
+		sensor_info->sensor_mount_angle / 90) << 8);
+
 	s_ctrl->msm_sd.sd.entity.flags = mount_pos | MEDIA_ENT_FL_DEFAULT;
 
 	/*Save sensor info*/
@@ -1062,8 +1103,9 @@ int32_t msm_sensor_driver_probe(void *setting,
 	.................................................................
 			special_actuator4tct = n;  --->   ak8....
 	*/
-#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_IDOL347)
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_IDOL347) ||  defined(CONFIG_TCT_8X16_M823_ORANGE)
 	if ( 0 == strcmp(s_ctrl->sensordata->actuator_name, "ak7345") ||
+			 0 == strcmp(s_ctrl->sensordata->actuator_name, "ak7345_m823_orange") ||
          0 == strncmp(s_ctrl->sensordata->actuator_name, "ak7345_idol347", strlen("ak7345_idol347"))) {
 		special_actuator4tct = 1;
 		printk("actuator_name=%s, special_actuator4tct=%d \n",
@@ -1074,7 +1116,8 @@ int32_t msm_sensor_driver_probe(void *setting,
 		special_actuator_s5k3m2 = 1;
     }
 
-	if (0 == strcmp(s_ctrl->sensordata->actuator_name, "ak7348_idol3"))
+	if (0 == strcmp(s_ctrl->sensordata->actuator_name, "ak7348_idol3") || 
+	   0 == strcmp(s_ctrl->sensordata->actuator_name, "ak7348_m823_orange"))
 	{
 		special_actuator4tct = 2;
 		printk("actuator_name=%s, special_actuator4tct=%d \n",
@@ -1163,7 +1206,8 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 	int32_t                              rc = 0;
 	struct msm_camera_sensor_board_info *sensordata = NULL;
 	struct device_node                  *of_node = s_ctrl->of_node;
-	uint32_t cell_id;
+	uint32_t                             cell_id;
+	int32_t                              i;
 
 	s_ctrl->sensordata = kzalloc(sizeof(*sensordata), GFP_KERNEL);
 	if (!s_ctrl->sensordata) {
@@ -1196,6 +1240,34 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 		pr_err("failed: sctrl already filled for cell_id %d", cell_id);
 		rc = -EINVAL;
 		goto FREE_SENSOR_DATA;
+	}
+
+	sensordata->special_support_size =
+		of_property_count_strings(of_node, "qcom,special-support-sensors");
+
+	if (sensordata->special_support_size < 0)
+		sensordata->special_support_size = 0;
+
+	if (sensordata->special_support_size > MAX_SPECIAL_SUPPORT_SIZE) {
+		pr_err("%s:support_size exceed max support size\n",__func__);
+		sensordata->special_support_size = MAX_SPECIAL_SUPPORT_SIZE;
+	}
+
+	if (sensordata->special_support_size) {
+		for( i = 0; i < sensordata->special_support_size; i++) {
+			rc = of_property_read_string_index(of_node,
+				"qcom,special-support-sensors", i,
+				&(sensordata->special_support_sensors[i]));
+			if(rc < 0 ) {
+				/* if read sensor support names failed,
+				*   set support all sensors, break;
+				*/
+				sensordata->special_support_size = 0;
+				break ;
+			}
+			CDBG("%s special_support_sensors[%d] = %s\n", __func__,
+				i, sensordata->special_support_sensors[i]);
+		}
 	}
 
 	/* Read subdev info */

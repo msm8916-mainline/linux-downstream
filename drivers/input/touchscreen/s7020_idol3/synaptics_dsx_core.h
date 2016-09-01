@@ -264,6 +264,7 @@ struct synaptics_rmi4_data {
 	struct mutex rmi4_io_ctrl_mutex;
 #ifdef CONFIG_FB
 	struct notifier_block fb_notifier;
+	struct work_struct fb_notify_work;
 //	struct work_struct reset_work;
 //	struct workqueue_struct *reset_workqueue;
 #endif

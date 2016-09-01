@@ -26,6 +26,9 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/input/synaptics_dsx.h>
+/*[BUGFIX]-Begin Add by TCTNB.Bin.SU, PR989299,2015/04/30, idol3 5.5 TP 2nd source simulate P-sensor change in deep sleep*/
+#include <linux/wakelock.h>
+/*[BUGFIX]-End Add by TCTNB.Bin.SU*/
 #include "synaptics_dsx_core.h"
 #ifdef KERNEL_ABOVE_2_6_38
 #include <linux/input/mt.h>
@@ -103,7 +106,11 @@
 static unsigned char glover_finger_mode = 0;
 #define GLOVER_FINGER_MODE_ADDR 0X0413    // CUSTOMER-SPECIFIC
 #define GLOVER_FINGER_MODE_OFF  0X72
-#define GLOVER_FINGER_MODE_ON   0XF1
+
+/* [PLATFORM]-Mod-BEGIN by TCTNB.Bin.Su, PR1011379 divide finger sign to two finger signs on idol3  */
+//#define GLOVER_FINGER_MODE_ON   0XF1
+#define GLOVER_FINGER_MODE_ON   0XF2
+/* [PLATFORM]-Mod-END by TCTNB.Bin.Su*/
 
 #define SMART_COVER_CUSTOM
 #ifdef SMART_COVER_CUSTOM
@@ -112,7 +119,9 @@ static u8 glover_finger_mode_old = 0;
 //add flag to check if probe ok.
 static bool init_ok=false;
 void syna_set_sensitivity(u8 val);
-
+/*[BUGFIX]-Begin Add by TCTNB.Bin.SU, PR989299,2015/04/30, idol3 5.5 TP 2nd source simulate P-sensor change in deep sleep*/
+struct wake_lock Syna_wakelock;
+/*[BUGFIX]-End Add by TCTNB.Bin.SU*/
 #endif
 #endif
 
@@ -124,11 +133,13 @@ static unsigned char face_detect_mode = 0; // default off
 //since  fw version 33 check the address.
 //#define FACE_DETECT_MODE_ON		0xD1
 //#define FACE_DETECT_MODE_OFF	0xD0
-#define FACE_DETECT_MODE_ON  0x51
-#define FACE_DETECT_MODE_OFF 0x50
+#define FACE_DETECT_MODE_ON  0x31
+#define FACE_DETECT_MODE_OFF 0x30
 
 
 #define FACE_DETECT_DATA_ADDR  0X0400
+
+static int wake_up_enable_counter = 0;
 
 static int synaptics_rmi4_f51_face_detect_switch(struct synaptics_rmi4_data *rmi4_data,
 		bool enable);
@@ -143,6 +154,7 @@ static int synaptics_rmi4_reset_device(struct synaptics_rmi4_data *rmi4_data);
 #ifdef CONFIG_FB
 static int synaptics_rmi4_fb_notifier_cb(struct notifier_block *self,
 		unsigned long event, void *data);
+static void synaptics_fb_notify_resume_work(struct work_struct *work);
 #endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -212,6 +224,9 @@ static ssize_t synaptics_rmi4_face_detect_store(struct device *dev,
 
 static ssize_t synaptics_rmi4_virtual_key_map_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf);
+
+static void synaptics_rmi4_wakeup_gesture(struct synaptics_rmi4_data *rmi4_data,
+		bool enable);
 
 struct synaptics_rmi4_f01_device_status {
 	union {
@@ -643,30 +658,40 @@ static ssize_t tp_fw_version_show(struct device *dev,
 
 	u8 reg_addr1, reg_data1;
 	u8 reg_addr2, reg_data2;
-
-	int err1,err2;
+//[FEATURE] Add by TCT-NB.Bin.SU 04/29/2015 PR-989294 	idol3 5.5 TP 2nd source TP FW version change
+	u8 reg_addr3, reg_data3;
+//[FEATURE] Add END.
+	int err1,err2,err3;
 
 	rmi4_data = dev_get_drvdata(dev);
 
 	reg_addr1 = 0x004E;
 	reg_addr2 = 0x004F;
-
+//[FEATURE] Add by TCT-NB.Bin.SU 04/29/2015 PR-989294 	idol3 5.5 TP 2nd source TP FW version change
+	reg_addr3 = 0x004C;
+//[FEATURE] Add END.
 	err1 = synaptics_rmi4_reg_read(rmi4_data,
 			reg_addr1, &reg_data1, sizeof(reg_data1));
 	err2 = synaptics_rmi4_reg_read(rmi4_data,
 			reg_addr2, &reg_data2, sizeof(reg_data2));
+//[FEATURE] Add by TCT-NB.Bin.SU 04/29/2015 PR-989294 	idol3 5.5 TP 2nd source TP FW version change
+	err3 = synaptics_rmi4_reg_read(rmi4_data,
+			reg_addr3, &reg_data3, sizeof(reg_data3));
+//[FEATURE] Add END.
 
 //	printk("Synaptics :%s err1 =%d,err2 = %d \n",__FUNCTION__,err1,err2);
 
-	if(err1&&err2){
-		ret = snprintf(buf,100, "Synaptics TP is 0x%x%x.\n", reg_data1,reg_data2);
+//[FEATURE] Add by TCT-NB.Bin.SU 04/29/2015 PR-989294 	idol3 5.5 TP 2nd source TP FW version change
+	if(err1&&err2&&err3){
+		ret = snprintf(buf,100, "Synaptics is %x\n Fw version is V%x%x.\n",reg_data3&0x0F,reg_data1&0x0F,reg_data2&0x0F);
 		printk("Synaptics : %s ret = %d\n",__FUNCTION__,ret);
     return ret;
 		}else{
 		return 0;
 			}
+//[FEATURE] Add END.
 }
-#if 1
+
 static ssize_t tp_kreg_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -682,25 +707,23 @@ static ssize_t tp_kreg_show(struct device *dev,
 
 	reg_addr1 = 0x004C;
 	reg_addr2 = 0x004D;
-	
-	err1 = synaptics_rmi4_reg_read(rmi4_data, 
+
+	err1 = synaptics_rmi4_reg_read(rmi4_data,
 			reg_addr1, &reg_data1, sizeof(reg_data1));
-	err2 = synaptics_rmi4_reg_read(rmi4_data, 
+	err2 = synaptics_rmi4_reg_read(rmi4_data,
 			reg_addr2, &reg_data2, sizeof(reg_data2));
-	
+
 //	printk("Synaptics : %s err1 =%d,err2 = %d \n",__FUNCTION__,err1,err2);
-		
+
 	if(err1&&err2){
 		ret = snprintf(buf,100, "Synaptics is 0x%x%x.\n", reg_data1,reg_data2);
 		printk("Synaptics : %s ret = %d\n",__FUNCTION__,ret);
 		return ret;
 	}else{
-		return 0;	
+		return 0;
 		}
   }
-#endif
 
- 
 //int syna_proximity_irq_handle(struct synaptics_rmi4_data *rmi4_data);
 ssize_t syna_proximity_function_enable_store(struct device *pDevice, struct device_attribute *pAttr, const char *pBuf, size_t nSize);
 ssize_t syna_proximity_function_enable_show(struct device *pDevice, struct device_attribute *pAttr, char *pBuf);
@@ -819,16 +842,66 @@ ssize_t syna_virtual_proximity_enable_show(struct device *pDevice, struct device
 ssize_t syna_virtual_proximity_enable_store(struct device *pDevice, struct device_attribute *pAttr, const char *pBuf, size_t nSize)
 {
 	int enable;
+	int err = 0 ;
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(pDevice);
+	const struct synaptics_dsx_board_data *bdata =  rmi4_data->hw_if->board_data;
+	struct i2c_client* client = to_i2c_client(rmi4_data->pdev->dev.parent);;
 	if (pBuf != NULL)
 	{
 		sscanf(pBuf, "%d", &enable);
+		pr_notice("Synaptics : %s enable = %d, wake_up_enable_counter = %d \n",__func__,enable,wake_up_enable_counter);
+		if(client == NULL)
+			return nSize;
+#if 0
+		if((rmi4_data->suspend)&&(enable)){
+			vps->vps_enabled = enable;
+			printk("Synaptisc : %s --when TP suspend to open the function,push later than Tp resume.",__func__);
+			return nSize;
+		}
+#endif
+
+		pr_notice("Synaptics : %s Begain reset gpio before enable virtual p-sensor \n",__func__);
+
+		if (gpio_is_valid(bdata->reset_gpio)) {
+			gpio_set_value_cansleep(bdata->reset_gpio, 0);
+			msleep(bdata->reset_active_ms);
+			gpio_set_value_cansleep(bdata->reset_gpio, 1);
+			msleep(bdata->reset_delay_ms);
+		}
+		pr_notice("Synaptics : %s reset_gpio 2 rmi4_data->enable_wakeup_gesture = %d, suspend = %d \n",__func__,rmi4_data->enable_wakeup_gesture,rmi4_data->suspend);
+		if((!enable) && (rmi4_data->suspend)&&(rmi4_data->enable_wakeup_gesture > 0))
+		{
+			pr_notice("double click function enable again \n");
+			synaptics_rmi4_wakeup_gesture(rmi4_data, true);
+			if (device_may_wakeup(&client->dev)&&(wake_up_enable_counter == 0))
+			{
+				err=enable_irq_wake(client->irq);
+				printk("%s,err=%d\n",__FUNCTION__,err);
+				wake_up_enable_counter ++ ;
+			}
+		}
+		pr_notice("Synaptics : %s reset_gpio 3 \n",__func__);
 /* [PLATFORM]-Mod-BEGIN by TCTNB.Bin.Su,PR961640 don\'t enbale tp-psensor when screen don\'t rotate 180\' during call  */
 		synaptics_rmi4_f51_face_detect_switch(rmi4_data,enable);
 /* [PLATFORM]-Mod-END by TCTNB.Bin.Su*/
 		syna_vps_set_enable(rmi4_data, enable);
+
+/* [PLATFORM]-Mod-BEGIN by TCTNB.Bin.SU. PR1031032,Virtual Proximity Sensor*/
+		if(rmi4_data->enable_wakeup_gesture == 0){
+			if(enable)
+			{
+				pr_notice("Synaptics : %s,device init wakeup 1",__func__);
+				device_init_wakeup(&client->dev, 1);
+			}
+			else
+			{
+				pr_notice("Synaptics : %s,device init wakeup 0",__func__);
+				device_init_wakeup(&client->dev, 0);
+			}
+/* [PLATFORM]-Mod-END by TCTNB.Bin.Su*/
+		}
 	}
-	printk("Synaptics : %s,enable = %d\n",__FUNCTION__,enable);
+	pr_notice("Synaptics : %s,enable = %d, %d \n",__FUNCTION__,enable,wake_up_enable_counter);
 	return nSize;
 }
 
@@ -840,8 +913,6 @@ void syna_vps_init(struct synaptics_rmi4_data *rmi4_data)
 	sys_device_create(rmi4_data);
 }
 
-
-
 ssize_t syna_proximity_vendor_show(struct device *pDevice, struct device_attribute *pAttr, char *pBuf)
 {
 //	printk("Synaptics : --765--%s,vps->value =%d\n",__FUNCTION__,vps->value);
@@ -851,13 +922,10 @@ ssize_t syna_proximity_vendor_show(struct device *pDevice, struct device_attribu
 		case STK:vps->vendor = "stk";break;
 		default:break;
 	}
-
 	if(vps->vendor == NULL)
 		return sprintf(pBuf, "%s", "error");
 	return sprintf(pBuf, "%s", vps->vendor);
 }
-
-
 
 ssize_t syna_proximity_vendor_store(struct device *pDevice, struct device_attribute *pAttr, const char *pBuf, size_t nSize)
 {
@@ -887,8 +955,6 @@ ssize_t syna_proximity_vendor_store(struct device *pDevice, struct device_attrib
 	return nSize;
 }
 
-
-
 ssize_t syna_proximity_function_enable_show(struct device *pDevice, struct device_attribute *pAttr, char *pBuf)
 {
 	return sprintf(pBuf, "%x", vps->proximity_function);
@@ -914,8 +980,6 @@ ssize_t syna_proximity_function_enable_store(struct device *pDevice, struct devi
 #endif
 
 //Tp_gesture
-
-
 void syna_tp_gestures_register ( struct synaptics_rmi4_data *rmi4_data)
 {
 	int rc = 0;
@@ -946,8 +1010,6 @@ void syna_tp_gestures_register ( struct synaptics_rmi4_data *rmi4_data)
 }
 
 //TP_glove
-
-
 void syna_tp_glove_register ( struct synaptics_rmi4_data *rmi4_data)
 {
 	int rc = 0;
@@ -965,11 +1027,8 @@ void syna_tp_glove_register ( struct synaptics_rmi4_data *rmi4_data)
 		pr_err("Failed to create device file(%s)!\n", dev_attr_tp_glove_id.attr.name);
 
 	dev_set_drvdata(tp_glove_dev, rmi4_data);
-
 	printk("~~~~~ %s enable!!!!!\n", __func__);
-
 }
-
 
 static ssize_t synaptics_rmi4_f01_reset_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
@@ -991,7 +1050,6 @@ static ssize_t synaptics_rmi4_f01_reset_store(struct device *dev,
 				__func__, retval);
 		return retval;
 	}
-
 	return count;
 }
 
@@ -1009,7 +1067,6 @@ static ssize_t synaptics_rmi4_f01_buildid_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
-
 	return snprintf(buf, PAGE_SIZE, "%u\n",
 			rmi4_data->firmware_id);
 }
@@ -1381,7 +1438,7 @@ static int synaptics_rmi4_f51_face_detect_switch(struct synaptics_rmi4_data *rmi
 		}
 		face_detect_mode = 0;
 	}
-	printk("Synaptics : %s end,face_detect_mode = %d\n",__FUNCTION__,face_detect_mode);
+	pr_notice("Synaptics : %s end,face_detect_mode = %d\n",__FUNCTION__,face_detect_mode);
 	return 0;
 }
 
@@ -1451,6 +1508,11 @@ static int synaptics_rmi4_f51_fd_report(struct synaptics_rmi4_data *rmi4_data,
 			FACE_DETECT_DATA_ADDR, &proximity_status, sizeof(proximity_status));
 		if(vps->proximity_dev != NULL) {
 			printk("~~~~~~~Synaptics : %s,%d,%d\n",__FUNCTION__,face_detect_mode,proximity_status);
+/*[BUGFIX]-Begin Add by TCTNB.Bin.SU, PR989299,2015/04/30, idol3 5.5 TP 2nd source simulate P-sensor change in deep sleep*/
+			if (proximity_status==0){
+				wake_lock_timeout(&Syna_wakelock, 1*HZ);
+			}
+/*[BUGFIX]-End Add by TCTNB.Bin.SU*/
 			input_report_abs(vps->proximity_dev, ABS_DISTANCE, !proximity_status);
 			input_sync(vps->proximity_dev);
 		}
@@ -1477,6 +1539,7 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 	unsigned char finger_status;
 	unsigned char finger_status_reg[3];
 	unsigned char detected_gestures;
+//	unsigned char face_detect_ctrl=0;
 	unsigned short data_addr;
 	unsigned short data_offset;
 	int x;
@@ -1499,6 +1562,26 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 
 	extra_data = (struct synaptics_rmi4_f11_extra_data *)fhandler->extra;
 
+#if 0
+	if(vps->vps_enabled){
+		synaptics_rmi4_reg_read(rmi4_data,
+				FACE_DETECT_MODE_ADDR, &face_detect_ctrl, sizeof(face_detect_ctrl));
+		if(face_detect_ctrl == FACE_DETECT_MODE_OFF){
+			face_detect_ctrl = FACE_DETECT_MODE_ON;
+			retval = synaptics_rmi4_reg_write(rmi4_data,
+				FACE_DETECT_MODE_ADDR, &face_detect_ctrl, sizeof(face_detect_ctrl));
+			if (retval < 0) {
+				dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to switch on FACE DETECT mode\n",
+					__func__);
+				return -1;
+			}
+			printk("Synaptics : %s---when vps enable and f51 function exception.reopen f51 function\n",__func__);
+			face_detect_mode = 1;
+		}
+	}
+#endif
+
 	if (rmi4_data->suspend && rmi4_data->enable_wakeup_gesture) {
 		retval = synaptics_rmi4_reg_read(rmi4_data,
 				data_addr + extra_data->data38_offset,
@@ -1509,9 +1592,9 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			return 0;
 
 		if (detected_gestures) {
-			input_report_key(rmi4_data->input_dev, KEY_POWER, 1);
+			input_report_key(rmi4_data->input_dev, KEY_UNLOCK, 1);
 			input_sync(rmi4_data->input_dev);
-			input_report_key(rmi4_data->input_dev, KEY_POWER, 0);
+			input_report_key(rmi4_data->input_dev, KEY_UNLOCK, 0);
 			input_sync(rmi4_data->input_dev);
 //since check the status in function suspend	
 			//rmi4_data->suspend = false;
@@ -1549,11 +1632,13 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 		 * 10 = finger present but data may be inaccurate
 		 * 11 = reserved
 		 */
-#ifdef TYPE_B_PROTOCOL
+/* [PLATFORM]-Mod-BEGIN by TCTNB.Bin.Su, PR1011379 mod the ghost point problem on idol3  */
+/* #ifdef TYPE_B_PROTOCOL
 		input_mt_slot(rmi4_data->input_dev, finger);
 		input_mt_report_slot_state(rmi4_data->input_dev,
 				MT_TOOL_FINGER, finger_status);
-#endif
+#endif */
+/* [PLATFORM]-Mod-END by TCTNB.Bin.Su*/
 
 		if (finger_status) {
 			data_offset = data_addr +
@@ -1581,13 +1666,26 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 				wx = wy;
 				wy = temp;
 			}
+/* [PLATFORM]-Mod-BEGIN by TCTNB.Bin.Su, PR1011379 mod the ghost point problem on idol3  */
+		if(((x < 1000 && x > 100) && (y < 980 && y > 80) && (smart_cover_mode==1))|| (smart_cover_mode==0)||(finger_status==1)){
+/* [PLATFORM]-Mod-END by TCTNB.Bin.Su*/
+#ifdef TYPE_B_PROTOCOL
+		input_mt_slot(rmi4_data->input_dev, finger);
+		input_mt_report_slot_state(rmi4_data->input_dev,
+				MT_TOOL_FINGER, finger_status);
+#endif
+		}
 
 			if (rmi4_data->hw_if->board_data->x_flip)
 				x = rmi4_data->sensor_max_x - x;
 			if (rmi4_data->hw_if->board_data->y_flip)
 				y = rmi4_data->sensor_max_y - y;
+//[FEATURE] Add by TCT-NB.Bin.SU 04/29/2015 idol3 5.5 change the way of smart-cover
+/* [PLATFORM]-Mod-BEGIN by TCTNB.Bin.Su, PR1011379 mod the ghost point problem on idol3  */
+#if 1
+//      if(((x < 1000 && x > 100) && (y < 980 && y > 80)) && (smart_cover_mode==1))
+	 if((x < 1000 && x > 100) && (y < 980 && y > 80))
 
-      if(((x < 1000 && x > 100) && (y < 980 && y > 80)) && (smart_cover_mode==1))
      {       //small window mode
 //			printk("smart cover mode:%d, %s\n", smart_cover_mode, __func__);
 			input_report_key(rmi4_data->input_dev,
@@ -1621,8 +1719,10 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 
 			touch_count++;
       }
-      else if (smart_cover_mode == 0)   // normal mode
+//      else if ((smart_cover_mode == 0)||(finger_status==1))   // normal mode
+	  else if (finger_status==1)
       {
+#endif
 //	   printk("smart cover mode:%d, %s\n", smart_cover_mode, __func__);
            input_report_key(rmi4_data->input_dev,
 					BTN_TOUCH, 1);
@@ -1655,8 +1755,17 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 
 			touch_count++;
       }
+//[FEATURE] Add END.
+		}
+	if(finger_status == 0) {
+#ifdef TYPE_B_PROTOCOL
+		input_mt_slot(rmi4_data->input_dev, finger);
+		input_mt_report_slot_state(rmi4_data->input_dev,
+				MT_TOOL_FINGER, finger_status);
+#endif
 		}
 	}
+/* [PLATFORM]-Mod-END by TCTNB.Bin.Su*/
 
 	if (touch_count == 0) {
 		input_report_key(rmi4_data->input_dev,
@@ -1714,9 +1823,9 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			return 0;
 
 		if (detected_gestures) {
-			input_report_key(rmi4_data->input_dev, KEY_POWER, 1);
+			input_report_key(rmi4_data->input_dev, KEY_UNLOCK, 1);
 			input_sync(rmi4_data->input_dev);
-			input_report_key(rmi4_data->input_dev, KEY_POWER, 0);
+			input_report_key(rmi4_data->input_dev, KEY_UNLOCK, 0);
 			input_sync(rmi4_data->input_dev);
 			//rmi4_data->suspend = false;
 			//zxz
@@ -2047,6 +2156,7 @@ static void synaptics_rmi4_sensor_report(struct synaptics_rmi4_data *rmi4_data,
 	int retval;
 	unsigned char data[MAX_INTR_REGISTERS + 1];
 	unsigned char *intr = &data[1];
+	unsigned char face_detect_ctrl=0;
 	struct synaptics_rmi4_f01_device_status status;
 	struct synaptics_rmi4_fn *fhandler;
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
@@ -2077,6 +2187,24 @@ static void synaptics_rmi4_sensor_report(struct synaptics_rmi4_data *rmi4_data,
 			dev_err(rmi4_data->pdev->dev.parent,
 					"%s: Failed to reinit device\n",
 					__func__);
+		}
+
+		if(vps->vps_enabled){
+			synaptics_rmi4_reg_read(rmi4_data,
+				FACE_DETECT_MODE_ADDR, &face_detect_ctrl, sizeof(face_detect_ctrl));
+			if(face_detect_ctrl == FACE_DETECT_MODE_OFF){
+				face_detect_ctrl = FACE_DETECT_MODE_ON;
+				retval = synaptics_rmi4_reg_write(rmi4_data,
+					FACE_DETECT_MODE_ADDR, &face_detect_ctrl, sizeof(face_detect_ctrl));
+				if (retval < 0) {
+					dev_err(rmi4_data->pdev->dev.parent,
+						"%s: In reset action ,Failed to switch on FACE DETECT mode\n",
+						__func__);
+					return ;
+				}
+				printk("Synaptics : %s---After reset action,when vps enable,reopen f51 function\n",__func__);
+				face_detect_mode = 1;
+			}
 		}
 	}
 
@@ -3349,7 +3477,18 @@ static void synaptics_rmi4_set_params(struct synaptics_rmi4_data *rmi4_data)
 
 	rmi = &(rmi4_data->rmi4_mod_info);
 //wxc for check sensor_max_y
-	printk("Stars: sensor_max_x:%d, sensor_max_y:%d\n", rmi4_data->sensor_max_x, rmi4_data->sensor_max_y);
+/*[BUGFIX]-Begin Add by TCTNB.Bin.SU, PR989304,2015/04/30, idol3 5.5 TP 2nd source FW update way change*/
+	printk("Synaptics:%s()-----: sensor_max_x:%d, sensor_max_y:%d,max_touch_width = %d,num_of_fingers = %d \n ",
+			__func__,rmi4_data->sensor_max_x, rmi4_data->sensor_max_y,
+			rmi4_data->max_touch_width,rmi4_data->num_of_fingers);
+	if (list_empty(&rmi->support_fn_list)) {
+		rmi4_data->sensor_max_x = 1080;
+		rmi4_data->sensor_max_y = 1920;
+		rmi4_data->max_touch_width = 15;
+		rmi4_data->num_of_fingers = 10;
+	}
+/*[BUGFIX]-End Add by TCTNB.Bin.SU*/
+
 	input_set_abs_params(rmi4_data->input_dev,
 			ABS_MT_POSITION_X, 0,
 			rmi4_data->sensor_max_x, 0, 0);
@@ -3402,8 +3541,8 @@ static void synaptics_rmi4_set_params(struct synaptics_rmi4_data *rmi4_data)
 	}
 
 	if (rmi4_data->f11_wakeup_gesture || rmi4_data->f12_wakeup_gesture) {
-		set_bit(KEY_POWER, rmi4_data->input_dev->keybit);
-		input_set_capability(rmi4_data->input_dev, EV_KEY, KEY_POWER);
+		set_bit(KEY_UNLOCK, rmi4_data->input_dev->keybit);
+		input_set_capability(rmi4_data->input_dev, EV_KEY, KEY_UNLOCK);
 	}
 
 	return;
@@ -4103,6 +4242,7 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 
 
 #ifdef CONFIG_FB
+	INIT_WORK(&rmi4_data->fb_notify_work, synaptics_fb_notify_resume_work);
 	rmi4_data->fb_notifier.notifier_call = synaptics_rmi4_fb_notifier_cb;
 	retval = fb_register_client(&rmi4_data->fb_notifier);
 	if (retval < 0) {
@@ -4126,6 +4266,8 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	}
 
 	rmi4_data->irq = gpio_to_irq(bdata->irq_gpio);
+	//virtual device
+	syna_vps_init(rmi4_data);
 
 	retval = synaptics_rmi4_irq_enable(rmi4_data, true, false);
 	if (retval < 0) {
@@ -4166,8 +4308,7 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 		}
 	}
 
-	//virtual device
-	syna_vps_init(rmi4_data);
+
 	syna_tp_glove_register(rmi4_data);
 	syna_tp_gestures_register(rmi4_data);
 //      printk("Synaptics : %s check function synaptics_rmi4_exp_fn_work\n",__FUNCTION__);
@@ -4182,7 +4323,11 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	init_ok=true;
 
 	g_rmi4_data = rmi4_data;
-
+/*[BUGFIX]-Begin Add by TCTNB.Bin.SU, PR989299,2015/04/30, idol3 5.5 TP 2nd source simulate P-sensor change in deep sleep*/
+#ifdef FACE_DETECT_CUSTOM
+	wake_lock_init(&Syna_wakelock,WAKE_LOCK_SUSPEND, "Synaptics");
+#endif
+/*[BUGFIX]-End Add by TCTNB.Bin.SU*/
 	printk("Synaptics : %s end\n",__FUNCTION__);
 	return retval;
 
@@ -4211,6 +4356,11 @@ err_enable_irq:
 
 	synaptics_rmi4_empty_fn_list(rmi4_data);
 	input_unregister_device(rmi4_data->input_dev);
+/*[BUGFIX]-Begin Add by TCTNB.Bin.SU, PR989299,2015/04/30, idol3 5.5 TP 2nd source simulate P-sensor change in deep sleep*/
+#ifdef FACE_DETECT_CUSTOM
+       wake_lock_destroy(&Syna_wakelock);
+#endif
+/*[BUGFIX]-End Add by TCTNB.Bin.SU*/
 	rmi4_data->input_dev = NULL;
 
 err_set_input_dev:
@@ -4486,6 +4636,14 @@ static void synaptics_rmi4_sensor_wake(struct synaptics_rmi4_data *rmi4_data)
 }
 
 #ifdef CONFIG_FB
+static void synaptics_fb_notify_resume_work(struct work_struct *work)
+{
+	struct synaptics_rmi4_data *rmi4_data =
+		container_of(work, struct synaptics_rmi4_data,
+		fb_notify_work);
+	synaptics_rmi4_resume(&rmi4_data->pdev->dev);
+}
+
 static int synaptics_rmi4_fb_notifier_cb(struct notifier_block *self,
 		unsigned long event, void *data)
 {
@@ -4499,10 +4657,11 @@ static int synaptics_rmi4_fb_notifier_cb(struct notifier_block *self,
 		if (event == FB_EVENT_BLANK) {
 			transition = evdata->data;
 			if (*transition == FB_BLANK_POWERDOWN) {
+				flush_work(&rmi4_data->fb_notify_work);
 				synaptics_rmi4_suspend(&rmi4_data->pdev->dev);
 				rmi4_data->fb_ready = false;
 			} else if (*transition == FB_BLANK_UNBLANK) {
-				synaptics_rmi4_resume(&rmi4_data->pdev->dev);
+				schedule_work(&rmi4_data->fb_notify_work);
 				rmi4_data->fb_ready = true;
 			}
 		}
@@ -4592,7 +4751,7 @@ static int synaptics_rmi4_suspend(struct device *dev)
 
 //check the suspend status.
 
-	printk("Synaptics : %s,%d\n",__FUNCTION__,rmi4_data->suspend);
+	pr_notice("Synaptics : %s,%d,wake_up_enable_counter = %d\n",__FUNCTION__,rmi4_data->suspend,wake_up_enable_counter);
 	if (rmi4_data->suspend) {
 	dev_info(dev, "Already in suspend state\n");
 	return 0;
@@ -4603,17 +4762,27 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	printk("%s rmi4_data->suspend =%d\n",__FUNCTION__,rmi4_data->suspend);
 	if (rmi4_data->stay_awake)
 		return 0;
-	
-	if(vps->vps_enabled)
-		return 0;
 
+/*[BUGFIX]-Begin Add by TCTNB.Bin.SU, PR989299,2015/04/30, idol3 5.5 TP 2nd source simulate P-sensor change in deep sleep*/
+	if(vps->vps_enabled){
+//		pr_notice("Synaptics %s *******%d*****%d***\n",__func__,wake_up_enable_counter,device_may_wakeup(&client->dev));
+		if ((device_may_wakeup(&client->dev))&&(wake_up_enable_counter == 0)){
+			pr_notice("Synaptics : %s,  enable irq wake ",__func__);
+			err=enable_irq_wake(client->irq);
+			wake_up_enable_counter ++ ;
+		}
+		return 0;
+	}
+	pr_notice("Synaptics ***************%s****without p-sensor ***wake_up_enable_counter = %d *****\n",__func__,wake_up_enable_counter);
+/*[BUGFIX]-End Add by TCTNB.Bin.SU*/
 	if (rmi4_data->enable_wakeup_gesture) {
 		synaptics_rmi4_wakeup_gesture(rmi4_data, true);
-		if (device_may_wakeup(&client->dev))
+		if (device_may_wakeup(&client->dev)&&(wake_up_enable_counter == 0))
 		{
 		pr_err("su=====synaptics_rmi4_suspend==gesture=%d========\n",rmi4_data->enable_wakeup_gesture);
 			err=enable_irq_wake(client->irq);
 			printk("%s,err=%d\n",__FUNCTION__,err);
+			wake_up_enable_counter ++ ;
 		}
 		goto exit;
 	}
@@ -4672,12 +4841,30 @@ static int synaptics_rmi4_resume(struct device *dev)
 {
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+/* [PLATFORM]-Mod-BEGIN by TCTNB.Bin.Su, PR1011379 add the reset function when TP resume on idol3  */
+	const struct synaptics_dsx_board_data *bdata =  rmi4_data->hw_if->board_data;
+/* [PLATFORM]-Mod-END by TCTNB.Bin.Su*/
 //su
 	struct i2c_client * client = to_i2c_client(rmi4_data->pdev->dev.parent);
 //    int retval;
 //su
 
-	printk("Synaptics : %s,%d\n",__FUNCTION__,rmi4_data->suspend);
+	pr_notice("Synaptics : %s,%d, Begain resume  wake_up_enable_counter = %d\n",__FUNCTION__,rmi4_data->suspend,wake_up_enable_counter);
+
+
+/* [PLATFORM]-Mod-BEGIN by TCTNB.Bin.Su,PR1031032,Virtual Proximity Sensor*/
+	if (vps->vps_enabled){
+//		pr_notice("Synaptics %s *******%d********\n",__func__,wake_up_enable_counter);
+		if((device_may_wakeup(&client->dev))&&(wake_up_enable_counter > 0))
+		{
+			pr_notice("Synaptics : %s,  disable irq wake \n",__func__);
+			disable_irq_wake(client->irq);
+			wake_up_enable_counter --;
+		}
+//		pr_notice("Synaptics : %s,  disable irq wake 4836 , %d\n",__func__,wake_up_enable_counter);
+	}
+/* [PLATFORM]-Mod-END by TCTNB.Bin.Su*/
+
 	if (!rmi4_data->suspend) {
 		dev_dbg(dev, "Already in awake state\n");
 		return 0;
@@ -4695,16 +4882,38 @@ static int synaptics_rmi4_resume(struct device *dev)
 
 
 //	synaptics_rmi4_enable_reg(rmi4_data, true);
-
+	pr_notice("Synaptic *****%s***begain wakeup_gesture***wake_up_enable_counter = %d *****\n",__func__,wake_up_enable_counter);
 	if (rmi4_data->enable_wakeup_gesture) {
 		synaptics_rmi4_wakeup_gesture(rmi4_data, false);
-		if (device_may_wakeup(&client->dev))
+		if (device_may_wakeup(&client->dev)&&(wake_up_enable_counter > 0))
 		{
 			disable_irq_wake(client->irq);
+			wake_up_enable_counter --;
 		}
+	pr_notice("Synaptics *****%s***end wakeup_gesture***wake_up_enable_counter = %d *****\n",__func__,wake_up_enable_counter);
+#if 1
+/* [PLATFORM]-Mod-BEGIN by TCTNB.Bin.Su, PR1011379 add the reset function when TP resume on idol3  */
+		if(rmi4_data->sensor_sleep == true){
+			synaptics_rmi4_sensor_wake(rmi4_data);
+			printk("Synaptics Debug: abnormal sensor_sleep happend\n");
+		}
+		if(rmi4_data->irq_enabled == false)
+			printk("Synaptics Debug : abnormal irq disable happend \n");
+		synaptics_rmi4_irq_enable(rmi4_data, true, false);
+		printk("Synaptics Debug %s : synaptics_rmi4_irq_enable rmi4_data->irq_enabled = %d \n",__func__,rmi4_data->irq_enabled);
+
+		if (gpio_is_valid(bdata->reset_gpio)) {
+			gpio_set_value_cansleep(bdata->reset_gpio, 0);
+			msleep(bdata->reset_active_ms);
+			gpio_set_value_cansleep(bdata->reset_gpio, 1);
+			msleep(bdata->reset_delay_ms);
+		}
+/* [PLATFORM]-Mod-END by TCTNB.Bin.Su*/
+#endif
 		goto exit;
 	}
 
+	pr_notice("Synaptics ****%s***without wakeup_gesture wake_up_enable_counter = %d *****\n",__func__,wake_up_enable_counter);
 //su_3.18
 //	retval=regulator_enable(rmi4_data->bus_reg);
 //	printk("Synaptics : %s,--4712--%d\n",__FUNCTION__,retval);
@@ -4727,6 +4936,16 @@ static int synaptics_rmi4_resume(struct device *dev)
 	}
 	mutex_unlock(&exp_data.mutex);
 
+#if 1
+/* [PLATFORM]-Mod-BEGIN by TCTNB.Bin.Su, PR1011379 add the reset function when TP resume on idol3  */
+	if (gpio_is_valid(bdata->reset_gpio)) {
+		gpio_set_value_cansleep(bdata->reset_gpio, 0);
+		msleep(bdata->reset_active_ms);
+		gpio_set_value_cansleep(bdata->reset_gpio, 1);
+		msleep(bdata->reset_delay_ms);
+	}
+/* [PLATFORM]-Mod-END by TCTNB.Bin.Su*/
+#endif
 exit:
 
 	if(smart_cover_mode)
@@ -4734,13 +4953,27 @@ exit:
 	rmi4_data->suspend = false;
 	printk("Synaptics : %s end",__FUNCTION__);
 
+#if 0
+	if(vps->vps_enabled){
+		synaptics_rmi4_f51_face_detect_switch(rmi4_data,vps->vps_enabled);
+		syna_vps_set_enable(rmi4_data, vps->vps_enabled);
+		if(rmi4_data->enable_wakeup_gesture == 0){
+			pr_notice("Synaptics : %s,device init wakeup 1",__func__);
+			device_init_wakeup(&client->dev, 1);
+		}
+		printk("Syanptics : %s  TP resume before f51 function on ",__func__);
+	}
+#endif
+
 	return 0;
 }
 
 #ifdef CONFIG_PM
 static const struct dev_pm_ops synaptics_rmi4_dev_pm_ops = {
+#if (!defined(CONFIG_FB) && !defined(CONFIG_HAS_EARLYSUSPEND))
 	.suspend = synaptics_rmi4_suspend,
 	.resume  = synaptics_rmi4_resume,
+#endif
 };
 #endif
 

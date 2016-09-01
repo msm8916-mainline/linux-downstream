@@ -102,7 +102,8 @@ static int	audit_nlk_portid;
 static int	audit_rate_limit;
 
 /* Number of outstanding audit_buffers allowed. */
-static int	audit_backlog_limit = 64;
+// Defect-1239772, reduce audit_backlog_limit 64 -> 20
+static int	audit_backlog_limit = 20;
 #define AUDIT_BACKLOG_WAIT_TIME (60 * HZ)
 static int	audit_backlog_wait_time = AUDIT_BACKLOG_WAIT_TIME;
 static int	audit_backlog_wait_overflow = 0;

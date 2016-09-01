@@ -14,7 +14,11 @@
 # Based on the ia64 boot/Makefile.
 #
 
-include $(srctree)/arch/arm64/boot/dts/Makefile
+ifndef CONFIG_TCT_8X16_COMMON
+include $(srctree)/arch/arm64/boot/dts/qcom/Makefile
+else
+include $(srctree)/arch/arm64/boot/dts/$(TARGET_PRODUCT)/Makefile
+endif
 
 targets := Image Image.gz
 

@@ -156,6 +156,8 @@ struct bmg160_platform_data {
 	int int2_pin;
 	uint32_t int1_flags;
 	uint32_t int2_flags;
+	int place;/*[BUFFIX]-Add by TCTNB.XQJ, PR-916361,2015/1/30,slove gyrp direction ok*/
+
 };
 
 struct bmg_client_data {
@@ -185,10 +187,12 @@ struct bmg_client_data {
 	bool power_on;
 	struct regulator *vdd;
 	struct regulator *vio;
-
+/*TR961495 modify by ZXZ ,2015/03/28  for created it own workquque but need to specify it do not bound to any cpu */
+	struct workqueue_struct *data_wq;
 	struct bmg160_platform_data *pdata;
 };
 
+/*TR961495 modify by ZXZ ,2015/03/28  change min_delay from 1000 to 10000 for framwork get data rate*/
 static struct sensors_classdev sensors_cdev = {
 	.name = "bmg160",
 	.vendor = "BOSCH",
@@ -198,7 +202,7 @@ static struct sensors_classdev sensors_cdev = {
 	.max_range = "35.0",
 	.resolution = "1.0",
 	.sensor_power = "0.2",
-	.min_delay = 1000,
+	.min_delay = 10000,
 	.fifo_reserved_event_count = 0,
 	.fifo_max_event_count = 0,
 	.enabled = 0,
@@ -498,6 +502,18 @@ static void bmg_work_func(struct work_struct *work)
 		msecs_to_jiffies(atomic_read(&client_data->delay));
 	struct bmg160_data_t gyro_data;
 
+	//add by huangshenglin@hoperun,2016/1/20 ,sync event->time with hal.+++
+	ktime_t timestamp;
+	//add by huangshenglin@hoperun,2016/1/20 sync event->time with hal.--
+
+	/*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
+	#if 0
+	schedule_delayed_work(&client_data->work, delay);
+	#else
+	queue_delayed_work(client_data->data_wq,&client_data->work, delay);
+	#endif
+	/*TR961495 modify by ZXZ END*/
+
 	BMG_CALL_API(get_dataXYZ)(&gyro_data);
 	/*remapping for BMG160 sensor*/
 	bmg160_remap_sensor_data(&gyro_data, client_data);
@@ -505,8 +521,15 @@ static void bmg_work_func(struct work_struct *work)
 	input_report_abs(client_data->input, ABS_RX, gyro_data.datax);
 	input_report_abs(client_data->input, ABS_RY, gyro_data.datay);
 	input_report_abs(client_data->input, ABS_RZ, gyro_data.dataz);
+
+	//add by huangshenglin@hoperun,2016/1/20, sync event->time with hal.+++
+	timestamp = ktime_get_boottime();
+	input_event(client_data->input,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+	input_event(client_data->input,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
+	//add by huangshenglin@hoperun,2016/1/20 sync event->time with hal.--
+
 	input_sync(client_data->input);
-	schedule_delayed_work(&client_data->work, delay);
+
 }
 
 static int bmg_set_soft_reset(struct i2c_client *client)
@@ -639,7 +662,6 @@ static ssize_t bmg_store_bandwidth(struct device *dev,
 static int bmg160_gyro_cdev_enable(struct sensors_classdev *sensors_cdev,
 			unsigned int enable)
 {
-	int err = 0;
 	struct bmg_client_data *client_data = container_of(sensors_cdev,
 			struct bmg_client_data, cdev);
 	struct bmg160_platform_data *pdata = client_data->pdata;
@@ -649,12 +671,22 @@ static int bmg160_gyro_cdev_enable(struct sensors_classdev *sensors_cdev,
 		if (enable) {
 			if (pdata->power_on)
 				pdata->power_on(true);
-			err = BMG_CALL_API(set_mode)(BMG_VAL_NAME(MODE_NORMAL));
+			BMG_CALL_API(set_mode)(BMG_VAL_NAME(MODE_NORMAL));
+            BMG_CALL_API(set_bw)(4);/* [BUFFIX]-Add- by TCTNB.ZXZ,PR-1073091, 2015/09/16,set default bandwidth 200hz,default is unfilter*/
+		/*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
+			#if 0
 			schedule_delayed_work(&client_data->work,
 			msecs_to_jiffies(atomic_read(&client_data->delay)));
+			#else
+			queue_delayed_work(client_data->data_wq,&client_data->work,
+			msecs_to_jiffies(atomic_read(&client_data->delay)));
+			#endif
+		/*TR961495 modify by ZXZ END*/
+
 		} else {
+                         BMG_CALL_API(set_mode)(
+                              BMG_VAL_NAME(MODE_SUSPEND));/* [BUFFIX]-Add- by TCTNB.XQJ,PR-906832, 2015/02/5,power consumtion problem,register need be set also*/
 			cancel_delayed_work_sync(&client_data->work);
-			err = BMG_CALL_API(set_mode)(BMG_VAL_NAME(MODE_DEEPSUSPEND));
 			if (pdata->power_on)
 				pdata->power_on(false);
 		}
@@ -662,7 +694,7 @@ static int bmg160_gyro_cdev_enable(struct sensors_classdev *sensors_cdev,
 	}
 	mutex_unlock(&client_data->mutex_enable);
 
-	return err;
+	return 0;
 }
 
 static int bmg160_gyro_cdev_poll_delay(struct sensors_classdev *sensors_cdev,
@@ -710,10 +742,21 @@ static ssize_t bmg_store_enable(struct device *dev,
 	mutex_lock(&client_data->mutex_enable);
 	if (data != client_data->enable) {
 		if (data) {
+
+		/*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
+			#if 0
 			schedule_delayed_work(
 					&client_data->work,
 					msecs_to_jiffies(atomic_read(
 							&client_data->delay)));
+			#else
+			BMG_CALL_API(set_bw)(4);/* [BUFFIX]-Add- by TCTNB.ZXZ,PR-1073091, 2015/09/16,set default bandwidth 200hz,default is unfilter*/
+		queue_delayed_work(client_data->data_wq,
+					&client_data->work,
+					msecs_to_jiffies(atomic_read(
+							&client_data->delay)));
+			#endif
+		/*TR961495 modify by ZXZ END*/
 		} else {
 			cancel_delayed_work_sync(&client_data->work);
 		}
@@ -1290,7 +1333,9 @@ static struct attribute_group bmg_attribute_group = {
 	.attrs = bmg_attributes
 };
 
-
+static struct device_attribute bmg160_attrs[] = {
+	__ATTR(selftest, 0444, bmg_show_selftest, NULL),
+};
 static int bmg_input_init(struct bmg_client_data *client_data)
 {
 	struct input_dev *dev;
@@ -1501,7 +1546,20 @@ static void sensor_platform_hw_exit(void)
 static int bmg_parse_dt(struct device *dev,
 				struct bmg160_platform_data *pdata)
 {
+/* MODIFIED-BEGIN by long.chen.hr, 2016-03-22, BUG-1748726 */
+//#ifdef CONFIG_TCT_8X16_IDOL3 /*[BUFFIX]-Add by TCTNB.XQJ, PR-916361,2015/1/30,slove gyrp direction */
+    struct device_node *np = dev->of_node;
+    u32 temp_val;
+    int rc;
 
+    rc = of_property_read_u32(np, "bmg,place", &temp_val);
+    if (rc && (rc != -EINVAL)) {
+        dev_err(dev, "Unable to read bmg160,place\n");
+	} else {
+		pdata->place = temp_val;
+	}
+//#endif
+/* MODIFIED-END by long.chen.hr,BUG-1748726 */
 	pdata->init = sensor_platform_hw_init;
 	pdata->exit = sensor_platform_hw_exit;
 	pdata->power_on = sensor_platform_hw_power_on;
@@ -1638,6 +1696,7 @@ static int bmg_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto exit_err_clean;
 	}
 
+	usleep(300000);//delay 300ms
 	err = bmg_set_soft_reset(client);
 
 	if (err < 0) {
@@ -1666,6 +1725,7 @@ static int bmg_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	/* sysfs node creation */
 	err = sysfs_create_group(&client_data->input->dev.kobj,
 			&bmg_attribute_group);
+        err = device_create_file(&client->dev,bmg160_attrs); /* [BUFFIX]-Mod- by TCTNB.XQJ,PR-798607, 2014/12/11,add interface interface for selftestin given directory*/
 
 	if (err < 0)
 		goto exit_err_sysfs;
@@ -1677,15 +1737,32 @@ static int bmg_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		if (NULL != client_data->bst_pd) {
 			memcpy(client_data->bst_pd, client->dev.platform_data,
 					sizeof(*client_data->bst_pd));
-			client_data->bst_pd->place = 6;
 			dev_notice(&client->dev, "%s sensor driver set place: p%d",
 					SENSOR_NAME,
 					client_data->bst_pd->place);
 		}
 	}
 
+/* MODIFIED-BEGIN by long.chen.hr, 2016-03-22, BUG-1748726 */
+//#ifdef CONFIG_TCT_8X16_IDOL3 /*[BUFFIX]-Add by TCTNB.XQJ, PR-916361,2015/1/30,slove gyrp direction */
+
+	  client_data->bst_pd->place=pdata->place;
+	  dev_notice(&client->dev, " %s sensor driver set place: p%d",
+					SENSOR_NAME,
+					client_data->bst_pd->place);
+//#endif
+/* MODIFIED-END by long.chen.hr,BUG-1748726 */
 	/* workqueue init */
 	INIT_DELAYED_WORK(&client_data->work, bmg_work_func);
+/*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
+#if 1
+	client_data->data_wq = create_freezable_workqueue("bmg160_data_work");
+	if (!client_data->data_wq) {
+		dev_err(&client->dev, "Cannot get create workqueue!\n");
+		goto out_register_classdev;
+	}
+#endif
+/*TR961495 modify by ZXZ END*/
 	atomic_set(&client_data->delay, BMG_DELAY_DEFAULT);
 
 	client_data->cdev = sensors_cdev;
@@ -1694,7 +1771,13 @@ static int bmg_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	err = sensors_classdev_register(&client->dev, &client_data->cdev);
 	if (err) {
 		dev_err(&client->dev, "sensors class register failed.\n");
+/*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
+		#if 0
 		goto out_register_classdev;
+		#else
+		goto destroy_workqueue_exit;
+		#endif
+/*TR961495 modify by ZXZ END*/
 	}
 
 	/* h/w init */
@@ -1730,6 +1813,12 @@ static int bmg_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		client, client_data, &client->dev, client_data->input);
 
 	return 0;
+/*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
+#if 1
+destroy_workqueue_exit:
+	destroy_workqueue(client_data->data_wq);
+#endif
+/*TR961495 modify by ZXZ END*/
 
 out_register_classdev:
 	input_unregister_device(client_data->input);
@@ -1777,9 +1866,18 @@ static int bmg_post_resume(struct i2c_client *client)
 	dev_info(&client->dev, "function entrance");
 	mutex_lock(&client_data->mutex_enable);
 	if (client_data->enable) {
+/*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
+	#if 0
 		schedule_delayed_work(&client_data->work,
 				msecs_to_jiffies(
 					atomic_read(&client_data->delay)));
+	#else
+		queue_delayed_work(client_data->data_wq,&client_data->work,
+				msecs_to_jiffies(
+					atomic_read(&client_data->delay)));
+	#endif
+/*TR961495 modify by ZXZ END*/
+
 	}
 	mutex_unlock(&client_data->mutex_enable);
 
@@ -1839,7 +1937,7 @@ static int bmg_suspend(struct i2c_client *client, pm_message_t mesg)
 	if (client_data->enable) {
 		err = bmg_pre_suspend(client);
 		err = BMG_CALL_API(set_mode)(
-				BMG_VAL_NAME(MODE_DEEPSUSPEND));
+				BMG_VAL_NAME(MODE_SUSPEND));
 	}
 	if (pdata->power_on)
 		pdata->power_on(false);
@@ -1860,6 +1958,11 @@ static int bmg_resume(struct i2c_client *client)
 		pdata->power_on(true);
 	if (client_data->enable)
 		err = BMG_CALL_API(set_mode)(BMG_VAL_NAME(MODE_NORMAL));
+     else
+     {
+            if (regulator_count_voltages(client_data->vdd) > 0)//for avoid some error i2c log
+               err = BMG_CALL_API(set_mode)(BMG_VAL_NAME(MODE_SUSPEND));
+      }
 
 	/* post resume operation */
 	bmg_post_resume(client);

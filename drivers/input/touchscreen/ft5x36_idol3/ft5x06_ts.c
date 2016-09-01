@@ -257,6 +257,7 @@ struct ft5x06_ts_data {
 	u8 fw_vendor_id;
 #if defined(CONFIG_FB)
 	struct notifier_block fb_notif;
+	struct work_struct fb_notify_work;
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
 	struct early_suspend early_suspend;
 #endif
@@ -303,7 +304,7 @@ static void tp_prox_sensor_enable(struct i2c_client *client,int enable);
 static struct workqueue_struct *ft5x06_wq;
 static struct ft5x06_ts_data *g_ft5x06_ts_data;
 static bool init_ok=false;
-
+static int wake_up_enable_counter = 0;
 #if defined(FOCALTECH_TP_GESTURE)
 
 /* [PLATFORM]-Mod-BEGIN by TCTNB.YQJ, FR797197, 2014/11/28 modify for 5x36 tp register of gesture  */
@@ -313,6 +314,7 @@ static bool init_ok=false;
 #define  GESTURE_DB 0x24
 #define  GESTURE_C 0x18
 /* [PLATFORM]-Mod-END by TCTNB.YQJ */
+static int ft_tp_suspend(struct ft5x06_ts_data *data);
 
 static struct class * tp_gesture_class;
 static struct device * tp_gesture_dev;
@@ -454,6 +456,7 @@ static ssize_t tp_reg_dump_show(struct device *dev,
 
 	s += sprintf(s, "reg[14]: reg[14] = 0x%x\n", reg_buf[14]);
 	printk("reg[14]: reg[14] = 0x%x\n", reg_buf[14]);
+
 	s += sprintf(s, "reg[15]: reg[15] = 0x%x\n", reg_buf[15]);
 	printk("reg[15]: reg[15] = 0x%x\n", reg_buf[15]);
 
@@ -679,9 +682,6 @@ void tp_glove_register ( struct ft5x06_ts_data *data)
 		pr_err("Failed to create device file(%s)!\n", dev_attr_tp_glove_id.attr.name);
 
 	dev_set_drvdata(tp_glove_dev, data);
-
-	printk("~~~~~ %s enable!!!!!\n", __func__);
-
 }
 #endif
 //[PLATFORM] Add by wangxingchen 12/22/2014 PR.874996 end.
@@ -730,6 +730,11 @@ static void tp_prox_sensor_enable(struct i2c_client *client, int enable)
 	{
 		printk("[proxi_5206]write psensor switch command failed\n");
 	}
+	if((!enable) && (g_ft5x06_ts_data->suspended)&&(g_ft5x06_ts_data->gesture_id > 0))
+	{
+		printk("double click function enable again \n");
+		ft_tp_suspend(g_ft5x06_ts_data);
+	}
 	return;
 }
 
@@ -773,6 +778,12 @@ ssize_t virtual_proximity_enable_store(struct device *pDevice, struct device_att
 		sscanf(pBuf, "%d", &enable);
 		tp_prox_sensor_enable(g_ft5x06_ts_data->client, enable);
 		vps_set_enable(enable);
+		if(g_ft5x06_ts_data->gesture_id == 0){
+		if(enable)
+			device_init_wakeup(&g_ft5x06_ts_data->client->dev, 1);
+		else
+			device_init_wakeup(&g_ft5x06_ts_data->client->dev, 0);
+		}
 	}
 	return nSize;
 }
@@ -799,7 +810,6 @@ ssize_t proximity_vendor_store(struct device *pDevice, struct device_attribute *
 	extern struct input_dev* get_ido3_taos_input_device(void);
 	//extern struct input_dev* get_stk_input_device(void);
 
-	printk("proximity_vendor_store in!\n");
 	if (pBuf != NULL)
 	{
 		sscanf(pBuf, "%d", &vps->value);
@@ -812,7 +822,6 @@ ssize_t proximity_vendor_store(struct device *pDevice, struct device_attribute *
 				vps->proximity_dev = get_ido3_taos_input_device();
 				if(vps->proximity_dev == NULL)
 					printk("proximity input device is NULL!\n");
-				printk("TAOS priximity sensor\n");
 				break;
 			//case STK:
 			//	vps->proximity_dev = get_stk_input_device();
@@ -842,7 +851,6 @@ ssize_t proximity_function_enable_store(struct device *pDevice, struct device_at
 	if (pBuf != NULL)
 	{
 		sscanf(pBuf, "%x", &nProximityMode);
-		printk("nWakeupMode = 0x%x\n", nProximityMode);
 		vps->proximity_function = nProximityMode;
 		//tp_prox_sensor_enable(g_ft5x06_ts_data->client, nProximityMode);
 		//DrvMainFirmwareProximityEnable(nProximityMode);
@@ -1149,7 +1157,6 @@ static irqreturn_t ft5x06_ts_interrupt(int irq, void *dev_id)
 		if(proximity_status == 0xC0)
 		{
 			printk("!!!*** it is 0xC0\n");
-			wake_lock_timeout(&ft_wakelock, 3*HZ);
 			if(vps->proximity_dev != NULL){
 				input_report_abs(vps->proximity_dev, ABS_DISTANCE, 0);
 				input_sync(vps->proximity_dev);
@@ -1158,6 +1165,7 @@ static irqreturn_t ft5x06_ts_interrupt(int irq, void *dev_id)
 		else if(proximity_status == 0xE0)
 		{
 			printk("!!!^^^ it is 0xE0 \n");
+			wake_lock_timeout(&ft_wakelock, 1*HZ);
 			if(vps->proximity_dev != NULL){
 				input_report_abs(vps->proximity_dev, ABS_DISTANCE, 1);
 				input_sync(vps->proximity_dev);
@@ -1430,9 +1438,10 @@ static int ft_tp_suspend(struct ft5x06_ts_data *data)
 		data->gesture_set = 0x01;
 #endif
 
-		if (device_may_wakeup(&data->client->dev))
+		if (device_may_wakeup(&data->client->dev)&& (wake_up_enable_counter == 0))
 		{
 			err=enable_irq_wake(data->client->irq);
+			wake_up_enable_counter ++;
 		}
 		data->suspended = true;
 		return err ;
@@ -1451,9 +1460,10 @@ static int ft_tp_resume(struct ft5x06_ts_data *data)
 		ft5x06_i2c_write(data->client, txbuf, sizeof(txbuf));
 		data->gesture_set = 0x00;//clean flag
 
-		if (device_may_wakeup(&data->client->dev))
+		if (device_may_wakeup(&data->client->dev) && (wake_up_enable_counter > 0))
 		{
 			disable_irq_wake(data->client->irq);
+			wake_up_enable_counter --;
 		}
 		data->suspended = false;
 		msleep(20); /*TCT-NB TIANHONGWEI add for less resume time   100 */
@@ -1477,6 +1487,7 @@ void ft5x06_set_sensitivity(u8 val)
 /*[BUGFIX] ADD End by TCTNB.XQJ*/
 
 /*[BUGFIX]-Add Begin by TCTNB.WQF,2014/3/19, Ensure to set sensitivity when tp on*/
+	printk("ft5x06_set_sensitivity to %d\n",val);
 	if (g_ft5x06_ts_data->suspended) {
 		pr_err("ft5x06: Ignore in suspend, will set sensitivity when resume\n");
 		ft5x06_window_cover_status=val;
@@ -1584,8 +1595,15 @@ static int ft5x06_ts_suspend(struct device *dev)
 	}
 #ifdef CONFIG_TOUCHPANEL_PROXIMITY_SENSOR
 	tp_power_state = 0;
-	if(vps->vps_enabled)
+	if(vps->vps_enabled){
+		if (device_may_wakeup(&data->client->dev)&&(wake_up_enable_counter == 0))
+		{
+			//pr_err("enable_irq_wake is called \n");
+			enable_irq_wake(data->client->irq);
+			wake_up_enable_counter ++;
+		}
 		return 0;
+	}
 #endif
 	disable_irq(data->client->irq);
 
@@ -1651,6 +1669,11 @@ static int ft5x06_ts_resume(struct device *dev)
 	u8 w_buf[FT_MAX_WR_BUF] = {0};
 #ifdef CONFIG_TOUCHPANEL_PROXIMITY_SENSOR
 	tp_power_state = 1;
+		if (device_may_wakeup(&data->client->dev)&& (wake_up_enable_counter > 0))
+		{
+			disable_irq_wake(data->client->irq);
+			wake_up_enable_counter --;
+		}
 #endif
 	if (!data->suspended) {
 		dev_dbg(dev, "Already in awake state\n");
@@ -1671,10 +1694,12 @@ static int ft5x06_ts_resume(struct device *dev)
 //wxc change TP sensitivity.
 #ifdef WINDOW_COVER
 	if (ft5x06_window_cover_status){
+/* [PLATFORM]-Mod-BEGIN by TCTNB.YQJ, FOR PR-960788 2015/04/11 */
 		hall_gpio_status = (gpio_get_value_cansleep(1000) ? 1 : 0);
-		//printk("hall_gpio_status  = %d \n",hall_gpio_status);
+		printk("hall_gpio_status  = %d \n",hall_gpio_status);
 		if(!hall_gpio_status)
 		ft5x06_set_sensitivity(1);
+/* [PLATFORM]-Mod-END by TCTNB.YQJ */
 	}
 //	printk("stars 1 cover_status:%d\n", ft5x06_window_cover_status);
 
@@ -1719,10 +1744,12 @@ static int ft5x06_ts_resume(struct device *dev)
 //wxc change TP sensitivity.
 #ifdef WINDOW_COVER
 	if (ft5x06_window_cover_status){
+/* [PLATFORM]-Mod-BEGIN by TCTNB.YQJ, FOR PR-960788 2015/04/11 */
 		hall_gpio_status = (gpio_get_value_cansleep(1000) ? 1 : 0);
-		//printk("hall_gpio_status  = %d \n",hall_gpio_status);
+		printk("hall_gpio_status  = %d \n",hall_gpio_status);
 		if(!hall_gpio_status)
 		ft5x06_set_sensitivity(1);
+/* [PLATFORM]-Mod-END by TCTNB.YQJ */
 	}
 //	printk("stars 2 cover_status:%d\n", ft5x06_window_cover_status);
 #endif
@@ -1754,6 +1781,15 @@ static int ft5x06_ts_resume(struct device *dev)
 #endif
 
 #if defined(CONFIG_FB)
+/* [PREFORMANCE]-Add-BEGIN by TCTNB.YQJ, PR-1035102, 2015/06/25 decrease resume screen time */
+static void fb_notify_resume_work(struct work_struct *work)
+
+{
+       struct ft5x06_ts_data *ft5x06_data =
+              container_of(work, struct ft5x06_ts_data, fb_notify_work);
+       ft5x06_ts_resume(&ft5x06_data->client->dev);
+}
+/* [PERFORMANCE]-Add-END by TCTNB.YQJ, PR-1035102, 2015/06/25 decrease resume screen time */
 static int fb_notifier_callback(struct notifier_block *self,
 				 unsigned long event, void *data)
 {
@@ -1766,10 +1802,12 @@ static int fb_notifier_callback(struct notifier_block *self,
 			ft5x06_data && ft5x06_data->client) {
 		blank = evdata->data;
 		if (*blank == FB_BLANK_UNBLANK)
-			ft5x06_ts_resume(&ft5x06_data->client->dev);
-		else if (*blank == FB_BLANK_POWERDOWN)
+			 schedule_work(&ft5x06_data->fb_notify_work);	//[PREFORMANCE]-Add-BEGIN by TCTNB.YQJ, PR-1035102, 2015/06/25 decrease resume screen time
+             else if (*blank == FB_BLANK_POWERDOWN) {
+			flush_work(&ft5x06_data->fb_notify_work);
 			ft5x06_ts_suspend(&ft5x06_data->client->dev);
 	}
+		}
 	return 0;
 }
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
@@ -2148,6 +2186,32 @@ static int ft5x06_fw_upgrade_arbitrate(struct i2c_client *client)
 }
 #endif
 
+
+static unsigned int booting_into_recovery = 0;
+static unsigned int is_charger_mode = 0;
+
+static int __init get_boot_mode(char *str)
+{
+       if (strcmp("boot_with_recovery", str) == 0) {
+               booting_into_recovery = 1;
+       }
+
+       printk("zakk: booting_into_recovery=%d\n", booting_into_recovery);
+       return 0;
+}
+__setup("androidboot.boot_reason=", get_boot_mode);
+
+static int __init charger_boot_mode(char *str)
+{
+       if (strcmp("charger", str) == 0) {
+               is_charger_mode = 1;
+       }
+
+       printk("lijian: charger_mode=%d\n", is_charger_mode);
+       return 0;
+}
+__setup("androidboot.mode=", charger_boot_mode);
+
 static int ft5x06_fw_upgrade(struct device *dev, bool force)
 {
 	struct ft5x06_ts_data *data = dev_get_drvdata(dev);
@@ -2168,6 +2232,11 @@ static int ft5x06_fw_upgrade(struct device *dev, bool force)
 		return rc;
 	}
 #endif
+
+	if(is_charger_mode || booting_into_recovery) {
+		//recovery mode and charger mode, don't upgrade.
+		return rc;
+	}
 
 	rc = request_firmware(&fw, data->fw_name, dev);
 	if (rc < 0) {
@@ -2836,8 +2905,7 @@ static ssize_t ft5x06_rawdata_register(struct kobject *kobj,
 	int i,j,p=0;
 	u8 rx,tx;
 	int ret;
-
-printk("ft5x06_rawdata_register: start\n");
+	
 	mutex_lock(&data->input_dev->mutex);
 	if (data->loading_fw ) {
 		p= sprintf(buf+p,"loading fw!!!");
@@ -2929,11 +2997,10 @@ static ssize_t ft5x0x_debug_write(struct file *filp, const char __user *buffer, 
            return -EFAULT;
       }
 
-	proc_operate_mode = writebuf[0];
-	printk("proc_operate_mode = %d\n",proc_operate_mode);
+	  proc_operate_mode = writebuf[0];
+	  printk("proc_operate_mode = %d\n",proc_operate_mode);
       switch (proc_operate_mode) {
       case PROC_READ_REGISTER:
-	   printk("%s,%d:PROC_READ_REGISTER\n",__func__,__LINE__);
            writelen = 1;
            ret = ft5x06_i2c_write(client, writebuf + 1, writelen);
            if (ret < 0) {
@@ -2942,7 +3009,6 @@ static ssize_t ft5x0x_debug_write(struct file *filp, const char __user *buffer, 
            }
            break;
       case PROC_WRITE_REGISTER:
-	   printk("%s,%d:PROC_WRITE_REGISTER\n",__func__,__LINE__);
            writelen = 2;
            ret = ft5x06_i2c_write(client, writebuf + 1, writelen);
            if (ret < 0) {
@@ -2951,13 +3017,10 @@ static ssize_t ft5x0x_debug_write(struct file *filp, const char __user *buffer, 
            }
            break;
       case PROC_AUTOCLB:
-	   printk("%s,%d:PROC_AUTOCLB\n",__func__,__LINE__);
-           printk("%s: autoclb\n", __func__);
            fts_ctpm_auto_clb(client);
            break;
       case PROC_READ_DATA:
       case PROC_WRITE_DATA:
-	   printk("%s,%d:PROC_READ_DATA,PROC_WRITE_DATA\n",__func__,__LINE__);
            writelen = count - 1;
            ret = ft5x06_i2c_write(client, writebuf + 1, writelen);
            if (ret < 0) {
@@ -2966,7 +3029,6 @@ static ssize_t ft5x0x_debug_write(struct file *filp, const char __user *buffer, 
            }
            break;
       default:
-	   printk("%s,%d:default\n",__func__,__LINE__);
            break;
       }
 
@@ -2983,10 +3045,10 @@ static ssize_t ft5x0x_debug_read(struct file *file, char __user *page, size_t si
       int readlen = 0;
       u8 regvalue = 0x00, regaddr = 0x00;
 
+      printk("%s, proc_operate_mode=%d. \n",__func__, proc_operate_mode);
       switch (proc_operate_mode) {
       case PROC_UPGRADE:
            /*after calling ft5x0x_debug_write to upgrade*/
-	   printk("%s,%d:PROC_UPGRADE\n",__func__,__LINE__);
            regaddr = 0xA6;
            ret = ft5x0x_read_reg(client, regaddr, &regvalue);
            if (ret < 0)
@@ -3000,12 +3062,10 @@ static ssize_t ft5x0x_debug_read(struct file *file, char __user *page, size_t si
            if (ret < 0) {
                  dev_err(&client->dev, "%s:read iic error\n", __func__);
                  return ret;
-           }
-		   printk("%s,%d:PROC_READ_REGISTER, buf = %c\n",__func__,__LINE__,*buf);
+           }		   
            num_read_chars = 1;
            break;
       case PROC_READ_DATA:
-	   printk("%s,%d:PROC_READ_DATA\n",__func__,__LINE__);
            readlen = size;
            ret = ft5x06_i2c_read(client, NULL, 0, buf, readlen);
            if (ret < 0) {
@@ -3016,10 +3076,8 @@ static ssize_t ft5x0x_debug_read(struct file *file, char __user *page, size_t si
            num_read_chars = readlen;
            break;
       case PROC_WRITE_DATA:
-	   printk("%s,%d:PROC_WRITE_DATA\n",__func__,__LINE__);
            break;
       default:
-	   printk("%s,%d:default\n",__func__,__LINE__);
            break;
       }
 
@@ -3036,7 +3094,7 @@ static const struct file_operations ft5x0x_debug_ops = {
 
 static int ft5x0x_create_apk_debug_channel(struct i2c_client * client)
 {
-      ft5x0x_proc_entry = proc_create(PROC_NAME, 0777, NULL,&ft5x0x_debug_ops);
+      ft5x0x_proc_entry = proc_create(PROC_NAME, 0664, NULL,&ft5x0x_debug_ops);
 
       if (NULL == ft5x0x_proc_entry) {
            dev_err(&client->dev, "Couldn't create proc entry!\n");
@@ -3071,7 +3129,6 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 	int err, len;
 	u8 w_buf[FT_MAX_WR_BUF] = {0};
 
-	printk("~~~~~ ft5x06_ts_probe start\n");
 	if (client->dev.of_node) {
 		pdata = devm_kzalloc(&client->dev,
 			sizeof(struct ft5x06_ts_platform_data), GFP_KERNEL);
@@ -3253,7 +3310,7 @@ INIT_WORK(&data->work, ft5x06_change_scanning_frq_switch);
 	}
 
 	data->family_id = pdata->family_id;
-
+	wake_up_enable_counter = 0;
 #if defined(FOCALTECH_PWRON_UPGRADE)
 	err = ft_init_update_proc(data);
 	if (err < 0) {
@@ -3261,6 +3318,11 @@ INIT_WORK(&data->work, ft5x06_change_scanning_frq_switch);
 				"GTP Create firmware update thread error.\n");
 //			goto exit_power_off;
 	}
+#endif
+//[FEATURE] Add by TCT-NB.YQJ 12/04/2014 PR-858209 tp PROXIMITY SENSOR
+#ifdef CONFIG_TOUCHPANEL_PROXIMITY_SENSOR
+	vps = kzalloc(sizeof(struct virtualpsensor), GFP_KERNEL);
+	sys_device_create();
 #endif
 
 	err = request_threaded_irq(client->irq, NULL,
@@ -3361,6 +3423,7 @@ INIT_WORK(&data->work, ft5x06_change_scanning_frq_switch);
 			data->fw_ver[1], data->fw_ver[2]);
 
 #if defined(CONFIG_FB)
+	INIT_WORK(&data->fb_notify_work, fb_notify_resume_work);
 	data->fb_notif.notifier_call = fb_notifier_callback;
 
 	err = fb_register_client(&data->fb_notif);
@@ -3377,11 +3440,6 @@ INIT_WORK(&data->work, ft5x06_change_scanning_frq_switch);
 #endif
 
 //tp_prox_sensor_enable(client, 1);
-//[FEATURE] Add by TCT-NB.YQJ 12/04/2014 PR-858209 tp PROXIMITY SENSOR
-#ifdef CONFIG_TOUCHPANEL_PROXIMITY_SENSOR
-	vps = kzalloc(sizeof(struct virtualpsensor), GFP_KERNEL);
-	sys_device_create();
-#endif
 //zxzadd
 //ft5x06_init_vkeys_8x26();
 /* [PLATFORM]-Mod-BEGIN by TCTNB.ZXZ, PR-814306, 2014/10/24, add for alto5 premium firmware version*/
@@ -3437,7 +3495,7 @@ g_ft5x06_ts_data = data;
 	w_buf[0] = FT_REG_RESET_FW;
 	ft5x06_i2c_write(client, w_buf, 1);
 init_ok=true;
-printk("~~~~~ ft5x06_ts_probe end\n");
+printk("%s ok.\n", __func__);
 	return 0;
 
 free_debug_dir:

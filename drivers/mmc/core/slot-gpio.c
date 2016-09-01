@@ -73,8 +73,8 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 #if defined(CONFIG_TCT_8X16_IDOL347)
 		//sd_status_report(status);
 #endif
-		/* Schedule a card detection after a debounce timeout, more delay for detection */
-		mmc_detect_change(host, msecs_to_jiffies(500));
+		/* Schedule a card detection after a debounce timeout */
+		mmc_detect_change(host, msecs_to_jiffies(200));
 	}
 out:
 

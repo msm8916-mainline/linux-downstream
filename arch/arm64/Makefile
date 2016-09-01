@@ -76,29 +76,8 @@ dtbs: scripts
 ifndef CONFIG_TCT_8X16_COMMON
 	$(Q)$(MAKE) $(build)=$(boot)/dts/qcom dtbs
 endif
-ifdef CONFIG_TCT_8X16_ALTO5
-	$(Q)$(MAKE) $(build)=$(boot)/dts/alto5 dtbs
-endif
-ifdef CONFIG_TCT_8X16_ALTO5_VDF
-	$(Q)$(MAKE) $(build)=$(boot)/dts/alto5_vdf dtbs
-endif
-ifdef CONFIG_TCT_8X16_ALTO5_PREMIUM
-	$(Q)$(MAKE) $(build)=$(boot)/dts/alto5_premium dtbs
-endif
-ifdef CONFIG_TCT_8X16_POP10
-	$(Q)$(MAKE) $(build)=$(boot)/dts/pop10 dtbs
-endif
-ifdef CONFIG_TCT_8X16_ALTO4
-	$(Q)$(MAKE) $(build)=$(boot)/dts/alto4 MACHINE=$(MACHINE) dtbs
-endif
 ifdef CONFIG_TCT_8X16_IDOL3
 	$(Q)$(MAKE) $(build)=$(boot)/dts/idol3 dtbs
-endif
-ifdef CONFIG_TCT_8X16_ALTO45_LATAM_B28
-	$(Q)$(MAKE) $(build)=$(boot)/dts/alto45_latam_b28 dtbs
-endif
-ifdef CONFIG_TCT_8X16_IDOL347
-	$(Q)$(MAKE) $(build)=$(boot)/dts/idol347 dtbs
 endif
 PHONY += vdso_install
 vdso_install:

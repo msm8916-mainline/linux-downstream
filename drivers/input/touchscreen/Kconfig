@@ -1038,12 +1038,6 @@ source "drivers/input/touchscreen/ft6336/Kconfig"
 source "drivers/input/touchscreen/tp_FT5436/Kconfig"
 #[PLATFORM]-Add-END by TCTNB.ZXZ
 
-#add by weihong.chen.sz for [TP driver development (2st source)]begin . 20140820
-source "drivers/input/touchscreen/pop10/ft5x06/Kconfig"
-#add by weihong.chen.sz for [TP driver development (2st source)]end . 20140820
-#add by weihong.chen.sz for [TP driver development (1st source)]begin . 20140820
-source "drivers/input/touchscreen/pop10/synaptics_pop10/Kconfig"
-#add by weihong.chen.sz for [TP driver development (1st source)]end . 20140820
 #[PLATFORM]-Add-BEGIN by TCTNB.ZXZ, FR-778074, 2014/09/20 add for msg2633 TP driver
 source "drivers/input/touchscreen/msg_tp/Kconfig"
 #[PLATFORM]-Add-END by TCTNB.ZXZ
@@ -1088,5 +1082,4 @@ config INPUT_MT_WRAPPER
 	  Say Y here if you want to enable the driver.
 
 	  If unsure, say N.
-
 endif

@@ -146,8 +146,8 @@ static int32_t otp_update_awb(struct msm_sensor_ctrl_t *s_ctrl,
 	otp_i2c_write(s_ctrl, 0x0212, (B_gain >> 8));
 	otp_i2c_write(s_ctrl, 0x0213, (B_gain & 0xff));
 	
-	printk(KERN_DEBUG "%s, R_gain=%u, G_gain=%u, B_gain=%u\n",
-    			__func__, R_gain, G_gain, B_gain);
+	//printk(KERN_DEBUG "%s, R_gain=%u, G_gain=%u, B_gain=%u\n",
+    //			__func__, R_gain, G_gain, B_gain);
     			
     return 0;
 }

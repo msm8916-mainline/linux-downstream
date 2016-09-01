@@ -373,23 +373,6 @@ config INPUT_KXTJ9_POLLED_MODE
 	help
 	  Say Y here if you need accelerometer to work in polling mode.
 
-config SENSORS_HALL
-       tristate "Hall sensor"
-       depends on I2C
-       help
-         Say Y here to enable support for the Hall sensor
-
-         To compile this driver as a module, choose M here: the module will
-         be called hall_sensor.
-
-config SENSORS_PSENSOR
-	tristate "P-sensor"
-	help
-	  Say Y here to enable support for the P-sensor
-
-	  To compile this driver as a module, choose M here: the module will
-	  be called P-sensor.
-
 config INPUT_POWERMATE
 	tristate "Griffin PowerMate and Contour Jog support"
 	depends on USB_ARCH_HAS_HCD
@@ -752,6 +735,26 @@ config SENSORS_MMA_POSITION
 	help
 	  this provide the sensor position setting , value is between 0~7
 
+config SENSORS_AP3426
+	tristate "AP3426 3-in-1 digital ALPS+PS+IRLED sensor driver"
+	depends on I2C
+	help
+	  Say Y here if you want to enable the AP3426 ALPS sensor
+	  driver.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ap3426.
+
+config SENSORS_LTR553
+	tristate "LTR553 light and proximity device driver"
+	depends on I2C
+	help
+	  Say Y here if you want to enable the LTR553 light and
+	  proximity sensor driver.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ltr553.
+
 config SENSORS_MMC3416X
 	tristate "MMC3416xPJ 3-axis magnetic sensor driver"
 	depends on I2C
@@ -859,7 +862,7 @@ config SENSORS_BMI058
 
 endif
 
-config GYRO_BMG160 #[BUFFIX]-Add- by TCTNB.XQJ, PR-797187,789423, 797185,2014/11/14,finish sensors drirver
+config GYRO_BMG160 #[BUFFIX]-Add- by huangshenglin@hoperun, task-1175896,2015/12/17,finish sensors drirver
 	tristate "BMG160 Triaxial gyroscope sensor"
 	depends on I2C
 	help

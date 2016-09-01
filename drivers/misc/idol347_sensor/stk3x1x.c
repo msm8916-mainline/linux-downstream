@@ -45,12 +45,20 @@
 //#include <linux/earlysuspend.h>
 #endif
 
-#define DRIVER_VERSION  "3.9.2  20150327 revised"
+
+#ifdef CONFIG_TCT_8X16_IDOL347
+static struct i2c_client *g_client;
+struct class *prx_misoperation_class = NULL;
+#endif
+
+
+
+#define DRIVER_VERSION  "3.9.2  20150417 revised3"
 
 /* Driver Settings */
 #define CONFIG_STK_PS_ALS_USE_CHANGE_THRESHOLD
 #ifdef CONFIG_STK_PS_ALS_USE_CHANGE_THRESHOLD
-#define STK_ALS_CHANGE_THD	8	/* The threshold to trigger ALS interrupt, unit: lux */	
+#define STK_ALS_CHANGE_THD	3	//8  /* The threshold to trigger ALS interrupt, unit: lux */
 #endif	/* #ifdef CONFIG_STK_PS_ALS_USE_CHANGE_THRESHOLD */
 #define STK_INT_PS_MODE			1	/* 1, 2, or 3	*/
 //#define STK_POLL_PS
@@ -214,12 +222,16 @@
 #endif
 
 
-#define STK_IRC_MAX_ALS_CODE		20000
+#define STK_IRC_MAX_IR_CODE		40000
+#define STK_IRC_MAX_ALS_CODE		65536
 #define STK_IRC_MIN_ALS_CODE		25
 #define STK_IRC_MIN_IR_CODE		50
 #define STK_IRC_ALS_DENOMI		100
 #define STK_IRC_ALS_NUMERA		92
-#define STK_IRC_ALS_CORREC		1343
+#define STK_IRC_ALS_DENOMI_SUN		100
+#define STK_IRC_ALS_NUMERA_SUN		800
+#define STK_IRC_ALS_CORREC_SUN		1200
+#define STK_IRC_ALS_CORREC		1611      //1343,A+ daylight
 #ifdef STK_IRS
 #define SUNLIGHT_IR 10000
 #define COMPENSATE_FACTOR 1
@@ -300,7 +312,7 @@ static struct stk3x1x_platform_data stk3x1x_pfdata={
 	#define MAX_FIR_LEN 32
 	
 struct data_filter {
-    u16 raw[MAX_FIR_LEN];
+    uint32_t raw[MAX_FIR_LEN];
     int sum;
     int number;
     int idx;
@@ -376,6 +388,7 @@ struct stk3x1x_data {
 	struct wake_lock ps_nosuspend_wl;		
 #endif
 	struct input_dev *als_input_dev;
+	int32_t als_adc_last;
 	int32_t als_lux_last;
 	int32_t als_lux_init_report;
 	uint32_t als_transmittance;	
@@ -422,6 +435,7 @@ struct stk3x1x_data {
 	atomic_t gesture2;
 #endif	
 #ifdef STK_IRS
+	int is_sun;
 	int als_data_index;
 #endif	
 #ifdef STK_QUALCOMM_POWER_CTRL
@@ -1194,6 +1208,7 @@ static int32_t stk3x1x_enable_ps(struct stk3x1x_data *ps_data, uint8_t enable, u
 	uint8_t curr_ps_enable;	
 	uint32_t reading;
 	int32_t near_far_state;		
+	ktime_t timestamp;
 
 	curr_ps_enable = ps_data->ps_enabled?1:0;
 	printk(KERN_INFO "%s curr_ps_enable = %d, enable = %d\n", __func__, curr_ps_enable, enable);
@@ -1313,6 +1328,9 @@ static int32_t stk3x1x_enable_ps(struct stk3x1x_data *ps_data, uint8_t enable, u
 		{
 			ps_data->ps_distance_last = 1;
 			input_report_abs(ps_data->ps_input_dev, ABS_DISTANCE, 1);
+			timestamp = ktime_get_boottime();
+			input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+			input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 			input_sync(ps_data->ps_input_dev);
 			wake_lock_timeout(&ps_data->ps_wakelock, 3*HZ);
 			reading = stk3x1x_get_ps_reading(ps_data);
@@ -1328,6 +1346,9 @@ static int32_t stk3x1x_enable_ps(struct stk3x1x_data *ps_data, uint8_t enable, u
 			near_far_state = ret & STK_FLG_NF_MASK;
 			ps_data->ps_distance_last = near_far_state;
 			input_report_abs(ps_data->ps_input_dev, ABS_DISTANCE, near_far_state);
+			timestamp = ktime_get_boottime();
+			input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+			input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 			input_sync(ps_data->ps_input_dev);
 			wake_lock_timeout(&ps_data->ps_wakelock, 3*HZ);
 			reading = stk3x1x_get_ps_reading(ps_data);
@@ -1427,6 +1448,7 @@ static int32_t stk3x1x_enable_als(struct stk3x1x_data *ps_data, uint8_t enable)
     if (enable)
     {	
 		ps_data->als_enabled = true;
+		ps_data->als_adc_last = 0;
 #ifdef STK_POLL_ALS			
 		hrtimer_start(&ps_data->als_timer, ps_data->als_poll_delay, HRTIMER_MODE_REL);		
 #else
@@ -1437,6 +1459,7 @@ static int32_t stk3x1x_enable_als(struct stk3x1x_data *ps_data, uint8_t enable)
 #endif		
 #ifdef STK_IRS
 		ps_data->als_data_index = 0;
+		ps_data->is_sun = 0;
 #endif
     }
 	else
@@ -1465,10 +1488,10 @@ static int32_t stk3x1x_enable_als(struct stk3x1x_data *ps_data, uint8_t enable)
 static int32_t stk3x1x_get_als_reading(struct stk3x1x_data *ps_data)
 {
     int32_t word_data;
-#ifdef STK_ALS_FIR
-	int index;   
-	int firlen = atomic_read(&ps_data->firlength);   
-#endif	
+//#ifdef STK_ALS_FIR
+//	int index;
+//	int firlen = atomic_read(&ps_data->firlength);
+//#endif
 	unsigned char value[2];
 	int ret;
 	
@@ -1480,9 +1503,9 @@ static int32_t stk3x1x_get_als_reading(struct stk3x1x_data *ps_data)
 	}
 	word_data = (value[0]<<8) | value[1];	
 	
-#ifdef STK_ALS_FIR
+/*#ifdef STK_ALS_FIR
 	if(ps_data->fir.number < firlen)
-	{                
+	{
 		ps_data->fir.raw[ps_data->fir.number] = word_data;
 		ps_data->fir.sum += word_data;
 		ps_data->fir.number++;
@@ -1496,8 +1519,8 @@ static int32_t stk3x1x_get_als_reading(struct stk3x1x_data *ps_data)
 		ps_data->fir.sum += word_data;
 		ps_data->fir.idx++;
 		word_data = ps_data->fir.sum/firlen;
-	}	
-#endif	
+	}
+#endif	*/
 	
 	return word_data;
 }
@@ -1545,7 +1568,10 @@ static int32_t stk3x1x_get_ir_reading(struct stk3x1x_data *ps_data)
 	//bool re_enable_ps = false;
 	//bool re_enable_tune0 = false;
 	unsigned char value[2];
-	
+
+	//if(ps_data->ps_enabled)
+	//	return -1;
+
 	// if(ps_data->ps_enabled)
 	// {
 // #ifdef STK_TUNE0		
@@ -1567,8 +1593,12 @@ static int32_t stk3x1x_get_ir_reading(struct stk3x1x_data *ps_data)
 	ret = stk3x1x_get_state(ps_data);
 	if(ret < 0)
 		goto irs_err_i2c_rw;
+
+	if(ps_data->ps_enabled)
+		w_reg = ret | STK_STATE_EN_IRS_MASK;
+	else
+		w_reg = 0x02 | STK_STATE_EN_IRS_MASK;
 	
-	w_reg = ret | STK_STATE_EN_IRS_MASK;		
 	ret = stk3x1x_set_state(ps_data, w_reg);
 	if(ret < 0)
 		goto irs_err_i2c_rw;
@@ -1742,7 +1772,8 @@ static ssize_t stk_als_code_show(struct device *dev, struct device_attribute *at
 	struct stk3x1x_data *ps_data =  dev_get_drvdata(dev);		
     int32_t reading;
 	
-    reading = stk3x1x_get_als_reading(ps_data);
+  //  reading = stk3x1x_get_als_reading(ps_data);
+	reading = ps_data->als_adc_last;
     return scnprintf(buf, PAGE_SIZE, "%d\n", reading);
 }
 
@@ -1802,7 +1833,8 @@ static ssize_t stk_als_lux_show(struct device *dev, struct device_attribute *att
 	struct stk3x1x_data *ps_data = dev_get_drvdata(dev);
     int32_t als_reading;
 	uint32_t als_lux;
-    als_reading = stk3x1x_get_als_reading(ps_data);    
+//    als_reading = stk3x1x_get_als_reading(ps_data);
+	als_reading = ps_data->als_adc_last;
 	als_lux = stk_alscode2lux(ps_data, als_reading);
     return scnprintf(buf, PAGE_SIZE, "%d lux\n", als_lux);
 }
@@ -1811,6 +1843,7 @@ static ssize_t stk_als_lux_store(struct device *dev, struct device_attribute *at
 {
 	struct stk3x1x_data *ps_data =  dev_get_drvdata(dev);	
 	unsigned long value = 0;
+	ktime_t timestamp;
 	int ret;
 	ret = kstrtoul(buf, 16, &value);
 	if(ret < 0)
@@ -1820,6 +1853,9 @@ static ssize_t stk_als_lux_store(struct device *dev, struct device_attribute *at
 	}
     ps_data->als_lux_last = value;
 	input_report_abs(ps_data->als_input_dev, ABS_MISC, value);
+	timestamp = ktime_get_boottime();
+	input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+	input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 	input_sync(ps_data->als_input_dev);
 	printk(KERN_INFO "%s: als input event %ld lux\n",__func__, value);	
 
@@ -1968,6 +2004,7 @@ static ssize_t stk_ges_code_store(struct device *dev, struct device_attribute *a
 	struct stk3x1x_data *ps_data =  dev_get_drvdata(dev);
 	uint8_t ges;
 	unsigned long value = 0;
+	ktime_t timestamp;
 	int ret;
 	
 	ret = kstrtoul(buf, 16, &value);
@@ -2008,6 +2045,9 @@ static ssize_t stk_ges_code_store(struct device *dev, struct device_attribute *a
 	
 	input_report_key(ps_data->ges_input_dev, ges, 1);
 	input_report_key(ps_data->ges_input_dev, ges, 0);
+	timestamp = ktime_get_boottime();
+	input_event(ps_data->ges_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+	input_event(ps_data->ges_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 	input_sync(ps_data->ges_input_dev);
     return size;
 }
@@ -2281,6 +2321,7 @@ static ssize_t stk_ps_offset_store(struct device *dev, struct device_attribute *
 
 static ssize_t stk_ps_distance_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
+	ktime_t timestamp;
 	struct stk3x1x_data *ps_data =  dev_get_drvdata(dev);
     int32_t dist=1, ret;
 
@@ -2291,6 +2332,9 @@ static ssize_t stk_ps_distance_show(struct device *dev, struct device_attribute 
 	
     ps_data->ps_distance_last = dist;
 	input_report_abs(ps_data->ps_input_dev, ABS_DISTANCE, dist);
+	timestamp = ktime_get_boottime();
+	input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+	input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 	input_sync(ps_data->ps_input_dev);
 	wake_lock_timeout(&ps_data->ps_wakelock, 3*HZ);
 	printk(KERN_INFO "%s: ps input event %d cm\n",__func__, dist);		
@@ -2302,6 +2346,7 @@ static ssize_t stk_ps_distance_store(struct device *dev, struct device_attribute
 {
 	struct stk3x1x_data *ps_data =  dev_get_drvdata(dev);	
 	unsigned long value = 0;
+	ktime_t timestamp;
 	int ret;
 	ret = kstrtoul(buf, 10, &value);
 	if(ret < 0)
@@ -2311,6 +2356,9 @@ static ssize_t stk_ps_distance_store(struct device *dev, struct device_attribute
 	}
     ps_data->ps_distance_last = value;
 	input_report_abs(ps_data->ps_input_dev, ABS_DISTANCE, value);
+	timestamp = ktime_get_boottime();
+	input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+	input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 	input_sync(ps_data->ps_input_dev);
 	wake_lock_timeout(&ps_data->ps_wakelock, 3*HZ);	
 	printk(KERN_INFO "%s: ps input event %ld cm\n",__func__, value);	
@@ -3197,8 +3245,13 @@ static enum hrtimer_restart stk_als_timer_func(struct hrtimer *timer)
 
 static void stk_als_poll_work_func(struct work_struct *work)
 {
+	ktime_t timestamp;
 	struct stk3x1x_data *ps_data = container_of(work, struct stk3x1x_data, stk_als_work);	
-	int32_t reading, reading_lux, als_comperator, flag_reg;
+	int32_t reading, reading_lux, als_comperator, als_comperator_sun, flag_reg;
+#ifdef STK_ALS_FIR
+	int index;
+	int firlen = atomic_read(&ps_data->firlength);
+#endif
 	#ifdef STK_IRS	
 	int ret;
 	#endif
@@ -3206,6 +3259,9 @@ static void stk_als_poll_work_func(struct work_struct *work)
 	if(ps_data->ges_enabled)
 	{
 		input_report_abs(ps_data->als_input_dev, ABS_MISC, ps_data->als_lux_last);
+		timestamp = ktime_get_boottime();
+		input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 		input_sync(ps_data->als_input_dev);
 #ifdef STK_DEBUG_PRINTF				
 		printk(KERN_INFO "%s: ges_enabled=1, als input event %d lux\n",__func__, ps_data->als_lux_last);		
@@ -3225,11 +3281,19 @@ static void stk_als_poll_work_func(struct work_struct *work)
 		
 	if(	ps_data->als_data_index % 10 == 0)
 	{
+#ifdef STK_DEBUG_PRINTF
+		printk(KERN_INFO "\n liulei00 %s: ps_data->ir_code=%d, als_data_index=%d\n", __func__,
+						ps_data->ir_code, ps_data->als_data_index);
+#endif
 		if(ps_data->ps_distance_last != 0)
 		{		
 			ret = stk3x1x_get_ir_reading(ps_data);
 			if(ret > 0)
 				ps_data->ir_code = ret;
+#ifdef STK_DEBUG_PRINTF
+		printk(KERN_INFO "\n liulei01 %s: update ps_data->ir_code=%d, ret = %d, als_data_index=%d\n", __func__,
+					ps_data->ir_code, ret, ps_data->als_data_index);
+#endif
 		}		
 		return;
 	}
@@ -3246,26 +3310,76 @@ static void stk_als_poll_work_func(struct work_struct *work)
 	{
 		return;
 	}
+	ps_data->als_adc_last = reading;
 	
 	if(ps_data->ir_code)
 	{
-		ps_data->als_correct_factor = 1000;
-		if(reading < STK_IRC_MAX_ALS_CODE && reading > STK_IRC_MIN_ALS_CODE && 
-			ps_data->ir_code > STK_IRC_MIN_IR_CODE)
+		ps_data->als_correct_factor = 1500;            // ps_data->als_correct_factor = 1000;
+		if(reading > STK_IRC_MIN_ALS_CODE && ps_data->ir_code > STK_IRC_MIN_IR_CODE)
 		{
 			als_comperator = reading * STK_IRC_ALS_NUMERA / STK_IRC_ALS_DENOMI;
-			if(ps_data->ir_code > als_comperator)
-				ps_data->als_correct_factor = STK_IRC_ALS_CORREC;
+			als_comperator_sun = reading * STK_IRC_ALS_NUMERA_SUN / STK_IRC_ALS_DENOMI_SUN;
+			if((ps_data->ir_code > als_comperator) && (ps_data->ir_code < als_comperator_sun))
+			{
+				ps_data->als_correct_factor = STK_IRC_ALS_CORREC_SUN;
+				ps_data->is_sun++;
+				if(ps_data->is_sun > 1000)
+					ps_data->is_sun = 1000;
+			}
+			else if(ps_data->ir_code >= als_comperator_sun)
+			{
+				if(ps_data->is_sun > 10)
+				{
+					ps_data->als_correct_factor = STK_IRC_ALS_CORREC_SUN;
+				}
+				else
+				{
+					ps_data->als_correct_factor = STK_IRC_ALS_CORREC;
+					ps_data->is_sun = 0;
+				}
+			}
+			else
+			{
+				ps_data->is_sun = 0;
+			}
 		}
-#ifdef STK_DEBUG_PRINTF				
-		printk(KERN_INFO "%s: als=%d, ir=%d, als_correct_factor=%d", __func__, 
-						reading, ps_data->ir_code, ps_data->als_correct_factor);
-#endif		
+ // #ifdef STK_DEBUG_PRINTF		liuleichange
+	//	printk(KERN_INFO "%s: als=%d, ir=%d, als_correct_factor=%d", __func__,
+		//				reading, ps_data->ir_code, ps_data->als_correct_factor);
+// #endif
 		//ps_data->ir_code = 0;
-	}	
-	reading = reading * ps_data->als_correct_factor / 1000;
+	}
+#ifdef STK_DEBUG_PRINTF
+		printk(KERN_INFO "\n liulei1 %s: als=%d, ir=%d, als_correct_factor=%d, is_sun=%d\n", __func__,
+						reading, ps_data->ir_code, ps_data->als_correct_factor, ps_data->is_sun);
+#endif
+
+	if(ps_data->als_correct_factor == STK_IRC_ALS_CORREC_SUN && ps_data->ir_code >= STK_IRC_MAX_IR_CODE)
+	{
+		reading = STK_IRC_MAX_IR_CODE * ps_data->als_correct_factor / 1000;
+		reading_lux = reading;
+	}
+	else if(ps_data->als_correct_factor == STK_IRC_ALS_CORREC_SUN)
+	{
+		reading = ps_data->ir_code * ps_data->als_correct_factor / 1000;
+		reading_lux = reading;
+	}
+	else
+	{
+		reading = reading * ps_data->als_correct_factor / 1000;
+		reading_lux = stk_alscode2lux(ps_data, reading);
+	}
+#ifdef STK_DEBUG_PRINTF
+			printk(KERN_INFO "\n liulei2 %s: als=%d, ir=%d, als_correct_factor=%d\n", __func__,
+						reading, ps_data->ir_code, ps_data->als_correct_factor);
+
+//	reading_lux = stk_alscode2lux(ps_data, reading);
+
+		printk(KERN_INFO "\n liulei3 %s: reading_lux=%d, reading=%d\n", __func__,
+						reading_lux, reading);
+#endif
+
 	
-	reading_lux = stk_alscode2lux(ps_data, reading);
 #ifdef STK_IRS
 	if((reading_lux > 30) && (reading_lux < 200))
 	{
@@ -3277,11 +3391,37 @@ static void stk_als_poll_work_func(struct work_struct *work)
 		reading_lux = reading_lux * COMPENSATE_FACTOR;
 	}
 #endif
+
+	if(reading >= 3)
+	{
+#ifdef STK_ALS_FIR
+		if(ps_data->fir.number < firlen)
+		{
+			ps_data->fir.raw[ps_data->fir.number] = reading_lux;
+			ps_data->fir.sum += reading_lux;
+			ps_data->fir.number++;
+			ps_data->fir.idx++;
+		}
+		else
+		{
+			index = ps_data->fir.idx % firlen;
+			ps_data->fir.sum -= ps_data->fir.raw[index];
+			ps_data->fir.raw[index] = reading_lux;
+			ps_data->fir.sum += reading_lux;
+			ps_data->fir.idx++;
+			reading_lux = ps_data->fir.sum/firlen;
+		}
+#endif
+	}
+
 	if(reading < 3 && ps_data->als_lux_last != 0)
 	{
 		reading_lux = 0;
 		ps_data->als_lux_last = 0;
 		input_report_abs(ps_data->als_input_dev, ABS_MISC, reading_lux);
+		timestamp = ktime_get_boottime();
+		input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 		input_sync(ps_data->als_input_dev);
 #ifdef STK_DEBUG_PRINTF
 		printk(KERN_INFO "%s: als input event %d lux\n",__func__, reading_lux);
@@ -3291,6 +3431,9 @@ static void stk_als_poll_work_func(struct work_struct *work)
 	{
 		ps_data->als_lux_last = reading_lux;
 		input_report_abs(ps_data->als_input_dev, ABS_MISC, reading_lux);
+		timestamp = ktime_get_boottime();
+		input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 		input_sync(ps_data->als_input_dev);
 #ifdef STK_DEBUG_PRINTF
 		printk(KERN_INFO "%s: als input event %d lux\n",__func__, reading_lux);
@@ -3300,6 +3443,9 @@ static void stk_als_poll_work_func(struct work_struct *work)
 	{
 		ps_data->als_lux_last = 1;
 		input_report_abs(ps_data->als_input_dev, ABS_MISC, 1);
+		timestamp = ktime_get_boottime();
+		input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 		input_sync(ps_data->als_input_dev);
 		ps_data->als_lux_init_report = 1;
 #ifdef STK_DEBUG_PRINTF
@@ -3327,6 +3473,7 @@ static void stk_ps_poll_work_func(struct work_struct *work)
 	uint32_t reading;
 	int32_t near_far_state;
     uint8_t org_flag_reg;	
+	ktime_t timestamp;
 #ifdef STK_GES			
 	int32_t ret;
     //uint8_t disable_flag = 0;
@@ -3385,6 +3532,9 @@ static void stk_ps_poll_work_func(struct work_struct *work)
 			ps_data->ps_nf = near_far_state;
 			
 			input_report_abs(ps_data->ps_input_dev, ABS_DISTANCE, near_far_state);
+			timestamp = ktime_get_boottime();
+			input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+			input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 			input_sync(ps_data->ps_input_dev);
 			wake_lock_timeout(&ps_data->ps_wakelock, 3*HZ);		
 //#ifdef STK_DEBUG_PRINTF		
@@ -3422,6 +3572,8 @@ static void stk_work_func(struct work_struct *work)
     uint8_t org_flag_reg;
 #endif	/* #if ((STK_INT_PS_MODE != 0x03) && (STK_INT_PS_MODE != 0x02)) */
 
+	ktime_t timestamp;
+	
 #ifndef CONFIG_STK_PS_ALS_USE_CHANGE_THRESHOLD	
 	uint32_t nLuxIndex;	
 #endif
@@ -3443,6 +3595,9 @@ static void stk_work_func(struct work_struct *work)
 	ps_data->ps_distance_last = near_far_state;
 	
 	input_report_abs(ps_data->ps_input_dev, ABS_DISTANCE, near_far_state);
+	timestamp = ktime_get_boottime();
+	input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+	input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 	input_sync(ps_data->ps_input_dev);
 	wake_lock_timeout(&ps_data->ps_wakelock, 3*HZ);
 	reading = stk3x1x_get_ps_reading(ps_data);
@@ -3491,6 +3646,9 @@ static void stk_work_func(struct work_struct *work)
 
 		ps_data->als_lux_last = stk_alscode2lux(ps_data, reading);
 		input_report_abs(ps_data->als_input_dev, ABS_MISC, ps_data->als_lux_last);
+		timestamp = ktime_get_boottime();
+		input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(ps_data->als_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 		input_sync(ps_data->als_input_dev);
 #ifdef STK_DEBUG_PRINTF		
 		printk(KERN_INFO "%s: als input event %d lux\n",__func__, ps_data->als_lux_last);			
@@ -3505,6 +3663,9 @@ static void stk_work_func(struct work_struct *work)
 		ps_data->ps_nf = near_far_state;
 		
 		input_report_abs(ps_data->ps_input_dev, ABS_DISTANCE, near_far_state);
+		timestamp = ktime_get_boottime();
+		input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(ps_data->ps_input_dev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 		input_sync(ps_data->ps_input_dev);
 		wake_lock_timeout(&ps_data->ps_wakelock, 3*HZ);			
 		reading = stk3x1x_get_ps_reading(ps_data);
@@ -3568,6 +3729,7 @@ static int32_t stk3x1x_init_all_setting(struct i2c_client *client, struct stk3x1
 	ps_data->re_enable_als = false;
 	ps_data->re_enable_ps = false;
 	ps_data->ir_code = 0;
+	ps_data->als_adc_last = 0;
 	ps_data->als_correct_factor = 1000;
 	ps_data->first_boot = true;	
 #ifndef CONFIG_STK_PS_ALS_USE_CHANGE_THRESHOLD
@@ -3593,6 +3755,7 @@ static int32_t stk3x1x_init_all_setting(struct i2c_client *client, struct stk3x1
 	//memset(stk_ges_op, 0, sizeof(stk_ges_op));
 #endif	
 #ifdef STK_IRS
+	ps_data->is_sun = 0;
 	ps_data->als_data_index = 0;
 #endif	
 	ps_data->ps_distance_last = 1;
@@ -4200,6 +4363,59 @@ struct input_dev* get_stk_input_device(void)
 }
 EXPORT_SYMBOL(get_stk_input_device);
 
+#ifdef CONFIG_TCT_8X16_IDOL347
+
+static ssize_t stk_device_prx_detected(struct class *class,
+				struct class_attribute *attr, char *buf)
+{
+	struct stk3x1x_data *ps_data = i2c_get_clientdata(g_client);
+	uint32_t reading;
+	
+	stk_ps_enable_set(&ps_data->ps_cdev, 1);
+	msleep(10);
+	reading = stk3x1x_get_ps_reading(ps_data);
+	stk_ps_enable_set(&ps_data->ps_cdev, 0);
+
+        if ( reading > 1000 )
+                reading = 1;
+        else
+                reading = 0;
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", reading);	
+}
+
+static struct class_attribute prx_status =
+	__ATTR(status, 0444, stk_device_prx_detected, NULL);
+
+static int prx_misoperation_creat_file(void)
+{
+	int ret;
+
+	/*  /<sysfs>/class/prx_misoperation/status */
+
+	prx_misoperation_class = class_create(THIS_MODULE, "prx_misoperation");
+	if (IS_ERR(prx_misoperation_class)) {
+		ret = PTR_ERR(prx_misoperation_class);
+		printk(KERN_ERR "prx_misoperation_class: couldn't create prx_misoperation\n");
+	}
+	ret = class_create_file(prx_misoperation_class, &prx_status);
+	if (ret) {
+		printk(KERN_ERR "prx_misoperation: couldn't create status\n");
+	}
+
+	return ret;
+
+}
+
+static void remove_prx_create_file(void)
+{
+	class_remove_file(prx_misoperation_class, &prx_status);
+}
+
+#endif
+
+
+
 static int stk3x1x_probe(struct i2c_client *client,
                         const struct i2c_device_id *id)
 {
@@ -4207,7 +4423,11 @@ static int stk3x1x_probe(struct i2c_client *client,
     struct stk3x1x_data *ps_data;
 	struct stk3x1x_platform_data *plat_data;
     printk(KERN_INFO "%s: driver version = %s\n", __func__, DRIVER_VERSION);
-	
+
+	#ifdef CONFIG_TCT_8X16_IDOL347
+	g_client=client;
+	#endif
+
     if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
     {
         printk(KERN_ERR "%s: No Support for I2C_FUNC_I2C\n", __func__);
@@ -4341,10 +4561,22 @@ static int stk3x1x_probe(struct i2c_client *client,
 		goto err_power_ctl;
 #endif		
 
+#ifdef CONFIG_TCT_8X16_IDOL347
+	err = prx_misoperation_creat_file();
+	if(err)
+		goto prx_misoperation_creat_fail;
+#endif
+
 	printk(KERN_INFO "%s: probe successfully", __func__);
 	return 0;
 
 	//device_init_wakeup(&client->dev, false);
+
+#ifdef CONFIG_TCT_8X16_IDOL347
+prx_misoperation_creat_fail:
+	remove_prx_create_file();
+#endif
+
 #ifdef STK_QUALCOMM_POWER_CTRL	
 err_power_ctl:
 #endif	

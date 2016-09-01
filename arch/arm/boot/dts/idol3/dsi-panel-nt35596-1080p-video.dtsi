@@ -41,8 +41,8 @@
 		qcom,mdss-dsi-h-right-border = <0>;
 		qcom,mdss-dsi-v-top-border = <0>;
 		qcom,mdss-dsi-v-bottom-border = <0>;
-		qcom,mdss-pan-physical-width-dimension = <0>;
-		qcom,mdss-pan-physical-height-dimension = <0>;
+		qcom,mdss-pan-physical-width-dimension = <68>;
+		qcom,mdss-pan-physical-height-dimension = <121>;
 		qcom,mdss-dsi-bpp = <24>;
 		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
 		qcom,mdss-dsi-underflow-color = <0xff>;
@@ -168,7 +168,7 @@
 	//*******************************************************************
 		//Power Related
 		15 01 00 00 01 00 02 FF 01
-
+                15 01 00 00 00 00 02 FB 01
 		//ccmon
 		//Normal Black Panel
 		15 01 00 00 00 00 02 00 01
@@ -585,15 +585,21 @@
 
 		//VBP,VFP
 		15 01 00 00 00 00 02 D3 0C
-		15 01 00 00 00 00 02 D4 06
+		15 01 00 00 00 00 02 D4 02
 		15 01 00 00 00 00 02 FF 05
 		15 01 00 00 00 00 02 FB 01
 		15 01 00 00 00 00 02 E7 80
+		15 01 00 00 01 00 02 FF 01
+		15 01 00 00 01 00 02 FB 01
+		15 01 00 00 01 00 02 5C 84
+		15 01 00 00 01 00 02 5D 84
+		15 01 00 00 01 00 02 5E 04
+		15 01 00 00 01 00 02 5F 04
+		15 01 00 00 01 00 02 60 11
 		15 01 00 00 00 00 02 FF 00
-	     
             	05 01 00 00 78 00 02 11 00
 		05 01 00 00 32 00 02 29 00
-	     
+
 		];
 		qcom,mdss-dsi-off-command = [05 01 00 00 32 00 02 28 00
 					05 01 00 00 78 00 02 10 00];
@@ -623,6 +629,17 @@
 		qcom,mdss-dsi-bl-pmic-bank-select = <0>;
 		qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
 		qcom,cont-splash-enabled;
+		qcom,mdss-dsi-lp11-init;
+
+/* [PLATFORM]-Mod-BEGIN by TCTNB.CY, CR-990241, 2015/4/30, enable esd check*/
+		qcom,esd-check-enabled;
+		qcom,mdss-dsi-panel-status-command = [
+			06 01 00 01 05 00 01 0a
+		];
+		qcom,mdss-dsi-panel-status-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-panel-status-check-mode = "reg_read";
+		qcom,mdss-dsi-panel-status-value = <0x9c 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00>;
+/* [PLATFORM]-Mod-END by TCTNB.CY, 2015/4/30*/
 
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 20>, <1 20>;
 

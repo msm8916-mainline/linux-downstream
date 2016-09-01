@@ -96,6 +96,7 @@ void idol3_otp_AF_on(uint8_t *buffer)
     int offset = 0;
     uint16_t idol3_af_macro = 0;
     uint16_t idol3_af_inf = 0;
+    uint16_t valid = 1;
 
     if (!buffer)
     {
@@ -115,14 +116,30 @@ void idol3_otp_AF_on(uint8_t *buffer)
 
     idol3_af_macro = (uint16_t)(((buffer[offset + 2]) << 8) | (buffer[offset + 1]));
 
-printk("%s,idol3_af_macro = %d,idol3_af_inf = %d \n",__func__,idol3_af_macro,idol3_af_inf);
-
-    //if (idol3_af_macro > 511) {
-        idol3_af_macro /= 2;
-        idol3_af_inf /= 2;
-        S5K3M2_IDOL3_AF_MACRO = idol3_af_macro;
+	//printk("%s,idol3_af_macro = %d,idol3_af_inf = %d \n",__func__,idol3_af_macro,idol3_af_inf);
+	/*make sunny and truly compatible for AF OTP difference*/			
+   if (buffer[0] >> 6 == valid)
+    {
+        offset = 2;
+    }
+    else if (buffer[24] >> 6 == valid)
+    {
+        offset = 26;
+    }                                           
+                                                     
+   //printk("af otp, module id = %d \n",buffer[offset]); 
+                                                     
+   if(0x02 == buffer[offset]){                        
+  	    printk("af otp, it is truly module\n");           
+        idol3_af_macro /= 2;                         
+        idol3_af_inf /= 2;                           
+   } else{                                            
+	      printk("af otp, it is sunny module\n");           
+   }                                            
+                                                     
+   S5K3M2_IDOL3_AF_MACRO = idol3_af_macro;      
         S5K3M2_IDOL3_AF_INF = idol3_af_inf;
-    //}
+   // }
 }
 
 static void s5k3m2_idol3_otp_AWB_on(struct msm_eeprom_ctrl_t * s_ctrl,uint8_t *buffer, uint16_t size)
@@ -141,20 +158,20 @@ static void s5k3m2_idol3_otp_AWB_on(struct msm_eeprom_ctrl_t * s_ctrl,uint8_t *b
     uint16_t RoverGr_dec_base;
     uint16_t BoverGr_dec_base;
     uint16_t GboverGr_dec_base;
-    uint16_t valid = 0x40;
+    uint16_t valid = 1;
     uint16_t offset = 0;
 
     if (!buffer)
     {
         return;
     }
-    pr_err("%s,buffer[0] = 0x%x,buffer[24]= 0x%x",__func__,buffer[0],buffer[24]);
+    //pr_err("%s,buffer[0] = 0x%x,buffer[24]= 0x%x",__func__,buffer[0],buffer[24]);
 
-    if (buffer[0] == valid)
+   if (buffer[0] >> 6 == valid)
     {
         offset = 11;
     }
-    else if (buffer[24] == valid)
+    else if (buffer[24] >> 6 == valid)
     {
         offset = 35;
     }
@@ -165,7 +182,7 @@ static void s5k3m2_idol3_otp_AWB_on(struct msm_eeprom_ctrl_t * s_ctrl,uint8_t *b
     BoverGr_dec_base = buffer[offset + 8] << 8 | buffer[offset + 9];
     GboverGr_dec_base = buffer[offset + 10] << 8 | buffer[offset + 11];
 
-    pr_err("RoverGr_dec=0x%x,BoverGr_dec=0x%x,GboverGr_dec=0x%x\n",RoverGr_dec,BoverGr_dec,GboverGr_dec);   
+    //pr_err("RoverGr_dec=0x%x,BoverGr_dec=0x%x,GboverGr_dec=0x%x\n",RoverGr_dec,BoverGr_dec,GboverGr_dec);   
 
     if (!RoverGr_dec || !BoverGr_dec || !GboverGr_dec)
     {
@@ -194,9 +211,11 @@ static void s5k3m2_idol3_otp_AWB_on(struct msm_eeprom_ctrl_t * s_ctrl,uint8_t *b
 	Gr_test = Gr_1x;
 	Gb_test = Gb_1x;
 
-    pr_err("R_test=0x%x,B_test=0x%x,Gr_test=0x%x,Gb_test=0x%x",R_test,B_test,Gr_test,Gb_test);   
+    //pr_err("R_test=0x%x,B_test=0x%x,Gr_test=0x%x,Gb_test=0x%x",R_test,B_test,Gr_test,Gb_test);   
 	
 	s5k3m2_idol3_otp_i2c_write(s_ctrl,0x6028,0x4000,MSM_CAMERA_I2C_WORD_DATA);
+	s5k3m2_idol3_otp_i2c_write(s_ctrl,0x602a,0x3056,MSM_CAMERA_I2C_WORD_DATA);
+	s5k3m2_idol3_otp_i2c_write(s_ctrl,0x6f12,0x01,MSM_CAMERA_I2C_BYTE_DATA);
 	s5k3m2_idol3_otp_i2c_write(s_ctrl,0x602a,0x020e,MSM_CAMERA_I2C_WORD_DATA);
 	s5k3m2_idol3_otp_i2c_write(s_ctrl,0x6f12,Gr_test,MSM_CAMERA_I2C_WORD_DATA);
 	s5k3m2_idol3_otp_i2c_write(s_ctrl,0x602a,0x0210,MSM_CAMERA_I2C_WORD_DATA);
@@ -213,16 +232,17 @@ static int s5k3m2_idol3_read_otp(struct msm_eeprom_ctrl_t * s_ctrl,uint8_t page,
     uint16_t i = 0;
     int nCheckSum = 0;
 
-    pr_err("s5k3m2_idol3 otp page:%d address:0x%x read_size:%d,buffer = %p\n ", page, address, size,buffer);
+    //pr_err("s5k3m2_idol3 otp page:%d address:0x%x read_size:%d,buffer = %p\n ", page, address, size,buffer);
 
     if ((buffer==NULL)){
         pr_err("[JRD_CAM][S5K3M2OTP]error s5k3m2_idol3 read otp size=%d\n", size);
         return -1;
     }
+    s5k3m2_idol3_otp_LSC_on(s_ctrl);
+	s5k3m2_idol3_otp_stream_on(s_ctrl);
+    //pr_err("%s,LSC on result = %d\n",__func__,s5k3m2_idol3_otp_LSC_on(s_ctrl)); //stream on
 
-    pr_err("%s,LSC on result = %d\n",__func__,s5k3m2_idol3_otp_LSC_on(s_ctrl)); //stream on
-
-    pr_err("%s,stream_on result = %d\n",__func__,s5k3m2_idol3_otp_stream_on(s_ctrl)); //stream on
+    //pr_err("%s,stream_on result = %d\n",__func__,s5k3m2_idol3_otp_stream_on(s_ctrl)); //stream on
 
     msleep(10);
 
@@ -231,7 +251,7 @@ static int s5k3m2_idol3_read_otp(struct msm_eeprom_ctrl_t * s_ctrl,uint8_t page,
     s5k3m2_idol3_otp_i2c_write(s_ctrl,0x0A00, 0x01,MSM_CAMERA_I2C_BYTE_DATA);//read mode
     mdelay(1); 
 
-    pr_err("%s,0x0A00 data 0x%x\n",__func__,s5k3m2_idol3_otp_i2c_read(s_ctrl,0x0A00));
+    //pr_err("%s,0x0A00 data 0x%x\n",__func__,s5k3m2_idol3_otp_i2c_read(s_ctrl,0x0A00));
 
     while (i < size){
         int addr = address + i;
@@ -249,7 +269,7 @@ static int s5k3m2_idol3_read_otp(struct msm_eeprom_ctrl_t * s_ctrl,uint8_t page,
     {
         pr_err("%s,0x%x:buffer=0x%x\n",__func__,0x0a04 + i,buffer[i]); 
     }
-    pr_err("%s,checksum = 0x%x,0x0A05 = 0x%x\n",__func__,nCheckSum,buffer[1]);
+    //pr_err("%s,checksum = 0x%x,0x0A05 = 0x%x\n",__func__,nCheckSum,buffer[1]);
     idol3_otp_AF_on(buffer);
     //s5k3m2_idol3_otp_i2c_write(s_ctrl,0x0A00, 0x04);//make initial
     s5k3m2_idol3_otp_i2c_write(s_ctrl,0x0A00, 0x00,MSM_CAMERA_I2C_BYTE_DATA);//disable NVM controller

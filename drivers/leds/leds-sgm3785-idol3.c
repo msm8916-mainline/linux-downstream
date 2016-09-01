@@ -74,7 +74,6 @@ static void sgm3785_flash_brightness_set(struct led_classdev *led_cdev,
 	enum led_brightness value)
 {
 	struct sgm3785_info *sinfo = _sinfo;
-	pr_err("[Liu]%s:flashen=%d, enable=%d\n",__func__,sinfo->gpio_flash_en, value);
 
 	sinfo->flash_brightness = value;
 
@@ -98,8 +97,6 @@ static enum led_brightness sgm3785_flash_brightness_get(struct led_classdev *led
 {
 	struct sgm3785_info *sinfo = _sinfo;
 
-	pr_err("[Liu]%s: flash_brightness=%d\n",
-		__func__, sinfo->flash_brightness);
 	return sinfo->flash_brightness;
 }
 
@@ -107,7 +104,7 @@ static void sgm3785_torch_brightness_set(struct led_classdev *led_cdev,
 	enum led_brightness value)
 {
 	struct sgm3785_info *sinfo = _sinfo;
-	pr_err("[Liu]%s:torchen=%d, enable=%d\n",__func__,sinfo->gpio_torch_en, value);
+	//pr_err("[Liu]%s:torchen=%d, enable=%d\n",__func__,sinfo->gpio_torch_en, value);
 	//gpio_direction_output(sinfo->gpio_flash_en,!!value);
 	sinfo->torch_brightness = value;
 
@@ -123,7 +120,6 @@ static void sgm3785_torch_brightness_set(struct led_classdev *led_cdev,
 		gpio_direction_output(sinfo->gpio_torch_en, 1);
 
 		mdelay(6);
-
 		
 		schedule_work(&sinfo->pwm_work);
 
@@ -144,8 +140,6 @@ static enum led_brightness sgm3785_torch_brightness_get(struct led_classdev *led
 {
 	struct sgm3785_info *sinfo = _sinfo;
 
-	pr_err("[Liu]%s: torch_brightness=%d\n",
-		__func__, sinfo->torch_brightness);
 	return sinfo->torch_brightness;
 }
 void led_torch_control_pwm( enum led_brightness value)
@@ -193,7 +187,6 @@ static void sgm3785_flash_worker(struct work_struct *work)
 {
 	struct sgm3785_info *sinfo = _sinfo;
 
-	pr_info("[Liu]%s\n", __func__);
 	mutex_lock(&sinfo->lock);
 	led_torch_control_pwm(sinfo->flash_brightness);
 	mutex_unlock(&sinfo->lock);
@@ -228,26 +221,22 @@ void load_pinctrl(struct sgm3785_info *sinfo,struct platform_device *pdev)
 		return;
 	}
 	sinfo->pinctrl = devm_pinctrl_get(&pdev->dev); 
-	pr_info("[Liu]+%s,%d\n", __func__,__LINE__);
 	if (IS_ERR(sinfo->pinctrl)) {
 		pr_err("%s:failed to get pinctrl\n", __func__);
 		return;
 	}
-	pr_info("[Liu]+%s,%d\n", __func__,__LINE__);
 	pins_active = pinctrl_lookup_state(sinfo->pinctrl,
                 PINCTRL_STATE_DEFAULT);
     if (IS_ERR_OR_NULL(pins_active)) {
         pr_err("ice40 Failed to lookup pinctrl default state\n");
         return;
     }
-	pr_info("[Liu]+%s,%d\n", __func__,__LINE__);
     pins_sleep = pinctrl_lookup_state(sinfo->pinctrl,
                 PINCTRL_STATE_SLEEP);
     if (IS_ERR_OR_NULL(pins_sleep)) {
         pr_err("ice40 Failed to lookup pinctrl sleep state\n");
         return;
     }
-	pr_info("[Liu]+%s,%d\n", __func__,__LINE__);
     rc = pinctrl_select_state(sinfo->pinctrl, pins_active);
     if (rc) {
         pr_err("%s: Can not set %s pins\n", __func__, PINCTRL_STATE_DEFAULT);
@@ -261,7 +250,6 @@ int sgm3785_probe(struct platform_device *pdev)
 	struct device_node *sub_node;
 	static struct sgm3785_info *sinfo;
 
-	pr_info("[Liu]+%s\n", __func__);
 	sinfo = devm_kzalloc(&pdev->dev, sizeof(struct sgm3785_info),
 				 GFP_KERNEL);
 	if (!sinfo) {
@@ -356,7 +344,6 @@ int sgm3785_probe(struct platform_device *pdev)
 		return 0;
 	}
 	flash_clk = devm_clk_get(&pdev->dev, "cam_sensor_flash");
-	pr_info("[Liu]+%s,%d,flash_clk=%p\n", __func__,__LINE__,flash_clk);
 	if (IS_ERR(flash_clk)) {
 		rc = PTR_ERR(flash_clk);
 	if (rc != -EPROBE_DEFER)
@@ -368,7 +355,6 @@ int sgm3785_probe(struct platform_device *pdev)
 		pr_err("fail to setting flash clk %d\n", rc);
 		}
 	}
-	pr_info("[Liu]+%s,%d\n", __func__,__LINE__);
 
 	if (flash_clk) {
 		rc = 0;//clk_prepare_enable(flash_clk);
@@ -377,7 +363,6 @@ int sgm3785_probe(struct platform_device *pdev)
 		}
 	}
 
-	pr_info("[Liu]-%s\n", __func__);
 	return 0;
 
 error3:
@@ -413,7 +398,6 @@ static struct platform_driver sgm3785_driver = {
 
 static int __init sgm3785_init(void)
 {
-	pr_info("[Liu]%s\n", __func__);
 	return platform_driver_register(&sgm3785_driver);
 }
 

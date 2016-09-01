@@ -110,29 +110,14 @@ phys_addr_t __init_memblock memblock_find_in_range_node(phys_addr_t start,
 	start = max_t(phys_addr_t, start, PAGE_SIZE);
 	end = max(start, end);
 
-	#ifdef CONFIG_TCT_8X16_IDOL347
-	pr_info("start %x end %x current limit %x",start, end, memblock.current_limit);
-	#endif
-	
-
 	for_each_free_mem_range_reverse(i, nid, &this_start, &this_end, NULL) {
 		this_start = clamp(this_start, start, end);
 		this_end = clamp(this_end, start, end);
-
-	#ifdef CONFIG_TCT_8X16_IDOL347
-	pr_info("this start %x this end %x", this_start, this_end);
-	#endif
 
 		if (this_end < size)
 			continue;
 
 		cand = round_down(this_end - size, align);
-
-		#ifdef CONFIG_TCT_8X16_IDOL347
-		if (cand < memblock.current_limit && this_end >= memblock.current_limit)
-			cand = round_down(memblock.current_limit - size, align);
-		#endif
-
 		if (cand >= this_start)
 			return cand;
 	}

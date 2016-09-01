@@ -110,13 +110,13 @@ void s5k3m2_otp_AWB_on(struct msm_sensor_ctrl_t * s_ctrl,uint8_t *buffer, uint16
     {
         return;
     }
-    pr_err("%s,buffer[0] = 0x%x,buffer[24]= 0x%x",__func__,buffer[0],buffer[24]);
+    //pr_err("%s,buffer[0] = 0x%x,buffer[24]= 0x%x",__func__,buffer[0],buffer[24]);
 
-    if (buffer[0] == valid)
+    if (buffer[0] >> 6== valid)
     {
         offset = 11;
     }
-    else if (buffer[24] == valid)
+    else if (buffer[24] >> 6 == valid)
     {
         offset = 35;
     }
@@ -128,7 +128,7 @@ void s5k3m2_otp_AWB_on(struct msm_sensor_ctrl_t * s_ctrl,uint8_t *buffer, uint16
     GboverGr_dec_base = buffer[offset + 10] << 8 | buffer[offset + 11];
 
 
-    pr_err("RoverGr_dec=0x%x,BoverGr_dec=0x%x,GboverGr_dec=0x%x\n",RoverGr_dec,BoverGr_dec,GboverGr_dec);   
+    //pr_err("RoverGr_dec=0x%x,BoverGr_dec=0x%x,GboverGr_dec=0x%x\n",RoverGr_dec,BoverGr_dec,GboverGr_dec);   
 
     if (!RoverGr_dec || !BoverGr_dec || !GboverGr_dec)
     {
@@ -157,9 +157,12 @@ void s5k3m2_otp_AWB_on(struct msm_sensor_ctrl_t * s_ctrl,uint8_t *buffer, uint16
 	Gr_test = Gr_1x;
 	Gb_test = Gb_1x;
 
-    pr_err("R_test=0x%x,B_test=0x%x,Gr_test=0x%x,Gb_test=0x%x",R_test,B_test,Gr_test,Gb_test);   
-	
+    //pr_err("R_test=0x%x,B_test=0x%x,Gr_test=0x%x,Gb_test=0x%x\n",R_test,B_test,Gr_test,Gb_test);   
+
+
 	s5k3m2_otp_i2c_write(s_ctrl,0x6028,0x4000,MSM_CAMERA_I2C_WORD_DATA);
+	s5k3m2_otp_i2c_write(s_ctrl,0x602a,0x3056,MSM_CAMERA_I2C_WORD_DATA);
+    s5k3m2_otp_i2c_write(s_ctrl,0x6f12,0x01,MSM_CAMERA_I2C_BYTE_DATA);
 	s5k3m2_otp_i2c_write(s_ctrl,0x602a,0x020e,MSM_CAMERA_I2C_WORD_DATA);
 	s5k3m2_otp_i2c_write(s_ctrl,0x6f12,Gr_test,MSM_CAMERA_I2C_WORD_DATA);
 	s5k3m2_otp_i2c_write(s_ctrl,0x602a,0x0210,MSM_CAMERA_I2C_WORD_DATA);
@@ -183,9 +186,11 @@ static int s5k3m2_idol347_read_otp(struct msm_sensor_ctrl_t * s_ctrl,uint8_t pag
         return -1;
     }
 
-    pr_err("%s,LSC on result = %d\n",__func__,otp_LSC_on(s_ctrl)); //stream on
+    otp_LSC_on(s_ctrl);
+	otp_stream_on(s_ctrl);
+    //pr_err("%s,LSC on result = %d\n",__func__,); //stream on
 
-    pr_err("%s,stream_on result = %d\n",__func__,otp_stream_on(s_ctrl)); //stream on
+    //pr_err("%s,stream_on result = %d\n",__func__,); //stream on
 
     msleep(10);
 
@@ -194,7 +199,7 @@ static int s5k3m2_idol347_read_otp(struct msm_sensor_ctrl_t * s_ctrl,uint8_t pag
     s5k3m2_otp_i2c_write(s_ctrl,0x0A00, 0x01,MSM_CAMERA_I2C_BYTE_DATA);//read mode
     mdelay(1); 
 
-    pr_err("%s,0x0A00 data 0x%x\n",__func__,s5k3m2_otp_i2c_read(s_ctrl,0x0A00));
+    //pr_err("%s,0x0A00 data 0x%x\n",__func__,s5k3m2_otp_i2c_read(s_ctrl,0x0A00));
 
     while (i < size){
         int addr = address + i;
@@ -218,6 +223,13 @@ static int s5k3m2_idol347_read_otp(struct msm_sensor_ctrl_t * s_ctrl,uint8_t pag
 
 
     return true;
+}
+static int s5k3m2_update_otp(struct msm_sensor_ctrl_t * s_ctrl)
+{	uint8_t buf[64];
+	int rc;
+	rc = s5k3m2_idol347_read_otp(s_ctrl,31, S5K3M2_IDOL347_OTP_BASE_ADD, buf,64);
+	return rc;
+
 }
 
 static uint32_t s5k3m2_get_otp_af(struct msm_sensor_ctrl_t* s_ctrl)
@@ -277,13 +289,7 @@ static uint32_t s5k3m2_temperature(struct msm_sensor_ctrl_t* s_ctrl, uint32_t * 
     return ret;
 }
 
-int s5k3m2_update_otp(struct msm_sensor_ctrl_t * s_ctrl)
-{	uint8_t buf[64];
-	int rc;
-	rc = s5k3m2_idol347_read_otp(s_ctrl,31, S5K3M2_IDOL347_OTP_BASE_ADD, buf,64);
-	return rc;
 
-}
 
 #endif
 

@@ -74,7 +74,7 @@ static void sgm3785_flash_brightness_set(struct led_classdev *led_cdev,
 	enum led_brightness value)
 {
 	struct sgm3785_info *sinfo = _sinfo;
-	pr_err("[Liu]%s:flashen=%d, enable=%d\n",__func__,sinfo->gpio_flash_en, value);
+	//pr_err("[Liu]%s:flashen=%d, enable=%d\n",__func__,sinfo->gpio_flash_en, value);
 
 	sinfo->flash_brightness = value;
 
@@ -98,8 +98,8 @@ static enum led_brightness sgm3785_flash_brightness_get(struct led_classdev *led
 {
 	struct sgm3785_info *sinfo = _sinfo;
 
-	pr_err("[Liu]%s: flash_brightness=%d\n",
-		__func__, sinfo->flash_brightness);
+	//pr_err("[Liu]%s: flash_brightness=%d\n",
+	//	__func__, sinfo->flash_brightness);
 	return sinfo->flash_brightness;
 }
 
@@ -107,7 +107,7 @@ static void sgm3785_torch_brightness_set(struct led_classdev *led_cdev,
 	enum led_brightness value)
 {
 	struct sgm3785_info *sinfo = _sinfo;
-	pr_err("[Liu]%s:torchen=%d, enable=%d\n",__func__,sinfo->gpio_torch_en, value);
+	//pr_err("[Liu]%s:torchen=%d, enable=%d\n",__func__,sinfo->gpio_torch_en, value);
 	//gpio_direction_output(sinfo->gpio_flash_en,!!value);
 	sinfo->torch_brightness = value;
 
@@ -144,8 +144,8 @@ static enum led_brightness sgm3785_torch_brightness_get(struct led_classdev *led
 {
 	struct sgm3785_info *sinfo = _sinfo;
 
-	pr_err("[Liu]%s: torch_brightness=%d\n",
-		__func__, sinfo->torch_brightness);
+	//pr_err("[Liu]%s: torch_brightness=%d\n",
+	//	__func__, sinfo->torch_brightness);
 	return sinfo->torch_brightness;
 }
 void led_torch_control_pwm( enum led_brightness value)
@@ -193,7 +193,7 @@ static void sgm3785_flash_worker(struct work_struct *work)
 {
 	struct sgm3785_info *sinfo = _sinfo;
 
-	pr_info("[Liu]%s\n", __func__);
+	//pr_info("[Liu]%s\n", __func__);
 	mutex_lock(&sinfo->lock);
 	led_torch_control_pwm(sinfo->flash_brightness);
 	mutex_unlock(&sinfo->lock);

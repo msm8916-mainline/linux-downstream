@@ -146,6 +146,7 @@ struct cci_device {
 	struct msm_pinctrl_info cci_pinctrl;
 	uint8_t cci_pinctrl_status;
 	struct regulator *reg_ptr;
+	struct mutex mutex; //MODIFIED by jianeng.yuan, 2016-04-06,BUG-1696141
 	uint32_t cycles_per_us;
 };
 

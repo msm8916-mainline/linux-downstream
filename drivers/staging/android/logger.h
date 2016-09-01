@@ -74,9 +74,6 @@ struct logger_entry {
 #define LOGGER_LOG_EVENTS	"log_events"	/* system/hardware events */
 #define LOGGER_LOG_SYSTEM	"log_system"	/* system/framework messages */
 #define LOGGER_LOG_MAIN		"log_main"	/* everything else */
-// Architecture-Add-Begin ArchiNO:(011.tct_log)
-#define LOGGER_LOG_TCT	    "log_tct"   /* only for tct use */
-// Architecture-Add-End
 
 #define LOGGER_ENTRY_MAX_PAYLOAD	4076
 

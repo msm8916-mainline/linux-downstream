@@ -15,6 +15,11 @@
 */
 
 #include "bmg160.h"
+/*[BUFFIX]-Add-Begin by TCTNB.ZXZ,FR-391331, 2015/06/29,FAE advice should add delay in set mode*/
+#ifdef CONFIG_TCT_8X16_M823_ORANGE
+#include <linux/delay.h>
+#endif
+/*[BUFFIX]-Add-Begin by TCTNB.ZXZ*/
 static struct bmg160_t *p_bmg160;
 
 
@@ -6886,6 +6891,11 @@ BMG160_RETURN_FUNCTION_TYPE bmg160_set_mode(unsigned char mode)
 			comres += p_bmg160->BMG160_BUS_WRITE_FUNC
 				(p_bmg160->dev_addr,
 			BMG160_MODE_LPM2_ADDR, &data3, C_BMG160_One_U8X);
+			/*[BUFFIX]-Add-Begin by TCTNB.ZXZ,FR-391331, 2015/06/29,FAE advice should add delay in set mode*/
+			#ifdef CONFIG_TCT_8X16_M823_ORANGE
+			mdelay(30);
+			#endif
+			/*[BUFFIX]-Add-Begin by TCTNB.ZXZ*/
 				break;
 			case BMG160_MODE_DEEPSUSPEND:
 				data1  = BMG160_SET_BITSLICE(data1,
@@ -6940,6 +6950,11 @@ BMG160_RETURN_FUNCTION_TYPE bmg160_set_mode(unsigned char mode)
 			comres += p_bmg160->BMG160_BUS_WRITE_FUNC
 				(p_bmg160->dev_addr,
 			BMG160_MODE_LPM2_ADDR, &data3, C_BMG160_One_U8X);
+			/*[BUFFIX]-Add-Begin by TCTNB.ZXZ,FR-391331, 2015/06/29,FAE advice should add delay in set mode*/
+			#ifdef CONFIG_TCT_8X16_M823_ORANGE
+			mdelay(30);
+			#endif
+			/*[BUFFIX]-Add-Begin by TCTNB.ZXZ*/
 				break;
 			case BMG160_MODE_ADVANCEDPOWERSAVING:
 				/* Configuring the proper settings for auto

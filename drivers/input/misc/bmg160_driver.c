@@ -497,6 +497,18 @@ static void bmg_work_func(struct work_struct *work)
 		msecs_to_jiffies(atomic_read(&client_data->delay));
 	struct bmg160_data_t gyro_data;
 
+	//add by huangshenglin@hoperun,2016/1/20 ,sync event->time with hal.+++
+	ktime_t timestamp;
+	//add by huangshenglin@hoperun,2016/1/20 sync event->time with hal.--
+
+	/*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
+	#if 0
+		schedule_delayed_work(&client_data->work, delay);
+	#else
+		queue_delayed_work(client_data->data_wq,&client_data->work, delay);
+	#endif
+	/*TR961495 modify by ZXZ END*/
+
 	BMG_CALL_API(get_dataXYZ)(&gyro_data);
 	/*remapping for BMG160 sensor*/
 	bmg160_remap_sensor_data(&gyro_data, client_data);
@@ -504,24 +516,23 @@ static void bmg_work_func(struct work_struct *work)
 	input_report_abs(client_data->input, ABS_RX, gyro_data.datax);
 	input_report_abs(client_data->input, ABS_RY, gyro_data.datay);
 	input_report_abs(client_data->input, ABS_RZ, gyro_data.dataz);
-	input_sync(client_data->input);
-/*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
-	#if 0
-	schedule_delayed_work(&client_data->work, delay);
-	#else
-	queue_delayed_work(client_data->data_wq,&client_data->work, delay);
-	#endif
-/*TR961495 modify by ZXZ END*/
 
+	//add by huangshenglin@hoperun,2016/1/20 ,sync event->time with hal.+++
+	timestamp = ktime_get_boottime();
+	input_event(client_data->input,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+	input_event(client_data->input,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
+	//add by huangshenglin@hoperun,2016/1/20 sync event->time with hal.--
+
+	input_sync(client_data->input);
 }
 
 static int bmg_set_soft_reset(struct i2c_client *client)
 {
 	int err = 0;
 	unsigned char data = BMG_SOFT_RESET_VALUE;
-	printk("*****[%s] send*****\n",__FUNCTION__);
+	//printk("*****[%s] send*****\n",__FUNCTION__);
 	err = bmg_i2c_write(client, BMG160_BGW_SOFTRESET_ADDR, &data, 1);
-	printk("*****[%s] return*****\n",__FUNCTION__);
+	//printk("*****[%s] return*****\n",__FUNCTION__);
 	return err;
 }
 
@@ -655,6 +666,8 @@ static int bmg160_gyro_cdev_enable(struct sensors_classdev *sensors_cdev,
 			if (pdata->power_on)
 				pdata->power_on(true);
 			BMG_CALL_API(set_mode)(BMG_VAL_NAME(MODE_NORMAL));
+            BMG_CALL_API(set_bw)(4);/* [BUFFIX]-Add- by TCTNB.ZXZ,PR-1073091, 2015/09/16,set default bandwidth 200hz,default is unfilter*/
+
 		/*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
 			#if 0
 			schedule_delayed_work(&client_data->work,
@@ -732,6 +745,7 @@ static ssize_t bmg_store_enable(struct device *dev,
 					msecs_to_jiffies(atomic_read(
 							&client_data->delay)));
 			#else
+			BMG_CALL_API(set_bw)(4);/* [BUFFIX]-Add- by TCTNB.ZXZ,PR-1073091, 2015/09/16,set default bandwidth 200hz,default is unfilter*/
 		queue_delayed_work(client_data->data_wq,
 					&client_data->work,
 					msecs_to_jiffies(atomic_read(
@@ -1467,7 +1481,13 @@ static int sensor_regulator_power_on(struct bmg_client_data *data, bool on)
 	}
 
 enable_delay:
+/*[BUFFIX]-Add-Begin by TCTNB.ZXZ,FR-391331, 2015/06/29,FAE advice this delay is not need */
+#ifdef CONFIG_TCT_8X16_M823_ORANGE
+	//msleep(30);
+#else
 	msleep(30);/*[BUFFIX]-Mod by TCTNB.XQJ, PR-968680,2015/04/03,for driver optimize*/
+#endif
+/*[BUFFIX]-Add-Begin by TCTNB.ZXZ*/
 	dev_dbg(&data->client->dev,
 		"Sensor regulator power on =%d\n", on);
 	return rc;
@@ -1553,9 +1573,7 @@ static int bmg_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	int err = 0;
 	struct bmg_client_data *client_data = NULL;
 	struct bmg160_platform_data *pdata;
-	dev_info(&client->dev, "function entrance");
-
-	printk("*******%s******[start]\n",__FUNCTION__);
+	//dev_info(&client->dev, "function entrance");
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		dev_err(&client->dev, "i2c_check_functionality error!");
@@ -1615,7 +1633,6 @@ static int bmg_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	mutex_init(&client_data->mutex_enable);
 
 
-	printk("*****power init*****!\n");
 	if (pdata->init)
 		err = pdata->init();
 
@@ -1626,7 +1643,6 @@ static int bmg_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto exit_err_clean;
 	}
 
-	printk("*****power on*****!\n");
 	if (pdata->power_on)
 		err = pdata->power_on(true);
 
@@ -1787,7 +1803,6 @@ static int bmg_pre_suspend(struct i2c_client *client)
 	int err = 0;
 	struct bmg_client_data *client_data =
 		(struct bmg_client_data *)i2c_get_clientdata(client);
-	dev_info(&client->dev, "function entrance");
 
 	mutex_lock(&client_data->mutex_enable);
 	if (client_data->enable) {
@@ -1805,7 +1820,6 @@ static int bmg_post_resume(struct i2c_client *client)
 	struct bmg_client_data *client_data =
 		(struct bmg_client_data *)i2c_get_clientdata(client);
 
-	dev_info(&client->dev, "function entrance");
 	mutex_lock(&client_data->mutex_enable);
 	if (client_data->enable) {
 /*TR961495 modify by ZXZ BEGIN,2015/03/28 for created it own workquque but need to specify it do not bound to any cpu */
@@ -1835,7 +1849,6 @@ static void bmg_early_suspend(struct early_suspend *handler)
 			struct bmg_client_data, early_suspend_handler);
 	struct i2c_client *client = client_data->client;
 
-	dev_info(&client->dev, "function entrance");
 
 	mutex_lock(&client_data->mutex_op_mode);
 	if (client_data->enable) {
@@ -1855,7 +1868,6 @@ static void bmg_late_resume(struct early_suspend *handler)
 			struct bmg_client_data, early_suspend_handler);
 	struct i2c_client *client = client_data->client;
 
-	dev_info(&client->dev, "function entrance");
 
 	mutex_lock(&client_data->mutex_op_mode);
 
@@ -1874,7 +1886,6 @@ static int bmg_suspend(struct i2c_client *client, pm_message_t mesg)
 	struct bmg_client_data *client_data =
 		(struct bmg_client_data *)i2c_get_clientdata(client);
 	struct bmg160_platform_data *pdata = client_data->pdata;
-	dev_info(&client->dev, "function entrance");
 	mutex_lock(&client_data->mutex_op_mode);
 	if (client_data->enable) {
 		err = bmg_pre_suspend(client);
@@ -1894,7 +1905,6 @@ static int bmg_resume(struct i2c_client *client)
 	struct bmg_client_data *client_data =
 		(struct bmg_client_data *)i2c_get_clientdata(client);
 	struct bmg160_platform_data *pdata = client_data->pdata;
-	dev_info(&client->dev, "function entrance");
 	mutex_lock(&client_data->mutex_op_mode);
 	if (pdata->power_on)
 		pdata->power_on(true);

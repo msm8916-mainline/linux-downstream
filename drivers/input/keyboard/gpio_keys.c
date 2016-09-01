@@ -337,9 +337,10 @@ static DEVICE_ATTR(disabled_switches, S_IWUSR | S_IRUGO,
 #if defined(CONFIG_TCT_8X16_ALTO5) \
     || defined(CONFIG_TCT_8X16_ALTO5_PREMIUM) \
     || defined(CONFIG_TCT_8X16_IDOL3) \
-    || defined(CONFIG_TCT_8X16_ALTO45_LATAM_B28)
+    || defined(CONFIG_TCT_8X16_ALTO45_LATAM_B28) \
+    || defined(CONFIG_TCT_8X16_M823_ORANGE)
 
-#if defined(CONFIG_TCT_8X16_IDOL3)
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
 #define HAPTIC_INT_GPIO (36+902)
 #define HAPTIC2_INT_GPIO (98+902)
 #else
@@ -360,14 +361,14 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 			input_event(input, type, button->code, button->value);
 	} else {
         if( (button->gpio == HAPTIC_INT_GPIO)
-#if defined(CONFIG_TCT_8X16_IDOL3)
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
            || (button->gpio == HAPTIC2_INT_GPIO)
 #endif
            )
         {
            state = (gpio_get_value_cansleep(button->gpio) ? 1 : 0) ^ button->active_low;
 
-#if defined(CONFIG_TCT_8X16_IDOL3)
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
            if(button->gpio == HAPTIC2_INT_GPIO)
                gpio_code = state? KEY_LOCK_LED_COVER : KEY_UNLOCK_COVER;
            else
@@ -384,6 +385,8 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
                return;
            }
            mutex_unlock(&gpio_keys_lock);
+
+#if defined(CONFIG_TCT_8X16_IDOL3)
 //[PLATFORM] Add-Begin by wangxingchen 02/04/2015 CR.858216 smart-window function.
 //			printk("stars hall_key:%d\n", hall_key);
 			if (KEY_LOCK_LED_COVER == hall_key){
@@ -402,6 +405,7 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 				pr_err("unknown key_code: %d \n",hall_key);
 			}
 //[PLATFORM] Add-End by wangxingchen 02/04/2015 .
+#endif
            input_event(input, type, gpio_code, 1);
            input_sync(input);
            input_event(input, type, gpio_code, 0);
@@ -454,8 +458,8 @@ static ssize_t gpio_keys_init_ok_store(struct device *dev,
 #if defined(CONFIG_TCT_8X16_ALTO5) \
     || defined(CONFIG_TCT_8X16_ALTO5_PREMIUM) \
     || defined(CONFIG_TCT_8X16_IDOL3) \
-    || defined(CONFIG_TCT_8X16_ALTO45_LATAM_B28)
-
+    || defined(CONFIG_TCT_8X16_ALTO45_LATAM_B28) \
+    || defined(CONFIG_TCT_8X16_M823_ORANGE)
     struct platform_device *pdev = to_platform_device(dev);
     struct gpio_keys_drvdata *ddata = platform_get_drvdata(pdev);
 
@@ -480,7 +484,7 @@ static ssize_t gpio_keys_init_ok_store(struct device *dev,
 
        if(bdata && bdata->button
           && ((HAPTIC_INT_GPIO == bdata->button->gpio)
-#if defined(CONFIG_TCT_8X16_IDOL3)
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
               || (HAPTIC2_INT_GPIO == bdata->button->gpio)
 #endif
               )
@@ -617,7 +621,8 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 #if defined(CONFIG_TCT_8X16_ALTO5) \
 		|| defined(CONFIG_TCT_8X16_ALTO5_PREMIUM) \
 		|| defined(CONFIG_TCT_8X16_IDOL3) \
-		|| defined(CONFIG_TCT_8X16_ALTO45_LATAM_B28)
+		|| defined(CONFIG_TCT_8X16_ALTO45_LATAM_B28) \
+		|| defined(CONFIG_TCT_8X16_M823_ORANGE)
 	int state=0;
 #endif
 
@@ -637,16 +642,17 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 #if defined(CONFIG_TCT_8X16_ALTO5) \
     || defined(CONFIG_TCT_8X16_ALTO5_PREMIUM) \
     || defined(CONFIG_TCT_8X16_IDOL3) \
-    || defined(CONFIG_TCT_8X16_ALTO45_LATAM_B28)
+    || defined(CONFIG_TCT_8X16_ALTO45_LATAM_B28) \
+    || defined(CONFIG_TCT_8X16_M823_ORANGE)
 		if((HAPTIC_INT_GPIO == button->gpio)
-#if defined(CONFIG_TCT_8X16_IDOL3)
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
 		    || (HAPTIC2_INT_GPIO == button->gpio)
 #endif
 		  )
 	   {
 		  state = (gpio_get_value_cansleep(button->gpio) ? 1 : 0) ^ button->active_low;
 
-#if defined(CONFIG_TCT_8X16_IDOL3)
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
 		  if(button->gpio == HAPTIC2_INT_GPIO)
 			  hall_key = state? KEY_LOCK_LED_COVER : KEY_UNLOCK_COVER;
 		  else
@@ -709,11 +715,12 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 #if defined(CONFIG_TCT_8X16_ALTO5) \
     || defined(CONFIG_TCT_8X16_ALTO5_PREMIUM) \
     || defined(CONFIG_TCT_8X16_IDOL3) \
-    || defined(CONFIG_TCT_8X16_ALTO45_LATAM_B28)
+    || defined(CONFIG_TCT_8X16_ALTO45_LATAM_B28) \
+    || defined(CONFIG_TCT_8X16_M823_ORANGE)
     input_set_capability(input, EV_KEY, KEY_UNLOCK_COVER);
     input_set_capability(input, EV_KEY, KEY_LOCK_LED_COVER);
 
-#if defined(CONFIG_TCT_8X16_IDOL3)
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
     input_set_capability(input, EV_KEY, KEY_LOCK_WINDOW_COVER);
 #endif
 #endif

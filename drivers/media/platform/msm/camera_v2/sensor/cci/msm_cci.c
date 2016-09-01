@@ -29,7 +29,7 @@
 #define CYCLES_PER_MICRO_SEC_DEFAULT 4915
 #define CCI_MAX_DELAY 1000000
 
-#define CCI_TIMEOUT msecs_to_jiffies(100)
+#define CCI_TIMEOUT msecs_to_jiffies(200)
 
 /* TODO move this somewhere else */
 #define MSM_CCI_DRV_NAME "msm_cci"
@@ -855,29 +855,44 @@ static int32_t msm_cci_release(struct v4l2_subdev *sd)
 static int32_t msm_cci_config(struct v4l2_subdev *sd,
 	struct msm_camera_cci_ctrl *cci_ctrl)
 {
-	int32_t rc = 0;
+	/* MODIFIED-BEGIN by jianeng.yuan, 2016-03-22, BUG-1662429 */
+	int32_t rc = 0,retry=3;
+	/*MODIFIED-BEGIN by jianeng.yuan, 2016-04-06,BUG-1696141*/
+	struct cci_device *cci_dev = NULL;
+
 	CDBG("%s line %d cmd %d\n", __func__, __LINE__,
 		cci_ctrl->cmd);
-	switch (cci_ctrl->cmd) {
-	case MSM_CCI_INIT:
-		rc = msm_cci_init(sd, cci_ctrl);
-		break;
-	case MSM_CCI_RELEASE:
-		rc = msm_cci_release(sd);
-		break;
-	case MSM_CCI_I2C_READ:
-		rc = msm_cci_i2c_read_bytes(sd, cci_ctrl);
-		break;
-	case MSM_CCI_I2C_WRITE:
-		rc = msm_cci_i2c_write(sd, cci_ctrl);
-		break;
-	case MSM_CCI_GPIO_WRITE:
-		break;
-	default:
-		rc = -ENOIOCTLCMD;
+	cci_dev = v4l2_get_subdevdata(sd);
+	mutex_lock(&cci_dev->mutex);
+	/*MODIFIED-END by jianeng.yuan,BUG-1696141*/
+	while(retry--){
+		switch (cci_ctrl->cmd) {
+			case MSM_CCI_INIT:
+				rc = msm_cci_init(sd, cci_ctrl);
+				break;
+			case MSM_CCI_RELEASE:
+				rc = msm_cci_release(sd);
+				break;
+			case MSM_CCI_I2C_READ:
+				rc = msm_cci_i2c_read_bytes(sd, cci_ctrl);
+				break;
+			case MSM_CCI_I2C_WRITE:
+				rc = msm_cci_i2c_write(sd, cci_ctrl);
+				break;
+			case MSM_CCI_GPIO_WRITE:
+				break;
+			default:
+				rc = -ENOIOCTLCMD;
+		}
+		if(rc>=0){
+			break ;
+		}
+		pr_err("%s:retry=%d\n",__func__,retry);
+		/* MODIFIED-END by jianeng.yuan,BUG-1662429 */
 	}
 	CDBG("%s line %d rc %d\n", __func__, __LINE__, rc);
 	cci_ctrl->status = rc;
+	mutex_unlock(&cci_dev->mutex); //MODIFIED by jianeng.yuan, 2016-04-06,BUG-1696141
 	return rc;
 }
 
@@ -961,6 +976,8 @@ static long msm_cci_subdev_ioctl(struct v4l2_subdev *sd,
 	switch (cmd) {
 	case VIDIOC_MSM_CCI_CFG:
 		rc = msm_cci_config(sd, arg);
+		break;
+	case MSM_SD_NOTIFY_FREEZE:
 		break;
 	case MSM_SD_SHUTDOWN: {
 		struct msm_camera_cci_ctrl ctrl_cmd;
@@ -1337,6 +1354,7 @@ static int msm_cci_probe(struct platform_device *pdev)
 		pr_err("%s: failed to add child nodes, rc=%d\n", __func__, rc);
 	new_cci_dev->cci_state = CCI_STATE_DISABLED;
 	g_cci_subdev = &new_cci_dev->msm_sd.sd;
+	mutex_init(&new_cci_dev->mutex); //MODIFIED by jianeng.yuan, 2016-04-06,BUG-1696141
 	CDBG("%s cci subdev %p\n", __func__, &new_cci_dev->msm_sd.sd);
 	CDBG("%s line %d\n", __func__, __LINE__);
 	return 0;

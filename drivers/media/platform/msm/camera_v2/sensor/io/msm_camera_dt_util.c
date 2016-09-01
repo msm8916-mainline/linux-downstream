@@ -21,7 +21,6 @@
 
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
-
 //[BUG_FIX]-Add-BEGIN by TCTSZ. Zkx, 2014/07/01, fixed repeat pinctrl_select_state request gpio but not relese
 #ifdef CONFIG_TCT_8X16_POP10
 extern int pinctrl_select_state_camera(struct pinctrl *p, struct pinctrl_state *state);
@@ -1586,7 +1585,7 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
 //[BUG_FIX]-Add-BEGIN by TCTSZ. Zkx, 2014/07/01, release pinctrl or other camera can't probe sucess
 #ifdef CONFIG_TCT_8X16_POP10
 #else
-			devm_pinctrl_put(ctrl->pinctrl_info.pinctrl);
+		devm_pinctrl_put(ctrl->pinctrl_info.pinctrl);
 #endif
 //[BUG_FIX]-Add-END by TCTSZ. Zkx,
 	}

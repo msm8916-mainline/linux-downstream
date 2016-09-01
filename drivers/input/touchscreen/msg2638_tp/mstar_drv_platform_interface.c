@@ -75,6 +75,8 @@ enum proximity_sensor_vendor
 	STK,
 	TOTAL,
 };
+extern void DrvPlatformLyrDisableIrqWakeup(void);
+extern void DrvPlatformLyrEnableIrqWakeup(void);
 
 /*=============================================================*/
 // GLOBAL FUNCTION DEFINITION
@@ -97,6 +99,8 @@ void MsDrvInterfaceTouchDeviceSuspend(void)
 	}
 	atomic_set(&tp_suspended, 1);
 
+	printk("[Fu]%s\n", __func__);
+
 	DrvPlatformLyrDisableFingerTouchReport();
 	DrvPlatformLyrFingerTouchReleased(0, 0); // Send touch end for clearing point touch
 	input_sync(g_InputDevice);
@@ -106,10 +110,14 @@ void MsDrvInterfaceTouchDeviceSuspend(void)
 	    proximity_enable_suspend = 1;
 	    DBG("\n%s:proximity! \n",__func__);
 		//device_init_wakeup(&g_I2cClient->dev, 1);
+		#if 0
 		if (device_may_wakeup(&g_I2cClient->dev))
 		{	
 			enable_irq_wake(g_I2cClient->irq);
 		} 
+		#else
+			DrvPlatformLyrEnableIrqWakeup();
+		#endif
 		DrvPlatformLyrEnableFingerTouchReport();
 
 	    return;
@@ -164,14 +172,20 @@ void MsDrvInterfaceTouchDeviceResume(void)
 	}
 	atomic_set(&tp_suspended, 0);
 
+	printk("[Fu]%s\n", __func__);
+
 #ifdef CONFIG_TOUCHSCREEN_PROXIMITY_SENSOR
     if (proximity_enable_suspend == 1) { //ps_open  and  face leave
-        DBG("\n%s:proximity! \n",__func__);
+        printk("[Fu]suspend:proximity! \n");
         proximity_enable_suspend = 0;
+		#if 0
 		if (device_may_wakeup(&g_I2cClient->dev))
 		{
 			disable_irq_wake(g_I2cClient->irq);
 		} 
+		#else
+			DrvPlatformLyrDisableIrqWakeup();
+		#endif
         #if 0
         if(ps_data_state[0] == 1) {
             disable_irq(data->client->irq);
@@ -202,13 +216,14 @@ void MsDrvInterfaceTouchDeviceResume(void)
     DrvPlatformLyrTouchDevicePowerOn();
 	mdelay(50);
 
-	if (charger_in == true)
-		DrvIcFwLyrChargerInput();	//furong add 2015.03.10
-
 	if (proximity_enable == 1 && proximity_enable_suspend == 0) {
 		DrvMainFirmwarePSEnable(1);
 	}
-	
+
+	if (charger_in == true) {
+		DrvIcFwLyrChargerInput();	//furong add 2015.03.10
+	}
+
 #ifdef CONFIG_ENABLE_FIRMWARE_DATA_LOG
 //    DrvIcFwLyrRestoreFirmwareModeToLogDataMode(); // Mark this function call for avoiding device driver may spend longer time to resume from suspend state.
 #endif

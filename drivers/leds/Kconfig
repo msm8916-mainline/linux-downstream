@@ -388,15 +388,30 @@ config LEDS_BD2802
 	  This option enables support for BD2802GU RGB LED driver chips
 	  accessed via the I2C bus.
 
+
+#lfg 2015.12.17 task:1176409 START
 # [PLATFORM]-Add-BEGIN by TCTNB.FLF, PR-813549, 2014/10/18, add sn31 for alto5 global
 config LEDS_SN31XX
-	tristate "LED driver for SN31XX RGB LED"
-	depends on LEDS_CLASS
-	depends on I2C
-	help
-		This option enables support for SN319XX GU RGB LED driver chips
-		accessed via the I2C bus.
+       tristate "LED driver for SN31XX RGB LED"
+       depends on LEDS_CLASS
+       depends on I2C
+       help
+               This option enables support for SN319XX GU RGB LED driver chips
+               accessed via the I2C bus.
 # [PLATFORM]-Add-END by TCTNB.FLF
+
+ # [PLATFORM]-Add- by TCTNB.XQJ, PR-901590, 2015/01/22, add ktd20xxx led driver
+config LEDS_KTD20XX
+       tristate "LED driver for SN31XX RGB LED"
+       depends on LEDS_CLASS
+       depends on I2C
+       help
+               This option enables support for SN319XX GU RGB LED driver chips
+               accessed via the I2C bus.
+# [PLATFORM]-Add-END by TCTNB.XQJ
+#lfg 2015.12.17 task:1176409 END
+ 
+
 
 config LEDS_INTEL_SS4200
 	tristate "LED driver for Intel NAS SS4200 series"
@@ -527,20 +542,21 @@ config LEDS_BLINKM
 	help
 	  This option enables support for the BlinkM RGB LED connected
 	  through I2C. Say Y to enable support for the BlinkM LED.
-
-config GPIO_LED_FLASH_SGM3110_5
-	bool "sgm3110-5 gpio led flash for camera."
-	depends on LEDS_CLASS
-	default n
-	---help---
-		sgm3110-5 gpio led flash for camera.
-
+	  
 config GPIO_LED_FLASH_SGM3785_IDOL347
 	bool "sgm3785 gpio led flash for camera."
 	depends on LEDS_CLASS
 	default n
 	help
 	  sgm3785 gpio led flash for camera.
+	  
+config LEDS_AW2013
+	tristate "LED support for AW2013"
+	depends on LEDS_CLASS && I2C
+	help
+	  This option enables support for the AW2013 RGB LED connected
+	  through I2C. Say Y to enable support for the AW2013 LED.
+
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"
 

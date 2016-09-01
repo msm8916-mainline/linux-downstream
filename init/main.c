@@ -512,11 +512,6 @@ asmlinkage void __init start_kernel(void)
 	build_all_zonelists(NULL, NULL);
 	page_alloc_init();
 
-/* [PLATFORM]-Add-BEGIN by TCTNB.FLF, FR-837171, 2014/11/14, add log for charger autotest */
-#ifdef CONFIG_TCT_8X16_COMMON
-	pr_err("TCTNB_POWERON start_kernel: boots up to kernel!\n");
-#endif
-/* [PLATFORM]-Mod-END by TCTNB.FLF */
 	pr_notice("Kernel command line: %s\n", boot_command_line);
 	parse_early_param();
 	parse_args("Booting kernel", static_command_line, __start___param,

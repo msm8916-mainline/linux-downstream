@@ -1572,7 +1572,7 @@ int pwm_config_us(struct pwm_device *pwm, int duty_us, int period_us)
 
 	if (chip->pwm_config.pwm_period != period_us) {
 /*Start modify backlight flicker when we adjust the brightness By ChangShengBao*/
-              #if (defined CONFIG_TCT_8X16_IDOL347 || defined CONFIG_TCT_8X16_IDOL3)	/*TCTNB.CY, PR-891676, modify for backlight blink*/
+              #if (defined CONFIG_TCT_8X16_IDOL347 || defined CONFIG_TCT_8X16_IDOL3 || defined CONFIG_TCT_8X16_M823_ORANGE)	/*TCTNB.CY, PR-891676, modify for backlight blink*/
 		if(0==strcmp(pwm->label,"lcd-bklt"))
 		{
 			chip->pwm_config.period.pwm_size = 9;
@@ -1602,38 +1602,6 @@ int pwm_config_us(struct pwm_device *pwm, int duty_us, int period_us)
 	return rc;
 }
 EXPORT_SYMBOL(pwm_config_us);
-//[PLATFORM]-Add-BEGIN by TCTSZ.jing.huang, 2014/08/19, use nanosecond to increase accuracy
-#ifdef CONFIG_TCT_8X16_POP10
-int pwm_config_ns(struct pwm_device *pwm, int duty_ns, int period_ns)
-{
-	int rc;	unsigned long flags;
-	struct qpnp_pwm_chip *chip = qpnp_pwm_from_pwm_dev(pwm);
-
-	if ((unsigned)period_ns < PM_PWM_PERIOD_MIN * NSEC_PER_USEC) {
-		printk("Invalid pwm handle or parameters\n");
-		return -EINVAL;
-	}
-
-	spin_lock_irqsave(&chip->lpg_lock, flags);
-
-	if (pwm->period != period_ns) {
-		qpnp_lpg_calc_period(LVL_NSEC, period_ns, chip);
-		qpnp_lpg_save_period(chip);
-		pwm->period = period_ns;
-		chip->pwm_config.pwm_period = period_ns / NSEC_PER_USEC;
-	}
-
-	rc = _pwm_config(chip, LVL_NSEC, duty_ns, period_ns);
-
-	spin_unlock_irqrestore(&chip->lpg_lock, flags);
-
-	if (rc)
-		pr_err("Failed to configure PWM mode\n");
-	return rc;
-}
-EXPORT_SYMBOL(pwm_config_ns);
-#endif
-//[PLATFORM]-Add-END by TCTSZ.jing.huang, 2014/08/19
 
 /**
  * pwm_lut_config - change LPG LUT device configuration

@@ -27,5 +27,5 @@ obj-$(CONFIG_INPUT_MISC)	+= misc/
 obj-$(CONFIG_INPUT_APMPOWER)	+= apm-power.o
 obj-$(CONFIG_INPUT_KEYRESET)	+= keyreset.o
 obj-$(CONFIG_INPUT_KEYCOMBO)	+= keycombo.o
-obj-$(CONFIG_INPUT_DEBUG)	+= tct_common.o	#ADD by TCTSZ-weihong.chen,2014-7-29,Add debug interface for input devices.
+obj-$(CONFIG_SENSORS_HALL)	+= hall_sensor.o
 

@@ -11,8 +11,7 @@
  * GNU General Public License for more details.
  */
 
-&soc {
-};
+
 
 /* [PLATFORM]-Add-BEGIN by TCTNB.YJ, for idol3 flash led driver. */
 &tlmm_pinmux {
@@ -330,18 +329,25 @@
 		qcom,gpio-req-tbl-num = <0 1 2 3 4>;
 		qcom,gpio-req-tbl-flags = <1 0 0 0 0>;
 
-		qcom,gpio-req-tbl-label = "CAMIF_MCLK0",
-			"CAM_RESET0",
-			"CAM_STANDBY0",
-			"CAM_VANA_EN",
-			"CAM_VDIG_EN";
+		qcom,gpio-req-tbl-label = "CAMIF_MCLK0_E",
+			"CAM_RESET0_E",
+			"CAM_STANDBY0_E",
+			"CAM_VANA_EN0_E",
+			"CAM_VDIG_EN0_E";
 
-		qcom,cam-power-seq-type = "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_vreg", "sensor_vreg", "sensor_vreg",
-			"sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_clk";
-		qcom,cam-power-seq-val = "sensor_gpio_standby", "sensor_gpio_reset", "sensor_gpio_vana", "cam_vio", "cam_vaf", "cam_vdig",
-			"sensor_gpio_vdig", "sensor_gpio_reset", "sensor_gpio_reset", "sensor_gpio_standby", "sensor_gpio_standby", "sensor_cam_mclk";
-		qcom,cam-power-seq-cfg-val = <1 1 1 1 1 1 1 0 1 0 1 24000000>;
-		qcom,cam-power-seq-delay = <1 1 1 1 1 1 1 1 1 1 1 5>;
+                /*qcom,cam-power-seq-type = "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_vreg", "sensor_vreg", "sensor_vreg",
+                        "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_clk";
+                qcom,cam-power-seq-val = "sensor_gpio_standby", "sensor_gpio_reset", "sensor_gpio_vana", "cam_vio", "cam_vaf", "cam_vdig",
+                        "sensor_gpio_vdig", "sensor_gpio_reset", "sensor_gpio_reset", "sensor_gpio_standby", "sensor_gpio_standby", "sensor_cam_mclk";
+                qcom,cam-power-seq-cfg-val = <0 0 1 1 1 1 1 0 1 0 1 24000000>;
+                qcom,cam-power-seq-delay = <1 1 1 1 1 2 1 1 1 1 1 5>;*/
+
+                qcom,cam-power-seq-type = "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_vreg", "sensor_vreg", "sensor_vreg",
+                        "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_clk";
+                qcom,cam-power-seq-val = "sensor_gpio_standby", "sensor_gpio_reset", "sensor_gpio_vana", "cam_vio", "cam_vaf", "cam_vdig",
+                        "sensor_gpio_vdig", "sensor_gpio_reset", "sensor_gpio_standby", "sensor_cam_mclk";
+                qcom,cam-power-seq-cfg-val = <0 0 1 1 1 1 1 1 1 24000000>;
+                qcom,cam-power-seq-delay = <2 2 1 1 1 2 1 1 1 5>;
 
 		status = "ok";
 		clocks = <&clock_gcc clk_mclk0_clk_src>,
@@ -389,18 +395,25 @@
 		qcom,gpio-req-tbl-num = <0 1 2 3 4>;
 		qcom,gpio-req-tbl-flags = <1 0 0 0 0>;
 
-		qcom,gpio-req-tbl-label = "CAMIF_MCLK0",
-			"CAM_RESET0",
-			"CAM_STANDBY0",
-			"CAM_VANA_EN",
-			"CAM_VDIG_EN";
+		qcom,gpio-req-tbl-label = "CAMIF_MCLK0_E",
+			"CAM_RESET0_E",
+			"CAM_STANDBY0_E",
+			"CAM_VANA_EN0_E",
+			"CAM_VDIG_EN0_E";
 
-		qcom,cam-power-seq-type = "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_vreg", "sensor_vreg", "sensor_vreg",
-			"sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_clk";
-		qcom,cam-power-seq-val = "sensor_gpio_standby", "sensor_gpio_reset", "sensor_gpio_vana", "cam_vio", "cam_vaf", "cam_vdig",
-			"sensor_gpio_vdig", "sensor_gpio_reset", "sensor_gpio_reset", "sensor_gpio_standby", "sensor_gpio_standby", "sensor_cam_mclk";
-		qcom,cam-power-seq-cfg-val = <1 1 1 1 1 1 1 0 1 0 1 24000000>;
-		qcom,cam-power-seq-delay = <1 1 1 1 1 1 1 1 1 1 1 5>;
+                /*qcom,cam-power-seq-type = "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_vreg", "sensor_vreg", "sensor_vreg",
+                        "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_clk";
+                qcom,cam-power-seq-val = "sensor_gpio_standby", "sensor_gpio_reset", "sensor_gpio_vana", "cam_vio", "cam_vaf", "cam_vdig",
+                        "sensor_gpio_vdig", "sensor_gpio_reset", "sensor_gpio_reset", "sensor_gpio_standby", "sensor_gpio_standby", "sensor_cam_mclk";
+                qcom,cam-power-seq-cfg-val = <0 0 1 1 1 1 1 0 1 0 1 24000000>;
+                qcom,cam-power-seq-delay = <1 1 1 1 1 2 1 1 1 1 1 5>;*/
+
+                qcom,cam-power-seq-type = "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_vreg", "sensor_vreg", "sensor_vreg",
+                        "sensor_gpio", "sensor_gpio", "sensor_gpio", "sensor_clk";
+                qcom,cam-power-seq-val = "sensor_gpio_standby", "sensor_gpio_reset", "sensor_gpio_vana", "cam_vio", "cam_vaf", "cam_vdig",
+                        "sensor_gpio_vdig", "sensor_gpio_reset", "sensor_gpio_standby", "sensor_cam_mclk";
+                qcom,cam-power-seq-cfg-val = <0 0 1 1 1 1 1 1 1 24000000>;
+                qcom,cam-power-seq-delay = <2 2 1 1 1 2 1 1 1 5>;
 
 		status = "ok";
 		clocks = <&clock_gcc clk_mclk0_clk_src>,
@@ -448,8 +461,8 @@
 		qcom,gpio-req-tbl-label = "CAMIF_MCLK0",
 			"CAM_RESET0",
 			"CAM_STANDBY0",
-			"CAM_VANA_EN",
-			"CAM_VDIG_EN";
+			"CAM_VANA_EN0",
+			"CAM_VDIG_EN0";
 		qcom,sensor-position = <0>;
 		qcom,sensor-mode = <0>;
 		qcom,cci-master = <0>;
@@ -491,7 +504,7 @@
 			"CAM_RESET1",
 			"CAM_STANDBY1",
 			"CAM_VANA_EN1",
-			"CAM_VDIG_EN";
+			"CAM_VDIG_EN1";
 		qcom,sensor-position = <1>;
 		qcom,sensor-mode = <0>;
 		qcom,cci-master = <0>;
@@ -533,7 +546,7 @@
 			"CAM_RESET1",
 			"CAM_STANDBY1",
 			"CAM_VANA_EN1",
-			"CAM_VDIG_EN";
+			"CAM_VDIG_EN1";
 		qcom,sensor-position = <1>;
 		qcom,sensor-mode = <0>;
 		qcom,cci-master = <0>;

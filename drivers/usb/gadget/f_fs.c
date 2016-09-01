@@ -824,15 +824,28 @@ first_try:
 			}
 		}
 
-		buffer_len = !read ? len : round_up(len,
+		spin_lock_irq(&epfile->ffs->eps_lock);
+		/*
+		 * While we were acquiring lock endpoint got disabled
+		 * (disconnect) or changed (composition switch) ?
+		 */
+		if (epfile->ep == ep) {
+			buffer_len = !read ? len : round_up(len,
 						ep->ep->desc->wMaxPacketSize);
+		} else {
+			spin_unlock_irq(&epfile->ffs->eps_lock);
+			ret = -ENODEV;
+			goto error;
+		}
 
 		/* Do we halt? */
 		halt = !read == !epfile->in;
 		if (halt && epfile->isoc) {
+			spin_unlock_irq(&epfile->ffs->eps_lock);
 			ret = -EINVAL;
 			goto error;
 		}
+		spin_unlock_irq(&epfile->ffs->eps_lock);
 
 		/* Allocate & copy */
 		if (!halt && !data) {
@@ -914,6 +927,7 @@ first_try:
 			else
 				ret = -ENODEV;
 			spin_unlock_irq(&epfile->ffs->eps_lock);
+#ifndef CONFIG_TCT_8X16_IDOL3	/*TCT-NB Tianhongwei modify for PR.961369   2015.04.23*/
 			if (read && ret > 0) {
 				if (len != MAX_BUF_LEN && ret < len)
 					pr_err("less data(%zd) recieved than intended length(%zu)\n",
@@ -929,6 +943,19 @@ first_try:
 					ret = -EFAULT;
 				}
 			}
+#else
+			if (ret > len) {
+				pr_err("More data(%zd) recieved than intended length(%zu)\n",
+						ret, len);
+			}
+
+			if (read && ret > 0 &&
+				unlikely(copy_to_user(buf, data, ret))) {
+				pr_err("Fail to copy to user len:%zd\n",
+						ret);
+				ret = -EFAULT;
+			}
+#endif/*TCT-NB Tianhongwei modify for PR.961369 end*/
 		}
 	}
 

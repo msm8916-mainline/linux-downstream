@@ -18,7 +18,7 @@
 #include "msm_camera_dt_util.h"
 
 //Debug log
-#define S5K5E2_CMCC_OTP_DEBUG_ON 1
+#define S5K5E2_CMCC_OTP_DEBUG_ON 0
 
 enum s5k5e2_cmcc_SN_type{
 	s5k5e2_cmcc_FLAG_AF,

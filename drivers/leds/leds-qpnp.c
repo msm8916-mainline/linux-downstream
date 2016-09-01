@@ -26,7 +26,6 @@
 #include <linux/delay.h>
 #include <linux/regulator/consumer.h>
 #include <linux/delay.h>
-#include <linux/of_gpio.h> 
 
 #define WLED_MOD_EN_REG(base, n)	(base + 0x60 + n*0x10)
 #define WLED_IDAC_DLY_REG(base, n)	(WLED_MOD_EN_REG(base, n) + 0x01)
@@ -194,7 +193,6 @@
 #define LED_MPP_EN_CTRL(base)		(base + 0x46)
 #define LED_MPP_SINK_CTRL(base)		(base + 0x4C)
 
-#define LED_MPP_CURRENT_VAL		30	//lanhong modify button brightness PR:758344 20140807
 #define LED_MPP_CURRENT_MIN		5
 #define LED_MPP_CURRENT_MAX		40
 #define LED_MPP_VIN_CTRL_DEFAULT	0
@@ -266,7 +264,6 @@ enum qpnp_leds {
 	QPNP_ID_LED_MPP,
 	QPNP_ID_KPDBL,
 	QPNP_ID_LED_GPIO,
-	QPNP_ID_LCDBL_GPIO,
 	QPNP_ID_MAX,
 };
 
@@ -521,10 +518,6 @@ struct gpio_config_data {
 	bool	enable;
 };
 
-struct lcdbl_gpio_config_data {
-	u32 	gpio_num;	
-};
-
 /**
  * struct qpnp_led_data - internal led data structure
  * @led_classdev - led class device
@@ -557,7 +550,6 @@ struct qpnp_led_data {
 	struct rgb_config_data	*rgb_cfg;
 	struct mpp_config_data	*mpp_cfg;
 	struct gpio_config_data	*gpio_cfg;
-	struct lcdbl_gpio_config_data *lcdbl_gpio_cfg;
 	int			max_current;
 	bool			default_on;
 	bool                    in_order_command_processing;
@@ -943,7 +935,7 @@ static int qpnp_mpp_set(struct qpnp_led_data *led)
 			pwm_enable(led->mpp_cfg->pwm_cfg->pwm_dev);
 		else {
 			if (led->cdev.brightness < LED_MPP_CURRENT_MIN)
-				led->cdev.brightness = LED_MPP_CURRENT_VAL;  //lanhong modify button brightness PR:758344 20140807
+				led->cdev.brightness = LED_MPP_CURRENT_MIN;
 			else {
 				/*
 				 * PMIC supports LED intensity from 5mA - 40mA
@@ -1828,62 +1820,6 @@ static void qpnp_led_set(struct led_classdev *led_cdev,
 		schedule_work(&led->work);
 }
 
-
-//cwying fix brightness ctrl @2014.8.14
-#define BRIGHTNESS_MAX_SIZE 12 //tianhongwei 2014/11/03 PR.816765
-static int qpnp_lcdbl_gpio_set(struct qpnp_led_data *led)
-{
-	//int rc;
-	static int level = 0;
-	int count;
-	int bl_level;
-
-	bl_level = (int)(led->cdev.brightness * BRIGHTNESS_MAX_SIZE / led->cdev.max_brightness);
-		if (bl_level >= BRIGHTNESS_MAX_SIZE) {
-			bl_level = BRIGHTNESS_MAX_SIZE - 6;
-		}
-
-		if (led->cdev.brightness < 16 && led->cdev.brightness ){
-			bl_level = 1;
-		}
-
-		if (level == bl_level ){
-			return 1;
-		}
-		
-		if (0 == bl_level) {
-			gpio_set_value(led->lcdbl_gpio_cfg->gpio_num,0);	
-		} 
-		else 
-		{
-			if (0 == level )
-			{
-				gpio_set_value(led->lcdbl_gpio_cfg->gpio_num,0);
-				udelay(10);
-				gpio_set_value(led->lcdbl_gpio_cfg->gpio_num,1);
-				udelay(30);
-				for (count = 0;count < 15 -bl_level;count++)
-				{
-					gpio_set_value(led->lcdbl_gpio_cfg->gpio_num,0);
-					udelay(2);
-					gpio_set_value(led->lcdbl_gpio_cfg->gpio_num,1);
-					udelay(3);
-				}
-			}
-			else
-			{				
-				for (count = 0;count < 16-(16 - level) +(16 - bl_level);count++)
-				{
-					gpio_set_value(led->lcdbl_gpio_cfg->gpio_num,0);
-					udelay(2);
-					gpio_set_value(led->lcdbl_gpio_cfg->gpio_num,1);
-					udelay(3);
-				}
-			}			
-		}
-		level = bl_level;
-	return 0;
-}
 static void __qpnp_led_work(struct qpnp_led_data *led,
 				enum led_brightness value)
 {
@@ -1921,16 +1857,6 @@ static void __qpnp_led_work(struct qpnp_led_data *led,
 		if (rc < 0)
 			dev_err(&led->spmi_dev->dev,
 					"MPP set brightness failed (%d)\n", rc);
-/*Add by TCTNB.THW, 2014/10/31,PR-807490, Charge LED*/
-#if (defined CONFIG_TCT_8X16_ALTO4)
-//	printk(KERN_ERR"=====> led_G = %s  \n",led->cdev.name);
-	if(strcmp(led->cdev.name ,"led_G") == 0)
-	{
-		extern void qnnp_lbc_enable_led(u8 onoff);
-//		printk(KERN_ERR"=====> led_G control bye sys  \n");
-		qnnp_lbc_enable_led(0);
-	}
-#endif
 		break;
 	case QPNP_ID_LED_GPIO:
 		rc = qpnp_gpio_set(led);
@@ -1944,12 +1870,6 @@ static void __qpnp_led_work(struct qpnp_led_data *led,
 		if (rc < 0)
 			dev_err(&led->spmi_dev->dev,
 				"KPDBL set brightness failed (%d)\n", rc);
-		break;
-	case QPNP_ID_LCDBL_GPIO:
-		rc = qpnp_lcdbl_gpio_set(led);
-		if (rc < 0)
-			dev_err(&led->spmi_dev->dev,
-				"LCDBL gpio set brightness failed (%d)\n", rc);
 		break;
 	default:
 		dev_err(&led->spmi_dev->dev, "Invalid LED(%d)\n", led->id);
@@ -1994,7 +1914,6 @@ static int qpnp_led_set_max_brightness(struct qpnp_led_data *led)
 			led->cdev.max_brightness = MPP_MAX_LEVEL;
 		break;
 	case QPNP_ID_LED_GPIO:
-	case QPNP_ID_LCDBL_GPIO:
 			led->cdev.max_brightness = led->max_current;
 		break;
 	case QPNP_ID_KPDBL:
@@ -3142,8 +3061,6 @@ static int qpnp_led_initialize(struct qpnp_led_data *led)
 			dev_err(&led->spmi_dev->dev,
 				"GPIO initialize failed(%d)\n", rc);
 		break;
-	case QPNP_ID_LCDBL_GPIO:
-		break;
 	case QPNP_ID_KPDBL:
 		rc = qpnp_kpdbl_init(led);
 		if (rc)
@@ -3311,16 +3228,17 @@ static int qpnp_get_config_flash(struct qpnp_led_data *led,
 	if (of_find_property(of_get_parent(node), "flash-wa-supply",
 					NULL) && (!*reg_set)) {
 		led->flash_cfg->flash_wa_reg =
-			devm_regulator_get(&led->spmi_dev->dev,	"flash-wa");
+			devm_regulator_get(&led->spmi_dev->dev, "flash-wa");
 		if (IS_ERR_OR_NULL(led->flash_cfg->flash_wa_reg)) {
 			rc = PTR_ERR(led->flash_cfg->flash_wa_reg);
 			if (rc != EPROBE_DEFER) {
 				dev_err(&led->spmi_dev->dev,
-						"Flash wa regulator get failed(%d)\n",
-						rc);
+					"Flash wa regulator get failed(%d)\n",
+					rc);
 			}
+		} else {
+			led->flash_cfg->flash_wa_reg_get = true;
 		}
-		led->flash_cfg->flash_wa_reg_get = true;
 	}
 
 	if (led->id == QPNP_ID_FLASH1_LED0) {
@@ -3938,37 +3856,6 @@ err_config_gpio:
 	return rc;
 }
 
-static int qpnp_get_config_lcdblgpio(struct qpnp_led_data *led,
-		struct device_node *node)
-{
-	int rc;
-
-	led->lcdbl_gpio_cfg = devm_kzalloc(&led->spmi_dev->dev,
-			sizeof(struct lcdbl_gpio_config_data), GFP_KERNEL);
-	if (!led->lcdbl_gpio_cfg) {
-		dev_err(&led->spmi_dev->dev, "Unable to allocate memory gpio struct\n");
-		return -ENOMEM;
-	}
-	
-	led->lcdbl_gpio_cfg->gpio_num = of_get_named_gpio(node,"qcom,gpio_num", 0);
-	printk("cwying %d gpio \n ",led->lcdbl_gpio_cfg->gpio_num);
-
-	if (gpio_is_valid(led->lcdbl_gpio_cfg->gpio_num)) {
-		rc = gpio_request(led->lcdbl_gpio_cfg->gpio_num,
-						"wled-gpio");
-		if (rc) {
-			pr_err("request bklt gpio failed, rc=%d\n",
-					   rc);
-			goto bklt_en_gpio_err;
-		}
-	}
-	
-bklt_en_gpio_err:
-			gpio_free(led->lcdbl_gpio_cfg->gpio_num);
-
-	return rc;
-}
-
 static int qpnp_leds_probe(struct spmi_device *spmi)
 {
 	struct qpnp_led_data *led, *led_array;
@@ -4097,15 +3984,6 @@ static int qpnp_leds_probe(struct spmi_device *spmi)
 					"Unable to read kpdbl config data\n");
 				goto fail_id_check;
 			}
-		/**/
-		} else if (strcmp(led_label, "lcdblgpio") == 0) {		
-			rc = qpnp_get_config_lcdblgpio(led, temp);
-			if (rc < 0) {
-				dev_err(&led->spmi_dev->dev,
-						"Unable to read gpio config data\n");
-				goto fail_id_check;
-			}
-		/**/
 		} else {
 			dev_err(&led->spmi_dev->dev, "No LED matching label\n");
 			rc = -EINVAL;

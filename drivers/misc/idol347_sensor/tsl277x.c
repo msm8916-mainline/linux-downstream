@@ -32,6 +32,12 @@
 #include <linux/gpio.h>
 #include <linux/irq.h>
 
+//add by huangshenglin@hoperun 2016/05/05 ,add misoperation interface ++
+#ifdef CONFIG_TCT_8X16_IDOL347
+static struct i2c_client *g_client;
+struct class *taos_prx_misoperation_class = NULL;
+#endif
+//add by huangshenglin@hoperun 2016/05/05 ,add misoperation interface --
 #define DEVICE_NAME		"tsl27723"
 #define ALS_NAME "tsl27723-als"
 #define PS_NAME "tsl27723-ps"
@@ -832,9 +838,13 @@ static int update_als_thres(struct tsl2772_chip *chip, bool on_enable)
 
 static void report_prox(struct tsl2772_chip *chip)
 {
+	ktime_t timestamp;
 	if (chip->p_idev) {
 		input_report_abs(chip->p_idev, ABS_DISTANCE,
 				chip->prx_inf.detected ? 0 : 1);
+		timestamp = ktime_get_boottime();
+		input_event(chip->p_idev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(chip->p_idev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 		input_sync(chip->p_idev);
 		TSLX("ps-distant:===> %s \n",chip->prx_inf.detected?"near" : "far" );
 #ifdef PRINT_TIME
@@ -845,6 +855,7 @@ static void report_prox(struct tsl2772_chip *chip)
 
 static void report_als(struct tsl2772_chip *chip)
 {
+	ktime_t timestamp;
 	if (chip->a_idev) {
 		int rc = taos_get_lux(chip);
 		if (!rc) {
@@ -869,6 +880,9 @@ static void report_als(struct tsl2772_chip *chip)
 				}
 
 				input_report_abs(chip->a_idev, ABS_MISC, lux);
+		timestamp = ktime_get_boottime();
+		input_event(chip->a_idev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(chip->a_idev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 				input_sync(chip->a_idev);
 				mutex_unlock(&chip->io_als_lock);
 				return;
@@ -876,6 +890,9 @@ static void report_als(struct tsl2772_chip *chip)
 			else if((taos_dark_code_flag!=0) && (lux < TAOS_ALS_THD_BRIGHT))
 			{
 				input_report_abs(chip->a_idev, ABS_MISC, 0);
+		timestamp = ktime_get_boottime();
+		input_event(chip->a_idev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(chip->a_idev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 				input_sync(chip->a_idev);
 				mutex_unlock(&chip->io_als_lock);
 				return;
@@ -887,6 +904,9 @@ static void report_als(struct tsl2772_chip *chip)
 			mutex_unlock(&chip->io_als_lock);
 #endif
 			input_report_abs(chip->a_idev, ABS_MISC, lux);
+			timestamp = ktime_get_boottime();
+			input_event(chip->a_idev,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+			input_event(chip->a_idev,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 			input_sync(chip->a_idev);
 			update_als_thres(chip, 0);
 		} else {
@@ -2290,12 +2310,14 @@ static ssize_t taos_device_prx_raw(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", (prx_raw_hi << 8 | prx_raw_lo));
 }
 
+/*
 static ssize_t taos_device_prx_detected(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct tsl2772_chip *chip = dev_get_drvdata(dev);
 	return snprintf(buf, PAGE_SIZE, "%d\n", chip->prx_inf.detected);
 }
+*/
 
 /**
  * SysFS support
@@ -2420,7 +2442,7 @@ static ssize_t taos_write_reg_show(struct device *dev,struct device_attribute *a
 
 static struct device_attribute prox_attrs[] = {
 	__ATTR(prx_raw, 0444, taos_device_prx_raw, NULL),
-	__ATTR(prx_detect, 0444, taos_device_prx_detected, NULL),
+//	__ATTR(prx_detect, 0444, taos_device_prx_detected, NULL),
 	__ATTR(enable, 0664, taos_prox_enable_show, taos_prox_enable_store),
 	__ATTR(ps_sensor_thld, 0664, taos_show_ps_sensor_thld, taos_store_ps_sensor_thld),
 	__ATTR(allreg, 0444, taos_all_reg_show, NULL),
@@ -2687,6 +2709,144 @@ struct input_dev* get_taos_input_device(void)
 	return taos_proximity_dev;
 }
 EXPORT_SYMBOL(get_taos_input_device);
+//add by huangshenglin@hoperun 2016/05/05 ,add misoperation interface ++
+#ifdef CONFIG_TCT_8X16_IDOL347
+
+/* prx_status  attribute (/<sysfs>/class/prx_misoperation/status) */
+
+static int taos_prox_enable_nocal(struct tsl2772_chip *chip, int on)
+{
+	int rc;
+    uint8_t curr_ps_enable;
+
+	curr_ps_enable = chip->prx_enabled?1:0;
+	if(curr_ps_enable == on)
+		return 0;
+    dev_info(&chip->client->dev, "%s: on = %d\n", __func__, on);
+#ifdef POWER_REGULATOR
+    if (on)
+    {
+		rc = taos_device_ctl(chip, on);
+		if (rc)
+			return rc;
+    }
+#endif
+	if (on) {
+		//adb cali by huangshenglin@hoperun, defect 2127533++
+		#ifdef CALI_EVERY_TIME
+			taos_offset_cali(chip->client,&ps_cali,3);
+		#endif
+		//adb cali by huangshenglin@hoperun, defect 2127533--
+
+/*[BUFFIX]-Mod-Begin- by TCTNB.ZXZ,PR-1082275, 2015/09/09, needn't enable or disable IRQ ,
+this may cause phone can't sleep if when APP invoke this node press powerkey (APP should not do like this) */
+		chip->shadow[TSL277X_ENABLE] |=(TSL277X_EN_PWR_ON | TSL277X_EN_PRX);
+		rc = update_enable_reg(chip);
+		if (rc)
+			return rc;
+	} else {
+		chip->shadow[TSL277X_ENABLE] &=~TSL277X_EN_PRX;
+/*[BUFFIX]-Mod-Begin- by TCTNB.ZXZ*/
+		if (!(chip->shadow[TSL277X_ENABLE] & TSL277X_EN_ALS))
+			chip->shadow[TSL277X_ENABLE] &= ~TSL277X_EN_PWR_ON;
+		rc = update_enable_reg(chip);
+		if (rc)
+			return rc;
+	}
+    mutex_lock(&chip->lock);
+	if (!rc)
+		chip->prx_enabled = on;
+    mutex_unlock(&chip->lock);
+#ifdef POWER_REGULATOR
+	if (!on) {
+		rc = taos_device_ctl(chip, on);
+		if (rc)
+			return rc;
+	}
+#endif
+	return rc;
+}
+
+
+static ssize_t taos_device_prx_detected(struct class *class,
+				struct class_attribute *attr, char *buf)
+{
+	struct tsl2772_chip *chip = i2c_get_clientdata(g_client);
+	int rc;
+    bool d ;
+    u8 prx_raw_lo,prx_raw_hi;
+    chip->prx_enable_pre = chip->prx_enabled;
+	taos_prox_enable_nocal(chip, 1);
+    msleep(10);
+    rc = taos_i2c_read(chip, TSL277X_PRX_LO, &prx_raw_lo);
+	if(rc)
+	{
+		printk(KERN_ERR "%s fail, rc=%d", __func__, rc);
+		return rc;
+	}
+    rc = taos_i2c_read(chip, TSL277X_PRX_HI, &prx_raw_hi);
+    if(rc)
+	{
+		printk(KERN_ERR "%s fail, rc=%d", __func__, rc);
+		return rc;
+	}
+    d = chip->prx_inf.detected;
+    chip->prx_inf.raw =  prx_raw_hi << 8 | prx_raw_lo ;
+
+
+	if(chip->prx_inf.raw>950)
+		chip->prx_inf.detected =1;
+	else
+		chip->prx_inf.detected =0;
+
+/* sometimes get inaccurate rawdata if not calibrate every time detect, but if calibrate every time will affect threshold in call ,
+so we use fixed value '950' as the threshold */
+#if 0
+      chip->prx_inf.detected =
+            (d && (chip->prx_inf.raw > chip->params.prox_th_min)) ||
+			(!d && (chip->prx_inf.raw > chip->params.prox_th_max));
+#endif
+
+     chip->prx_inf.detected=(chip->prx_inf.detected)*5;
+     taos_prox_enable_nocal(chip, chip->prx_enable_pre);
+	return snprintf(buf, PAGE_SIZE, "%d\n", chip->prx_inf.detected);
+}
+
+
+
+static struct class_attribute prx_status =
+	__ATTR(status, 0444, taos_device_prx_detected, NULL);
+
+
+
+static int prx_misoperation_creat_file(void)
+{
+	int ret;
+
+	/*  /<sysfs>/class/prx_misoperation/status */
+
+	taos_prx_misoperation_class = class_create(THIS_MODULE, "prx_misoperation");
+	if (IS_ERR(taos_prx_misoperation_class)) {
+		ret = PTR_ERR(taos_prx_misoperation_class);
+		printk(KERN_ERR "taos_prx_misoperation_class: couldn't create prx_misoperation\n");
+	}
+	ret = class_create_file(taos_prx_misoperation_class, &prx_status);
+	if (ret) {
+		printk(KERN_ERR "prx_misoperation: couldn't create status\n");
+	}
+
+	return ret;
+
+}
+
+static void remove_prx_create_file(void)
+{
+	class_remove_file(taos_prx_misoperation_class, &prx_status);
+}
+
+#endif
+//add by huangshenglin@hoperun 2016/05/05 ,add misoperation interface --
+
 
 static int /*__devinit*/ taos_probe(struct i2c_client *client,
 		const struct i2c_device_id *idp)
@@ -2766,6 +2926,12 @@ static int /*__devinit*/ taos_probe(struct i2c_client *client,
 	chip->client = client;
 	chip->pdata = pdata;
 	i2c_set_clientdata(client, chip);
+
+//add by huangshenglin@hoperun 2016/05/05 ,add misoperation interface ++
+#ifdef CONFIG_TCT_8X16_IDOL347
+	g_client=client;
+#endif
+//add by huangshenglin@hoperun 2016/05/05 ,add misoperation interface --
 
 	/*chip->seg_num_max = chip->pdata->segment_num ?
 	  chip->pdata->segment_num : ARRAY_SIZE(segment_default);
@@ -2872,8 +3038,22 @@ static int /*__devinit*/ taos_probe(struct i2c_client *client,
 			prox_attrs, ARRAY_SIZE(prox_attrs));
 	if (ret)
 		goto input_p_sysfs_failed;
+//add by huangshenglin@hoperun 2016/05/05 ,add misoperation interface ++
+#ifdef CONFIG_TCT_8X16_IDOL347
+	ret = prx_misoperation_creat_file();
+	if(ret)
+		goto prx_misoperation_creat_fail;
+#endif
+//add by huangshenglin@hoperun 2016/05/05 ,add misoperation interface --
 	//add by junfeng.zhou . for add the mmi test interface
-	ret = device_create_file(&(client->dev),prox_attrs);
+	for (i = 0; i < ARRAY_SIZE(prox_attrs); i++)
+     {
+        ret = device_create_file(&(client->dev),prox_attrs+i);
+        if (ret)
+	       goto input_a_alloc_failed;
+      }
+	//ret = device_create_file(&(client->dev),prox_attrs);
+/* [BUFFIX]-Mod- by TCTNB.XQJ*/
 	if (ret)
 		goto input_a_alloc_failed;
 bypass_prox_idev:
@@ -3011,6 +3191,12 @@ input_a_sysfs_failed:
 		input_unregister_device(chip->a_idev);
 	}
 input_a_alloc_failed:
+//add by huangshenglin@hoperun 2016/05/05 ,add misoperation interface ++
+#ifdef CONFIG_TCT_8X16_IDOL347
+	remove_prx_create_file();
+	prx_misoperation_creat_fail:
+#endif
+//add by huangshenglin@hoperun 2016/05/05 ,add misoperation interface --
 	if (chip->p_idev) {
 		remove_sysfs_interfaces(&chip->p_idev->dev,
 				prox_attrs, ARRAY_SIZE(prox_attrs));

@@ -488,11 +488,13 @@ struct input_keymap_entry {
 #define KEY_LOCK_LED_COVER      251     /* 251, for LED cover type, lock  */
 #endif
 
-#if defined(CONFIG_TCT_8X16_IDOL3)
+/* [PLATFORM]-MODIFY-BEGIN by WJ for M823F HALL driver, 2015-05-21 */
+#if defined(CONFIG_TCT_8X16_IDOL3) || defined(CONFIG_TCT_8X16_M823_ORANGE)
 #define KEY_UNLOCK_COVER           250
 #define KEY_LOCK_LED_COVER         251
 #define KEY_LOCK_WINDOW_COVER      252
 #endif
+/* [PLATFORM]-MODIFY-END by WJ */
 
 /* [PLATFORM]-ADD-END by ning.wei SZ */
 

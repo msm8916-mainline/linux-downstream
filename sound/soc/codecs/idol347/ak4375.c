@@ -22,7 +22,6 @@
 #define PLL_BICK_MODE
 
 #define AK4375_DEBUG			//used at debug mode
-#define AK4375_CONTIF_DEBUG		//used at debug mode
 #define AUDIO_NAME "#BC akm4375"
 
 #ifdef AK4375_DEBUG
@@ -42,9 +41,12 @@
     printk("%s(%d)\n", __func__, __LINE__)
 #else
 #define b_codec_dbg(format, arg...) do {} while (0)
-#define b_codec_err(format, arg...) do {} while (0)
 #define b_codec_info(format, arg...) do {} while (0)
 #define b_codec_warn(format, arg...) do {} while (0)
+#define b_codec_trace(format, arg...) do {} while (0)
+#define b_codec_err(format, arg...) \
+    printk(KERN_ERR AUDIO_NAME ": " format, ## arg)
+
 #endif
 
 
@@ -225,7 +227,7 @@ static unsigned int ak4375_read(struct snd_soc_codec *codec,  u_int reg)
 
     ret = i2c_smbus_read_byte_data(codec->control_data, (u8)(reg & 0xFF));
     if (ret < 0) {
-        b_codec_dbg("%s (%d)\n",__FUNCTION__, __LINE__);
+        b_codec_err("%s (%d)\n",__FUNCTION__, __LINE__);
     }
 
     return ret;
@@ -244,7 +246,7 @@ static int ak4375_write(struct snd_soc_codec *codec, unsigned reg, u_int value)
     }
 
     if (i2c_smbus_write_byte_data(codec->control_data, (u8)(reg & 0xFF), (u8)(value & 0xFF))<0) {
-        b_codec_dbg("%s(%d) error\n",__FUNCTION__,__LINE__);
+        b_codec_err("%s(%d) error\n",__FUNCTION__,__LINE__);
         return EIO;
     }
 
@@ -295,7 +297,7 @@ int ak4375_hw_params_set(struct snd_soc_codec *codec, int nfs1);
 
 void ak4375_bclk_mode(struct snd_soc_codec *codec)
 {
-    b_codec_dbg("\n\n>>> BLCK MODE INIT <<<\n\n");
+    printk("\n\n>>> BLCK MODE INIT <<<\n\n");
 
     /*
      *  AKM FAE suggest move power related regs into on/off
@@ -368,7 +370,7 @@ void ak4375_bclk_mode(struct snd_soc_codec *codec)
 
 void ak4375_mclk_mode(struct snd_soc_codec *codec)
 {
-    b_codec_dbg("\n\n>>> MCLK MODE INIT <<<\n\n");
+    printk("\n\n>>> MCLK MODE INIT <<<\n\n");
 
     // 0x00 == 0x00 PLL stop pmosc stop
     ak4375_write(codec, AK4375_00_POWER_MANAGEMENT1, 0x00);
@@ -453,7 +455,7 @@ int akm4375_set_hp(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *uco
     struct snd_soc_codec *codec = ak4375_codec;
     int state = ucontrol->value.enumerated.item[0];
 
-    printk("\n\n\n>>>>> %s  set  %d\n\n\n", __func__, state);
+    printk("\n>>> %s  set  %d <<<\n", __func__, state);
 
     dump_trace();
 
@@ -893,11 +895,13 @@ static int ak4375_parse_dt(struct device *dev, struct ak4375_sys_data_s *sys_dat
     struct device_node *np = dev->of_node;
     sys_data->dac_ctl_pin = of_get_named_gpio_flags(np, "akm,dac-gpio", 0, &(sys_data->dac_ctl_pin_flags));
     if (sys_data->dac_ctl_pin < 0) {
+        b_codec_err("sys_data->dac_ctl_pin\n");
         return sys_data->dac_ctl_pin;
     }
 
     sys_data->ldo_ctl_pin = of_get_named_gpio_flags(np, "akm,ldo-gpio", 0, &(sys_data->ldo_ctl_pin_flags));
     if (sys_data->ldo_ctl_pin < 0) {
+        b_codec_err("sys_data->ldo_ctl_pin\n");
         return sys_data->ldo_ctl_pin;
     }
 
@@ -912,27 +916,27 @@ static int ak4375_pinctrl_init(struct ak4375_sys_data_s *sys_data)
     sys_data->pinctrl = devm_pinctrl_get(&(sys_data->client->dev));
     if (IS_ERR_OR_NULL(sys_data->pinctrl)) {
         ret = PTR_ERR(sys_data->pinctrl);
-        b_codec_trace();
+        b_codec_err("sys_data->pinctrl\n");
         goto err_pinctrl_get;
     }
 
     sys_data->pinctrl_state_active = pinctrl_lookup_state(sys_data->pinctrl, "ak4375_dac_active");
     if (IS_ERR_OR_NULL(sys_data->pinctrl_state_active)) {
         ret = PTR_ERR(sys_data->pinctrl_state_active);
-        b_codec_trace();
+        b_codec_err("sys_data->pinctrl_state_active\n");
         goto err_pinctrl_lookup;
     }
 
     sys_data->pinctrl_state_suspend = pinctrl_lookup_state(sys_data->pinctrl, "ak4375_dac_suspend");
     if (IS_ERR_OR_NULL(sys_data->pinctrl_state_suspend)) {
         ret = PTR_ERR(sys_data->pinctrl_state_suspend);
-        b_codec_trace();
+        b_codec_err("sys_data->pinctrl_state_suspend\n");
         goto err_pinctrl_lookup;
     }
 
     ret = pinctrl_select_state(sys_data->pinctrl, sys_data->pinctrl_state_active);
     if (ret) {
-        b_codec_trace();
+        b_codec_err("sys_data->pinctrl_state_active\n");
         return ret;
     }
     return 0;
@@ -953,14 +957,14 @@ err_pinctrl_get:
 static int ak4375_config_pins(struct ak4375_sys_data_s *sys_data)
 {
     if (gpio_request(sys_data->dac_ctl_pin, "akm_dac_ctl") < 0) {
-        b_codec_dbg("gpio err  %d\n", sys_data->dac_ctl_pin);
+        b_codec_err("gpio err sys_data->dac_ctl_pin\n");
         return -1;
     }
     gpio_direction_output(sys_data->dac_ctl_pin, 0);
 
 
     if (gpio_request(sys_data->ldo_ctl_pin, "akm_ldo_ctl") < 0) {
-        b_codec_dbg("gpio err %d\n", sys_data->ldo_ctl_pin);
+        b_codec_err("gpio err sys_data->ldo_ctl_pin\n");
         return -1;
     }
     gpio_direction_output(sys_data->ldo_ctl_pin, 0);
@@ -979,7 +983,7 @@ static int ak4375_regulator_init(struct ak4375_sys_data_s *sys_data)
      * */
     sys_data->vdd = regulator_get(&sys_data->client->dev, "vdd");
     if (IS_ERR(sys_data->vdd)) {
-        b_codec_dbg("%s %d get vdd error\n", __func__, __LINE__);
+        b_codec_err("%s %d get vdd error\n", __func__, __LINE__);
         goto err_get_vdd;
     }
 
@@ -987,7 +991,7 @@ static int ak4375_regulator_init(struct ak4375_sys_data_s *sys_data)
     {
         rc = regulator_set_voltage(sys_data->vdd, 1800000, 1800000);
         if (rc) {
-            b_codec_dbg("%s %d set vdd error\n", __func__, __LINE__);
+            b_codec_err("%s %d set vdd error\n", __func__, __LINE__);
             goto err_set_vdd;
         }
     }
@@ -997,7 +1001,7 @@ static int ak4375_regulator_init(struct ak4375_sys_data_s *sys_data)
      * */
     rc = regulator_enable(sys_data->vdd);
     if (rc) {
-        dev_err(&sys_data->client->dev, "Regulator vdd enable failed rc=%d\n", rc);
+        b_codec_err("Regulator vdd enable failed rc=%d\n", rc);
         return rc;
     }
 
@@ -1097,10 +1101,15 @@ static int ak4375_pre_init(struct snd_soc_codec *codec)
     // power on AVDD LVDD
     ak4375_ldo_power_on(1);
 
-    mdelay(10);
+    mdelay(3);
 
     // PDN pin to high
     ak4375_dac_on(1);
+
+    // if system loop in suspend/resume
+    // the first reg may write error
+    // check it with FAE
+    mdelay(3);
 
     if (ak4375_data->nPllMode)
     {
@@ -1169,20 +1178,20 @@ static int ak4375_suspend(struct snd_soc_codec *codec)
 {
     int rc = 0;
 
-    b_codec_dbg("%s %d g_codec_hp_state = %s\n", __FUNCTION__, __LINE__, g_codec_hp_state?"on":"off");
+    printk("%s %d g_codec_hp_state = %s\n", __FUNCTION__, __LINE__, g_codec_hp_state?"on":"off");
 
     if (g_codec_hp_state == HP_OFF)
     {
         // codec pdn pin down, extern LDO off
         rc = pinctrl_select_state(ak4375_sys_data->pinctrl, ak4375_sys_data->pinctrl_state_suspend);
         if (rc) {
-            b_codec_trace();
+            b_codec_err("ak4375_sys_data->pinctrl_state_suspend error rc=%d\n", rc);
         }
 
         //L6 LDO off
         rc = regulator_disable(ak4375_sys_data->vdd);
         if (rc) {
-            dev_err(&ak4375_sys_data->client->dev, "Regulator vdd enable failed rc=%d\n", rc);
+            b_codec_err("Regulator vdd disable failed rc=%d\n", rc);
         }
     }
     else
@@ -1197,19 +1206,19 @@ static int ak4375_resume(struct snd_soc_codec *codec)
 {
     int rc = 0;
 
-    b_codec_dbg("%s %d g_codec_hp_state = %s\n", __FUNCTION__, __LINE__, g_codec_hp_state?"on":"off");
+    printk("%s %d g_codec_hp_state = %s\n", __FUNCTION__, __LINE__, g_codec_hp_state?"on":"off");
 
     if (g_codec_hp_state == HP_OFF)
     {
         rc = pinctrl_select_state(ak4375_sys_data->pinctrl, ak4375_sys_data->pinctrl_state_active);
         if (rc) {
-            b_codec_trace();
+            b_codec_err("ak4375_sys_data->pinctrl_state_active error rc=%d\n", rc);
         }
 
         //L6 LDO on
         rc = regulator_enable(ak4375_sys_data->vdd);
         if (rc) {
-            dev_err(&ak4375_sys_data->client->dev, "Regulator vdd enable failed rc=%d\n", rc);
+            b_codec_err("Regulator vdd enable failed rc=%d\n", rc);
         }
 
         ak4375_pre_init(ak4375_codec);
@@ -1224,7 +1233,7 @@ static int ak4375_resume(struct snd_soc_codec *codec)
 
 static int ak4375_remove(struct snd_soc_codec *codec)
 {
-    b_codec_dbg("%s (%d)\n",__FUNCTION__,__LINE__);
+    b_codec_err("%s (%d)\n",__FUNCTION__,__LINE__);
     return 0;
 }
 
@@ -1264,6 +1273,7 @@ static int ak4375_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *
 
     ak4375_data = kzalloc(sizeof(struct ak4375_priv), GFP_KERNEL);
     if (ak4375_data == NULL) {
+         b_codec_err("no memory\n");
         return -ENOMEM;
     }
 
@@ -1273,6 +1283,7 @@ static int ak4375_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *
     ak4375_sys_data = kzalloc(sizeof(struct ak4375_sys_data_s), GFP_KERNEL);
     if (ak4375_sys_data == NULL) {
         kfree(ak4375_data);
+        b_codec_err("no memory\n");
         return -ENOMEM;
     }
 
@@ -1359,7 +1370,7 @@ static int ak4375_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *
 
 static int ak4375_i2c_remove(struct i2c_client *client)
 {
-    b_codec_dbg("%s(%d)\n",__FUNCTION__,__LINE__);
+    b_codec_err("%s(%d)\n",__FUNCTION__,__LINE__);
     return 0;
 }
 

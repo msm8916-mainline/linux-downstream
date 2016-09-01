@@ -41,8 +41,8 @@
 		qcom,mdss-dsi-h-right-border = <0>;
 		qcom,mdss-dsi-v-top-border = <0>;
 		qcom,mdss-dsi-v-bottom-border = <0>;
-		qcom,mdss-pan-physical-width-dimension = <0>;
-		qcom,mdss-pan-physical-height-dimension = <0>;
+		qcom,mdss-pan-physical-width-dimension = <68>;
+		qcom,mdss-pan-physical-height-dimension = <121>;
 		qcom,mdss-dsi-bpp = <24>;
 /* [PLATFORM]-Mod-BEGIN by TCTNB.CY, PR-789023, 2014/11/20, add r63315 lcd  */	
 		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
@@ -120,6 +120,8 @@
 /* [PLATFORM]-Mod-BEGIN by TCTNB.CY, PR-852890, 2014/11/27, control backlight brightness  */
 	//	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
 /* [PLATFORM]-Mod-END by TCTNB.CY, 2014/11/27*/
+
+		qcom,mdss-dsi-lp11-init;
 
 /* [PLATFORM]-Mod-BEGIN by TCTNB.CY, PR-789023, 2014/11/20, add r63315 lcd  */
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 20>, <1 20>;

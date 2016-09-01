@@ -37,6 +37,18 @@
 #if defined(CONFIG_ENABLE_CHIP_MSG26XXM)
 #ifdef CONFIG_ENABLE_ITO_MP_TEST
 
+#include "msg26xxm_open_test_X.h"
+
+
+/*=============================================================*/
+// EXTERN VARIABLE DECLARATION
+/*=============================================================*/
+
+//extern u32 SLAVE_I2C_ID_DBBUS;
+//extern u32 SLAVE_I2C_ID_DWI2C;
+
+extern u8 g_ChipType;
+
 /*=============================================================*/
 // LOCAL VARIABLE DEFINITION
 /*=============================================================*/
@@ -57,7 +69,9 @@ static struct workqueue_struct *_gCtpMpTestWorkQueue = NULL;
 static s32 _gDeltaC[MAX_MUTUAL_NUM] = {0};
 /*static */s32 _gResult[MAX_MUTUAL_NUM] = {0};
 //static s32 positive[MAX_MUTUAL_NUM] = {0};
-static u8 _gMode[MAX_MUTUAL_NUM] = {0};
+//static u8 _gMode[MAX_MUTUAL_NUM] = {0};
+//static s32 _gSenseR[MAX_CHANNEL_NUM] = {0};
+//static s32 _gDriveR[MAX_CHANNEL_NUM] = {0};
 
 static u8 _gTestFailChannel[MAX_MUTUAL_NUM] = {0};
 static u32 _gTestFailChannelCount = 0;
@@ -67,6 +81,69 @@ TestScopeInfo_t g_TestScopeInfo = {0};
 /*=============================================================*/
 // LOCAL FUNCTION DEFINITION
 /*=============================================================*/
+
+static void _DrvMpTestItoTestMsg26xxmSetToNormalMode(void)
+{
+    u16 nRegData = 0;
+    u16 nTmpAddr = 0, nAddr = 0;
+    u16 nDriveNumGeg = 0, nSenseNumGeg = 0;
+    u16 i = 0;
+
+    DBG("*** %s() ***\n", __func__);
+
+    RegSet16BitValue(0x0FE6, 0x0001); 
+
+    nRegData = RegGet16BitValue(0x110E); 
+    
+    if (nRegData == 0x1D08)
+    {
+        DBG("Wrong mode 0\n");
+    }
+    
+    nRegData &= 0x0800;
+    
+    if (nRegData > 1)
+    {
+        DBG("Wrong mode\n");
+    }
+    
+    RegSet16BitValueOff(0x110E, 0x0800); 
+    RegSet16BitValueOn(0x1116, 0x0005); 
+    RegSet16BitValueOn(0x114A, 0x0001); 
+
+    for (i = 0; i < 7; i ++)
+    {
+        nTmpAddr = 0x3C + i;	
+        nTmpAddr = nTmpAddr * 2;
+        nAddr = (0x11 << 8) | nTmpAddr;
+        RegSet16BitValue(nAddr, MSG26XXM_open_ANA1_N_X[i]); 
+    }
+    
+    RegSet16BitValue(0x1E66, 0x0000); 
+    RegSet16BitValue(0x1E67, 0x0000); 
+    RegSet16BitValue(0x1E68, 0x0000); 
+    RegSet16BitValue(0x1E69, 0x0000); 
+    RegSet16BitValue(0x1E6A, 0x0000); 
+    RegSet16BitValue(0x1E6B, 0x0000); 
+    
+    for (i = 0; i < 21; i ++)
+    {
+        nTmpAddr = 3 + i;	
+        nTmpAddr = nTmpAddr * 2;
+        nAddr = (0x10 << 8) | nTmpAddr;
+        RegSet16BitValue(nAddr, MSG26XXM_open_ANA3_N_X[i]); 
+    }
+    
+    nDriveNumGeg = ((22 - 1) << 8 & 0xFF00);
+    nSenseNumGeg = (13 & 0x00FF);
+    
+    RegSet16BitValue(0x1216, nDriveNumGeg); 
+    RegSet16BitValue(0x102E, nSenseNumGeg); 
+
+    RegSet16BitValue(0x0FE6, 0x0001); 
+
+    DBG("Wrong mode correction\n");
+}
 
 static u16 _DrvMpTestItoOpenTestFirmwareGetState(void)
 {
@@ -79,14 +156,14 @@ static u16 _DrvMpTestItoOpenTestFirmwareGetState(void)
     return nCheckState;
 }
 
-static void _DrvMpTestItoOpenTestMcuStop(void)
+static void _DrvMpTestItoTestMcuStop(void)
 {
     DBG("*** %s() ***\n", __func__);
 
     RegSet16BitValue(0x0FE6, 0x0001); //bank:mheg5, addr:h0073
 }
-
-static void _DrvMpTestItoOpenTestAnaSwitchToMutual(void)
+#if 0
+static void _DrvMpTestItoTestAnaSwitchToMutual(void)
 {
     u16 nTemp = 0;
 
@@ -99,8 +176,8 @@ static void _DrvMpTestItoOpenTestAnaSwitchToMutual(void)
     nTemp |= (BIT2 | BIT0);
     RegSet16BitValue(0x1116, nTemp);
 }
-#if 0
-static u16 _DrvMpTestItoOpenTestAnaGetMutualChannelNum(void)
+#endif
+static u16 _DrvMpTestItoTestAnaGetMutualChannelNum(void)
 {
     u16 nSenseLineNum = 0;
     u16 nRegData = 0;
@@ -115,7 +192,7 @@ static u16 _DrvMpTestItoOpenTestAnaGetMutualChannelNum(void)
     return nSenseLineNum;
 }
 
-static u16 _DrvMpTestItoOpenTestAnaGetMutualSubFrameNum(void)
+static u16 _DrvMpTestItoTestAnaGetMutualSubFrameNum(void)
 {
     u16 nDriveLineNum = 0;
     u16 nRegData = 0;
@@ -129,7 +206,9 @@ static u16 _DrvMpTestItoOpenTestAnaGetMutualSubFrameNum(void)
 
     return nDriveLineNum;
 }
-#endif
+
+//2015.06.03 for MINI rawdata test
+#if 0
 static void _DrvMpTestItoOpenTestAnaGetMutualCSub(u8 *pMode)
 {
     u16 i, j;
@@ -145,8 +224,8 @@ static void _DrvMpTestItoOpenTestAnaGetMutualCSub(u8 *pMode)
     DBG("*** %s() ***\n", __func__);
 
     nTotalNum = MAX_MUTUAL_NUM;
-    nSenseLineNum = 13;//_DrvMpTestItoOpenTestAnaGetMutualChannelNum();
-    nDriveLineNum = 22;//_DrvMpTestItoOpenTestAnaGetMutualSubFrameNum();
+    nSenseLineNum = _DrvMpTestItoTestAnaGetMutualChannelNum();
+    nDriveLineNum = _DrvMpTestItoTestAnaGetMutualSubFrameNum();
 
     if (ANA4_MUTUAL_CSUB_NUMBER > 0)
     {
@@ -196,12 +275,13 @@ static void _DrvMpTestItoOpenTestAnaGetMutualCSub(u8 *pMode)
         {
             _gMode[j * nDriveLineNum + i] = szModeTemp[i * MAX_CHANNEL_SEN + j];
 
-//            DBG("_gMode[%d] = %d\n", j * nDriveLineNum + i, _gMode[j * nDriveLineNum + i]);
+            DBG("_gMode[%d] = %d\n", j * nDriveLineNum + i, _gMode[j * nDriveLineNum + i]);
         }
     }
 }
+#endif
 
-static void _DrvMpTestItoOpenTestDisableFilterNoiseDetect(void)
+static void _DrvMpTestItoTestDisableFilterNoiseDetect(void)
 {
     u16 nTemp = 0;
 
@@ -212,7 +292,7 @@ static void _DrvMpTestItoOpenTestDisableFilterNoiseDetect(void)
     RegSet16BitValue(0x1302, nTemp);
 }
 
-static void _DrvMpTestItoOpenTestAnaSwReset(void)
+static void _DrvMpTestItoTestAnaSwReset(void)
 {
     DBG("*** %s() ***\n", __func__);
 
@@ -221,7 +301,7 @@ static void _DrvMpTestItoOpenTestAnaSwReset(void)
     mdelay(100);
 }
 
-static void _DrvMpTestItoOpenTestEnableAdcOneShot(void)
+static void _DrvMpTestItoTestEnableAdcOneShot(void)
 {
     u16 nTemp = 0;
 
@@ -230,10 +310,10 @@ static void _DrvMpTestItoOpenTestEnableAdcOneShot(void)
     RegSet16BitValue(0x130C, BIT15); //bank:fir, addr:h0006
     nTemp = RegGet16BitValue(0x1214); //bank:ana2, addr:h000a
     nTemp |= BIT0;
-    RegSet16BitValue(0x1214, nTemp);
+    RegSet16BitValue(0x1214, 0x0031);//nTemp);
 }
 
-static void _DrvMpTestItoOpenTestGetMutualOneShotRawIir(u16 wszResultData[][MAX_CHANNEL_DRV], u16 nDriveLineNum, u16 nSenseLineNum)
+static void _DrvMpTestItoTestGetMutualOneShotRawIir(u16 wszResultData[][MAX_CHANNEL_DRV], u16 nDriveLineNum, u16 nSenseLineNum)
 {
     u16 nRegData;
     u16 i, j;
@@ -248,7 +328,7 @@ static void _DrvMpTestItoOpenTestGetMutualOneShotRawIir(u16 wszResultData[][MAX_
     nTemp &= (~(BIT8 | BIT4));
     RegSet16BitValue(0x3D08, nTemp);
 
-    _DrvMpTestItoOpenTestEnableAdcOneShot();
+    _DrvMpTestItoTestEnableAdcOneShot();
     
     nRegData = 0;
     while (0x0000 == (nRegData & BIT8))
@@ -373,7 +453,7 @@ static void _DrvMpTestItoOpenTestGetMutualOneShotRawIir(u16 wszResultData[][MAX_
     RegSet16BitValue(0x3D08, nTemp);
 }
 
-static void _DrvMpTestItoOpenTestGetDeltaC(s32 *pTarget)
+static void _DrvMpTestItoTestGetDeltaC(s32 *pTarget)
 {
     s16 nTemp;
     u16 wszRawData[MAX_CHANNEL_SEN][MAX_CHANNEL_DRV];
@@ -382,10 +462,10 @@ static void _DrvMpTestItoOpenTestGetDeltaC(s32 *pTarget)
 
     DBG("*** %s() ***\n", __func__);
 
-    nSenseLineNum = 13;//_DrvMpTestItoOpenTestAnaGetMutualChannelNum();
-    nDriveLineNum = 22;//_DrvMpTestItoOpenTestAnaGetMutualSubFrameNum();
-    
-    _DrvMpTestItoOpenTestGetMutualOneShotRawIir(wszRawData, nDriveLineNum, nSenseLineNum);
+    nSenseLineNum = _DrvMpTestItoTestAnaGetMutualChannelNum();
+    nDriveLineNum = _DrvMpTestItoTestAnaGetMutualSubFrameNum();
+
+    _DrvMpTestItoTestGetMutualOneShotRawIir(wszRawData, nDriveLineNum, nSenseLineNum);
 
     for (i = 0; i < nSenseLineNum; i ++)
     {
@@ -400,6 +480,35 @@ static void _DrvMpTestItoOpenTestGetDeltaC(s32 *pTarget)
     }
 }
 
+static void setMutualCsubViaDBbus(short Csub)
+{
+	 u8 szDbBusTxData[256] = {0};
+    	int i = 0;
+
+	szDbBusTxData[0] = 0x10;
+    	szDbBusTxData[1] = 0x15;
+    	szDbBusTxData[2] = 0x00;
+
+	for (i = 3; i < 3+200; i++)
+	{
+		szDbBusTxData[i]  = (u8)Csub;             
+	}
+
+    IicWriteData(SLAVE_I2C_ID_DBBUS, &szDbBusTxData[0], 3+200);
+
+	szDbBusTxData[0] = 0x10;
+    	szDbBusTxData[1] = 0x10;
+    	szDbBusTxData[2] = 0x40;
+
+	for (i = 3; i < 3+192; i++)
+	{
+		szDbBusTxData[i]  = (u8)Csub;             
+	}
+
+    IicWriteData(SLAVE_I2C_ID_DBBUS, &szDbBusTxData[0], 3+192);	
+
+
+}
 s32 _DrvMpTestItoOpenTest(void)
 {
     s32 nRetVal = 0;
@@ -417,7 +526,7 @@ s32 _DrvMpTestItoOpenTest(void)
     DbBusStopMCU();
     DbBusIICUseBus();
     DbBusIICReshape();
-    mdelay(300);
+    mdelay(100);
     
     /*
       0 : SYS_STATE_NULL
@@ -442,8 +551,10 @@ s32 _DrvMpTestItoOpenTest(void)
 
         return -2;
     }
-    _DrvMpTestItoOpenTestMcuStop();
+    _DrvMpTestItoTestMcuStop();
     mdelay(10);
+	
+    _DrvMpTestItoTestMsg26xxmSetToNormalMode();
 
     for (i = 0; i < MAX_MUTUAL_NUM; i ++)
     {
@@ -452,14 +563,19 @@ s32 _DrvMpTestItoOpenTest(void)
 
     _gTestFailChannelCount = 0; // Reset _gTestFailChannelCount to 0 before test start
 
-    _gSenseLineNum = 13;//_DrvMpTestItoOpenTestAnaGetMutualChannelNum();
-    _gDriveLineNum = 22;//_DrvMpTestItoOpenTestAnaGetMutualSubFrameNum();
-    
-    _DrvMpTestItoOpenTestAnaSwitchToMutual();
-    _DrvMpTestItoOpenTestAnaGetMutualCSub(_gMode);
-    _DrvMpTestItoOpenTestDisableFilterNoiseDetect();
-    _DrvMpTestItoOpenTestAnaSwReset();
-    _DrvMpTestItoOpenTestGetDeltaC(_gDeltaC);
+    _gSenseLineNum = _DrvMpTestItoTestAnaGetMutualChannelNum();
+    _gDriveLineNum = _DrvMpTestItoTestAnaGetMutualSubFrameNum();
+
+    //_DrvMpTestItoTestAnaSwitchToMutual();
+    //_DrvMpTestItoOpenTestAnaGetMutualCSub(_gMode);
+	setMutualCsubViaDBbus(7);
+    _DrvMpTestItoTestDisableFilterNoiseDetect();
+//////chargeCDtime 
+	RegSet16BitValue(0x1224,0xffc0);
+	RegSet16BitValue(0x122A,0x0c0a);
+	
+    _DrvMpTestItoTestAnaSwReset();
+    _DrvMpTestItoTestGetDeltaC(_gDeltaC);
     
     for (i = 0; i < _gSenseLineNum; i ++)
     {
@@ -467,8 +583,7 @@ s32 _DrvMpTestItoOpenTest(void)
         
         for (j = 0; j < _gDriveLineNum; j ++)
         {
-            _gResult[i * _gDriveLineNum + j] = (4464*_gMode[i * _gDriveLineNum + j] - _gDeltaC[i * _gDriveLineNum + j]);
-            //_gResult[i * _gDriveLineNum + j] = (4464*7 - _gDeltaC[i * _gDriveLineNum + j]);
+            _gResult[i * _gDriveLineNum + j] = (4464*7 - _gDeltaC[i * _gDriveLineNum + j]);
             DBG("%d\t", _gResult[i * _gDriveLineNum + j]);
 //            DBG("%d  %d  %d\t", _gResult[i * _gDriveLineNum + j], 4464*_gMode[i * _gDriveLineNum + j], _gDeltaC[i * _gDriveLineNum + j]);
         }
@@ -543,7 +658,7 @@ static void _DrvMpTestItoTestDoWork(struct work_struct *pWork)
         DBG("mp test success\n");
 
 #ifdef CONFIG_ENABLE_FIRMWARE_DATA_LOG
-        DrvFwCtrlRestoreFirmwareModeToLogDataMode();    
+//        DrvFwCtrlRestoreFirmwareModeToLogDataMode();    
 #endif //CONFIG_ENABLE_FIRMWARE_DATA_LOG
     }
     else
@@ -571,7 +686,7 @@ static void _DrvMpTestItoTestDoWork(struct work_struct *pWork)
             DBG("mp test failed\n");
 
 #ifdef CONFIG_ENABLE_FIRMWARE_DATA_LOG
-            DrvFwCtrlRestoreFirmwareModeToLogDataMode();    
+//            DrvFwCtrlRestoreFirmwareModeToLogDataMode();    
 #endif //CONFIG_ENABLE_FIRMWARE_DATA_LOG
         }
     }

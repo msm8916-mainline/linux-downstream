@@ -77,6 +77,7 @@ const int g_TpVirtualKeyDimLocal[MAX_KEY_NUM][4] = {{BUTTON_W/2*1,TOUCH_SCREEN_Y
 
 struct input_dev *g_InputDevice = NULL;
 static int _gIrq = -1;
+atomic_t irq_wakeup_enabled; //furong 2014.4.20
 atomic_t irq_enabled; //furong, 2014.1.5 irq_enable() times should be equeal to irq_disable()
 extern u8 g_GestureWakeupFlag;
 extern struct i2c_client *g_I2cClient;
@@ -311,6 +312,34 @@ void DrvPlatformLyrEnableFingerTouchReport(void)
 	} else
 		DBG("****irq Already enabled*****\n");
 }
+
+void DrvPlatformLyrDisableIrqWakeup(void)
+{
+    DBG("*** %s() ***\n", __func__);
+	if (atomic_read(&irq_wakeup_enabled)) {
+		atomic_set(&irq_wakeup_enabled, 0);	
+		if (device_may_wakeup(&g_I2cClient->dev))
+		{
+			disable_irq_wake(g_I2cClient->irq);
+		} 
+	} else
+		DBG("****irq wakeup Already disabled*****\n");
+}
+
+void DrvPlatformLyrEnableIrqWakeup(void)
+{
+    DBG("*** %s() ***\n", __func__);
+	if (!atomic_read(&irq_wakeup_enabled)) {
+		atomic_set(&irq_wakeup_enabled, 1);	
+		if (device_may_wakeup(&g_I2cClient->dev))
+		{
+			enable_irq_wake(g_I2cClient->irq);
+		} 
+
+	} else
+		DBG("****irq wakeup Already enabled*****\n");
+}
+
 
 void DrvPlatformLyrFingerTouchPressed(s32 nX, s32 nY, s32 nPressure, s32 nId)
 {

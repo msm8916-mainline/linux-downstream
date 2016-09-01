@@ -40,7 +40,7 @@ extern void gtp_irq_enable(struct goodix_ts_data *);
 
 #pragma pack(1)
 typedef struct{
-    u8  wr;         //write read flag£¬0:R  1:W  2:PID 3:
+    u8  wr;         //write read flag\A3\AC0:R  1:W  2:PID 3:
     u8  flag;       //0:no need flag/int 1: need flag  2:need int
     u8 flag_addr[2];  //flag address
     u8  flag_val;   //flag val

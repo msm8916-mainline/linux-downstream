@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -34,7 +34,9 @@
 static struct v4l2_device *msm_v4l2_dev;
 static struct list_head    ordered_sd_list;
 
+#if defined CONFIG_TCT_8X16_IDOL347
 static struct pm_qos_request msm_v4l2_pm_qos_request;
+#endif
 
 static struct msm_queue_head *msm_session_q;
 
@@ -189,6 +191,7 @@ static inline int __msm_queue_find_command_ack_q(void *d1, void *d2)
 	return (ack->stream_id == *(unsigned int *)d2) ? 1 : 0;
 }
 
+#if defined CONFIG_TCT_8X16_IDOL347
 static void msm_pm_qos_add_request(void)
 {
     pr_info("%s: add request",__func__);
@@ -208,6 +211,7 @@ void msm_pm_qos_update_request(int val)
     pm_qos_update_request(&msm_v4l2_pm_qos_request, val);
 }
 
+#endif
 struct msm_session *msm_session_find(unsigned int session_id)
 {
 	struct msm_session *session;
@@ -389,6 +393,7 @@ int msm_create_session(unsigned int session_id, struct video_device *vdev)
 	msm_init_queue(&session->stream_q);
 	msm_enqueue(msm_session_q, &session->list);
 	mutex_init(&session->lock);
+	mutex_init(&session->lock_q);
 	return 0;
 }
 
@@ -473,6 +478,16 @@ static inline int __msm_sd_close_subdevs(struct msm_sd_subdev *msm_sd,
 	return 0;
 }
 
+static inline int __msm_sd_notify_freeze_subdevs(struct msm_sd_subdev *msm_sd)
+{
+	struct v4l2_subdev *sd;
+	sd = &msm_sd->sd;
+
+	v4l2_subdev_call(sd, core, ioctl, MSM_SD_NOTIFY_FREEZE, NULL);
+
+	return 0;
+}
+
 static inline int __msm_destroy_session_streams(void *d1, void *d2)
 {
 	struct msm_stream *stream = d1;
@@ -536,6 +551,7 @@ int msm_destroy_session(unsigned int session_id)
 	msm_destroy_session_streams(session);
 	msm_remove_session_cmd_ack_q(session);
 	mutex_destroy(&session->lock);
+	mutex_destroy(&session->lock_q);
 	msm_delete_entry(msm_session_q, struct msm_session,
 		list, session);
 	buf_mgr_subdev = msm_buf_mngr_get_subdev();
@@ -577,6 +593,7 @@ static long msm_private_ioctl(struct file *file, void *fh,
 	unsigned int session_id;
 	unsigned int stream_id;
 	unsigned long spin_flags = 0;
+	struct msm_sd_subdev *msm_sd;
 
 	session_id = event_data->session_id;
 	stream_id = event_data->stream_id;
@@ -633,6 +650,15 @@ static long msm_private_ioctl(struct file *file, void *fh,
 		complete(&cmd_ack->wait_complete);
 		spin_unlock_irqrestore(&(session->command_ack_q.lock),
 		   spin_flags);
+	}
+		break;
+
+	case MSM_CAM_V4L2_IOCTL_NOTIFY_FREEZE: {
+		pr_err("Notifying subdevs about potential sof freeze\n");
+		if (!list_empty(&msm_v4l2_dev->subdevs)) {
+			list_for_each_entry(msm_sd, &ordered_sd_list, list)
+				__msm_sd_notify_freeze_subdevs(msm_sd);
+		}
 	}
 		break;
 
@@ -752,7 +778,7 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 
 	if (timeout < 0) {
 		mutex_unlock(&session->lock);
-		pr_err("%s : timeout cannot be negative Line %d\n",
+		pr_debug("%s : timeout cannot be negative Line %d\n",
 				__func__, __LINE__);
 		return rc;
 	}
@@ -819,10 +845,10 @@ static int msm_close(struct file *filep)
 	if (!list_empty(&msm_v4l2_dev->subdevs))
 		list_for_each_entry(msm_sd, &ordered_sd_list, list)
 			__msm_sd_close_subdevs(msm_sd, &sd_close);
-
+#if defined CONFIG_TCT_8X16_IDOL347
 	/* remove msm_v4l2_pm_qos_request */
 	msm_pm_qos_remove_request();
-
+#endif
 	/* send v4l2_event to HAL next*/
 	msm_queue_traverse_action(msm_session_q, struct msm_session, list,
 		__msm_close_destry_session_notify_apps, NULL);
@@ -878,9 +904,10 @@ static int msm_open(struct file *filep)
 	spin_lock_irqsave(&msm_eventq_lock, flags);
 	msm_eventq = filep->private_data;
 	spin_unlock_irqrestore(&msm_eventq_lock, flags);
-
+#if defined CONFIG_TCT_8X16_IDOL347
 	/* register msm_v4l2_pm_qos_request */
 	msm_pm_qos_add_request();
+#endif
 
 	return rc;
 }

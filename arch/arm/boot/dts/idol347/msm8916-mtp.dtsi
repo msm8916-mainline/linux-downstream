@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -234,6 +234,7 @@
 			akm,auto-report;
 		};
 
+
 		/*Add kernel Lcd power ic +/-5v by BaoChangSheng*/
 		tps65132@3e {
 			compatible = "ti,tps65132";
@@ -274,6 +275,7 @@
                         vio-supply = <&pm8916_l6>;
                         bmg160,gpio-int1 = <&msm_gpio 97 0x00>;
                         bmg160,gpio-int2 = <&msm_gpio 98 0x00>;
+                        bmg,place = <6>;// MODIFIED by long.chen.hr, 2016-03-22, BUG-1748726
                 };
 
                 rhom@38{
@@ -334,6 +336,7 @@
 			"MIC BIAS Internal1", "Digital Mic2";
 		pinctrl-names = "cdc_lines_act",
 				"cdc_lines_sus",
+/* [AUDIO]-MOD BEGIN by fu.yu,2015-12-17,Task-1175992,for smart PA from L */
 				"cdc_lines_quat_sec_ext_act",
 				"cdc_lines_quat_sec_ext_sus",
 				"cross_conn_det_act",
@@ -346,6 +349,7 @@
 		pinctrl-3 = <&cdc_pdm_lines_sus &cdc_ext_pa_sus
 						&cdc_ext_pa_ws_sus &ext_cdc_tlmm_lines_sus
 						&mclk_lines_sus>;
+/* [AUDIO]-MOD END by fu.yu,2015-12-17 */
 		pinctrl-4 = <&cross_conn_det_act>;
 		pinctrl-5 = <&cross_conn_det_sus>;
 		qcom,cdc-us-euro-gpios = <&msm_gpio 120 0>;
@@ -360,7 +364,8 @@
 				<&dai_mi2s0>, <&dai_mi2s1>, <&dai_mi2s2>, <&dai_mi2s3>,
 				<&sb_0_rx>, <&sb_0_tx>, <&sb_1_rx>, <&sb_1_tx>,
 				<&sb_3_rx>, <&sb_3_tx>, <&sb_4_rx>, <&sb_4_tx>,
-				<&bt_sco_rx>, <&bt_sco_tx>, <&int_fm_rx>, <&int_fm_tx>,
+				<&bt_sco_rx>, <&bt_sco_tx>, <&bt_a2dp_rx>,
+				<&int_fm_rx>, <&int_fm_tx>,
 				<&afe_pcm_rx>, <&afe_pcm_tx>, <&afe_proxy_rx>, <&afe_proxy_tx>,
 				<&incall_record_rx>, <&incall_record_tx>, <&incall_music_rx>,
 				<&incall_music_2_rx>;
@@ -372,11 +377,12 @@
 				"msm-dai-q6-dev.16390", "msm-dai-q6-dev.16391",
 				"msm-dai-q6-dev.16392", "msm-dai-q6-dev.16393",
 				"msm-dai-q6-dev.12288", "msm-dai-q6-dev.12289",
-				"msm-dai-q6-dev.12292", "msm-dai-q6-dev.12293",
-				"msm-dai-q6-dev.224", "msm-dai-q6-dev.225",
-				"msm-dai-q6-dev.241", "msm-dai-q6-dev.240",
-				"msm-dai-q6-dev.32771", "msm-dai-q6-dev.32772",
-				"msm-dai-q6-dev.32773", "msm-dai-q6-dev.32770";
+				"msm-dai-q6-dev.12290", "msm-dai-q6-dev.12292",
+				"msm-dai-q6-dev.12293",	"msm-dai-q6-dev.224",
+				"msm-dai-q6-dev.225", "msm-dai-q6-dev.241",
+				"msm-dai-q6-dev.240", "msm-dai-q6-dev.32771",
+				"msm-dai-q6-dev.32772", "msm-dai-q6-dev.32773",
+				"msm-dai-q6-dev.32770";
 		asoc-codec = <&stub_codec>, <&pm8916_tombak_dig>;
 		asoc-codec-names = "msm-stub-codec.1", "tombak_codec";
 	};
@@ -416,6 +422,12 @@
 			debounce-interval = <15>;
 		};
 	};
+	/*JRD BSP +++ E.G Add for NPI DL status GPIO */
+	npi_down{
+		compatible = "qcom,npi-down-status";
+		qcom,npi-down-gpio = <&msm_gpio 69 0>;
+	};
+	/*JRD BSP --- E.G Add for NPI DL status GPIO*/
 };
 
 &blsp1_uart1 {
@@ -533,6 +545,7 @@
 //#include "dsi-panel-nt35521-auo-720p-video.dtsi"
 //#include "dsi-panel-nt35520-auo-720p-cmd.dtsi"
 #include "dsi-panel-nt35521s-lg-720p-video.dtsi"
+#include "dsi-panel-hx8394f-auo-720p-video.dtsi"
 //#include "dsi-panel-hx8394d-lg-720p-video.dtsi"
 /* [PLATFORM]-Add-END by BaoChangSheng*/
 
@@ -545,7 +558,7 @@
 &dsi_hx8394d_auo_720_vid {
 	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
 	//qcom,mdss-dsi-bl-pmic-pwm-frequency = <100>;
-        qcom,mdss-dsi-bl-pmic-pwm-frequency = <255>;   /*modify the backlight PWM frequency 9.3khz change to 30K HZ*/
+    qcom,mdss-dsi-bl-pmic-pwm-frequency = <255>;   /*modify the backlight PWM frequency 9.3khz change to 30K HZ*/
 	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
 	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
 	qcom,cont-splash-enabled;
@@ -567,13 +580,23 @@
 &dsi_otm1284a_lg_720_vid {
 	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
 	//qcom,mdss-dsi-bl-pmic-pwm-frequency = <100>;
-        qcom,mdss-dsi-bl-pmic-pwm-frequency = <255>;   /*modify the backlight PWM frequency 9.3khz change to 30K HZ*/
+    qcom,mdss-dsi-bl-pmic-pwm-frequency = <255>;   /*modify the backlight PWM frequency 9.3khz change to 30K HZ*/
 	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
 	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
-        qcom,cont-splash-enabled;
+    qcom,cont-splash-enabled;
 
 };
 #endif
+
+&dsi_hx8394f_auo_720_vid {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+	//qcom,mdss-dsi-bl-pmic-pwm-frequency = <100>;
+    qcom,mdss-dsi-bl-pmic-pwm-frequency = <255>;   /*modify the backlight PWM frequency 9.3khz change to 30K HZ*/
+	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
+	qcom,cont-splash-enabled;
+};
+
 #if 0
 &dsi_hx8394d_lg_720_vid {
 	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
@@ -663,7 +686,7 @@
 
 &pm8916_chg {
 	status = "ok";
-//	qcom,charging-disabled;
+	qcom,charging-disabled;
 };
 
 / {

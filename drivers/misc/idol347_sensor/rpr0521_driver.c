@@ -49,22 +49,28 @@
 #define ALS_NAME 		"rpr521-als"
 #define PS_NAME 			"rpr521-ps"
 
+/*add by xx for double click improvement*/
+#ifdef CONFIG_TCT_8X16_IDOL347
+static struct i2c_client *g_client;
+struct class *rpr_prx_misoperation_class = NULL;
+#endif
 
 /*************** Global Data ******************/
 /* parameter for als calculation */
 #define COEFFICIENT               (4)
-const unsigned long data0_coefficient[COEFFICIENT] = {10806, 6134, 2226, 4213};
-const unsigned long data1_coefficient[COEFFICIENT] = {23708, 3101,  714,  1900};
-const unsigned long judge_coefficient[COEFFICIENT] = { 291,  1636,  1674, 2216}; 
+const unsigned long data0_coefficient[COEFFICIENT] = {9647, 4974, 3113, 4050};
+const unsigned long data1_coefficient[COEFFICIENT] = {6523, 1889,  1128,  1440};
+const unsigned long judge_coefficient[COEFFICIENT] = {1008,  1631,  2757, 2810}; 
 
 
 #define _AUTO_THRESHOLD_CHANGE_
-#define _INIT_CALIB_  //zero modify in 20140505
-#define _ENABLE_CALIB_  //grace modify in 2014.12.12
+//#define _INIT_CALIB_  //zero modify in 20140505
+//#define _ENABLE_CALIB_  //grace modify in 2014.12.12
 u8 init_calib_flag = 0;   //grace modify in 2014.12.12
-u8 calib_status = 0;	  //grace modify in 2014.12.16
 u8 init_ps_high = 0;  //grace modify in 2014.12.12
 u8 init_ps_low = 0;  //grace modify in 2014.12.12
+u8 calib_status = 0;
+//#define ROHM_CALIBRATE //grace modify in 2015.2.16
 
 
 /* mode control table */
@@ -278,25 +284,20 @@ static int rpr521_calibrate(struct i2c_client *client)
 {
 	struct ALS_PS_DATA *als_ps = i2c_get_clientdata(client);
 	int average;
- 	unsigned int i, tmp, ps_th_h, ps_th_l, rc;	
+ 	unsigned int i, tmp, ps_th_h, ps_th_l;	
 	u8 infrared_data; //grace modify in 2014.12.12
 //	u16 judge_ps = 0; //grace modify in 2014.12.12
 //	u16 judge_ps_high = 0, judge_ps_low = 0; //grace modify in 2014.12.12
 
 	average = 0;
 	calib_status = 0;
-	printk(KERN_ERR "\n\n ***%s  enter cali*** \n\n", __func__);
+
 	//rpr521_set_enable(client, 0x41);	//PS 10ms
-
-	tmp = (PS_ALS_SET_INTR & 0xfe);
-	rc = i2c_smbus_write_byte_data(client, REG_INTERRUPT, tmp);
-	if(rc < 0)	
-	{	
-		printk(KERN_ERR "\n\n ***%s # tmp = %d # rc = %d *** \n\n", __func__, tmp, rc);		
+	tmp = i2c_smbus_write_byte_data(client, REG_INTERRUPT, PS_ALS_SET_INTR&0XFE); //disable ps interrupt
+	if(tmp < 0)	
+	{		
 		goto err_exit;	
-	}
-
-	printk(KERN_ERR "\n\n ***%s # cali step1 ... tmp = %d *** \n\n", __func__, tmp);
+	}	
 	
 	rpr521_set_enable(client, PS_EN|PS_DOUBLE_PULSE|PS10MS);        //PS 10ms
 
@@ -313,8 +314,6 @@ static int rpr521_calibrate(struct i2c_client *client)
 	 {		
 		goto err_exit;
 	 }
-
-	printk(KERN_ERR "\n\n ***%s # cali step2 *** \n\n", __func__);
 	 //grace modify in 2014.12.12 end
 
 	//for(i = 0; i < 20; i ++)
@@ -330,7 +329,6 @@ static int rpr521_calibrate(struct i2c_client *client)
 		}
 		average += tmp & 0xFFF;	// 12 bit data
 	}
-	printk(KERN_ERR "\n\n ***%s # cali step3 *** \n\n", __func__);
 	//average /= 20;
 	average /= 10; //grace modify in 2014.12.16
 
@@ -338,8 +336,6 @@ static int rpr521_calibrate(struct i2c_client *client)
 //	ps_th_l = average + PS_ALS_SET_PS_TL;
 	ps_th_h = average + THRES_TOLERANCE + THRES_DEFAULT_DIFF;
 	ps_th_l = average + THRES_TOLERANCE;
-
-	printk(KERN_ERR "\n\n ***%s average %d # ps_th_h %d # ps_th_l %d *** \n\n", __func__, average, ps_th_h, ps_th_l);
 
 	if(ps_th_h < 0)
 	{
@@ -361,7 +357,7 @@ static int rpr521_calibrate(struct i2c_client *client)
 		printk(KERN_ERR "%s: low threshold is greater than maximum allowed value.\n", __func__);
 		goto err_exit;
 	}
-	printk(KERN_ERR "\n\n ***%s # cali step4 *** \n\n", __func__);
+
 #if 0
 	//grace modify in 2014.12.12 begin
 #if 1
@@ -406,13 +402,11 @@ static int rpr521_calibrate(struct i2c_client *client)
 		{
 			ps_th_h = init_ps_high;
 			ps_th_l = init_ps_low;
-			printk(KERN_ERR "\n\n *** rpr521: cali fail use power on cali *** \n\n");
 		}
 		else
 		{
 			ps_th_h = PS_ALS_SET_PS_TH;
 			ps_th_l = PS_ALS_SET_PS_TL;
-			printk(KERN_ERR "\n\n *** rpr521: cali fail use  default *** \n\n");
 		}		
 	}
 	else
@@ -429,23 +423,21 @@ static int rpr521_calibrate(struct i2c_client *client)
 		als_ps->ps_th_l_back = ps_th_l;
 	else
 		goto err_exit;
-	printk(KERN_ERR "\n\n rpr521: ***exit cali*** \n\n");
-	//rpr521_set_enable(client, 0);	//disable ps
-        rpr521_set_enable(client, PS_ALS_SET_MODE_CONTROL);//grace modify in 2014.5.6 
 
-	rc = i2c_smbus_write_byte_data(client, REG_INTERRUPT, (PS_ALS_SET_INTR | 0x01));
-	if(rc < 0)	
+	//rpr521_set_enable(client, 0);	//disable ps
+  rpr521_set_enable(client, PS_ALS_SET_MODE_CONTROL);//grace modify in 2014.5.6 
+  tmp = i2c_smbus_write_byte_data(client, REG_INTERRUPT, PS_ALS_SET_INTR|0x1); //enable ps interrupt
+	if(tmp < 0)	
 	{		
-		goto err_exit;
-	}
-		
+		goto err_exit;	
+	}	
 	return 0;		
 
 err_exit:
 	//rpr521_set_enable(client, 0);	//disable ps
 	rpr521_set_enable(client, PS_ALS_SET_MODE_CONTROL);//grace modify in 2014.5.6 
-	rc = i2c_smbus_write_byte_data(client, REG_INTERRUPT, (PS_ALS_SET_INTR | 0x01));	//enable irq
-	
+	tmp = i2c_smbus_write_byte_data(client, REG_INTERRUPT, PS_ALS_SET_INTR|0x1); //enable ps interrupt
+
 	return -1;
 	
 }
@@ -800,6 +792,300 @@ static unsigned int rpr521_als_data_to_level(unsigned int als_data)
 #endif
 }
 
+#ifdef ROHM_CALIBRATE
+
+int rpr521_read_ps(struct i2c_client *client, u16 *data)
+{
+   
+	int tmp = 0;
+
+	if(client == NULL)
+	{
+		return -1;
+	}
+
+	tmp = i2c_smbus_read_word_data(client, REG_PSDATA);
+	if(tmp < 0)
+	{
+		printk(KERN_ERR "%s: i2c read ps data fail. \n", __func__);
+		return tmp;
+	}
+	*data = (unsigned short)(tmp&0xFFF);
+
+	return 0;    
+
+}
+
+int rpr521_judge_infra(struct i2c_client *client)
+{
+   
+	int tmp = 0;
+	u8 infrared_data;
+	
+
+	if(client == NULL)
+	{
+		return -1;
+	}
+
+	tmp = i2c_smbus_read_byte_data(client, REG_PERSISTENCE);
+	if(tmp < 0)
+	{
+		printk(KERN_ERR "%s: i2c read ps infra data fail. \n", __func__);
+		return tmp;
+	}
+
+	infrared_data = tmp;
+
+	if(infrared_data>>6)  
+	 {		
+		return 0;
+	 }
+
+	return 1;
+
+}
+
+
+static int rpr_get_offset(struct ALS_PS_DATA *als_ps , uint16_t ct_value)
+{
+	if(ct_value <= 100)
+	{
+		als_ps->rpr_max_min_diff = 100;
+		als_ps->rpr_ht_n_ct = 130;
+		als_ps->rpr_lt_n_ct = 50;
+	}
+	else if(ct_value <= 300)
+	{
+		als_ps->rpr_max_min_diff = 200;
+		als_ps->rpr_ht_n_ct = 130;
+		als_ps->rpr_lt_n_ct = 50;
+	}
+	else if(ct_value <= 500)
+	{
+		als_ps->rpr_max_min_diff = 200;
+		als_ps->rpr_ht_n_ct = 170;
+		als_ps->rpr_lt_n_ct = 60;
+	}
+	else
+	{
+		als_ps->rpr_max_min_diff = 200;
+		als_ps->rpr_ht_n_ct = 300;
+		als_ps->rpr_lt_n_ct = 100;
+	}
+	printk(KERN_INFO "%s: change diff=%d, htnct=%d, ltnct=%d\n", __func__, als_ps->rpr_max_min_diff, als_ps->rpr_ht_n_ct,  als_ps->rpr_lt_n_ct);	
+	printk("%s: change diff=%d, htnct=%d, ltnct=%d\n", __func__, als_ps->rpr_max_min_diff, als_ps->rpr_ht_n_ct,  als_ps->rpr_lt_n_ct);
+	return 0;
+}
+
+
+static int rpr_ps_tune_zero_final(struct ALS_PS_DATA *als_ps)
+{
+	int res = 0;
+
+	als_ps->tune_zero_init_proc = false;
+
+	res = i2c_smbus_write_byte_data(als_ps->client, REG_MODECONTROL, PS_ALS_SET_MODE_CONTROL); //disable ps interrupt
+	if(res< 0)	
+	{	
+		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		return res;	
+	}	
+
+
+	res = i2c_smbus_write_byte_data(als_ps->client, REG_INTERRUPT, PS_ALS_SET_INTR | MODE_PROXIMITY); //disable ps interrupt
+	if(res< 0)	
+	{	
+		printk(KERN_ERR "%s: write i2c error\n", __func__);
+		return res;	
+	}	
+		
+	if(als_ps->data_count == -1)
+	{
+		als_ps->ps_th_h_boot = PS_ALS_SET_PS_TH;
+		als_ps->ps_th_l_boot = PS_ALS_SET_PS_TL;
+		als_ps->ps_th_h = als_ps->ps_th_h_boot;
+		als_ps->ps_th_l = als_ps->ps_th_l_boot;
+		als_ps->boot_cali = 0;
+		printk(KERN_INFO "%s: exceed limit\n", __func__);
+		hrtimer_cancel(&als_ps->ps_tune0_timer);	
+		return 0;
+	}
+	
+	als_ps->psa = als_ps->ps_stat_data[0];
+	als_ps->psi = als_ps->ps_stat_data[2];	
+	als_ps->boot_ct = als_ps->ps_stat_data[1];
+	
+	rpr_get_offset(als_ps, als_ps->ps_stat_data[1]);
+
+
+	als_ps->ps_th_h_boot = als_ps->ps_stat_data[1] + als_ps->rpr_ht_n_ct;
+	als_ps->ps_th_l_boot = als_ps->ps_stat_data[1] + als_ps->rpr_lt_n_ct;
+	als_ps->boot_cali = 40;
+	
+	als_ps->ps_th_h = als_ps->ps_th_h_boot;
+	als_ps->ps_th_l = als_ps->ps_th_l_boot;
+
+	als_ps->ps_th_h_back = als_ps->ps_th_h;
+	als_ps->ps_th_l_back = als_ps->ps_th_l;
+
+	rpr521_set_ps_threshold_high(als_ps->client, als_ps->ps_th_h_boot);
+	rpr521_set_ps_threshold_low(als_ps->client, als_ps->ps_th_l_boot);
+			
+	printk(KERN_INFO "%s: set HT=%d,LT=%d\n", __func__, als_ps->ps_th_h,  als_ps->ps_th_l);		
+	hrtimer_cancel(&als_ps->ps_tune0_timer);					
+	return 0;
+}
+
+
+static int rpr_tune_zero_get_ps_data(struct ALS_PS_DATA *als_ps)
+{
+	uint16_t ps_adc;
+	int ret;
+	u8 infra_flag= 0;
+	
+	ret = rpr521_read_ps(als_ps->client, &als_ps->ps);
+	if(ret < 0)
+	{		
+		als_ps->data_count = -1;
+		rpr_ps_tune_zero_final(als_ps);
+		return 0;
+	}	
+	
+	ps_adc = als_ps->ps;
+	printk(KERN_INFO "%s: ps_adc #%d=%d\n", __func__, als_ps->data_count, ps_adc);
+	//if(ps_adc < 0)		
+		//return ps_adc;		
+
+	infra_flag = rpr521_judge_infra(als_ps->client);
+	if(infra_flag != 1)
+	{		
+		als_ps->data_count = -1;
+		rpr_ps_tune_zero_final(als_ps);
+		return 0;
+	}	
+	
+	als_ps->ps_stat_data[1]  +=  ps_adc;			
+	if(ps_adc > als_ps->ps_stat_data[0])
+		als_ps->ps_stat_data[0] = ps_adc;
+	if(ps_adc < als_ps->ps_stat_data[2])
+		als_ps->ps_stat_data[2] = ps_adc;						
+	als_ps->data_count++;	
+	
+	if(als_ps->data_count == 5)
+	{
+		als_ps->ps_stat_data[1]  /= als_ps->data_count;			
+		rpr_ps_tune_zero_final(als_ps);
+	}		
+	
+	return 0;
+}
+
+
+static int rpr_ps_tune_zero_func_fae(struct ALS_PS_DATA *als_ps)
+{
+	uint16_t word_data;
+	int ret, diff = 0;
+	u8 infra_flag= 0;
+			
+	if(!als_ps->enable_ps_sensor)
+	{
+		return 0;
+	}	
+
+	ret = rpr521_read_ps(als_ps->client, &als_ps->ps);
+	if(ret < 0)
+	{		
+		printk(KERN_ERR "%s fail, ret=0x%x", __func__, ret);
+	}	
+
+	word_data = als_ps->ps;
+
+	if(word_data == 0)
+	{
+		//printk(KERN_ERR "%s: incorrect word data (0)\n", __func__);
+		return 0xFFFF;
+	}
+	
+	infra_flag = rpr521_judge_infra(als_ps->client);
+	if(infra_flag != 1)
+	{		
+		printk(KERN_ERR "%sinvalid  infra data , infra_flag=0x%x", __func__, infra_flag);
+		return 0xFFFF;
+	}	
+
+	if(word_data > als_ps->psa)
+	{
+		als_ps->psa = word_data;
+		printk(KERN_INFO "%s: update psa: psa=%d,psi=%d\n", __func__, als_ps->psa, als_ps->psi);
+	}
+	if(word_data < als_ps->psi)
+	{			
+		als_ps->psi = word_data;
+		rpr_get_offset( als_ps, als_ps->psi);
+		printk(KERN_INFO "%s: update psi: psa=%d,psi=%d\n", __func__, als_ps->psa, als_ps->psi);	
+	}	
+	
+	diff = als_ps->psa - als_ps->psi;
+	if((als_ps->psa - als_ps->psi) > als_ps->rpr_max_min_diff)
+	{
+	
+		als_ps->psi_set = als_ps->psi;
+		
+//		rpr_get_offset( als_ps, als_ps->psi);
+		
+		als_ps->ps_th_h = als_ps->psi + als_ps->rpr_ht_n_ct;
+		als_ps->ps_th_l = als_ps->psi + als_ps->rpr_lt_n_ct;				
+	
+		if(als_ps->ps_th_h < als_ps->ps_th_h_boot)
+		{
+			als_ps->ps_th_h_boot = als_ps->ps_th_h;
+			als_ps->ps_th_l_boot = als_ps->ps_th_l;
+
+			als_ps->ps_th_h_back = als_ps->ps_th_h;
+			als_ps->ps_th_l_back = als_ps->ps_th_l;
+
+			rpr521_set_ps_threshold_high(als_ps->client, als_ps->ps_th_h_boot);
+			rpr521_set_ps_threshold_low(als_ps->client, als_ps->ps_th_l_boot);
+
+			printk(KERN_INFO "%s: update boot HT=%d, LT=%d\n", __func__,als_ps->ps_th_h_boot, als_ps->ps_th_l_boot);
+		}	
+
+		//rpr521_set_ps_threshold_high(als_ps->client, als_ps->ps_th_h_boot);
+		//rpr521_set_ps_threshold_low(als_ps->client, als_ps->ps_th_l_boot);
+
+		printk("tune0 %s: update HT=%d, LT=%d\n", __func__, als_ps->ps_th_h, als_ps->ps_th_l);		
+
+		hrtimer_cancel(&als_ps->ps_tune0_timer);
+
+	}
+#ifdef RPR_DEBUG_PRINTF	
+		printk("tune0 finsh %s: boot HT=%d, LT=%d, boot_cali=%d\n", __func__, als_ps->ps_th_h_boot, als_ps->ps_th_l_boot, als_ps->boot_cali);
+#endif	
+	return 0;
+}
+
+static void rpr_ps_tune0_work_func(struct work_struct *work)
+{
+	struct ALS_PS_DATA *als_ps = container_of(work, struct ALS_PS_DATA, rpr_ps_tune0_work);		
+	if(als_ps->tune_zero_init_proc)
+		rpr_tune_zero_get_ps_data(als_ps);
+	else
+		rpr_ps_tune_zero_func_fae(als_ps);
+	return;
+}	
+
+
+static enum hrtimer_restart rpr_ps_tune0_timer_func(struct hrtimer *timer)
+{
+	struct ALS_PS_DATA *als_ps = container_of(timer, struct ALS_PS_DATA, ps_tune0_timer);
+	queue_work(als_ps->rpr_ps_tune0_wq, &als_ps->rpr_ps_tune0_work);	
+	hrtimer_forward_now(&als_ps->ps_tune0_timer, als_ps->ps_tune0_delay);
+	return HRTIMER_RESTART;	
+}
+
+#endif
+
 static void rpr521_reschedule_work(struct ALS_PS_DATA *als_ps,
 					  unsigned long delay)
 {
@@ -820,6 +1106,7 @@ static void rpr521_reschedule_work(struct ALS_PS_DATA *als_ps,
 /* ALS polling routine */
 static void rpr521_als_polling_work_handler(struct work_struct *work)
 {
+	ktime_t timestamp;
 	struct ALS_PS_DATA *als_ps = container_of(work, struct ALS_PS_DATA, als_dwork.work);
 	struct i2c_client *client=als_ps->client;
 	int tmp = 0;
@@ -853,9 +1140,7 @@ static void rpr521_als_polling_work_handler(struct work_struct *work)
 	als_ps->gain1 = gain_table[tmp].DATA1;	
 	
 	tmp = i2c_smbus_read_byte_data(client, REG_MODECONTROL);
-    // edit by pengchuan.tang@jrdcom.com TCTSH_BUGNUM[931589]
-	//printk("REG_MODECONTROL=%x\n", tmp);
-    // end by tpc
+	printk("REG_MODECONTROL=%x\n", tmp);
 
 	if(tmp < 0)
 	{
@@ -871,23 +1156,19 @@ static void rpr521_als_polling_work_handler(struct work_struct *work)
 
 	als_ps->als_level = rpr521_als_data_to_level(als_ps->als_data);
 
-    // edit by pengchuan.tang@jrdcom.com TCTSH_BUGNUM[931589]
-    /*
-	printk(KERN_INFO "rpr521 als report: data0 = %d, data1 = %d, gain0 = %d, gain1 = %d, time = %d, lux = %d, level = %d.\n", als_ps->als_data0_raw, 
-		als_ps->als_data1_raw, als_ps->gain0, als_ps->gain1, als_ps->als_time, als_ps->als_data, als_ps->als_level);
-    */
-    // end by tpc
+      printk(KERN_INFO "rpr521 als report: data0 = %d, data1 = %d, gain0 = %d, gain1 = %d, time = %d, lux = %d, level = %d.\n", als_ps->als_data0_raw, 
+        als_ps->als_data1_raw, als_ps->gain0, als_ps->gain1, als_ps->als_time, als_ps->als_data, als_ps->als_level);
 
 	tmp = i2c_smbus_read_word_data(client, REG_PSDATA);
-    // edit by pengchuan.tang@jrdcom.com TCTSH_BUGNUM[931589]
-	//printk("REG_PSDATA=%x\n", tmp);
-    // end by tpc
+	printk("REG_PSDATA=%x\n", tmp);
 	//tmp = i2c_smbus_read_byte_data(client, REG_INTERRUPT);
 	//printk("REG_INTERRUPT=%x\n", tmp);
 	if(als_ps->als_data != CALC_ERROR)
 	{
 		input_report_abs(als_ps->input_dev_als, ABS_MISC, als_ps->als_level); // report als data. maybe necessary to convert to lux level
-//		input_report_abs(als_ps->input_dev_als, ABS_MISC, 100); // report als data. maybe necessary to convert to lux level
+		timestamp = ktime_get_boottime();
+		input_event(als_ps->input_dev_als,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(als_ps->input_dev_als,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 		input_sync(als_ps->input_dev_als);	
 	}	
 }
@@ -896,6 +1177,7 @@ static void rpr521_als_polling_work_handler(struct work_struct *work)
 /* PS interrupt routine */
 static void rpr521_ps_int_work_handler(struct work_struct *work)
 {
+	ktime_t timestamp;
 	struct ALS_PS_DATA *als_ps = container_of((struct delayed_work *)work, struct ALS_PS_DATA, dwork);
 	struct i2c_client *client=als_ps->client;
 	int tmp;
@@ -978,6 +1260,9 @@ static void rpr521_ps_int_work_handler(struct work_struct *work)
 
 
 		input_report_abs(als_ps->input_dev_ps, ABS_DISTANCE, als_ps->ps_direction); 
+		timestamp = ktime_get_boottime();
+		input_event(als_ps->input_dev_ps,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+		input_event(als_ps->input_dev_ps,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
 		input_sync(als_ps->input_dev_ps);	
 	}
 	else
@@ -1050,6 +1335,7 @@ static ssize_t rpr521_store_enable_ps_sensor(struct device *dev,
 #ifdef _ENABLE_CALIB_  //grace modify in 2014.12.12
 			rpr521_calibrate(client);
 #endif
+			i2c_smbus_write_byte_data(client, REG_INTERRUPT, PS_ALS_SET_INTR|0x1); //enable ps interrupt
 			rpr521_set_enable(client, tmp);	//PS on and ALS off
 		}
 	} 
@@ -1071,17 +1357,53 @@ static ssize_t rpr521_store_enable_ps_sensor(struct device *dev,
 	return count;
 }
 
+static void rpr521_check_enable(struct i2c_client *client)
+{
+        int enable_status;
+
+        struct ALS_PS_DATA *als_ps = i2c_get_clientdata(client);
+
+        enable_status = i2c_smbus_read_byte_data(client, REG_MODECONTROL);
+        if(enable_status & PS_EN)
+        {
+                   enable_status = enable_status | PS_ALS_SET_MODE_CONTROL;
+                   rpr521_set_enable(client, enable_status);
+                   als_ps->enable_ps_sensor = 1;
+        }
+        else
+        {
+                enable_status = enable_status | PS_ALS_SET_MODE_CONTROL | PS_EN;
+                rpr521_set_enable(client, enable_status);
+                als_ps->enable_ps_sensor = 1;
+        }
+}
+
+
 /* add by xx for sensor class */
 static int rpr521_prox_enable(struct ALS_PS_DATA *als_ps, int on)
 {
 	struct i2c_client *client = als_ps->client;
 	int tmp = 0;
 	int rc = 0;
+
+#ifdef ROHM_CALIBRATE
+	if (!on)
+	{
+		hrtimer_cancel(&als_ps->ps_tune0_timer);					
+		cancel_work_sync(&als_ps->rpr_ps_tune0_work);
+	}
+
+	if(als_ps->first_boot == true)
+	{		
+		als_ps->first_boot = false;
+	}
+#endif
 			
 	if(on == 1) 
 	{
 		if (als_ps->enable_ps_sensor == 0) 
 		{
+                        rpr521_check_enable(client);
 			als_ps->enable_ps_sensor = 1;
 		
 			tmp = i2c_smbus_read_byte_data(client, REG_MODECONTROL);
@@ -1092,9 +1414,26 @@ static int rpr521_prox_enable(struct ALS_PS_DATA *als_ps, int on)
 			rpr521_calibrate(client);
 #endif
 			printk("%s: tmp1=%x\n", __func__, tmp);
-
-			rc = i2c_smbus_write_byte_data(client, REG_INTERRUPT, PS_ALS_SET_INTR | 0x01);
+			i2c_smbus_write_byte_data(client, REG_INTERRUPT, PS_ALS_SET_INTR|0x1); //enable ps interrupt
 			rc = rpr521_set_enable(client, tmp);	//PS on and ALS off
+
+#ifdef ROHM_CALIBRATE
+
+			als_ps->psi_set = 0;
+			als_ps->psa = 0;		
+		
+			als_ps->ps_th_h = als_ps->ps_th_h_boot;
+			als_ps->ps_th_l = als_ps->ps_th_l_boot;	
+
+			als_ps->ps_th_h_back = als_ps->ps_th_h;
+			als_ps->ps_th_l_back = als_ps->ps_th_l;
+				
+			hrtimer_start(&als_ps->ps_tune0_timer, als_ps->ps_tune0_delay, HRTIMER_MODE_REL);					
+			rpr521_set_ps_threshold_high(als_ps->client, als_ps->ps_th_h);
+			rpr521_set_ps_threshold_low(als_ps->client, als_ps->ps_th_l);
+	
+#endif			
+
 		}
 	} 
 	else 
@@ -1153,7 +1492,7 @@ static ssize_t rpr521_store_enable_als_sensor(struct device *dev,
 		}
 		
 		spin_lock_irqsave(&als_ps->update_lock.wait_lock, flags); 
-       cancel_delayed_work(&als_ps->als_dwork);
+       	cancel_delayed_work(&als_ps->als_dwork);
 		schedule_delayed_work(&als_ps->als_dwork, msecs_to_jiffies(als_ps->als_poll_delay));	// 125ms
 		spin_unlock_irqrestore(&als_ps->update_lock.wait_lock, flags);	
 	}
@@ -1281,9 +1620,20 @@ static ssize_t rpr521_show_ps_data(struct device *dev, struct device_attribute *
 	struct i2c_client *client = to_i2c_client(dev);
 	int tmp = 0;
 	int tmp1 = 0;
-	tmp = i2c_smbus_read_word_data(client, REG_PSDATA);
-	tmp1 = i2c_smbus_read_word_data(client, REG_INTERRUPT);
-	return sprintf(buf, "tmp%d tmp1%x\n", tmp,tmp1);
+        int sys_mode = 0, mode = 0, als_ps_cont = 0, persist = 0, ch0 = 0, ch1 = 0, ps_l = 0, ps_h = 0;
+
+        tmp = i2c_smbus_read_word_data(client, REG_PSDATA);
+        tmp1 = i2c_smbus_read_word_data(client, REG_INTERRUPT);
+        sys_mode = i2c_smbus_read_byte_data(client, REG_SYSTEMCONTROL);
+        mode = i2c_smbus_read_byte_data(client, REG_MODECONTROL);
+        als_ps_cont = i2c_smbus_read_byte_data(client, REG_ALSPSCONTROL);
+        persist = i2c_smbus_read_byte_data(client, REG_PERSISTENCE);
+        ch0 = i2c_smbus_read_word_data(client, REG_ALSDATA0);
+        ch1 = i2c_smbus_read_word_data(client, REG_ALSDATA1);
+        ps_l = i2c_smbus_read_word_data(client, REG_PSTL);
+        ps_h = i2c_smbus_read_word_data(client, REG_PSTH);
+
+	return sprintf(buf, "code=%d int=%x sys_mode=%x mode=%x als_ps_cont=%x persist=%x  ch0=%d ch1=%d ps_l=%d ps_h=%d \n", tmp, tmp1, sys_mode , mode, als_ps_cont, persist, ch0, ch1, ps_l, ps_h);
 }
 //grace add in 2013.10.09 end
 
@@ -1626,9 +1976,10 @@ static int rpr521_init_client(struct i2c_client *client)
 	als_ps->enable_als_sensor = 0; //grace add in 2013.10.09
 	als_ps->enable_ps_sensor = 0;  //grace add in 2013.10.09
 
-#ifdef _INIT_CALIB_ 
-       //grace modify in 2014.12.12 begin
-	if ((!rpr521_calibrate(client)) && (calib_status))
+#ifdef _INIT_CALIB_
+	
+  //grace modify in 2014.12.12 begin
+	if ((!rpr521_calibrate(client))&&calib_status)
 	{
 		init_ps_high = als_ps->ps_th_h;
 		init_ps_low = als_ps->ps_th_l;
@@ -1639,13 +1990,39 @@ static int rpr521_init_client(struct i2c_client *client)
 		als_ps->ps_th_h_back = als_ps->ps_th_h;
 		als_ps->ps_th_l_back = als_ps->ps_th_l;
 	}
-	printk("\n\n");
-	printk(KERN_ERR "\n\n ***%s  init_calib_flag = %d *** \n\n", __func__, init_calib_flag);
-	printk("\n\n");
 	//grace modify in 2014.12.12 end
 #else
+
+#ifdef ROHM_CALIBRATE
+
+	als_ps->psi_set = 0;	
+	als_ps->ps_stat_data[0] = 0;
+	als_ps->ps_stat_data[2] = 4095;
+	als_ps->ps_stat_data[1] = 0;
+	als_ps->data_count = 0;
+	als_ps->ps_th_h_boot = PS_ALS_SET_PS_TH;
+	als_ps->ps_th_l_boot = PS_ALS_SET_PS_TL;
+	als_ps->tune_zero_init_proc = true;	
+	als_ps->boot_ct = 0xFFF;
+	als_ps->ps_nf = 1;
+	als_ps->first_boot = true;	
+
+	rpr521_set_ps_threshold_high(client, als_ps->ps_th_h_boot);
+	rpr521_set_ps_threshold_low(client, als_ps->ps_th_l_boot);
+
+	result =  i2c_smbus_write_byte_data(client, REG_MODECONTROL, PS_ALS_SET_MODE_CONTROL|PS_EN);	//soft-reset
+    	if (result != 0) {
+        	return (result);
+    	}
+
+	hrtimer_start(&als_ps->ps_tune0_timer, als_ps->ps_tune0_delay, HRTIMER_MODE_REL);	
+	
+#endif
+
 	als_ps->ps_th_h_back = als_ps->ps_th_h;
 	als_ps->ps_th_l_back = als_ps->ps_th_l;
+
+
 #endif
 
     return (result);
@@ -1757,6 +2134,59 @@ pwr_deinit:
 	return 0;
 }
 
+
+#ifdef CONFIG_TCT_8X16_IDOL347
+
+static ssize_t rpr_device_prx_detected(struct class *class,
+				struct class_attribute *attr, char *buf)
+{
+	struct ALS_PS_DATA *als_ps = i2c_get_clientdata(g_client);
+	uint32_t reading;
+	
+        rpr521_prox_enable(als_ps, 1);
+	msleep(10);
+	reading = i2c_smbus_read_word_data(g_client, REG_PSDATA);
+	rpr521_prox_enable(als_ps, 1);
+
+        if (reading > 200)
+                reading = 1;
+        else
+                reading = 0;
+ 
+	return scnprintf(buf, PAGE_SIZE, "%d\n", reading);	
+}
+
+static struct class_attribute prx_status =
+	__ATTR(status, 0444, rpr_device_prx_detected, NULL);
+
+static int rpr_prx_misoperation_creat_file(void)
+{
+	int ret;
+
+	/*  /<sysfs>/class/prx_misoperation/status */
+
+	rpr_prx_misoperation_class = class_create(THIS_MODULE, "prx_misoperation");
+	if (IS_ERR(rpr_prx_misoperation_class)) {
+		ret = PTR_ERR(rpr_prx_misoperation_class);
+		printk(KERN_ERR "prx_misoperation_class: couldn't create prx_misoperation\n");
+	}
+	ret = class_create_file(rpr_prx_misoperation_class, &prx_status);
+	if (ret) {
+		printk(KERN_ERR "prx_misoperation: couldn't create status\n");
+	}
+
+	return ret;
+
+}
+
+static void rpr_remove_prx_create_file(void)
+{
+	class_remove_file(rpr_prx_misoperation_class, &prx_status);
+}
+
+#endif
+
+
 static int rpr521_probe(struct i2c_client *client,
 				   const struct i2c_device_id *id)
 {
@@ -1767,13 +2197,14 @@ static int rpr521_probe(struct i2c_client *client,
 	struct ALS_PS_DATA *als_ps;
 	//unsigned long flags;
 	struct device_node *np = client->dev.of_node;
-	
+	ktime_t timestamp;
 	int err = 0;
 	int dev_id;
-	printk("\n\n ***** RPR521 PROBE START ***** \n\n");
-	printk("%s started.\n",__func__);
-
 	//wake_lock_init(&ps_lock,WAKE_LOCK_SUSPEND,"ps wakelock");
+
+        #ifdef CONFIG_TCT_8X16_IDOL347
+	g_client=client;
+	#endif
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE)) {
 		err = -EIO;
@@ -1820,6 +2251,14 @@ static int rpr521_probe(struct i2c_client *client,
 
 	INIT_DELAYED_WORK(&als_ps->dwork, rpr521_ps_int_work_handler);
 	INIT_DELAYED_WORK(&als_ps->als_dwork, rpr521_als_polling_work_handler); 
+
+#ifdef ROHM_CALIBRATE
+	als_ps->rpr_ps_tune0_wq = create_singlethread_workqueue("rpr_ps_tune0_wq");
+	INIT_WORK(&als_ps->rpr_ps_tune0_work, rpr_ps_tune0_work_func);
+	hrtimer_init(&als_ps->ps_tune0_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	als_ps->ps_tune0_delay = ns_to_ktime(60 * NSEC_PER_MSEC);
+	als_ps->ps_tune0_timer.function = rpr_ps_tune0_timer_func;
+#endif
 	
 //	printk("%s interrupt is hooked\n", __func__);
 
@@ -1828,7 +2267,7 @@ static int rpr521_probe(struct i2c_client *client,
 	err = rpr521_init_client(client);
 	if (err)
 		goto exit_kfree;
-
+	
 	als_ps->als_poll_delay = PS_ALS_SET_MIN_DELAY_TIME;	
 
 	/* Register to Input Device */
@@ -1940,13 +2379,25 @@ static int rpr521_probe(struct i2c_client *client,
 		goto exit_unregister_ps_class;
 	}
 	/* add by xx for sensor class end*/
-	
-	input_report_abs(als_ps->input_dev_ps, ABS_DISTANCE, 1); 
-	input_sync(als_ps->input_dev_ps);	
-	
+
+        #ifdef CONFIG_TCT_8X16_IDOL347
+	err = rpr_prx_misoperation_creat_file();
+	if(err)
+		goto prx_misoperation_creat_fail;
+        #endif
+		
+	input_report_abs(als_ps->input_dev_ps, ABS_DISTANCE, 1); //grace modify in 2014.12.16 to avoid cover in calling period
+	timestamp = ktime_get_boottime();
+	input_event(als_ps->input_dev_ps,EV_SYN, SYN_TIME_SEC,ktime_to_timespec(timestamp).tv_sec);
+	input_event(als_ps->input_dev_ps,EV_SYN, SYN_TIME_NSEC,ktime_to_timespec(timestamp).tv_nsec);
+	input_sync(als_ps->input_dev_ps);	//grace modify in 2014.12.16	
 	printk(KERN_INFO "%s: INT No. %d", __func__, client->irq);
 	return 0;
 
+#ifdef CONFIG_TCT_8X16_IDOL347
+prx_misoperation_creat_fail:
+	rpr_remove_prx_create_file();
+#endif
 exit_unregister_ps_class:
 	sensors_classdev_unregister(&als_ps->ps_cdev);
 exit_unregister_als_ioctl:

@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License version 2 and
@@ -24,8 +24,8 @@
 
 &i2c_4 {
 	smb1360_otg_supply: smb1360-chg-fg@14 {
-/* [PLATFORM]-Mod-BEGIN by TCTNB.FLF, PR-790435, 2014/11/12, fix irq blocks booting up*/
-
+	/* [PLATFORM]-Mod-BEGIN by TCTNB.FLF, PR-790435, 2014/11/12, fix irq blocks booting up*/
+	/* task:1176413 2015.12.22 dhx  */
         compatible = "qcom,smb1360-chg-fg";
         reg = <0x14>;
         interrupt-parent = <&msm_gpio>;
@@ -46,7 +46,7 @@
         qcom,empty-soc-disabled;
         regulator-name = "smb1360_otg_vreg";
         /* qcom,awake-min-soc; */
-        qcom,batt-profile-select;
+        qcom,batt-profile-select; // MODIFIED by jin.wang, 2016-05-12,BUG-2145817
         qcom,smb1360-vadc = <&pm8916_vadc>;
         qcom,batt-id-vref-uv = <1800000>;
         qcom,batt-id-rpullup-kohm = <100>;
@@ -54,10 +54,16 @@
         qcom,profile-b-rid-kohm = <52>;
 	qcom,fg-batt-capacity-mah = <2910>;
         qcom,fg-cc-soc-coeff = <0x81A1>;
+
+        qcom,shdn-after-pwroff;
 	qcom,fg-soc-max = <85>;
         qcom,fg-soc-min = <15>;
         qcom,fg-delta-soc = <1>;
-        qcom,shdn-after-pwroff;
+
+	/* MODIFIED-BEGIN by jin.wang, 2016-05-12,BUG-2145817*/
+	qcom,fg-reset-at-pon;
+	qcom,fg-reset-thresold-mv = <200>;
+	/* MODIFIED-END by jin.wang,BUG-2145817*/
 
         qcom,config-hard-thresholds;
         qcom,hot-bat-decidegc = <550>;
@@ -74,7 +80,7 @@
 	};
 };
 
-&pm8916_chg {
+/*&pm8916_chg {
 	status = "ok";
 	qcom,use-external-charger;
 };
@@ -82,7 +88,7 @@
 &pm8916_bms {
 	status = "ok";
 	qcom,disable-bms;
-};
+};*/ //MODIFIED by jianeng.yuan, 2016-04-14,BUG-1941671
 
 &usb_otg {
 	qcom,hsusb-otg-mode = <3>;
@@ -95,8 +101,10 @@
 	vbus_otg-supply = <&smb1360_otg_supply>;
 };
 
-&cci {
+/*MODIFIED-BEGIN by jianeng.yuan, 2016-04-14,BUG-1941671*/
+/*&cci {
 	qcom,camera@0 {
 		qcom,led-flash-src = <&led_flash0>;
 	};
-};
+};*/
+/*MODIFIED-END by jianeng.yuan,BUG-1941671*/

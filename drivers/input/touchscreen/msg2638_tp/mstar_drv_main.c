@@ -60,6 +60,7 @@ extern u16 g_GestureWakeupMode;
 #endif //CONFIG_ENABLE_GESTURE_WAKEUP
 
 extern u8 g_ChipType;
+extern u16 g_GestureWakeupMode;
 
 #ifdef CONFIG_ENABLE_ITO_MP_TEST
 #if defined(CONFIG_ENABLE_CHIP_MSG26XXM)
@@ -68,6 +69,10 @@ extern TestScopeInfo_t g_TestScopeInfo;
 #endif //CONFIG_ENABLE_ITO_MP_TEST
 
 extern struct mutex g_Mutex;
+extern atomic_t tp_suspended;
+extern u8 g_GestureWakeupFlag;
+extern void DrvPlatformLyrDisableIrqWakeup(void);
+
 /*=============================================================*/
 // LOCAL VARIABLE DEFINITION
 /*=============================================================*/
@@ -379,7 +384,6 @@ static DEVICE_ATTR(test_scope, SYSFS_AUTHORITY, DrvMainFirmwareTestScopeShow, Dr
 /*--------------------------------------------------------------------------*/
 
 #ifdef CONFIG_TOUCHSCREEN_PROXIMITY_SENSOR
-
 void DrvMainFirmwarePSEnable(int en)
 {
     u8 ps_store_data[4];
@@ -395,19 +399,23 @@ void DrvMainFirmwarePSEnable(int en)
             ps_store_data[2] = 0x47;
             ps_store_data[3] = 0xa1;		
             IicWriteData(SLAVE_I2C_ID_DWI2C, &ps_store_data[0],4);
-            mdelay(100);
+            mdelay(20);
             ps_store_data[0] = 0x53;
             ps_store_data[1] = 0x00;
             ps_store_data[2] = 0x47;
             IicWriteData(SLAVE_I2C_ID_DWI2C, &ps_store_data[0],3);
-            mdelay(50);
+            mdelay(20);
             IicReadData(SLAVE_I2C_ID_DWI2C, &ps_rev_data[0], 2);
-            mdelay(50);
+            mdelay(20);
             printk("[Fu]disable ps_rev_data[0]=%x(0xa1),i=%d\n",ps_rev_data[0],i);
             if(0xa1==ps_rev_data[0])
             {
 				proximity_enable = 0;
-				//device_init_wakeup(&g_I2cClient->dev, 0);
+				if ((atomic_read(&tp_suspended)) && (g_GestureWakeupFlag == 0)) //furong add 2014.04.20, pr987220
+				{
+					DrvPlatformLyrDisableIrqWakeup();
+				}
+
                 break;
             }
             else if(i<2)
@@ -421,6 +429,14 @@ void DrvMainFirmwarePSEnable(int en)
         }
     } else {
         ps_data_state[0] = 1;
+		printk("[Fu]%s reset pin=%d,gesture=%d\n ", __func__, gpio_get_value(global_reset_gpio), g_GestureWakeupMode);
+		
+		if ((0 == gpio_get_value(global_reset_gpio)) || (g_GestureWakeupFlag != 0x0000)) { //2015.05.27 rong.fu
+			proximity_enable = 1;
+			device_init_wakeup(&g_I2cClient->dev, 1);
+			return;
+		}
+	
         for(i=0;i<5;i++)
         {
             ps_store_data[0] = 0x52;
@@ -428,19 +444,20 @@ void DrvMainFirmwarePSEnable(int en)
             ps_store_data[2] = 0x47;
             ps_store_data[3] = 0xa0;		
             IicWriteData(SLAVE_I2C_ID_DWI2C, &ps_store_data[0],4);
-            mdelay(100);
+            mdelay(20);
             ps_store_data[0] = 0x53;
             ps_store_data[1] = 0x00;
             ps_store_data[2] = 0x47;
             IicWriteData(SLAVE_I2C_ID_DWI2C, &ps_store_data[0],3);
-            mdelay(50);
+            mdelay(20);
             IicReadData(SLAVE_I2C_ID_DWI2C, &ps_rev_data[0], 2);
-            mdelay(50);
+            mdelay(20);
             printk("[Fu]enable ps_rev_data[0]=%x(0xa0),i=%d\n",ps_rev_data[0],i);
+	
             if(0xa0==ps_rev_data[0])
             {
                 proximity_enable = 1;
-		device_init_wakeup(&g_I2cClient->dev, 1);
+				device_init_wakeup(&g_I2cClient->dev, 1);
                 break;
             }
             else if(i<2)
@@ -455,6 +472,7 @@ void DrvMainFirmwarePSEnable(int en)
 		    gpio_set_value(global_reset_gpio, 1);
 		    mdelay(100); 
             }
+
         }
     }
 }
