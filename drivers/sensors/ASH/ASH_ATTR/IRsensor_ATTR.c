@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
+#include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/fs.h>
 #include <linux/input/ASH.h>
@@ -93,15 +94,16 @@ ssize_t ATT_proximity_store_calibration_hi(struct device *dev,
 		return count;
 	}
 	
-	if ((strict_strtoul(buf, 10, &calvalue) < 0))
+	if ((kstrtoul(buf, 10, &calvalue) < 0))
 		return -EINVAL;		
 	if(calvalue < 0) {
 		err("Proximity store High Calibration with NEGATIVE value. (%lu) \n", calvalue);
 		return -EINVAL;	
 	}	
-	if(g_IR_ATTR->ATTR_Calibration->proximity_store_calibration_hi(calvalue) < 0)
-		return -EINVAL;
+
 	log("Proximity store High Calibration: %lu\n", calvalue);
+	if(g_IR_ATTR->ATTR_Calibration->proximity_store_calibration_hi(calvalue) < 0)
+		return -EINVAL;	
 	
 	return count;
 }
@@ -131,15 +133,55 @@ ssize_t ATT_proximity_store_calibration_lo(struct device *dev,
 		return count;
 	}
 	
-	if ((strict_strtoul(buf, 10, &calvalue) < 0))
+	if ((kstrtoul(buf, 10, &calvalue) < 0))
 		return -EINVAL;	
 	if(calvalue < 0) {
 		err("Proximity store Low Calibration with NEGATIVE value. (%lu) \n", calvalue);
 		return -EINVAL;
-	}	
-	if(g_IR_ATTR->ATTR_Calibration->proximity_store_calibration_lo(calvalue) < 0)
-		return -EINVAL;
+	}
+
 	log("Proximity store Low Calibration: %lu\n", calvalue);
+	if(g_IR_ATTR->ATTR_Calibration->proximity_store_calibration_lo(calvalue) < 0)
+		return -EINVAL;	
+	
+	return count;
+}
+
+ssize_t ATT_proximity_show_calibration_inf(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int calvalue;
+
+	if(g_IR_ATTR->ATTR_Calibration->proximity_show_calibration_inf == NULL) {
+		err("proximity_show_calibration_inf NOT SUPPORT. \n");
+		return sprintf(buf, "NOT SUPPORT\n");
+	}
+	
+	calvalue = g_IR_ATTR->ATTR_Calibration->proximity_show_calibration_inf();
+	dbg("Proximity show Inf Calibration: %d\n", calvalue);
+	return sprintf(buf, "%d\n", calvalue);
+}
+
+ssize_t ATT_proximity_store_calibration_inf(struct device *dev, 
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long calvalue;
+
+	if(g_IR_ATTR->ATTR_Calibration->proximity_store_calibration_inf == NULL) {
+		err("proximity_store_calibration_inf NOT SUPPORT. \n");
+		return count;
+	}
+	
+	if ((kstrtoul(buf, 10, &calvalue) < 0))
+		return -EINVAL;	
+	if(calvalue < 0) {
+		err("Proximity store Inf Calibration with NEGATIVE value. (%lu) \n", calvalue);
+		return -EINVAL;
+	}
+
+	log("Proximity store Inf Calibration: %lu\n", calvalue);
+	if(g_IR_ATTR->ATTR_Calibration->proximity_store_calibration_inf(calvalue) < 0)
+		return -EINVAL;	
 	
 	return count;
 }
@@ -169,15 +211,16 @@ ssize_t ATT_light_store_calibration_200lux(struct device *dev,
 		return count;
 	}
 	
-	if ((strict_strtoul(buf, 10, &calvalue) < 0))
+	if ((kstrtoul(buf, 10, &calvalue) < 0))
 		return -EINVAL;	
 	if(calvalue < 0) {
 		err("Light Sensor store 200 lux Calibration with NEGATIVE value. (%lu) \n", calvalue);
 		return -EINVAL;
 	}
+
+	log("Light Sensor store 200 lux Calibration: %lu\n", calvalue);
 	if(g_IR_ATTR->ATTR_Calibration->light_store_calibration_200lux(calvalue) < 0)
-		return -EINVAL;
-	log("Light Sensor store 200 lux Calibration: %lu\n", calvalue);		
+		return -EINVAL;			
 		
 	return count;
 }
@@ -207,15 +250,16 @@ ssize_t ATT_light_store_calibration_1000lux(struct device *dev,
 		return count;
 	}
 	
-	if ((strict_strtoul(buf, 10, &calvalue) < 0))
+	if ((kstrtoul(buf, 10, &calvalue) < 0))
 		return -EINVAL;
 	if(calvalue < 0) {
 		err("Light Sensor store 1000 lux Calibration with NEGATIVE value. (%lu) \n", calvalue);
 		return -EINVAL;
 	}
-	if(g_IR_ATTR->ATTR_Calibration->light_store_calibration_1000lux(calvalue) < 0)
-		return -EINVAL;
+
 	log("Light Sensor store 1000 lux Calibration: %lu\n", calvalue);	
+	if(g_IR_ATTR->ATTR_Calibration->light_store_calibration_1000lux(calvalue) < 0)
+		return -EINVAL;	
 			
 	return count;
 }
@@ -337,10 +381,10 @@ ssize_t  ATT_IRsensor_store_write_reg(struct device *dev,
 	}
 	
 	sscanf(buf, "%x %d", &i2c_reg_addr, &i2c_reg_value);
-	
+
+	log("IRsensor_store_reg, addr=%02X, value=%02X\n", i2c_reg_addr, i2c_reg_value);
 	if(g_IR_ATTR->ATTR_Hardware->IRsensor_store_reg(i2c_reg_addr, i2c_reg_value) < 0)
-		return -EINVAL;
-	log("IRsensor_store_reg, addr=%02X, value=%02X\n", i2c_reg_addr, i2c_reg_value);	
+		return -EINVAL;		
 	
 	return count;
 }
@@ -380,10 +424,10 @@ ssize_t  ATT_proximity_store_switch_onoff(struct device *dev,
 		bOn = true;
 	else
 		return -EINVAL;
-	
+
+	log("Proximity switch %s\n", bOn?"on":"off");
 	if(g_IR_ATTR->ATTR_HAL->proximity_store_switch_onoff(bOn) < 0)
-		return -EINVAL;
-	log("Proximity switch %s\n", bOn?"on":"off");	
+		return -EINVAL;		
 	
 	return count;
 }
@@ -435,10 +479,10 @@ ssize_t  ATT_light_store_switch_onoff(struct device *dev,
 		bOn = true;
 	else
 		return -EINVAL;
-	
+
+	log("Light Sensor switch %s\n", bOn?"on":"off");
 	if(g_IR_ATTR->ATTR_HAL->light_store_switch_onoff(bOn) < 0)
-		return -EINVAL;
-	log("Light Sensor switch %s\n", bOn?"on":"off");	
+		return -EINVAL;		
 	
 	return count;
 }
@@ -504,9 +548,9 @@ ssize_t  ATT_proximity_store_polling_mode(struct device *dev,
 	else
 		return -EINVAL;
 
-	if(g_IR_ATTR->ATTR_Extension->proximity_store_polling_mode(bOn) < 0)
-		return -EINVAL;
 	log("Proximity polling mode %s\n", bOn?"on":"off");	
+	if(g_IR_ATTR->ATTR_Extension->proximity_store_polling_mode(bOn) < 0)
+		return -EINVAL;	
 	
 	return count;	
 }
@@ -534,15 +578,16 @@ ssize_t  ATT_light_store_sensitivity(struct device *dev,
 		return count;
 	}
 	
-	if ((strict_strtoul(buf, 10, &sensitivity) < 0))
+	if ((kstrtoul(buf, 10, &sensitivity) < 0))
 		return -EINVAL;
 	if(sensitivity < 0) {
 		err("Light Sensor store Sensitivity with NEGATIVE value. (%lu) \n", sensitivity);
 		return -EINVAL;
 	}
+
+	log("Light Sensor store Sensitivity: %lu\n", sensitivity);
 	if(g_IR_ATTR->ATTR_Extension->light_store_sensitivity(sensitivity) < 0)
 		return -EINVAL;	
-	log("Light Sensor store Sensitivity: %lu\n", sensitivity);
 	
 	return count;
 }
@@ -570,19 +615,208 @@ ssize_t  ATT_light_store_log_threshold(struct device *dev,
 		return count;
 	}
 	
-	if ((strict_strtoul(buf, 10, &log_threshold) < 0))
+	if ((kstrtoul(buf, 10, &log_threshold) < 0))
 		return -EINVAL;
 	if(log_threshold < 0) {
 		err("Light Sensor store Log Threshold with NEGATIVE value. (%lu) \n", log_threshold);
 		return -EINVAL;
 	}
+
+	log("Light Sensor store Log Threshold: %lu\n", log_threshold);
 	if(g_IR_ATTR->ATTR_Extension->light_store_log_threshold(log_threshold) < 0)
 		return -EINVAL;	
-	log("Light Sensor store Log Threshold: %lu\n", log_threshold);
 	
 	return count;
 }
 
+/* +++ For stress test debug +++ */
+ssize_t  ATT_proximity_show_int_count(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int p_int_counter=0;
+	
+	if(g_IR_ATTR->ATTR_Extension->proximity_show_int_count == NULL) {
+		err("proximity_show_int_count NOT SUPPORT. \n");
+		return sprintf(buf, "NOT SUPPORT\n");
+	}
+	
+	p_int_counter = g_IR_ATTR->ATTR_Extension->proximity_show_int_count();
+	return sprintf(buf, "%d\n", p_int_counter);
+}
+
+ssize_t  ATT_light_show_int_count(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int l_int_counter=0;
+	
+	if(g_IR_ATTR->ATTR_Extension->light_show_int_count == NULL) {
+		err("light_show_int_count NOT SUPPORT. \n");
+		return sprintf(buf, "NOT SUPPORT\n");
+	}
+	
+	l_int_counter = g_IR_ATTR->ATTR_Extension->light_show_int_count();
+	return sprintf(buf, "%d\n", l_int_counter);
+}
+
+ssize_t  ATT_proximity_show_event_count(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int p_event_counter=0;
+	
+	if(g_IR_ATTR->ATTR_Extension->proximity_show_event_count == NULL) {
+		err("proximity_show_event_count NOT SUPPORT. \n");
+		return sprintf(buf, "NOT SUPPORT\n");
+	}
+	
+	p_event_counter = g_IR_ATTR->ATTR_Extension->proximity_show_event_count();
+	return sprintf(buf, "%d\n", p_event_counter);
+}
+
+ssize_t  ATT_light_show_event_count(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int l_event_counter=0;
+	
+	if(g_IR_ATTR->ATTR_Extension->light_show_event_count == NULL) {
+		err("light_show_event_count NOT SUPPORT. \n");
+		return sprintf(buf, "NOT SUPPORT\n");
+	}
+	
+	l_event_counter = g_IR_ATTR->ATTR_Extension->light_show_event_count();
+	return sprintf(buf, "%d\n", l_event_counter);
+}
+
+ssize_t  ATT_IRsensor_show_error_mesg(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int ret;
+	char* error_mesg=kzalloc(sizeof(char [ERROR_MESG_SIZE]), GFP_KERNEL);	
+	
+	if(g_IR_ATTR->ATTR_Extension->IRsensor_show_error_mesg== NULL) {
+		err("IRsensor_show_error_mesg NOT SUPPORT. \n");
+		return sprintf(buf, "NOT SUPPORT\n");
+	}
+
+	ret = g_IR_ATTR->ATTR_Extension->IRsensor_show_error_mesg(error_mesg);
+	
+	return sprintf(buf, "%s\n", error_mesg);
+}
+/* --- For stress test debug --- */
+
+/*For auto calibration*/
+ssize_t  ATT_proximity_show_autok(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	bool bOn;
+	if(g_IR_ATTR->ATTR_Extension->proximity_show_autok == NULL) {
+		err("proximity_show_autok NOT SUPPORT. \n");
+		return sprintf(buf, "NOT SUPPORT\n");
+	}
+	bOn = g_IR_ATTR->ATTR_Extension->proximity_show_autok();
+	if(bOn)
+		return sprintf(buf, "on\n");
+	else
+		return sprintf(buf, "off\n");
+}
+
+ssize_t  ATT_proximity_store_autok(struct device *dev, 
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	bool bOn;
+
+	if(g_IR_ATTR->ATTR_Extension->proximity_store_autok== NULL) {
+		err("proximity_store_autok NOT SUPPORT. \n");
+		return count;
+	}
+	
+	/*check input character*/
+	if (0 == strncmp(buf, "off", 3))
+		bOn = false;
+	else if (0 == strncmp(buf, "on", 2)) 
+		bOn = true;
+	else
+		return -EINVAL;
+
+	log("Proximity autok %s\n", bOn?"on":"off");	
+	if(g_IR_ATTR->ATTR_Extension->proximity_store_autok(bOn) < 0)
+		return -EINVAL;	
+	
+	return count;	
+}
+
+ssize_t  ATT_proximity_show_autokmin(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int autokmin = 0;
+	if(g_IR_ATTR->ATTR_Extension->proximity_show_autokmin== NULL) {
+		err("proximity_show_autokmin NOT SUPPORT. \n");
+		return sprintf(buf, "NOT SUPPORT\n");
+	}
+	
+	autokmin = g_IR_ATTR->ATTR_Extension->proximity_show_autokmin();
+	return sprintf(buf, "%d\n", autokmin);
+}
+
+ssize_t  ATT_proximity_store_autokmin(struct device *dev, 
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long autokmin;	
+
+	if(g_IR_ATTR->ATTR_Extension->proximity_store_autokmin== NULL) {
+		err("proximity_store_autokmin NOT SUPPORT. \n");
+		return count;
+	}
+	
+	if ((kstrtoul(buf, 10, &autokmin) < 0))
+		return -EINVAL;
+	if(autokmin < 0) {
+		err("Proximity store autokmin with NEGATIVE value. (%lu) \n", autokmin);
+		return -EINVAL;
+	}
+
+	log("Proximity store autokmin: %lu\n", autokmin);
+	if(g_IR_ATTR->ATTR_Extension->proximity_store_autokmin(autokmin) < 0)
+		return -EINVAL;	
+	
+	return count;
+}
+
+ssize_t  ATT_proximity_show_autokmax(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int autokmax = 0;
+	if(g_IR_ATTR->ATTR_Extension->proximity_show_autokmax== NULL) {
+		err("proximity_show_autokmax NOT SUPPORT. \n");
+		return sprintf(buf, "NOT SUPPORT\n");
+	}
+	
+	autokmax = g_IR_ATTR->ATTR_Extension->proximity_show_autokmax();
+	return sprintf(buf, "%d\n", autokmax);
+}
+
+ssize_t  ATT_proximity_store_autokmax(struct device *dev, 
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long autokmax;	
+
+	if(g_IR_ATTR->ATTR_Extension->proximity_store_autokmax== NULL) {
+		err("proximity_store_autokmax NOT SUPPORT. \n");
+		return count;
+	}
+	
+	if ((kstrtoul(buf, 10, &autokmax) < 0))
+		return -EINVAL;
+	if(autokmax < 0) {
+		err("Proximity store autokmax with NEGATIVE value. (%lu) \n", autokmax);
+		return -EINVAL;
+	}
+
+	log("Proximity store autokmax: %lu\n", autokmax);
+	if(g_IR_ATTR->ATTR_Extension->proximity_store_autokmax(autokmax) < 0)
+		return -EINVAL;	
+	
+	return count;
+}
 
 static struct device_attribute proximity_property_attrs[] = {
 	/*read only*/
@@ -592,13 +826,22 @@ static struct device_attribute proximity_property_attrs[] = {
 	__ATTR(atd_status, 0444, ATT_proximity_show_atd_test, NULL),
 	__ATTR(proxm_status, 0444, ATT_proximity_show_status, NULL),	
 	__ATTR(dump_reg, 0444, ATT_IRsensor_show_allreg, NULL),
+		/* +++ For stress test debug +++ */
+	__ATTR(int_counter, 0444, ATT_proximity_show_int_count, NULL),
+	__ATTR(event_counter, 0444, ATT_proximity_show_event_count, NULL),
+	__ATTR(error_mesg, 0444, ATT_IRsensor_show_error_mesg, NULL),
+		/* --- For stress test debug --- */
 	/*read/write*/
 	__ATTR(switch, 0664, ATT_proximity_show_switch_onoff, ATT_proximity_store_switch_onoff),
 	__ATTR(hi_cal, 0664, ATT_proximity_show_calibration_hi, ATT_proximity_store_calibration_hi),
 	__ATTR(low_cal, 0664, ATT_proximity_show_calibration_lo, ATT_proximity_store_calibration_lo),
+	__ATTR(inf_cal, 0664, ATT_proximity_show_calibration_inf, ATT_proximity_store_calibration_inf),
 	__ATTR(poll_mode, 0664, ATT_proximity_show_polling_mode, ATT_proximity_store_polling_mode),
 	__ATTR(read_reg, 0664, ATT_IRsensor_show_read_reg, ATT_IRsensor_store_read_reg),
 	__ATTR(write_reg, 0220, NULL, ATT_IRsensor_store_write_reg),
+	__ATTR(autok, 0664, ATT_proximity_show_autok, ATT_proximity_store_autok),
+	__ATTR(autokmin, 0664, ATT_proximity_show_autokmin, ATT_proximity_store_autokmin),
+	__ATTR(autokmax, 0664, ATT_proximity_show_autokmax, ATT_proximity_store_autokmax),
 };
 
 static struct device_attribute light_property_attrs[] = {
@@ -611,6 +854,11 @@ static struct device_attribute light_property_attrs[] = {
 	__ATTR(atd_status, 0444, ATT_light_show_atd_test, NULL),
 	__ATTR(lux, 0444, ATT_light_show_lux, NULL),
 	__ATTR(dump_reg, 0444, ATT_IRsensor_show_allreg, NULL),
+		/* +++ For stress test debug +++ */
+	__ATTR(int_counter, 0444, ATT_light_show_int_count, NULL),
+	__ATTR(event_counter, 0444, ATT_light_show_event_count, NULL),
+	__ATTR(error_mesg, 0444, ATT_IRsensor_show_error_mesg, NULL),
+		/* --- For stress test debug --- */
 	/*read/write*/
 	__ATTR(switch, 0664, ATT_light_show_switch_onoff, ATT_light_store_switch_onoff),
 	__ATTR(200lux_cal, 0664, ATT_light_show_calibration_200lux, ATT_light_store_calibration_200lux),

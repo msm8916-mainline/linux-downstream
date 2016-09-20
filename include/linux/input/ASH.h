@@ -100,6 +100,8 @@ typedef struct{
 	int (*proximity_store_calibration_hi)(int calvalue);
 	int (*proximity_show_calibration_lo)(void);
 	int (*proximity_store_calibration_lo)(int calvalue);
+	int (*proximity_show_calibration_inf)(void);
+	int (*proximity_store_calibration_inf)(int calvalue);
 	int (*light_show_calibration_200lux)(void);
 	int (*light_store_calibration_200lux)(int calvalue);
 	int (*light_show_calibration_1000lux)(void);
@@ -139,17 +141,46 @@ typedef struct{
 	int (*light_show_lux)(void);		
 }IRsensor_ATTR_HAL;
 
+#define ERROR_MESG_SIZE	(99)
+
 /**
  * IRsensor_ATTR_Extension - attributes for IRsensor extensive functions.
  */
 typedef struct{	
 	bool (*IRsensor_show_allreg)(void);
+
+	/*switch ON/OFF proximity polling adc*/
 	bool (*proximity_show_polling_mode)(void);
 	int (*proximity_store_polling_mode)(bool bOn);
+	
+	/*Switch ON/OFF proximity auto calibration*/
+	bool (*proximity_show_autok)(void);
+	int (*proximity_store_autok)(bool bOn);
+
+	/*modify the auto calibration range*/
+	int (*proximity_show_autokmin)(void);
+	int (*proximity_store_autokmin)(int autokmin);
+	int (*proximity_show_autokmax)(void);
+	int (*proximity_store_autokmax)(int autokmax);
+
+	/*Get the number of interrupts and events*/
+	int (*proximity_show_int_count)(void);
+	int (*proximity_show_event_count)(void);
+
+	/*modify the sensitivity of light sensor*/
 	int (*light_show_sensitivity)(void);
 	int (*light_store_sensitivity)(int sensitivity);
+
+	/*change the frequence of log for the light sensor*/
 	int (*light_show_log_threshold)(void);
 	int (*light_store_log_threshold)(int log_threshold);
+
+	/*Get the number of interrupts and events*/
+	int (*light_show_int_count)(void);
+	int (*light_show_event_count)(void);
+
+	/*For unit/stress test*/
+	int (*IRsensor_show_error_mesg)(char *error_mesg);
 }IRsensor_ATTR_Extension;
 
 /**
@@ -296,6 +327,16 @@ extern bool lsensor_sysfs_write_1000lux(int calvalue);
  */
 #define PSENSOR_HI_CALIBRATION_FILE  		"/factory/psensor_hi.nv"
 #define PSENSOR_LOW_CALIBRATION_FILE  	"/factory/psensor_low.nv"
+#define PSENSOR_INF_CALIBRATION_FILE  		"/factory/psensor_inf.nv"
+
+/**
+ * psensor_sysfs_read_inf
+ * psensor_sysfs_write_inf - kernel space read/write inf calibration data.
+ *
+ * Return value is TRUE if it is success writing value to file(.nv)
+ */
+extern int psensor_sysfs_read_inf(void);
+extern bool psensor_sysfs_write_inf(int calvalue);
 
 /**
  * IRsensor_GPIO
@@ -432,11 +473,15 @@ extern int HALLsensor_platform_unregister(void);
 typedef struct psensor_hw {
 	int proximity_low_threshold_default;	
 	int proximity_hi_threshold_default;
+	int proximity_crosstalk_default;
+	int proximity_autok_min;
+	int proximity_autok_max;
 	
 	int (*proximity_hw_turn_onoff)(bool bOn);
 	int (*proximity_hw_get_adc)(void);
 	int (*proximity_hw_set_hi_threshold)(int hi_threshold);
 	int (*proximity_hw_set_lo_threshold)(int low_threshold);
+	int (*proximity_hw_set_autoK)(int autoK);
 }psensor_hw;
 
 /**
@@ -480,5 +525,12 @@ typedef struct IRsensor_hw {
  * IRsensor_hw_getHardware - Before this function, you SHOULD execute IRsensor_i2c_register first.
  */
 extern IRsensor_hw* IRsensor_hw_getHardware(void);
+
+/**
+ * Proximity auto calibration
+ */
+#define PROXIMITY_AUTOK_COUNT				(6)
+#define PROXIMITY_AUTOK_POLLING			(500)
+#define PROXIMITY_AUTOK_DELAY				(10)
 
 #endif

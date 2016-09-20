@@ -348,3 +348,82 @@ bool lsensor_sysfs_write_1000lux(int calvalue)
 }
 EXPORT_SYMBOL(lsensor_sysfs_write_1000lux);
 
+/********************************/
+/* Proximity Inf calibration*/
+/*******************************/
+int psensor_sysfs_read_inf(void)
+{
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	loff_t pos_lsts = 0;
+	char buf[8];
+	int cal_val = 0;
+	int readlen = 0;	
+	
+	fp = filp_open(PSENSOR_INF_CALIBRATION_FILE, O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
+	if (IS_ERR_OR_NULL(fp)) {
+		err("Proximity read INF Calibration open (%s) fail\n", PSENSOR_INF_CALIBRATION_FILE);
+		return -ENOENT;	/*No such file or directory*/
+	}
+
+	/*For purpose that can use read/write system call*/
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	if (fp->f_op != NULL && fp->f_op->read != NULL) {
+		pos_lsts = 0;
+		readlen = fp->f_op->read(fp, buf, 6, &pos_lsts);
+		buf[readlen] = '\0';		
+	} else {
+		err("Proximity read INF Calibration strlen: f_op=NULL or op->read=NULL\n");
+		return -ENXIO;	/*No such device or address*/
+	}
+	set_fs(old_fs);
+	filp_close(fp, NULL);
+
+	sscanf(buf, "%d", &cal_val);
+	if(cal_val < 0) {
+		err("Proximity read INF Calibration is FAIL. (%d)\n", cal_val);
+		return -EINVAL;	/*Invalid argument*/
+	} else {
+		dbg("Proximity read INF Calibration : %d\n", cal_val);
+	}
+	
+	return cal_val;
+}
+EXPORT_SYMBOL(psensor_sysfs_read_inf);
+
+bool psensor_sysfs_write_inf(int calvalue)
+{
+	struct file *fp = NULL;
+	mm_segment_t old_fs;
+	loff_t pos_lsts = 0;
+	char buf[8];	
+
+	sprintf(buf, "%d", calvalue);
+	
+	fp = filp_open(PSENSOR_INF_CALIBRATION_FILE, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+	if (IS_ERR_OR_NULL(fp)) {
+		err("Proximity write INF Calibration open (%s) fail\n", PSENSOR_INF_CALIBRATION_FILE);
+		return false;
+	}
+
+	/*For purpose that can use read/write system call*/
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	if (fp->f_op != NULL && fp->f_op->write != NULL) {
+		pos_lsts = 0;
+		fp->f_op->write(fp, buf, strlen(buf), &fp->f_pos);				
+	} else {
+		err("Proximity INF-Calibration strlen: f_op=NULL or op->write=NULL\n");
+		return false;
+	}
+	set_fs(old_fs);
+	filp_close(fp, NULL);
+	
+	log("Proximity write INF Calibration : %s\n", buf);
+	
+	return true;
+}
+EXPORT_SYMBOL(psensor_sysfs_write_inf);

@@ -58,6 +58,8 @@ static int cm36686_proximity_hw_set_led_current(uint8_t led_current_reg);
 static int cm36686_proximity_hw_set_led_duty_ratio(uint8_t led_duty_ratio_reg);
 static int cm36686_proximity_hw_set_persistence(uint8_t persistence);
 static int cm36686_proximity_hw_set_integration(uint8_t integration);
+static int cm36686_proximity_hw_set_autoK(int autok);
+
 
 static int cm36686_light_hw_turn_onoff(bool bOn);
 static int cm36686_light_hw_get_adc(void);
@@ -471,6 +473,36 @@ static int cm36686_proximity_hw_set_integration(uint8_t integration)
 	return 0;
 }
 
+static int cm36686_proximity_hw_set_autoK(int autok)
+{
+	int ret = 0;
+	uint8_t data_buf[2] = {0, 0};	
+	int hi_threshold, low_threshold;
+
+	/*Get High threshold value and adjust*/
+	ret = i2c_read_reg_u16(g_i2c_client, PS_THDH, data_buf);
+	if (ret < 0) {
+		err("Proximity get High Threshold ERROR. (PS_THDH)\n");
+		return ret;
+	}
+	hi_threshold = (data_buf[1] << 8) + data_buf[0];
+	dbg("Proximity get High Threshold : 0x%02X%02X\n", data_buf[1], data_buf[0]); 	
+	cm36686_proximity_hw_set_hi_threshold(hi_threshold + autok);
+
+	/*Get Low threshold value and adjust*/
+	ret = i2c_read_reg_u16(g_i2c_client, PS_THDL, data_buf);
+	if (ret < 0) {
+		err("Proximity get Low Threshold ERROR. (PS_THDL)\n");
+		return ret;
+	}
+	low_threshold = (data_buf[1] << 8) + data_buf[0];
+	dbg("Proximity get Low Threshold : 0x%02X%02X\n", data_buf[1], data_buf[0]); 
+	
+	cm36686_proximity_hw_set_lo_threshold(low_threshold + autok);
+
+	return 0;
+}
+
 /*********************/
 /* Light Sensor Part */
 /********************/
@@ -639,11 +671,15 @@ static int cm36686_light_hw_set_integration(uint8_t integration)
 static struct psensor_hw psensor_hw_cm36686 = {
 	.proximity_low_threshold_default = CM36686_PROXIMITY_THDL_DEFAULT,
 	.proximity_hi_threshold_default = CM36686_PROXIMITY_THDH_DEFAULT,
+	.proximity_crosstalk_default = CM36686_PROXIMITY_INF_DEFAULT,
+	.proximity_autok_min = CM36686_PROXIMITY_AUTOK_MIN,
+	.proximity_autok_max = CM36686_PROXIMITY_AUTOK_MAX,
 	
 	.proximity_hw_turn_onoff = cm36686_proximity_hw_turn_onoff,
 	.proximity_hw_get_adc = cm36686_proximity_hw_get_adc,
 	.proximity_hw_set_hi_threshold = cm36686_proximity_hw_set_hi_threshold,
 	.proximity_hw_set_lo_threshold = cm36686_proximity_hw_set_lo_threshold,
+	.proximity_hw_set_autoK = cm36686_proximity_hw_set_autoK,
 };
 
 static struct lsensor_hw lsensor_hw_cm36686 = {

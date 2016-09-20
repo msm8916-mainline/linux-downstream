@@ -38,12 +38,16 @@
 	#define dbg(fmt, args...)
 #endif
 #define log(fmt, args...) printk(KERN_INFO "[%s][%s]"fmt,MODULE_NAME,SENSOR_TYPE_NAME,##args)
-#define err(fmt, args...) printk(KERN_ERR "[%s][%s]"fmt,MODULE_NAME,SENSOR_TYPE_NAME,##args)
+#define err(fmt, args...) do{	\
+		printk(KERN_ERR "[%s][%s]"fmt,MODULE_NAME,SENSOR_TYPE_NAME,##args);	\
+		sprintf(g_error_mesg, "[%s][%s]"fmt,MODULE_NAME,SENSOR_TYPE_NAME,##args);	\
+	}while(0)
 
 /******************************/
 /* IR Sensor Global Variables */
 /*****************************/
 static int ASUS_IR_SENSOR_IRQ;
+static int ASUS_IR_SENSOR_INT;
 static struct ASUS_light_sensor_data			*g_als_data;
 static struct ASUS_proximity_sensor_data	*g_ps_data;
 static struct IRsensor_hw						*IRsensor_hw_client;
@@ -51,8 +55,10 @@ static struct workqueue_struct 					*IRsensor_workqueue;
 static struct workqueue_struct 					*IRsensor_delay_workqueue;
 static struct mutex 								g_ir_lock;
 static struct wake_lock 							g_ir_wake_lock;
+static struct hrtimer 							g_ir_timer;
 
 static int g_als_last_lux = 0;
+static char *g_error_mesg;
 
 /***********************/
 /* IR Sensor Functions*/
@@ -69,6 +75,7 @@ static void light_polling_lux(struct work_struct *work);
 
 /*Interrupt Service Routine Part*/
 static void IRsensor_ist(struct work_struct *work);
+static void proximity_autok(struct work_struct *work);
 
 /* Export Functions */
 bool proximity_check_status(void);
@@ -76,14 +83,21 @@ bool proximity_check_status(void);
 /*Initialization Part*/
 static int init_data(void);
 
+/*Proximity auto calibration*/
+static void proximity_autok(struct work_struct *work);
+
 /*Work Queue*/
 static 		DECLARE_WORK(IRsensor_ist_work, IRsensor_ist);
+static 		DECLARE_WORK(proximity_autok_work, proximity_autok);
 static 		DECLARE_DELAYED_WORK(proximity_polling_adc_work, proximity_polling_adc);
 static 		DECLARE_DELAYED_WORK(light_polling_lux_work, light_polling_lux);
 
 /*Disable touch for detecting near when phone call*/
 extern void ftxxxx_disable_touch(bool flag);
 extern int get_audiomode(void);
+
+/*Proximity auto calibration*/
+static int proximity_check_minCT(void);
 
 /*******************************/
 /* ALS and PS data structure */
@@ -98,17 +112,28 @@ struct ASUS_light_sensor_data
 
 	bool HAL_switch_on;						/* this var. means if HAL is turning on als or not */
 	bool Device_switch_on;					/* this var. means if als hw is turn on or not */
-		
+
+	int int_counter;
+	int event_counter;
 };
 
 struct ASUS_proximity_sensor_data 
 {	
 	int g_ps_calvalue_lo;						/* Proximitysensor setting low calibration value(adc) */
 	int g_ps_calvalue_hi;						/* Proximitysensor setting high calibration value(adc) */
+	int g_ps_calvalue_inf;						/* Proximitysensor setting inf calibration value(adc) */
+
+	int g_ps_autok_min;
+	int g_ps_autok_max;
 	
 	bool HAL_switch_on;						/* this var. means if HAL is turning on ps or not */
 	bool Device_switch_on;					/* this var. means is turning on ps or not */	
 	bool polling_mode;							/* Polling for adc of proximity */
+	bool autok;							/*auto calibration status*/
+
+	int int_counter;
+	int event_counter;
+	int crosstalk_diff;
 };
 
 /*=======================
@@ -134,6 +159,10 @@ static int IRsensor_I2C_stress_test(struct i2c_client *client)
 	i2c_log_in_test_case("TestIRSensorI2C ++\n");
 
 	/* Check Hardware Support First */
+	if(IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff== NULL) {
+		err("proximity_hw_turn_onoff NOT SUPPORT. \n");
+		return -ENOENT;
+	}
 	if(IRsensor_hw_client->mpsensor_hw->proximity_hw_get_adc == NULL) {
 		err("proximity_hw_get_adc NOT SUPPORT. \n");
 		return -ENOENT;
@@ -144,6 +173,10 @@ static int IRsensor_I2C_stress_test(struct i2c_client *client)
 	}
 	if(IRsensor_hw_client->mpsensor_hw->proximity_hw_set_lo_threshold == NULL) {
 		err("proximity_hw_set_lo_threshold NOT SUPPORT. \n");
+		return -ENOENT;
+	}
+	if(IRsensor_hw_client->mlsensor_hw->light_hw_turn_onoff== NULL) {
+		err("light_hw_turn_onoff NOT SUPPORT. \n");
 		return -ENOENT;
 	}
 	if(IRsensor_hw_client->mlsensor_hw->light_hw_get_adc == NULL) {
@@ -161,10 +194,10 @@ static int IRsensor_I2C_stress_test(struct i2c_client *client)
 	
 	/* Turn on Proximity and Light Sensor */
 	if(!g_ps_data->Device_switch_on) {
-		proximity_turn_onoff(true);
+		ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(true);
 	}
 	if(!g_als_data->Device_switch_on) {
-		light_turn_onoff(true);
+		ret = IRsensor_hw_client->mlsensor_hw->light_hw_turn_onoff(true);
 	}
 
 	/* Proximity i2c read test */
@@ -217,6 +250,13 @@ static int IRsensor_I2C_stress_test(struct i2c_client *client)
 		lnResult = I2C_TEST_Lsensor_FAIL;
 		return lnResult;	
 	}
+
+	if(!g_ps_data->HAL_switch_on) {
+		ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(false);
+	}
+	if(!g_als_data->HAL_switch_on) {
+		ret = IRsensor_hw_client->mlsensor_hw->light_hw_turn_onoff(false);
+	}
 	
 	i2c_log_in_test_case("TestLSensorI2C --\n");
 	return lnResult;
@@ -234,6 +274,7 @@ static struct i2c_test_case_info IRSensorTestCaseInfo[] =	{
 static int proximity_turn_onoff(bool bOn)
 {
 	int ret = 0;	
+	ktime_t autok_delay;
 
 	/* Check Hardware Support First */
 	if(IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff == NULL) {
@@ -244,12 +285,32 @@ static int proximity_turn_onoff(bool bOn)
 	if (bOn == 1)	{	/* power on */
 		/*Set Proximity Threshold*/
 		ret = proximity_set_threshold();
-		if (ret < 0) {		
+		if (ret < 0) {	
+			err("proximity_set_threshold ERROR\n");
 			return ret;
 		}
+
+		/*check the min for auto calibration*/
+		if(true == g_ps_data->autok){
+			g_ps_data->crosstalk_diff = 0;
+			/*Stage 1 : check first 6 adc which spend about 50ms~100ms*/
+			ret = proximity_check_minCT();
+			if (ret < 0) {	
+				log("proximity_check_minCT ERROR\n");	
+				g_ps_data->autok = false;
+			}
+		}
+		
 		/*set turn on register*/
-		if(g_ps_data->Device_switch_on == false)
-			IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(true);		
+		if(g_ps_data->Device_switch_on == false){
+			ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(true);	
+			if(ret < 0){
+				err("proximity_hw_turn_onoff(true) ERROR\n");
+				return ret;
+			}
+				
+		}
+				
 		/*enable IRQ only when proximity and light sensor is off*/
 		if (g_ps_data->Device_switch_on == false && g_als_data->Device_switch_on == false) {
 			dbg("[IRQ] Enable irq !! \n");
@@ -261,21 +322,42 @@ static int proximity_turn_onoff(bool bOn)
 		if(g_ps_data->polling_mode == true) {
 			queue_delayed_work(IRsensor_delay_workqueue, &proximity_polling_adc_work, msecs_to_jiffies(1000));
 			log("[Polling] Proximity polling adc START. \n");
-		}		
+		}
+
+		/*Stage 2 : start polling proximity adc(500ms) to check min value*/
+		if(true == g_ps_data->autok && g_ps_data->crosstalk_diff != 0){
+			autok_delay = ns_to_ktime( PROXIMITY_AUTOK_POLLING * NSEC_PER_MSEC);
+			hrtimer_start(&g_ir_timer, autok_delay, HRTIMER_MODE_REL);
+		}
+		
 	} else	{	/* power off */
 		/*set turn off register*/
-		if(g_ps_data->Device_switch_on == true)
-			IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(false);
-		/*disable IRQ only when proximity is on and light sensor is off*/
-		if (g_ps_data->Device_switch_on == true && g_als_data->Device_switch_on == false) {
+		if(g_ps_data->Device_switch_on == true){
+			/*disable IRQ before switch off*/
 			dbg("[IRQ] Disable irq !! \n");
 			disable_irq_nosync(ASUS_IR_SENSOR_IRQ);
-		}
-		/*change the Device Status*/
-		g_ps_data->Device_switch_on = false;		
+		
+			ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(false);
+			if(ret < 0){
+				err("proximity_hw_turn_onoff(false) ERROR\n");
+			}
+			/*change the Device Status*/
+			g_ps_data->Device_switch_on = false;			
+
+			/*enable IRQ when light sensor is ON*/
+			if (g_als_data->Device_switch_on == true) {
+				dbg("[IRQ] Enable irq !! \n");
+				enable_irq(ASUS_IR_SENSOR_IRQ);
+			}
+
+			/*diable the timer*/
+			if(g_ps_data->autok == true){
+				hrtimer_cancel(&g_ir_timer);
+			}
+		}		
 	}	
 	
-	return 0;
+	return ret;
 }
 
 static int proximity_set_threshold(void)
@@ -298,9 +380,13 @@ static int proximity_set_threshold(void)
 	    	g_ps_data->g_ps_calvalue_hi = ret;
 		log("Proximity read High Calibration : %d\n", g_ps_data->g_ps_calvalue_hi);
 	}else{
-		log("Proximity read DEFAULT High Calibration : %d\n", g_ps_data->g_ps_calvalue_hi);
+		err("Proximity read DEFAULT High Calibration : %d\n", g_ps_data->g_ps_calvalue_hi);
 	}
-	IRsensor_hw_client->mpsensor_hw->proximity_hw_set_hi_threshold(g_ps_data->g_ps_calvalue_hi);
+	ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_set_hi_threshold(g_ps_data->g_ps_calvalue_hi);
+	if(ret < 0){
+		err("proximity_hw_set_hi_threshold ERROR. \n");
+		return -ENOENT;
+	}
 	
 	/*Set Proximity Low Threshold*/
 	ret = psensor_sysfs_read_low();	
@@ -308,10 +394,14 @@ static int proximity_set_threshold(void)
 	    	g_ps_data->g_ps_calvalue_lo = ret;
 		log("Proximity read Low Calibration : %d\n", g_ps_data->g_ps_calvalue_lo);
 	}else{
-		log("Proximity read DEFAULT Low Calibration : %d\n", g_ps_data->g_ps_calvalue_lo);
+		err("Proximity read DEFAULT Low Calibration : %d\n", g_ps_data->g_ps_calvalue_lo);
 	}
-	IRsensor_hw_client->mpsensor_hw->proximity_hw_set_lo_threshold(g_ps_data->g_ps_calvalue_lo);
-
+	ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_set_lo_threshold(g_ps_data->g_ps_calvalue_lo);
+	if(ret < 0){
+		err("proximity_hw_set_hi_threshold ERROR. \n");
+		return -ENOENT;
+	}
+	
 	return 0;
 }
 
@@ -335,6 +425,7 @@ static void proximity_polling_adc(struct work_struct *work)
 
 static int light_turn_onoff(bool bOn)
 {
+	int ret=0;
 
 	/* Check Hardware Support First */
 	if(IRsensor_hw_client->mlsensor_hw->light_hw_turn_onoff == NULL) {
@@ -356,9 +447,21 @@ static int light_turn_onoff(bool bOn)
 		log("[Cal] Light Sensor Set Shift calibration value : %d\n", g_als_data->g_als_calvalue_shift);
 
 		if(g_als_data->Device_switch_on == false) {
-			IRsensor_hw_client->mlsensor_hw->light_hw_set_hi_threshold(0);
-			IRsensor_hw_client->mlsensor_hw->light_hw_set_lo_threshold(0);
-			IRsensor_hw_client->mlsensor_hw->light_hw_turn_onoff(true);
+			ret = IRsensor_hw_client->mlsensor_hw->light_hw_set_hi_threshold(0);
+			if(ret < 0){
+				err("light_hw_set_hi_threshold ERROR. \n");
+				return -ENOENT;
+			}
+			ret = IRsensor_hw_client->mlsensor_hw->light_hw_set_lo_threshold(0);
+			if(ret < 0){
+				err("light_hw_set_lo_threshold ERROR. \n");
+				return -ENOENT;
+			}
+			ret = IRsensor_hw_client->mlsensor_hw->light_hw_turn_onoff(true);
+			if(ret < 0){
+				err("light_hw_turn_onoff(true) ERROR. \n");
+				return -ENOENT;
+			}
 		}
 		/*enable IRQ only when proximity and light sensor is off*/
 		if (g_ps_data->Device_switch_on == false && g_als_data->Device_switch_on == false) {
@@ -366,18 +469,30 @@ static int light_turn_onoff(bool bOn)
 			enable_irq(ASUS_IR_SENSOR_IRQ);
 		}
 		g_als_data->Device_switch_on = true;		
-	} else	{	/* power off */	
-		if(g_als_data->Device_switch_on == true)
-			IRsensor_hw_client->mlsensor_hw->light_hw_turn_onoff(false);
-		/*disable IRQ only when proximity is off and light sensor is on*/
-		if (g_ps_data->Device_switch_on == false && g_als_data->Device_switch_on == true) {
+	} else	{	/* power off */			
+		/*set turn off register*/
+		if(g_als_data->Device_switch_on == true){
+			/*disable IRQ before switch off*/		
 			dbg("[IRQ] Disable irq !! \n");
 			disable_irq_nosync(ASUS_IR_SENSOR_IRQ);
+			
+			ret = IRsensor_hw_client->mlsensor_hw->light_hw_turn_onoff(false);
+			if(ret < 0){
+				err("light_hw_turn_onoff(false) ERROR. \n");
+			}else{
+				/*change the Device Status*/
+				g_als_data->Device_switch_on = false;	
+			}
+
+			/*enable IRQ when proximity sensor is ON*/
+			if (g_ps_data->Device_switch_on == true) {
+				dbg("[IRQ] Enable irq !! \n");
+				enable_irq(ASUS_IR_SENSOR_IRQ);
+			}
 		}
-		g_als_data->Device_switch_on = false;			
 	}
 	
-	return 0;
+	return ret;
 }
 
 static int light_get_lux(int adc)
@@ -410,7 +525,7 @@ static int 	light_get_shift(void)
 		g_als_data->g_als_calvalue_200lux = ret;
 		log("Light Sensor read 200lux Calibration: Cal: %d\n", g_als_data->g_als_calvalue_200lux);
 	}else{
-		log("Light Sensor read DEFAULT 200lux Calibration: Cal: %d\n", g_als_data->g_als_calvalue_200lux);
+		err("Light Sensor read DEFAULT 200lux Calibration: Cal: %d\n", g_als_data->g_als_calvalue_200lux);
 	}
 	
 	ret = lsensor_sysfs_read_1000lux();
@@ -418,7 +533,7 @@ static int 	light_get_shift(void)
 		g_als_data->g_als_calvalue_1000lux = ret;
 		log("Light Sensor read 1000lux Calibration: Cal: %d\n", g_als_data->g_als_calvalue_1000lux);
 	}else{
-		log("Light Sensor read DEFAULT 1000lux Calibration: Cal: %d\n", g_als_data->g_als_calvalue_1000lux);
+		err("Light Sensor read DEFAULT 1000lux Calibration: Cal: %d\n", g_als_data->g_als_calvalue_1000lux);
 	}
 		
 	g_als_data->g_als_calvalue_shift = (1000 - g_als_data->g_als_calvalue_1000lux*800/
@@ -513,6 +628,26 @@ int mproximity_store_calibration_lo(int calvalue)
 	return 0;
 }
 
+int mproximity_show_calibration_inf(void)
+{
+	int calvalue;
+	calvalue = psensor_sysfs_read_inf();
+	dbg("Proximity show Inf Calibration: %d\n", calvalue);
+	return calvalue;
+}
+
+int mproximity_store_calibration_inf(int calvalue)
+{
+	if(calvalue <= 0) {
+		err("Proximity store Inf Calibration with NON-POSITIVE value. (%d) \n", calvalue);
+		return -EINVAL;
+	}
+	log("Proximity store Inf Calibration: %d\n", calvalue);
+	psensor_sysfs_write_inf(calvalue);
+	
+	return 0;
+}
+
 int mlight_show_calibration_200lux(void)
 {
 	int calvalue;
@@ -603,7 +738,7 @@ int mlight_show_adc(void)
 
 	mutex_lock(&g_ir_lock);
 
-	if (!g_als_data->HAL_switch_on) {
+	if (!g_als_data->Device_switch_on) {
 		light_turn_onoff(true);
 	}
 	
@@ -623,6 +758,8 @@ int mlight_show_adc(void)
 int mproximity_show_adc(void)
 {
 	int adc = 0;
+	int ret;
+	
 	if(IRsensor_hw_client->mpsensor_hw->proximity_hw_get_adc == NULL) {
 		err("proximity_hw_get_adc NOT SUPPORT. \n");
 		return -EINVAL;
@@ -630,18 +767,25 @@ int mproximity_show_adc(void)
 
 	mutex_lock(&g_ir_lock);
 	
-	if (!g_ps_data->HAL_switch_on) {
-		proximity_turn_onoff(true);
+	if(g_ps_data->Device_switch_on == false){
+		ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(true);	
+		if(ret < 0){
+			err("proximity_hw_turn_onoff(true) ERROR\n");
+			return ret;
+		}			
 	}
 
 	msleep(PROXIMITY_TURNON_DELAY_TIME);
 	
 	adc = IRsensor_hw_client->mpsensor_hw->proximity_hw_get_adc();
 	dbg("mproximity_show_adc : %d \n", adc);
-
 	
-	if (!g_ps_data->HAL_switch_on) {
-		proximity_turn_onoff(false);
+	if(g_ps_data->HAL_switch_on == false){
+		ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(false);	
+		if(ret < 0){
+			err("proximity_hw_turn_onoff(false) ERROR\n");
+			return ret;
+		}			
 	}
 	
 	mutex_unlock(&g_ir_lock);
@@ -654,6 +798,8 @@ static IRsensor_ATTR_Calibration mIRsensor_ATTR_Calibration = {
 	.proximity_store_calibration_hi = mproximity_store_calibration_hi,
 	.proximity_show_calibration_lo = mproximity_show_calibration_lo,
 	.proximity_store_calibration_lo = mproximity_store_calibration_lo,
+	.proximity_show_calibration_inf = mproximity_show_calibration_inf ,
+	.proximity_store_calibration_inf  = mproximity_store_calibration_inf ,
 	.light_show_calibration_200lux = mlight_show_calibration_200lux,
 	.light_store_calibration_200lux = mlight_store_calibration_200lux,
 	.light_show_calibration_1000lux = mlight_show_calibration_1000lux,
@@ -676,9 +822,9 @@ bool mproximity_show_atd_test(void)
 	if(ret < 0){
 		err("Proximity ATD test check ID ERROR\n");
 		goto proximity_atd_test_fail;
-	}
+	}	
 	
-	ret = proximity_turn_onoff(true);
+	ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(true);		
 	if(ret < 0){
 		err("Proximity ATD test turn on ERROR\n");
 		goto proximity_atd_test_fail;
@@ -693,7 +839,7 @@ bool mproximity_show_atd_test(void)
 		msleep(100);
 	}	
 
-	ret = proximity_turn_onoff(false);
+	ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(false);	
 	if(ret < 0){
 		err("Proximity ATD test turn off ERROR\n");
 		goto proximity_atd_test_fail;
@@ -715,7 +861,7 @@ bool mlight_show_atd_test(void)
 		goto light_atd_test_fail;
 	}
 	
-	ret =light_turn_onoff(true);
+	ret = IRsensor_hw_client->mlsensor_hw->light_hw_turn_onoff(true);
 	if(ret < 0){
 		err("Light Sensor ATD test turn on ERROR\n");
 		goto light_atd_test_fail;
@@ -730,7 +876,7 @@ bool mlight_show_atd_test(void)
 		msleep(100);
 	}	
 	
-	ret = light_turn_onoff(false);
+	ret = IRsensor_hw_client->mlsensor_hw->light_hw_turn_onoff(false);
 	if(ret < 0){
 		err("Light Sensor ATD test turn off ERROR\n");
 		goto light_atd_test_fail;
@@ -806,6 +952,8 @@ int mproximity_store_switch_onoff(bool bOn)
 			proximity_turn_onoff(false);
 			ftxxxx_disable_touch(false);
 		}			
+	}else{
+		log("Proximity is already %s", bOn?"ON":"OFF");
 	}
 	mutex_unlock(&g_ir_lock);
 	
@@ -836,6 +984,8 @@ int mlight_store_switch_onoff(bool bOn)
 			/* Report lux=-1 when turn off */
 			lsensor_report_lux(-1);
 		}			
+	}else{
+		log("Light Sensor is already %s", bOn?"ON":"OFF");
 	}
 	mutex_unlock(&g_ir_lock);
 
@@ -849,7 +999,7 @@ int mlight_show_lux(void)
 
 	mutex_lock(&g_ir_lock);
 
-	if (!g_als_data->HAL_switch_on) {
+	if (!g_als_data->Device_switch_on) {
 		light_turn_onoff(true);
 	}
 	
@@ -901,6 +1051,53 @@ int mproximity_store_polling_mode(bool bOn)
 	return 0;
 }
 
+bool mproximity_show_autok(void)
+{
+	return g_ps_data->autok;
+}
+
+int mproximity_store_autok(bool bOn)
+{
+	g_ps_data->autok = bOn;	
+	return 0;
+}
+
+int mproximity_show_int_count(void)
+{
+	return g_ps_data->int_counter;
+}
+
+int mproximity_show_event_count(void)
+{
+	return g_ps_data->event_counter;
+}
+
+int mproximity_show_autokmin(void)
+{
+	return g_ps_data->g_ps_autok_min;
+}
+
+int mproximity_store_autokmin(int autokmin)
+{
+	g_ps_data->g_ps_autok_min = autokmin;
+	log("Proximity store autokmin: %d\n", autokmin);	
+	
+	return 0;
+}
+
+int mproximity_show_autokmax(void)
+{
+	return g_ps_data->g_ps_autok_max;
+}
+
+int mproximity_store_autokmax(int autokmax)
+{
+	g_ps_data->g_ps_autok_max = autokmax;
+	log("Proximity store autokmax: %d\n", autokmax);	
+	
+	return 0;
+}
+
 int mlight_show_sensitivity(void)
 {
 	return g_als_data->g_als_change_sensitivity;
@@ -927,14 +1124,41 @@ int mlight_store_log_threshold(int log_threshold)
 	return 0;
 }
 
+int mlight_show_int_count(void)
+{
+	return g_als_data->int_counter;
+}
+
+int mlight_show_event_count(void)
+{
+	return g_als_data->event_counter;
+}
+
+int mIRsensor_show_error_mesg(char *error_mesg)
+{
+	memcpy(error_mesg, g_error_mesg, strlen(g_error_mesg)+1);
+	return 0;
+}
+
 static IRsensor_ATTR_Extension mATTR_Extension = {
 	.IRsensor_show_allreg = mIRsensor_show_allreg,
 	.proximity_show_polling_mode = mproximity_show_polling_mode,
 	.proximity_store_polling_mode = mproximity_store_polling_mode,
+	.proximity_show_autok = mproximity_show_autok,
+	.proximity_store_autok = mproximity_store_autok,
+	.proximity_show_int_count = mproximity_show_int_count,
+	.proximity_show_event_count = mproximity_show_event_count,
+	.proximity_show_autokmin = mproximity_show_autokmin,
+	.proximity_store_autokmin = mproximity_store_autokmin,
+	.proximity_show_autokmax = mproximity_show_autokmax,
+	.proximity_store_autokmax = mproximity_store_autokmax,
 	.light_show_sensitivity = mlight_show_sensitivity,
 	.light_store_sensitivity = mlight_store_sensitivity,
 	.light_show_log_threshold = mlight_show_log_threshold,
 	.light_store_log_threshold = mlight_store_log_threshold,
+	.light_show_int_count = mlight_show_int_count,
+	.light_show_event_count = mlight_show_event_count,
+	.IRsensor_show_error_mesg = mIRsensor_show_error_mesg,
 };
 
 static IRsensor_ATTR mIRsensor_ATTR = {
@@ -957,7 +1181,8 @@ static void proximity_work(int state)
 	/* Get Proximity adc value */
 	adc= IRsensor_hw_client->mpsensor_hw->proximity_hw_get_adc();
 	if(adc < 0){
-		err("[ISR] Proximity get adc ERROR\n");		
+		err("[ISR] Proximity get adc ERROR\n");	
+		return;
 	}
 
 	/* Ignore the interrupt when Switch off */
@@ -965,14 +1190,16 @@ static void proximity_work(int state)
 	{
 		/* Check proximity close or away. */
 		if(IRSENSOR_INT_PS_AWAY == state) {
-			log("[ISR] Proximity Detect Object Away. (adc = %d)\n", adc);		
+			log("[ISR] Proximity Detect Object Away. (adc = %d)\n", adc);
 			psensor_report_abs(IRSENSOR_REPORT_PS_AWAY);
+			g_ps_data->event_counter++;	/* --- For stress test debug --- */
 			if (2 == get_audiomode()) {
 				ftxxxx_disable_touch(false);
 			}
 		} else if (IRSENSOR_INT_PS_CLOSE == state) {
 			log("[ISR] Proximity Detect Object Close. (adc = %d)\n", adc);		
 			psensor_report_abs(IRSENSOR_REPORT_PS_CLOSE);
+			g_ps_data->event_counter++;	/* --- For stress test debug --- */
 			if (2 == get_audiomode()) {
 				ftxxxx_disable_touch(true);
 			}
@@ -998,6 +1225,10 @@ static void light_work(void)
 	{
 		adc = IRsensor_hw_client->mlsensor_hw->light_hw_get_adc();
 		dbg("[ISR] Light Sensor Get adc : %d\n", adc);
+		if(adc < 0){
+			err("light_hw_get_adc ERROR\n");
+			return;
+		}
 
 		/* Set the default sensitivity (3rd priority)*/
 		if(adc >= g_als_data->g_als_calvalue_1000lux) {
@@ -1023,7 +1254,7 @@ static void light_work(void)
 		low_threshold = adc * (100 - light_change_sensitivity) / 100;
 
 		/* Light Sensor High Threshold */
-		high_threshold = adc * (100 + light_change_sensitivity) / 100+1;	
+		high_threshold = (adc * (100 + light_change_sensitivity) / 100) + 1;	
 		if (high_threshold > IRsensor_hw_client->mlsensor_hw->light_max_threshold)	
 			high_threshold = IRsensor_hw_client->mlsensor_hw->light_max_threshold;	
 		
@@ -1051,55 +1282,57 @@ static void light_work(void)
 		if(abs(g_als_last_lux - lux) > light_log_threshold)
 			log("[ISR] Light Sensor Report lux : %d (adc = %d)\n", lux, adc);
 			
-		lsensor_report_lux(lux);	
+		lsensor_report_lux(lux);
+		g_als_data->event_counter++;	/* --- For stress test debug --- */
 		g_als_last_lux = lux;
 	}
 }
 
 static void IRsensor_ist(struct work_struct *work)
 {
-	int ret = 0;	
 	int irsensor_int_ps, irsensor_int_als;
 	
 mutex_lock(&g_ir_lock);
-
+	if(g_als_data->HAL_switch_on == false && g_ps_data->HAL_switch_on == false) {
+		log("ALSPS are disabled and ignore IST.\n");
+		goto ist_err;
+	}
 	dbg("IRsensor ist +++ \n");
-	/* when driver probe, the interrupt MAY BE triggered */
-	if(IRsensor_hw_client == NULL) {
-		err("IRsensor_hw_client is NULL. \n");
+	if(IRsensor_hw_client == NULL)	{
+		dbg("IRsensor_hw_client is NULL \n");
 		goto ist_err;
 	}
-	
-	/* Read INT_FLAG will clean the interrupt */
-	if(IRsensor_hw_client->IRsensor_hw_get_interrupt == NULL) {
-		err("IRsensor_hw_get_interrupt NOT SUPPORT. \n");
-		goto ist_err;
-	}
-	ret = IRsensor_hw_client->IRsensor_hw_get_interrupt();
 
 	/* Check Proximity Interrupt */
-	irsensor_int_ps = ret&IRSENSOR_INT_PS_MASK;
+	irsensor_int_ps = ASUS_IR_SENSOR_INT&IRSENSOR_INT_PS_MASK;
 	if(irsensor_int_ps == IRSENSOR_INT_PS_CLOSE || irsensor_int_ps == IRSENSOR_INT_PS_AWAY) 
 	{
 		dbg("Proximity ist \n");
-		if (irsensor_int_ps == IRSENSOR_INT_PS_AWAY)
-			proximity_work(IRSENSOR_INT_PS_AWAY);
+		if(g_ps_data->HAL_switch_on == true)
+			g_ps_data->int_counter++;	/* --- For stress test debug --- */
 		
-		if (irsensor_int_ps == IRSENSOR_INT_PS_CLOSE)
-			proximity_work(IRSENSOR_INT_PS_CLOSE);	
+		if (irsensor_int_ps == IRSENSOR_INT_PS_AWAY) {
+			proximity_work(IRSENSOR_INT_PS_AWAY);
+		}
+		if (irsensor_int_ps == IRSENSOR_INT_PS_CLOSE) {
+			proximity_work(IRSENSOR_INT_PS_CLOSE);
+		}
 	}
 
 	/* Check Light Sensor Interrupt */
-	irsensor_int_als = ret&IRSENSOR_INT_ALS_MASK;
+	irsensor_int_als = ASUS_IR_SENSOR_INT&IRSENSOR_INT_ALS_MASK;
 	if (irsensor_int_als == IRSENSOR_INT_ALS) {
 		dbg("Light Sensor ist \n");
+		if(g_als_data->HAL_switch_on == true)
+			g_als_data->int_counter++;	/* --- For stress test debug --- */
+		
 		light_work();
 	}
 	dbg("IRsensor ist --- \n");
-ist_err:
+ist_err:	
 	wake_unlock(&g_ir_wake_lock);
 	dbg("[IRQ] Enable irq !! \n");
-	enable_irq(ASUS_IR_SENSOR_IRQ);
+	enable_irq(ASUS_IR_SENSOR_IRQ);	
 mutex_unlock(&g_ir_lock);
 
 }
@@ -1108,8 +1341,26 @@ void IRsensor_irq_handler(void)
 {
 	dbg("[IRQ] Disable irq !! \n");
 	disable_irq_nosync(ASUS_IR_SENSOR_IRQ);
+	
+	if(IRsensor_hw_client->IRsensor_hw_get_interrupt == NULL) {
+		err("IRsensor_hw_get_interrupt NOT SUPPORT. \n");
+		goto irq_err;
+	}
+
+	/* Read INT_FLAG will clean the interrupt */
+	ASUS_IR_SENSOR_INT = IRsensor_hw_client->IRsensor_hw_get_interrupt();
+	if(ASUS_IR_SENSOR_INT <0){
+		err("IRsensor_hw_get_interrupt ERROR\n");
+		goto irq_err;
+	}
+
+	/*Queue work will enbale IRQ and unlock wake_lock*/
 	queue_work(IRsensor_workqueue, &IRsensor_ist_work);
 	wake_lock(&g_ir_wake_lock);
+	return;
+irq_err:
+	dbg("[IRQ] Enable irq !! \n");
+	enable_irq(ASUS_IR_SENSOR_IRQ);
 }
 
 static IRsensor_GPIO mIRsensor_GPIO = {
@@ -1124,16 +1375,29 @@ static IRsensor_GPIO mIRsensor_GPIO = {
 bool proximity_check_status(void)
 {	
 	int adc_value = 0;
-	bool status = false;	
-
+	bool status = false;
+	int ret=0;
+	
 	/* check probe status */
 	if(IRsensor_hw_client == NULL)
 		return status;
 
 	mutex_lock(&g_ir_lock);
+
+	/*Set Proximity Threshold(reset to factory)*/
+	ret = proximity_set_threshold();
+	if (ret < 0) {	
+		err("proximity_set_threshold ERROR\n");
+		return status;
+	}
+
 	
-	if (!g_ps_data->HAL_switch_on) {
-		proximity_turn_onoff(true);
+	if(g_ps_data->Device_switch_on == false){
+		ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(true);	
+		if(ret < 0){
+			err("proximity_hw_turn_onoff(true) ERROR\n");
+			return status;
+		}			
 	}
 	
 	msleep(PROXIMITY_TURNON_DELAY_TIME);
@@ -1145,17 +1409,187 @@ bool proximity_check_status(void)
 	}else{ 
 		status = false;
 	}
-	log("proximity_check_status : %s \n", status?"Close":"Away");
+	log("proximity_check_status : %s , (adc, hi_cal)=(%d, %d)\n", 
+		status?"Close":"Away", adc_value, g_ps_data->g_ps_calvalue_hi);
 	
-	if (!g_ps_data->HAL_switch_on) {
-		proximity_turn_onoff(false);
+	if(g_ps_data->HAL_switch_on == false){
+		ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(false);	
+		if(ret < 0){
+			err("proximity_hw_turn_onoff(false) ERROR\n");
+			return status;
+		}			
 	}
+	
 	mutex_unlock(&g_ir_lock);
 
 	return status;
 }
 
 EXPORT_SYMBOL(proximity_check_status);
+
+/*===========================
+ *|| Proximity Auto Calibration Part ||
+ *============================
+ */
+ static int proximity_set_nowork_threshold(void)
+{
+	int ret = 0;	
+
+	/* Check Hardware Support First */
+	if(IRsensor_hw_client->mpsensor_hw->proximity_hw_set_hi_threshold == NULL) {
+		err("proximity_hw_set_hi_threshold NOT SUPPORT. \n");
+		return -ENOENT;
+	}
+	if(IRsensor_hw_client->mpsensor_hw->proximity_hw_set_lo_threshold == NULL) {
+		err("proximity_hw_set_lo_threshold NOT SUPPORT. \n");
+		return -ENOENT;
+	}
+	
+	/*Set Proximity High Threshold*/
+	ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_set_hi_threshold(9999);
+	if(ret < 0){
+		err("proximity_hw_set_hi_threshold ERROR. \n");
+		return -ENOENT;
+	}
+	
+	/*Set Proximity Low Threshold*/
+	ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_set_lo_threshold(0);
+	if(ret < 0){
+		err("proximity_hw_set_hi_threshold ERROR. \n");
+		return -ENOENT;
+	}
+	
+	return 0;
+}
+
+static int proximity_check_minCT(void)
+{
+	int adc_value = 0;
+	int crosstalk_diff;
+	int crosstalk_min = 9999;
+	int ret;
+	int round;
+	
+	/*check the crosstalk calibration value*/	
+	ret = psensor_sysfs_read_inf();	
+	if(ret > 0) {
+	    	g_ps_data->g_ps_calvalue_inf= ret;
+		log("Proximity read INF Calibration : %d\n", g_ps_data->g_ps_calvalue_inf);
+	}else{
+		err("Proximity read DEFAULT INF Calibration : %d\n", g_ps_data->g_ps_calvalue_inf);
+	}	
+
+	/*make sure de-asserted INT when cat adc*/
+	ret = proximity_set_nowork_threshold();
+	if (ret < 0) {	
+		err("proximity_set_nowork_threshold ERROR\n");
+		return ret;
+	}
+
+	ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(true);	
+	if(ret < 0){
+		err("proximity_hw_turn_onoff(true) ERROR\n");
+		return ret;
+	}
+	/*update the min crosstalk value*/
+	for(round=0; round<PROXIMITY_AUTOK_COUNT; round++){	
+		mdelay(PROXIMITY_AUTOK_DELAY);
+		adc_value = IRsensor_hw_client->mpsensor_hw->proximity_hw_get_adc();
+		log("proximity auto calibration adc : %d\n", adc_value);
+		if(adc_value < crosstalk_min ){
+			crosstalk_min = adc_value;
+			log("Update the min for crosstalk : %d\n", crosstalk_min);
+		}
+	}
+	ret = IRsensor_hw_client->mpsensor_hw->proximity_hw_turn_onoff(false);	
+	if(ret < 0){
+		err("proximity_hw_turn_onoff(true) ERROR\n");
+		return ret;
+	}
+
+	/*Set Proximity Threshold*/
+	ret = proximity_set_threshold();
+	if (ret < 0) {	
+		err("proximity_set_threshold ERROR\n");
+		return ret;
+	}
+
+	/*update the diff crosstalk value*/
+	crosstalk_diff = crosstalk_min -g_ps_data->g_ps_calvalue_inf;
+	if(crosstalk_diff>g_ps_data->g_ps_autok_min && crosstalk_diff<g_ps_data->g_ps_autok_max){
+		log("Update the diff for crosstalk : %d\n", crosstalk_diff);
+		g_ps_data->crosstalk_diff = crosstalk_diff;
+
+		if(IRsensor_hw_client->mpsensor_hw->proximity_hw_set_autoK == NULL) {
+			err("proximity_hw_set_autoK NOT SUPPORT. \n");
+			return -1;
+		}
+		IRsensor_hw_client->mpsensor_hw->proximity_hw_set_autoK(crosstalk_diff);
+		g_ps_data->g_ps_calvalue_hi += crosstalk_diff;
+		g_ps_data->g_ps_calvalue_lo += crosstalk_diff;
+	}else if(crosstalk_diff>=g_ps_data->g_ps_autok_max){
+		log("crosstalk diff(%d) >= proximity autok max(%d)\n", crosstalk_diff, g_ps_data->g_ps_autok_max);
+		g_ps_data->crosstalk_diff = crosstalk_diff;
+	}else{
+		log("crosstalk diff(%d) <= proximity autok min(%d)\n", crosstalk_diff, g_ps_data->g_ps_autok_min);
+		g_ps_data->crosstalk_diff = 0;
+	}
+	
+	return 0;
+}
+
+static void proximity_autok(struct work_struct *work)
+{
+	int adc_value;
+	int crosstalk_diff;
+
+	if(IRsensor_hw_client->mpsensor_hw->proximity_hw_set_autoK == NULL) {
+		err("proximity_hw_set_autoK NOT SUPPORT. \n");
+		return;
+	}
+	
+	adc_value = IRsensor_hw_client->mpsensor_hw->proximity_hw_get_adc();
+	dbg("auto calibration polling : %d\n", adc_value);
+
+	crosstalk_diff = adc_value -g_ps_data->g_ps_calvalue_inf;
+
+	if((crosstalk_diff<g_ps_data->crosstalk_diff) &&( g_ps_data->crosstalk_diff!=0)){
+		/*last diff of crosstalk does not set to HW, should reset the value to 0.*/
+		if(g_ps_data->crosstalk_diff >= g_ps_data->g_ps_autok_max ){
+			g_ps_data->crosstalk_diff=0;
+		}
+		if(crosstalk_diff<=g_ps_data->g_ps_autok_min ){			
+			IRsensor_hw_client->mpsensor_hw->proximity_hw_set_autoK(0-g_ps_data->crosstalk_diff);
+			g_ps_data->crosstalk_diff = 0;
+			log("Update the diff for crosstalk : %d\n", g_ps_data->crosstalk_diff);
+		}else if((crosstalk_diff>g_ps_data->g_ps_autok_min) && (crosstalk_diff<g_ps_data->g_ps_autok_max) ){			
+			IRsensor_hw_client->mpsensor_hw->proximity_hw_set_autoK(crosstalk_diff-g_ps_data->crosstalk_diff);
+			g_ps_data->crosstalk_diff = crosstalk_diff;
+			log("Update the diff for crosstalk : %d\n", crosstalk_diff);
+		}else{
+			log("over the autok_max : (adc, inf) = %d(%d, %d) > %d\n", 
+				crosstalk_diff, adc_value, g_ps_data->g_ps_calvalue_inf, g_ps_data->g_ps_autok_max);
+			g_ps_data->crosstalk_diff = crosstalk_diff;
+		}
+	}	
+}
+
+static enum hrtimer_restart proximity_timer_function(struct hrtimer *timer)
+{
+	ktime_t autok_delay;
+	
+	dbg("proximity_timer_function\n");
+	queue_work(IRsensor_workqueue, &proximity_autok_work);	
+
+	if(0 == g_ps_data->crosstalk_diff){
+		return HRTIMER_NORESTART;
+	}else{
+		/*needs to be reset in the callback function*/
+		autok_delay = ns_to_ktime( PROXIMITY_AUTOK_POLLING * NSEC_PER_MSEC);
+		hrtimer_forward_now(&g_ir_timer, autok_delay);
+	}
+	return HRTIMER_RESTART;
+}
 
 /*====================
  *|| Initialization Part ||
@@ -1180,6 +1614,9 @@ static int init_data(void)
 	g_als_data->g_als_calvalue_shift = 		IRSENSOR_DEFAULT_VALUE;
 	g_als_data->g_als_change_sensitivity = IRSENSOR_DEFAULT_VALUE;
 	g_als_data->g_als_log_threshold = 		IRSENSOR_DEFAULT_VALUE;
+
+	g_als_data->int_counter = 0;
+	g_als_data->event_counter = 0;
 	
 	/* Reset ASUS_proximity_sensor_data */
 	g_ps_data = kmalloc(sizeof(struct ASUS_proximity_sensor_data), GFP_KERNEL);
@@ -1192,10 +1629,21 @@ static int init_data(void)
 	g_ps_data->Device_switch_on = 	false;
 	g_ps_data->HAL_switch_on = 	false;	
 	g_ps_data->polling_mode = 		false;
+	g_ps_data->autok = 			true;
 	
 	g_ps_data->g_ps_calvalue_hi = IRsensor_hw_client->mpsensor_hw->proximity_hi_threshold_default;
-	g_ps_data->g_ps_calvalue_lo = IRsensor_hw_client->mpsensor_hw->proximity_low_threshold_default;		
+	g_ps_data->g_ps_calvalue_lo = IRsensor_hw_client->mpsensor_hw->proximity_low_threshold_default;	
+	g_ps_data->g_ps_calvalue_inf = IRsensor_hw_client->mpsensor_hw->proximity_crosstalk_default;	
+	g_ps_data->g_ps_autok_min= IRsensor_hw_client->mpsensor_hw->proximity_autok_min;	
+	g_ps_data->g_ps_autok_max = IRsensor_hw_client->mpsensor_hw->proximity_autok_max;	
 
+	g_ps_data->int_counter = 0;
+	g_ps_data->event_counter = 0;
+	g_ps_data->crosstalk_diff = 0;
+
+	/*Record the error message*/
+	g_error_mesg = kzalloc(sizeof(char [ERROR_MESG_SIZE]), GFP_KERNEL);
+	
 	return 0;
 init_data_err:
 	err("Init Data ERROR\n");
@@ -1274,7 +1722,7 @@ void mIRsensor_algo_suspend(void)
 
 	/* For make sure Light sensor mush be switch off when system suspend */
 	if (g_als_data->Device_switch_on)				
-		light_turn_onoff(0);
+		light_turn_onoff(false);
 	
 	log("Driver SUSPEND ---\n");
 	
@@ -1285,8 +1733,8 @@ void mIRsensor_algo_resume(void)
 {
 	log("Driver RESUME +++\n");
 
-	if (g_als_data->Device_switch_on == 0 && g_als_data->HAL_switch_on == 1)
-		light_turn_onoff(1);
+	if (false == g_als_data->Device_switch_on && true == g_als_data->HAL_switch_on)
+		light_turn_onoff(true);
 	
 	log("Driver RESUME ---\n");
 	
@@ -1315,6 +1763,10 @@ static int __init IRsensor_init(void)
 
 	/* Initialize the wake lock */
 	wake_lock_init(&g_ir_wake_lock, WAKE_LOCK_SUSPEND, "IRsensor_wake_lock");
+
+	/*Initialize high resolution timer*/
+	hrtimer_init(&g_ir_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	g_ir_timer.function = proximity_timer_function;
 	
 	/* i2c Registration for probe/suspend/resume */				
 	ret = IRsensor_i2c_register(&mIRsensor_I2C);
@@ -1348,19 +1800,7 @@ static int __init IRsensor_init(void)
 	/* Input Device */
 	ret = IRsensor_report_register();
 	if (ret < 0)
-		goto init_err;	
-
-	/*Turn off Proximity and Disable Proximity Interrupt */
-	ret = proximity_turn_onoff(0);
-	if (ret < 0) {		
 		goto init_err;
-	}	
-	
-	/*Turn off Light Sensor and Disable Light Sensor Interrupt*/
-	ret = light_turn_onoff(0);
-	if (ret < 0) {		
-		goto init_err;
-	}	
 		
 	log("Driver INIT ---\n");
 	return 0;

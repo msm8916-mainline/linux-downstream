@@ -553,6 +553,54 @@ static int ap3425_proximity_hw_set_persistence(uint8_t persistence)
 	return 0;
 }
 
+static int ap3425_proximity_hw_set_autoK(int autok)
+{
+	uint8_t data_buf[2] = {0, 0};	
+	int hi_threshold, low_threshold;
+
+	/*Get High threshold value and adjust*/
+	data_buf[0] = i2c_read_reg_u8(g_i2c_client, AP3425_REG_PS_THDH_L);
+	if(data_buf[0] < 0) {
+		err("Proximity read High Threshold lsb ERROR. (AP3425_REG_PS_THDH_L : 0x%02X)\n",  data_buf[0]);
+	    	return -1;
+	} else {
+	    	log("Proximity read High Threshold lsb (AP3425_REG_PS_THDH_L : 0x%02X)\n", data_buf[0]);
+	}		
+
+	data_buf[1] = i2c_read_reg_u8(g_i2c_client, AP3425_REG_PS_THDH_H);
+	if(data_buf[1] < 0) {
+		err("Proximity write High Threshold msb ERROR. (AP3425_REG_PS_THDH_H : 0x%02X)\n",  data_buf[1]);
+	    	return -1;
+	} else {
+	    	log("Proximity write High Threshold msb (AP3425_REG_PS_THDH_H : 0x%02X)\n", data_buf[1]);
+	}	
+	hi_threshold = (data_buf[1] << 8) + data_buf[0];
+	dbg("Proximity get High Threshold : 0x%02X%02X\n", data_buf[1], data_buf[0]); 	
+	ap3425_proximity_hw_set_hi_threshold(hi_threshold + autok);
+
+	/*Get Low threshold value and adjust*/
+	data_buf[0] = i2c_read_reg_u8(g_i2c_client, AP3425_REG_PS_THDL_L);
+	if(data_buf[0] < 0) {
+		err("Proximity write Low Threshold lsb ERROR. (AP3425_REG_PS_THDL_L : 0x%02X)\n", data_buf[0]);
+	    	return -1;
+	} else {
+	    	log("Proximity write Low Threshold lsb (AP3425_REG_PS_THDL_L : 0x%02X)\n", data_buf[0]);
+	}
+
+	data_buf[1] = i2c_read_reg_u8(g_i2c_client, AP3425_REG_PS_THDL_H);
+	if(data_buf[1] < 0) {
+		err("Proximity write Low Threshold msb ERROR. (AP3425_REG_PS_THDL_H : 0x%02X)\n",  data_buf[1]);
+	    	return -1;
+	} else {
+	    	log("Proximity write Low Threshold msb (AP3425_REG_PS_THDL_H : 0x%02X)\n", data_buf[1]);
+	}	
+	low_threshold = (data_buf[1] << 8) + data_buf[0];
+	dbg("Proximity get Low Threshold : 0x%02X%02X\n", data_buf[1], data_buf[0]); 
+	
+	ap3425_proximity_hw_set_lo_threshold(low_threshold + autok);
+
+	return 0;
+}
 
 /*********************/
 /* Light Sensor Part */
@@ -711,11 +759,15 @@ static int ap3425_light_hw_set_integration(uint8_t integration)
 static struct psensor_hw psensor_hw_ap3425 = {
 	.proximity_low_threshold_default = AP3425_PROXIMITY_THDL_DEFAULT,
 	.proximity_hi_threshold_default = AP3425_PROXIMITY_THDH_DEFAULT,
+	.proximity_crosstalk_default = AP3425_PROXIMITY_INF_DEFAULT,
+	.proximity_autok_min = AP3425_PROXIMITY_AUTOK_MIN,
+	.proximity_autok_max = AP3425_PROXIMITY_AUTOK_MAX,
 	
 	.proximity_hw_turn_onoff = ap3425_proximity_hw_turn_onoff,
 	.proximity_hw_get_adc = ap3425_proximity_hw_get_adc,
 	.proximity_hw_set_hi_threshold = ap3425_proximity_hw_set_hi_threshold,
 	.proximity_hw_set_lo_threshold = ap3425_proximity_hw_set_lo_threshold,
+	.proximity_hw_set_autoK = ap3425_proximity_hw_set_autoK,
 };
 
 static struct lsensor_hw lsensor_hw_ap3425 = {
