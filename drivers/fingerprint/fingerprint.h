@@ -41,11 +41,9 @@ enum {
 static char sensor_status[SENSOR_STATUS_SIZE][8] ={"unknown", "failed",
 	"viper", "raptor", "egis"};
 
-/* Fingerprint vendor check */
-#undef ENABLE_VENDOR_CHECK
 
-#ifdef ENABLE_VENDOR_CHECK
-int FP_CHECK;
+#ifdef CONFIG_SENSORS_FINGERPRINT_DUALIZATION
+extern int FP_CHECK; /* extern variable */
 #endif
 
 #endif

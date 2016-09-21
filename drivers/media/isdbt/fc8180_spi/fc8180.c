@@ -72,6 +72,7 @@ u8 static_ringbuffer[RING_BUFFER_SIZE];
 
 enum ISDBT_MODE driver_mode = ISDBT_POWEROFF;
 static DEFINE_MUTEX(ringbuffer_lock);
+static DEFINE_MUTEX(power_onoff_lock);
 
 static DECLARE_WAIT_QUEUE_HEAD(isdbt_isr_wait);
 
@@ -239,7 +240,9 @@ void isdbt_hw_init(void)
 
 	mdelay(30);
 
+	mutex_lock(&power_onoff_lock);
 	driver_mode = ISDBT_POWERON;
+	mutex_unlock(&power_onoff_lock);
 
 }
 
@@ -248,18 +251,23 @@ void isdbt_hw_deinit(void)
 {
 #if defined(CONFIG_SEC_GPIO_SETTINGS)
         struct pinctrl *isdbt_pinctrl;
+#endif
+	mutex_lock(&power_onoff_lock);
+	driver_mode = ISDBT_POWEROFF;
+	mutex_unlock(&power_onoff_lock);
 
+	clk_disable_unprepare(isdbt_pdata->isdbt_clk);
+	pr_err("%s, Turning ISDBT_CLK off\n", __func__);
+	gpio_direction_output(isdbt_pdata->gpio_en, 0);
+	mdelay(5);
+	isdbt_regulator_onoff(ISDBT_LDO_OFF);
+
+#if defined(CONFIG_SEC_GPIO_SETTINGS)
         isdbt_pinctrl = devm_pinctrl_get_select(isdbt_pdata->isdbt_device, "isdbt_gpio_suspend");
         if (IS_ERR(isdbt_pinctrl)) {
                 pr_err("Target does not use pinctrl\n");
         }
 #endif
-	clk_disable_unprepare(isdbt_pdata->isdbt_clk);
-	pr_err("%s, Turning ISDBT_CLK off\n", __func__);
-	driver_mode = ISDBT_POWEROFF;
-	gpio_direction_output(isdbt_pdata->gpio_en, 0);
-	mdelay(5);
-	isdbt_regulator_onoff(ISDBT_LDO_OFF);
 
 }
 
@@ -307,12 +315,13 @@ static int isdbt_thread(void *hDevice)
 	while (1) {
 		wait_event_interruptible(isdbt_isr_wait,
 			isdbt_isr_sig || kthread_should_stop());
-
+		mutex_lock(&power_onoff_lock);
 		if (driver_mode == ISDBT_POWERON) {
 			driver_mode = ISDBT_DATAREAD;
 			bbm_com_isr(hInit);
 			driver_mode = ISDBT_POWERON;
 		}
+		mutex_unlock(&power_onoff_lock);
 
 		isdbt_isr_sig = 0;
 
@@ -421,6 +430,7 @@ int isdbt_release(struct inode *inode, struct file *filp)
 {
 
 	struct ISDBT_OPEN_INFO_T *hOpen;
+	int value;
 	pr_err("isdbt_release\n");
 	hOpen = filp->private_data;
 
@@ -432,6 +442,11 @@ int isdbt_release(struct inode *inode, struct file *filp)
 		kfree(hOpen);
 		wake_unlock(&isdbt_wlock);
 	}
+
+	value = gpio_get_value_cansleep(isdbt_pdata->gpio_en);
+	pr_err("%s  value = %d\n", __func__, value);
+	if (value == 1)
+		isdbt_hw_deinit();
 
 	if (isdbt_pdata->regulator_is_enable)
 		isdbt_regulator_onoff(ISDBT_LDO_OFF);

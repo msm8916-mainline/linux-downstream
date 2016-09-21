@@ -59,8 +59,6 @@
 			melfas,irq-gpio = <&msm_gpio 13 0x00>;
 			melfas,sda-gpio = <&msm_gpio 18 0x00>;
 			melfas,scl-gpio = <&msm_gpio 19 0x00>;
-			melfas,max_x = <720>;
-			melfas,max_y = <1280>;
 		};
 	};
 
@@ -90,8 +88,8 @@
 		regulator_tvdd-supply = <&pm8916_l17>;
 
 		pinctrl-names = "sec_nfc_active","sec_nfc_suspend","sec_nfc_lpm";
-		pinctrl-0 = <&nfc_int_active &nfc_pon_active &nfc_rfs_active &felica_ldo_en_active &hsuart_active>;
-		pinctrl-1 = <&nfc_int_active &nfc_pon_active &nfc_rfs_active &felica_ldo_en_active &hsuart_active>;
+		pinctrl-0 = <&nfc_int_active &nfc_pon_active &nfc_rfs_active &felica_ldo_en_active &hsuart_active &i2c_12_active>;
+		pinctrl-1 = <&nfc_int_active &nfc_pon_active &nfc_rfs_active &felica_ldo_en_active &hsuart_active &i2c_12_active>;
 		pinctrl-2 = <&nfc_int_active &nfc_pon_lpm &nfc_rfs_lpm &felica_ldo_en_lpm &hsuart_lpm >;
 	};
 
@@ -252,7 +250,7 @@
 				compatible = "siliconmitus,sm5703-fled";
 				enable = <1 1>;
 				flash_current = <1000>;
-				movie_current = <100>;
+				movie_current = <60>;
 				sm5703,led1-gpio = <&msm_gpio 36 0x00>;
 				sm5703,led2-gpio = <&msm_gpio 34 0x00>;
 				pinctrl-names = "fled_default","fled_sleep";
@@ -397,6 +395,7 @@
 			gpios = <&msm_gpio 51 0x1>;
 			linux,input-type = <1>;
 			linux,code = <252>;
+			gpio-key,wakeup;
 			debounce-interval = <15>;
 		};
 		recent_key {
@@ -438,7 +437,7 @@
 
 &usb_otg {
 	qcom,hsusb-otg-phy-init-seq =
-					<0x19 0x81 0x0b 0x82 0xffffffff>;
+					<0x49 0x81 0x0b 0x82 0xffffffff>;
 };
 
 &sdhc_1 {

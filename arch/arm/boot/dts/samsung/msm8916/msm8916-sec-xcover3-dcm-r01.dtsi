@@ -112,8 +112,8 @@
 		regulator_tvdd-supply = <&pm8916_l17>;
 
 		pinctrl-names = "sec_nfc_active","sec_nfc_suspend","sec_nfc_lpm";
-		pinctrl-0 = <&nfc_int_active &nfc_pon_active &nfc_rfs_active &felica_ldo_en_active &hsuart_active>;
-		pinctrl-1 = <&nfc_int_active &nfc_pon_active &nfc_rfs_active &felica_ldo_en_active &hsuart_active>;
+		pinctrl-0 = <&nfc_int_active &nfc_pon_active &nfc_rfs_active &felica_ldo_en_active &hsuart_active &i2c_12_active>;
+		pinctrl-1 = <&nfc_int_active &nfc_pon_active &nfc_rfs_active &felica_ldo_en_active &hsuart_active &i2c_12_active>;
 		pinctrl-2 = <&nfc_int_active &nfc_pon_lpm &nfc_rfs_lpm &felica_ldo_en_lpm &hsuart_lpm >;
 	};
 
@@ -419,6 +419,7 @@
 			gpios = <&msm_gpio 51 0x1>;
 			linux,input-type = <1>;
 			linux,code = <252>;
+			gpio-key,wakeup;
 			debounce-interval = <15>;
 		};
 		recent_key {
@@ -460,7 +461,7 @@
 
 &usb_otg {
 	qcom,hsusb-otg-phy-init-seq =
-					<0x19 0x81 0x0b 0x82 0xffffffff>;
+					<0x49 0x81 0x0b 0x82 0xffffffff>;
 };
 
 &sdhc_1 {

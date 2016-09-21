@@ -62,6 +62,7 @@
 #include <linux/preempt.h>
 #endif
 #include <soc/qcom/scm.h>
+#include <soc/qcom/socinfo.h>
 
 #if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8226)
 #include <linux/regulator/consumer.h>
@@ -1972,6 +1973,7 @@ int sec_debug_subsys_init(void)
 #endif
 
 	ADD_STR_TO_INFOMON(unit_name);
+	ADD_STR_TO_INFOMON(soc_revision);
 	ADD_VAR_TO_INFOMON(system_rev);
 	if (___build_root_init(build_root) == 0)
 		ADD_STR_TO_INFOMON(build_root);
@@ -2337,6 +2339,26 @@ int sec_debug_get_cp_crash_log(char *str)
 }
 #endif /* CONFIG_USER_RESET_DEBUG */
 
+#define SCM_WDOG_DEBUG_BOOT_PART 0x9
+void sec_do_bypass_sdi_execution_in_low(void)
+{
+	int ret;
+	struct scm_desc desc = {
+		.args[0] = 1,
+		.args[1] = 0,
+		.arginfo = SCM_ARGS(2),
+	};
+	/* Needed to bypass debug image on some chips */
+	if (!is_scm_armv8())
+		ret = scm_call_atomic2(SCM_SVC_BOOT,
+			       SCM_WDOG_DEBUG_BOOT_PART, 1, 0);
+	else
+		ret = scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT,
+			  SCM_WDOG_DEBUG_BOOT_PART), &desc);
+	if (ret)
+		pr_err("Failed to disable secure wdog debug: %d\n", ret);
+}
+
 int __init sec_debug_init(void)
 {
 	struct device_node *np;
@@ -2365,8 +2387,10 @@ int __init sec_debug_init(void)
 	register_reboot_notifier(&nb_reboot_block);
 	atomic_notifier_chain_register(&panic_notifier_list, &nb_panic_block);
 
-	if (!enable)
+	if (!enable) {
+		sec_do_bypass_sdi_execution_in_low();
 		return -EPERM;
+	}
 
 #ifdef CONFIG_SEC_DEBUG_SCHED_LOG
 	__init_sec_debug_log();

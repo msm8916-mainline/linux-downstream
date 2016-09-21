@@ -673,7 +673,7 @@ extern int fp_spi_clock_enable(struct spi_device *spidev);
 extern int fp_spi_clock_disable(struct spi_device *spidev);
 extern int fp_spi_request_gpios(struct spi_device *spidev);
 #endif
-#ifdef CONFIG_ESE_P61
+#if defined(CONFIG_ESE_P61) || defined(CONFIG_ESE_P3)
 extern int ese_spi_clock_set_rate(struct spi_device *spidev);
 extern int ese_spi_clock_enable(struct spi_device *spidev);
 extern int ese_spi_clock_disable(struct spi_device *spidev);

@@ -156,7 +156,7 @@
 			label = "sdc2-clk";
 			sdc2_clk_on: clk_on {
 				bias-disable; /* NO pull */
-				drive-strength = <16>; /* 16 MA */
+				drive-strength = <10>; /* 10 MA */
 			};
 			sdc2_clk_off: clk_off {
 				bias-disable; /* NO pull */
@@ -761,16 +761,6 @@
 			};
 		};
 */
-		tpiu_seta_15 {
-			qcom,pins = <&gp 112>;
-			qcom,num-grp-pins = <1>;
-			qcom,pin-func = <5>;
-			label = "tpiu-seta-15";
-			seta_15: seta {
-				drive-strength = <16>;
-				bias-disable;
-			};
-		};
 /*
 		tpiu_seta_16 {
 			qcom,pins = <&gp 113>;
@@ -1101,21 +1091,6 @@
 			gpio_key_suspend: gpio_key_suspend {
 				drive-strength = <2>;
 				bias-pull-up;
-			};
-		};
-
-		pmx_hall_ic {
-			qcom,pins = <&gp 52>;
-			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <1>;
-			label = "pmx_flip_cover";
-			hall_int_active: hall_int_active {
-				drive-strength = <2>;
-				bias-disable = <0>; /* No PULL */
-			};
-			hall_int_suspend: hall_int_suspend {
-				drive-strength = <2>;
-				bias-disable = <0>; /* No PULL */
 			};
 		};
 

@@ -19,7 +19,7 @@
 #define PARAM_RD	0
 #define PARAM_WR	1
 
-#define SEC_PARAM_FILE_NAME	"/dev/block/platform/7824900.sdhci/by-name/param"	/* parameter block */
+#define SEC_PARAM_FILE_NAME	"/dev/block/platform/soc.0/7824900.sdhci/by-name/param"	/* parameter block */
 #define SEC_PARAM_FILE_SIZE	0xA00000		/* 10MB */
 #define SEC_PARAM_FILE_OFFSET (SEC_PARAM_FILE_SIZE - 0x100000)
 

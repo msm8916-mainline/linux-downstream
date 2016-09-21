@@ -600,6 +600,34 @@ static struct dsi_panel_cmds * mdss_gamma(struct mdss_dsi_ctrl_pdata *ctrl, int 
 	}
 }
 
+static struct dsi_panel_cmds *mdss_hbm_gamma(struct mdss_dsi_ctrl_pdata *ctrl, int *level_key)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return NULL;
+	}
+
+	*level_key = PANEL_LEVE2_KEY;
+
+	return &vdd->dtsi_data[ctrl->ndx].hbm_gamma_tx_cmds[vdd->panel_revision];
+}
+
+static struct dsi_panel_cmds *mdss_hbm_etc(struct mdss_dsi_ctrl_pdata *ctrl, int *level_key)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return NULL;
+	}
+
+	*level_key = PANEL_LEVE2_KEY;
+
+	return &vdd->dtsi_data[ctrl->ndx].hbm_etc_tx_cmds[vdd->panel_revision];
+}
+
 static void dsi_update_mdnie_data(void)
 {
 	/* Update mdnie command */
@@ -737,8 +765,8 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_smart_get_conf = smart_get_conf_EA8061V_AMS497EE10;
 
 	/* HBM */
-	vdd->panel_func.samsung_hbm_gamma = NULL;
-	vdd->panel_func.samsung_hbm_etc = NULL;
+	vdd->panel_func.samsung_hbm_gamma = mdss_hbm_gamma;
+	vdd->panel_func.samsung_hbm_etc = mdss_hbm_etc;
 
 	/* Brightness */
 	vdd->panel_func.samsung_brightness_hbm_off = NULL;

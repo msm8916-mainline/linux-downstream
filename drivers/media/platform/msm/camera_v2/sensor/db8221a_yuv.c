@@ -37,9 +37,8 @@ static struct yuv_ctrl db8221a_ctrl;
 static exif_data_t db8221a_exif;
 
 static int32_t streamon = 0;
-static int32_t recording = 0;
 static int32_t resolution = MSM_SENSOR_RES_FULL;
-
+static int32_t prev_fps = 0;
 
 #if defined CONFIG_SEC_CAMERA_TUNING
 #define FILENAME "/data/db8221a_yuv.h"
@@ -80,12 +79,11 @@ static int db8221a_exif_shutter_speed(struct msm_sensor_ctrl_t *s_ctrl)
 	lineLength = ((read_value1&0xFF) << 8) | read_value2;
 	CDBG("%s::%d coarseTime = %d, lineLength = %d",__func__,__LINE__,coarseTime,lineLength);
 
-	if(coarseTime == 0 && lineLength == 0)
-	{
+	if(coarseTime == 0 || lineLength == 0){
+		pr_err("%s : %d I2C data is 0\n", __func__, __LINE__);
 		rc = -EFAULT;
 	}
-	else
-	{
+	else{
 		db8221a_exif.shutterspeed = SensorInputClock/(coarseTime*lineLength*2);
 		CDBG("Exposure time = %d", db8221a_exif.shutterspeed);
 	}
@@ -106,19 +104,19 @@ static int db8221a_exif_iso(struct msm_sensor_ctrl_t *s_ctrl)
 	return 0;
 }
 
-void db8221a_get_exif(struct msm_sensor_ctrl_t *s_ctrl)
+static int db8221a_get_exif(struct msm_sensor_ctrl_t *s_ctrl)
 {
-	CDBG("%s,%d E",__func__,__LINE__);
-
-	/*Exif data*/
-	db8221a_exif_shutter_speed(s_ctrl);
-	db8221a_exif_iso(s_ctrl);
-	CDBG("exp_time : %d -- iso_value : %d",db8221a_exif.shutterspeed, db8221a_exif.iso);
-	return;
+	int rc = 0;
+	CDBG("%s : %d E",__func__,__LINE__);
+	rc = db8221a_exif_shutter_speed(s_ctrl);
+	if( rc < 0 ) return rc;
+	rc = db8221a_exif_iso(s_ctrl);
+	return rc;
 }
 
 int32_t db8221a_get_exif_info(struct ioctl_native_cmd * exif_info)
 {
+	CDBG("%s : %d E",__func__,__LINE__);
 	exif_info->value_1 = 1;	// equals 1 to update the exif value in the user level.
 	exif_info->value_2 = db8221a_exif.iso;
 	exif_info->value_3 = db8221a_exif.shutterspeed;
@@ -158,7 +156,8 @@ int32_t db8221a_set_exposure_compensation(struct msm_sensor_ctrl_t *s_ctrl, int 
 		DB8221A_WRITE_LIST(db8221a_bright_p4);
 		break;
 	default:
-		CDBG("Setting %d is invalid", mode);
+		pr_err("%s: Setting %d is invalid", __func__, mode);
+		rc = -EINVAL;
 	}
 	return rc;
 }
@@ -185,45 +184,65 @@ int32_t db8221a_set_white_balance(struct msm_sensor_ctrl_t *s_ctrl, int mode)
 		DB8221A_WRITE_LIST(db8221a_wb_cloudy);
 		break;
 	default:
-		CDBG("%s: Setting %d is invalid", __func__, mode);
+		pr_err("%s: Setting %d is invalid", __func__, mode);
+		rc = -EINVAL;
 	}
 	return rc;
 }
 
-int32_t db8221a_set_resolution(struct msm_sensor_ctrl_t *s_ctrl, int mode, int flicker_type)
+int32_t db8221a_set_resolution(struct msm_sensor_ctrl_t *s_ctrl, int mode)
 {
 	int32_t rc = 0;
 	CDBG("CAM-SETTING-- resolution is %d", mode);
-
 	switch (mode) {
 	case MSM_SENSOR_RES_FULL:
-		msleep(10);
-		break;
-	default:
-		msleep(100);
-	}
-	switch (mode) {
-	case MSM_SENSOR_RES_FULL:
-		DB8221A_WRITE_LIST(db8221a_Capture_1600_1200);
-		db8221a_get_exif(s_ctrl);
+		if (db8221a_ctrl.fixed_fps_val == 24000) {
+			DB8221A_WRITE_LIST(db8221a_Capture_1600_1200_for_24fps);
+		}
+		else {
+			DB8221A_WRITE_LIST(db8221a_Capture_1600_1200);
+		}
 		break;
 	case MSM_SENSOR_RES_QTR:
-		DB8221A_WRITE_LIST(db8221a_preview_800_600);
-		db8221a_get_exif(s_ctrl);
+#if defined(CONFIG_MACH_J3LTE_USA_VZW) || defined(CONFIG_MACH_J3LTE_USA_USC)
+		if (db8221a_ctrl.fixed_fps_val == 24000) {
+			DB8221A_WRITE_LIST(db8221a_24fps_Camcoder);
+		} else {
+			if (24000 == prev_fps) {	// from 24fps to auto fps
+				CDBG("prev_fps is 24!");
+				DB8221A_WRITE_LIST(db8221a_Init_Reg);
+				DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_60Hz);
+			}
+			DB8221A_WRITE_LIST(db8221a_preview_640_480);
+		}
+#else
+		if (db8221a_ctrl.fixed_fps_val == 24000) {
+			DB8221A_WRITE_LIST(db8221a_24fps_Camcoder_800_600);
+		}
+		else {
+			DB8221A_WRITE_LIST(db8221a_preview_800_600);
+		}
+#endif
 		break;
 	case MSM_SENSOR_RES_2:
 		DB8221A_WRITE_LIST(db8221a_preview_640_480);
-		db8221a_get_exif(s_ctrl);
+		break;
+	case MSM_SENSOR_RES_3:
+		DB8221A_WRITE_LIST(db8221a_preview_352_288);
+		break;
+	case MSM_SENSOR_RES_4:
+		DB8221A_WRITE_LIST(db8221a_preview_320_240);
+		break;
+	case MSM_SENSOR_RES_5:
+		DB8221A_WRITE_LIST(db8221a_preview_176_144);
 		break;
 	default:
-		DB8221A_WRITE_LIST(db8221a_preview_640_480);
-		db8221a_get_exif(s_ctrl);
 		pr_err("%s: Setting %d is invalid\n", __func__, mode);
+		rc = -EINVAL;
 	}
 
 	return rc;
 }
-
 
 int32_t db8221a_set_effect(struct msm_sensor_ctrl_t *s_ctrl, int mode)
 {
@@ -244,6 +263,7 @@ int32_t db8221a_set_effect(struct msm_sensor_ctrl_t *s_ctrl, int mode)
 		break;
 	default:
 		pr_err("%s: Setting %d is invalid\n", __func__, mode);
+		rc = -EINVAL;
 	}
 	return rc;
 }
@@ -256,16 +276,19 @@ int32_t db8221a_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 	int32_t i = 0;
 	mutex_lock(s_ctrl->msm_sensor_mutex);
 
-	CDBG("%s : %d ENTER %d", __func__, __LINE__, cdata->cfgtype);
+	CDBG("ENTER %d", cdata->cfgtype);
 
 	switch (cdata->cfgtype) {
 	case CFG_GET_SENSOR_INFO:
+
 		CDBG(" CFG_GET_SENSOR_INFO");
+
 		memcpy(cdata->cfg.sensor_info.sensor_name,
 			s_ctrl->sensordata->sensor_name,
 			sizeof(cdata->cfg.sensor_info.sensor_name));
 		cdata->cfg.sensor_info.session_id =
 			s_ctrl->sensordata->sensor_info->session_id;
+
 		for (i = 0; i < SUB_MODULE_MAX; i++)
 			cdata->cfg.sensor_info.subdev_id[i] =
 				s_ctrl->sensordata->sensor_info->subdev_id[i];
@@ -281,94 +304,125 @@ int32_t db8221a_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 
 		CDBG("sensor name %s", cdata->cfg.sensor_info.sensor_name);
 		CDBG("session id %d", cdata->cfg.sensor_info.session_id);
+        CDBG("mount angle valid %d value %d", cdata->cfg.sensor_info.is_mount_angle_valid,
+			cdata->cfg.sensor_info.sensor_mount_angle);
+#if 0
 		for (i = 0; i < SUB_MODULE_MAX; i++)
 			CDBG("%s:%d subdev_id[%d] %d", __func__, __LINE__, i,
 				cdata->cfg.sensor_info.subdev_id[i]);
-
-		CDBG("mount angle valid %d value %d", cdata->cfg.sensor_info.is_mount_angle_valid,
-			cdata->cfg.sensor_info.sensor_mount_angle);
-
+#endif
 		break;
-		case CFG_SET_INIT_SETTING:
-			db8221a_ctrl.vtcall_mode = 0;
-			CDBG("CFG_SET_INIT_SETTING writing INIT registers: db8221a_Init_Reg \n");
-			if (cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
-				pr_err("%s : %d 50Hz init setting\n", __func__, __LINE__);
-				DB8221A_WRITE_LIST(db8221a_Init_Reg_50Hz);
-			} else {
-				pr_err("%s : %d 60Hz init setting\n", __func__,	__LINE__);
-				DB8221A_WRITE_LIST(db8221a_Init_Reg_60Hz);
-			}
+	case CFG_SET_INIT_SETTING:
+		CDBG("CFG_SET_INIT_SETTING\n");
+		db8221a_ctrl.vtcall_mode = 0;
 
 #ifdef CONFIG_SEC_CAMERA_TUNING
-			if (front_tune){
-				register_table_init(FILENAME);
-				pr_err("%s[%d] %s inside CFG_SET_INIT_SETTING", __func__,	__LINE__ ,FILENAME);
-			}
+		if (front_tune){
+			register_table_init(FILENAME);
+			pr_err("%s[%d] %s inside CFG_SET_INIT_SETTING", __func__,	__LINE__ ,FILENAME);
+		}
 #endif
-			break;
-		case CFG_SET_RESOLUTION:
-			resolution = *((int32_t  *)cdata->cfg.setting);
-			if (db8221a_ctrl.prev_mode == CAMERA_MODE_INIT) {
-				if (db8221a_ctrl.vtcall_mode) {
-					if (cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
-						pr_err("%s : %d 50Hz VT init setting\n", __func__, __LINE__);
-					DB8221A_WRITE_LIST(db8221a_VT_Init_Reg_50Hz);
-					} else {
-						pr_err("%s : %d 60Hz VT init setting\n", __func__,	__LINE__);
-						DB8221A_WRITE_LIST(db8221a_VT_Init_Reg_60Hz);
-					}
-				}else {
-					CDBG("Init settings");
-				}
-			}
-			CDBG("CFG_SET_RESOLUTION *** res = %d" , resolution);
-			if( db8221a_ctrl.op_mode == CAMERA_MODE_RECORDING ) {
+		break;
+
+	case CFG_SET_RESOLUTION:
+		CDBG("CFG_SET_RESOLUTION");
+		resolution = *((int32_t  *)cdata->cfg.setting);
+
+		if((db8221a_ctrl.prev_mode == CAMERA_MODE_INIT || db8221a_ctrl.prev_mode == CAMERA_MODE_RECORDING)
+			&& (db8221a_ctrl.op_mode == CAMERA_MODE_PREVIEW)){
+			if (db8221a_ctrl.vtcall_mode) {
+				CDBG("vt seq");
+				DB8221A_WRITE_LIST(db8221a_VT_Init_Reg);
+				//msleep(10);
 				if (cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
-					pr_err("%s : %d 50Hz 24fps camcorder\n", __func__, __LINE__);
-					DB8221A_WRITE_LIST(db8221a_24fps_Camcoder_50Hz);
+					CDBG("50Hz init setting");
+					DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_50Hz);
 				} else {
-					pr_err("%s : %d 60Hz 24fps camcorder\n", __func__, __LINE__);
-					DB8221A_WRITE_LIST(db8221a_24fps_Camcoder_60Hz);
-				}
-				db8221a_set_effect( s_ctrl , db8221a_ctrl.settings.effect);
-				db8221a_set_white_balance( s_ctrl, db8221a_ctrl.settings.wb);
-				db8221a_set_exposure_compensation( s_ctrl , db8221a_ctrl.settings.exposure);
-				recording = 1;
-			}else{
-				if(recording == 1){
-					CDBG("CFG_SET_RESOLUTION recording STOP recording =1 *** res = %d" , resolution);
-					if (cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
-						pr_err("%s : %d 50Hz Auto fps\n", __func__, __LINE__);
-						DB8221A_WRITE_LIST(db8221a_auto_fps_50Hz);
-					} else {
-						pr_err("%s : %d 60Hz Auto fps\n", __func__, __LINE__);
-						DB8221A_WRITE_LIST(db8221a_auto_fps_60Hz);
-					}
-					db8221a_set_effect( s_ctrl , db8221a_ctrl.settings.effect);
-					db8221a_set_white_balance( s_ctrl, db8221a_ctrl.settings.wb);
-					db8221a_set_exposure_compensation( s_ctrl , db8221a_ctrl.settings.exposure);
-					db8221a_set_resolution(s_ctrl , resolution , cdata->flicker_type);
-					recording = 0;
-				}else if( db8221a_ctrl.prev_mode == CAMERA_MODE_INIT ){
-					db8221a_set_effect( s_ctrl , db8221a_ctrl.settings.effect);
-					db8221a_set_white_balance( s_ctrl, db8221a_ctrl.settings.wb);
-					db8221a_set_exposure_compensation( s_ctrl , db8221a_ctrl.settings.exposure);
-					db8221a_set_resolution(s_ctrl , resolution , cdata->flicker_type);
-					CDBG("CFG_SET_RESOLUTION END *** res = %d" , resolution);
-				} else{
-					db8221a_set_resolution(s_ctrl , resolution , cdata->flicker_type);
-					CDBG("CFG_SET_RESOLUTION END *** res = %d" , resolution);
+					CDBG("60Hz init setting");
+					DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_60Hz);
 				}
 			}
-			break;
+			else{
+				CDBG("preview seq");
+				DB8221A_WRITE_LIST(db8221a_Init_Reg);
+				if (cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
+					DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_50Hz);
+				} else {
+					DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_60Hz);
+				}
+			}
+			db8221a_set_effect(s_ctrl, db8221a_ctrl.settings.effect);
+			//db8221a_set_white_balance(s_ctrl, db8221a_ctrl.settings.wb);
+			db8221a_set_exposure_compensation(s_ctrl , db8221a_ctrl.settings.exposure);
+			db8221a_set_resolution(s_ctrl , resolution);
+		}
+		else if(db8221a_ctrl.op_mode == CAMERA_MODE_PREVIEW){
+			db8221a_set_resolution(s_ctrl, resolution);
+		}
+		else if((db8221a_ctrl.prev_mode == CAMERA_MODE_PREVIEW)
+			&& (db8221a_ctrl.op_mode == CAMERA_MODE_CAPTURE)){
+			CDBG("capture seq");
+			if( resolution == MSM_SENSOR_RES_FULL ){
+				db8221a_set_resolution(s_ctrl , resolution);
+				db8221a_get_exif(s_ctrl);
+			}
+			else{
+				pr_err("%s:%d invalid capture size\n", __func__, __LINE__);
+				rc = -EINVAL;
+			}
+		}
+		else if(db8221a_ctrl.op_mode == CAMERA_MODE_RECORDING){
+			CDBG("recording seq");
+			if (db8221a_ctrl.prev_mode == CAMERA_MODE_INIT) {
+
+				if (db8221a_ctrl.vtcall_mode) {
+					CDBG("vt seq");
+					DB8221A_WRITE_LIST(db8221a_VT_Init_Reg);
+					//msleep(10);
+					if (cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
+						CDBG("50Hz init setting");
+						DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_50Hz);
+					} else {
+						CDBG("60Hz init setting");
+						DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_60Hz);
+					}
+				}
+				else{
+					CDBG("preview seq");
+					DB8221A_WRITE_LIST(db8221a_Init_Reg);
+					if (cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
+						DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_50Hz);
+					} else {
+						DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_60Hz);
+					}
+				}
+				db8221a_set_effect(s_ctrl, db8221a_ctrl.settings.effect);
+				//db8221a_set_white_balance(s_ctrl, db8221a_ctrl.settings.wb);
+				db8221a_set_exposure_compensation(s_ctrl , db8221a_ctrl.settings.exposure);
+				db8221a_set_resolution(s_ctrl , resolution);
+				msleep(50);
+
+			}
+			DB8221A_WRITE_LIST(db8221a_24fps_Camcoder);
+			if (cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
+				DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_50Hz);
+			} else {
+				DB8221A_WRITE_LIST(db8221a_anti_banding_flicker_60Hz);
+			}
+		}
+		else{
+			pr_err("%s:%d invalid sequence db8221a_ctrl.prev_mode:%d, db8221a_ctrl.op_mode:%d\n",
+				__func__, __LINE__, db8221a_ctrl.prev_mode, db8221a_ctrl.op_mode);
+			rc = -EFAULT;
+		}
+		break;
 
 	case CFG_SET_STOP_STREAM:
 		CDBG("CFG_SET_STOP_STREAM");
 		if(streamon == 1){
-				DB8221A_WRITE_LIST(db8221a_stream_stop);
-				rc=0;
-				streamon = 0;
+			DB8221A_WRITE_LIST(db8221a_stream_stop);
+			rc=0;
+			streamon = 0;
 		}
 		break;
 	case CFG_SET_START_STREAM:
@@ -379,7 +433,7 @@ int32_t db8221a_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		struct msm_camera_sensor_slave_info sensor_slave_info;
 		struct msm_camera_power_ctrl_t *p_ctrl;
 		uint16_t size;
-		int slave_index = 0;
+
 		if (copy_from_user(&sensor_slave_info,
 			(void *)cdata->cfg.setting,
 				sizeof(sensor_slave_info))) {
@@ -387,6 +441,7 @@ int32_t db8221a_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 			rc = -EFAULT;
 			break;
 		}
+
 		/* Update sensor slave address */
 		if (sensor_slave_info.slave_addr) {
 			s_ctrl->sensor_i2c_client->cci_client->sid =
@@ -426,15 +481,20 @@ int32_t db8221a_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		CDBG("sensor addr type %d", sensor_slave_info.addr_type);
 		CDBG("sensor reg %x", sensor_slave_info.sensor_id_info.sensor_id_reg_addr);
 		CDBG("sensor id %x", sensor_slave_info.sensor_id_info.sensor_id);
-		for (slave_index = 0; slave_index <
-			p_ctrl->power_setting_size; slave_index++) {
-			CDBG("%s i %d power setting %d %d %ld %d", __func__,
-				slave_index,
-				p_ctrl->power_setting[slave_index].seq_type,
-				p_ctrl->power_setting[slave_index].seq_val,
-				p_ctrl->power_setting[slave_index].config_val,
-				p_ctrl->power_setting[slave_index].delay);
+#if 0
+		{
+			int slave_index = 0;
+			for (slave_index = 0; slave_index <
+				p_ctrl->power_setting_size; slave_index++) {
+				CDBG("%s i %d power setting %d %d %ld %d", __func__,
+					slave_index,
+					p_ctrl->power_setting[slave_index].seq_type,
+					p_ctrl->power_setting[slave_index].seq_val,
+					p_ctrl->power_setting[slave_index].config_val,
+					p_ctrl->power_setting[slave_index].delay);
+			}
 		}
+#endif
 		break;
 	}
 	case CFG_WRITE_I2C_ARRAY: {
@@ -513,6 +573,7 @@ int32_t db8221a_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 	}
 
 	case CFG_POWER_UP:
+		prev_fps = 0;
 		streamon = 0;
 		db8221a_ctrl.op_mode = CAMERA_MODE_INIT;
 		db8221a_ctrl.prev_mode = CAMERA_MODE_INIT;
@@ -525,16 +586,22 @@ int32_t db8221a_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		if (s_ctrl->func_tbl->sensor_power_up) {
             CDBG("CFG_POWER_UP");
 			rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
-                } else
+		}
+		else {
+			pr_err("%s : %d undefined sensor_power_up",__func__,__LINE__);
 			rc = -EFAULT;
+		}
 		break;
 
 	case CFG_POWER_DOWN:
 		 if (s_ctrl->func_tbl->sensor_power_down) {
             CDBG("CFG_POWER_DOWN");
 			rc = s_ctrl->func_tbl->sensor_power_down(s_ctrl);
-                } else
+		}
+		else{
+			pr_err("%s : %d undefined sensor_power_down",__func__,__LINE__);
 			rc = -EFAULT;
+		}
 		break;
 
 	case CFG_SET_STOP_STREAM_SETTING: {
@@ -572,13 +639,13 @@ int32_t db8221a_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 		break;
 	}
 	default:
-		rc = 0;
+		pr_err("%s: %d invalid\n", __func__, __LINE__);
+		//rc = -EINVAL;
 		break;
 	}
 
 	mutex_unlock(s_ctrl->msm_sensor_mutex);
-
-	CDBG("%s : %d EXIT", __func__, __LINE__);
+	CDBG("EXIT");
 
 	return rc;
 }
@@ -589,8 +656,7 @@ int32_t db8221a_sensor_native_control(struct msm_sensor_ctrl_t *s_ctrl,
 	int32_t rc = 0;
 	struct ioctl_native_cmd *cam_info = (struct ioctl_native_cmd *)argp;
 	mutex_lock(s_ctrl->msm_sensor_mutex);
-	/* CDBG("cam_info values = %d : %d : %d : %d : %d", cam_info->mode, cam_info->address,\
-		cam_info->value_1, cam_info->value_2 , cam_info->value_3); */
+
 	switch (cam_info->mode) {
 	case EXT_CAM_EV:
 		db8221a_ctrl.settings.exposure = cam_info->value_1;
@@ -610,7 +676,6 @@ int32_t db8221a_sensor_native_control(struct msm_sensor_ctrl_t *s_ctrl,
 	case EXT_CAM_SENSOR_MODE:
 		db8221a_ctrl.prev_mode = db8221a_ctrl.op_mode;
 		db8221a_ctrl.op_mode = cam_info->value_1;
-		/*CDBG("EXT_CAM_SENSOR_MODE = %d", db8221a_ctrl.op_mode);*/
 		break;
 	case EXT_CAM_EXIF:
 		db8221a_get_exif_info(cam_info);
@@ -620,14 +685,19 @@ int32_t db8221a_sensor_native_control(struct msm_sensor_ctrl_t *s_ctrl,
 		CDBG("copy failed");
 		break;
 	case EXT_CAM_VT_MODE:
-		/*CDBG("EXT_CAM_VT_MODE = %d",cam_info->value_1);*/
 		db8221a_ctrl.vtcall_mode = cam_info->value_1;
 		break;
+	case EXT_CAM_FPS_RANGE:
+		CDBG("Prev_fps %d EXT_CAM_FPS_RANGE %d", db8221a_ctrl.fixed_fps_val, cam_info->value_1);
+		prev_fps = db8221a_ctrl.fixed_fps_val;
+		db8221a_ctrl.fixed_fps_val = cam_info->value_1;
+		break;
 	default:
-		rc = 0;
+		pr_err("%s: %d unsupport mode : %d\n", __func__, __LINE__, cam_info->mode);
+		//rc = -EINVAL;
 		break;
 	}
 	mutex_unlock(s_ctrl->msm_sensor_mutex);
     CDBG("%s : %d EXIT", __func__, __LINE__);
-	return 0;
+	return rc;
 }

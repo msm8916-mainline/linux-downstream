@@ -79,7 +79,7 @@ static const struct smtc_reg_data setup_reg[] = {
 	},
 	{
 		.reg = SX9500_CPS_CTRL2_REG,
-#if defined(CONFIG_MACH_GT58_EUR_OPEN) || defined(CONFIG_MACH_GT58_SEA_XSA) || defined(CONFIG_MACH_GTEL_USA_VZW) || defined(CONFIG_MACH_GTES_USA_SPR)
+#if defined(CONFIG_MACH_GT58_EUR_OPEN) || defined(CONFIG_MACH_GT58_SEA_XSA) || defined(CONFIG_MACH_GTEL_USA_VZW) || defined(CONFIG_MACH_GTES_USA_SPR) || defined(CONFIG_MACH_GTES_USA_USC)
 		.val = 0x67,
 #else
 #if defined(CONFIG_SENSORS_SX9500_SAMPLE_RATE_SET_125KHZ)

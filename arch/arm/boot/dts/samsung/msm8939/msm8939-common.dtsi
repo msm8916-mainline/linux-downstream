@@ -66,6 +66,12 @@
 			label = "peripheral_mem";
 		};
 
+		mba_mem: mba_region@0 {
+			linux,reserve-contiguous-region;
+			reg = <0 0 0 0x0200000>;
+			label = "mba_mem";
+		};
+
 		venus_mem: venus_region@0 {
 			linux,reserve-contiguous-region;
 			linux,reserve-region;
@@ -683,7 +689,6 @@
 		qcom,ce-hw-instance = <0>;
 		qcom,ce-device = <0>;
 		qcom,clk-mgmt-sus-res;
-		qcom,ce-hw-shared;
 		qcom,msm-bus,name = "qcrypto-noc";
 		qcom,msm-bus,num-cases = <2>;
 		qcom,msm-bus,num-paths = <1>;
@@ -991,7 +996,7 @@
 		      <0x7884000 0x23000>;
 		interrupt-names = "qup_irq", "bam_irq";
 		interrupts = <0 99 0>, <0 238 0>;
-		qcom,clk-freq-out = <100000>;
+		qcom,clk-freq-out = <400000>;
 		qcom,clk-freq-in  = <19200000>;
 		clock-names = "iface_clk", "core_clk";
 		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
@@ -1282,6 +1287,11 @@
 		/* GPIO output to mss */
 		qcom,gpio-force-stop = <&smp2pgpio_ssr_smp2p_1_out 0 0>;
 		linux,contiguous-region = <&modem_adsp_mem>;
+
+		qcom,mba-mem@0 {
+			compatible = "qcom,pil-mba-mem";
+			linux,contiguous-region = <&mba_mem>;
+		};
 	};
 
 	pcm0: qcom,msm-pcm {
@@ -1433,6 +1443,11 @@
 			qcom,msm-dai-q6-dev-id = <12289>;
 		};
 
+		bt_a2dp_rx: qcom,msm-dai-q6-bt-a2dp-rx {
+			compatible = "qcom,msm-dai-q6-dev";
+			qcom,msm-dai-q6-dev-id = <12290>;
+		};
+		
 		int_fm_rx: qcom,msm-dai-q6-int-fm-rx {
 			compatible = "qcom,msm-dai-q6-dev";
 			qcom,msm-dai-q6-dev-id = <12292>;
@@ -1487,6 +1502,20 @@
 	hostless: qcom,msm-pcm-hostless {
 		compatible = "qcom,msm-pcm-hostless";
 	};
+	
+	dai_pri_auxpcm: qcom,msm-pri-auxpcm {
+		compatible = "qcom,msm-auxpcm-dev";
+		qcom,msm-cpudai-auxpcm-mode = <0>, <0>;
+		qcom,msm-cpudai-auxpcm-sync = <1>, <1>;
+		qcom,msm-cpudai-auxpcm-frame = <5>, <4>;
+		qcom,msm-cpudai-auxpcm-quant = <2>, <2>;
+		qcom,msm-cpudai-auxpcm-num-slots = <1>, <1>;
+		qcom,msm-cpudai-auxpcm-slot-mapping = <1>, <1>;
+		qcom,msm-cpudai-auxpcm-data = <0>, <0>;
+		qcom,msm-cpudai-auxpcm-pcm-clk-rate = <2048000>, <2048000>;
+		qcom,msm-auxpcm-interface = "primary";
+	};
+	
 	qcom,vidc@1d00000 {
 		compatible = "qcom,msm-vidc";
 		reg = <0x01d00000 0xff000>;
@@ -1675,12 +1704,9 @@
 };
 
 &gdsc_venus {
-	clock-names = "bus_clk", "core_clk",
-			"core0_clk", "core1_clk";
+	clock-names = "bus_clk", "core_clk";
 	clocks = <&clock_gcc clk_gcc_venus0_axi_clk>,
-		 <&clock_gcc clk_gcc_venus0_vcodec0_clk>,
-		 <&clock_gcc clk_gcc_venus0_core0_vcodec0_clk>,
-		 <&clock_gcc clk_gcc_venus0_core1_vcodec0_clk>;
+		 <&clock_gcc clk_gcc_venus0_vcodec0_clk>;
 	status = "okay";
 };
 
@@ -1719,10 +1745,16 @@
 };
 
 &gdsc_venus_core0 {
+	qcom,support-hw-trigger;
+	clock-names ="core0_clk";
+	clocks = <&clock_gcc clk_gcc_venus0_core0_vcodec0_clk>;
 	status = "okay";
 };
 
 &gdsc_venus_core1 {
+	qcom,support-hw-trigger;
+	clock-names ="core1_clk";
+	clocks = <&clock_gcc clk_gcc_venus0_core1_vcodec0_clk>;
 	status = "okay";
 };
 
@@ -1863,7 +1895,7 @@
 		qcom,calibration-type = "ratiometric";
 		qcom,scale-function = <1>;
 		qcom,hw-settle-time = <0xb>;
-		qcom,fast-avg-setup = <3>;
+		qcom,fast-avg-setup = <2>;
 		qcom,btm-channel-number = <0x48>;
 	};
 
@@ -1875,7 +1907,7 @@
 		qcom,calibration-type = "absolute";
 		qcom,scale-function = <0>;
 		qcom,hw-settle-time = <0xb>;
-		qcom,fast-avg-setup = <3>;
+		qcom,fast-avg-setup = <2>;
 		qcom,btm-channel-number = <0x68>;
 	};
 
@@ -1893,4 +1925,3 @@
 	};
 };
 
-#include "msm8939-gpu.dtsi"

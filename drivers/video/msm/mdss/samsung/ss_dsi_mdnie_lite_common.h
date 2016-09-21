@@ -212,6 +212,10 @@ struct mdnie_lite_tune_data {
 	struct dsi_cmd_desc *DSI0_CAMERA_OUTDOOR_MDNIE;
 	struct dsi_cmd_desc *DSI0_CAMERA_MDNIE;
 	struct dsi_cmd_desc *DSI0_CAMERA_AUTO_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_DYNAMIC_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_STANDARD_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_NATURAL_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_MOVIE_MDNIE;
 	struct dsi_cmd_desc *DSI0_GALLERY_DYNAMIC_MDNIE;
 	struct dsi_cmd_desc *DSI0_GALLERY_STANDARD_MDNIE;
 	struct dsi_cmd_desc *DSI0_GALLERY_NATURAL_MDNIE;

@@ -63,6 +63,16 @@
 		};
 	};
 
+	tsp_avdd:tsp_pwr_en {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_avdd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&msm_gpio 73 0x1>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+
 	i2c@78b9000 {
 		status = "okay";
 		qcom,scl-gpio = <&msm_gpio 19 0>;
@@ -72,20 +82,21 @@
 		zt7548_ts@20 {
 			compatible = "zinitix,zt7548_ts";
 			reg = <0x20>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <13 0>; /* TSP int gpio */
 			zinitix,irq-gpio = <&msm_gpio 13 0x00>; /*TSP IRQ GPIO */
-			zinitix,tsppwr_en = <&msm_gpio 73 0x1>;
 			zinitix,scl-gpio = <&msm_gpio 19 0x00>;
 			zinitix,sda-gpio = <&msm_gpio 18 0x00>;
-
 			pinctrl-names = "tsp_i2c_gpio_active", "tsp_i2c_suspend";
 			pinctrl-0 = <&tsp_irq_gpio>;
 			pinctrl-1 = <&tsp_en_suspend>;
+			avdd-supply = <&tsp_avdd>;
 			vddo-supply = <&pm8916_l5>;
 			zt7548,x_resolution = <3200>;
 			zt7548,y_resolution = <5120>;
-		//	key-led-supply = <&pm8916_l16>;
 			zt7548,model_name = "T377";
 			zt7548,fw_name = "zt7548_gtes.fw";
+			zt7548,reg_boot_on;
 		};
 	};
 
@@ -398,7 +409,7 @@
 
 &usb_otg {
 	qcom,hsusb-otg-phy-init-seq =
-					<0x6B 0x81 0x0b 0x82 0xffffffff>;
+					<0x44 0x80 0x4F 0x81 0x24 0x82 0x13 0x83 0xffffffff>;
 };
 
 &sdhc_1 {
@@ -509,12 +520,12 @@
 	};
 };
 
-#include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0X11_TV080WXM_LP8557/dsi_panel_S6D7AA0X11_TV080WXM_SKY82896_wxga_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0X11_TV080WXM_SKY82896/dsi_panel_S6D7AA0X11_TV080WXM_SKY82896_wxga_video.dtsi"
 
 &mdss_mdp {
 	qcom,mdss-pref-prim-intf = "dsi";
-	
-	qcom,mdss-clk-factor = <100 100>;	/* 1.0 times */
+
+	qcom,mdss-clk-factor = <130 100>;	/* 1.3 times */
 
 	mdss_fb0: qcom,mdss_fb_primary {
 		qcom,mdss-fb-split = <0 0>;
@@ -527,7 +538,6 @@
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active>;
 	pinctrl-1 = <&mdss_dsi_suspend>;
-
 	qcom,platform-enable-gpio = <&msm_gpio 8 0>; /* Power */
 	qcom,platform-reset-gpio = <&msm_gpio 0 0>; /* Reset */
 

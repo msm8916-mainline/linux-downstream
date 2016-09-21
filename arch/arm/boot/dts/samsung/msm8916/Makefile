@@ -37,11 +37,32 @@ dtb-$(CONFIG_ARCH_MSMFERRUM) += msmferrum-sim.dtb \
 	msmferrum-1gb-cdp.dtb \
 	msmferrum-1gb-mtp.dtb
 ifeq ($(CONFIG_ARCH_MSM8916),y)
+	ifeq ($(CONFIG_SEC_A5_EUR_PROJECT),y)
+		dtb-y += msm8916-sec-a5-eur-r02.dtb
+		dtb-y += msm8916-sec-a5-eur-r03.dtb
+		dtb-y += msm8916-sec-a5-eur-r04.dtb
+		dtb-y += msm8916-sec-a5-eur-r05.dtb
+		dtb-y += msm8916-sec-a5-eur-r06.dtb
+		dtb-y += msm8916-sec-a5-eur-r07.dtb
+		dtb-y += msm8916-sec-a5-eur-r08.dtb
+	endif
+	ifeq ($(CONFIG_SEC_A53G_EUR_PROJECT),y)
+      dtb-y += msm8916-sec-a53g-eur-r03.dtb
+      dtb-y += msm8916-sec-a53g-eur-r04.dtb
+      dtb-y += msm8916-sec-a53g-eur-r05.dtb
+      dtb-y += msm8916-sec-a53g-eur-r06.dtb
+      dtb-y += msm8916-sec-a53g-eur-r07.dtb
+      dtb-y += msm8916-sec-a53g-eur-r08.dtb
+	endif
 ifeq ($(CONFIG_SEC_E7_PROJECT),y)
 	ifeq ($(CONFIG_MACH_E7_EUR_OPEN),y)
 		dtb-y += msm8916-sec-e7-eur-r00.dtb
 		dtb-y += msm8916-sec-e7-eur-r01.dtb
 		dtb-y += msm8916-sec-e7-eur-r02.dtb
+		dtb-y += msm8916-sec-e7-eur-r03.dtb
+		dtb-y += msm8916-sec-e7-eur-r04.dtb
+		dtb-y += msm8916-sec-e7-eur-r05.dtb
+		dtb-y += msm8916-sec-e7-eur-r06.dtb
 	else ifeq ($(CONFIG_MACH_E7_CHN_OPEN),y)
 		dtb-y += msm8916-sec-e7-chnopen-r00.dtb
 		dtb-y += msm8916-sec-e7-chnopen-r01.dtb
@@ -78,6 +99,9 @@ ifeq ($(CONFIG_SEC_GT58_PROJECT),y)
 	else ifeq ($(CONFIG_MACH_GT58_USA_TMO),y)
 		dtb-y += msm8916-sec-gt58lte-tmo-r05.dtb
 		dtb-y += msm8916-sec-gt58lte-tmo-r06.dtb
+	else ifeq ($(CONFIG_MACH_GT58_CAN_BMC),y)
+		dtb-y += msm8916-sec-gt58lte-canbmc-r05.dtb
+		dtb-y += msm8916-sec-gt58lte-canbmc-r06.dtb
 	else ifeq ($(CONFIG_MACH_GT58_SEA_XSA),y)
 		dtb-y += msm8916-sec-gt58lte-aus-r00.dtb
 	endif
@@ -142,15 +166,30 @@ ifeq ($(CONFIG_SEC_O7_PROJECT),y)
 		dtb-y += msm8916-sec-o7lte-chn-r00.dtb
 		dtb-y += msm8916-sec-o7lte-chn-r01.dtb
 		dtb-y += msm8916-sec-o7lte-chn-r02.dtb
+		dtb-y += msm8916-sec-o7lte-chn-r03.dtb
 	else ifeq ($(CONFIG_MACH_O7_SWA_OPEN),y)
 		dtb-y += msm8916-sec-o7lte-swa-r01.dtb
 		dtb-y += msm8916-sec-o7lte-swa-r02.dtb
+		dtb-y += msm8916-sec-o7lte-swa-r03.dtb
 	endif
 endif
 
 ifeq ($(CONFIG_SEC_J3_PROJECT),y)
 	ifeq ($(CONFIG_MACH_J3LTE_CHN_CTC),y)
 		dtb-y += msm8916-sec-j3lte-chnctc-r00.dtb
+		dtb-y += msm8916-sec-j3lte-chnctc-r02.dtb
+		dtb-y += msm8916-sec-j3lte-chnctc-r05.dtb
+	else ifeq ($(CONFIG_MACH_J3LTE_USA_SPR),y)
+		dtb-y += msm8916-sec-j3lte-spr-r00.dtb
+		dtb-y += msm8916-sec-j3lte-spr-r01.dtb
+	else ifeq ($(CONFIG_MACH_J3LTE_USA_VZW),y)
+		dtb-y += msm8916-sec-j3lte-vzw-r00.dtb
+		dtb-y += msm8916-sec-j3lte-vzw-r02.dtb
+		dtb-y += msm8916-sec-j3lte-vzw-r03.dtb
+	else ifeq ($(CONFIG_MACH_J3LTE_USA_USC),y)
+		dtb-y += msm8916-sec-j3lte-usc-r00.dtb
+	else ifeq ($(CONFIG_MACH_J3LTE_KOR_OPEN),y)
+		dtb-y += msm8916-sec-j3lte-kor-r03.dtb
 	endif
 endif
 
@@ -182,6 +221,22 @@ ifeq ($(CONFIG_SEC_A3_PROJECT),y)
 	endif
 endif
 
+ifeq ($(CONFIG_SEC_A3_EUR_PROJECT),y)
+	ifeq ($(CONFIG_MACH_A3_EUR_OPEN),y)
+		dtb-y += msm8916-sec-a3-eur-r00.dtb
+		dtb-y += msm8916-sec-a3-eur-r01.dtb
+	endif
+endif
+
+ifeq ($(CONFIG_SEC_A33G_EUR_PROJECT),y)
+	ifeq ($(CONFIG_MACH_A33G_EUR_OPEN),y)
+		dtb-y += msm8916-sec-a33g-eur-r00.dtb
+		dtb-y += msm8916-sec-a33g-eur-r01.dtb
+		dtb-y += msm8916-sec-a33g-eur-r03.dtb
+		dtb-y += msm8916-sec-a33g-eur-r04.dtb
+	endif
+endif
+
 ifeq ($(CONFIG_SEC_MATISSEVE_PROJECT),y)
 	ifeq ($(CONFIG_MACH_MATISSEVEWIFI_EUR_OPEN),y)
 		dtb-y += msm8916-sec-matissevewifi-eur-r00.dtb
@@ -192,6 +247,11 @@ endif
 ifeq ($(CONFIG_SEC_A5_PROJECT),y)
 	ifeq ($(CONFIG_MACH_A5U_EUR_OPEN),y)
 		dtb-y += msm8916-sec-a5u-eur-r01.dtb
+	else ifeq ($(CONFIG_MACH_A5U_CAN_BMC),y)
+		dtb-y += msm8916-sec-a5u-canbmc-r01.dtb
+	else ifeq ($(CONFIG_MACH_A5U_KOR_OPEN),y)
+		dtb-y += msm8916-sec-a5u-kor-r00.dtb
+		dtb-y += msm8916-sec-a5u-kor-r02.dtb
 	endif
 endif
 ifeq ($(CONFIG_SEC_GTEL_PROJECT),y)
@@ -215,6 +275,12 @@ ifeq ($(CONFIG_SEC_GTES_PROJECT),y)
 	ifeq ($(CONFIG_MACH_GTES_USA_SPR),y)
 		dtb-y += msm8916-sec-gteslte-spr-r00.dtb
 		dtb-y += msm8916-sec-gteslte-spr-r01.dtb
+		dtb-y += msm8916-sec-gteslte-spr-r04.dtb
+	endif
+	ifeq ($(CONFIG_MACH_GTES_USA_USC),y)
+		dtb-y += msm8916-sec-gteslte-usc-r00.dtb
+		dtb-y += msm8916-sec-gteslte-usc-r01.dtb
+		dtb-y += msm8916-sec-gteslte-usc-r04.dtb
 	endif
 endif
 
@@ -249,6 +315,7 @@ ifeq ($(CONFIG_SEC_XCOVER3_PROJECT),y)
 	ifeq ($(CONFIG_MACH_XCOVER3_DCM),y)
 		dtb-y += msm8916-sec-xcover3-dcm-r01.dtb
 		dtb-y += msm8916-sec-xcover3-dcm-r02.dtb
+		dtb-y += msm8916-sec-xcover3-dcm-r03.dtb
 	endif
 endif
 
@@ -256,6 +323,83 @@ ifeq ($(CONFIG_SEC_J1_PROJECT),y)
 	ifeq ($(CONFIG_MACH_J1_VZW),y)
 		dtb-y += msm8916-sec-j1vzw-r00.dtb
 		dtb-y += msm8916-sec-j1vzw-r02.dtb
+	endif
+endif
+
+ifeq ($(CONFIG_SEC_J1X_PROJECT),y)
+	ifeq ($(CONFIG_MACH_J1XLTE_USA_SPR),y)
+		dtb-y += msm8916-sec-j1xlte-spr-r00.dtb
+	else ifeq ($(CONFIG_MACH_J1XLTE_USA_TFNVZW),y)
+		dtb-y += msm8916-sec-j1xlte-tfnvzw-r00.dtb
+	endif
+endif
+
+ifeq ($(CONFIG_SEC_J5X_PROJECT),y)
+	ifeq ($(CONFIG_MACH_J5XLTE_CHN_CMCC),y)
+		dtb-y += msm8916-sec-j5xlte-chn-r00.dtb
+	else ifeq ($(CONFIG_MACH_J5XLTE_EUR_OPEN),y)
+		dtb-y += msm8916-sec-j5xlte-eur-r00.dtb
+		dtb-y += msm8916-sec-j5xlte-eur-r01.dtb
+		dtb-y += msm8916-sec-j5xlte-eur-r02.dtb
+		dtb-y += msm8916-sec-j5xlte-eur-r04.dtb
+	else ifeq ($(CONFIG_MACH_J5XLTE_KOR_OPEN),y)
+		dtb-y += msm8916-sec-j5xlte-kor-r01.dtb
+		dtb-y += msm8916-sec-j5xlte-kor-r02.dtb
+		dtb-y += msm8916-sec-j5xlte-kor-r04.dtb
+	else ifeq ($(CONFIG_MACH_J5X3G_MEA_JV),y)
+		dtb-y += msm8916-sec-j5x3g-mea-r00.dtb
+		dtb-y += msm8916-sec-j5x3g-mea-r01.dtb
+		dtb-y += msm8916-sec-j5x3g-mea-r02.dtb
+		dtb-y += msm8916-sec-j5x3g-mea-r04.dtb
+	else ifeq ($(CONFIG_MACH_J5XLTE_MEA_JV),y)
+		dtb-y += msm8916-sec-j5xlte-mea-r00.dtb
+		dtb-y += msm8916-sec-j5xlte-mea-r01.dtb
+		dtb-y += msm8916-sec-j5xlte-mea-r02.dtb
+		dtb-y += msm8916-sec-j5xlte-mea-r04.dtb
+	else ifeq ($(CONFIG_MACH_J5XLTE_MEA_TUR),y)
+		dtb-y += msm8916-sec-j5xlte-tur-r00.dtb
+		dtb-y += msm8916-sec-j5xlte-tur-r01.dtb
+		dtb-y += msm8916-sec-j5xlte-tur-r02.dtb
+		dtb-y += msm8916-sec-j5xlte-tur-r04.dtb
+	endif
+endif
+
+ifeq ($(CONFIG_SEC_J5_PROJECT),y)
+	ifeq ($(CONFIG_MACH_J5LTE_EUR_OPEN),y)
+		dtb-y += msm8916-sec-j5lte-eur-r00.dtb
+		dtb-y += msm8916-sec-j5lte-eur-r01.dtb
+		dtb-y += msm8916-sec-j5lte-eur-r05.dtb
+	else ifeq ($(CONFIG_MACH_J53G_EUR_OPEN),y)
+		dtb-y += msm8916-sec-j53g-eur-r00.dtb
+		dtb-y += msm8916-sec-j53g-eur-r01.dtb
+		dtb-y += msm8916-sec-j53g-eur-r02.dtb
+		dtb-y += msm8916-sec-j53g-eur-r05.dtb
+	else ifeq ($(CONFIG_MACH_J5LTE_CHN_CMCC),y)
+		dtb-y += msm8916-sec-j5lte-chn-r00.dtb
+		dtb-y += msm8916-sec-j5lte-chn-r01.dtb
+	else ifeq ($(CONFIG_MACH_J5LTE_KOR_OPEN),y)
+		dtb-y += msm8916-sec-j5lte-kor-r01.dtb
+		dtb-y += msm8916-sec-j5lte-kor-r05.dtb
+	else ifeq ($(CONFIG_MACH_J5LTE_LTN_DTV),y)
+		dtb-y += msm8916-sec-j5lte-ltn-dtv-r04.dtb
+		dtb-y += msm8916-sec-j5lte-ltn-dtv-r05.dtb
+	else ifeq ($(CONFIG_MACH_J5YLTE_SEA_NZC),y)
+		dtb-y += msm8916-sec-j5ylte-sea-r00.dtb
+		dtb-y += msm8916-sec-j5ylte-sea-r01.dtb
+		dtb-y += msm8916-sec-j5ylte-sea-r05.dtb
+	endif
+endif
+
+ifeq ($(CONFIG_SEC_J5N_PROJECT),y)
+	ifeq ($(CONFIG_MACH_J5NLTE_EUR_OPEN),y)
+		dtb-y += msm8916-sec-j5nlte-eur-r04.dtb
+		dtb-y += msm8916-sec-j5nlte-eur-r05.dtb
+	endif
+endif
+
+ifeq ($(CONFIG_SEC_ON7N_PROJECT),y)
+	ifeq ($(CONFIG_MACH_ON7NLTE_KOR_SKT),y)
+		dtb-y += msm8916-sec-on7nlte-kor-r00.dtb
 	endif
 endif
 

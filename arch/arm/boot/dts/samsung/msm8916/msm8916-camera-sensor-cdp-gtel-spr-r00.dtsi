@@ -35,13 +35,6 @@
 */
 
 &cci {
-	/* Dummy Actuator node to satisfy AF capabilities */
-	actuator0: qcom,actuator@18 {
-		compatible = "qcom,actuator";
-		cell-index = <0>;
-		reg = <0x18 0x0>;
-		qcom,cci-master = <0>;
-	};
 
 	qcom,camera@0 {
 		cell-index = <0>;
@@ -50,7 +43,7 @@
 		/*qcom,led-flash-src =<&led_flash0>;*/
 		qcom,csiphy-sd-index = <0>;
 		qcom,csid-sd-index = <0>;
-		qcom,actuator-src = <&actuator0>;
+		/*qcom,actuator-src = <&actuator0>;*/
 		/*qcom,eeprom-src = <&eeprom0>;*/
 		qcom,mount-angle = <90>;
 		cam_vio-supply = <&pm8916_l16>;

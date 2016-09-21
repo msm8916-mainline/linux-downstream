@@ -18,7 +18,6 @@
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
-		i2c8 = &i2c_8;
 		i2c9 = &i2c_9;
 		i2c10 = &i2c_10;
 		i2c11 = &i2c_11;
@@ -53,21 +52,6 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		i2c-gpio,delay-us = <2>;
-		sec-nfc@27 {
-			compatible = "sec-nfc";
-			reg = <0x27>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <21 0>;
-			pinctrl-names = "nfc_active","nfc_suspend";
-			pinctrl-0 = <&nfc_int_active &nfc_enable_active &nfc_firmware_active &nfc_i2c_active>;
-			pinctrl-1 = <&nfc_int_suspend &nfc_enable_suspend &nfc_firmware_suspend &nfc_i2c_suspend>;
-			sec-nfc,firm-gpio = <&msm_gpio 49 0x00>;
-			sec-nfc,ven-gpio = <&msm_gpio 20 0x00>;
-			sec-nfc,irq-gpio = <&msm_gpio 21 0x01>;
-			nfc_ldo-supply = <&pm8916_l14>;
-			clocks = <&clock_rpm clk_bb_clk2_pin>;
-			clock-names = "nfc_clock";
-		};
 	};
 
        i2c_11:i2c@11 {

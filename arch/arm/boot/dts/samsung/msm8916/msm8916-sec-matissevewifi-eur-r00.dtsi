@@ -458,8 +458,8 @@
 
 &mdss_dsi0 {
 	pinctrl-names = "mdss_default", "mdss_sleep";
-	pinctrl-0 = <&mdss_dsi_active &ap_pwm_active &lcd_select_active >;
-	pinctrl-1 = <&mdss_dsi_suspend &ap_pwm_suspend &lcd_select_suspend >;
+	pinctrl-0 = <&mdss_dsi_active &ap_pwm_active &lcd_select_active &i2c_lvds_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &ap_pwm_suspend &lcd_select_suspend &i2c_lvds_suspend>;
 	qcom,platform-reset-gpio = <&msm_gpio 31 0>;
 	qcom,platform-backlight-pwm-gpio = <&msm_gpio 51 0>;
 	qcom,platform-lcd-select-gpio = <&msm_gpio 56 0>;

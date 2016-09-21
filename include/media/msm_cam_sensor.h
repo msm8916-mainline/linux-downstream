@@ -54,20 +54,7 @@
 #define MAX_NUMBER_OF_STEPS 47
 
 #define MAX_LED_TRIGGERS        3
-
-#define EXT_CAM_SENSOR_MODE     7
-#define EXT_CAM_EXIF            9
-//Focus related enums
-#define EXT_CAM_AF              11
-#define EXT_CAM_FOCUS           12
-#define EXT_CAM_SET_TOUCHAF_POS	13
-#define EXT_CAM_SET_AF_STATUS	14
-#define EXT_CAM_GET_AF_STATUS	15
-#define EXT_CAM_GET_AF_RESULT	16
-#define EXT_CAM_SET_AF_STOP     17
-#define EXT_CAM_FLASH_MODE      18
-#define EXT_CAM_SET_FLASH       19
-#define EXT_CAM_VT_MODE         20
+#define MSM_OIS_VER_SIZE       (6)
 
 
 //************************************* Native functionalities for YUV sensor added
@@ -81,6 +68,18 @@
 #define EXT_CAM_CONTRAST	8
 #define EXT_CAM_EXIF		9
 #define EXT_CAM_SET_AE_AWB	10
+//Focus related enums
+#define EXT_CAM_AF              11
+#define EXT_CAM_FOCUS           12
+#define EXT_CAM_SET_TOUCHAF_POS	13
+#define EXT_CAM_SET_AF_STATUS	14
+#define EXT_CAM_GET_AF_STATUS	15
+#define EXT_CAM_GET_AF_RESULT	16
+#define EXT_CAM_SET_AF_STOP     17
+#define EXT_CAM_FLASH_MODE      18
+#define EXT_CAM_SET_FLASH       19
+#define EXT_CAM_VT_MODE         20
+#define EXT_CAM_FPS_RANGE       21
 
 //Exposure Compensation
 #define CAMERA_EV_M4		0
@@ -253,6 +252,8 @@ enum msm_sensor_power_seq_gpio_t {
 	SENSOR_GPIO_VT_STANDBY,
 	SENSOR_GPIO_EXT_VANA_POWER,
 	SENSOR_GPIO_EXT_CAMIO_EN,
+	SENSOR_GPIO_OIS_EN,
+	SENSOR_GPIO_OIS_RESET,
 	SENSOR_GPIO_MAX,
 };
 
@@ -261,6 +262,8 @@ enum msm_camera_vreg_name_t {
 	CAM_VIO,
 	CAM_VANA,
 	CAM_VAF,
+	CAM_VDDOIS,/*OIS_VDD_2P8*/
+	CAM_VMOIS,/*OIS_VM_2P8*/
 	CAM_VREG_MAX,
 };
 
@@ -341,6 +344,9 @@ enum sensor_sub_module_t {
 	SUB_MODULE_CSID_3D,
 	SUB_MODULE_CSIPHY,
 	SUB_MODULE_CSIPHY_3D,
+#if defined(CONFIG_OIS)
+	SUB_MODULE_OIS,
+#endif
 	SUB_MODULE_MAX,
 };
 
@@ -404,6 +410,7 @@ enum csid_cfg_type_t {
 	CSID_INIT,
 	CSID_CFG,
 	CSID_RELEASE,
+	CSID_BOOSTOFF,
 };
 
 enum csiphy_cfg_type_t {
@@ -656,6 +663,22 @@ struct csiphy_cfg_data {
 	} cfg;
 };
 
+struct msm_ois_cal_info_t {
+	char  cal_ver[MSM_OIS_VER_SIZE+1];
+	uint16_t  cal_checksum_rumba;
+	uint16_t  cal_checksum_line;
+	uint8_t  is_different_crc;
+};
+struct msm_ois_cfg_data {
+	int cfgtype;
+	uint16_t reg_addr;
+	uint16_t read_data;
+	uint16_t write_data;
+	uint16_t set_mode_value;
+	uint8_t  *version;
+	struct msm_ois_cal_info_t *ois_cal_info;
+};
+
 enum eeprom_cfg_type_t {
 	CFG_EEPROM_GET_INFO,
 	CFG_EEPROM_GET_CAL_DATA,
@@ -744,6 +767,17 @@ enum msm_sensor_cfg_type_t {
 	CFG_SET_AUTOFOCUS,
 	CFG_CANCEL_AUTOFOCUS,
 	CFG_SET_STREAM_TYPE,
+};
+
+enum msm_ois_cfg_type_t {
+	CFG_OIS_POWERDOWN,
+	CFG_OIS_POWERUP,
+	CFG_OIS_SET_MODE,
+	CFG_OIS_READ_MODULE_VER,
+	CFG_OIS_READ_PHONE_VER,
+	CFG_OIS_READ_CAL_INFO,
+	CFG_OIS_GET_FW_STATUS,
+	CFG_OIS_FW_UPDATE,
 };
 
 enum msm_actuator_cfg_type_t {
@@ -915,6 +949,7 @@ enum msm_camera_led_config_t {
 	MSM_CAMERA_LED_HIGH,
 	MSM_CAMERA_LED_INIT,
 	MSM_CAMERA_LED_RELEASE,
+	MSM_CAMERA_LED_PREFLASH,
 };
 
 struct msm_camera_led_cfg_t {
@@ -989,6 +1024,10 @@ enum msm_cam_flicker_type {
 
 #define VIDIOC_MSM_SENSOR_NATIVE_CMD \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 11, struct ioctl_native_cmd)
+
+#define VIDIOC_MSM_OIS_IO_CFG \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 12, struct msm_ois_cfg_data)
+
 	
 #define MSM_V4L2_PIX_FMT_META v4l2_fourcc('M', 'E', 'T', 'A') /* META */
 

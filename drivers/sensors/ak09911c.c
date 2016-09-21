@@ -138,7 +138,7 @@ static int ak09911c_i2c_write(struct i2c_client *client,
 static int ak09911c_i2c_read_block(struct i2c_client *client,
 	unsigned char reg_addr, unsigned char *buf, unsigned char len)
 {
-#if defined(CONFIG_SEC_BERLUTI_PROJECT)
+#if 1
 	int ret;
 	struct i2c_msg msg[2];
 
@@ -175,6 +175,7 @@ static int ak09911c_ecs_set_mode_power_down(struct ak09911c_p *data)
 	unsigned char reg;
 	int ret;
 
+	data->old_timestamp = 0LL;
 	reg = AK09911C_MODE_POWERDOWN;
 	ret = ak09911c_i2c_write(data->client, AK09911C_REG_CNTL2, reg);
 
@@ -191,10 +192,12 @@ static int ak09911c_ecs_set_mode(struct ak09911c_p *data, char mode)
 		reg = AK09911C_MODE_SNG_MEASURE;
 		ret = ak09911c_i2c_write(data->client, AK09911C_REG_CNTL2, reg);
 		break;
+#if !defined(CONFIG_SENSORS_AK09916C)
 	case AK09911C_MODE_FUSE_ACCESS:
 		reg = AK09911C_MODE_FUSE_ACCESS;
 		ret = ak09911c_i2c_write(data->client, AK09911C_REG_CNTL2, reg);
 		break;
+#endif
 	case AK09911C_MODE_POWERDOWN:
 		reg = AK09911C_MODE_SNG_MEASURE;
 		ret = ak09911c_ecs_set_mode_power_down(data);
@@ -235,9 +238,6 @@ again:
 	/* Check ST bit */
 	if (!(temp[0] & 0x01)) {
 		if ((retries++ < 5) && (temp[0] == 0)) {
-#if !defined(CONFIG_SEC_BERLUTI_PROJECT)
-			mdelay(2);
-#endif
 			goto again;
 		} else {
 			ret = -1;
@@ -286,11 +286,13 @@ static void ak09911c_work_func(struct work_struct *work)
 
 	if (ret >= 0) {
 		if (data->old_timestamp != 0 &&
-			((data->timestamp - data->old_timestamp) * 10 > (pdelay) * 18)) {
+			((data->timestamp - data->old_timestamp) * 10
+				> (pdelay) * 18)) {
 			u64 shift_timestamp = pdelay >> 1;
 			u64 timestamp = 0ULL;
 
-			for (timestamp = data->old_timestamp + pdelay; timestamp < data->timestamp - shift_timestamp; timestamp += pdelay) {
+			for (timestamp = data->old_timestamp + pdelay; timestamp
+					< data->timestamp - shift_timestamp; timestamp += pdelay) {
 				time_hi = (int)((timestamp & TIME_HI_MASK) >> TIME_HI_SHIFT);
 				time_lo = (int)(timestamp & TIME_LO_MASK);
 
@@ -303,7 +305,8 @@ static void ak09911c_work_func(struct work_struct *work)
 				data->magdata = mag;
 			}
 		}
-		time_hi = (int)((data->timestamp & TIME_HI_MASK) >> TIME_HI_SHIFT);
+		time_hi = (int)((data->timestamp & TIME_HI_MASK)
+							>> TIME_HI_SHIFT);
 		time_lo = (int)(data->timestamp & TIME_LO_MASK);
 
 		input_report_rel(data->input, REL_X, mag.x);
@@ -437,7 +440,7 @@ retry:
 
 	/* wait for data ready */
 	while (ready_count < 10) {
-		msleep(20);
+		usleep_range(20000, 21000);
 		ret = ak09911c_i2c_read(data->client, AK09911C_REG_ST1, &reg);
 		if ((reg == 1) && (ret == 0))
 			break;
@@ -558,7 +561,7 @@ static ssize_t ak09911c_get_selftest(struct device *dev,
 			break;
 		}
 
-		msleep(20);
+		usleep_range(20000, 21000);
 		pr_err("[SENSOR]: %s - adc retries %d", __func__, retries);
 	}
 
@@ -642,7 +645,7 @@ static ssize_t ak09911c_adc(struct device *dev,
 
 	if (atomic_read(&data->enable) == 1) {
 		success = true;
-		msleep(20);
+		usleep_range(20000, 21000);
 		goto exit;
 	}
 
@@ -666,7 +669,7 @@ static ssize_t ak09911c_raw_data_read(struct device *dev,
 	struct ak09911c_v mag = data->magdata;
 
 	if (atomic_read(&data->enable) == 1) {
-		msleep(20);
+		usleep_range(20000, 21000);
 		goto exit;
 	}
 
@@ -844,101 +847,6 @@ static int ak09911c_input_init(struct ak09911c_p *data)
 	return 0;
 }
 
-#if defined(CONFIG_MACH_FRESCONEOLTE_CTC)
-static void ak09911c_power_enable(int en)
-{
-	int rc;
-	static struct regulator *ldo15;
-	static struct regulator *ldo19;
-	static struct regulator *lvs1;
-
-	pr_info("%s %s\n", __func__, (en) ? "on" : "off");
-
-	if (!ldo15) {
-		ldo15 = regulator_get(NULL, "8226_l15");
-		rc = regulator_set_voltage(ldo15, 2800000, 2800000);
-		pr_info("[TMP] %s, %d\n", __func__, __LINE__);
-		if (rc)
-			pr_err("%s: ak09911c set_level failed (%d)\n",
-				__func__, rc);
-	}
-
-	if (!ldo19) {
-		ldo19 = regulator_get(NULL, "8226_l19");
-		rc = regulator_set_voltage(ldo19, 2850000, 2850000);
-		pr_info("[TMP] %s, %d\n", __func__, __LINE__);
-		if (rc)
-			pr_err("%s: ak09911c set_level failed (%d)\n",
-				__func__, rc);
-	}
-
-	if (!lvs1) {
-		lvs1 = regulator_get(NULL, "8226_lvs1");
-		rc = regulator_set_voltage(ldo15, 1800000, 1800000);
-		pr_info("[TMP] %s, %d\n", __func__, __LINE__);
-		if (rc)
-			pr_err("%s: ak09911c set_level failed (%d)\n",
-				__func__, rc);
-	}
-
-	if (en) {
-		rc = regulator_enable(ldo15);
-		if (rc)
-			pr_err("%s: ak09911c enable failed (%d)\n",
-				__func__, rc);
-
-		rc = regulator_enable(ldo19);
-		if (rc)
-			pr_err("%s: ak09911c enable failed (%d)\n",
-				__func__, rc);
-
-		rc = regulator_enable(lvs1);
-		if (rc)
-			pr_err("%s: ak09911c enable failed (%d)\n",
-				__func__, rc);
-	} else {
-		rc = regulator_disable(ldo15);
-		if (rc)
-			pr_err("%s: ak09911c disable failed (%d)\n",
-				__func__, rc);
-	}
-
-	return;
-}
-
-#elif defined(CONFIG_SEC_BERLUTI_PROJECT) || defined(CONFIG_MACH_CHAGALL_KDI)
-static void ak09911c_power_enable(struct device *dev, bool onoff)
-{
-	struct regulator *ak09911c_vcc, *ak09911c_lvs1;
-
-	ak09911c_vcc = devm_regulator_get(dev, "ak09911c-i2c-vcc");
-	if (IS_ERR(ak09911c_vcc)) {
-		pr_err("%s: cannot get ak09911c_vcc\n", __func__);
-		return;
-	}
-
-	ak09911c_lvs1 = devm_regulator_get(dev, "ak09911c-i2c-lvs1");
-	if (IS_ERR(ak09911c_lvs1)) {
-		pr_err("%s: cannot get ak09911c_lvs1\n", __func__);
-		devm_regulator_put(ak09911c_vcc);
-		return;
-	}
-
-	if (onoff) {
-		regulator_enable(ak09911c_vcc);
-		regulator_enable(ak09911c_lvs1);
-	} else {
-		regulator_disable(ak09911c_lvs1);
-		regulator_disable(ak09911c_vcc);
-	}
-
-	devm_regulator_put(ak09911c_vcc);
-	devm_regulator_put(ak09911c_lvs1);
-
-	return;
-}
-#endif
-
 static int ak09911c_parse_dt(struct ak09911c_p *data, struct device *dev)
 {
 	struct device_node *dNode = dev->of_node;
@@ -956,11 +864,7 @@ static int ak09911c_parse_dt(struct ak09911c_p *data, struct device *dev)
 
 	if (of_property_read_u32(dNode,
 			"ak09911c-i2c,chip_pos", &data->chip_pos) < 0)
-#if defined(CONFIG_MACH_FRESCONEOLTE_CTC)
-		data->chip_pos = AK09911C_TOP_UPPER_RIGHT;
-#else
 		data->chip_pos = AK09911C_TOP_LOWER_RIGHT;
-#endif
 
 	return 0;
 }
@@ -973,15 +877,6 @@ static int ak09911c_probe(struct i2c_client *client,
 
 	pr_info("[SENSOR]: %s - Probe Start!\n", __func__);
 
-#if defined(CONFIG_MACH_FRESCONEOLTE_CTC)
-	ak09911c_power_enable(1);
-	mdelay(10);
-#elif defined(CONFIG_SEC_BERLUTI_PROJECT) || defined(CONFIG_MACH_CHAGALL_KDI)
-	ak09911c_power_enable(&client->dev, 1);
-#endif
-#if defined(CONFIG_MACH_CHAGALL_KDI)
-	mdelay(10);
-#endif
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		pr_err("[SENSOR]: %s - i2c_check_functionality error\n",
 			__func__);

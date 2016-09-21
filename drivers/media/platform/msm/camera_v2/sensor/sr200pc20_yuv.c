@@ -16,6 +16,8 @@
 #include "sr200pc20_yuv_coreprime.h"
 #elif defined (CONFIG_SEC_GTEL_PROJECT) || defined(CONFIG_SEC_GTES_PROJECT)
 #include "sr200pc20_yuv_gte.h"
+#elif defined(CONFIG_SEC_J1X_PROJECT)
+#include "sr200pc20_yuv_j1x.h"
 #else
 #include "sr200pc20_yuv.h"
 #endif
@@ -244,12 +246,48 @@ int32_t sr200pc20_set_resolution(struct msm_sensor_ctrl_t *s_ctrl, int mode, int
 				SR200PC20_WRITE_LIST(sr200pc20_640x480_Preview_for_Return_60hz);
 			}
 		}
+#elif defined(CONFIG_SEC_J1X_PROJECT)
+		if (mode == MSM_SENSOR_RES_QTR) {
+
+			switch (sr200pc20_ctrl.fixed_fps_val)
+			{
+				case 24000:
+					if (flicker_type == MSM_CAM_FLICKER_50HZ) {
+						SR200PC20_WRITE_LIST(sr200pc20_24fps_Camcoder_50hz);
+					}
+					else {
+						SR200PC20_WRITE_LIST(sr200pc20_24fps_Camcoder_60hz);
+					}
+					break;
+
+				default:
+					if (flicker_type == MSM_CAM_FLICKER_50HZ) {
+						SR200PC20_WRITE_LIST(sr200pc20_640x480_Preview_for_Return_50hz);
+					}
+					else {
+						SR200PC20_WRITE_LIST(sr200pc20_640x480_Preview_for_Return_60hz);
+					}
+			}
+		}
 #else
 		if (mode == MSM_SENSOR_RES_QTR) {
-			if (flicker_type == MSM_CAM_FLICKER_50HZ) {
-				SR200PC20_WRITE_LIST(sr200pc20_800x600_Preview_for_Return_50hz);
-			} else {
-				SR200PC20_WRITE_LIST(sr200pc20_800x600_Preview_for_Return_60hz);
+			switch (sr200pc20_ctrl.fixed_fps_val)
+			{
+				case 24000:
+					if (flicker_type == MSM_CAM_FLICKER_50HZ) {
+						SR200PC20_WRITE_LIST(sr200pc20_800x600_24fps_Camcoder_50hz);
+					}
+					else {
+						SR200PC20_WRITE_LIST(sr200pc20_800x600_24fps_Camcoder_60hz);
+					}
+					break;
+
+				default:
+					if (flicker_type == MSM_CAM_FLICKER_50HZ) {
+						SR200PC20_WRITE_LIST(sr200pc20_800x600_Preview_for_Return_50hz);
+					} else {
+						SR200PC20_WRITE_LIST(sr200pc20_800x600_Preview_for_Return_60hz);
+					}
 			}
 		}
 #endif
@@ -448,9 +486,11 @@ int32_t sr200pc20_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 				}
 
 #endif
+#if !defined(CONFIG_MACH_J1XLTE_USA_TFNVZW) 
 				sr200pc20_set_effect( s_ctrl , sr200pc20_ctrl.settings.effect);
 				sr200pc20_set_white_balance( s_ctrl, sr200pc20_ctrl.settings.wb);
 				sr200pc20_set_exposure_compensation( s_ctrl , sr200pc20_ctrl.settings.exposure);
+#endif
 				recording = 1;
 			}else{
 				if(recording == 1){
@@ -754,6 +794,14 @@ int32_t sr200pc20_sensor_native_control(struct msm_sensor_ctrl_t *s_ctrl,
 		/*CDBG("EXT_CAM_VT_MODE = %d",cam_info->value_1);*/
 		sr200pc20_ctrl.vtcall_mode = cam_info->value_1;
 		break;
+
+	case EXT_CAM_FPS_RANGE:
+		if (cam_info->value_1 > 0)
+			sr200pc20_ctrl.fixed_fps_val = cam_info->value_1;
+		else
+			sr200pc20_ctrl.fixed_fps_val = 0;
+		break;
+
 	default:
 		rc = 0;
 		break;

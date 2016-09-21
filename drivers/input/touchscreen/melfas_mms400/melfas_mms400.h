@@ -118,6 +118,7 @@
 #endif
 
 #define EXTERNAL_FW_PATH		"/sdcard/melfas.mfsb"
+#define FFU_FW_PATH			"ffu_tsp.bin"
 #define MMS_USE_AUTO_FW_UPDATE		1
 #define MMS_FW_MAX_SECT_NUM		4
 #define MMS_FW_UPDATE_DEBUG		0
@@ -226,14 +227,11 @@ struct mms_ts_info {
  * Platform Data
  */
 struct mms_devicetree_data {
-	unsigned int max_x;
-	unsigned int max_y;
 	int gpio_intr;
 	int gpio_vdd;
 	int gpio_vio;
 	int gpio_sda;
 	int gpio_scl;
-	int panel;
 	struct regulator *vreg_vio;
 	const char *fw_path;
 	bool fix_resolution;
@@ -290,9 +288,9 @@ enum fw_update_errno{
 //main
 void mms_reboot(struct mms_ts_info *info);
 int mms_i2c_read(struct mms_ts_info *info, char *write_buf, unsigned int write_len,
-			char *read_buf, unsigned int read_len);
+		char *read_buf, unsigned int read_len);
 int mms_i2c_read_next(struct mms_ts_info *info, char *read_buf, int start_idx,
-			unsigned int read_len);
+		unsigned int read_len);
 int mms_i2c_write(struct mms_ts_info *info, char *write_buf, unsigned int write_len);
 int mms_enable(struct mms_ts_info *info);
 int mms_disable(struct mms_ts_info *info);
@@ -300,7 +298,7 @@ int mms_get_ready_status(struct mms_ts_info *info);
 int mms_get_fw_version(struct mms_ts_info *info, u8 *ver_buf);
 int mms_get_fw_version_u16(struct mms_ts_info *info, u16 *ver_buf_u16);
 int mms_disable_esd_alert(struct mms_ts_info *info);
-int mms_fw_update_from_kernel(struct mms_ts_info *info, bool force);
+int mms_fw_update_from_kernel(struct mms_ts_info *info, bool force, bool ffu);
 int mms_fw_update_from_storage(struct mms_ts_info *info, bool force);
 int mms_suspend(struct device *dev);
 int mms_resume(struct device *dev);
@@ -319,7 +317,7 @@ int mms_enable_glove_mode(struct mms_ts_info *info, int enable);
 
 //fw_update
 int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data, size_t fw_size,
-			bool force, bool section);
+		bool force, bool section);
 
 //test
 #if MMS_USE_DEV_MODE

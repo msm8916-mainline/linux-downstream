@@ -44,6 +44,10 @@ extern unsigned int system_rev;
 #define RESET_REV_CHECK_NUM 10
 #endif
 
+#if defined(CONFIG_SEC_A7X_PROJECT)
+extern unsigned int system_rev;
+#endif
+
 void msm_camera_io_w(u32 data, void __iomem *addr)
 {
 	CDBG("%s: 0x%p %08x\n", __func__,  (addr), (data));
@@ -522,18 +526,30 @@ int msm_camera_config_single_vreg(struct device *dev,
 				goto vreg_get_fail;
 			}
 		}
-#if defined(CONFIG_SEC_A8_PROJECT) || defined(CONFIG_SEC_O7_PROJECT)
-				else if (!strncmp(cam_vreg->reg_name, "cam_vaf", 8)) {
-					*reg_ptr = regulator_get(dev, "CAM_SENSOR_A2.8V");
-					if (IS_ERR(*reg_ptr)) {
-						pr_err("%s: %s get failed\n", __func__,
-								cam_vreg->reg_name);
-						*reg_ptr = NULL;
-						goto vreg_get_fail;
-					}
-				}
+
+#if defined(CONFIG_SEC_A8_PROJECT) || defined(CONFIG_SEC_O7_PROJECT) || defined(CONFIG_MACH_J7_USA_SPR) || defined(CONFIG_SEC_ON7N_PROJECT)
+		else if (!strncmp(cam_vreg->reg_name, "cam_vaf", 8)) {
+			*reg_ptr = regulator_get(dev, "CAM_SENSOR_A2.8V");
+			if (IS_ERR(*reg_ptr)) {
+				pr_err("%s: %s get failed\n", __func__,
+						cam_vreg->reg_name);
+				*reg_ptr = NULL;
+				goto vreg_get_fail;
+			}
+		}
 #else
 		else if (!strncmp(cam_vreg->reg_name, "cam_vana", 8)) {
+			*reg_ptr = regulator_get(dev, "CAM_SENSOR_A2.8V");
+			if (IS_ERR(*reg_ptr)) {
+				pr_err("%s: %s get failed\n", __func__,
+						cam_vreg->reg_name);
+				*reg_ptr = NULL;
+				goto vreg_get_fail;
+			}
+		}
+#endif
+#if defined(CONFIG_SEC_A7X_PROJECT)
+		else if (!strncmp(cam_vreg->reg_name, "cam_vaf", 8) && system_rev == 0) {
 			*reg_ptr = regulator_get(dev, "CAM_SENSOR_A2.8V");
 			if (IS_ERR(*reg_ptr)) {
 				pr_err("%s: %s get failed\n", __func__,

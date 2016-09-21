@@ -137,6 +137,7 @@
  */
 /*		samsung,dsi-lp11-init;*/
 		samsung,esc-clk-128M;
+		samsung,outdoor_mode_support;
 
 		samsung,mdss-power-on-reset-delay-us = <5000>;
 		samsung,mdss-dsi-off-reset-delay-us = <1000>;

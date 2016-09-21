@@ -1100,7 +1100,7 @@ static int STC31xx_Task(struct i2c_client *client, GasGauge_DataTypeDef *GG)
 			if (value < APP_MIN_VOLTAGE)
 				BattData.SOC = 0;
 			else{
-				printk("STC3117_Task(early_empty_compensation): 3150 < value(%d) < 3350\n", value);
+				printk("STC3117_Task(early_empty_compensation): 3100 < value(%d) < 3300\n", value);
 				printk("STC3117_Task(early_empty_compensation): before BattData.SOC(%d)\n", BattData.SOC);
 				BattData.SOC = BattData.SOC * (value - APP_MIN_VOLTAGE) / 200;
 				printk("STC3117_Task(early_empty_compensation): new BattData.SOC(%d)\n", BattData.SOC);

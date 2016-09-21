@@ -90,7 +90,13 @@ static void msm8916_check_gpio_status(unsigned char phonestate)
 		if (i >= CONFIG_SENSORS_FP_SPI_GPIO_START && i <= CONFIG_SENSORS_FP_SPI_GPIO_END)
 			continue;
 #endif
-#if (defined CONFIG_SEC_A8_PROJECT) && (defined CONFIG_ESE_P61)
+#ifdef CONFIG_MST_LDO
+		if (i == MST_GPIO_D_MINUS || i == MST_GPIO_D_PLUS)
+			continue;
+#endif
+#if (defined (CONFIG_SEC_A8_PROJECT) && defined (CONFIG_ESE_P61)) \
+	|| (defined (CONFIG_SEC_A7X_PROJECT) && defined (CONFIG_ESE_P3)) \
+	|| (defined (CONFIG_SEC_A5X_PROJECT) && defined (CONFIG_ESE_P3))
 		if (i >= 0 && i <= 3)
 			continue;
 #endif
@@ -342,7 +348,13 @@ static void gpiomux_debug_print(struct seq_file *m)
 		if (gpio >= CONFIG_SENSORS_FP_SPI_GPIO_START && gpio <= CONFIG_SENSORS_FP_SPI_GPIO_END)
 			continue;
 #endif
-#if (defined CONFIG_SEC_A8_PROJECT) && (defined CONFIG_ESE_P61)
+#ifdef CONFIG_MST_LDO
+		if (gpio == MST_GPIO_D_MINUS || gpio == MST_GPIO_D_PLUS)
+			continue;
+#endif
+#if (defined (CONFIG_SEC_A8_PROJECT) && defined (CONFIG_ESE_P61)) \
+	|| (defined (CONFIG_SEC_A7X_PROJECT) && defined (CONFIG_ESE_P3)) \
+	|| (defined (CONFIG_SEC_A5X_PROJECT) && defined (CONFIG_ESE_P3))
 		if (gpio >= 0 && gpio <= 3)
 			continue;
 #endif

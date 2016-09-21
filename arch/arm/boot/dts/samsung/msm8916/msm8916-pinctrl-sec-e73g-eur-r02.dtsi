@@ -1333,6 +1333,7 @@
 			cam_sensor_mclk0_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* PULL DOWN */
+				output-low;
 			};
 		};
 
@@ -1358,6 +1359,7 @@
 			cam_sensor_mclk1_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* PULL DOWN */
+				output-low;
 			};
 		};
 
@@ -1413,6 +1415,66 @@
 			};
 		};
 
+		cam_core_en {
+			/* CAM0 CORE_EN */
+			qcom,pins =  <&gp 33>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "cam_core_en";
+			/* active state */
+			cam_core_en_default: default {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable = <0>; /* No PULL */
+				output-low;
+			};
+			/*suspended state */
+			cam_core_en_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
+				output-low;
+			};
+		};
+
+		cam_vana_en {
+			/* CAM0 CAM1 VANA_EN */
+			qcom,pins =  <&gp 69>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "cam_vana_en";
+			/* active state */
+			cam_vana_en_default: default {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable = <0>; /* No PULL */
+				output-low;
+			};
+			/*suspended state */
+			cam_vana_en_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
+				output-low;
+			};
+		};
+
+		vtcam_core_en {
+			/* CAM1 CORE_EN */
+			qcom,pins =  <&gp 120>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "vtcam_core_en";
+			/* active state */
+			vtcam_core_en_default: default {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable = <0>; /* No PULL */
+				output-low;
+			};
+			/*suspended state */
+			vtcam_core_en_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
+				output-low;
+			};
+		};
+
 		cam_sensor_flash {
 			/* TORCH_EN, FLASH_EN */
 			qcom,pins = <&gp 34>, <&gp 36>;
@@ -1428,6 +1490,7 @@
 			cam_sensor_flash_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down = <0>; /* PULL DOWN */
+				output-low;
 			};
 		};
 
@@ -1439,8 +1502,8 @@
 			label = "cam_eeprom_wp";
 			/* active state */
 			/*suspended state */
-			cam_eepwp_sleep: sleep {
-				drive-strength = <2>;
+			cam_eeprom_wp_sleep: sleep {
+				drive-strength = <4>;
 				bias-pull-down;
 				output-low;
 			};

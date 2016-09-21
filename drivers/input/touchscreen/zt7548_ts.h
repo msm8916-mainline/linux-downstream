@@ -40,7 +40,9 @@
 #include <linux/async.h>
 #include <linux/firmware.h>
 
-#include "zinitix_gt5_spec.h"
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+#include "zinitix_o7_ref.h"
+#endif
 
 #include <linux/input/tsp_ta_callback.h>
 
@@ -63,13 +65,22 @@ enum data_type {
 	DATA_SIGNED_INT,
 };
 
+#ifdef CONFIG_SEC_FACTORY
+#define REPORT_2D_Z
+#endif
+
 #define SUPPORTED_TOUCH_KEY
 #define SUPPORTED_KEY_LED
+
+#ifdef REPORT_2D_Z
+#define REAL_Z_MAX		3000
+#define ZT7548_REAL_WIDTH		0x03A6
+#endif
 
 #define TS_DRVIER_VERSION		"1.0.18_1"
 #define ZT7548_TS_DEVICE		"zt7548_ts"
 
-#define TOUCH_POINT_MODE		1
+#define TOUCH_POINT_MODE	1
 #define ZINITIX_MISC_DEBUG		1
 #define CHECK_HWID			0
 #define ZINITIX_DEBUG			0
@@ -87,8 +98,6 @@ enum data_type {
 #define TOUCH_FORCE_UPGRADE		1
 #define USE_CHECKSUM			1
 #define CHIP_OFF_DELAY			50	/*ms*/
-#define CHIP_ON_DELAY			200	/*ms*/
-#define FIRMWARE_ON_DELAY		150	/*ms*/
 #define DELAY_FOR_SIGNAL_DELAY		30	/*us*/
 #define DELAY_FOR_TRANSCATION		50
 #define DELAY_FOR_POST_TRANSCATION	10
@@ -106,19 +115,46 @@ enum data_type {
 #define CHECK_ESD_TIMER				3
 
 /*Test Mode (Monitoring Raw Data) */
-#ifdef SUPPORTED_DND_SHIFT_VALUE
-#define SEC_DND_SHIFT_VALUE		3
+
+#define TSP_INIT_TEST_RATIO  100
+
+#define	SEC_MUTUAL_AMP_V_SEL	0x0232
+
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+#define	CHIP_ON_DELAY			200	/*ms*/
+#define FIRMWARE_ON_DELAY		150	/*ms*/
+#define	SEC_DND_N_COUNT			15
+#define	SEC_DND_U_COUNT			18
+#define	SEC_DND_FREQUENCY		169
+
+#define	SEC_HFDND_N_COUNT		15
+#define	SEC_HFDND_U_COUNT		18
+#define	SEC_HFDND_FREQUENCY		112
+#else /* CONFIG_TOUCHSCREEN_ZT7548_TS */
+#define	CHIP_ON_DELAY			50	/*ms*/
+#define FIRMWARE_ON_DELAY		110	/*ms*/
+#define	SEC_DND_N_COUNT			11
+#define	SEC_DND_U_COUNT			16
+#define	SEC_DND_FREQUENCY		139
+
+#define	SEC_HFDND_N_COUNT		11
+#define	SEC_HFDND_U_COUNT		16
+#define	SEC_HFDND_FREQUENCY		104
 #endif
+
+#define	SEC_SX_AMP_V_SEL		0x0434
+#define	SEC_SX_SUB_V_SEL		0x0055
+#define	SEC_SY_AMP_V_SEL		0x0232
+#define	SEC_SY_SUB_V_SEL		0x0022
+#define	SEC_SHORT_N_COUNT		2
+#define	SEC_SHORT_U_COUNT		1
 
 //DND
 #define SEC_DND_CP_CTRL_L			0x1fb3
 #define SEC_DND_V_FORCE				0
 #define SEC_DND_AMP_V_SEL			0x0141
-#define SEC_DND_N_COUNT				21
-#define SEC_DND_U_COUNT				8
-#define SEC_DND_FREQUENCY			289
 
-#define MAX_RAW_DATA_SZ				32*22
+#define MAX_RAW_DATA_SZ				36*22
 #define MAX_TRAW_DATA_SZ	\
 	(MAX_RAW_DATA_SZ + 4*MAX_SUPPORTED_FINGER_NUM + 2)
 
@@ -127,7 +163,10 @@ enum data_type {
 #define TOUCH_REF_MODE				10
 #define TOUCH_NORMAL_MODE			5
 #define TOUCH_DELTA_MODE			3
+#define TOUCH_REFERENCE_MODE			8
 #define TOUCH_DND_MODE				11
+#define TOUCH_RXSHORT_MODE			12
+#define TOUCH_TXSHORT_MODE			13
 
 #define	PALM_REPORT_WIDTH	200
 #define	PALM_REJECT_WIDTH	255
@@ -198,9 +237,9 @@ enum data_type {
 #define ZT7548_Y_RESOLUTION				0x00C1
 #define ZT7548_POINT_STATUS_REG				0x0080
 #define ZT7548_ICON_STATUS_REG				0x00AA
-#ifdef SUPPORTED_DND_SHIFT_VALUE
+
+#define ZT7548_MUTUAL_AMP_V_SEL				0x02F9
 #define ZT7548_DND_SHIFT_VALUE				0x012B
-#endif
 #define ZT7548_AFE_FREQUENCY				0x0100
 #define ZT7548_DND_N_COUNT				0x0122
 #define ZT7548_DND_U_COUNT				0x0135
@@ -218,6 +257,11 @@ enum data_type {
 #define ZT7548_READ_FLASH				0x01d2
 #define ZINITIX_INTERNAL_FLAG_02			0x011e
 #define ZT7548_OPTIONAL_SETTING				0x0116
+#define ZT75XX_SX_AMP_V_SEL				0x02DF
+#define ZT75XX_SX_SUB_V_SEL				0x02E0
+#define ZT75XX_SY_AMP_V_SEL				0x02EC
+#define ZT75XX_SY_SUB_V_SEL				0x02ED
+#define ZT75XX_RESOLUTION_EXPANDER			0x0186
 
 /* Interrupt & status register flag bit
 -------------------------------------------------
@@ -276,8 +320,8 @@ enum data_type {
 #define TSP_CMD_STR_LEN		32
 #define TSP_CMD_RESULT_STR_LEN	4096
 #define TSP_CMD_PARAM_NUM	8
-#define TSP_CMD_Y_NUM		22
-#define TSP_CMD_X_NUM		32
+#define TSP_CMD_Y_NUM		18
+#define TSP_CMD_X_NUM		30
 #define TSP_CMD_NODE_NUM	(TSP_CMD_Y_NUM * TSP_CMD_X_NUM)
 #define REG_EDGE_XF_OFFSET      0xEC
 #define REG_EDGE_XL_OFFSET      0xED
@@ -321,14 +365,15 @@ enum work_state {
 	PROBE,
 };
 
-#define ZINITIX_FW_PATH		"tsp_zinitix/"
+#define ZINITIX_FW_PATH			"tsp_zinitix/"
 #define ZINITIX_MAX_FW_PATH		255
 #define ZINITIX_DEFAULT_UMS_FW		"/sdcard/zinitix.fw"
+#define ZINITIX_DEFAULT_FFU_FW		"ffu_tsp.bin"
 
 enum {
 	BUILT_IN = 0,
 	UMS,
-	REQ_FW,
+	FFU,
 };
 
 struct raw_ioctl {
@@ -382,15 +427,20 @@ struct capa_info {
 	u16	total_node_num;
 	u16	hw_id;
 	u16	afe_frequency;
-#ifdef SUPPORTED_DND_SHIFT_VALUE
 	u16	shift_value;
-#endif
 	u16	v_force;
 	u16	amp_v_sel;
 	u16	N_cnt;
 	u16	u_cnt;
 	u16	cp_ctrl_l;
+	u16	mutual_amp_v_sel;
 	u16	i2s_checksum;
+#if defined(CONFIG_TOUCHSCREEN_ZT7548_TS)
+	u16 sx_amp_v_sel;
+	u16 sx_sub_v_sel;
+	u16 sy_amp_v_sel;
+	u16 sy_sub_v_sel;
+#endif
 };
 
 struct zt7548_ts_dt_data {
@@ -408,6 +458,7 @@ struct zt7548_ts_dt_data {
 	u32		orientation;
 	u32		tsp_supply_type;
 	u32		core_num;
+	bool		reg_boot_on;
 #ifdef USE_TSP_TA_CALLBACKS
 	struct tsp_callbacks callbacks;
 #endif
@@ -421,6 +472,8 @@ struct zt7548_ts_info {
 	struct capa_info			cap_info;
 	struct point_info			touch_info;
 	struct point_info			reported_touch_info;
+	u8					finger_cnt;
+	u8					move_cnt[MAX_SUPPORTED_FINGER_NUM];
 	unsigned char				*fw_data;
 	u16					icon_event_reg;
 	u16					prev_icon_event;
@@ -429,6 +482,7 @@ struct zt7548_ts_info {
 	u8					button[MAX_SUPPORTED_BUTTON_NUM];
 	u8					work_state;
 	struct semaphore			work_lock;
+	struct mutex				set_reg_lock;
 #if ESD_TIMER_INTERVAL
 	struct work_struct			tmr_work;
 	struct timer_list			esd_timeout_tmr;
@@ -446,33 +500,30 @@ struct zt7548_ts_info {
 	struct tsp_factory_info			*factory_info;
 	struct tsp_raw_data			*raw_data;
 	bool					get_all_data;
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	const u16				*dnd_max_spec;
+	const u16				*dnd_min_spec;
+	const u16				*dnd_v_gap_spec;
+	const u16				*dnd_h_gap_spec;
+	const u16				*hfdnd_max_spec;
+	const u16				*hfdnd_min_spec;
+	const u16				*hfdnd_v_gap_spec;
+	const u16				*hfdnd_h_gap_spec;
+#endif
 #endif
 	s16					ref_scale_factor;
 	s16					ref_btn_option;
-	s16					hdiff_max_x;
-	s16					hdiff_max_y;
-	s16					hdiff_max_val;
-	s16					hdiff_min_x;
-	s16					hdiff_min_y;
-	s16					hdiff_min_val;
-	s16					hdiff_real_max_val;
-
-	s16					vdiff_max_x;
-	s16					vdiff_max_y;
-	s16					vdiff_max_val;
-	s16					vdiff_min_x;
-	s16					vdiff_min_y;
-	s16					vdiff_min_val;
-	s16					vdiff_real_max_val;
-	u8					finger_cnt;
-	struct pinctrl 			*pinctrl;
+	struct pinctrl				*pinctrl;
 #ifdef CONFIG_INPUT_BOOSTER
-	struct input_booster	*booster;
+	struct input_booster			*booster;
 #endif
 #ifdef SUPPORTED_KEY_LED
-	struct regulator	*led_ldo;
+	struct regulator			*led_ldo;
 #endif
-	bool device_enabled;
+#ifdef TSP_MUIC_NOTIFICATION
+	struct notifier_block charger_nb;
+#endif
+	bool				device_enabled;
 };
 
 #ifdef SEC_FACTORY_TEST
@@ -488,9 +539,18 @@ struct tsp_factory_info {
 };
 
 struct tsp_raw_data {
-	u16 ref_data[TSP_CMD_NODE_NUM];
 	u16 dnd_data[TSP_CMD_NODE_NUM];
 	s16 delta_data[TSP_CMD_NODE_NUM];
+	s16 hfdnd_data[TSP_CMD_NODE_NUM];
+	s16 vgap_data[TSP_CMD_NODE_NUM];
+	s16 hgap_data[TSP_CMD_NODE_NUM];
+	s16 hfvgap_data[TSP_CMD_NODE_NUM];
+	s16 hfhgap_data[TSP_CMD_NODE_NUM];
+#if defined(CONFIG_TOUCHSCREEN_ZT7548_TS)
+	s16 rxshort_data[TSP_CMD_NODE_NUM];
+	s16 txshort_data[TSP_CMD_NODE_NUM];
+	s16 reference_data[TSP_CMD_NODE_NUM];
+#endif
 };
 
 struct tsp_cmd {
@@ -505,10 +565,24 @@ static struct zt7548_ts_info *misc_info;
 static struct workqueue_struct *esd_tmr_workqueue;
 #endif
 
+/* REG_USB_STATUS : optional setting from AP */
+#define DEF_OPTIONAL_MODE_USB_DETECT_BIT		0
+#define	DEF_OPTIONAL_MODE_SVIEW_DETECT_BIT		1
+#define	DEF_OPTIONAL_MODE_SENSITIVE_BIT			2
+#define DEF_OPTIONAL_MODE_EDGE_SELECT			3
+#define	DEF_OPTIONAL_MODE_DUO_TOUCH			4
+
 static bool ta_connected;
 static u16 m_optional_mode;
 static u16 m_prev_optional_mode;
 static int m_ts_debug_mode = ZINITIX_DEBUG;
+
+#ifdef SEC_FACTORY_TEST
+#define COVER_OPEN 0
+#define COVER_CLOSED 3
+
+static int g_cover_state;
+#endif
 
 extern struct class *sec_class;
 
@@ -522,6 +596,7 @@ static int zt7548_power(struct i2c_client *client, int on);
 static bool init_touch(struct zt7548_ts_info *info, bool forced);
 static bool mini_init_touch(struct zt7548_ts_info *info);
 static void clear_report_data(struct zt7548_ts_info *info);
+static int zt7548_pinctrl_configure(struct zt7548_ts_info *info, bool active);
 #if ESD_TIMER_INTERVAL
 static void esd_timer_start(u16 sec, struct zt7548_ts_info *info);
 static void esd_timer_stop(struct zt7548_ts_info *info);
@@ -538,23 +613,41 @@ static void get_chip_vendor(void *device_data);
 static void get_chip_name(void *device_data);
 static void get_x_num(void *device_data);
 static void get_y_num(void *device_data);
-static void dead_zone_enable(void *device_data);
-static void get_config_ver(void *device_data);
 static void not_support_cmd(void *device_data);
+
 /* Vendor dependant command */
-static void run_reference_read(void *device_data);
-static void get_reference(void *device_data);
-static void get_reference_all_data(void *device_data);
-static void get_reference_max_V_Diff(void *device_data);
-static void get_reference_max_H_Diff(void *device_data);
-static void run_reference_diff(void *device_data);
 static void run_dnd_read(void *device_data);
 static void get_dnd(void *device_data);
 static void get_dnd_all_data(void *device_data);
+static void run_dnd_v_gap_read(void *device_data);
+static void get_dnd_v_gap(void * device_data);
+static void run_dnd_h_gap_read(void *device_data);
+static void get_dnd_h_gap(void * device_data);
+static void run_hfdnd_read(void *device_data);
+static void get_hfdnd(void * device_data);
+static void get_hfdnd_all_data(void *device_data);
+static void run_hfdnd_v_gap_read(void *device_data);
+static void get_hfdnd_v_gap(void * device_data);
+static void run_hfdnd_h_gap_read(void *device_data);
+static void get_hfdnd_h_gap(void * device_data);
 static void run_delta_read(void *device_data);
 static void get_delta(void *device_data);
+#if defined(CONFIG_TOUCHSCREEN_ZT7548_TS)
+static void run_rxshort_read(void *device_data);
+static void get_rxshort(void *device_data);
+static void run_txshort_read(void * device_data);
+static void get_txshort(void *device_data);
+static void run_reference_read(void * device_data);
+static void get_reference(void *device_data);
+#endif
 static void get_delta_all_data(void *device_data);
+static void dead_zone_enable(void *device_data);
+static void clear_cover_mode(void *device_data);
+static void clear_reference_data(void *device_data);
 static void run_ref_calibration(void *device_data);
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+static void hfdnd_spec_adjust(void *device_data);
+#endif
 #endif
 
 static int ts_upgrade_sequence(const u8 *firmware_data);

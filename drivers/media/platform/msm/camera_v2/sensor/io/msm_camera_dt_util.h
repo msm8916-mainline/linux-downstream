@@ -61,5 +61,6 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
 int msm_camera_fill_vreg_params(struct camera_vreg_t *cam_vreg,
 	int num_vreg, struct msm_sensor_power_setting *power_setting,
 	uint16_t power_setting_size);
+int query_cam_power_status(void);
 
 #endif

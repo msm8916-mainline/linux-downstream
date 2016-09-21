@@ -47,6 +47,10 @@
 #include <linux/usb_notify.h>
 #endif
 
+#if defined(CONFIG_MUIC_NOTI)
+#include <linux/i2c/muic_notifier.h>
+#endif
+
 /* spmi control */
 extern int spmi_ext_register_writel_extra(u8 sid, u16 ad, u8 *buf, int len);
 extern int spmi_ext_register_readl_extra(u8 sid, u16 ad, u8 *buf, int len);
@@ -229,7 +233,7 @@ struct sm5703_muic_usbsw {
 	int             adc;
 	bool                undefined_attached;
 	/* muic current attached device */
-	enum muic_attached_dev		attached_dev;
+	muic_attached_dev		attached_dev;
 #if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 	unsigned int            previous_dock;
 	unsigned int            lanhub_ta_status;
@@ -241,7 +245,7 @@ struct sm5703_muic_usbsw {
 
 static struct sm5703_muic_usbsw *local_usbsw;
 
-#if defined(CONFIG_SEC_O7_PROJECT)
+#if defined(CONFIG_SEC_O7_PROJECT) || defined(CONFIG_SEC_XCOVER3_PROJECT) ||defined(CONFIG_SEC_J7_PROJECT)
 static struct regulator *fullup;
 #endif
 static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw);
@@ -1010,7 +1014,7 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 #if defined(CONFIG_VIDEO_MHL_V2)
 	/* u8 mhl_ret = 0; */
 #endif
-#if defined(CONFIG_SEC_O7_PROJECT)
+#if defined(CONFIG_SEC_O7_PROJECT) || defined(CONFIG_SEC_XCOVER3_PROJECT)||defined(CONFIG_SEC_J7_PROJECT)
 	if(fullup == NULL){
 		fullup = regulator_get(NULL,"BAT_ID_1.8V");
 		if(IS_ERR(fullup))
@@ -1333,6 +1337,9 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 				SM5703_MUIC_ATTACHED);
 		usbsw->undefined_attached = true;
 	}
+#if defined(CONFIG_MUIC_NOTI)
+	muic_notifier_attach_attached_dev(usbsw->attached_dev);
+#endif
 #if !defined(CONFIG_USBID_STANDARD_VER_01)
 attach_end:
 #endif
@@ -1354,7 +1361,7 @@ static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw)
 	pr_info("dev1: 0x%x,dev2: 0x%x,chg_typ: 0x%x,vbus %d,ADC: 0x%x\n",
 			usbsw->dev1, usbsw->dev2, usbsw->dev3, usbsw->vbus, usbsw->adc);
 
-#if defined(CONFIG_SEC_O7_PROJECT)
+#if defined(CONFIG_SEC_O7_PROJECT) || defined(CONFIG_SEC_XCOVER3_PROJECT)||defined(CONFIG_SEC_J7_PROJECT)
 	if(fullup == NULL){
 		fullup = regulator_get(NULL,"BAT_ID_1.8V");
 		if(IS_ERR(fullup))
@@ -1552,6 +1559,9 @@ static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw)
 				SM5703_MUIC_DETACHED);
 		usbsw->undefined_attached = false;
 	}
+#if defined(CONFIG_MUIC_NOTI)
+	muic_notifier_detach_attached_dev(usbsw->attached_dev);	
+#endif
 #if !defined(CONFIG_USBID_STANDARD_VER_01)
 detach_end:
 #endif
@@ -1648,8 +1658,13 @@ static irqreturn_t sm5703_muic_irq_thread(int irq, void *data)
 
 		pr_info("sm5703 muic: dev1=0x%x, dev2=0x%x, dev3=0x%x, vbus=0x%x\n",
 				val1, val2, val3, vbus);
+#ifdef CONFIG_USB_HOST_NOTIFY
 		if ((((adc != ADC_OPEN) || (val1 != 0x00 || val2 != 0x00 || val3 != 0x00)) &&
 					(adc != ADC_OTG)) && (get_usb_mode() != NOTIFY_TEST_MODE)) {
+#else
+		if (((adc != ADC_OPEN) || (val1 != 0x00 || val2 != 0x00 || val3 != 0x00))
+					&& (get_usb_mode() != NOTIFY_TEST_MODE)) {
+#endif
 			if (val2 != 0x10)
 				sm5703_muic_attach_dev(usbsw);
 		} else {
@@ -1669,8 +1684,12 @@ static irqreturn_t sm5703_muic_irq_thread(int irq, void *data)
 				val1,val2,val3,vbus);
 
 		if (get_usb_mode() != NOTIFY_TEST_MODE) {
-			if (val2 != 0x10)
-				sm5703_muic_detach_dev(usbsw);
+	        if (usbsw->attached_dev == ATTACHED_DEV_UNKNOWN_MUIC)
+		        sm5703_muic_detach_dev(usbsw);
+	        else if (adc != ADC_OPEN)
+		        sm5703_muic_attach_dev(usbsw);
+	        else if (intr1 != INT_OVP_ENABLE)
+		        sm5703_muic_detach_dev(usbsw);
 		} else {
 			goto irq_end;
 		}

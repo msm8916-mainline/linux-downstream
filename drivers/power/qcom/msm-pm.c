@@ -486,9 +486,9 @@ int msm_pm_wait_cpu_shutdown(unsigned int cpu)
 		/*
 		 * Dump spm registers for debugging, increase timeout
 		 */
-		if (++timeout == 50) {
+		if (++timeout == 70) {
 			msm_spm_dump_regs(cpu);
-			__WARN_printf("CPU%u didn't collapse in 5ms, sleep status: 0x%x\n",
+			__WARN_printf("CPU%u didn't collapse in 7ms, sleep status: 0x%x\n",
 					cpu, acc_sts);
 			BUG();
 		}

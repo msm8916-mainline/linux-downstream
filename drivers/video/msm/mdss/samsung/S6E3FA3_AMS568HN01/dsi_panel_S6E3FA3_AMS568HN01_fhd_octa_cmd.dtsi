@@ -43,6 +43,12 @@
 			29 01 00 00 00 00 02 CC 4C
 			29 01 00 00 00 00 03 FC A5 A5
 
+			/* TsHL Setting */
+			29 01 00 00 00 00 03 FC 5A 5A		/* TEST KEY Enable */
+			29 01 00 00 00 00 02 B0 10
+			29 01 00 00 00 00 02 B6 7F
+			29 01 00 00 00 00 03 FC A5 A5
+
 			/* ERR_FG Setting */
 			29 01 00 00 00 00 03 FC 5A 5A		/* TEST KEY Enable */
 			29 01 00 00 00 00 02 ED 44

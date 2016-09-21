@@ -23,16 +23,12 @@
 	};
 
 	samsung,vibrator {
-		compatible = "haptic_vib";
+		compatible = "samsung_vib";
 		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
 		pinctrl-0 = <&motor_pwm_active>;
 		pinctrl-1 = <&motor_pwm_suspend>;
 		samsung,vib_en = <&expander_gpios 15 0x1>;
 		samsung,vib_pwm = <&msm_gpio 50 0x1>;
-		samsung,vib_model = <1>;
-		samsung,is_pmic_vib_pwm = <0>;
-		samsung,pwm_period_us = <40>;
-		samsung,duty_us = <36>;
 		status = "ok";
 	};
 
@@ -692,3 +688,33 @@
 	qcom,cpr-apc-volt-step = <12500>;
 	qcom,cpr-up-threshold = <2>;
 };
+
+&pm8916_adc_tm {
+	/* Channel Node */
+	chan@30 {
+		label = "batt_therm";
+		reg = <0x30>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <1>;
+		qcom,hw-settle-time = <0xb>;
+		qcom,fast-avg-setup = <2>;
+		qcom,btm-channel-number = <0x48>;
+		qcom,thermal-node;
+	};
+
+	chan@36 {
+		label = "pa_therm0";
+		reg = <0x36>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "ratiometric";
+		qcom,scale-function = <2>;
+		qcom,hw-settle-time = <2>;
+		qcom,fast-avg-setup = <0>;
+		qcom,btm-channel-number = <0x70>;
+		qcom,thermal-node;
+	};
+};
+

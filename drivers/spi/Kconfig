@@ -558,7 +558,6 @@ config SENSORS_FP_MASTER_ID
 	  Master Id defined in fingerprint dtsi file.
 	  If master id is changed, you must set right master id number
 	  in defconfig.
-
 #
 # Add new SPI protocol masters in alphabetical order above this line
 #

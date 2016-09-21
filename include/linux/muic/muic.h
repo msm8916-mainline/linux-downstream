@@ -24,7 +24,7 @@
 
 #ifndef __MUIC_H__
 #define __MUIC_H__
-#include <linux/extcon.h>
+
 /* Status of IF PMIC chip (suspend and resume) */
 enum {
 	MUIC_SUSPEND		= 0,
@@ -66,55 +66,6 @@ enum {
 };
 
 /* MUIC ADC table */
-#ifdef CONFIG_MUIC_MAX77833	//CIS
-typedef enum {
-	ADC_GND                 = 0x00,
-	ADC_1K			= 0x10, /* 0x010000 1K ohm */
-	ADC_SEND_END            = 0x11, /* 0x010001 2K ohm */
-	ADC_2_604K		= 0x12, /* 0x010010 2.604K ohm */
-	ADC_3_208K		= 0x13, /* 0x010011 3.208K ohm */
-	ADC_4_014K		= 0x14, /* 0x010100 4.014K ohm */
-	ADC_4_820K		= 0x15, /* 0x010101 4.820K ohm */
-	ADC_6_030K		= 0x16, /* 0x010110 6.030K ohm */
-	ADC_8_030K		= 0x17, /* 0x010111 8.030K ohm */
-	ADC_10_030K		= 0x18, /* 0x011000 10.030K ohm */
-	ADC_12_030K		= 0x19, /* 0x011001 12.030K ohm */
-	ADC_14_460K		= 0x1a, /* 0x011010 14.460K ohm */
-	ADC_17_260K		= 0x1b, /* 0x011011 17.260K ohm */
-	ADC_REMOTE_S11          = 0x1c, /* 0x011100 20.5K ohm */
-	ADC_REMOTE_S12          = 0x1d, /* 0x011101 24.07K ohm */
-	ADC_RESERVED_VZW        = 0x1e, /* 0x011110 28.7K ohm */
-	ADC_INCOMPATIBLE_VZW    = 0x1f, /* 0x011111 34K ohm */
-	ADC_SMARTDOCK           = 0x20, /* 0x100000 40.2K ohm */
-	ADC_HMT                 = 0x21, /* 0x100001 49.9K ohm */
-	ADC_AUDIODOCK           = 0x22, /* 0x100010 64.9K ohm */
-	ADC_USB_LANHUB          = 0x23, /* 0x100011 80.07K ohm */
-	ADC_CHARGING_CABLE      = 0x24, /* 0x100100 102K ohm */
-	ADC_UNIVERSAL_MMDOCK    = 0x25, /* 0x100101 121K ohm */
-	ADC_UART_CABLE          = 0x26, /* 0x100110 150K ohm */
-	ADC_CEA936ATYPE1_CHG    = 0x27, /* 0x100111 200K ohm */
-	ADC_JIG_USB_OFF         = 0x28, /* 0x101000 255K ohm */
-	ADC_JIG_USB_ON          = 0x29, /* 0x101001 301K ohm */
-	ADC_DESKDOCK            = 0x2a, /* 0x101010 365K ohm */
-	ADC_CEA936ATYPE2_CHG    = 0x2b, /* 0x101011 442K ohm */
-	ADC_JIG_UART_OFF        = 0x2c, /* 0x101100 523K ohm */
-	ADC_JIG_UART_ON         = 0x2d, /* 0x101101 619K ohm */
-	ADC_AUDIOMODE_W_REMOTE  = 0x2e, /* 0x101110 1000K ohm */
-	ADC_1200K		= 0x2f, /* 0x101111 1200K ohm */
-
-	/// MAX77843 ///
-	ADC_OPEN                = 0x1f,
-	ADC_OPEN_219            = 0xfb, /* ADC open or 219.3K ohm */
-	ADC_219                 = 0xfc, /* ADC open or 219.3K ohm */
-
-	ADC_UNDEFINED           = 0xfd, /* Undefied range */
-	ADC_DONTCARE            = 0xfe, /* ADC don't care for MHL */
-	ADC_ERROR               = 0xff, /* ADC value read error */
-
-	ADC_JIG_UART_OFF_WA	= 0xfa, /* ADC temp for JIG UART cable */
-
-} muic_adc_t;
-#else
 typedef enum {
 	ADC_GND			= 0x00,
 	ADC_SEND_END		= 0x01, /* 0x00001 2K ohm */
@@ -145,7 +96,6 @@ typedef enum {
 	ADC_DONTCARE		= 0xfe, /* ADC don't care for MHL */
 	ADC_ERROR		= 0xff, /* ADC value read error */
 } muic_adc_t;
-#endif
 
 /* MUIC attached device type */
 typedef enum {
@@ -227,7 +177,7 @@ struct muic_platform_data {
 	void (*cleanup_switch_dev_cb) (void);
 
 	/* muic GPIO control function */
-	int (*init_gpio_cb) (int switch_sel);
+	int (*init_gpio_cb) (void);
 	int (*set_gpio_usb_sel) (int usb_path);
 	int (*set_gpio_uart_sel) (int uart_path);
 	int (*set_safeout) (int safeout_path);

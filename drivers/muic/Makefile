@@ -14,3 +14,5 @@ obj-$(CONFIG_HV_MUIC_MAX77833_AFC)      += max77833-muic-afc.o
 obj-$(CONFIG_MUIC_MAX77888)		+= max77888-muic.o
 obj-$(CONFIG_MUIC_FSA9480)		+= fsa9480.o
 obj-$(CONFIG_MUIC_S2MM001)		+= s2mm001.o
+obj-$(CONFIG_MUIC_UNIVERSAL)		+= universal/
+

@@ -19,10 +19,6 @@
 #include "zt7554_ts.h"
 #include "zinitix_touch_t560.h"
 
-#ifdef CONFIG_TOUCHKEY_NO_LED
-#undef SUPPORTED_KEY_LED
-#endif
-
 u32 BUTTON_MAPPING_KEY[MAX_SUPPORTED_BUTTON_NUM] = {KEY_RECENT, KEY_BACK};
 static int m_tsp_burst_mode;
 

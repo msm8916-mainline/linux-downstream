@@ -90,6 +90,14 @@ struct sec_fg_info {
 	int temp_offset;
 	int temp_offset_cal;
 	int charge_offset_cal;
+	int en_high_temp_cal;
+	int high_temp_cal_denom;
+	int high_temp_p_cal_fact;
+	int high_temp_n_cal_fact;
+	int en_low_temp_cal;
+	int low_temp_cal_denom;
+	int low_temp_p_cal_fact;
+	int low_temp_n_cal_fact;
 
 	int battery_type; /* 4200 or 4350 or 4400*/
 	uint32_t soc_alert_flag : 1;  /* 0 : nu-occur, 1: occur */
@@ -107,9 +115,10 @@ struct sec_fg_info {
 	int l_tem_poff;
 	int l_tem_poff_offset;
 
-	/* previous battery voltage */
+	/* previous battery voltage current*/
 	int p_batt_voltage;
 	int p_batt_current;
+	int min_charge_curr;
 };
 
 struct sec_fuelgauge_info {

@@ -1166,7 +1166,7 @@ int ist30xx_auto_bin_update(struct ist30xx_data *data)
 	ret = ist30xx_check_auto_update(data);
 	mutex_unlock(&ist30xx_mutex);
 
-	if (1 || data->dt_data->bringup) {
+	if (data->dt_data->bringup) {
 		tsp_info("%s: bring up! do not update firmware.\n", __func__);
 		ret = 0;
 		goto release_fw;

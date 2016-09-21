@@ -30,7 +30,7 @@ static struct msm_isp_bandwidth_mgr isp_bandwidth_mgr;
 
 #define VFE40_8974V2_VERSION 0x1001001A
 
-#ifndef CONFIG_ARCH_MSM8939
+#if !defined(CONFIG_ARCH_MSM8939) && !defined(CONFIG_ARCH_MSM8929)
 #define CAMERA_BOOST
 #endif
 
@@ -62,6 +62,13 @@ static struct msm_bus_scale_pdata bus_client_pdata = {
 
 static u32 bus_client;
 #endif
+
+static bool camera_boost_flag = true;
+int32_t msm_isp_camera_boost(bool flag){
+	camera_boost_flag = flag;
+	return 0;
+}
+EXPORT_SYMBOL(msm_isp_camera_boost);
 
 static struct msm_bus_vectors msm_isp_init_vectors[] = {
 	{
@@ -165,7 +172,7 @@ int msm_isp_init_bandwidth_mgr(enum msm_isp_hw_client client)
 	   isp_bandwidth_mgr.bus_vector_active_idx);
 
 #ifdef CAMERA_BOOST
-	if (!bus_client) {
+	if (!bus_client && camera_boost_flag) {
 		bus_client = msm_bus_scale_register_client(&bus_client_pdata);
 		msm_bus_scale_client_update_request(bus_client, 1);
 	}
@@ -236,9 +243,11 @@ void msm_isp_deinit_bandwidth_mgr(enum msm_isp_hw_client client)
 	msm_bus_scale_unregister_client(isp_bandwidth_mgr.bus_client);
 
 #ifdef CAMERA_BOOST
-	msm_bus_scale_client_update_request(bus_client, 0);
-	msm_bus_scale_unregister_client(bus_client);
-	bus_client = 0;
+	if(bus_client){
+		msm_bus_scale_client_update_request(bus_client, 0);
+		msm_bus_scale_unregister_client(bus_client);
+		bus_client = 0;
+	}
 #endif
 
 	isp_bandwidth_mgr.bus_client = 0;
@@ -1245,8 +1254,6 @@ void msm_isp_update_error_frame_count(struct vfe_device *vfe_dev)
 {
 	struct msm_vfe_error_info *error_info = &vfe_dev->error_info;
 	error_info->info_dump_frame_count++;
-	if (error_info->info_dump_frame_count == 0)
-		error_info->info_dump_frame_count++;
 }
 
 void msm_isp_process_error_info(struct vfe_device *vfe_dev)

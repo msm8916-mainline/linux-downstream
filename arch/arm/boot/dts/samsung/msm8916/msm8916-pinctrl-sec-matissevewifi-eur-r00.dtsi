@@ -1330,8 +1330,6 @@
 
 		cci0_pinmux_sleep {
 			/* CLK, DATA */
-			qcom,pins = <&gp 29>, <&gp 30>;
-			qcom,num-grp-pins = <2>;
 			qcom,pin-func = <0>;
 			label = "cci0_sleep";
 			/*suspended state */

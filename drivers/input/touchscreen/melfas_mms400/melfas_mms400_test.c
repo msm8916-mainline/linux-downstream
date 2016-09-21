@@ -205,16 +205,16 @@ static int mms_proc_table_data(struct mms_ts_info *info, u8 size,
 					uValue = (u8)rbuf[i_col];
 				} else if (data_size == 2) {
 					uValue = (u16)(rbuf[data_size * i_col] |
-						(rbuf[data_size * i_col + 1] << 8));
+							(rbuf[data_size * i_col + 1] << 8));
 				} else if (data_size == 4) {
 					uValue = (u32)(rbuf[data_size * i_col] |
-						(rbuf[data_size * i_col + 1] << 8) |
-						(rbuf[data_size * i_col + 2] << 16) |
-						(rbuf[data_size * i_col + 3] << 24));
+							(rbuf[data_size * i_col + 1] << 8) |
+							(rbuf[data_size * i_col + 2] << 16) |
+							(rbuf[data_size * i_col + 3] << 24));
 				} else {
 					dev_err(&info->client->dev,
-						"%s [ERROR] data_size [%d]\n",
-						__func__, data_size);
+							"%s [ERROR] data_size [%d]\n",
+							__func__, data_size);
 					goto ERROR;
 				}
 				value = (int)uValue;
@@ -224,16 +224,16 @@ static int mms_proc_table_data(struct mms_ts_info *info, u8 size,
 					sValue = (s8)rbuf[i_col];
 				} else if (data_size == 2) {
 					sValue = (s16)(rbuf[data_size * i_col] |
-						(rbuf[data_size * i_col + 1] << 8));
+							(rbuf[data_size * i_col + 1] << 8));
 				} else if (data_size == 4) {
 					sValue = (s32)(rbuf[data_size * i_col] |
-						(rbuf[data_size * i_col + 1] << 8) |
-						(rbuf[data_size * i_col + 2] << 16) |
-						(rbuf[data_size * i_col + 3] << 24));
+							(rbuf[data_size * i_col + 1] << 8) |
+							(rbuf[data_size * i_col + 2] << 16) |
+							(rbuf[data_size * i_col + 3] << 24));
 				} else {
 					dev_err(&info->client->dev,
-						"%s [ERROR] data_size [%d]\n",
-						__func__, data_size);
+							"%s [ERROR] data_size [%d]\n",
+							__func__, data_size);
 					goto ERROR;
 				}
 				value = (int)sValue;
@@ -253,7 +253,7 @@ static int mms_proc_table_data(struct mms_ts_info *info, u8 size,
 				break;
 			default:
 				dev_err(&info->client->dev,
-					"%s [ERROR] rotate [%d]\n", __func__, rotate);
+						"%s [ERROR] rotate [%d]\n", __func__, rotate);
 				goto ERROR;
 				break;
 			}
@@ -262,10 +262,10 @@ static int mms_proc_table_data(struct mms_ts_info *info, u8 size,
 
 	if (!info->read_all_data) {
 		//print table header
-		#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-		if(info->add_log_header == 1)
+#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
+		if (info->add_log_header == 1)
 			printk("mms_tsp");
-		#endif
+#endif
 		printk("    ");
 		sprintf(data, "    ");
 		strcat(info->print_buf, data);
@@ -298,7 +298,7 @@ static int mms_proc_table_data(struct mms_ts_info *info, u8 size,
 			break;
 		default:
 			dev_err(&info->client->dev,"%s [ERROR] data_size [%d]\n",
-				__func__, data_size);
+					__func__, data_size);
 			goto ERROR;
 			break;
 		}
@@ -314,10 +314,10 @@ static int mms_proc_table_data(struct mms_ts_info *info, u8 size,
 	for (i_y = 0; i_y < lim_y; i_y++) {
 		//print line header
 		if (!info->read_all_data) {
-			#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-			if(info->add_log_header == 1)
+#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
+			if (info->add_log_header == 1)
 				printk("mms_tsp");
-			#endif
+#endif
 			if ((key_num > 0) && (i_y == (lim_y -1))) {
 				printk("[TK]");
 				sprintf(data, "[TK]");
@@ -355,7 +355,7 @@ static int mms_proc_table_data(struct mms_ts_info *info, u8 size,
 					break;
 				default:
 					dev_err(&info->client->dev, "%s [ERROR] data_size [%d]\n",
-						__func__, data_size);
+							__func__, data_size);
 					goto ERROR;
 					break;
 				}
@@ -423,7 +423,7 @@ int mms_run_test(struct mms_ts_info *info, u8 test_type)
 
 	if (!info->read_all_data) {
 		//check test type
-		switch(test_type){
+		switch (test_type) {
 		case MIP_TEST_TYPE_CM_DELTA:
 			//printk("=== Cm Delta Test ===\n");
 			sprintf(info->print_buf, "\n=== Cm Delta Test ===\n\n");
@@ -491,7 +491,7 @@ int mms_run_test(struct mms_ts_info *info, u8 test_type)
 		if (mms_get_ready_status(info) == MIP_CTRL_STATUS_READY) {
 			break;
 		}
-//		msleep(10);
+		//		msleep(10);
 		msleep(20);
 
 		dev_dbg(&info->client->dev, "%s - wait [%d]\n", __func__, wait_cnt);
@@ -522,11 +522,11 @@ int mms_run_test(struct mms_ts_info *info, u8 test_type)
 	data_type_size = data_type & 0x7F;
 
 	dev_dbg(&info->client->dev,
-		"%s - row_num[%d] col_num[%d] buffer_col_num[%d] rotate[%d] key_num[%d]\n",
-		__func__, row_num, col_num, buffer_col_num, rotate, key_num);
+			"%s - row_num[%d] col_num[%d] buffer_col_num[%d] rotate[%d] key_num[%d]\n",
+			__func__, row_num, col_num, buffer_col_num, rotate, key_num);
 	dev_dbg(&info->client->dev,
-		"%s - data_type[0x%02X] data_sign[%d] data_size[%d]\n",
-		__func__, data_type, data_type_sign, data_type_size);
+			"%s - data_type[0x%02X] data_sign[%d] data_size[%d]\n",
+			__func__, data_type, data_type_sign, data_type_size);
 
 	//get buf addr
 	wbuf[0] = MIP_R0_TEST;
@@ -539,11 +539,11 @@ int mms_run_test(struct mms_ts_info *info, u8 test_type)
 	buf_addr_l = rbuf[0];
 	buf_addr_h = rbuf[1];
 	dev_dbg(&info->client->dev, "%s - buf_addr[0x%02X 0x%02X]\n",
-		__func__, buf_addr_h, buf_addr_l);
+			__func__, buf_addr_h, buf_addr_l);
 
 	//print data
 	if (mms_proc_table_data(info, size, data_type_size, data_type_sign,
-		buf_addr_h, buf_addr_l, row_num, col_num, buffer_col_num, rotate, key_num)) {
+				buf_addr_h, buf_addr_l, row_num, col_num, buffer_col_num, rotate, key_num)) {
 		dev_err(&info->client->dev, "%s [ERROR] mms_proc_table_data\n", __func__);
 		goto ERROR;
 	}
@@ -694,11 +694,11 @@ int mms_get_image(struct mms_ts_info *info, u8 image_type)
 	data_type_size = data_type & 0x7F;
 
 	dev_dbg(&info->client->dev,
-		"%s - row_num[%d] col_num[%d] buffer_col_num[%d] rotate[%d] key_num[%d]\n",
-		__func__, row_num, col_num, buffer_col_num, rotate, key_num);
+			"%s - row_num[%d] col_num[%d] buffer_col_num[%d] rotate[%d] key_num[%d]\n",
+			__func__, row_num, col_num, buffer_col_num, rotate, key_num);
 	dev_dbg(&info->client->dev,
-		"%s - data_type[0x%02X] data_sign[%d] data_size[%d]\n",
-		__func__, data_type, data_type_sign, data_type_size);
+			"%s - data_type[0x%02X] data_sign[%d] data_size[%d]\n",
+			__func__, data_type, data_type_sign, data_type_size);
 
 	//get buf addr
 	wbuf[0] = MIP_R0_IMAGE;
@@ -711,11 +711,11 @@ int mms_get_image(struct mms_ts_info *info, u8 image_type)
 	buf_addr_l = rbuf[0];
 	buf_addr_h = rbuf[1];
 	dev_dbg(&info->client->dev, "%s - buf_addr[0x%02X 0x%02X]\n",
-		__func__, buf_addr_h, buf_addr_l);
+			__func__, buf_addr_h, buf_addr_l);
 
 	//print data
 	if (mms_proc_table_data(info, size, data_type_size, data_type_sign,
-		buf_addr_h, buf_addr_l, row_num, col_num, buffer_col_num, rotate, key_num)) {
+				buf_addr_h, buf_addr_l, row_num, col_num, buffer_col_num, rotate, key_num)) {
 		dev_err(&info->client->dev, "%s [ERROR] mms_proc_table_data\n", __func__);
 		goto ERROR;
 	}
@@ -752,7 +752,7 @@ ERROR:
  * Print chip firmware version
  */
 static ssize_t mms_sys_fw_version(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	u8 data[255];
@@ -769,11 +769,11 @@ static ssize_t mms_sys_fw_version(struct device *dev,
 	}
 
 	dev_info(&info->client->dev,
-		"%s - F/W Version : %02X.%02X %02X.%02X %02X.%02X %02X.%02X\n",
-		__func__, rbuf[0], rbuf[1], rbuf[2], rbuf[3],
-		rbuf[4],rbuf[5], rbuf[6], rbuf[7]);
+			"%s - F/W Version : %02X.%02X %02X.%02X %02X.%02X %02X.%02X\n",
+			__func__, rbuf[0], rbuf[1], rbuf[2], rbuf[3],
+			rbuf[4],rbuf[5], rbuf[6], rbuf[7]);
 	sprintf(data, "F/W Version : %02X.%02X %02X.%02X %02X.%02X %02X.%02X\n",
-		rbuf[0], rbuf[1], rbuf[2], rbuf[3], rbuf[4], rbuf[5], rbuf[6], rbuf[7]);
+			rbuf[0], rbuf[1], rbuf[2], rbuf[3], rbuf[4], rbuf[5], rbuf[6], rbuf[7]);
 
 ERROR:
 	strcat(info->print_buf, data);
@@ -801,7 +801,7 @@ static ssize_t mms_sys_info(struct device *dev, struct device_attribute *attr, c
 
 	mms_get_fw_version(info, rbuf);
 	sprintf(data, "F/W Version : %02X.%02X %02X.%02X %02X.%02X %02X.%02X\n",
-		rbuf[0], rbuf[1], rbuf[2], rbuf[3], rbuf[4], rbuf[5], rbuf[6], rbuf[7]);
+			rbuf[0], rbuf[1], rbuf[2], rbuf[3], rbuf[4], rbuf[5], rbuf[6], rbuf[7]);
 	strcat(info->print_buf, data);
 
 	wbuf[0] = MIP_R0_INFO;
@@ -830,7 +830,7 @@ static ssize_t mms_sys_info(struct device *dev, struct device_attribute *attr, c
  * Device enable
  */
 static ssize_t mms_sys_device_enable(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	struct i2c_client *client = info->client;
@@ -855,7 +855,7 @@ static ssize_t mms_sys_device_enable(struct device *dev,
  * Device disable
  */
 static ssize_t mms_sys_device_disable(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	struct i2c_client *client = info->client;
@@ -880,7 +880,7 @@ static ssize_t mms_sys_device_disable(struct device *dev,
  * Enable IRQ
  */
 static ssize_t mms_sys_irq_enable(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	struct i2c_client *client = info->client;
@@ -905,7 +905,7 @@ static ssize_t mms_sys_irq_enable(struct device *dev,
  * Disable IRQ
  */
 static ssize_t mms_sys_irq_disable(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	struct i2c_client *client = info->client;
@@ -931,7 +931,7 @@ static ssize_t mms_sys_irq_disable(struct device *dev,
  * Power on
  */
 static ssize_t mms_sys_power_on(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	struct i2c_client *client = info->client;
@@ -956,7 +956,7 @@ static ssize_t mms_sys_power_on(struct device *dev,
  * Power off
  */
 static ssize_t mms_sys_power_off(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	struct i2c_client *client = info->client;
@@ -981,7 +981,7 @@ static ssize_t mms_sys_power_off(struct device *dev,
  * Reboot chip
  */
 static ssize_t mms_sys_reboot(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	struct i2c_client *client = info->client;
@@ -1009,7 +1009,7 @@ static ssize_t mms_sys_reboot(struct device *dev,
  * Set glove mode
  */
 static ssize_t mms_sys_glove_mode_store(struct device *dev,
-				struct device_attribute *attr, const char *buf, size_t count)
+		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	u8 wbuf[8];
@@ -1037,7 +1037,7 @@ static ssize_t mms_sys_glove_mode_store(struct device *dev,
  * Get glove mode
  */
 static ssize_t mms_sys_glove_mode_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	u8 data[255];
@@ -1071,7 +1071,7 @@ static ssize_t mms_sys_glove_mode_show(struct device *dev,
  * Set charger mode
  */
 static ssize_t mms_sys_charger_mode_store(struct device *dev,
-			struct device_attribute *attr, const char *buf, size_t count)
+		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	u8 wbuf[8];
@@ -1099,7 +1099,7 @@ static ssize_t mms_sys_charger_mode_store(struct device *dev,
  * Get charger mode
  */
 static ssize_t mms_sys_charger_mode_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	u8 data[255];
@@ -1133,7 +1133,7 @@ static ssize_t mms_sys_charger_mode_show(struct device *dev,
  * Set cover window mode
  */
 static ssize_t mms_sys_window_mode_store(struct device *dev,
-			struct device_attribute *attr, const char *buf, size_t count)
+		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	u8 wbuf[8];
@@ -1161,7 +1161,7 @@ static ssize_t mms_sys_window_mode_store(struct device *dev,
  * Get cover window mode
  */
 static ssize_t mms_sys_window_mode_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	u8 data[255];
@@ -1195,7 +1195,7 @@ static ssize_t mms_sys_window_mode_show(struct device *dev,
  * Set palm rejection mode
  */
 static ssize_t mms_sys_palm_rejection_mode_store(struct device *dev,
-			struct device_attribute *attr, const char *buf, size_t count)
+		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	u8 wbuf[8];
@@ -1223,7 +1223,7 @@ static ssize_t mms_sys_palm_rejection_mode_store(struct device *dev,
  * Get palm rejection mode
  */
 static ssize_t mms_sys_palm_rejection_mode_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	u8 data[255];
@@ -1257,7 +1257,7 @@ static ssize_t mms_sys_palm_rejection_mode_show(struct device *dev,
  * Sysfs print intensity image
  */
 static ssize_t mms_sys_intensity(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
@@ -1279,7 +1279,7 @@ static ssize_t mms_sys_intensity(struct device *dev,
  * Sysfs print rawdata image
  */
 static ssize_t mms_sys_rawdata(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
@@ -1301,7 +1301,7 @@ static ssize_t mms_sys_rawdata(struct device *dev,
  * Sysfs run cm delta test
  */
 static ssize_t mms_sys_test_cm_delta(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
@@ -1323,7 +1323,7 @@ static ssize_t mms_sys_test_cm_delta(struct device *dev,
  * Sysfs run cm abs test
  */
 static ssize_t mms_sys_test_cm_abs(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
@@ -1345,7 +1345,7 @@ static ssize_t mms_sys_test_cm_abs(struct device *dev,
  * Sysfs run cm jitter test
  */
 static ssize_t mms_sys_test_cm_jitter(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
@@ -1367,14 +1367,14 @@ static ssize_t mms_sys_test_cm_jitter(struct device *dev,
  * Sysfs run short test
  */
 static ssize_t mms_sys_test_short(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
 
 	dev_dbg(&info->client->dev, "%s [START] \n", __func__);
 
-	// this cmd don't use 
+	// this cmd don't use
 	return 0;
 
 	if (mms_run_test(info, MIP_TEST_TYPE_SHORT)) {
@@ -1402,11 +1402,11 @@ static DEVICE_ATTR(power_off, 0666, mms_sys_power_off, NULL);
 static DEVICE_ATTR(reboot, 0666, mms_sys_reboot, NULL);
 static DEVICE_ATTR(mode_glove, 0666, mms_sys_glove_mode_show, mms_sys_glove_mode_store);
 static DEVICE_ATTR(mode_charger, 0666,
-			mms_sys_charger_mode_show, mms_sys_charger_mode_store);
+		mms_sys_charger_mode_show, mms_sys_charger_mode_store);
 static DEVICE_ATTR(mode_cover_window, 0666,
-			mms_sys_window_mode_show, mms_sys_window_mode_store);
+		mms_sys_window_mode_show, mms_sys_window_mode_store);
 static DEVICE_ATTR(mode_palm_rejection, 0666,
-			mms_sys_palm_rejection_mode_show, mms_sys_palm_rejection_mode_store);
+		mms_sys_palm_rejection_mode_show, mms_sys_palm_rejection_mode_store);
 static DEVICE_ATTR(image_intensity, 0666, mms_sys_intensity, NULL);
 static DEVICE_ATTR(image_rawdata, 0666, mms_sys_rawdata, NULL);
 static DEVICE_ATTR(test_cm_delta, 0666, mms_sys_test_cm_delta, NULL);
@@ -1466,7 +1466,7 @@ int mms_sysfs_create(struct mms_ts_info *info)
 #endif
 	info->image_buf =
 		kzalloc(sizeof(int) * ((info->node_x * info->node_y) + info->node_key),
-			GFP_KERNEL);
+				GFP_KERNEL);
 
 	dev_dbg(&info->client->dev, "%s [DONE]\n", __func__);
 

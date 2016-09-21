@@ -285,7 +285,7 @@ int qpnp_pon_set_restart_reason(enum pon_restart_reason reason)
 		return 0;
 
 	rc = qpnp_pon_masked_write(pon, QPNP_PON_SOFT_RB_SPARE(pon->base),
-					PON_MASK(7, 5), (reason << 5));
+					PON_MASK(7, 2), (reason << 2));
 	if (rc)
 		dev_err(&pon->spmi->dev,
 				"Unable to write to addr=%x, rc(%d)\n",
@@ -1561,7 +1561,7 @@ static struct kernel_param_ops module_ops = {
 	.get = param_get_bool,
 };
 
-module_param_cb(wake_enabled, &module_ops, &wake_enabled, 0644);
+module_param_cb(wake_enabled, &module_ops, &wake_enabled, 0664);
 
 static int qpnp_reset_enabled(const char *val, const struct kernel_param *kp)
 {
@@ -1595,7 +1595,7 @@ static struct kernel_param_ops reset_module_ops = {
 	.get = param_get_bool,
 };
 
-module_param_cb(reset_enabled, &reset_module_ops, &reset_enabled, 0644);
+module_param_cb(reset_enabled, &reset_module_ops, &reset_enabled, 0664);
 #endif
 
 

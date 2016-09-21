@@ -123,7 +123,7 @@
 				chg_autostop = <0>;
 				chg_autoset = <1>;
 				chg_aiclen = <1>;
-				chg_aiclth = <4500>;
+				chg_aiclth = <4300>;
 				fg_vol_val = <4350>;
 				fg_soc_val = <95>;
 				fg_curr_avr_val = <150>;
@@ -254,6 +254,25 @@
 			stm,poll_interval = <100>;
 			stm,min_interval = <2>;
 		};
+		cm36672p@60 {
+			compatible = "cm36672p";
+			reg = <0x60>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <113 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&prox_int_active>;
+			pinctrl-1 = <&prox_int_suspend>;
+			cm36672p,irq_gpio = <&msm_gpio 113 0x1>;
+			cm36672p,vdd-supply = <&pm8916_l17>;
+			cm36672p,vio-supply = <&pm8916_l5>;
+			cm36672p,default_hi_thd = <17>;
+			cm36672p,default_low_thd = <13>;
+			cm36672p,cancel_hi_thd = <10>;
+			cm36672p,cancel_low_thd = <7>;
+			cm36672p,ps_it = <4>;
+			cm36672p,led_current = <5>;
+			cm36672p,default_trim = <0>;
+			};
 		stk3013@48 {
 			compatible = "stk,stk3013";
 			reg = <0x48>;
@@ -271,7 +290,7 @@
 			stk,ledctrl-reg = <0xFF>;
 			stk,wait-reg = <0x03>;
 			stk,ps-thd-h = <18>;
-			stk,ps-thd-l = <13>;
+			stk,ps-thd-l = <12>;
 			stk,ps-cancel-thd-h = <10>;
 			stk,ps-cancel-thd-l = <7>;
 			stk,ps-cal-skip-adc = <8>;
@@ -381,13 +400,13 @@
 		qcom,earjack-read-vadc = <&pm8916_vadc>;
 
 		det-zones-list = <&det_zones 0 10000 10 0>,
-						 <&det_zones 970 10000 10 0>,
-						 <&det_zones 971 10000 10 1>,
+						 <&det_zones 988 10000 10 0>,
+						 <&det_zones 989 10000 10 1>,
 						 <&det_zones 9999 10000 10 1>;
-		but-zones-list = <&but_zones 0 0 302>,
-						<&but_zones 3 303 349>,	
-						 <&but_zones 1 350 462>,
-						 <&but_zones 2 463 999>;
+		but-zones-list = <&but_zones 0 0 311>,
+						<&but_zones 3 312 357>,	
+						 <&but_zones 1 358 476>,
+						 <&but_zones 2 477 999>;
 		mpp-channel-scaling = <2 1 1>;
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
 		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
@@ -565,7 +584,7 @@
 			compatible = "ti,lm3632";
 			reg = <0x11>;
 			backlight{
-				compatible = "ti,lm3632-backlight";
+				compatible = "ti,lm3632-backlight-sky";
 				backlight-ic-name = "TI-LM3632";
 				backlight-en-gpio = <&msm_gpio 98 0x00>;
 				backlight-panel-enp-gpio = <&msm_gpio 97 0x00>;
@@ -585,7 +604,7 @@
 				backlight-ic-tuning-outdoor = [
 					09	01
 					04	07
-					05	D6
+					05	CB
 				];
 				backlight-ic-tuning-normal = [
 					04	05

@@ -382,6 +382,19 @@
 			};
 		};
 
+		pmx_i2c_12 {
+			/* CLK, DATA */
+			qcom,pins = <&gp 21>, <&gp 20>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <0>;
+			label = "pmx_i2c_12";
+
+			i2c_12_active: i2c_12_active {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable;
+			};
+		};
+
 		/* QDSD pin type */
 		qdsd: qdsd {
 			qcom,pin-type-qdsd;
@@ -1284,6 +1297,25 @@
 			};
 			/*suspended state */
 			cam_extiovana_en_sleep: sleep {
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-down; /* PULL DOWN */
+				output-low;
+			};
+		};
+		cam_io_en {
+			/* CAMIO, VANA */
+			qcom,pins =  <&gp 72>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "cam_io_en";
+			/* active state */
+			cam_io_en_default: default {
+				drive-strength = <2>; /* 2 MA */
+				bias-disable = <0>; /* No PULL */
+				output-low;
+			};
+			/*suspended state */
+			cam_io_en_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* PULL DOWN */
 				output-low;

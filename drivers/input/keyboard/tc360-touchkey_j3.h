@@ -30,6 +30,7 @@ struct tc300k_platform_data {
 	u32 scl_gpio_flags;
 	u32 vcc_gpio_flags;
 	u32 gpio_2p8_en;
+	u32 gpio_led;
 	u32 vcc_gpio2p8_flags;
 	int	udelay;
 	int	num_key;

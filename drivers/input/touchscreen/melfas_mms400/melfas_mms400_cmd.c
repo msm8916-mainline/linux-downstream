@@ -55,12 +55,18 @@ static void cmd_fw_update(void *device_data)
 
 	switch (fw_location) {
 	case 0:
-		if (mms_fw_update_from_kernel(info, true)) {
+		if (mms_fw_update_from_kernel(info, true, false)) {
 			goto ERROR;
 		}
 		break;
 	case 1:
 		if (mms_fw_update_from_storage(info, true)) {
+			goto ERROR;
+		}
+		break;
+	case 2:
+		/* FFU - urgent fw update */
+		if (mms_fw_update_from_kernel(info, true, true)) {
 			goto ERROR;
 		}
 		break;
@@ -81,7 +87,7 @@ ERROR:
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -124,7 +130,7 @@ static void cmd_get_fw_ver_bin(void *device_data)
 
 	release_firmware(fw);
 
-	sprintf(buf, "ME%02X%02X%02X\n", info->dtdata->panel, ver_file[3],ver_file[5]);
+	sprintf(buf, "ME00%02X%02X\n", ver_file[3],ver_file[5]);
 	info->cmd_state = CMD_STATUS_OK;
 
 	kfree(img);
@@ -132,7 +138,7 @@ static void cmd_get_fw_ver_bin(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -156,14 +162,13 @@ static void cmd_get_fw_ver_ic(void *device_data)
 	info->core_ver_ic = rbuf[3];
 	info->config_ver_ic = rbuf[5];
 
-	sprintf(buf, "ME%02X%02X%02X\n",
-		info->dtdata->panel, info->core_ver_ic, info->config_ver_ic);
+	sprintf(buf, "ME00%02X%02X\n", info->core_ver_ic, info->config_ver_ic);
 	info->cmd_state = CMD_STATUS_OK;
 
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -183,7 +188,7 @@ static void cmd_get_chip_vendor(void *device_data)
 	info->cmd_state = CMD_STATUS_OK;
 
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -203,7 +208,7 @@ static void cmd_get_chip_name(void *device_data)
 	info->cmd_state = CMD_STATUS_OK;
 
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 static void cmd_get_config_ver(void *device_data)
@@ -213,13 +218,13 @@ static void cmd_get_config_ver(void *device_data)
 
 	cmd_clear_result(info);
 	sprintf(buf, "%s_ME_%02d%02d",
-		info->product_name, info->fw_month, info->fw_date);
+			info->product_name, info->fw_month, info->fw_date);
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 
 	info->cmd_state = CMD_STATUS_OK;
 
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -251,7 +256,7 @@ static void cmd_get_x_num(void *device_data)
 
 EXIT:
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -283,7 +288,7 @@ static void cmd_get_y_num(void *device_data)
 
 EXIT:
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -316,7 +321,7 @@ static void cmd_get_max_x(void *device_data)
 
 EXIT:
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -349,7 +354,7 @@ static void cmd_get_max_y(void *device_data)
 
 EXIT:
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -369,7 +374,7 @@ static void cmd_module_off_master(void *device_data)
 
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -389,7 +394,7 @@ static void cmd_module_on_master(void *device_data)
 
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -427,7 +432,7 @@ static void cmd_read_intensity(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -458,7 +463,7 @@ static void cmd_get_intensity(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -496,7 +501,7 @@ static void cmd_read_rawdata(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -527,7 +532,7 @@ static void cmd_get_rawdata(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -565,7 +570,7 @@ static void cmd_run_test_cm_delta(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -596,7 +601,7 @@ static void cmd_get_cm_delta(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -634,7 +639,7 @@ static void cmd_run_test_cm_abs(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 /**
@@ -665,7 +670,7 @@ static void cmd_get_cm_abs(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 static void cmd_get_threshold(void *device_data)
@@ -680,10 +685,10 @@ static void cmd_get_threshold(void *device_data)
 	if (info->dtdata->thr_read_from_ic) {
 		wbuf[0] = MIP_R0_INFO;
 		wbuf[1] = MIP_R1_INFO_IC_CONTACT_ON_THD;
-		if (mms_i2c_read(info, wbuf, 2, rbuf, 1)){
-			  info->cmd_state = CMD_STATUS_FAIL;
-			  sprintf(buf, "%s", "NG");
-			  goto EXIT;
+		if (mms_i2c_read(info, wbuf, 2, rbuf, 1)) {
+			info->cmd_state = CMD_STATUS_FAIL;
+			sprintf(buf, "%s", "NG");
+			goto EXIT;
 		}
 		dev_info(&info->client->dev,
 				"%s: read from IC, %d\n",
@@ -697,7 +702,7 @@ static void cmd_get_threshold(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 static void dead_zone_enable(void *device_data)
@@ -712,11 +717,11 @@ static void dead_zone_enable(void *device_data)
 	wbuf[1] = MIP_R1_CTRL_DISABLE_EDGE_EXPAND;
 	wbuf[2] = 0;
 
-	if(info->cmd_param[0]==0){
+	if (info->cmd_param[0] == 0) {
 		wbuf[2] = 2;
-	}else if(info->cmd_param[0]==1){
+	} else if (info->cmd_param[0] == 1) {
 		wbuf[2] = 0;
-	}else{
+	} else {
 		sprintf(buf, "NG");
 		info->cmd_state = CMD_STATUS_FAIL;
 		goto EXIT;
@@ -726,7 +731,7 @@ static void dead_zone_enable(void *device_data)
 		dev_err(&info->client->dev, "%s [ERROR] mms_i2c_write\n", __func__);
 		sprintf(buf, "NG");
 		info->cmd_state = CMD_STATUS_FAIL;
-	}else{
+	} else {
 		sprintf(buf, "OK");
 		info->cmd_state = CMD_STATUS_OK;
 	}
@@ -736,7 +741,7 @@ EXIT:
 
 
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 static void get_checksum_data(void *device_data)
@@ -762,7 +767,7 @@ static void get_checksum_data(void *device_data)
 EXIT:
 	cmd_set_result(info, buf, strnlen(buf, sizeof(buf)));
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 
@@ -781,7 +786,7 @@ static void cmd_boost_level(void *device_data)
 
 	dev_err(&client->dev, "%s,%d(%x)\n", __func__, info->cmd_param[0], stage);
 
-	if(!(info->booster)){
+	if (!(info->booster)) {
 		sprintf(buf, "%s", "NG");
 		info->cmd_state = CMD_STATUS_FAIL;
 		dev_err(&info->client->dev," %s, booster is null \n", __func__);
@@ -792,8 +797,8 @@ static void cmd_boost_level(void *device_data)
 		sprintf(buf, "%s", "NG");
 		info->cmd_state = CMD_STATUS_FAIL;
 		dev_err(&info->client->dev,
-			"%s: %d is not in supported stage[%x].\n",
-			__func__, info->cmd_param[0], info->booster->dvfs_stage);
+				"%s: %d is not in supported stage[%x].\n",
+				__func__, info->cmd_param[0], info->booster->dvfs_stage);
 		goto out;
 	}
 
@@ -956,8 +961,8 @@ out:
 }
 
 /**
-* Command : Glove mode
-*/
+ * Command : Glove mode
+ */
 static void cmd_glove_mode(void *device_data)
 {
 	struct mms_ts_info *info = (struct mms_ts_info *)device_data;
@@ -1005,7 +1010,7 @@ static void cmd_unknown_cmd(void *device_data)
 	info->cmd_state = CMD_STATUS_NONE;
 
 	dev_dbg(&info->client->dev, "%s - cmd[%s] len[%d] state[%d]\n",
-		__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
+			__func__, buf, strnlen(buf, sizeof(buf)), info->cmd_state);
 }
 
 #define MMS_CMD(name, func)	.cmd_name = name, .cmd_func = func
@@ -1065,7 +1070,7 @@ static struct mms_cmd mms_commands[] = {
  * Sysfs - recv command
  */
 static ssize_t mms_sys_cmd(struct device *dev, struct device_attribute *devattr,
-					const char *buf, size_t count)
+		const char *buf, size_t count)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
@@ -1088,14 +1093,14 @@ static ssize_t mms_sys_cmd(struct device *dev, struct device_attribute *devattr,
 
 	if (!info->input_dev) {
 		dev_err(&info->client->dev,
-			"%s [ERROR] input_dev not found\n", __func__);
+				"%s [ERROR] input_dev not found\n", __func__);
 		ret = -EINVAL;
 		goto ERROR;
 	}
 
 	if (info->cmd_busy == true) {
 		dev_err(&info->client->dev,
-			"%s [ERROR] previous command is not ended\n", __func__);
+				"%s [ERROR] previous command is not ended\n", __func__);
 		ret = -1;
 		goto ERROR;
 	}
@@ -1165,7 +1170,7 @@ static ssize_t mms_sys_cmd(struct device *dev, struct device_attribute *devattr,
 	dev_dbg(&info->client->dev, "%s - cmd [%s]\n", __func__, mms_cmd_ptr->cmd_name);
 	for (i = 0; i < param_cnt; i++) {
 		dev_dbg(&info->client->dev,
-			"%s - param #%d [%d]\n", __func__, i, info->cmd_param[i]);
+				"%s - param #%d [%d]\n", __func__, i, info->cmd_param[i]);
 	}
 
 	//execute
@@ -1184,7 +1189,7 @@ static DEVICE_ATTR(cmd, 0666, NULL, mms_sys_cmd);
  * Sysfs - print command status
  */
 static ssize_t mms_sys_cmd_status(struct device *dev,
-				struct device_attribute *devattr,char *buf)
+		struct device_attribute *devattr,char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
@@ -1219,7 +1224,7 @@ static DEVICE_ATTR(cmd_status, 0666, mms_sys_cmd_status, NULL);
  * Sysfs - print command result
  */
 static ssize_t mms_sys_cmd_result(struct device *dev,
-				struct device_attribute *devattr, char *buf)
+		struct device_attribute *devattr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
@@ -1248,7 +1253,7 @@ static DEVICE_ATTR(cmd_result, 0666, mms_sys_cmd_result, NULL);
  * Sysfs - print command list
  */
 static ssize_t mms_sys_cmd_list(struct device *dev,
-				struct device_attribute *attr, char *buf)
+		struct device_attribute *attr, char *buf)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
@@ -1266,7 +1271,7 @@ static ssize_t mms_sys_cmd_list(struct device *dev,
 	}
 
 	dev_dbg(&info->client->dev, "%s - length [%u / %d]\n",
-		__func__, strlen(buffer), info->cmd_buffer_size);
+			__func__, strlen(buffer), info->cmd_buffer_size);
 
 	ret = snprintf(buf, PAGE_SIZE, "%s\n", buffer);
 	//memset(info->print_buf, 0, 4096);

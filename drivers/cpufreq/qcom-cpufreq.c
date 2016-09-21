@@ -1,9 +1,9 @@
-/* arch/arm/mach-msm/cpufreq.c
+/* drivers/cpufreq/qcom-cpufreq.c
  *
  * MSM architecture cpufreq driver
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2007-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2007-2015, The Linux Foundation. All rights reserved.
  * Author: Mike A. Chan <mikechan@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -22,8 +22,6 @@
 #include <linux/cpufreq.h>
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
-#include <linux/sched.h>
-#include <linux/sched/rt.h>
 #include <linux/suspend.h>
 #include <linux/clk.h>
 #include <linux/err.h>
@@ -45,7 +43,7 @@ struct cpufreq_suspend_t {
 
 static DEFINE_PER_CPU(struct cpufreq_suspend_t, cpufreq_suspend);
 
-#ifdef CONFIG_ARCH_MSM8939
+#if defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8929)
 extern int jig_boot_clk_limit;
 #endif
 
@@ -53,35 +51,24 @@ static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
 			unsigned int index)
 {
 	int ret = 0;
-	int saved_sched_policy = -EINVAL;
-	int saved_sched_rt_prio = -EINVAL;
 	struct cpufreq_freqs freqs;
-	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
 	unsigned long rate;
 
 	freqs.old = policy->cur;
 	freqs.new = new_freq;
 	freqs.cpu = policy->cpu;
 
-	/*
-	 * Put the caller into SCHED_FIFO priority to avoid cpu starvation
-	 * while increasing frequencies
-	 */
-
-	if (freqs.new > freqs.old && current->policy != SCHED_FIFO) {
-		saved_sched_policy = current->policy;
-		saved_sched_rt_prio = current->rt_priority;
-		sched_setscheduler_nocheck(current, SCHED_FIFO, &param);
-	}
-
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
 
 	trace_cpu_frequency_switch_start(freqs.old, freqs.new, policy->cpu);
 
 	rate = new_freq * 1000;
-#ifdef CONFIG_ARCH_MSM8939
+#if defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8929)
 #if defined(CONFIG_SEC_A7_PROJECT)
   #define JIG_LIMIT_CLK	998400 * 1000
+  #define JIG_LIMIT_TIME	160
+#elif defined(CONFIG_MACH_J7_USA_SPR)
+  #define JIG_LIMIT_CLK	499200 * 1000
   #define JIG_LIMIT_TIME	160
 #else
   #define JIG_LIMIT_CLK	960000 * 1000
@@ -104,11 +91,6 @@ static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
 		trace_cpu_frequency_switch_end(policy->cpu);
 	}
 
-	/* Restore priority after clock ramp-up */
-	if (freqs.new > freqs.old && saved_sched_policy >= 0) {
-		param.sched_priority = saved_sched_rt_prio;
-		sched_setscheduler_nocheck(current, saved_sched_policy, &param);
-	}
 	return ret;
 }
 
@@ -116,11 +98,14 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 				unsigned int target_freq,
 				unsigned int relation)
 {
-	int ret = -EFAULT;
+	int ret = 0;
 	int index;
 	struct cpufreq_frequency_table *table;
 
 	mutex_lock(&per_cpu(cpufreq_suspend, policy->cpu).suspend_mutex);
+
+	if (target_freq == policy->cur)
+		goto done;
 
 	if (per_cpu(cpufreq_suspend, policy->cpu).device_suspended) {
 		pr_debug("cpufreq: cpu%d scheduling frequency change "

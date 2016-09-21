@@ -23,3 +23,4 @@ obj-$(CONFIG_S5K4ECGX) += s5k4ecgx_yuv.o
 obj-$(CONFIG_SR352) += sr352_yuv.o
 obj-$(CONFIG_SR130PC20) += sr130pc20_yuv.o
 obj-$(CONFIG_DB8221A) += db8221a_yuv.o
+obj-$(CONFIG_OIS) += external/

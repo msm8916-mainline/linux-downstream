@@ -15,7 +15,7 @@
 //#include "dsi_panel_hx8389c_tft_qhd_video.dtsi"
 #include "msm8916-camera.dtsi"
 #include "msm8916-camera-sensor-cdp-o7-r00.dtsi"
-#include "msm8916-sec-o7-battery-r00.dtsi"
+#include "msm8916-sec-o7ltechn-battery-r00.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0X62_BV050HDM/dsi_panel_S6D7AA0X62_BV050HDM_hd_5_5_video.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/ILI9881C_SKI550002/dsi_panel_ILI9881C_SKI550002_hd_video.dtsi"
 / {
@@ -127,7 +127,7 @@
 				chg_autostop = <0>;
 				chg_autoset = <1>;
 				chg_aiclen = <1>;
-				chg_aiclth = <4500>;
+				chg_aiclth = <4300>;
 				fg_vol_val = <4350>;
 				fg_soc_val = <95>;
 				fg_curr_avr_val = <150>;
@@ -619,7 +619,7 @@
 				backlight-ic-tuning-outdoor = [
 					09	01
 					04	07
-					05	D6
+					05	CB
 				];
 				backlight-ic-tuning-normal = [
 					04	05

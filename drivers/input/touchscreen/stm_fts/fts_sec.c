@@ -578,6 +578,9 @@ static void not_support_cmd(void *device_data)
 	set_default_result(info);
 	snprintf(buff, sizeof(buff), "%s", "NA");
 	set_cmd_result(info, buff, strnlen(buff, sizeof(buff)));
+	mutex_lock(&info->cmd_lock);
+	info->cmd_is_running = false;
+	mutex_unlock(&info->cmd_lock);
 	info->cmd_state = 4;
 	tsp_debug_info(true, &info->client->dev, "%s: \"%s(%d)\"\n", __func__, buff,
 		  strnlen(buff, sizeof(buff)));

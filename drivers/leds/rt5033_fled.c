@@ -93,6 +93,7 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 {
 	int sel = 0;
 	rt_fled_info_t *fled_info = rt_fled_get_info_by_name(NULL);
+	rt5033_fled_info_t *info = (rt5033_fled_info_t *)fled_info;
 
 	if(!strncmp(buf, "0", 1)){
 		assistive_light = false;
@@ -103,6 +104,8 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 		gpio_direction_output(led_irq_gpio2, 0);
 		gpio_free(led_irq_gpio1);
 		gpio_free(led_irq_gpio2);
+		/* Set torch current */
+		sel = rt5033_fled_set_torch_current_sel(fled_info, info->pdata->fled_torch_current);
 	} else if(!strncmp(buf, "100", 3)){
 		pr_err("Torch Factory\n");
 		gpio_request(led_irq_gpio1, NULL);

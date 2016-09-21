@@ -1383,7 +1383,7 @@
 
 			muic_chg_det: default {
 				drive-strength = <2>;
-				bias-pull-up; /* PULL UP */
+				bias-disable; /* No PULL */
 			};
 		};
 

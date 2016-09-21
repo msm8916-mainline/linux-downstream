@@ -140,6 +140,31 @@ static struct dsi_panel_cmds * mdss_brightness_tft_pwm(struct mdss_dsi_ctrl_pdat
 	return &vdd->dtsi_data[ctrl->ndx].tft_pwm_tx_cmds[vdd->panel_revision];
 }
 
+static void mdss_panel_tft_outdoormode_update(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return;
+	}
+	pr_info("%s: tft panel autobrightness update\n", __func__);
+
+	switch(vdd->auto_brightness)
+	{
+	case 0:
+	case 1:
+	case 2:
+	case 3:
+	case 4:
+	case 5:	if(vdd->prev_auto_brightness == 6)
+				vdd->panel_func.samsung_bl_ic_outdoor(0);
+			break;
+	case 6:	vdd->panel_func.samsung_bl_ic_outdoor(1);
+			break;
+	}
+	vdd->prev_auto_brightness =	vdd->auto_brightness;
+}
+
 static void dsi_update_mdnie_data(void)
 {
 	/* Update mdnie command */
@@ -233,7 +258,7 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	pr_info("%s : %s", __func__, vdd->panel_name);
 
 	vdd->support_panel_max = ILI9881C_SKI550002_SUPPORT_PANEL_COUNT;
-	vdd->support_cabc = false;
+	vdd->support_cabc = true;
 	vdd->manufacture_id_dsi[vdd->support_panel_max - 1] = get_lcd_attached("GET");
 
 	vdd->support_mdnie_lite = false;
@@ -272,6 +297,7 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_brightness_gamma = NULL;
 	vdd->brightness[0].brightness_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;
 	vdd->panel_func.samsung_backlight_late_on = update_mdnie_tft_cmds;
+	vdd->mdss_panel_tft_outdoormode_update=mdss_panel_tft_outdoormode_update;
 
 	dsi_update_mdnie_data();
 	mdss_panel_attach_set(vdd->ctrl_dsi[DISPLAY_1], true);

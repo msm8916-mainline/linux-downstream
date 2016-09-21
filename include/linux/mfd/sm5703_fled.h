@@ -33,6 +33,8 @@ typedef struct sm5703_fled_platform_data {
 #define SM5703_FLEDCNTL5			0x18
 #define SM5703_FLEDCNTL6			0x19
 
+#define SM5703_Q3LIMITCNTL			0x66
+
 #define SM5703_FLEDEN_MASK          0x03
 #define SM5703_FLEDEN_DISABLE       0x00
 #define SM5703_FLEDEN_MOVIE_MODE    0x01

@@ -9,6 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+
 / {
 	battery {
 		status = "okay";
@@ -42,21 +43,9 @@
 
 		battery,temp_check_type = <2>; /* SEC_BATTERY_TEMP_CHECK_TEMP */
 		battery,temp_check_count = <1>;
-		battery,temp_high_threshold_event = <600>;
-		battery,temp_high_recovery_event = <450>;
-		battery,temp_low_threshold_event = <(-50)>;
-		battery,temp_low_recovery_event = <0>;
-		battery,temp_high_threshold_normal = <600>;
-		battery,temp_high_recovery_normal = <450>;
-		battery,temp_low_threshold_normal = <(-50)>;
-		battery,temp_low_recovery_normal = <0>;
-		battery,temp_high_threshold_lpm = <600>;
-		battery,temp_high_recovery_lpm = <450>;
-		battery,temp_low_threshold_lpm = <(-50)>;
-		battery,temp_low_recovery_lpm = <0>;
 		battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
-		battery,full_check_type_2nd = <3>; /* SEC_BATTERY_FULLCHARGED_TIME */
-		battery,full_check_count = <1>;
+		battery,full_check_type_2nd = <2>; /* SEC_BATTERY_FULLCHARGED_FG_CURRENT */
+		battery,full_check_count = <2>;
 		battery,chg_gpio_full_check = <0>;
 		battery,chg_polarity_full_check = <1>;
 
@@ -90,14 +79,13 @@
 			battery,chg_polarity_en = <0>;
 			battery,chg_gpio_status = <0>;
 			battery,chg_polarity_status = <0>;
-			battery,chg_float_voltage = <4400>;
-			battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
-			battery,full_check_type_2nd = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+			battery,chg_float_voltage = <4390>;
+			battery,chg_vbuslimit = <0>;
 
 			battery,input_current_limit = <1500 500 500 1500 500 1500 1500 500 500 1500 650 1500 1500 500 1500 500 700 1500 500 1500 1500 500 500>;
-			battery,fast_charging_current = <2100 0 500 2100 500 2100 2100 500 0 2100 750 2100 2100 (-1) 2100 500 700 2100 500 2100 2100 0 0>;
+			battery,fast_charging_current = <2000 0 500 2000 500 2000 2000 500 0 2000 750 2000 2000 (-1) 2000 500 700 2000 500 2000 2000 0 0>;
 			battery,full_check_current_1st = <200 0 200 200 200 200 200 200 0 200 200 200 200 0 200 200 200 200 200 200 200 0 0>;
-			battery,full_check_current_2nd = <2400 0 2400 2400 2400 2400 2400 2400 0 2400 2400 2400 2400 0 2400 2400 2400 2400 2400 2400 2400 0 0>;
+			battery,full_check_current_2nd = <110 0 110 110 110 110 110 110 0 110 110 110 110 0 110 110 110 110 110 110 110 0 0>;
 		};
 	};
 
@@ -110,14 +98,16 @@
 		battery0,temp_std = <25>;
 		battery0,temp_offset = <10>;
 		battery0,temp_offset_cal = <0x01>;
-		battery0,charge_offset_cal = <(-0x05)>;
+		battery0,charge_offset_cal = <0x6>;
 		battery0,rce_value = <0x0749 0x0580 0x371>;
 		battery0,dtcd_value = <0x1>;
 		battery0,rs_value = <0x1ae 0x47a 0x3800 0x00a4>; /*rs mix_factor max min*/
 		battery0,vit_period = <0x350a>;
 		battery0,mix_value = <0x0503 0x0004>; /*mix_rate init_blank*/
 		battery0,topoff_soc = <0x0 0x5>; /*disable soc*/
-		battery0,volt_cal = <0x8000>;
-		battery0,curr_cal = <0x7A85>;
+		battery0,volt_cal = <0x809E>;
+		battery0,curr_cal = <0x7685>;
+		battery0,tem_poff = <3330 80 3250 50>;
+		battery0,ext_temp_cal = <1 10 1 1 1 7 2 2>;
 	};
 };

@@ -15,6 +15,13 @@
 #include <linux/mfd/sm5703.h>
 #include <linux/mfd/sm5703_irq.h>
 
+enum {
+    SM5703_TOPOFF_TIMER_10m         = 0x0,
+    SM5703_TOPOFF_TIMER_20m         = 0x1,
+    SM5703_TOPOFF_TIMER_30m         = 0x2,
+    SM5703_TOPOFF_TIMER_45m         = 0x3,
+};
+
 #define SM5703_CNTL				    0x0C
 #define SM5703_VBUSCNTL				0x0D
 #define SM5703_CHGCNTL1				0x0E
@@ -57,6 +64,10 @@
 
 #define SM5703_AUTOSTOP             0x1
 #define SM5703_AUTOSTOP_MASK        (1 << 7)
+
+#define SM5703_TOPOFF_TIMER			0x3
+#define SM5703_TOPOFF_TIMER_MASK	0x60
+#define SM5703_TOPOFF_TIMER_SHIFT	0x5
 
 #define SM5703_AICLEN               0x1
 #define SM5703_AICLEN_MASK          (1 << 7)
@@ -108,15 +119,22 @@
 #define REDUCE_CURRENT_STEP				50
 #define MINIMUM_INPUT_CURRENT			300
 
-#if defined(CONFIG_MACH_GTES_USA_SPR)
-#define SLOW_CHARGING_CURRENT_STANDARD	400
-#elif defined(CONFIG_MACH_GTEL_USA_VZW) || defined(CONFIG_MACH_GTELWIFI_USA_OPEN)
+#if defined(CONFIG_MACH_GTEL_USA_VZW) || defined(CONFIG_MACH_GTELWIFI_USA_OPEN)
 #define SLOW_CHARGING_CURRENT_STANDARD	1050
+#elif defined(CONFIG_MACH_J3LTE_USA_VZW)
+#define SLOW_CHARGING_CURRENT_STANDARD	300
+#elif defined(CONFIG_SEC_J5X_PROJECT) || defined(CONFIG_SEC_J3_PROJECT)
+/* Slow Charging Mode Disable */
+#define SLOW_CHARGING_CURRENT_STANDARD	0
 #else
 #define SLOW_CHARGING_CURRENT_STANDARD	999
 #endif
 
+#if defined(CONFIG_MACH_XCOVER3_DCM)
+#define SIOP_INPUT_LIMIT_CURRENT		1000
+#else
 #define SIOP_INPUT_LIMIT_CURRENT		1200
+#endif
 
 extern sec_battery_platform_data_t sec_battery_pdata;
 

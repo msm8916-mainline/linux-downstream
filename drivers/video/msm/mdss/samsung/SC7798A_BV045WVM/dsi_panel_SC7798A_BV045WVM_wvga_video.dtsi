@@ -116,6 +116,12 @@
 		samsung,cabc_off_tx_cmds_revA = [
 			39 01 00 00 00 00 02 55 00
 		];
+		samsung,reg_read_pos_tx_cmds_revA = [ 15 01 00 00 00 00 02 B0 00];
+		samsung,packet_size_tx_cmds_revA = [ 37 01 00 00 00 00 02 07 00];
+
+		samsung,manufacture_id0_rx_cmds_revA = [06 01 00 00 00 00 01 da 03 00];
+		samsung,manufacture_id1_rx_cmds_revA = [06 01 00 00 00 00 01 db 03 00];
+		samsung,manufacture_id2_rx_cmds_revA = [06 01 00 00 00 00 01 dc 03 00];
 		/*
 		* ************************************************************************************************************************
 		* Scaled level to index mappings

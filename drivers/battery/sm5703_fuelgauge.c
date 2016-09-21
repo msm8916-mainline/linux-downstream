@@ -282,7 +282,7 @@ static bool sm5703_fg_get_batt_present(struct i2c_client *client)
 }
 
 int calculate_iocv(struct i2c_client *client)
-{ 
+{
 	int i;
 	int max=0, min=0, sum=0, l_avg=0, s_avg=0, l_minmax_offset=0;
 	int ret=0;
@@ -348,8 +348,7 @@ int calculate_iocv(struct i2c_client *client)
 	}
 
 	return ret;
-} 
-
+}
 
 static bool sm5703_fg_reg_init(struct i2c_client *client, int is_surge)
 {
@@ -441,6 +440,7 @@ static bool sm5703_fg_reg_init(struct i2c_client *client, int is_surge)
 	} else {
 		value = calculate_iocv(client);
 	}
+
 	sm5703_fg_i2c_write_word(client, SM5703_REG_IOCV_MAN, value);
 	dev_info(&client->dev, "%s: IOCV_MAN_WRITE = %d : 0x%x\n", __func__, fuelgauge->info.batt_ocv, value);
 
@@ -486,7 +486,7 @@ static bool sm5703_fg_init(struct i2c_client *client, bool is_surge)
 	dev_dbg(&client->dev, "%s: get POWER_SUPPLY_PROP_HEALTH = 0x%x\n", __func__, value.intval);
 
 	ta_exist = ((value.intval == POWER_SUPPLY_HEALTH_GOOD) |
-		fuelgauge->is_charging) && (fuelgauge->info.batt_current>=0);
+		fuelgauge->is_charging) && (fuelgauge->info.batt_current > 30);
 
 	dev_dbg(&client->dev, "%s: is_charging = %d, ta_exist = %d\n", __func__, fuelgauge->is_charging, ta_exist);
 
@@ -583,19 +583,19 @@ void fg_abnormal_reset_check(struct i2c_client *client)
 			}
 			// delay 200ms
 			msleep(200);
-			// init code 
+			// init code
 			sm5703_fg_init(client, true);
 		}
 	}
 }
 
-void fg_vbatocv_check(struct i2c_client *client)
+void fg_vbatocv_check(struct i2c_client *client, int ta_exist)
 {
 	int ret;
 	struct sec_fuelgauge_info *fuelgauge = i2c_get_clientdata(client);
 
 	// iocv error case cover start
-	if((abs(fuelgauge->info.batt_current)<40) || ((fuelgauge->is_charging) && (abs(fuelgauge->info.batt_current)<200)))
+	if((abs(fuelgauge->info.batt_current)<40) || ((ta_exist) && (abs(fuelgauge->info.batt_current)<fuelgauge->info.min_charge_curr)))
 	{
 		if(abs(fuelgauge->info.batt_ocv-fuelgauge->info.batt_voltage)>30) // 30mV over
 		{
@@ -637,7 +637,7 @@ void fg_vbatocv_check(struct i2c_client *client)
 	{
 		if((fuelgauge->info.temperature/10) > 15)
 		{
-			if((fuelgauge->info.p_batt_voltage < fuelgauge->info.n_tem_poff) && (fuelgauge->info.batt_voltage < fuelgauge->info.n_tem_poff) && (!fuelgauge->is_charging))
+			if((fuelgauge->info.p_batt_voltage < fuelgauge->info.n_tem_poff) && (fuelgauge->info.batt_voltage < fuelgauge->info.n_tem_poff) && (!ta_exist))
 			{
 				dev_info(&client->dev, "%s: mode change to normal tem mix RS manual mode\n", __func__);
 				// mode change to mix RS manual mode
@@ -671,7 +671,7 @@ void fg_vbatocv_check(struct i2c_client *client)
 		}
 		else
 		{
-			if((fuelgauge->info.p_batt_voltage < fuelgauge->info.l_tem_poff) && (fuelgauge->info.batt_voltage < fuelgauge->info.l_tem_poff) && (!fuelgauge->is_charging))
+			if((fuelgauge->info.p_batt_voltage < fuelgauge->info.l_tem_poff) && (fuelgauge->info.batt_voltage < fuelgauge->info.l_tem_poff) && (!ta_exist))
 			{
 				dev_info(&client->dev, "%s: mode change to normal tem mix RS manual mode\n", __func__);
 				// mode change to mix RS manual mode
@@ -716,19 +716,21 @@ unsigned int sm5703_get_soc(struct i2c_client *client)
 	int ta_exist;
 	int curr_cal;
 	int temp_cal_fact;
+	int temp_gap=0;
+	int high_temp_cal_fact=0, low_temp_cal_fact=0;
 	union power_supply_propval value;
 	struct sec_fuelgauge_info *fuelgauge = i2c_get_clientdata(client);
-
-	fg_abnormal_reset_check(client);
-	fg_vbatocv_check(client);
 
 	value.intval = POWER_SUPPLY_HEALTH_UNKNOWN;
 	psy_do_property("sm5703-charger", get,
 			POWER_SUPPLY_PROP_HEALTH, value);
 	dev_dbg(&client->dev, "%s: get POWER_SUPPLY_PROP_HEALTH = 0x%x\n", __func__, value.intval);
 
-	ta_exist = ((value.intval == POWER_SUPPLY_HEALTH_GOOD) | fuelgauge->is_charging) && (fuelgauge->info.batt_current>0);
+	ta_exist = ((value.intval == POWER_SUPPLY_HEALTH_GOOD) | fuelgauge->is_charging) && (fuelgauge->info.batt_current > 30);
 	dev_info(&client->dev, "%s: curr_cal = 0x%x , ta_exist = %d\n", __func__, fuelgauge->info.curr_cal, ta_exist);
+
+	fg_abnormal_reset_check(client);
+	fg_vbatocv_check(client, ta_exist);
 
 	if(ta_exist)
 		curr_cal = fuelgauge->info.curr_cal+(fuelgauge->info.charge_offset_cal<<8);
@@ -740,18 +742,27 @@ unsigned int sm5703_get_soc(struct i2c_client *client)
 	temp_cal_fact = temp_cal_fact * fuelgauge->info.temp_offset_cal;
 	curr_cal = curr_cal + (temp_cal_fact<<8);
 
-	// compensate soc in case of low bat_temp
-	if((fuelgauge->info.temperature/10)<25)
+	temp_gap = (fuelgauge->info.temperature/10) - fuelgauge->info.temp_std;
+	if (fuelgauge->info.en_high_temp_cal && (temp_gap > 0))
 	{
-		curr_cal = curr_cal - (((25 -(fuelgauge->info.temperature/10))/7)<<8);
+		if (ta_exist)
+			high_temp_cal_fact = fuelgauge->info.high_temp_p_cal_fact;
+		else
+			high_temp_cal_fact = fuelgauge->info.high_temp_n_cal_fact;
+		curr_cal = curr_cal + (((temp_gap / fuelgauge->info.high_temp_cal_denom)*high_temp_cal_fact)<<8);
 	}
-	else if((fuelgauge->info.temperature/10)>30)
+	else if (fuelgauge->info.en_low_temp_cal && (temp_gap < 0))
 	{
-		curr_cal = curr_cal - (((30 -(fuelgauge->info.temperature/10))/10)<<8);
+		if (ta_exist)
+			low_temp_cal_fact = fuelgauge->info.low_temp_p_cal_fact;
+		else
+			low_temp_cal_fact = fuelgauge->info.low_temp_n_cal_fact;
+		temp_gap = -temp_gap;
+		curr_cal = curr_cal + (((temp_gap / fuelgauge->info.low_temp_cal_denom)*low_temp_cal_fact)<<8);
 	}
 
-	dev_info(&client->dev, "%s: fg_get_soc : temp_std = %d , temp_fg = %d , temp_offset = %d , temp_offset_cal = 0x%x, curr_cal = 0x%x, batt_temp = %d\n",
-		__func__, fuelgauge->info.temp_std, fuelgauge->info.temp_fg, fuelgauge->info.temp_offset, fuelgauge->info.temp_offset_cal, curr_cal, fuelgauge->info.temperature);
+	dev_info(&client->dev, "%s: temp_fg = %d , batt_temp = %d, volt_cal = 0x%x, curr_cal = 0x%x, high_temp_cal_fact = %d, low_temp_cal_fact = %d\n",
+		__func__, fuelgauge->info.temp_fg, fuelgauge->info.temperature, fuelgauge->info.volt_cal, curr_cal, high_temp_cal_fact, low_temp_cal_fact);
 
 	sm5703_fg_i2c_write_word(client, SM5703_REG_CURR_CAL, curr_cal);
 
@@ -763,6 +774,43 @@ unsigned int sm5703_get_soc(struct i2c_client *client)
 		soc = ((ret&0xff00)>>8) * 10; //integer bit;
 		soc = soc + (((ret&0x00ff)*10)/256); // integer + fractional bit
 	}
+
+#if (defined(CONFIG_SEC_J5_PROJECT) || defined(CONFIG_SEC_J5N_PROJECT)) && !defined(CONFIG_MACH_J5LTE_CHN_CMCC)  /* only for J5 LDO1 noise */
+	// for charger setting
+	if(fuelgauge->is_charging) //During charging
+	{
+		if (fuelgauge->info.batt_ocv >= 4200)
+		{
+			value.intval = 0;
+			psy_do_property("sm5703-charger", set,
+					POWER_SUPPLY_PROP_INPUT_CURRENT_MAX, value);
+		}
+		else if (fuelgauge->info.batt_ocv >= 4100)
+		{
+			value.intval = 1;
+			psy_do_property("sm5703-charger", set,
+					POWER_SUPPLY_PROP_INPUT_CURRENT_MAX, value);
+		}
+		else if (fuelgauge->info.batt_ocv >= 4080)
+		{
+			value.intval = 2;
+			psy_do_property("sm5703-charger", set,
+					POWER_SUPPLY_PROP_INPUT_CURRENT_MAX, value);
+		}
+		else if (fuelgauge->info.batt_ocv >= 4000)
+		{
+			value.intval = 3;
+			psy_do_property("sm5703-charger", set,
+					POWER_SUPPLY_PROP_INPUT_CURRENT_MAX, value);
+		}
+		else if (fuelgauge->info.batt_ocv >= 3980)
+		{
+			value.intval = 4;
+			psy_do_property("sm5703-charger", set,
+					POWER_SUPPLY_PROP_INPUT_CURRENT_MAX, value);
+		}
+	}
+#endif
 
 	dev_info(&client->dev, "%s: read = 0x%x, soc = %d\n", __func__, ret, soc);
 	fuelgauge->info.batt_soc = soc;
@@ -806,7 +854,8 @@ static int sm5703_fg_parse_dt(struct sec_fuelgauge_info *fuelgauge)
 	int rs_value[4];
 	int mix_value[2];
 	int topoff_soc[2];
-	int set_temp_poff[4] = {3420,70,3420,70};
+	int ext_temp_cal[8] = {1, 7, 1, 1, 1, 10, -1, -1};
+	int set_temp_poff[4] = {3350,70,3300,70};
 
 	int ret;
 	int i, j;
@@ -948,6 +997,30 @@ static int sm5703_fg_parse_dt(struct sec_fuelgauge_info *fuelgauge)
 	if (ret < 0)
 		PINFO("Can get prop %s (%d)\n", prop_name, ret);
 	PINFO("%s = <0x%x>\n", prop_name, fuelgauge->info.charge_offset_cal);
+
+	// min_charge_curr
+	snprintf(prop_name, PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "min_charge_curr");
+	ret = of_property_read_u32_array(np, prop_name, &fuelgauge->info.min_charge_curr, 1);
+	if (ret < 0){
+		fuelgauge->info.min_charge_curr = 200;
+		PINFO("Can get prop %s (%d)\n", prop_name, ret);
+	}
+	PINFO("%s = <%d>\n", prop_name, fuelgauge->info.min_charge_curr);
+
+	// ext_temp_calc
+	snprintf(prop_name, PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "ext_temp_cal");
+	ret = of_property_read_u32_array(np, prop_name, ext_temp_cal, 8);
+	if (ret < 0)
+		PINFO("Can get prop %s (%d)\n", prop_name, ret);
+	fuelgauge->info.en_high_temp_cal = ext_temp_cal[0];
+	fuelgauge->info.high_temp_cal_denom = ext_temp_cal[1];
+	fuelgauge->info.high_temp_p_cal_fact = ext_temp_cal[2];
+	fuelgauge->info.high_temp_n_cal_fact = ext_temp_cal[3];
+	fuelgauge->info.en_low_temp_cal = ext_temp_cal[4];
+	fuelgauge->info.low_temp_cal_denom = ext_temp_cal[5];
+	fuelgauge->info.low_temp_p_cal_fact = ext_temp_cal[6];
+	fuelgauge->info.low_temp_n_cal_fact = ext_temp_cal[7];
+	PINFO("%s = <%d, %d, %d, %d, %d, %d, %d, %d>\n", prop_name, fuelgauge->info.en_high_temp_cal, fuelgauge->info.high_temp_cal_denom, fuelgauge->info.high_temp_p_cal_fact, fuelgauge->info.high_temp_n_cal_fact, fuelgauge->info.en_low_temp_cal, fuelgauge->info.low_temp_cal_denom, fuelgauge->info.low_temp_p_cal_fact, fuelgauge->info.low_temp_n_cal_fact);
 
 	// tem poff level
 	snprintf(prop_name, PROPERTY_NAME_SIZE, "battery%d,%s", battery_id, "tem_poff");
@@ -1092,7 +1165,6 @@ bool sec_hal_fg_is_fuelalerted(struct i2c_client *client)
 
 bool sec_hal_fg_fuelalert_process(void *irq_data, bool is_fuel_alerted)
 {
-
 	struct sec_fuelgauge_info *fuelgauge = irq_data;
 	struct i2c_client *client = fuelgauge->client;
 	int ret;
@@ -1225,7 +1297,7 @@ static int sec_fg_calculate_dynamic_scale(
 	if (capacity != 100) {
 		fuelgauge->capacity_max = sec_fg_check_capacity_max(
 				fuelgauge, (fuelgauge->capacity_max * 100 / capacity));
-	} else  {
+	} else {
 		fuelgauge->capacity_max =
 			(fuelgauge->capacity_max * 99 / 100);
 	}
@@ -1256,7 +1328,7 @@ bool sm5703_fg_reset(struct i2c_client *client)
 	sm5703_fg_i2c_write_word(client, 0x90, 0x0008);
 	// delay 200ms
 	msleep(200);
-	/* init code */
+	// init code
 	sm5703_fg_init(client, false);
 
 	return true;
@@ -1318,6 +1390,7 @@ bool sec_hal_fg_get_property(struct i2c_client *client,
 			/* Current (mA) */
 		case POWER_SUPPLY_PROP_CURRENT_NOW:
 			val->intval = sm5703_get_curr(client);
+			break;
 			/* Average Current (mA) */
 		case POWER_SUPPLY_PROP_CURRENT_AVG:
 			sm5703_get_curr(client);

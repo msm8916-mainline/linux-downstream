@@ -51,6 +51,7 @@
 			vfsspi-orient = <0>;
 			vfsspi-ldocontrol= <1>;
 			vfsspi-expander_call= <1>;
+			vfsspi-min_cpufeq_limit = <1344000>;
 
 			pinctrl-names = "default", "sleep", "idle";
 			pinctrl-0 = <&vfsspi_drdypin_active>;

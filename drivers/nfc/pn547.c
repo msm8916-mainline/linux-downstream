@@ -61,6 +61,9 @@ struct pn547_dev {
 #ifdef CONFIG_NFC_PN547_PVDD_EN_CONTROL
 	unsigned int pvdd_en;
 #endif
+#ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
+	unsigned int vio_gpio;
+#endif
 #ifdef CONFIG_NFC_PN547_8916_CLK_CTL
 	unsigned int nfc_enable;
 #endif
@@ -84,6 +87,10 @@ struct pn547_dev {
 #endif
 
 };
+
+
+static struct pn547_dev *pn547_dev;
+
 #ifdef CONFIG_NFC_PN547_8916_CLK_CTL
 #define PN547_NFC_GET_INFO(dev) i2c_get_clientdata(to_i2c_client(dev))
 #endif
@@ -306,13 +313,16 @@ static int pn547_dev_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static long pn547_dev_ioctl(struct file *filp,
+long pn547_dev_ioctl(struct file *filp,
 			   unsigned int cmd, unsigned long arg)
 {
-	struct pn547_dev *pn547_dev = filp->private_data;
+	/*struct pn547_dev *pn547_dev = filp->private_data;*/
 
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 	p61_access_lock(pn547_dev);
+
+	pr_info("%s :enter cmd = %u, arg = %ld\n", __func__, cmd, arg);
+
 	switch (cmd) {
 	case PN547_SET_PWR:
 	{
@@ -624,6 +634,8 @@ static long pn547_dev_ioctl(struct file *filp,
 	return 0;
 }
 
+EXPORT_SYMBOL(pn547_dev_ioctl);
+
 static const struct file_operations pn547_dev_fops = {
 	.owner = THIS_MODULE,
 	.llseek = no_llseek,
@@ -724,6 +736,10 @@ static int pn547_parse_dt(struct device *dev,
 {
 	struct device_node *np = dev->of_node;
 
+#ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
+	pdata->vio_gpio = of_get_named_gpio_flags(np, "pn547,vio-gpio",
+		0, &pdata->vio_gpio_flags);
+#endif
 	pdata->irq_gpio = of_get_named_gpio_flags(np, "pn547,irq-gpio",
 		0, &pdata->irq_gpio_flags);
 
@@ -777,7 +793,7 @@ static int pn547_probe(struct i2c_client *client,
 	int ret;
 	int err;
 	struct pn547_i2c_platform_data *platform_data;
-	struct pn547_dev *pn547_dev;
+	/*struct pn547_dev *pn547_dev;*/
 	struct pinctrl *nfc_pinctrl;
 	struct pinctrl_state *nfc_suspend;
 	struct pinctrl_state *nfc_active;
@@ -807,6 +823,11 @@ static int pn547_probe(struct i2c_client *client,
 		pr_err("%s : need I2C_FUNC_I2C\n", __func__);
 		return -ENODEV;
 	}
+#ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
+	ret = gpio_request(platform_data->vio_gpio, "nfc_vio");
+	if (ret)
+		goto err_vio;
+#endif
 #ifdef CONFIG_NFC_PN547_PVDD_EN_CONTROL
 	ret = gpio_request(platform_data->pvdd_en, "nfc_pvdd_en");
 	if (ret) {
@@ -869,6 +890,9 @@ static int pn547_probe(struct i2c_client *client,
 #ifdef CONFIG_NFC_PN547_PVDD_EN_CONTROL
 	pn547_dev->pvdd_en = platform_data->pvdd_en;
 #endif
+#ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
+	pn547_dev->vio_gpio = platform_data->vio_gpio;
+#endif
 	pn547_dev->irq_gpio = platform_data->irq_gpio;
 	pn547_dev->ven_gpio = platform_data->ven_gpio;
 	pn547_dev->firm_gpio = platform_data->firm_gpio;
@@ -916,6 +940,9 @@ static int pn547_probe(struct i2c_client *client,
 #ifdef CONFIG_NFC_PN547_PVDD_EN_CONTROL
 	gpio_direction_output(pn547_dev->pvdd_en, 1);
 #endif
+#ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
+	gpio_direction_output(pn547_dev->vio_gpio, 1);
+#endif
 	gpio_direction_input(pn547_dev->irq_gpio);
 	gpio_direction_output(pn547_dev->ven_gpio, 0);
 	gpio_direction_output(pn547_dev->firm_gpio, 0);
@@ -939,6 +966,9 @@ static int pn547_probe(struct i2c_client *client,
 	disable_irq_nosync(pn547_dev->client->irq);
 	atomic_set(&pn547_dev->irq_enabled, 0);
 
+#ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
+	gpio_set_value(pn547_dev->vio_gpio, 1);
+#endif
 	gpio_set_value(pn547_dev->firm_gpio, 1); /* add firmware pin */
 	msleep(20);
 	gpio_set_value(pn547_dev->ven_gpio, 1);
@@ -994,6 +1024,10 @@ err_exit:
 	gpio_free(platform_data->ese_pwr_req);
 err_ese:
 #endif
+#ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
+	gpio_free(platform_data->vio_gpio);
+err_vio:
+#endif
 	gpio_free(platform_data->firm_gpio);
 err_firm:
 	gpio_free(platform_data->ven_gpio);
@@ -1026,6 +1060,9 @@ static int pn547_remove(struct i2c_client *client)
 	pn547_dev->p61_current_state = P61_STATE_INVALID;
 	pn547_dev->nfc_ven_enabled = false;
 	pn547_dev->spi_ven_enabled = false;
+#endif
+#ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
+	gpio_free(pn547_dev->vio_gpio);
 #endif
 	kfree(pn547_dev);
 
@@ -1069,12 +1106,11 @@ static struct i2c_driver pn547_driver = {
 static int __init pn547_dev_init(void)
 {
 	pr_info("Loading pn547 driver\n");
-#ifdef CONFIG_NFC_PN547_LDO_CONTROL
+
 	if(poweroff_charging)
 		return 0;
-	else
-#endif
-		return i2c_add_driver(&pn547_driver);
+
+	return i2c_add_driver(&pn547_driver);
 }
 
 module_init(pn547_dev_init);

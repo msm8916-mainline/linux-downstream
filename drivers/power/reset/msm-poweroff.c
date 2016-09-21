@@ -264,9 +264,6 @@ static void msm_restart_prepare(const char *cmd)
 However, Samsung implemation already supports more usecases including nvrestore, nvbackup, EDL, LPM etc.
 Hence Qualcomm's PMIC hard reboot implementation has been taken, but disabled. */
 #ifdef CONFIG_QCOM_HARDREBOOT_IMPLEMENTATION
-	need_warm_reset = (get_dload_mode() ||
-				(cmd != NULL && cmd[0] != '\0'));
-
 	if (qpnp_pon_check_hard_reset_stored()) {
 		/* Set warm reset as true when device is in dload mode
 		 *  or device doesn't boot up into recovery, bootloader or rtc.
@@ -277,6 +274,9 @@ Hence Qualcomm's PMIC hard reboot implementation has been taken, but disabled. *
 			strcmp(cmd, "bootloader") &&
 			strcmp(cmd, "rtc")))
 			need_warm_reset = true;
+	} else {
+		need_warm_reset = (get_dload_mode() ||
+				(cmd != NULL && cmd[0] != '\0'));
 	}
 
 	/* Hard reset the PMIC unless memory contents must be maintained. */

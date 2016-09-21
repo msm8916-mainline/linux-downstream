@@ -21,9 +21,9 @@
 #undef CDBG
 #define db8221a_DEBUG
 #ifdef db8221a_DEBUG
-#define CDBG(fmt, args...)	pr_err("[db8221a] %s : %d : "fmt "\n",   __FUNCTION__, __LINE__, ##args)
+#define CDBG(fmt, args...)	pr_err("%s : %d : "fmt "\n",   __FUNCTION__, __LINE__, ##args)
 #else
-#define CDBG(fmt, args...)	pr_debug("[db8221a] %s : %d : "fmt "\n",   __FUNCTION__, __LINE__, ##args)
+#define CDBG(fmt, args...)	pr_debug("%s : %d : "fmt "\n",   __FUNCTION__, __LINE__, ##args)
 #endif
 
 int32_t db8221a_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,

@@ -24,6 +24,7 @@
 #include <linux/firmware.h>
 #include <linux/gpio.h>
 #include <linux/input/input_booster.h>
+#include <linux/ctype.h>
 #include "ist30xxc.h"
 #include "ist30xxc_update.h"
 #if IST30XX_DEBUG
@@ -390,12 +391,28 @@ static void get_config_ver(void *dev_data)
 {
         struct ist30xx_data *data = (struct ist30xx_data *)dev_data;
         struct sec_factory *sec = (struct sec_factory *)&data->sec;
+	u8 month, day;
 
         char buff[255] = {0};
+        char name[255] = {0};
 
         set_default_result(sec);
 
-        snprintf(buff, sizeof(buff), "%s_%s", TSP_CHIP_VENDOR, TSP_CHIP_NAME);
+#if IST30XX_INTERNAL_BIN
+	month = data->tags.month;
+	day = data->tags.day;
+#else
+	month = day = 0;
+#endif
+
+        if(data->dt_data->project_name) {
+              strcpy(name, data->dt_data->project_name);
+              name[0] = toupper(name[0]);
+              snprintf(buff, sizeof(buff),
+                            "%s_%s_%02d%02d", name, TSP_CHIP_VENDOR, month, day);
+        }else {
+              snprintf(buff, sizeof(buff), "%s_%s", TSP_CHIP_VENDOR, TSP_CHIP_NAME);
+        }
 
         set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
         sec->cmd_state = CMD_STATE_OK;

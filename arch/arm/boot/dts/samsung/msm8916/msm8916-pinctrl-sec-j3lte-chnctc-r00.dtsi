@@ -979,17 +979,6 @@
 				bias-disable;
 			};
 		};
-
-		tpiu_setb_17 {
-			qcom,pins = <&gp 120>;
-			qcom,num-grp-pins = <1>;
-			qcom,pin-func = <10>;
-			label = "tpiu-setb-17";
-			setb_17: setb {
-				drive-strength = <16>;
-				bias-disable;
-			};
-		};
 /*
 		tpiu_setb_18 {
 			qcom,pins = <&gp 121>;
@@ -1093,7 +1082,7 @@
 		};
 
 		tkey_i2c_gpio {
-			qcom,pins = <&gp 101>, <&gp 102>;
+			qcom,pins = <&gp 31>, <&gp 32>;
 			qcom,num-grp-pins = <2>;
 			qcom,pin-func = <0>;
 			label = "tkey_i2c_gpio";
@@ -1118,6 +1107,27 @@
 			        drive-strength = <2>;
 			        bias-disable = <0>; /* No PULL */
 			        input-enable;
+			};
+			tkey_irq_suspend: tkey_irq_suspend {
+			        drive-strength = <2>;
+			        bias-disable = <0>; /* No PULL */
+			        output-low;
+			};
+		};
+
+		tkey_en_gpio {
+			qcom,pins = <&gp 120>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "tkey_en_gpio";
+			tkey_en_active: tkey_en_active {
+			        drive-strength = <2>;
+			        bias-disable = <0>; /* No PULL */
+			};
+			tkey_en_suspend: tkey_en_suspend {
+			        drive-strength = <2>;
+			        bias-disable = <0>; /* No PULL */
+			        output-low;
 			};
 		};
 
@@ -1159,12 +1169,12 @@
 
 			nfc_int_active: nfc_int_active {
 				drive-strength = <2>;
-				bias-pull-down;
+				bias-pull-down; /* PULL DOWN */
 			};
 
 			nfc_int_suspend: nfc_int_suspend {
 				drive-strength = <2>;
-				bias-pull-down;
+				bias-pull-down; /* PULL DOWN */
 			};
 		};
 
@@ -1176,12 +1186,14 @@
 
 			nfc_enable_active: nfc_enable_active {
 				drive-strength = <2>;
-				bias-pull-up;
+				bias-pull-down; /* PULL DOWN */
+                                output-low;
 			};
 
 			nfc_enable_suspend: nfc_enable_suspend {
 				drive-strength = <2>;
-				bias-pull-up;
+				bias-pull-down; /* PULL DOWN */
+                                output-low;
 			};
 		};
 
@@ -1193,12 +1205,12 @@
 
 			nfc_firmware_active: nfc_firmware_active {
 				drive-strength = <2>;
-				bias-pull-down;
+				bias-pull-down; /* PULL DOWN */
 			};
 
 			nfc_firmware_suspend: nfc_firmware_suspend {
 				drive-strength = <2>;
-				bias-pull-down;
+				bias-pull-down; /* PULL DOWN */
 			};
 		};
 
@@ -1210,12 +1222,12 @@
 
 			nfc_i2c_active: nfc_i2c_active {
 				drive-strength = <2>;
-				bias-disable;
+				bias-disable; /* No PULL */
 			};
 
 			nfc_i2c_suspend: nfc_i2c_suspend {
 				drive-strength = <2>;
-				bias-disable;
+				bias-disable; /* No PULL */
 			};
 		};
 
@@ -1309,7 +1321,7 @@
 		};
 
 		pmx_muic_i2c{
-			qcom,pins = <&gp 105>, <&gp 106>;
+			qcom,pins = <&gp 2>, <&gp 3>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <2>;
 			label = "pmx_muic_i2c";
@@ -1500,6 +1512,26 @@
 			};
 		};
 
+		cam_sensor_eeprom {
+			/* RESET, STANDBY */
+			qcom,pins =  <&gp 10>, <&gp 11>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <0>;
+			label = "cam-eeprom-i2c";
+			/* active state */
+			cam_sensor_eeprom_default: default {
+				drive-strength = <4>; /* 4 MA */
+				bias-disable = <0>; /* No PULL */
+				input-low;
+			};
+			/*suspended state */
+			cam_sensor_eeprom_sleep: sleep {
+				drive-strength = <4>; /* 4 MA */
+				bias-disable = <0>; /* No PULL */
+				input-low;
+			};
+		};
+
 		pmx_i2c_4 {
 			/* CLK, DATA */
 			qcom,pins = <&gp 14>, <&gp 15>;
@@ -1579,7 +1611,7 @@
 		};
 
 		chg_en_pin {
-			qcom,pins = <&gp 108>;
+			qcom,pins = <&gp 51>;
 			qcom,num-grp-pins = <1>;
 			qcom,pin-func = <0>;
 			label = "chg_en_gpio";

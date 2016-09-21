@@ -1705,7 +1705,7 @@ static int ist30xx_probe(struct i2c_client *client,
 	tsp_info("TSP IC: %x\n", data->chip_id);
 #endif
 	data->status.event_mode = false;
-#if 0
+
 #if IST30XX_INTERNAL_BIN
 #if IST30XX_UPDATE_BY_WORKQUEUE
 	INIT_DELAYED_WORK(&data->work_fw_update, fw_update_func);
@@ -1717,7 +1717,7 @@ static int ist30xx_probe(struct i2c_client *client,
 		goto err_irq;
 #endif /* IST30XX_UPDATE_BY_WORKQUEUE */
 #endif /* IST30XX_INTERNAL_BIN */
-#endif
+
 	ret = ist30xx_read_cmd(data, IST30XX_REG_XY_SWAP, &xy_swap);
 	tsp_err("%s: ret:%d, swap:%x\n", __func__, ret, xy_swap & 0x01);
 	ret = ist30xx_read_cmd(data, IST30XX_REG_XY_RES, &xy_res);

@@ -122,9 +122,9 @@ void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd,
 		}
 	} else {
 		if (tune_data_dsi0 && mdnie_tune_state) {
-			DPRINT("SINGLE index : %d hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n",
+			DPRINT("SINGLE index : %d hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d mdnie_outdoor : %d\n",
 				mdnie_tune_state->index, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
-				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode);
+				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode, mdnie_tune_state->outdoor);
 
 			if (vdd->ctrl_dsi[DSI_CTRL_0]->cmd_sync_wait_broadcast) { /* Dual DSI */
 				vdd->mdnie_tune_data[DSI_CTRL_1].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
@@ -155,6 +155,8 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 		*	Checking HBM mode first.
 		*/
 		if (mdnie_tune_state->vdd->auto_brightness >= HBM_MODE && mdnie_tune_state->vdd->bl_level == 255)
+			mdnie_tune_state->hbm_enable = true;
+		else if (mdnie_tune_state->vdd->auto_brightness >= HBM_MODE && vdd->dtsi_data[mdnie_tune_state->index].outdoor_mode_support)
 			mdnie_tune_state->hbm_enable = true;
 		else
 			mdnie_tune_state->hbm_enable = false;
@@ -236,9 +238,9 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 		}
 
 		if (!tune_data_dsi0 && (mdnie_tune_state->index == DSI_CTRL_0)) {
-			DPRINT("%s index : %d tune_data is NULL hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n", __func__,
+			DPRINT("%s index : %d tune_data is NULL hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d mdnie_outdoor : %d\n", __func__,
 				mdnie_tune_state->index, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
-				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode);
+				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode, mdnie_tune_state->outdoor);
 			return -EFAULT;
 		} else if (!tune_data_dsi1 && (mdnie_tune_state->index == DSI_CTRL_1)) {
 			DPRINT("%s index : %d tune_data is NULL hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n", __func__,

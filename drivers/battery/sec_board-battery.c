@@ -30,6 +30,8 @@
 #include <linux/battery/fuelgauge/max77849_fuelgauge.h>
 #elif defined(CONFIG_FUELGAUGE_SM5703)
 #include <linux/battery/fuelgauge/sm5703_fuelgauge.h>
+#elif defined(CONFIG_FUELGAUGE_SM5705)
+#include <linux/battery/fuelgauge/sm5705_fuelgauge.h>
 #else
 #include <linux/battery/sec_fuelgauge.h>
 #endif
@@ -46,12 +48,13 @@
 #if defined(CONFIG_SM5703_MUIC)
 #include <linux/i2c/sm5703-muic.h>
 #endif
+
 #include <linux/gpio_event.h>
 
 #define SHORT_BATTERY_STANDARD      100
 
 /* cable state */
-#if defined(CONFIG_EXTCON)
+#if defined(CONFIG_EXTCON) || defined(CONFIG_MUIC_UNIVERSAL)
 int current_cable_type = POWER_SUPPLY_TYPE_BATTERY;
 #else
 extern int current_cable_type;
@@ -112,10 +115,14 @@ static int sec_bat_adc_ap_read(struct sec_battery_info *battery, int channel)
 					__func__, rc);
 			return 0;
 		}
+#if defined(CONFIG_MACH_A5X_CHN_OPEN) || defined(CONFIG_MACH_A7X_CHN_OPEN)
+		data = ((int)results.physical)/10000;
+#else
 		data = ((int)results.physical)/1000;
+#endif
 		break;
 	case SEC_BAT_ADC_CHANNEL_DISCHARGING_CHECK:
-#if defined(CONFIG_MACH_A8_CHN_OPEN)||defined(CONFIG_MACH_GTEL_USA_VZW) || defined(CONFIG_MACH_GTES_USA_SPR) || \
+#if defined(CONFIG_MACH_A8_CHN_OPEN)||defined(CONFIG_MACH_GTEL_USA_VZW) || \
 	defined(CONFIG_MACH_GTELWIFI_USA_OPEN)
                 rc = qpnp_vadc_read(adc_client, LR_MUX2_BAT_ID, &results);
 #else
@@ -131,6 +138,17 @@ static int sec_bat_adc_ap_read(struct sec_battery_info *battery, int channel)
 	case SEC_BAT_ADC_CHANNEL_DISCHARGING_NTC:
 		return 0;
 		break;
+#if defined(CONFIG_MACH_A5X_CHN_OPEN)||defined(CONFIG_MACH_A7X_CHN_OPEN)
+	case SEC_BAT_ADC_CHANNEL_CHG_TEMP:
+		rc = qpnp_vadc_read(adc_client, LR_MUX2_BAT_ID, &results);
+		if (rc) {
+			pr_err("%s: Unable to read chg temperature rc=%d\n",
+				__func__, rc);
+			return 33000;
+		}
+		data = results.adc_code;
+		break;
+#endif
 	default :
 		break;
 	}
@@ -370,6 +388,15 @@ void board_battery_init(struct platform_device *pdev, struct sec_battery_info *b
 		battery->pdata->temp_amb_adc_table_size = sizeof(temp_table)/sizeof(sec_bat_adc_table_data_t);
 #endif
 	}
+
+#if defined(CONFIG_MACH_A5X_CHN_OPEN)||defined(CONFIG_MACH_A7X_CHN_OPEN)
+	if ((!battery->pdata->chg_temp_adc_table) &&
+		(battery->pdata->chg_temp_check)) {
+		pr_info("%s : assign chg temp adc table\n", __func__);
+		battery->pdata->chg_temp_adc_table = chg_temp_table;
+		battery->pdata->chg_temp_adc_table_size = sizeof(chg_temp_table)/sizeof(sec_bat_adc_table_data_t);
+	}
+#endif
 
 #if defined(CONFIG_SEC_A3_PROJECT) || defined(CONFIG_SEC_A5_PROJECT) || defined(CONFIG_SEC_E5_PROJECT) || defined(CONFIG_SEC_E7_PROJECT)
 	battery->pdata->temp_highlimit_threshold_event = TEMP_HIGHLIMIT_THRESHOLD_EVENT;

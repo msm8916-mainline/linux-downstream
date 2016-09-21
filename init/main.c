@@ -244,7 +244,7 @@ static int __init loglevel(char *str)
 
 early_param("loglevel", loglevel);
 
-#ifdef CONFIG_ARCH_MSM8939
+#if defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8929)
 /* check uart boot */
 int jig_boot_clk_limit = 0;
 static int __init jig_status_phone(char *str)

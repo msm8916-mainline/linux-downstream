@@ -15,7 +15,7 @@
 //#include "dsi_panel_hx8389c_tft_qhd_video.dtsi"
 #include "msm8916-camera.dtsi"
 #include "msm8916-camera-sensor-cdp-o7-r00.dtsi"
-#include "msm8916-sec-o7-battery-r00.dtsi"
+#include "msm8916-sec-o7ltechn-battery-r00.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0X62_BV050HDM/dsi_panel_S6D7AA0X62_BV050HDM_hd_5_5_video.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/ILI9881C_SKI550002/dsi_panel_ILI9881C_SKI550002_hd_video.dtsi"
 / {
@@ -51,6 +51,16 @@
 		status = "ok";
 	};
 
+	tsp_avdd:tsp_pwr_en {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_avdd";
+		regulator-min-microvolt = <3000000>;
+		regulator-max-microvolt = <3000000>;
+		gpio = <&msm_gpio 8 0x1>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+
 	i2c@78b9000 { /* BLSP1 QUP5 */
 	status = "ok";
 		ist30xx_ts@50 {
@@ -74,18 +84,19 @@
 			compatible = "zinitix,zt7548_ts";
 			reg = <0x20>;
 			zinitix,irq-gpio = <&msm_gpio 13 0x00>;
-			zinitix,tsppwr_en = <&msm_gpio 8 0x1>;
 			zinitix,scl-gpio = <&msm_gpio 19 0x00>;
 			zinitix,sda-gpio = <&msm_gpio 18 0x00>;
 			pinctrl-names = "tsp_i2c_gpio_active", "tsp_i2c_suspend";
 			pinctrl-0 = <&int_active &tsp_en_active>;
 			pinctrl-1 = <&int_suspend &tsp_en_suspend>;
-			//vddo-supply = <&pm8916_l6>;
-			zt7548,x_resolution = <720>;
-			zt7548,y_resolution = <1280>;
+			avdd-supply = <&tsp_avdd>;
+			vddo-supply = <&pm8916_l6>;
+			zt7548,x_resolution = <2880>;	// 720 * 4
+			zt7548,y_resolution = <5120>;	// 1280 * 4
 			//key-led-supply = <&pm8916_l16>;
 			zt7548,model_name = "G600";
 			zt7548,fw_name = "zt7538_o7.fw";
+			zt7548,reg_boot_on;
 			};
 	};
 
@@ -145,7 +156,7 @@
 				chg_autostop = <0>;
 				chg_autoset = <1>;
 				chg_aiclen = <1>;
-				chg_aiclth = <4500>;
+				chg_aiclth = <4300>;
 				fg_vol_val = <4350>;
 				fg_soc_val = <95>;
 				fg_curr_avr_val = <150>;
@@ -585,6 +596,10 @@
 	};
 };
 
+&pm8916_l6 {
+	regulator-always-on;
+};
+
 &usb_noti {
 	qcom,disable_control_en = <1>;
 };
@@ -642,7 +657,7 @@
 			compatible = "ti,lm3632";
 			reg = <0x11>;
 			backlight{
-				compatible = "ti,lm3632-backlight";
+				compatible = "ti,lm3632-backlight-sky";
 				backlight-ic-name = "TI-LM3632";
 				backlight-en-gpio = <&msm_gpio 98 0x00>;
 				backlight-panel-enp-gpio = <&msm_gpio 97 0x00>;
@@ -662,7 +677,7 @@
 				backlight-ic-tuning-outdoor = [
 					09	01
 					04	07
-					05	D6
+					05	CB
 				];
 				backlight-ic-tuning-normal = [
 					04	05

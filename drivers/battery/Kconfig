@@ -242,6 +242,15 @@ config PREVENT_SOC_JUMP
 	help
 		Say Y to prevent soc jump
 
+config FUELGAUGE_SM5705
+	tristate "Siliconmitus SM5705 Fuel Gauge"
+	default n
+	depends on I2C
+	help
+	  SM5705 is fuel-gauge systems for lithium-ion (Li+) batteries
+	  in handheld and portable equipment. The SM5705 is configured
+	  to operate with a single lithium cell
+
 # Charger
 
 config CHARGER_DUMMY
@@ -445,10 +454,24 @@ config CHARGER_SM5703_SOFT_START_CHARGING
 	  Say Y here to enable support for SM5703 soft step charging
 	  You have to define CHARGER_SM5703
 
+config CHARGER_SM5703_DUALPATH
+	bool "SM5703 dual path"
+	default n
+	depends on CHARGER_SM5703
+	help
+	  Say Y here to enable support for SM5703 dual path setting for removal model in S/W
+	  You have to define CHARGER_SM5703
+
+config CHARGER_SM5705
+	tristate "SM5705 battery charger support"
+	depends on BATTERY_SAMSUNG
+	help
+	  Say Y here to enable support for the SM5705 charger
+
 config AFC_CHARGER_MODE
 	bool "afc charging support in sec battery driver"
 	default n
-	depends on CHARGER_MAX77843
+	depends on CHARGER_SM5705
 	help
 	  Say Y to include support for sec afc charging support
 
@@ -503,6 +526,12 @@ config SIOP_CHARGING_LIMIT_CURRENT
 	help
 	  set SIOP charging limit current.
 
+config DISABLE_MINIMUM_SIOP_CHARGING
+	bool "Minimum siop charging current limit"
+	default n
+	help
+	  set minimum value of siop charging current limit to usb"
+
 config EN_OOPS
 	bool "enable oops filter"
 	default n
@@ -521,3 +550,8 @@ config STORE_MODE
 	default n
 	help
 	  Say Y to enable CONFIG_STORE_MODE
+config SW_SELF_DISCHARGING
+	bool "enable sw_self_discharging"
+	default n
+	help
+	  Say Y to enable CONFIG_SW_SELF_DISCHARGING

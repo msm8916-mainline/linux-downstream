@@ -301,8 +301,10 @@ int32_t msm_camera_cci_i2c_write_burst_table(
 
 	reg_array =
 		(struct msm_camera_i2c_burst_reg_array *)write_setting->reg_setting;
+/*
 	pr_err("%s:%d size %d addr %x\n", __func__, __LINE__,
 			reg_array->delay, reg_array->reg_addr);
+*/
 	rc = msm_camera_cci_i2c_write_burst(client, reg_array->reg_addr,
 			reg_array->reg_burst_data, reg_array->reg_data_size);
 	if (rc < 0) {

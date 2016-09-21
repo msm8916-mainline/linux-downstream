@@ -17,9 +17,17 @@
 
 #include <linux/pinctrl/consumer.h>
 #include "zt7548_ts.h"
+#include <linux/muic/muic.h>
+#include <linux/muic/muic_notifier.h>
+
 
 u32 BUTTON_MAPPING_KEY[MAX_SUPPORTED_BUTTON_NUM] = {KEY_RECENT, KEY_BACK};
+
+/* Goya model used below feature */
+#ifdef CONFIG_LCD_ESD_RECOVERY_BY_TSP
+extern void ESD_recover(void);
 static int m_tsp_burst_mode;
+#endif
 
 #ifdef CONFIG_DUAL_TOUCH_IC_CHECK
 static int probe_finished;
@@ -35,44 +43,67 @@ static int get_boot_mode(char *str)
 }
 __setup("calmode=", get_boot_mode);
 
+static void zinitix_delay(unsigned int ms)
+{
+	if (ms <= 20)
+		usleep_range(ms * 1000, ms * 1000);
+	else
+		msleep(ms);
+}
+
 static s32 read_data(struct i2c_client *client, u16 reg, u8 *values, u16 length)
 {
 	s32 ret;
 	int count = 0;
-retry:
-	ret = i2c_master_send(client , (u8 *)&reg , 2);
+retry_send:
+	ret = i2c_master_send(client, (u8 *)&reg, 2);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: failed to send. ret:%d, try:%d\n",
 							__func__, ret, count + 1);
-		mdelay(1);
+		zinitix_delay(1);
+		if (++count < I2C_RETRY_TIMES)
+			goto retry_send;
+		return ret;
+	}
+
+	usleep_range(DELAY_FOR_TRANSCATION, DELAY_FOR_TRANSCATION);
+
+	count = 0;
+retry_read:
+	ret = i2c_master_recv(client, values, length);
+	if (ret < 0) {
+		dev_err(&client->dev, "%s: failed to recv. ret:%d, try:%d\n",
+							__func__, ret, count + 1);
+		zinitix_delay(1);
+		if (++count < I2C_RETRY_TIMES)
+			goto retry_read;
+		return ret;
+	}
+
+	usleep_range(DELAY_FOR_POST_TRANSCATION, DELAY_FOR_POST_TRANSCATION);
+	return length;
+}
+
+#if TOUCH_POINT_MODE
+static s32 read_data_only(struct i2c_client *client, u8 *values, u16 length)
+{
+	s32 ret;
+	int count = 0;
+
+retry:
+	ret = i2c_master_recv(client, values, length);
+	if (ret < 0) {
+		dev_err(&client->dev, "%s: failed to recv. ret:%d, try:%d\n",
+							__func__, ret, count + 1);
+		zinitix_delay(1);
 		if (++count < I2C_RETRY_TIMES)
 			goto retry;
 		return ret;
 	}
-
-	udelay(DELAY_FOR_TRANSCATION);
-	ret = i2c_master_recv(client , values , length);
-	if (ret < 0) {
-		dev_err(&client->dev, "%s: failed to recv. ret:%d\n", __func__, ret);
-		return ret;
-	}
-
-	udelay(DELAY_FOR_POST_TRANSCATION);
+	usleep_range(DELAY_FOR_TRANSCATION, DELAY_FOR_TRANSCATION);
 	return length;
 }
-
-static s32 read_data_only(struct i2c_client *client, u8 *values, u16 length)
-{
-	s32 ret;
-
-	ret = i2c_master_recv(client , values , length);
-	if (ret < 0) {
-		dev_err(&client->dev, "%s: failed to recv. ret:%d\n", __func__, ret);
-		return ret;
-	}
-	udelay(DELAY_FOR_POST_TRANSCATION);
-	return length;
-}
+#endif
 
 static inline s32 write_data(struct i2c_client *client, u16 reg, u8 *values, u16 length)
 {
@@ -89,13 +120,13 @@ retry:
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: failed to send. ret:%d, try:%d\n",
 							__func__, ret, count + 1);
-		mdelay(1);
+		zinitix_delay(1);
 		if (++count < I2C_RETRY_TIMES)
 			goto retry;
 		return ret;
 	}
 
-	udelay(DELAY_FOR_POST_TRANSCATION);
+	usleep_range(DELAY_FOR_POST_TRANSCATION, DELAY_FOR_POST_TRANSCATION);
 	return length;
 }
 
@@ -117,13 +148,13 @@ retry:
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: failed to send. ret:%d, try:%d\n",
 							__func__, ret, count + 1);
-		mdelay(1);
+		zinitix_delay(1);
 		if (++count < I2C_RETRY_TIMES)
 			goto retry;
 		return ret;
 	}
 
-	udelay(DELAY_FOR_POST_TRANSCATION);
+	usleep_range(DELAY_FOR_POST_TRANSCATION, DELAY_FOR_POST_TRANSCATION);
 	return I2C_SUCCESS;
 }
 
@@ -132,28 +163,34 @@ static inline s32 read_raw_data(struct i2c_client *client, u16 reg, u8 *values, 
 	s32 ret;
 	int count = 0;
 
-retry:
+retry_send:
 	/* select register */
 	ret = i2c_master_send(client , (u8 *)&reg , 2);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: failed to send. ret:%d, try:%d\n",
 							__func__, ret, count + 1);
-		mdelay(1);
+		zinitix_delay(1);
 		if (++count < I2C_RETRY_TIMES)
-			goto retry;
+			goto retry_send;
 		return ret;
 	}
 
 	/* for setup tx transaction. */
-	udelay(200);
+	usleep_range(200, 200);
 
-	ret = i2c_master_recv(client , values , length);
+	count = 0;
+retry_read:
+	ret = i2c_master_recv(client, values, length);
 	if (ret < 0) {
-		dev_err(&client->dev, "%s: failed to recv. ret:%d\n", __func__, ret);
+		dev_err(&client->dev, "%s: failed to recv. ret:%d, try:%d\n",
+							__func__, ret, count + 1);
+		zinitix_delay(1);
+		if (++count < I2C_RETRY_TIMES)
+			goto retry_read;
 		return ret;
 	}
 
-	udelay(DELAY_FOR_POST_TRANSCATION);
+	usleep_range(DELAY_FOR_POST_TRANSCATION, DELAY_FOR_POST_TRANSCATION);
 	return length;
 }
 
@@ -168,41 +205,60 @@ static inline s32 read_firmware_data(struct i2c_client *client, u16 addr, u8 *va
 	}
 
 	/* for setup tx transaction. */
-	mdelay(1);
-
+	zinitix_delay(1);
 	ret = i2c_master_recv(client , values , length);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: failed to recv. ret:%d\n", __func__, ret);
 		return ret;
 	}
 
-	udelay(DELAY_FOR_POST_TRANSCATION);
+	usleep_range(DELAY_FOR_POST_TRANSCATION, DELAY_FOR_POST_TRANSCATION);
 	return length;
 }
 
 static void zt7548_set_optional_mode(struct zt7548_ts_info *info, bool force)
 {
+	if (!info->device_enabled)
+		return;
 	if (m_prev_optional_mode == m_optional_mode && !force)
 		return;
 
 	if (write_reg(info->client, ZT7548_OPTIONAL_SETTING, m_optional_mode) == I2C_SUCCESS) {
 		m_prev_optional_mode = m_optional_mode;
-		dev_info(&misc_info->client->dev, "TA setting changed to %d\n",
-								m_optional_mode & 0x1);
+		dev_info(&misc_info->client->dev, "%s: 0x%04x\n",
+						__func__, m_optional_mode);
 	}
 }
 static void zt7548_set_ta_status(struct zt7548_ts_info *info)
 {
 	if (ta_connected)
-		zinitix_bit_set(m_optional_mode, 0);
+		zinitix_bit_set(m_optional_mode, DEF_OPTIONAL_MODE_USB_DETECT_BIT);
 	else
-		zinitix_bit_clr(m_optional_mode, 0);
+		zinitix_bit_clr(m_optional_mode, DEF_OPTIONAL_MODE_USB_DETECT_BIT);
+
+	zt7548_set_optional_mode(info, false);
+}
+
+static void cover_set(struct zt7548_ts_info *info)
+{
+	if (g_cover_state == COVER_OPEN) {
+		zinitix_bit_clr(m_optional_mode, DEF_OPTIONAL_MODE_SVIEW_DETECT_BIT);
+	}
+	else if (g_cover_state == COVER_CLOSED) {
+		zinitix_bit_set(m_optional_mode, DEF_OPTIONAL_MODE_SVIEW_DETECT_BIT);
+	}
+
+	if (info->work_state == SUSPEND || info->work_state == EALRY_SUSPEND || info->work_state == PROBE)
+		return;
+
+	zt7548_set_optional_mode(info, true);
 }
 
 #ifdef USE_TSP_TA_CALLBACKS
 static void zt7548_ts_charger_status_cb(struct tsp_callbacks *cb, int status)
 {
-	pr_info("%s: status = %d\n", __func__, status);
+	dev_info(&misc_info->client->dev, "%s: TA %s\n", __func__,
+			status ? "connected" : "disconnected");
 
 	status = (status != POWER_SUPPLY_TYPE_UNKNOWN);
 
@@ -212,15 +268,73 @@ static void zt7548_ts_charger_status_cb(struct tsp_callbacks *cb, int status)
 		ta_connected = false;
 
 	zt7548_set_ta_status(misc_info);
-
-	dev_info(&misc_info->client->dev, "TA %s\n",
-			status ? "connected" : "disconnected");
 }
 
 static void zt7548_register_callback(struct tsp_callbacks *cb)
 {
 	charger_callbacks = cb;
 	pr_info("%s\n", __func__);
+}
+#endif
+
+
+#ifdef TSP_MUIC_NOTIFICATION
+int tsp_cable_check(muic_attached_dev_t attached_dev)
+{
+	int current_cable_type = -1;
+
+	switch (attached_dev) {
+	case ATTACHED_DEV_NONE_MUIC:
+	case ATTACHED_DEV_OTG_MUIC:
+	case ATTACHED_DEV_JIG_UART_OFF_MUIC:
+	case ATTACHED_DEV_MHL_MUIC:
+	case ATTACHED_DEV_DESKDOCK_MUIC:
+	case ATTACHED_DEV_CHARGING_CABLE_MUIC:
+		current_cable_type = 0;
+		break;
+	default:
+		current_cable_type = 1;
+		break;
+	}
+
+	return current_cable_type;
+
+}
+
+int zt7548_notification(struct notifier_block *nb,
+		unsigned long action, void *data)
+{
+	muic_attached_dev_t attached_dev = *(muic_attached_dev_t *)data;
+	const char *cmd;
+	int cable_type;
+
+	switch (action) {
+	case MUIC_NOTIFY_CMD_DETACH:
+	case MUIC_NOTIFY_CMD_LOGICALLY_DETACH:
+		cmd = "DETACH";
+		cable_type = 0;
+		break;
+	case MUIC_NOTIFY_CMD_ATTACH:
+	case MUIC_NOTIFY_CMD_LOGICALLY_ATTACH:
+		cmd = "ATTACH";
+		cable_type = tsp_cable_check(attached_dev);
+		break;
+	default:
+		cmd = "ERROR";
+		cable_type = -1;
+		break;
+	}
+
+	pr_info("%s: cmd=%s, attached_dev=%d, cable_type=%d\n", __func__, cmd, attached_dev, cable_type);
+
+	if (cable_type == 1)
+		ta_connected = true;
+	else
+		ta_connected = false;
+
+	zt7548_set_ta_status(misc_info);
+
+	return 0;
 }
 #endif
 
@@ -249,15 +363,16 @@ static bool get_raw_data(struct zt7548_ts_info *info, u8 *buff, int skip_cnt)
 
 	for (i = 0; i < skip_cnt; i++) {
 		while (gpio_get_value(pdata->gpio_int))
-			msleep(1);
+			zinitix_delay(1);
+
 		write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
-		msleep(1);
+		zinitix_delay(1);
 	}
 
 	sz = total_node * 2;
 
 	while (gpio_get_value(pdata->gpio_int))
-		msleep(1);
+		zinitix_delay(1);
 
 	for (i = 0; sz > 0; i++) {
 		temp_sz = I2C_BUFFER_SIZE;
@@ -352,14 +467,15 @@ static bool i2c_checksum(struct zt7548_ts_info *info, s16 *pChecksum, u16 wlengt
 #endif
 #endif
 
-extern void ESD_recover(void);
-
 static bool ts_read_coord(struct zt7548_ts_info *info)
 {
 	struct i2c_client *client = info->client;
+#ifdef CONFIG_LCD_ESD_RECOVERY_BY_TSP
 	u16 status;
+#endif
+#if TOUCH_POINT_MODE
 	int i;
-
+#endif
 	/* for  Debugging Tool */
 	if (info->touch_mode != TOUCH_POINT_MODE) {
 		if (info->update == 0) {
@@ -381,6 +497,7 @@ static bool ts_read_coord(struct zt7548_ts_info *info)
 
 	if (info->touch_info.event_flag == 0 || info->touch_info.status == 0) {
 		zt7548_set_optional_mode(info, false);
+#ifdef CONFIG_LCD_ESD_RECOVERY_BY_TSP
 		if (read_data(info->client, ZT7548_OPTIONAL_SETTING, (u8 *)&status, 2) < 0) {
 			dev_err(&client->dev, "error read noise mode.-\n");
 			return false;
@@ -388,17 +505,16 @@ static bool ts_read_coord(struct zt7548_ts_info *info)
 		m_tsp_burst_mode = zinitix_bit_test(status, 10) ? 1 : 0;
 		if (m_tsp_burst_mode) {
 			dev_info(&client->dev, "Enter LCD ESD Recover\n");
-#ifdef CONFIG_LCD_ESD_RECOVERY_BY_TSP
 			ESD_recover();
-#endif
 		}
+#endif
 		write_cmd(info->client, ZT7548_CLEAR_INT_STATUS_CMD);
 		return true;
 	}
 
 	for (i = 1; i < info->cap_info.multi_fingers; i++) {
 		if (zinitix_bit_test(info->touch_info.event_flag, i)) {
-			udelay(20);
+			usleep_range(20, 20);
 			if (read_data(info->client, ZT7548_POINT_STATUS_REG + 2 + (i * 4),
 				(u8 *)(&info->touch_info.coord[i]), sizeof(struct coord)) < 0) {
 				dev_err(&client->dev, "error read point info\n");
@@ -431,10 +547,12 @@ static bool ts_read_coord(struct zt7548_ts_info *info)
 #endif
 #endif	/* TOUCH_POINT_MODE */
 	zt7548_set_optional_mode(info, false);
+#ifdef CONFIG_LCD_ESD_RECOVERY_BY_TSP
 	if (read_data(info->client, ZT7548_OPTIONAL_SETTING, (u8 *)&status, 2) < 0) {
 		dev_err(&client->dev, "error read noise mode\n");
 		return false;
 	}
+#endif
 out:
 	if (zinitix_bit_test(info->touch_info.status, BIT_MUST_ZERO)) {
 		dev_err(&client->dev, "Invalid must zero bit(%04x)\n", info->touch_info.status);
@@ -554,7 +672,7 @@ retry_power_sequence:
 		dev_err(&client->dev, "Failed to send power sequence(vendor cmd enable)\n");
 		goto fail_power_sequence;
 	}
-	udelay(10);
+	usleep_range(10, 10);
 
 	if (read_data(client, 0xcc00, (u8 *)&chip_code, 2) < 0) {
 		dev_err(&client->dev, "Failed to read chip code\n");
@@ -562,32 +680,32 @@ retry_power_sequence:
 	}
 
 	dev_dbg(&client->dev, "%s: chip code = 0x%x\n", __func__, chip_code);
-	udelay(10);
+	usleep_range(10, 10);
 
 	if (write_cmd(client, 0xc004) != I2C_SUCCESS) {
 		dev_err(&client->dev, "Failed to send power sequence(intn clear)\n");
 		goto fail_power_sequence;
 	}
-	udelay(10);
+	usleep_range(10, 10);
 
 	if (write_reg(client, 0xc002, 0x0001) != I2C_SUCCESS) {
 		dev_err(&client->dev, "Failed to send power sequence(nvm init)\n");
 		goto fail_power_sequence;
 	}
-	mdelay(2);
+	zinitix_delay(2);
 
 	if (write_reg(client, 0xc001, 0x0001) != I2C_SUCCESS) {
 		dev_err(&client->dev, "Failed to send power sequence(program start)\n");
 		goto fail_power_sequence;
 	}
 
-	msleep(FIRMWARE_ON_DELAY);	/* wait for checksum cal */
+	zinitix_delay(FIRMWARE_ON_DELAY);	/* wait for checksum cal */
 
 	return true;
 
 fail_power_sequence:
 	if (retry++ < 3) {
-		msleep(CHIP_ON_DELAY);
+		zinitix_delay(CHIP_ON_DELAY);
 		dev_info(&client->dev, "retry = %d\n", retry);
 		goto retry_power_sequence;
 	}
@@ -599,17 +717,67 @@ fail_power_sequence:
 static int zt7548_power(struct i2c_client *client, int on)
 {
 	int ret;
-	static bool is_power_on;
 	struct zt7548_ts_info *info = i2c_get_clientdata(client);
 	struct zt7548_ts_dt_data *pdata = info->pdata;
 	static struct regulator *vddo;
+	static struct regulator *avdd;
+	static bool reg_boot_on = true;
 
 	if (on == POWER_ON_SEQUENCE)
 		on = POWER_ON;
 
 	if (!pdata) {
 		dev_err(&client->dev, "%s: pdata is NULL \n", __func__);
-		return 0;
+		return -ENODEV;
+	}
+
+	if (reg_boot_on && !pdata->reg_boot_on)
+		reg_boot_on = false;
+
+	if (gpio_is_valid(pdata->vdd_en)) {
+		ret = gpio_direction_output(pdata->vdd_en, on);
+		if (ret) {
+			dev_err(&client->dev, "%s: unable to set_direction for zt_vdd_en [%d]\n",
+				__func__, pdata->vdd_en);
+			return -EINVAL;
+		}
+	} else {
+		if (IS_ERR_OR_NULL(avdd)) {
+			avdd = regulator_get(&info->client->dev, "avdd");
+			if (IS_ERR_OR_NULL(avdd)) {
+				dev_err(&client->dev, "%s: could not get avdd, ret = %ld\n",
+					__func__, IS_ERR(avdd));
+				return -EINVAL;
+			}
+
+			ret = regulator_set_voltage(avdd, 3300000, 3300000);
+			if (ret) {
+				dev_err(&client->dev, "%s: could not set voltage avdd, ret = %d\n",
+					__func__, ret);
+			}
+		}
+
+		if (on) {
+			if (!reg_boot_on && regulator_is_enabled(avdd)) {
+				dev_info(&client->dev, "%s: avdd is already enabled\n", __func__);
+			} else {
+				ret = regulator_enable(avdd);
+				if (ret) {
+					dev_err(&client->dev, "%s: avdd enable failed (%d)\n", __func__, ret);
+					return -EINVAL;
+				}
+			}
+		} else {
+			if (regulator_is_enabled(avdd)) {
+				ret = regulator_disable(avdd);
+				if (ret) {
+					dev_err(&client->dev, "%s: avdd disable failed (%d)\n", __func__, ret);
+					return -EINVAL;
+			}
+			} else {
+				dev_info(&client->dev, "%s: avdd is already disabled\n", __func__);
+			}
+		}
 	}
 
 	if (IS_ERR_OR_NULL(vddo)) {
@@ -617,7 +785,7 @@ static int zt7548_power(struct i2c_client *client, int on)
 		if (IS_ERR_OR_NULL(vddo)) {
 			dev_err(&client->dev, "%s: could not get vddo, ret = %ld\n",
 				__func__, IS_ERR(vddo));
-			return 0;
+			return -EINVAL;
 		}
 
 		ret = regulator_set_voltage(vddo, 1800000, 1800000);
@@ -625,13 +793,6 @@ static int zt7548_power(struct i2c_client *client, int on)
 			dev_err(&client->dev, "%s: could not set voltage vddo, ret = %d\n",
 				__func__, ret);
 		}
-	}
-
-	ret = gpio_direction_output(pdata->vdd_en, on);
-	if (ret) {
-		dev_err(&client->dev, "%s: unable to set_direction for zt_vdd_en [%d]\n",
-			__func__, pdata->vdd_en);
-		return 0;
 	}
 
 	if (on) {
@@ -648,19 +809,22 @@ static int zt7548_power(struct i2c_client *client, int on)
 		}
 	}
 
-	pr_info("%s %s: vdd_en %d", __func__, on ? "on" : "off",
-		gpio_get_value(pdata->vdd_en));
+	pr_info("%s %s: ", __func__, on ? "on" : "off");
+	if (gpio_is_valid(pdata->vdd_en))
+		pr_cont("vdd_en %d", gpio_get_value(pdata->vdd_en));
+	else if (!IS_ERR_OR_NULL(avdd))
+		pr_cont("avdd %d", regulator_is_enabled(avdd));
 	if (!IS_ERR_OR_NULL(vddo))
 		pr_cont(" vddo %d", regulator_is_enabled(vddo));
 	pr_cont("\n");
 
 	if (on >= POWER_ON) {
-		is_power_on = true;
-		mdelay(CHIP_ON_DELAY);
+		if (!reg_boot_on)
+			zinitix_delay(CHIP_ON_DELAY);
+		reg_boot_on = false;
 	}
 	else {
-		is_power_on = false;
-		mdelay(CHIP_OFF_DELAY);
+		zinitix_delay(CHIP_OFF_DELAY);
 	}
 
 	return 0;
@@ -763,14 +927,14 @@ static bool ts_upgrade_firmware(struct zt7548_ts_info *info, const u8 *firmware_
 	zt7548_power_control(info, POWER_OFF);
 	zt7548_power_control(info, POWER_ON);
 
-	mdelay(10);
+	zinitix_delay(10);
 
 	if (write_reg(client, 0xc000, 0x0001) != I2C_SUCCESS) {
 		dev_err(&client->dev, "power sequence error (vendor cmd enable)\n");
 		goto fail_upgrade;
 	}
 
-	udelay(10);
+	usleep_range(10, 10);
 
 	if (read_data(client, 0xcc00, (u8 *)&chip_code, 2) < 0) {
 		dev_err(&client->dev, "failed to read chip code\n");
@@ -778,21 +942,21 @@ static bool ts_upgrade_firmware(struct zt7548_ts_info *info, const u8 *firmware_
 	}
 	dev_info(&client->dev, "chip code = 0x%x\n", chip_code);
 
-	udelay(10);
+	usleep_range(10, 10);
 
 	if (write_cmd(client, 0xc004) != I2C_SUCCESS) {
 		dev_err(&client->dev, "power sequence error (intn clear)\n");
 		goto fail_upgrade;
 	}
 
-	udelay(10);
+	usleep_range(10, 10);
 
 	if (write_reg(client, 0xc002, 0x0001) != I2C_SUCCESS) {
 		dev_err(&client->dev, "power sequence error (nvm init)\n");
 		goto fail_upgrade;
 	}
 
-	mdelay(5);
+	zinitix_delay(5);
 
 	dev_info(&client->dev, "init flash\n");
 
@@ -811,6 +975,30 @@ static bool ts_upgrade_firmware(struct zt7548_ts_info *info, const u8 *firmware_
 		goto fail_upgrade;
 	}
 
+	// Mass Erase
+	//====================================================
+	if (write_cmd(client, 0x01DF) != I2C_SUCCESS) {
+		dev_err(&client->dev, "failed to mass erase\n");
+		goto fail_upgrade;
+	}
+
+	zinitix_delay(100);
+
+	// Mass Erase End
+	//====================================================
+
+	if (write_reg(client, 0x01DE, 0x0001) != I2C_SUCCESS) {
+		dev_err(&client->dev, "failed to enter upgrade mode\n");
+		goto fail_upgrade;
+	}
+
+	zinitix_delay(1);
+
+	if (write_reg(client, 0x01D3, 0x0008) != I2C_SUCCESS) {
+		dev_err(&client->dev, "failed to init upgrade mode\n");
+		goto fail_upgrade;
+	}
+
 	dev_info(&client->dev, "writing firmware data\n");
 	for (flash_addr = 0; flash_addr < size; ) {
 		for (i = 0; i < page_sz/TC_SECTOR_SZ; i++) {
@@ -820,9 +1008,9 @@ static bool ts_upgrade_firmware(struct zt7548_ts_info *info, const u8 *firmware_
 				goto fail_upgrade;
 			}
 			flash_addr += TC_SECTOR_SZ;
-			udelay(100);
+			usleep_range(100, 100);
 		}
-		mdelay(30);	/* for fuzing delay */
+		zinitix_delay(8);	/*for fuzing delay*/
 	}
 
 	if (write_reg(client, 0xc003, 0x0000) != I2C_SUCCESS) {
@@ -884,13 +1072,13 @@ static bool ts_hw_calibration(struct zt7548_ts_info *info)
 
 	if (write_reg(client, ZT7548_TOUCH_MODE, 0x07) != I2C_SUCCESS)
 		return false;
-	mdelay(10);
+	zinitix_delay(10);
 	write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
-	mdelay(10);
+	zinitix_delay(10);
 	write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
-	mdelay(50);
+	zinitix_delay(50);
 	write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
-	mdelay(10);
+	zinitix_delay(10);
 
 	if (write_cmd(client, ZT7548_CALIBRATE_CMD) != I2C_SUCCESS)
 		return false;
@@ -898,12 +1086,12 @@ static bool ts_hw_calibration(struct zt7548_ts_info *info)
 	if (write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD) != I2C_SUCCESS)
 		return false;
 
-	mdelay(10);
+	zinitix_delay(10);
 	write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
 
 	/* wait for h/w calibration*/
 	do {
-		mdelay(500);
+		zinitix_delay(500);
 		write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
 
 		if (read_data(client, ZT7548_EEPROM_INFO_REG, (u8 *)&chip_eeprom_info, 2) < 0)
@@ -915,7 +1103,7 @@ static bool ts_hw_calibration(struct zt7548_ts_info *info)
 
 		if (time_out++ == 4) {
 			write_cmd(client, ZT7548_CALIBRATE_CMD);
-			mdelay(10);
+			zinitix_delay(10);
 			write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
 			dev_err(&client->dev, "h/w calibration retry timeout.\n");
 		}
@@ -936,11 +1124,11 @@ static bool ts_hw_calibration(struct zt7548_ts_info *info)
 			return false;
 	}
 
-	udelay(100);
+	usleep_range(100, 100);
 	if (write_cmd(client, ZT7548_SAVE_CALIBRATION_CMD) != I2C_SUCCESS)
 		return false;
 
-	mdelay(1000);
+	zinitix_delay(1000);
 
 	dev_info(&client->dev, "%s ---\n", __func__);
 	return true;
@@ -954,7 +1142,7 @@ static bool init_touch(struct zt7548_ts_info *info, bool fw_skip)
 	u16 reg_val;
 	int i;
 	u16 chip_eeprom_info;
-	u16 chip_code;
+	u16 chip_code = 0;
 #if USE_CHECKSUM
 	u16 chip_check_sum;
 	bool checksum_err;
@@ -982,7 +1170,7 @@ retry_init:
 		if (read_data(client, ZT7548_EEPROM_INFO_REG,
 						(u8 *)&chip_eeprom_info, 2) < 0) {
 			dev_err(&client->dev, "Failed to read eeprom info(%d)\n", i);
-			mdelay(10);
+			zinitix_delay(10);
 			continue;
 		} else
 			break;
@@ -996,7 +1184,7 @@ retry_init:
 	for (i = 0; i < INIT_RETRY_CNT; i++) {
 		if (read_data(client, ZT7548_CHECKSUM_RESULT,
 						(u8 *)&chip_check_sum, 2) < 0) {
-			mdelay(10);
+			zinitix_delay(10);
 			continue;
 		}
 
@@ -1053,7 +1241,7 @@ retry_init:
 	}
 
 	if (read_data(client, 0xcc00, (u8 *)&chip_code, 2) < 0) {
-		chip_code = -1;
+		chip_code = 0;
 		dev_err(&client->dev, "Failed to read chip code\n");
 		goto fail_init;
 	}
@@ -1065,7 +1253,7 @@ retry_init:
 	} else if (info->chip_code == ZT7538_IC_CHIP_CODE) {
 		cap->ic_fw_size = 44 * 1024;
 	} else {
-		chip_code = -1;
+		chip_code = 0;
 		dev_err(&client->dev, "%s: Unknown IC!! Cannot set ic_fw_size!!\n", __func__);
 		goto fail_init;
 	}
@@ -1162,11 +1350,7 @@ retry_init:
 			goto fail_init;
 	}
 
-	/* initialize */
-	if (write_reg(client, ZT7548_X_RESOLUTION, (u16)pdata->x_resolution) != I2C_SUCCESS)
-		goto fail_init;
-
-	if (write_reg(client, ZT7548_Y_RESOLUTION, (u16)pdata->y_resolution) != I2C_SUCCESS)
+	if (write_reg(client, ZT75XX_RESOLUTION_EXPANDER, 4))  //resolution * 4
 		goto fail_init;
 
 	cap->MinX = (u32)0;
@@ -1205,7 +1389,7 @@ retry_init:
 	/* read garbage data */
 	for (i = 0; i < 10; i++) {
 		write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
-		udelay(10);
+		usleep_range(10, 10);
 	}
 
 	if (info->touch_mode != TOUCH_POINT_MODE) { /* Test Mode */
@@ -1244,7 +1428,7 @@ fail_init:
 		goto retry_init;
 
 	} else if (retry_cnt == INIT_RETRY_CNT + 1) {
-		if (chip_code < 0) {
+		if (chip_code == 0) {
 #if defined(CONFIG_TOUCHSCREEN_ZT7548_TS)
 			cap->ic_fw_size = 48 * 1024;
 #elif defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
@@ -1258,7 +1442,7 @@ fail_init:
 			dev_err(&client->dev, "firmware upgrade fail!\n");
 			goto retry_fail_init;
 		}
-		mdelay(100);
+		zinitix_delay(100);
 
 		/* hw calibration and make checksum */
 		if (!ts_hw_calibration(info)) {
@@ -1279,7 +1463,6 @@ retry_fail_init:
 
 static bool mini_init_touch(struct zt7548_ts_info *info)
 {
-	struct zt7548_ts_dt_data *pdata = info->pdata;
 	struct i2c_client *client = info->client;
 	int i;
 #if USE_CHECKSUM
@@ -1299,11 +1482,7 @@ static bool mini_init_touch(struct zt7548_ts_info *info)
 		goto fail_mini_init;
 	}
 
-	/* initialize */
-	if (write_reg(client, ZT7548_X_RESOLUTION, (u16)(pdata->x_resolution)) != I2C_SUCCESS)
-		goto fail_mini_init;
-
-	if (write_reg(client, ZT7548_Y_RESOLUTION, (u16)(pdata->y_resolution)) != I2C_SUCCESS)
+	if (write_reg(client, ZT75XX_RESOLUTION_EXPANDER, 4)) //resolution * 4
 		goto fail_mini_init;
 
 	if (write_reg(client, ZT7548_BUTTON_SUPPORTED_NUM, (u16)info->cap_info.button_num) != I2C_SUCCESS)
@@ -1331,7 +1510,7 @@ static bool mini_init_touch(struct zt7548_ts_info *info)
 	/* read garbage data */
 	for (i = 0; i < 10; i++) {
 		write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
-		udelay(10);
+		usleep_range(10, 10);
 	}
 
 	if (info->touch_mode != TOUCH_POINT_MODE) {
@@ -1379,6 +1558,11 @@ static void clear_report_data(struct zt7548_ts_info *info)
 		if (info->button[i] == ICON_BUTTON_DOWN) {
 			info->button[i] = ICON_BUTTON_UP;
 			input_report_key(info->input_dev, BUTTON_MAPPING_KEY[i], 0);
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+			dev_info(&info->client->dev, "key %d up\n", BUTTON_MAPPING_KEY[i]);
+#else
+			dev_info(&info->client->dev, "key up\n");
+#endif
 			reported = true;
 		}
 	}
@@ -1386,8 +1570,14 @@ static void clear_report_data(struct zt7548_ts_info *info)
 	for (i = 0; i < info->cap_info.multi_fingers; i++) {
 		sub_status = info->reported_touch_info.coord[i].sub_status;
 		if (zinitix_bit_test(sub_status, SUB_BIT_EXIST)) {
-			dev_info(&info->client->dev, "%s : Finger up (%d)\n", __func__, i);
+			dev_info(&info->client->dev, "[%d][R] M[%d] Ver[%02x] Mode[%02x]\n",
+					i, info->move_cnt[i],
+					info->cap_info.reg_data_version, m_optional_mode);
+			info->move_cnt[i] = 0;
 			input_mt_slot(info->input_dev, i);
+#ifdef REPORT_2D_Z
+			input_report_abs(info->input_dev, ABS_MT_PRESSURE, 0);
+#endif
 			input_mt_report_slot_state(info->input_dev, MT_TOOL_FINGER, 0);
 			reported = true;
 		}
@@ -1397,6 +1587,9 @@ static void clear_report_data(struct zt7548_ts_info *info)
 
 	if (reported)
 		input_sync(info->input_dev);
+
+	input_mt_slot(info->input_dev, 0);
+	input_mt_report_slot_state(info->input_dev, MT_TOOL_FINGER, 0);
 
 #ifdef CONFIG_INPUT_BOOSTER
 	if (info->booster && info->booster->dvfs_set)
@@ -1415,6 +1608,10 @@ static irqreturn_t zt7548_touch_work(int irq, void *data)
 	u32 x, y, maxX, maxY;
 	u32 w, minor_w;
 	u32 tmp;
+#ifdef REPORT_2D_Z
+	u16 z = 0;
+	int ret = 0;
+#endif
 	u8 palm = 0;
 
 	if (gpio_get_value(info->pdata->gpio_int)) {
@@ -1433,10 +1630,10 @@ static irqreturn_t zt7548_touch_work(int irq, void *data)
 
 	if (info->work_state != NOTHING) {
 		dev_err(&client->dev, "%s: Other process occupied\n", __func__);
-		udelay(DELAY_FOR_SIGNAL_DELAY);
+		usleep_range(DELAY_FOR_SIGNAL_DELAY, DELAY_FOR_SIGNAL_DELAY);
 		if (!gpio_get_value(info->pdata->gpio_int)) {
 			write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
-			udelay(DELAY_FOR_SIGNAL_DELAY);
+			usleep_range(DELAY_FOR_SIGNAL_DELAY, DELAY_FOR_SIGNAL_DELAY);
 		}
 		goto out;
 	}
@@ -1483,9 +1680,14 @@ static irqreturn_t zt7548_touch_work(int irq, void *data)
 
 		for (i = 0; i < info->cap_info.button_num; i++) {
 			if (zinitix_bit_test(info->icon_event_reg, (BIT_O_ICON0_DOWN + i))) {
-				info->button[i] = ICON_BUTTON_DOWN;
 				input_report_key(info->input_dev, BUTTON_MAPPING_KEY[i], 1);
-				dev_info(&client->dev, "key %d down\n", BUTTON_MAPPING_KEY[i]);
+				if (info->button[i] != ICON_BUTTON_DOWN)
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+					dev_info(&client->dev, "key %d down\n", BUTTON_MAPPING_KEY[i]);
+#else
+					dev_info(&client->dev, "key down\n");
+#endif
+				info->button[i] = ICON_BUTTON_DOWN;
 			}
 		}
 
@@ -1493,7 +1695,11 @@ static irqreturn_t zt7548_touch_work(int irq, void *data)
 			if (zinitix_bit_test(info->icon_event_reg, (BIT_O_ICON0_UP + i))) {
 				info->button[i] = ICON_BUTTON_UP;
 				input_report_key(info->input_dev, BUTTON_MAPPING_KEY[i], 0);
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 				dev_info(&client->dev, "key %d up\n", BUTTON_MAPPING_KEY[i]);
+#else
+				dev_info(&client->dev, "key up\n");
+#endif
 			}
 		}
 	}
@@ -1525,8 +1731,16 @@ static irqreturn_t zt7548_touch_work(int irq, void *data)
 			if (pdata->orientation & TOUCH_H_FLIP)
 				x = info->cap_info.MaxX + info->cap_info.MinX - x;
 
-			maxX = info->cap_info.MaxX;
-			maxY = info->cap_info.MaxY;
+				maxX = info->cap_info.MaxX;
+				maxY = info->cap_info.MaxY;
+
+				if (x > maxX || y > maxY) {
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+					dev_err(&client->dev,
+								"Invalid coord %d : x=%d, y=%d\n", i, x, y);
+#endif
+					continue;
+				}
 
 			if (pdata->orientation & TOUCH_XY_SWAP) {
 				zinitix_swap_v(x, y, tmp);
@@ -1543,6 +1757,17 @@ static irqreturn_t zt7548_touch_work(int irq, void *data)
 #else
 				dev_info(&client->dev,
 						"[%d][P] w = %d, p = %d\n", i, w, palm);
+#endif
+			} else if (zinitix_bit_test(sub_status, SUB_BIT_MOVE)) {
+				info->move_cnt[i]++;
+#if 0
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+				dev_info(&client->dev, "[%d][M] x = %d, y = %d,"
+						" w = %d, p = %d\n",i, x, y, w, palm);
+#else
+				dev_info(&client->dev,
+						"[%d][M] w = %d, p = %d\n", i, w, palm);
+#endif
 #endif
 			}
 			if (w == 0)
@@ -1573,16 +1798,23 @@ static irqreturn_t zt7548_touch_work(int irq, void *data)
 #endif
 
 			input_report_abs(info->input_dev, ABS_MT_TOUCH_MAJOR, (u32)w);
-			input_report_abs(info->input_dev, ABS_MT_PRESSURE, (u32)w);
+#ifdef REPORT_2D_Z
+			ret = read_data(client, ZT7548_REAL_WIDTH + i, (u8*)&z, 2);
+			if (ret < 0)
+				dev_info(&client->dev, ": Failed to read %d's Real width %s\n", i, __func__);
+			if (z < 1) z = 1;
+			input_report_abs(info->input_dev, ABS_MT_PRESSURE, (u32)z);
+#endif
 			input_report_abs(info->input_dev, ABS_MT_WIDTH_MAJOR,
 								(u32)((palm == 1) ? (w - 40) : w));
 			input_report_abs(info->input_dev, ABS_MT_POSITION_X, x);
 			input_report_abs(info->input_dev, ABS_MT_POSITION_Y, y);
 		} else if (zinitix_bit_test(sub_status, SUB_BIT_UP) ||
 			zinitix_bit_test(prev_sub_status, SUB_BIT_EXIST)) {
-			dev_info(&client->dev, "[%d][R] Ver[%02x] Mode[%02x]\n",
-							i, info->cap_info.reg_data_version, m_optional_mode);
-
+			dev_info(&client->dev, "[%d][R] M[%d] Ver[%02x] Mode[%02x]\n",
+					i, info->move_cnt[i],
+					info->cap_info.reg_data_version, m_optional_mode);
+			info->move_cnt[i] = 0;
 			info->finger_cnt--;
 			memset(&info->touch_info.coord[i], 0x0, sizeof(struct coord));
 			input_mt_slot(info->input_dev, i);
@@ -1629,7 +1861,9 @@ static int zt7548_ts_resume(struct device *dev)
 		up(&info->work_lock);
 		return 0;
 	}
+	zt7548_pinctrl_configure(info, 1);
 	zt7548_power_control(info, POWER_ON_SEQUENCE);
+	info->device_enabled = 1;
 
 	info->work_state = NOTHING;
 	if (!mini_init_touch(info))
@@ -1637,8 +1871,6 @@ static int zt7548_ts_resume(struct device *dev)
 	enable_irq(info->irq);
 
 	up(&info->work_lock);
-
-	info->device_enabled = 1;
 
 	return 0;
 }
@@ -1673,8 +1905,9 @@ static int zt7548_ts_suspend(struct device *dev)
 #endif
 
 	write_cmd(info->client, ZT7548_SLEEP_CMD);
-	zt7548_power_control(info, POWER_OFF);
 	info->work_state = SUSPEND;
+	zt7548_power_control(info, POWER_OFF);
+	zt7548_pinctrl_configure(info, 0);
 
 	up(&info->work_lock);
 
@@ -1699,6 +1932,7 @@ static void zt7548_input_close(struct input_dev *dev)
 	zt7548_ts_suspend(&info->client->dev);
 }
 
+/* For DND*/
 static bool ts_set_touchmode(u16 value)
 {
 	int i;
@@ -1713,76 +1947,56 @@ static bool ts_set_touchmode(u16 value)
 		return -1;
 	}
 
+	write_cmd(misc_info->client, ZT7548_WAKEUP_CMD);
+	zinitix_delay(50);
+	if (misc_info->touch_mode == TOUCH_POINT_MODE) {
+		/* factory data */
+		read_data(misc_info->client, ZT7548_MUTUAL_AMP_V_SEL,
+				(u8 *)&misc_info->cap_info.mutual_amp_v_sel, 2);
+		read_data(misc_info->client, ZT7548_AFE_FREQUENCY,
+				(u8 *)&misc_info->cap_info.afe_frequency, 2);
+		read_data(misc_info->client, ZT7548_DND_SHIFT_VALUE,
+				(u8 *)&misc_info->cap_info.shift_value, 2);
+	}
 	misc_info->work_state = SET_MODE;
 
-	if (value != TOUCH_POINT_MODE) {
-		write_cmd(misc_info->client, ZT7548_SWRESET_CMD);
-		mdelay(10);
-		for (i = 0; i < 10; i++) {
-			if (write_reg(misc_info->client, ZT7548_TOUCH_MODE, value) == I2C_SUCCESS)
-				break;
-			mdelay(10);
-		}
-		if (i == 10)
-			dev_err(&misc_info->client->dev, "Fail to set ZINITX_TOUCH_MODE\n");
-		write_cmd(misc_info->client, ZT7548_SWRESET_CMD);
-		mdelay(25);
-		write_cmd(misc_info->client, ZT7548_SWRESET_CMD);
-		mdelay(25);
-	}
-
-
-	/*DND mode */
 	if (value == TOUCH_DND_MODE) {
-		if (write_reg(misc_info->client, ZT7548_DND_CP_CTRL_L,
-						SEC_DND_CP_CTRL_L) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev,
-					"Fail to set ZT7548_DND_CP_CTRL_L %d.\n", SEC_DND_CP_CTRL_L);
-		if (write_reg(misc_info->client, ZT7548_DND_V_FORCE,
-						SEC_DND_V_FORCE) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev,
-					"Fail to set ZT7548_DND_V_FORCE %d.\n", SEC_DND_V_FORCE);
-		if (write_reg(misc_info->client, ZT7548_DND_AMP_V_SEL,
-						SEC_DND_AMP_V_SEL) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev,
-					"Fail to set ZT7548_DND_AMP_V_SEL %d.\n", SEC_DND_AMP_V_SEL);
+#if !defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+		if (write_reg(misc_info->client, ZT7548_MUTUAL_AMP_V_SEL,
+				SEC_MUTUAL_AMP_V_SEL)!=I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to set ZT7548_MUTUAL_AMP_V_SEL %x.\n", SEC_MUTUAL_AMP_V_SEL);
+#endif
 		if (write_reg(misc_info->client, ZT7548_DND_N_COUNT,
-						SEC_DND_N_COUNT) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev,
+				SEC_DND_N_COUNT)!=I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
 					"Fail to set ZT7548_DND_N_COUNT %d.\n", SEC_DND_N_COUNT);
 		if (write_reg(misc_info->client, ZT7548_DND_U_COUNT,
-						SEC_DND_U_COUNT) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev,
+				SEC_DND_U_COUNT)!=I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
 					"Fail to set ZT7548_DND_U_COUNT %d.\n", SEC_DND_U_COUNT);
 		if (write_reg(misc_info->client, ZT7548_AFE_FREQUENCY,
-						SEC_DND_FREQUENCY) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev,
+				SEC_DND_FREQUENCY)!=I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
 					"Fail to set ZT7548_AFE_FREQUENCY %d.\n", SEC_DND_FREQUENCY);
 	} else if (misc_info->touch_mode == TOUCH_DND_MODE) {
-		if (write_reg(misc_info->client, ZT7548_DND_CP_CTRL_L,
-						misc_info->cap_info.cp_ctrl_l) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev, "Failed to set DND_CP_CTRL_L\n");
-		if (write_reg(misc_info->client, ZT7548_DND_V_FORCE,
-						misc_info->cap_info.v_force) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev, "Failed to set DND_V_FORCE\n");
-		if (write_reg(misc_info->client, ZT7548_DND_AMP_V_SEL,
-						misc_info->cap_info.amp_v_sel) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev, "Failed to set DND_AMP_V_SEL\n");
-		if (write_reg(misc_info->client, ZT7548_DND_N_COUNT,
-						misc_info->cap_info.N_cnt) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev,
-					"Fail to reset ZT7548_AFE_FREQUENCY %d.\n",
-								misc_info->cap_info.N_cnt);
-		if (write_reg(misc_info->client, ZT7548_DND_U_COUNT,
-						misc_info->cap_info.u_cnt) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev,
-					"Fail to reset ZT7548_DND_U_COUNT %d.\n",
-								misc_info->cap_info.u_cnt);
+		if (write_reg(misc_info->client, ZT7548_MUTUAL_AMP_V_SEL,
+				misc_info->cap_info.mutual_amp_v_sel) != I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT7548_MUTUAL_AMP_V_SEL %d.\n",
+					misc_info->cap_info.mutual_amp_v_sel);
+
+		if (write_reg(misc_info->client, ZT7548_DND_SHIFT_VALUE,
+				misc_info->cap_info.shift_value) != I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT7548_DND_SHIFT_VALUE %d.\n",
+					misc_info->cap_info.shift_value);
+
 		if (write_reg(misc_info->client, ZT7548_AFE_FREQUENCY,
-						misc_info->cap_info.afe_frequency) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev,
+				misc_info->cap_info.afe_frequency) != I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
 					"Fail to reset ZT7548_AFE_FREQUENCY %d.\n",
-								misc_info->cap_info.afe_frequency);
+					misc_info->cap_info.afe_frequency);
 	}
 
 	if (value == TOUCH_SEC_MODE)
@@ -1790,32 +2004,273 @@ static bool ts_set_touchmode(u16 value)
 	else
 		misc_info->touch_mode = value;
 
+	dev_info(&misc_info->client->dev, "[zinitix_touch] tsp_set_testmode, "
+			"touchkey_testmode = %d\r\n", misc_info->touch_mode);
+
 	if (misc_info->touch_mode != TOUCH_POINT_MODE) {
 		if (write_reg(misc_info->client, ZT7548_DELAY_RAW_FOR_HOST,
-					RAWDATA_DELAY_FOR_HOST) != I2C_SUCCESS)
-			dev_err(&misc_info->client->dev, "Fail to set ZT7548_DELAY_RAW_FOR_HOST\n");
+				RAWDATA_DELAY_FOR_HOST) != I2C_SUCCESS)
+			dev_info(&misc_info->client->dev,
+					"Fail to set ZT7548_DELAY_RAW_FOR_HOST.\r\n");
 	}
 
 	if (write_reg(misc_info->client, ZT7548_TOUCH_MODE,
-					misc_info->touch_mode) != I2C_SUCCESS)
-		dev_err(&misc_info->client->dev, "Fail to set ZINITX_TOUCH_MODE\n");
+			misc_info->touch_mode) != I2C_SUCCESS)
+		dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+				"Fail to set ZINITX_TOUCH_MODE %d.\r\n",
+				misc_info->touch_mode);
 
-	mdelay(5);
-	if (write_cmd(misc_info->client, ZT7548_SWRESET_CMD) != I2C_SUCCESS)
-		dev_err(&misc_info->client->dev, "Fail to reset!\n");
+	if (write_cmd(misc_info->client, ZT7548_SWRESET_CMD) != I2C_SUCCESS) {
+		dev_info(&misc_info->client->dev, "Failed to write reset command\n");
+	}
 
 	/* clear garbage data */
 	for (i = 0; i < 10; i++) {
-		mdelay(20);
+		zinitix_delay(20);
 		write_cmd(misc_info->client, ZT7548_CLEAR_INT_STATUS_CMD);
 	}
 
 	misc_info->work_state = NOTHING;
 	enable_irq(misc_info->irq);
 	up(&misc_info->work_lock);
-
 	return 1;
 }
+
+/* For HFDND */
+static bool ts_set_touchmode2(u16 value)
+{
+	int i;
+
+	disable_irq(misc_info->irq);
+
+	down(&misc_info->work_lock);
+	if (misc_info->work_state != NOTHING) {
+		dev_info(&misc_info->client->dev, "other process occupied.. (%d)\n",
+			misc_info->work_state);
+		enable_irq(misc_info->irq);
+		up(&misc_info->work_lock);
+		return -1;
+	}
+
+	write_cmd(misc_info->client, ZT7548_WAKEUP_CMD);
+	zinitix_delay(50);
+	if (misc_info->touch_mode == TOUCH_POINT_MODE) {
+		/* factory data */
+		read_data(misc_info->client, ZT7548_MUTUAL_AMP_V_SEL,
+				(u8 *)&misc_info->cap_info.mutual_amp_v_sel, 2);
+		read_data(misc_info->client, ZT7548_AFE_FREQUENCY,
+				(u8 *)&misc_info->cap_info.afe_frequency, 2);
+		read_data(misc_info->client, ZT7548_DND_SHIFT_VALUE,
+				(u8 *)&misc_info->cap_info.shift_value, 2);
+	}
+	misc_info->work_state = SET_MODE;
+
+	if(value == TOUCH_DND_MODE) {
+#if !defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+		if (write_reg(misc_info->client, ZT7548_MUTUAL_AMP_V_SEL,
+				SEC_MUTUAL_AMP_V_SEL)!=I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to set ZT7548_MUTUAL_AMP_V_SEL %x.\n", SEC_MUTUAL_AMP_V_SEL);
+#endif
+		if (write_reg(misc_info->client, ZT7548_DND_N_COUNT,
+				SEC_HFDND_N_COUNT)!=I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to set ZT7548_HFDND_N_COUNT %d.\n", SEC_HFDND_N_COUNT);
+		if (write_reg(misc_info->client, ZT7548_DND_U_COUNT,
+				SEC_HFDND_U_COUNT)!=I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to set ZT7548_HFDND_U_COUNT %d.\n", SEC_HFDND_U_COUNT);
+		if (write_reg(misc_info->client, ZT7548_AFE_FREQUENCY,
+				SEC_HFDND_FREQUENCY)!=I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to set ZT7548_AFE_FREQUENCY %d.\n", SEC_HFDND_FREQUENCY);
+	} else if (misc_info->touch_mode == TOUCH_DND_MODE) {
+		if (write_reg(misc_info->client, ZT7548_MUTUAL_AMP_V_SEL,
+				misc_info->cap_info.mutual_amp_v_sel) != I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT7548_MUTUAL_AMP_V_SEL %d.\n",
+					misc_info->cap_info.mutual_amp_v_sel);
+
+		if (write_reg(misc_info->client, ZT7548_DND_SHIFT_VALUE,
+				misc_info->cap_info.shift_value) != I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT7548_DND_SHIFT_VALUE %d.\n",
+					misc_info->cap_info.shift_value);
+
+		if (write_reg(misc_info->client, ZT7548_AFE_FREQUENCY,
+				misc_info->cap_info.afe_frequency) != I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT7548_AFE_FREQUENCY %d.\n",
+					misc_info->cap_info.afe_frequency);
+	}
+	if (value == TOUCH_SEC_MODE)
+		misc_info->touch_mode = TOUCH_POINT_MODE;
+	else
+		misc_info->touch_mode = value;
+
+	dev_info(&misc_info->client->dev, "[zinitix_touch] tsp_set_testmode, "
+			"touchkey_testmode = %d\r\n", misc_info->touch_mode);
+
+	if (misc_info->touch_mode != TOUCH_POINT_MODE) {
+		if (write_reg(misc_info->client, ZT7548_DELAY_RAW_FOR_HOST,
+				RAWDATA_DELAY_FOR_HOST) != I2C_SUCCESS)
+			dev_info(&misc_info->client->dev,
+					"Fail to set ZT7548_DELAY_RAW_FOR_HOST.\r\n");
+	}
+
+	if (write_reg(misc_info->client, ZT7548_TOUCH_MODE,
+			misc_info->touch_mode) != I2C_SUCCESS)
+		dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+				"Fail to set ZINITX_TOUCH_MODE %d.\r\n", misc_info->touch_mode);
+
+	if (write_cmd(misc_info->client, ZT7548_SWRESET_CMD) != I2C_SUCCESS) {
+		dev_info(&misc_info->client->dev, "Failed to write reset command\n");
+	}
+
+	/* clear garbage data */
+	for (i = 0; i < 10; i++) {
+		zinitix_delay(20);
+		write_cmd(misc_info->client, ZT7548_CLEAR_INT_STATUS_CMD);
+	}
+
+	misc_info->work_state = NOTHING;
+	enable_irq(misc_info->irq);
+	up(&misc_info->work_lock);
+	return 1;
+}
+
+#if defined(CONFIG_TOUCHSCREEN_ZT7548_TS)
+static bool ts_set_touchmode3(u16 value)
+{
+	int i;
+
+	disable_irq(misc_info->irq);
+
+	down(&misc_info->work_lock);
+	if (misc_info->work_state != NOTHING) {
+		dev_info(&misc_info->client->dev, "other process occupied.. (%d)\n",
+			misc_info->work_state);
+		enable_irq(misc_info->irq);
+		up(&misc_info->work_lock);
+		return -1;
+	}
+
+	if (misc_info->touch_mode == TOUCH_POINT_MODE) {
+		/* factory data */
+		read_data(misc_info->client, ZT7548_MUTUAL_AMP_V_SEL, (u8 *)&misc_info->cap_info.mutual_amp_v_sel, 2);
+		read_data(misc_info->client, ZT75XX_SX_AMP_V_SEL, (u8 *)&misc_info->cap_info.sx_amp_v_sel, 2);
+		read_data(misc_info->client, ZT75XX_SX_SUB_V_SEL, (u8 *)&misc_info->cap_info.sx_sub_v_sel, 2);
+		read_data(misc_info->client, ZT75XX_SY_AMP_V_SEL, (u8 *)&misc_info->cap_info.sy_amp_v_sel, 2);
+		read_data(misc_info->client, ZT75XX_SY_SUB_V_SEL, (u8 *)&misc_info->cap_info.sy_sub_v_sel, 2);
+		read_data(misc_info->client, ZT7548_AFE_FREQUENCY, (u8 *)&misc_info->cap_info.afe_frequency, 2);
+		read_data(misc_info->client, ZT7548_DND_SHIFT_VALUE, (u8 *)&misc_info->cap_info.shift_value, 2);
+	}
+	misc_info->work_state = SET_MODE;
+
+	if(value == TOUCH_RXSHORT_MODE) {
+			if (write_reg(misc_info->client, ZT75XX_SY_AMP_V_SEL,
+							SEC_SY_AMP_V_SEL)!=I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+						"Fail to set SEC_SY_AMP_V_SEL %d.\n", SEC_SY_AMP_V_SEL);
+			if (write_reg(misc_info->client, ZT75XX_SY_SUB_V_SEL,
+							SEC_SY_SUB_V_SEL)!=I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+						"Fail to set SEC_SY_SUB_V_SEL %d.\n", SEC_SY_SUB_V_SEL);
+			if (write_reg(misc_info->client, ZT7548_DND_N_COUNT,
+							SEC_SHORT_N_COUNT)!=I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+						"Fail to set SEC_SHORT_N_COUNT %d.\n", SEC_SHORT_N_COUNT);
+			if (write_reg(misc_info->client, ZT7548_DND_U_COUNT,
+							SEC_SHORT_U_COUNT)!=I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+						"Fail to set SEC_SHORT_U_COUNT %d.\n", SEC_SHORT_U_COUNT);
+	}
+	else if(value == TOUCH_TXSHORT_MODE) {
+		if (write_reg(misc_info->client, ZT75XX_SX_AMP_V_SEL,
+							SEC_SX_AMP_V_SEL)!=I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+						"Fail to set SEC_SX_AMP_V_SEL %d.\n", SEC_SX_AMP_V_SEL);
+			if (write_reg(misc_info->client, ZT75XX_SX_SUB_V_SEL,
+							SEC_SX_SUB_V_SEL)!=I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+						"Fail to set SEC_SX_SUB_V_SEL %d.\n", SEC_SX_SUB_V_SEL);
+			if (write_reg(misc_info->client, ZT7548_DND_N_COUNT,
+							SEC_SHORT_N_COUNT)!=I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+						"Fail to set SEC_SHORT_N_COUNT %d.\n", SEC_SHORT_N_COUNT);
+			if (write_reg(misc_info->client, ZT7548_DND_U_COUNT,
+							SEC_SHORT_U_COUNT)!=I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+						"Fail to set SEC_SHORT_U_COUNT %d.\n", SEC_SHORT_U_COUNT);
+	}
+	else if(misc_info->touch_mode == TOUCH_RXSHORT_MODE || misc_info->touch_mode == TOUCH_TXSHORT_MODE ) {
+			if (write_reg(misc_info->client, ZT7548_MUTUAL_AMP_V_SEL,
+							misc_info->cap_info.mutual_amp_v_sel) != I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT7548_MUTUAL_AMP_V_SEL %d.\n",
+					misc_info->cap_info.mutual_amp_v_sel);
+			if (write_reg(misc_info->client, ZT75XX_SY_AMP_V_SEL,
+							misc_info->cap_info.sy_amp_v_sel) != I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT75XX_SY_AMP_V_SEL %d.\n",
+					misc_info->cap_info.sy_amp_v_sel);
+			if (write_reg(misc_info->client, ZT75XX_SY_SUB_V_SEL,
+										misc_info->cap_info.sy_sub_v_sel) != I2C_SUCCESS)
+							dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+								"Fail to reset ZT75XX_SY_SUB_V_SEL %d.\n",
+								misc_info->cap_info.sy_sub_v_sel);
+			if (write_reg(misc_info->client, ZT75XX_SX_AMP_V_SEL,
+										misc_info->cap_info.sx_amp_v_sel) != I2C_SUCCESS)
+							dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+								"Fail to reset ZT75XX_SX_AMP_V_SEL %d.\n",
+								misc_info->cap_info.sx_amp_v_sel);
+			if (write_reg(misc_info->client, ZT75XX_SX_SUB_V_SEL,
+										misc_info->cap_info.sx_sub_v_sel) != I2C_SUCCESS)
+							dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+								"Fail to reset ZT75XX_SX_SUB_V_SEL %d.\n",
+								misc_info->cap_info.sx_sub_v_sel);
+			if (write_reg(misc_info->client, ZT7548_DND_SHIFT_VALUE,
+				misc_info->cap_info.shift_value) != I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT7548_DND_SHIFT_VALUE %d.\n",
+					misc_info->cap_info.shift_value);
+			if (write_reg(misc_info->client, ZT7548_AFE_FREQUENCY,
+				misc_info->cap_info.afe_frequency) != I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to reset ZT7548_AFE_FREQUENCY %d.\n",
+					misc_info->cap_info.afe_frequency);
+	}
+	if (value == TOUCH_SEC_MODE)
+		misc_info->touch_mode = TOUCH_POINT_MODE;
+	else
+		misc_info->touch_mode = value;
+
+	dev_info(&misc_info->client->dev, "[zinitix_touch] tsp_set_testmode, "
+		"touchkey_testmode = %d\r\n", misc_info->touch_mode);
+
+	if (misc_info->touch_mode != TOUCH_POINT_MODE) {
+			if (write_reg(misc_info->client, ZT7548_DELAY_RAW_FOR_HOST,
+				RAWDATA_DELAY_FOR_HOST) != I2C_SUCCESS)
+				dev_info(&misc_info->client->dev, "Fail to set ZT7548_DELAY_RAW_FOR_HOST.\r\n");
+	}
+
+	if (write_reg(misc_info->client,ZT7548_TOUCH_MODE,
+				misc_info->touch_mode) != I2C_SUCCESS)
+			dev_info(&misc_info->client->dev, "[zinitix_touch] TEST Mode : "
+					"Fail to set ZINITX_TOUCH_MODE %d.\r\n", misc_info->touch_mode);
+
+	/* clear garbage data */
+	for (i = 0; i < 10; i++) {
+		zinitix_delay(20);
+		write_cmd(misc_info->client, ZT7548_CLEAR_INT_STATUS_CMD);
+	}
+
+	misc_info->work_state = NOTHING;
+	enable_irq(misc_info->irq);
+	up(&misc_info->work_lock);
+	return 1;
+}
+#endif
 
 static int ts_upgrade_sequence(const u8 *firmware_data)
 {
@@ -1863,26 +2318,43 @@ static struct tsp_cmd tsp_cmds[] = {
 	{TSP_CMD("get_chip_name", get_chip_name),},
 	{TSP_CMD("get_x_num", get_x_num),},
 	{TSP_CMD("get_y_num", get_y_num),},
-	{TSP_CMD("dead_zone_enable", dead_zone_enable),},
-	{TSP_CMD("get_config_ver", get_config_ver),},
 	{TSP_CMD("not_support_cmd", not_support_cmd),},
 
 	/* vendor dependant command */
-	{TSP_CMD("run_reference_read", run_reference_read),},
-	{TSP_CMD("get_reference", get_reference),},
-	{TSP_CMD("get_reference_all_data", get_reference_all_data),},
-	{TSP_CMD("get_max_v_diff", get_reference_max_V_Diff),},
-	{TSP_CMD("get_max_h_diff", get_reference_max_H_Diff),},
-	{TSP_CMD("run_reference_diff", run_reference_diff),},
 	{TSP_CMD("run_dnd_read", run_dnd_read),},
 	{TSP_CMD("get_dnd", get_dnd),},
 	{TSP_CMD("get_dnd_all_data", get_dnd_all_data),},
+	{TSP_CMD("run_dnd_v_gap_read", run_dnd_v_gap_read),},
+	{TSP_CMD("get_dnd_v_gap", get_dnd_v_gap),},
+	{TSP_CMD("run_dnd_h_gap_read", run_dnd_h_gap_read),},
+	{TSP_CMD("get_dnd_h_gap", get_dnd_h_gap),},
+	{TSP_CMD("run_hfdnd_read", run_hfdnd_read),},
+	{TSP_CMD("get_hfdnd", get_hfdnd),},
+	{TSP_CMD("get_hfdnd_all_data", get_hfdnd_all_data),},
+	{TSP_CMD("run_hfdnd_v_gap_read", run_hfdnd_v_gap_read),},
+	{TSP_CMD("get_hfdnd_v_gap", get_hfdnd_v_gap),},
+	{TSP_CMD("run_hfdnd_h_gap_read", run_hfdnd_h_gap_read),},
+	{TSP_CMD("get_hfdnd_h_gap", get_hfdnd_h_gap),},
 	{TSP_CMD("run_delta_read", run_delta_read),},
 	{TSP_CMD("get_delta", get_delta),},
 	{TSP_CMD("get_delta_all_data", get_delta_all_data),},
+	{TSP_CMD("dead_zone_enable", dead_zone_enable),},
+	{TSP_CMD("clear_cover_mode", clear_cover_mode),},
+	{TSP_CMD("clear_reference_data", clear_reference_data),},
+#if defined(CONFIG_TOUCHSCREEN_ZT7548_TS)
+	{TSP_CMD("run_rxshort_read", run_rxshort_read),},
+	{TSP_CMD("get_rxshort", get_rxshort),},
+	{TSP_CMD("run_txshort_read", run_txshort_read),},
+	{TSP_CMD("get_txshort", get_txshort),},
+	{TSP_CMD("run_reference_read", run_reference_read),},
+	{TSP_CMD("get_reference", get_reference),},
+#endif
 	{TSP_CMD("run_ref_calibration", run_ref_calibration),},
 #ifdef CONFIG_INPUT_BOOSTER
 	{TSP_CMD("boost_level", boost_level),},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	{TSP_CMD("hfdnd_spec_adjust", hfdnd_spec_adjust),},
 #endif
 };
 
@@ -1959,7 +2431,11 @@ static void fw_update(void *device_data)
 	char fw_path[ZINITIX_MAX_FW_PATH];
 
 	set_default_result(finfo);
-
+/*
+	* 0 : [BUILT_IN] Getting firmware which is for user.
+	* 1 : [UMS] Getting firmware from sd card.
+	* 2 : [FFU] Getting firmware from air.
+*/
 	switch (finfo->cmd_param[0]) {
 	case BUILT_IN:
 		if (!info->fw_data) {
@@ -2027,6 +2503,34 @@ static void fw_update(void *device_data)
 			devm_kfree(&client->dev, buff);
 			finfo->cmd_state = FAIL;
 			goto update_fail;
+		}
+		break;
+
+	case FFU:
+		snprintf(fw_path, ZINITIX_MAX_FW_PATH, "%s", ZINITIX_DEFAULT_FFU_FW);
+
+		dev_err(&info->client->dev, "%s: Load firmware : %s\n", __func__,
+			 fw_path);
+
+		ret = request_firmware(&tsp_fw, fw_path, &info->client->dev);
+		if (ret) {
+			dev_err(&info->client->dev, "%s: failed to request_firmware %s\n",
+						__func__, fw_path);
+			finfo->cmd_state = FAIL;
+			return;
+		} else {
+			info->fw_data = (unsigned char *)tsp_fw->data;
+		}
+
+		ret = ts_upgrade_sequence((u8 *)info->fw_data);
+		if (ret < 0) {
+			finfo->cmd_state = FAIL;
+			return;
+		}
+
+		if (info->fw_data) {
+			release_firmware(tsp_fw);
+			info->fw_data = NULL;
 		}
 		break;
 
@@ -2116,15 +2620,32 @@ static void get_fw_ver_ic(void *device_data)
 	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
 	struct i2c_client *client = info->client;
 	struct tsp_factory_info *finfo = info->factory_info;
-	u16 fw_version, fw_minor_version, reg_version, hw_id, vendor_id;
-	u32 version, length;
+	u16 fw_version = 0;
+	u16 fw_minor_version = 0;
+	u16 reg_version = 0;
+	u16 hw_id = 0;
+	u16 vendor_id = 0;
+	u32 version = 0;
+	u32 length = 0;
 
 	set_default_result(finfo);
 
-	fw_version = info->cap_info.fw_version;
-	fw_minor_version = info->cap_info.fw_minor_version;
-	reg_version = info->cap_info.reg_data_version;
-	hw_id = info->cap_info.hw_id;
+/* Read firmware version from IC */
+	down(&info->work_lock);
+	write_cmd(client, ZT7548_WAKEUP_CMD);
+	zinitix_delay(50);
+
+	if (read_data(client, ZT7548_FIRMWARE_VERSION, (u8 *)&fw_version, 2) < 0)
+		dev_err(&client->dev, "Failed to read firmware version\n");
+	if (read_data(client, ZT7548_MINOR_FW_VERSION, (u8 *)&fw_minor_version, 2) < 0)
+		dev_err(&client->dev, "Failed to read minor version\n");
+	if (read_data(client, ZT7548_DATA_VERSION_REG, (u8 *)&reg_version, 2) < 0)
+		dev_err(&client->dev, "Failed to read register version\n");
+	if (read_data(client, ZT7548_HW_ID, (u8 *)&hw_id, 2) < 0)
+		dev_err(&client->dev, "Failed to read HW_ID version");
+
+	up(&info->work_lock);
+
 	vendor_id = ntohs(info->cap_info.vendor_id);
 	version = (u32)((u32)(hw_id & 0xff) << 16) | ((fw_version & 0xf) << 12)
 		| ((fw_minor_version & 0xf) << 8) | (reg_version & 0xff);
@@ -2245,71 +2766,6 @@ static void get_y_num(void *device_data)
 	finfo->cmd_state = OK;
 
 	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
-				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-
-	return;
-}
-
-static void dead_zone_enable(void *device_data)
-{
-	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
-	struct i2c_client *client = info->client;
-	struct tsp_factory_info *finfo = info->factory_info;
-
-	set_default_result(finfo);
-
-	if (finfo->cmd_param[0] == 1) {	/* enable */
-		if (write_reg(client, REG_EDGE_XF_OFFSET, 56) != I2C_SUCCESS)
-			dev_err(&client->dev, "fail to set edge xf setting changed to 56\n");
-		if (write_reg(client, REG_EDGE_XL_OFFSET, 56) != I2C_SUCCESS)
-			dev_err(&client->dev, "fail to set edge xf setting changed to 56\n");
-		if (write_reg(client, REG_EDGE_YF_OFFSET, 56) != I2C_SUCCESS)
-			dev_err(&client->dev, "fail to set edge xf setting changed to 56\n");
-		if (write_reg(client, REG_EDGE_YL_OFFSET, 56) != I2C_SUCCESS)
-			dev_err(&client->dev, "fail to set edge xf setting changed to 56\n");
-	} else if (finfo->cmd_param[0] == 0) {
-		if (write_reg(client, REG_EDGE_XF_OFFSET, 76) != I2C_SUCCESS)
-			dev_err(&client->dev, "fail to set edge xf setting changed to 76\n");
-		if (write_reg(client, REG_EDGE_XL_OFFSET, 76) != I2C_SUCCESS)
-			dev_err(&client->dev, "fail to set edge xf setting changed to 76\n");
-		if (write_reg(client, REG_EDGE_YF_OFFSET, 76) != I2C_SUCCESS)
-			dev_err(&client->dev, "fail to set edge xf setting changed to 76\n");
-		if (write_reg(client, REG_EDGE_YL_OFFSET, 76) != I2C_SUCCESS)
-			dev_err(&client->dev, "fail to set edge xf setting changed to 76\n");
-	} else {
-		finfo->cmd_state = FAIL;
-		sprintf(finfo->cmd_buff, "%s", "NG");
-		goto err;
-	}
-
-	finfo->cmd_state = OK;
-	sprintf(finfo->cmd_buff, "%s", "OK");
-err:
-	set_cmd_result(finfo, finfo->cmd_buff,
-			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
-				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-
-	return;
-}
-
-#ifndef FW_DATE
-#define FW_DATE "0000"
-#endif
-
-static void get_config_ver(void *device_data)
-{
-	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
-	struct tsp_factory_info *finfo = info->factory_info;
-
-	set_default_result(finfo);
-
-	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff),
-				"%s_ZI_%s", info->pdata->model_name, FW_DATE);
-	finfo->cmd_state = OK;
-	set_cmd_result(finfo, finfo->cmd_buff,
-			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-	dev_info(&info->client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
 				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
 
 	return;
@@ -2448,466 +2904,49 @@ all_data_out:
 	info->get_all_data = false;
 }
 
-static void run_reference_read(void *device_data)
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+static void hfdnd_spec_adjust(void *device_data)
 {
 	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
 	struct i2c_client *client = info->client;
 	struct tsp_factory_info *finfo = info->factory_info;
-	struct tsp_raw_data *raw_data = info->raw_data;
-	u32 min, max;
-	s32 i, j;
+	int test;
 
-#if ESD_TIMER_INTERVAL
-	esd_timer_stop(misc_info);
-#endif
 	set_default_result(finfo);
 
-	for (i = 0; i < 2; i++)
-		ts_set_touchmode(TOUCH_DND_MODE);
-	get_raw_data(info, (u8 *)raw_data->ref_data, 5);
-	ts_set_touchmode(TOUCH_POINT_MODE);
+	test = finfo->cmd_param[0];
 
-	min = raw_data->ref_data[0];
-	max = raw_data->ref_data[0];
-
-	for (i = 0; i < info->cap_info.x_node_num - 1; i++) {
-		pr_info("%s: ref_data[%d] : ", client->name, i);
-		for (j = 0; j < info->cap_info.y_node_num; j++) {
-			pr_cont("[%5d]", raw_data->ref_data[i * info->cap_info.y_node_num + j]);
-
-			if (raw_data->ref_data[i * info->cap_info.y_node_num + j] < min &&
-				raw_data->ref_data[i * info->cap_info.y_node_num + j] != 0)
-				min = raw_data->ref_data[i * info->cap_info.y_node_num + j];
-
-			if (raw_data->ref_data[i * info->cap_info.y_node_num + j] > max)
-				max = raw_data->ref_data[i * info->cap_info.y_node_num + j];
-
-		}
-		pr_cont("\n");
+	if (test) {	/* set : assy */
+		info->dnd_max_spec = DND_MAX_Ref_data;
+		info->dnd_min_spec = DND_MIN_Ref_data;
+		info->dnd_v_gap_spec = DND_V_GAP_Ref_data;
+		info->dnd_h_gap_spec = DND_H_GAP_Ref_data;
+		info->hfdnd_max_spec = HF_DND_MAX_Ref_data;
+		info->hfdnd_min_spec = HF_DND_MIN_Ref_data;
+		info->hfdnd_v_gap_spec = HF_DND_V_GAP_Ref_data;
+		info->hfdnd_h_gap_spec = HF_DND_H_GAP_Ref_data;
+		dev_info(&client->dev, "%s: set set spec: %d\n", __func__, test);
+	} else {	/* module */
+		info->dnd_max_spec = Module_DND_MAX_Ref_data;
+		info->dnd_min_spec = Module_DND_MIN_Ref_data;
+		info->dnd_v_gap_spec = Module_DND_V_GAP_Ref_data;
+		info->dnd_h_gap_spec = Module_DND_H_GAP_Ref_data;
+		info->hfdnd_max_spec = Module_HF_DND_MAX_Ref_data;
+		info->hfdnd_min_spec = Module_HF_DND_MIN_Ref_data;
+		info->hfdnd_v_gap_spec = Module_HF_DND_V_GAP_Ref_data;
+		info->hfdnd_h_gap_spec = Module_HF_DND_H_GAP_Ref_data;
+		dev_info(&client->dev, "%s: set module spec: %d\n", __func__, test);
 	}
 
-	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d", min, max);
-	if (!info->get_all_data) {
-		set_cmd_result(finfo, finfo->cmd_buff,
-				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-		finfo->cmd_state = OK;
-	}
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "OK");
+	set_cmd_result(finfo, finfo->cmd_buff, (int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
 
-	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
-				strlen(finfo->cmd_buff));
-
-#if ESD_TIMER_INTERVAL
-	esd_timer_start(CHECK_ESD_TIMER, misc_info);
-#endif
-
+	dev_info(&client->dev, "%s: %s(%d)\n", __func__,
+			finfo->cmd_buff, (int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
 	return;
 }
-
-static void get_reference_max_H_Diff(void *device_data)
-{
-	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
-	struct i2c_client *client = info->client;
-	struct tsp_factory_info *finfo = info->factory_info;
-	struct tsp_raw_data *raw_data = info->raw_data;
-	int i, j, diff_val, pre_val, next_val, x_num, y_num;
-	int H_diff[31*21] = {0};
-	int max_hdiff = 0;
-
-
-#if ESD_TIMER_INTERVAL
-	esd_timer_stop(misc_info);
 #endif
-
-	set_default_result(finfo);
-
-	x_num = info->cap_info.x_node_num;
-	y_num = info->cap_info.y_node_num;
-
-	dev_info(&client->dev, "H Diff start\n");
-	/* H DIff */
-	for (i = 0; i < x_num - 1; i++) {
-		pr_info("%s: [%2d] ", info->client->name, i);
-		for (j = 0; j < y_num - 1; j++) {
-			next_val = raw_data->ref_data[(i * y_num) + j + 1];
-			pre_val = raw_data->ref_data[(i * y_num) + j];
-			if (next_val > pre_val)
-				diff_val = 100 - ((pre_val * 100) / next_val);
-			else
-				diff_val = 100 - ((next_val * 100) / pre_val);
-			pr_cont("%5d ", diff_val);
-			H_diff[i * y_num + j] = diff_val;
-			if (max_hdiff < diff_val)
-				max_hdiff = diff_val;
-		}
-		pr_cont("\n");
-	}
-
-	sprintf(finfo->cmd_buff, "%d", max_hdiff);
-	set_cmd_result(finfo, finfo->cmd_buff,
-			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-	finfo->cmd_state = OK;
-	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
-				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-
-#if ESD_TIMER_INTERVAL
-	esd_timer_start(CHECK_ESD_TIMER, misc_info);
-#endif
-}
-
-static void get_reference_max_V_Diff(void *device_data)
-{
-	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
-	struct i2c_client *client = info->client;
-	struct tsp_factory_info *finfo = info->factory_info;
-	struct tsp_raw_data *raw_data = info->raw_data;
-	int i, j, diff_val, pre_val, next_val, x_num, y_num;
-	int V_diff[30 * 22] = {0};
-	int max_vdiff = 0;
-
-#if ESD_TIMER_INTERVAL
-	esd_timer_stop(misc_info);
-#endif
-
-	set_default_result(finfo);
-
-	x_num = info->cap_info.x_node_num;
-	y_num = info->cap_info.y_node_num;
-
-	dev_info(&info->client->dev, "V Diff start\n");
-
-	/* V DIff  View */
-	for (i = 0; i < x_num - 2; i++) {
-		pr_info("%s: [%2d] ", info->client->name, i);
-		for (j = 0; j < y_num; j++) {
-			next_val = raw_data->ref_data[(i * y_num) + j];
-			pre_val = raw_data->ref_data[(i * y_num) + j + y_num];
-			if (next_val > pre_val)
-				diff_val = 100 - ((pre_val * 100) / next_val);
-			else
-				diff_val = 100 - ((next_val * 100) / pre_val);
-			pr_cont("%5d ", diff_val);
-			V_diff[i * y_num + j] = diff_val;
-
-			if (max_vdiff < diff_val)
-				max_vdiff = diff_val;
-		}
-		pr_cont("\n");
-	}
-
-	sprintf(finfo->cmd_buff, "%d", max_vdiff);
-	set_cmd_result(finfo, finfo->cmd_buff,
-			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-	finfo->cmd_state = OK;
-	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
-				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-
-#if ESD_TIMER_INTERVAL
-	esd_timer_start(CHECK_ESD_TIMER, misc_info);
-#endif
-}
-
-static void get_reference(void *device_data)
-{
-	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
-	struct i2c_client *client = info->client;
-	struct tsp_factory_info *finfo = info->factory_info;
-	struct tsp_raw_data *raw_data = info->raw_data;
-	unsigned int val;
-	int x_node, y_node;
-	int node_num;
-
-	set_default_result(finfo);
-
-	x_node = finfo->cmd_param[0];
-	y_node = finfo->cmd_param[1];
-
-	if (x_node < 0 || x_node >= info->cap_info.x_node_num ||
-		y_node < 0 || y_node >= info->cap_info.y_node_num) {
-		snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "abnormal");
-		set_cmd_result(finfo, finfo->cmd_buff,
-				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-		finfo->cmd_state = FAIL;
-		return;
-	}
-
-	node_num = x_node * info->cap_info.y_node_num + y_node;
-
-	val = raw_data->ref_data[node_num];
-	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%u", val);
-	set_cmd_result(finfo, finfo->cmd_buff,
-			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-	finfo->cmd_state = OK;
-	dev_info(&client->dev, "%s: %s(%d), x=%d, y=%d\n", __func__, finfo->cmd_buff,
-				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)), x_node, y_node);
-
-	return;
-}
-
-static void get_reference_all_data(void *device_data)
-{
-	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
-
-	get_all_data(info, run_reference_read, info->raw_data->ref_data, DATA_SIGNED_SHORT);
-}
-
-static bool run_reference_diff_read(void *device_data, int button0, int button1) //DND
-{
-	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
-	struct tsp_raw_data *raw_data = info->raw_data;
-	int i, j, diff_val = 0, pre_val, next_val, x_num, y_num, nButton;
-	bool result = true, item_result = true;
-	int buttons[2] = {button0, button1};
-	char print_diff[TSP_CMD_NODE_NUM] = {0,};
-
-	pr_info("%s: %s\n", info->client->name, __func__);
-
-	//ts_set_touchmode(TOUCH_PDND_MODE);
-	//get_raw_data(info, (u8 *)raw_data->ref_data, 5);
-	//ts_set_touchmode(TOUCH_POINT_MODE);
-
-	x_num = info->cap_info.x_node_num;
-	y_num = info->cap_info.y_node_num;
-
-#if defined(PDIFF_DEBUG)
-	pr_info("%s: ++++++ DND SPEC +++++++++\n", info->client->name);
-	for (i = 0; i < x_num; i++) {
-		pr_info("%s: [%2d] ", info->client->name, i);
-		for (j = 0; j < y_num; j++) {
-			pr_cont("%5d ", raw_data->ref_data[i*y_num+j]);
-		}
-		pr_cont("\n");
-	}
-	pr_info("%s: ------- DND SPEC ----------\n", info->client->name);
-#endif
-	pr_info("%s: TSP Diff test scale factor = %d\n", info->client->name, TSP_INIT_TEST_RATIO);
-	pr_info("%s: H Diff start\n", info->client->name);
-	//H DIff
-	info->hdiff_max_x = info->hdiff_max_y = info->hdiff_min_x = info->hdiff_min_y = 0;
-	info->hdiff_max_val = -32768;
-	info->hdiff_min_val = 32767;
-	info->hdiff_real_max_val = -32768;
-
-	for (i = 0; i < x_num - 1; i++) {
-		for (j = 0; j <y_num - 1; j++) {
-			//pr_info("%d ", info->dnd_data[i*info->cap_info.y_node_num+j]);
-			next_val = raw_data->ref_data[(i*y_num)+(j+1)];
-			pre_val = raw_data->ref_data[(i*y_num)+j];
-			diff_val = (next_val > pre_val)?(next_val - pre_val):(pre_val - next_val);
-
-			pre_val = (TSP_INIT_TEST_RATIO == 100)?((s16)dnd_h_diff[i][j]): \
-				((s16)(((s32)dnd_h_diff[i][j] * TSP_INIT_TEST_RATIO) / 100));
-			if (diff_val > pre_val) {
-				item_result = false;
-				result = false;
-			}
-			print_diff[i*y_num+j] = diff_val;
-
-			if (info->hdiff_real_max_val < diff_val) {
-				info->hdiff_max_val = diff_val;
-				info->hdiff_max_x = i;
-				info->hdiff_real_max_val= j + 1;
-			}
-			if (info->hdiff_max_val < diff_val-pre_val) {
-				info->hdiff_max_val = diff_val - pre_val;
-				info->hdiff_max_x = i;
-				info->hdiff_max_y= j + 1;
-			}
-			if (info->hdiff_min_val > diff_val - pre_val) {
-				info->hdiff_min_val =  diff_val - pre_val;
-				info->hdiff_min_x = i;
-				info->hdiff_min_y= j + 1;
-			}
-		}
-	}
-#if defined(PDIFF_DEBUG)
-	pr_info("%s: ++++++ h_diff SPEC +++++++++\n", info->client->name);
-	for (i = 0; i < x_num - 1; i++) {
-		pr_info("%s: [%2d]", info->client->name, i);
-		for (j = 0; j < y_num - 1; j++)
-			pr_cont("%5d ", (u16)dnd_h_diff[i][j]);
-		pr_cont("\n");
-	}
-	pr_info("%s: ------- h_diff SPEC ----------\n", info->client->name);
-#endif
-	pr_info("%s: ++++++ calculated h_diff SPEC +++++++++\n", info->client->name);
-	for (i = 0; i < x_num - 1; i++){
-		pr_info("%s: [%2d]", info->client->name, i);
-		for (j = 0; j < y_num - 1; j++)
-			pr_cont("%5d ", print_diff[i*y_num+j]);
-		pr_cont("\n");
-	}
-	pr_info("%s: ------- calculated h_diff SPEC ----------\n", info->client->name);
-	pr_info("%s: H Diff %s\n",
-		info->client->name, item_result ? "pass" : "fail");
-
-	pr_info("%s: V Diff start\n", info->client->name);
-
-	info->vdiff_max_x = info->vdiff_max_y = info->vdiff_min_x = info->vdiff_min_y = 0;
-	info->vdiff_max_val = -32768;
-	info->vdiff_min_val = 32767;
-	info->vdiff_real_max_val = -32768;
-
-	//V DIff  View
-	for (i = 0; i < x_num - 2; i++) {
-		for (j = 0; j < y_num; j++) {
-			//pr_info("%d ", info->dnd_data[i*info->cap_info.y_node_num+j]);
-			next_val = raw_data->ref_data[(i*y_num)+j];
-			pre_val = raw_data->ref_data[(i*y_num)+j+y_num];
-			diff_val = (next_val > pre_val)?(next_val - pre_val):(pre_val - next_val);
-
-			pre_val = (TSP_INIT_TEST_RATIO == 100)?((s16)dnd_v_diff[i][j]): \
-				((s16)(((s32)dnd_v_diff[i][j] * TSP_INIT_TEST_RATIO) / 100));
-			if (diff_val > pre_val) {
-				item_result = false;
-				result = false;
-			}
-			print_diff[i*y_num+j] = diff_val;
-
-			if (info->vdiff_real_max_val < diff_val) {
-				info->vdiff_max_val = diff_val;
-				info->vdiff_max_x = i;
-				info->vdiff_real_max_val = j;
-			}
-
-			if (info->vdiff_max_val < diff_val - pre_val) {
-				info->vdiff_max_val = diff_val - pre_val;
-				info->vdiff_max_x = i;
-				info->vdiff_max_y = j;
-			}
-			if (info->vdiff_min_val > diff_val - pre_val) {
-				info->vdiff_min_val = diff_val - pre_val;
-				info->vdiff_min_x = i;
-				info->vdiff_min_y = j;
-			}
-		}
-	}
-	pr_info("%s: V Diff view %s\n",
-		info->client->name, item_result ? "pass" : "fail");
-
-#if defined(PDIFF_DEBUG)
-	pr_info("%s: ++++++ v_diff SPEC +++++++++\n", info->client->name);
-	for (i = 0; i < x_num - 2; i++){
-		pr_info("%s: [%2d]", info->client->name, i);
-		for (j = 0; j < y_num; j++)
-			pr_cont("%5d ", (u16)dnd_v_diff[i][j]);
-		pr_cont("\n");
-	}
-	pr_info("%s: ------- v_diff SPEC ----------\n", info->client->name);
-#endif
-	pr_info("%s: ++++++ calculated v_diff SPEC +++++++++\n", info->client->name);
-	for (i = 0; i < x_num - 2; i++){
-		pr_info("%s: [%2d]", info->client->name, i);
-		for (j = 0; j < y_num; j++)
-			pr_cont("%5d ",print_diff[i*y_num+j]);
-		pr_cont("\n");
-	}
-	pr_info("%s: ------- calculated v_diff SPEC ----------\n", info->client->name);
-
-	//V DIff  button
-	item_result = true;
-	if (info->cap_info.button_num) {
-		pr_info("%s: TSP Button scale = %d\n", info->client->name, TSP_INIT_TEST_RATIO);
-		pr_info("%s: TSP Button Diff Spec. = %d %d \n", info->client->name,
-			dnd_v_diff[x_num-2][buttons[0]], dnd_v_diff[x_num-2][buttons[1]] );
-
-		for (i = 0; i < 2; i++) {
-			nButton = buttons[i];
-			if (nButton < 0)
-				continue;
-			next_val = raw_data->ref_data[(x_num-1)*y_num+nButton];
-			pre_val = raw_data->ref_data[(x_num-2)*y_num+nButton];
-			diff_val = (next_val > pre_val)?(next_val - pre_val):(pre_val - next_val);
-
-			pre_val = (TSP_INIT_TEST_RATIO == 100)?((s16)dnd_v_diff[x_num-2][nButton]+info->ref_btn_option): \
-				((s16)(((s32)dnd_v_diff[x_num-2][nButton]*TSP_INIT_TEST_RATIO)/100)+info->ref_btn_option);
-
-			if (diff_val > pre_val) {
-				item_result = false;
-				result = false;
-			}
-			if (info->vdiff_real_max_val < diff_val) {
-				info->vdiff_max_val = diff_val;
-				info->vdiff_max_x = x_num - 1;
-				info->vdiff_real_max_val = nButton;
-			}
-			if (info->vdiff_max_val < diff_val - pre_val) {
-				info->vdiff_max_val = diff_val - pre_val;
-				info->vdiff_max_x = x_num - 1;
-				info->vdiff_max_y = nButton;
-			}
-			if (info->vdiff_min_val  >diff_val - pre_val) {
-				info->vdiff_min_val = diff_val-pre_val;
-				info->vdiff_min_x = x_num - 1;
-				info->vdiff_min_y = nButton;
-			}
-		}
-
-#if defined(PDIFF_DEBUG)
-		pr_info("%s: buttons[%d]'s v_diff_val is %d\n",
-			info->client->name, i, diff_val);
-#endif
-
-		//key H Diff
-		pre_val = raw_data->ref_data[(x_num-1)*y_num+button0];
-		next_val = raw_data->ref_data[(x_num-1)*y_num+button1];
-		diff_val = (next_val > pre_val)?(next_val - pre_val):(pre_val - next_val);
-
-		pre_val = (TSP_INIT_TEST_RATIO == 100)?( (s16)dnd_h_diff[x_num-1][button1]+info->ref_btn_option): \
-			((s16)(((s32)dnd_h_diff[x_num-1][button1]*TSP_INIT_TEST_RATIO)/100)+info->ref_btn_option);
-
-		if (diff_val > pre_val) {
-			item_result = false;
-			result = false;
-		}
-		if (info->hdiff_real_max_val < diff_val) {
-			info->hdiff_max_val = diff_val;
-			info->hdiff_max_x = x_num - 1;
-			info->hdiff_real_max_val = button1;
-		}
-		if (info->hdiff_max_val < diff_val - pre_val) {
-			info->hdiff_max_val = diff_val - pre_val;
-			info->hdiff_max_x = x_num - 1;
-			info->hdiff_max_y = button1;
-		}
-		if (info->hdiff_min_val >diff_val - pre_val) {
-			info->hdiff_min_val = diff_val-pre_val;
-			info->hdiff_min_x = x_num - 1;
-			info->hdiff_min_y = button1;
-		}
-#if defined(PDIFF_DEBUG)
-		pr_info("%s: buttons's h_diff_val is %d\n",
-			info->client->name, diff_val);
-#endif
-	}
-	pr_info("%s: Button Diff %s\n",
-		info->client->name, item_result ? "pass" : "fail");
-
-	return result;
-}
-
-static void run_reference_diff(void *device_data)
-{
-	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
-	struct tsp_factory_info *finfo = info->factory_info;
-	bool temp;
-
-	finfo->cmd_state = WAITING;
-	set_default_result(finfo);
-
-	temp = run_reference_diff_read(device_data, 2, 15);
-
-	if (temp) {
-		dev_info(&info->client->dev, "%s: diff pass\n", __func__);
-		sprintf(finfo->cmd_buff, "%s", "OK");
-		set_cmd_result(finfo, finfo->cmd_buff, strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-		finfo->cmd_state = OK;
-	} else {
-		dev_info(&info->client->dev, "%s: diff fail\n", __func__);
-		sprintf(finfo->cmd_buff, "%s", "FAIL");
-		set_cmd_result(finfo, finfo->cmd_buff, strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
-		finfo->cmd_state = FAIL;
-	}
-}
 
 static void run_dnd_read(void *device_data)
 {
@@ -2916,12 +2955,19 @@ static void run_dnd_read(void *device_data)
 	struct tsp_factory_info *finfo = info->factory_info;
 	struct tsp_raw_data *raw_data = info->raw_data;
 	u16 min, max;
-	s32 i, j;
+	s32 i, j,offset;
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	int fx, fy;
+	bool result = true;
+#endif
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(misc_info);
+#endif
 
 	set_default_result(finfo);
 
-	for (i = 0; i < 2; i++)
-		ts_set_touchmode(TOUCH_DND_MODE);
+	ts_set_touchmode(TOUCH_DND_MODE);
 	get_raw_data(info, (u8 *)raw_data->dnd_data, 10);
 	ts_set_touchmode(TOUCH_POINT_MODE);
 
@@ -2929,21 +2975,42 @@ static void run_dnd_read(void *device_data)
 	max = 0x0000;
 
 	for (i = 0; i < info->cap_info.x_node_num; i++) {
-		pr_info("%s: dnd_data[%d] : ", client->name, i);
+		pr_info("%s: dnd_data[%2d] :", client->name, i);
 		for (j = 0; j < info->cap_info.y_node_num; j++) {
-			pr_cont("[%5d]", raw_data->dnd_data[i * info->cap_info.y_node_num + j]);
-			if (raw_data->dnd_data[i * info->cap_info.y_node_num + j] < min &&
-				raw_data->dnd_data[i * info->cap_info.y_node_num + j] != 0)
-				min = raw_data->dnd_data[i * info->cap_info.y_node_num + j];
-
-			if (raw_data->dnd_data[i * info->cap_info.y_node_num + j] > max)
-				max = raw_data->dnd_data[i * info->cap_info.y_node_num + j];
-
+			offset = i * info->cap_info.y_node_num + j;
+			pr_cont(" %5d", raw_data->dnd_data[offset]);
+			if (raw_data->dnd_data[offset] < min &&raw_data->dnd_data[offset] != 0)
+				min = raw_data->dnd_data[offset];
+			if (raw_data->dnd_data[offset] > max)
+				max = raw_data->dnd_data[offset];
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+			if (result && offset < ZT7538_DND_DATA_SIZE &&
+				(raw_data->dnd_data[offset] > info->dnd_max_spec[offset]
+				|| raw_data->dnd_data[offset] < info->dnd_min_spec[offset])) {
+				result = false;
+				fx = i;
+				fy = j;
+				pr_cont("(E)");
+			}
+#endif
 		}
 		pr_cont("\n");
 	}
 
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	if(result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * info->cap_info.y_node_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					info->dnd_min_spec[offset],
+					info->dnd_max_spec[offset],
+					raw_data->dnd_data[offset]);
+		pr_info("%s: dnd data view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else
 	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d", min, max);
+#endif
 	if (!info->get_all_data) {
 		set_cmd_result(finfo, finfo->cmd_buff,
 				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
@@ -2952,6 +3019,10 @@ static void run_dnd_read(void *device_data)
 
 	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
 				strlen(finfo->cmd_buff));
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, misc_info);
+#endif
 
 	return;
 }
@@ -3001,6 +3072,623 @@ static void get_dnd_all_data(void *device_data)
 	get_all_data(info, run_dnd_read, info->raw_data->dnd_data, DATA_UNSIGNED_SHORT);
 }
 
+static void run_dnd_v_gap_read(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int x_num = info->cap_info.x_node_num, y_num = info->cap_info.y_node_num;
+	int i, j, offset, val, cur_val, next_val;
+	u16 screen_max = 0x0000;
+	u16 touchkey_max = 0x0000;
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	int fx, fy;
+	bool result = true;
+#endif
+	set_default_result(finfo);
+
+	memset(raw_data->vgap_data, 0x00, TSP_CMD_NODE_NUM);
+
+	dev_info(&client->dev, "DND V Gap start\n");
+
+	for (i = 0; i < x_num - 1; i++) {
+		pr_info("%s: [%2d] :", client->name, i);
+		for (j = 0; j < y_num; j++) {
+			offset = (i * y_num) + j;
+
+			cur_val = raw_data->dnd_data[offset];
+			next_val = raw_data->dnd_data[offset + y_num];
+			if ((i >= x_num - 2) && !next_val) {	/* touchkey node */
+				raw_data->vgap_data[offset] = next_val;
+				continue;
+			}
+
+			if (next_val > cur_val)
+				val = 100 - ((cur_val * 100) / next_val);
+			else
+				val = 100 - ((next_val * 100) / cur_val);
+
+			pr_cont(" %d", val);
+
+			raw_data->vgap_data[offset] = val;
+
+			if (i < x_num - 2){
+				if (raw_data->vgap_data[offset] > screen_max)
+					screen_max = raw_data->vgap_data[offset];
+			} else {	/* touchkey node */
+				if (raw_data->vgap_data[offset] > touchkey_max)
+					touchkey_max = raw_data->vgap_data[offset];
+			}
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+			if (result && offset < ZT7538_V_GAP_DATA_SIZE &&
+				raw_data->vgap_data[offset] > info->dnd_v_gap_spec[offset]) {
+				result = false;
+				fx = i;
+				fy = j;
+				pr_cont("(E)");
+			}
+#endif
+		}
+		pr_cont("\n");
+	}
+
+	dev_info(&client->dev, "DND V Gap screen_max %d touchkey_max %d\n", screen_max, touchkey_max);
+
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	if (result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * y_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					0, info->dnd_v_gap_spec[offset],
+					raw_data->vgap_data[offset]);
+		pr_info("%s: dnd v gap view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d", screen_max, touchkey_max);
+#endif
+
+	set_cmd_result(finfo, finfo->cmd_buff,
+			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	return;
+}
+
+static void run_dnd_h_gap_read(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int x_num = info->cap_info.x_node_num, y_num = info->cap_info.y_node_num;
+	int i, j, offset, val, cur_val, next_val;
+	u16 screen_max = 0x0000;
+	u16 touchkey_max = 0x0000;
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	int fx, fy;
+	bool result = true;
+#endif
+	set_default_result(finfo);
+
+	memset(raw_data->hgap_data, 0x00, TSP_CMD_NODE_NUM);
+
+	dev_info(&client->dev, "DND H Gap start\n");
+
+	for (i = 0; i < x_num ; i++) {
+		pr_info("%s: [%2d] :", client->name, i);
+		for (j = 0; j < y_num - 1; j++) {
+			offset = (i * y_num) + j;
+
+			cur_val = raw_data->dnd_data[offset];
+			if ((i >= x_num - 1) && !cur_val) {	/* touchkey node */
+				raw_data->hgap_data[offset] = cur_val;
+				continue;
+			}
+
+			next_val = raw_data->dnd_data[offset + 1];
+			if ((i >= x_num - 1) && !next_val) {	/* touchkey node */
+				raw_data->hgap_data[offset] = next_val;
+				for (++j; j < y_num - 1; j++) {
+					offset = (i * y_num) + j;
+
+					next_val = raw_data->dnd_data[offset];
+					if (!next_val) {
+						raw_data->hgap_data[offset] = next_val;
+						continue;
+					}
+					break;
+				}
+			}
+
+			if (next_val > cur_val)
+				val = 100 - ((cur_val * 100) / next_val);
+			else
+				val = 100 - ((next_val * 100) / cur_val);
+
+			pr_cont(" %d", val);
+
+			raw_data->hgap_data[offset] = val;
+
+			if (i < x_num - 1) {
+					if (raw_data->hgap_data[offset] > screen_max)
+						screen_max = raw_data->hgap_data[offset];
+			} else {	/* touchkey node */
+				if (raw_data->hgap_data[offset] > touchkey_max)
+					touchkey_max = raw_data->hgap_data[offset];
+			}
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+			if (result && offset < ZT7538_H_GAP_DATA_SIZE &&
+				raw_data->hgap_data[offset] > info->dnd_h_gap_spec[offset]) {
+				result = false;
+				fx = i;
+				fy = j;
+				pr_cont("(E)");
+			}
+#endif
+		}
+		pr_cont("\n");
+	}
+
+	dev_info(&client->dev, "DND H Gap screen_max %d, touchkey_max %d\n", screen_max, touchkey_max);
+
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	if(result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * y_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					0, info->dnd_h_gap_spec[offset],
+					raw_data->hgap_data[offset]);
+		pr_info("%s: dnd h gap view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d", screen_max, touchkey_max);
+#endif
+
+	set_cmd_result(finfo, finfo->cmd_buff,
+			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	return;
+}
+
+static void get_dnd_h_gap(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int x_node, y_node;
+	int node_num;
+	int x_num = info->cap_info.x_node_num, y_num = info->cap_info.y_node_num;
+
+	set_default_result(finfo);
+
+	x_node = finfo->cmd_param[0];
+	y_node = finfo->cmd_param[1];
+
+	if (x_node < 0 || x_node >= x_num || y_node < 0 || y_node >= y_num - 1) {
+		snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "NG");
+		set_cmd_result(finfo, finfo->cmd_buff, strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+		finfo->cmd_state = FAIL;
+		return;
+	}
+
+	node_num = (x_node * y_num) + y_node;
+
+	sprintf(finfo->cmd_buff, "%d", raw_data->hgap_data[node_num]);
+	set_cmd_result(finfo, finfo->cmd_buff, strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&info->client->dev, "%s: %s(%d)\n", __func__,
+			finfo->cmd_buff, (int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+}
+
+static void get_dnd_v_gap(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int x_node, y_node;
+	int node_num;
+	int x_num = info->cap_info.x_node_num, y_num = info->cap_info.y_node_num;
+
+	set_default_result(finfo);
+
+	x_node = finfo->cmd_param[0];
+	y_node = finfo->cmd_param[1];
+
+	if (x_node < 0 || x_node >= x_num - 1 || y_node < 0 || y_node >= y_num) {
+		snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "NG");
+		set_cmd_result(finfo, finfo->cmd_buff, strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+		finfo->cmd_state = FAIL;
+		return;
+	}
+
+	node_num = (x_node * y_num) + y_node;
+
+	sprintf(finfo->cmd_buff, "%d", raw_data->vgap_data[node_num]);
+	set_cmd_result(finfo, finfo->cmd_buff, strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&info->client->dev, "%s: %s(%d)\n", __func__,
+			finfo->cmd_buff, (int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+}
+
+
+static void run_hfdnd_read(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int x_num = info->cap_info.x_node_num, y_num = info->cap_info.y_node_num;
+	int i, j, offset;
+	u16 min = 0xFFFF, max = 0x0000;
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	int fx, fy;
+	bool result = true;
+#endif
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(misc_info);
+#endif
+	set_default_result(finfo);
+
+	ts_set_touchmode2(TOUCH_DND_MODE);
+	get_raw_data(info, (u8 *)raw_data->hfdnd_data, 2);
+	ts_set_touchmode(TOUCH_POINT_MODE);
+
+	dev_info(&client->dev, "HF DND start\n");
+
+	for (i = 0; i < x_num; i++) {
+		pr_info("%s: hfdnd_data[%2d] :", client->name, i);
+		for (j = 0; j < y_num; j++) {
+			offset = (i * y_num) + j;
+			pr_cont(" %5d", raw_data->hfdnd_data[offset]);
+			if (raw_data->hfdnd_data[offset] < min && raw_data->hfdnd_data[offset] != 0)
+				min = raw_data->hfdnd_data[offset];
+			if (raw_data->hfdnd_data[offset] > max)
+				max = raw_data->hfdnd_data[offset];
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+			if (result && offset < ZT7538_DND_DATA_SIZE &&
+				(raw_data->hfdnd_data[offset] > info->hfdnd_max_spec[offset]
+				|| raw_data->hfdnd_data[offset] < info->hfdnd_min_spec[offset])) {
+				result = false;
+				fx = i;
+				fy = j;
+				pr_cont("(E)");
+			}
+#endif
+		}
+		pr_cont("\n");
+	}
+
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	if(result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * info->cap_info.y_node_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					info->hfdnd_min_spec[offset],
+					info->hfdnd_max_spec[offset],
+					raw_data->hfdnd_data[offset]);
+		pr_info("%s: hfdnd data view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d", min, max);
+#endif
+	if (!info->get_all_data) {
+		set_cmd_result(finfo, finfo->cmd_buff,
+				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+		finfo->cmd_state = OK;
+	}
+
+	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
+		(int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, misc_info);
+#endif
+	return;
+}
+
+static void get_hfdnd(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	unsigned int val;
+	int x_node, y_node;
+	int node_num;
+
+	set_default_result(finfo);
+
+	x_node = finfo->cmd_param[0];
+	y_node = finfo->cmd_param[1];
+
+	if (x_node < 0 || x_node >= info->cap_info.x_node_num ||
+		y_node < 0 || y_node >= info->cap_info.y_node_num) {
+		snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "abnormal");
+		set_cmd_result(finfo, finfo->cmd_buff,
+		strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+		finfo->cmd_state = FAIL;
+		return;
+	}
+
+	node_num = x_node * info->cap_info.y_node_num + y_node;
+
+	val = raw_data->hfdnd_data[node_num];
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%u", val);
+	set_cmd_result(finfo, finfo->cmd_buff,
+		strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
+		(int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+
+	return;
+}
+
+static void get_hfdnd_all_data(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+
+	get_all_data(info, run_hfdnd_read, info->raw_data->hfdnd_data, DATA_SIGNED_SHORT);
+}
+
+static void run_hfdnd_v_gap_read(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int x_num = info->cap_info.x_node_num, y_num = info->cap_info.y_node_num;
+	int i, j, offset, val, cur_val, next_val;
+	u16 screen_max = 0x0000;
+	u16 touchkey_max = 0x0000;
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	int fx, fy;
+	bool result = true;
+#endif
+
+	set_default_result(finfo);
+
+	memset(raw_data->hfvgap_data, 0x00, TSP_CMD_NODE_NUM);
+
+	dev_info(&client->dev, "HFDND V Gap start\n");
+
+	for (i = 0; i < x_num - 1; i++) {
+		pr_info("%s: [%2d] :", client->name, i);
+		for (j = 0; j < y_num; j++) {
+			offset = (i * y_num) + j;
+
+			cur_val = raw_data->hfdnd_data[offset];
+			next_val = raw_data->hfdnd_data[offset + y_num];
+			if ((i >= x_num - 2) && !next_val) {	/* touchkey node */
+				raw_data->hfvgap_data[offset] = next_val;
+				continue;
+			}
+
+			if (next_val > cur_val)
+				val = 100 - ((cur_val * 100) / next_val);
+			else
+				val = 100 - ((next_val * 100) / cur_val);
+
+			pr_cont(" %d", val);
+
+			raw_data->hfvgap_data[offset] = val;
+
+			if (i < x_num - 2){
+				if (raw_data->hfvgap_data[offset] > screen_max)
+					screen_max = raw_data->hfvgap_data[offset];
+			} else {	/* touchkey node */
+				if (raw_data->hfvgap_data[offset] > touchkey_max)
+					touchkey_max = raw_data->hfvgap_data[offset];
+			}
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+			if (result && offset < ZT7538_V_GAP_DATA_SIZE &&
+				raw_data->hfvgap_data[offset] > info->hfdnd_v_gap_spec[offset]) {
+				result = false;
+				fx = i;
+				fy = j;
+				pr_cont("(E)");
+			}
+#endif
+		}
+		pr_cont("\n");
+	}
+
+	dev_info(&client->dev, "HFDND V Gap screen_max %d touchkey_max %d\n", screen_max, touchkey_max);
+
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	if (result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * y_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					0, info->hfdnd_v_gap_spec[offset],
+					raw_data->hfvgap_data[offset]);
+		pr_info("%s: hfdnd v gap view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d", screen_max, touchkey_max);
+#endif
+	set_cmd_result(finfo, finfo->cmd_buff,
+			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&info->client->dev, "%s: %s(%d)\n", __func__,
+			finfo->cmd_buff, (int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+
+	return;
+}
+
+static void get_hfdnd_v_gap(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int x_node, y_node;
+	int node_num;
+	int x_num = info->cap_info.x_node_num, y_num = info->cap_info.y_node_num;
+
+	set_default_result(finfo);
+
+	x_node = finfo->cmd_param[0];
+	y_node = finfo->cmd_param[1];
+
+	if (x_node < 0 || x_node >= x_num - 1 || y_node < 0 || y_node >= y_num) {
+		snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "NG");
+		set_cmd_result(finfo, finfo->cmd_buff, strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+		finfo->cmd_state = FAIL;
+		return;
+	}
+
+	node_num = (x_node * y_num) + y_node;
+
+	sprintf(finfo->cmd_buff, "%d", raw_data->hfvgap_data[node_num]);
+	set_cmd_result(finfo, finfo->cmd_buff, strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&info->client->dev, "%s: %s(%d)\n", __func__,
+			finfo->cmd_buff, (int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+}
+
+static void run_hfdnd_h_gap_read(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int x_num = info->cap_info.x_node_num, y_num = info->cap_info.y_node_num;
+	int i, j, offset, val, cur_val, next_val;
+	u16 screen_max = 0x0000;
+	u16 touchkey_max = 0x0000;
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	int fx, fy;
+	bool result = true;
+#endif
+	set_default_result(finfo);
+
+	memset(raw_data->hgap_data, 0x00, TSP_CMD_NODE_NUM);
+
+	dev_info(&client->dev, "HFDND H Gap start\n");
+
+	for (i = 0; i < x_num ; i++) {
+		pr_info("%s: [%2d] :", client->name, i);
+		for (j = 0; j < y_num - 1; j++) {
+			offset = (i * y_num) + j;
+
+			cur_val = raw_data->hfdnd_data[offset];
+			if ((i >= x_num - 1) && !cur_val) {	/* touchkey node */
+				raw_data->hfhgap_data[offset] = cur_val;
+				continue;
+			}
+
+			next_val = raw_data->hfdnd_data[offset + 1];
+			if ((i >= x_num - 1) && !next_val) {	/* touchkey node */
+				raw_data->hfhgap_data[offset] = next_val;
+				for (++j; j < y_num - 1; j++) {
+					offset = (i * y_num) + j;
+
+					next_val = raw_data->hfdnd_data[offset];
+					if (!next_val) {
+						raw_data->hfhgap_data[offset] = next_val;
+						continue;
+					}
+					break;
+				}
+			}
+
+			if (next_val > cur_val)
+				val = 100 - ((cur_val * 100) / next_val);
+			else
+				val = 100 - ((next_val * 100) / cur_val);
+
+			pr_cont(" %d", val);
+
+			raw_data->hfhgap_data[offset] = val;
+
+			if (i < x_num - 1) {
+					if (raw_data->hfhgap_data[offset] > screen_max)
+						screen_max = raw_data->hfhgap_data[offset];
+			} else {	/* touchkey node */
+				if (raw_data->hfhgap_data[offset] > touchkey_max)
+					touchkey_max = raw_data->hfhgap_data[offset];
+			}
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+			if (result && offset < ZT7538_H_GAP_DATA_SIZE &&
+				raw_data->hfhgap_data[offset] > info->hfdnd_h_gap_spec[offset]) {
+				result = false;
+				fx = i;
+				fy = j;
+				pr_cont("(E)");
+			}
+#endif
+		}
+		pr_cont("\n");
+	}
+
+	dev_info(&client->dev, "DND H Gap screen_max %d, touchkey_max %d\n", screen_max, touchkey_max);
+
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	if (result) {
+		sprintf(finfo->cmd_buff, "%s", "OK");
+	} else {
+		offset = (fx * y_num) + fy;
+		sprintf(finfo->cmd_buff, "%d,%d,%d,%d,%d", fx, fy,
+					0, info->hfdnd_h_gap_spec[offset],
+					raw_data->hfhgap_data[offset]);
+		pr_info("%s: hfdnd h gap view fail: [%d][%d]\n", info->client->name, fx, fy);
+	}
+#else
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d", screen_max, touchkey_max);
+#endif
+
+	set_cmd_result(finfo, finfo->cmd_buff,
+			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&info->client->dev, "%s: %s(%d)\n", __func__,
+			finfo->cmd_buff, (int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+
+	return;
+}
+
+static void get_hfdnd_h_gap(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int x_node, y_node;
+	int node_num;
+	int x_num = info->cap_info.x_node_num, y_num = info->cap_info.y_node_num;
+
+	set_default_result(finfo);
+
+	x_node = finfo->cmd_param[0];
+	y_node = finfo->cmd_param[1];
+
+	if (x_node < 0 || x_node >= x_num || y_node < 0 || y_node >= y_num - 1) {
+		snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "NG");
+		set_cmd_result(finfo, finfo->cmd_buff, strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+		finfo->cmd_state = FAIL;
+		return;
+	}
+
+	node_num = (x_node * y_num) + y_node;
+
+	sprintf(finfo->cmd_buff, "%d", raw_data->hfhgap_data[node_num]);
+	set_cmd_result(finfo, finfo->cmd_buff, strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&info->client->dev, "%s: %s(%d)\n", __func__,
+			finfo->cmd_buff, (int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+}
+
 static void run_delta_read(void *device_data)
 {
 	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
@@ -3010,10 +3698,13 @@ static void run_delta_read(void *device_data)
 	s16 min, max;
 	s32 i, j;
 
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(misc_info);
+#endif
+
 	set_default_result(finfo);
 
-	for (i = 0; i < 2; i++)
-		ts_set_touchmode(TOUCH_DELTA_MODE);
+	ts_set_touchmode(TOUCH_DELTA_MODE);
 	get_raw_data(info, (u8 *)raw_data->delta_data, 10);
 	ts_set_touchmode(TOUCH_POINT_MODE);
 
@@ -3021,7 +3712,7 @@ static void run_delta_read(void *device_data)
 	max = (s16)0x8000;
 
 	for (i = 0; i < info->cap_info.x_node_num; i++) {
-		pr_info("%s: delta_data[%d] : ", client->name, i);
+		pr_info("%s: delta_data[%2d] : ", client->name, i);
 		for (j = 0; j < info->cap_info.y_node_num; j++) {
 			pr_cont("[%3d]", raw_data->delta_data[i * info->cap_info.y_node_num + j]);
 			if (raw_data->delta_data[i * info->cap_info.y_node_num + j] < min &&
@@ -3043,6 +3734,10 @@ static void run_delta_read(void *device_data)
 
 	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
 				strlen(finfo->cmd_buff));
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, misc_info);
+#endif
 
 	return;
 }
@@ -3092,6 +3787,361 @@ static void get_delta_all_data(void *device_data)
 	get_all_data(info, run_delta_read, info->raw_data->delta_data, DATA_SIGNED_SHORT);
 }
 
+static void dead_zone_enable(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+
+	set_default_result(finfo);
+
+	if (finfo->cmd_param[0] == 1) {	/* enable */
+		zinitix_bit_clr(m_optional_mode, DEF_OPTIONAL_MODE_EDGE_SELECT);
+	} else if (finfo->cmd_param[0] == 0) {
+		zinitix_bit_set(m_optional_mode, DEF_OPTIONAL_MODE_EDGE_SELECT);
+	} else {
+		finfo->cmd_state = FAIL;
+		sprintf(finfo->cmd_buff, "%s", "NG");
+		goto err;
+	}
+	zt7548_set_optional_mode(info, false);
+
+	finfo->cmd_state = OK;
+	sprintf(finfo->cmd_buff, "%s", "OK");
+err:
+	set_cmd_result(finfo, finfo->cmd_buff,
+			strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
+				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+
+	return;
+}
+
+static void clear_cover_mode(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct tsp_factory_info *finfo = info->factory_info;
+	int arg = finfo->cmd_param[0];
+
+	set_default_result(finfo);
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%u",
+							(unsigned int) arg);
+
+	g_cover_state = arg;
+	cover_set(info);
+	set_cmd_result(finfo, finfo->cmd_buff,
+					strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+
+	finfo->cmd_is_running = false;
+	finfo->cmd_state = OK;
+
+	dev_info(&info->client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
+				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+
+	return;
+}
+
+#if defined(CONFIG_TOUCHSCREEN_ZT7548_TS)
+static void run_rxshort_read(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int y_num = info->cap_info.y_node_num;
+	int i, touchkey_node = 2;
+	u16 screen_max = 0x0000, touchkey_max = 0x0000;
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(misc_info);
+#endif
+	set_default_result(finfo);
+
+	ts_set_touchmode3(TOUCH_RXSHORT_MODE);
+	get_raw_data(info, (u8 *)raw_data->rxshort_data, 2);
+	ts_set_touchmode3(TOUCH_POINT_MODE);
+
+	for (i = 0; i < y_num; i++) {
+			pr_info("%s: rxshort[%d] : [%2d]\n", client->name, i, raw_data->rxshort_data[i]);
+
+		if ((i == touchkey_node) || (i == (y_num - 1)- touchkey_node)){
+			if (raw_data->rxshort_data[i] > touchkey_max)
+				touchkey_max = raw_data->rxshort_data[i];
+		} else {
+			if (raw_data->rxshort_data[i] > screen_max)
+				screen_max = raw_data->rxshort_data[i];
+		}
+	}
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d", screen_max, touchkey_max);
+	set_cmd_result(finfo, finfo->cmd_buff,
+			(int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, misc_info);
+#endif
+	return;
+}
+
+static void get_rxshort(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	unsigned int val;
+	int x_node, y_node;
+	int node_num;
+
+	set_default_result(finfo);
+
+	x_node = finfo->cmd_param[0];
+	y_node = finfo->cmd_param[1];
+
+	if (x_node < 0 || x_node >= info->cap_info.x_node_num ||
+		y_node < 0 || y_node >= info->cap_info.y_node_num) {
+		snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "abnormal");
+		set_cmd_result(finfo, finfo->cmd_buff,
+		strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+		finfo->cmd_state = FAIL;
+		return;
+	}
+
+	node_num = x_node * info->cap_info.y_node_num + y_node;
+
+	val = raw_data->rxshort_data[node_num];
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%u", val);
+	set_cmd_result(finfo, finfo->cmd_buff,
+	strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&info->client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
+		(int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+
+	return;
+}
+
+
+static void run_txshort_read(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int x_num = info->cap_info.x_node_num;
+	int i;
+	u16 screen_max = 0x0000, touchkey_max = 0x0000;
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(misc_info);
+#endif
+	set_default_result(finfo);
+
+	ts_set_touchmode3(TOUCH_TXSHORT_MODE);
+	get_raw_data(info, (u8 *)raw_data->txshort_data, 2);
+	ts_set_touchmode3(TOUCH_POINT_MODE);
+
+	for (i = 0; i < x_num - 1; i++) {
+			pr_info("%s: txshort[%d] : [%2d]\n", client->name, i, raw_data->txshort_data[i]);
+		if	(raw_data->txshort_data[i] > screen_max)
+			screen_max = raw_data->txshort_data[i];
+	}
+
+	touchkey_max = raw_data->txshort_data[x_num - 1];
+
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d", screen_max, touchkey_max);
+	set_cmd_result(finfo, finfo->cmd_buff,
+			(int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, misc_info);
+#endif
+	return;
+}
+
+static void get_txshort(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	unsigned int val;
+	int x_node, y_node;
+	int node_num;
+
+	set_default_result(finfo);
+
+	x_node = finfo->cmd_param[0];
+	y_node = finfo->cmd_param[1];
+
+	if (x_node < 0 || x_node >= info->cap_info.x_node_num ||
+		y_node < 0 || y_node >= info->cap_info.y_node_num) {
+		snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "abnormal");
+		set_cmd_result(finfo, finfo->cmd_buff,
+		strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+		finfo->cmd_state = FAIL;
+		return;
+	}
+
+	node_num = x_node * info->cap_info.y_node_num + y_node;
+
+	val = raw_data->txshort_data[node_num];
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%u", val);
+	set_cmd_result(finfo, finfo->cmd_buff,
+	strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
+		(int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+
+	return;
+}
+
+static void run_reference_read(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	int min = 0xFFFF, max = 0x0000;
+	s32 i, j, touchkey_node = 2;
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(misc_info);
+#endif
+	set_default_result(finfo);
+
+	ts_set_touchmode(TOUCH_REFERENCE_MODE);
+	get_raw_data(info, (u8 *)raw_data->reference_data, 2);
+	ts_set_touchmode(TOUCH_POINT_MODE);
+
+	for (i = 0; i < info->cap_info.x_node_num; i++) {
+		pr_info("%s: ref_data[%2d] : ", client->name, i);
+		for (j = 0; j < info->cap_info.y_node_num; j++) {
+			pr_cont(" %5d", raw_data->reference_data[i * info->cap_info.y_node_num + j]);
+
+			if (i == (info->cap_info.x_node_num - 1)) {
+				if ((j == touchkey_node)||(j == (info->cap_info.y_node_num - 1) - touchkey_node)) {
+					if (raw_data->reference_data[(i * info->cap_info.y_node_num) + j] < min &&
+						raw_data->reference_data[(i * info->cap_info.y_node_num) + j] >= 0)
+						min = raw_data->reference_data[(i * info->cap_info.y_node_num) + j];
+
+					if (raw_data->reference_data[(i * info->cap_info.y_node_num) + j] > max)
+						max = raw_data->reference_data[(i * info->cap_info.y_node_num) + j];
+				}
+			} else {
+				if (raw_data->reference_data[(i * info->cap_info.y_node_num) + j] < min &&
+					raw_data->reference_data[(i * info->cap_info.y_node_num) + j] >= 0)
+					min = raw_data->reference_data[(i * info->cap_info.y_node_num) + j];
+
+				if (raw_data->reference_data[(i * info->cap_info.y_node_num) + j] > max)
+					max = raw_data->reference_data[(i * info->cap_info.y_node_num) + j];
+			}
+		}
+		pr_cont("\n");
+	}
+
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%d,%d", min, max);
+	set_cmd_result(finfo, finfo->cmd_buff,
+				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
+				strlen(finfo->cmd_buff));
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_start(CHECK_ESD_TIMER, misc_info);
+#endif
+	return;
+}
+
+static void get_reference(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+	struct tsp_raw_data *raw_data = info->raw_data;
+	unsigned int val;
+	int x_node, y_node;
+	int node_num;
+
+	set_default_result(finfo);
+
+	x_node = finfo->cmd_param[0];
+	y_node = finfo->cmd_param[1];
+
+	if (x_node < 0 || x_node >= info->cap_info.x_node_num ||
+		y_node < 0 || y_node >= info->cap_info.y_node_num) {
+		snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "abnormal");
+		set_cmd_result(finfo, finfo->cmd_buff,
+						strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+		info->factory_info->cmd_state = FAIL;
+
+		return;
+	}
+
+	node_num = x_node * info->cap_info.y_node_num + y_node;
+
+	val = raw_data->reference_data[node_num];
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%u", val);
+	set_cmd_result(finfo, finfo->cmd_buff,
+					strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&client->dev, "%s: %s(%d), x=%d, y=%d\n", __func__, finfo->cmd_buff,
+				strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)), x_node, y_node);
+
+	return;
+}
+#endif
+
+static void clear_reference_data(void *device_data)
+{
+	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
+	struct i2c_client *client = info->client;
+	struct tsp_factory_info *finfo = info->factory_info;
+
+	set_default_result(finfo);
+
+#if ESD_TIMER_INTERVAL
+	esd_timer_stop(info);
+	write_reg(client, ZT7548_PERIODICAL_INTERRUPT_INTERVAL, 0);
+#endif
+
+	write_reg(client, ZT7548_EEPROM_INFO_REG, 0xffff);
+
+	write_reg(client, 0xc003, 0x0001);
+	write_reg(client, 0xc104, 0x0001);
+	usleep_range(100, 100);
+	if (write_cmd(client, ZT7548_SAVE_STATUS_CMD) != I2C_SUCCESS) {
+		dev_err(&client->dev, "%s: failed to TSP clear calibration bit\n", __func__);
+		snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "NG");
+		goto out;
+	}
+
+	zinitix_delay(500);
+	write_reg(client, 0xc003, 0x0000);
+	write_reg(client, 0xc104, 0x0000);
+	usleep_range(100, 100);
+
+#if ESD_TIMER_INTERVAL
+	write_reg(client, ZT7548_PERIODICAL_INTERRUPT_INTERVAL,
+		SCAN_RATE_HZ * ESD_TIMER_INTERVAL);
+	esd_timer_start(CHECK_ESD_TIMER, info);
+#endif
+	dev_info(&client->dev, "%s: TSP clear calibration bit\n", __func__);
+
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", "OK");
+out:
+	set_cmd_result(finfo, finfo->cmd_buff,
+		strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	finfo->cmd_state = OK;
+
+	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
+		(int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
+	return;
+}
+
 static void run_ref_calibration(void *device_data)
 {
 	struct zt7548_ts_info *info = (struct zt7548_ts_info *)device_data;
@@ -3106,6 +4156,7 @@ static void run_ref_calibration(void *device_data)
 	esd_timer_stop(info);
 	write_reg(client, ZT7548_PERIODICAL_INTERRUPT_INTERVAL, 0);
 #endif
+	disable_irq(info->irq);
 
 	ret = ts_hw_calibration(info);
 	dev_info(&client->dev, "%s: TSP calibration %s\n",
@@ -3113,8 +4164,10 @@ static void run_ref_calibration(void *device_data)
 
 	for (i = 0; i < 5; i++) {
 		write_cmd(client, ZT7548_CLEAR_INT_STATUS_CMD);
-		udelay(10);
+		usleep_range(10, 10);
 	}
+
+	enable_irq(info->irq);
 
 #if ESD_TIMER_INTERVAL
 	write_reg(client, ZT7548_PERIODICAL_INTERRUPT_INTERVAL,
@@ -3122,7 +4175,13 @@ static void run_ref_calibration(void *device_data)
 	esd_timer_start(CHECK_ESD_TIMER, info);
 #endif
 
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff), "%s", ret ? "OK" : "NG");
+	set_cmd_result(finfo, finfo->cmd_buff,
+		strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
 	finfo->cmd_state = OK;
+
+	dev_info(&client->dev, "%s: %s(%d)\n", __func__, finfo->cmd_buff,
+		(int)strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
 }
 
 
@@ -3275,7 +4334,6 @@ static ssize_t show_touchkey_threshold(struct device *dev, struct device_attribu
 	dev_info(&client->dev, "%s: key threshold = %d\n", __func__, cap->key_threshold);
 
 	return snprintf(buf, 41, "%d", cap->key_threshold);
-#endif
 }
 
 static ssize_t show_touchkey_sensitivity(struct device *dev,
@@ -3295,7 +4353,9 @@ static ssize_t show_touchkey_sensitivity(struct device *dev,
 		dev_err(&client->dev, "%s: Invalid attribute\n", __func__);
 		goto err_out;
 	}
+	down(&info->work_lock);
 	ret = read_data(client, ZT7548_BTN_WIDTH + i, (u8 *)&val, 2);
+	up(&info->work_lock);
 	if (ret < 0) {
 		dev_err(&client->dev, "failed to read %d's key sensitivity\n", i);
 		goto err_out;
@@ -3308,6 +4368,7 @@ static ssize_t show_touchkey_sensitivity(struct device *dev,
 err_out:
 	return sprintf(buf, "NG");
 }
+#endif
 
 #ifdef SUPPORTED_KEY_LED
 static ssize_t touchkey_led_control(struct device *dev,
@@ -3338,7 +4399,7 @@ static ssize_t touchkey_led_control(struct device *dev,
 	else
 		ret = regulator_disable(info->led_ldo);
 
-	msleep(20);
+	zinitix_delay(20);
 
 	dev_info(&info->client->dev, "%s data(%d), ret(%d)\n",
 		__func__, data, regulator_is_enabled(info->led_ldo));
@@ -3347,12 +4408,16 @@ static ssize_t touchkey_led_control(struct device *dev,
 }
 #endif
 
+#ifdef SUPPORTED_TOUCH_KEY
 static DEVICE_ATTR(touchkey_threshold, S_IRUGO, show_touchkey_threshold, NULL);
 static DEVICE_ATTR(touchkey_recent, S_IRUGO, show_touchkey_sensitivity, NULL);
 static DEVICE_ATTR(touchkey_back, S_IRUGO, show_touchkey_sensitivity, NULL);
+#endif
 #ifdef SUPPORTED_KEY_LED
 static DEVICE_ATTR(brightness, S_IRUGO | S_IWUSR | S_IWGRP, NULL, touchkey_led_control);
 #endif
+
+#ifdef SUPPORTED_TOUCH_KEY
 static struct attribute *touchkey_attributes[] = {
 	&dev_attr_touchkey_threshold.attr,
 	&dev_attr_touchkey_back.attr,
@@ -3365,6 +4430,7 @@ static struct attribute *touchkey_attributes[] = {
 static struct attribute_group touchkey_attr_group = {
 	.attrs = touchkey_attributes,
 };
+#endif
 
 static int init_sec_factory(struct zt7548_ts_info *info)
 {
@@ -3478,7 +4544,7 @@ static int zt7548_ts_parse_dt(struct device_node *np, struct device *dev,
 		dev_err(dev, "failed to get irq number\n");
 		return -EINVAL;
 	}
-	pr_cont("int: %d", pdata->gpio_int);
+	pr_cont("int:%d, ", pdata->gpio_int);
 
 	ret = gpio_request(pdata->gpio_int, "zt7548_irq");
 	if (ret < 0) {
@@ -3492,27 +4558,28 @@ static int zt7548_ts_parse_dt(struct device_node *np, struct device *dev,
 		dev_err(dev, "failed to get scl number\n");
 		return -EINVAL;
 	}
-	pr_cont(", scl: %d", pdata->gpio_scl);
+	pr_cont("scl:%d, ", pdata->gpio_scl);
 
 	pdata->gpio_sda = of_get_named_gpio(np, "zinitix,sda-gpio", 0);
 	if (pdata->gpio_sda < 0) {
 		dev_err(dev, "failed to get sda number\n");
 		return -EINVAL;
 	}
-	pr_cont(", sda: %d", pdata->gpio_sda);
+	pr_cont("sda:%d, ", pdata->gpio_sda);
 
 	/* gpio power enable */
 	pdata->vdd_en = of_get_named_gpio(np, "zinitix,tsppwr_en", 0);
 	if (pdata->vdd_en < 0) {
-		dev_err(dev, "failed to get vdd_en number\n");
-		return -EINVAL;
+		pr_info("%s: ", __func__);
 	}
-	pr_cont(", vdd_en: %d", pdata->vdd_en);
+	pr_cont("vdd_en:%d, ", pdata->vdd_en);
 
-	ret = gpio_request(pdata->vdd_en, "zt7548_vdd_en");
-	if (ret < 0) {
-		dev_err(dev, "failed to request gpio_vdd_en\n");
-		return -EINVAL;
+	if (gpio_is_valid(pdata->vdd_en)) {
+		ret = gpio_request(pdata->vdd_en, "zt7548_vdd_en");
+		if (ret < 0) {
+			dev_err(dev, "failed to request gpio_vdd_en\n");
+			return -EINVAL;
+		}
 	}
 
 	ret = of_property_read_string(np, "zt7548,fw_name", &pdata->fw_name);
@@ -3520,31 +4587,33 @@ static int zt7548_ts_parse_dt(struct device_node *np, struct device *dev,
 		dev_err(dev, "failed to get firmware path!\n");
 		return -EINVAL;
 	}
-	pr_cont(", fw_name: %s", pdata->fw_name);
+	pr_cont("fw_name:%s, ", pdata->fw_name);
 
 	ret = of_property_read_u32(np, "zt7548,x_resolution", &pdata->x_resolution);
 	if (ret < 0) {
 		dev_err(dev, "failed to get x_resolution\n");
 		return ret;
 	}
-	pr_cont(", max_x: %d", pdata->x_resolution);
+	pr_cont("max_x:%d, ", pdata->x_resolution);
 
 	ret = of_property_read_u32(np, "zt7548,y_resolution", &pdata->y_resolution);
 	if (ret < 0) {
 		dev_err(dev, "failed to get y_resolution\n");
 		return ret;
 	}
-	pr_cont(", max_y: %d", pdata->y_resolution);
+	pr_cont("max_y:%d, ", pdata->y_resolution);
 
 	ret = of_property_read_string(np, "zt7548,model_name", &pdata->model_name);
 	if (ret < 0) {
-		dev_err(dev, "failed to get model name\n");
 		pdata->model_name = "";
 	}
-	pr_cont(", model: %s", pdata->model_name);
+	pr_cont("model:%s, ", pdata->model_name);
+
+	pdata->reg_boot_on = of_property_read_bool(np, "zt7548,reg_boot_on");
+	pr_cont("reg_boot_on:%d, ", pdata->reg_boot_on);
 
 	pdata->tsp_power = zt7548_power;
-	pr_cont("\n");
+	pr_cont("end\n");
 	return 0;
 
 }
@@ -3686,7 +4755,7 @@ static long ts_misc_fops_ioctl(struct file *filp,
 			return -1;
 		}
 		misc_info->work_state = HW_CALIBRAION;
-		mdelay(100);
+		zinitix_delay(100);
 
 		/* h/w calibration */
 		if (ts_hw_calibration(misc_info))
@@ -3847,7 +4916,7 @@ fail_hw_cal:
 			ZT7548_SAVE_STATUS_CMD) != I2C_SUCCESS)
 			ret =  -1;
 
-		mdelay(1000);	/* for fusing eeprom */
+		zinitix_delay(1000);	/* for fusing eeprom */
 
 		misc_info->work_state = NOTHING;
 		up(&misc_info->work_lock);
@@ -4044,32 +5113,39 @@ static int zt7548_ts_probe(struct i2c_client *client, const struct i2c_device_id
 
 #ifdef CONFIG_DUAL_TOUCH_IC_CHECK
 	probe_finished = 0;
-	ret = gpio_direction_output(pdata->vdd_en, 1);
-	if (ret) {
-		dev_err(&client->dev,"[TSP]%s: unable to set_direction for zt_vdd_en [%d]\n",
-			__func__, pdata->vdd_en);
-		return 0;
+	if (gpio_is_valid(pdata->vdd_en)) {
+		ret = gpio_direction_output(pdata->vdd_en, 1);
+		if (ret) {
+			dev_err(&client->dev,"[TSP]%s: unable to set_direction for zt_vdd_en [%d]\n",
+				__func__, pdata->vdd_en);
+			ret = -ENODEV;
+			goto err_power_sequence;
+		}
 	}
 
-	msleep(CHIP_ON_DELAY);
+	zinitix_delay(CHIP_ON_DELAY);
 
 	while(retry--)
 	{
 		if (write_reg(client, 0xc000, 0x0001) != I2C_SUCCESS) {
 			dev_err(&client->dev, "Failed to send power sequence(vendor cmd enable)\n");
-			msleep(50);
+			zinitix_delay(50);
+			ret = -ENODEV;
 			goto err_power_sequence;
 		}
 	}
 
-	ret = gpio_direction_output(pdata->vdd_en, 0);
-	if (ret) {
-		dev_err(&client->dev,"[TSP]%s: unable to set_direction for zt_vdd_en [%d]\n",
-			__func__, pdata->vdd_en);
-		return 0;
+	if (gpio_is_valid(pdata->vdd_en)) {
+		ret = gpio_direction_output(pdata->vdd_en, 0);
+		if (ret) {
+			dev_err(&client->dev,"[TSP]%s: unable to set_direction for zt_vdd_en [%d]\n",
+				__func__, pdata->vdd_en);
+			ret = -ENODEV;
+			goto err_power_sequence;
+		}
 	}
 
-	msleep(CHIP_OFF_DELAY);
+	zinitix_delay(CHIP_OFF_DELAY);
 #endif
 
 	/* power on */
@@ -4137,6 +5213,11 @@ static int zt7548_ts_probe(struct i2c_client *client, const struct i2c_device_id
 			0, 255, 0, 0);
 	input_set_abs_params(info->input_dev, ABS_MT_PALM,
 				0, 1, 0, 0);
+#endif
+
+#ifdef REPORT_2D_Z
+	input_set_abs_params(info->input_dev, ABS_MT_PRESSURE,
+			0, REAL_Z_MAX, 0, 0);
 #endif
 
 	set_bit(MT_TOOL_FINGER, info->input_dev->keybit);
@@ -4214,10 +5295,20 @@ static int zt7548_ts_probe(struct i2c_client *client, const struct i2c_device_id
 		dev_err(&client->dev, "Failed to init sec factory device\n");
 		goto err_kthread_create_failed;
 	}
+#if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
+	info->factory_info->cmd_param[0] = 1;
+	hfdnd_spec_adjust(info);
+	info->factory_info->cmd_state = WAITING;
+#endif
 #endif
 
 #ifdef CONFIG_DUAL_TOUCH_IC_CHECK
 	probe_finished = 1;
+#endif
+
+#ifdef TSP_MUIC_NOTIFICATION
+	muic_notifier_register(&info->charger_nb,
+		zt7548_notification, MUIC_NOTIFY_DEV_TSP);
 #endif
 
 	dev_info(&client->dev, "zinitix touch probe done.\n");
@@ -4342,15 +5433,6 @@ static struct i2c_device_id zt7548_idtable[] = {
 	{ }
 };
 
-static const struct dev_pm_ops zt7548_ts_pm_ops = {
-#if defined(CONFIG_PM_RUNTIME)
-	SET_RUNTIME_PM_OPS(zt7548_ts_suspend, zt7548_ts_resume, NULL)
-#else
-	.suspend = zt7548_ts_suspend,
-	.resume =  zt7548_ts_resume,
-#endif
-};
-
 static struct i2c_driver zt7548_ts_driver = {
 	.probe	= zt7548_ts_probe,
 	.remove	= zt7548_ts_remove,
@@ -4360,7 +5442,6 @@ static struct i2c_driver zt7548_ts_driver = {
 		.owner	= THIS_MODULE,
 		.name	= ZT7548_TS_DEVICE,
 		.of_match_table = tsp_dt_ids,
-		.pm		= &zt7548_ts_pm_ops,
 	},
 };
 

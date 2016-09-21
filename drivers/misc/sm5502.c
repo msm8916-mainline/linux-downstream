@@ -236,7 +236,7 @@ struct sm5502_usbsw {
 	int				adc;
 	bool				undefined_attached;
 	/* muic current attached device */
-	enum muic_attached_dev		attached_dev;
+	muic_attached_dev		attached_dev;
 #if defined(CONFIG_MUIC_SM5502_SUPPORT_LANHUB_TA)
 	unsigned int			previous_dock;
 	unsigned int			lanhub_ta_status;

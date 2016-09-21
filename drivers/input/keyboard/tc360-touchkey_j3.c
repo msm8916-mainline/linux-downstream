@@ -337,6 +337,13 @@ static void tc300k_gpio_request(struct tc300k_data *data)
 						__func__, data->pdata->gpio_2p8_en);
 			}
 	}
+	if( (int)(data->pdata->gpio_led) > 0 ){
+		ret = gpio_request(data->pdata->gpio_led, "touchkey_led_en");
+			if (ret) {
+				printk(KERN_ERR "%s: unable to request touchkey_led_en[%d]\n",
+						__func__, data->pdata->gpio_led);
+			}
+	}
 
 	gpio_direction_input(data->pdata->gpio_sda);
 	gpio_direction_input(data->pdata->gpio_scl);
@@ -346,6 +353,9 @@ static void tc300k_gpio_request(struct tc300k_data *data)
 	if( (int)(data->pdata->gpio_2p8_en) > 0 ){
 		gpio_direction_output(data->pdata->gpio_2p8_en, 0);
 	}
+	if( (int)(data->pdata->gpio_led) > 0 ){
+		gpio_direction_output(data->pdata->gpio_led, 0);
+	}
 #endif
 
 }
@@ -354,7 +364,7 @@ void tc300k_power(struct tc300k_data *data, int onoff)
 {
 
 	dev_info(&data->client->dev, "%s: power %s\n",__func__, onoff ? "on" : "off");
-#if 1
+
 	if(onoff){
 		gpio_direction_output(data->pdata->gpio_en, 1);
 		pr_info("%sTKEY_EN 3.3V on is finished.\n",__func__);
@@ -367,126 +377,23 @@ void tc300k_power(struct tc300k_data *data, int onoff)
 		gpio_direction_output(data->pdata->gpio_2p8_en, onoff);
 		pr_info("%sTKEY_EN 3.3V %s is finished.\n",__func__,onoff ? "on" : "off");
 	}
-#else
-
-
-	if ((s32)data->pdata->gpio_en > 0) {
-		ret = gpio_direction_output(data->pdata->gpio_en, onoff);
-		if (ret) {
-			dev_err(&data->client->dev,
-					"%s: unable to set_direction for gpio_en [%d]\n",
-					__func__, data->pdata->gpio_en);
-		}
-	}
-	else{
-		//check for SUB PMIC ldo
-		if (!data->vcc_en) {
-			if (data->pdata->vcc_en_ldo_name){
-				data->vcc_en = regulator_get(NULL, data->pdata->vcc_en_ldo_name);
-				if (IS_ERR(data->vcc_en)) {
-					dev_err(&data->client->dev,"Regulator(vcc_en) get failed rc = %ld\n", PTR_ERR(data->vcc_en));
-					return;
-				}
-				ret = regulator_set_voltage(data->vcc_en,1800000, 1800000);
-				if (ret) {
-					dev_err(&data->client->dev,"regulator(vcc_en) set_vtg failed rc=%d\n", ret);
-					return;
-				}
-			} else {
-				dev_err(&data->client->dev,"vcc_en_ldo_name is not read from dtsi");
-				return;
-			}
-		}
-
-		if (onoff) {
-			if (!regulator_is_enabled(data->vcc_en)) {
-				ret = regulator_enable(data->vcc_en);
-				if (ret) {
-					pr_err("%s: enable vcc_en failed, rc=%d\n",__func__, ret);
-					return;
-				}
-				pr_info("%senable vcc_en success.\n",__func__);
-			} else {
-				pr_info("%svcc_en is already enabled.\n",__func__);
-			}
-		} else {
-			if (regulator_is_enabled(data->vcc_en)) {
-				ret = regulator_disable(data->vcc_en);
-				if (ret) {
-					pr_err("%s: disable vcc_en failed, rc=%d\n", __func__, ret);
-					return;
-				}
-				pr_info("%sdisable vcc_en success.\n",__func__);
-			} else {
-				pr_info("%svcc_en is already disabled.\n",__func__);
-			}
-		}
-	}
-#endif
 }
 
 void tc300k_led_power(struct tc300k_data *data, bool onoff)
 {
-	//int ret;
-return;
-	pr_info("%s: %s\n", __func__, onoff ? "on" : "off");
+	if( (int)(data->pdata->gpio_led) > 0 ){
+		pr_info("%s: %s\n", __func__, onoff ? "on" : "off");
 
-#if 1
-
-	if(onoff){
-		pr_info("%sTKEY_LED 3.3V[vdd_led] on is finished.\n",__func__);
-	} else{
-		pr_info("%sTKEY_LED 3.3V[vdd_led] off is finished\n",__func__); 
-	}
-#else
-	if (!data->vdd_led) {
-		data->vdd_led = regulator_get(&data->client->dev,"vdd_led");
-		if (IS_ERR(data->vdd_led)) {
-			dev_err(&data->client->dev,"Regulator(vdd_led) get failed for PMIC. rc = %ld\n", PTR_ERR(data->vdd_led));
-
-			//check for SUB PMIC ldo
-			if (data->pdata->vdd_led_ldo_name){
-                                data->vdd_led = regulator_get(NULL, data->pdata->vdd_led_ldo_name);
-                                if (IS_ERR(data->vdd_led)) {
-                                        dev_err(&data->client->dev,"Regulator(vdd_led) get failed for SUB PMIC. rc = %ld\n", PTR_ERR(data->vdd_led));
-                                        return;
-                                }
-                        } else {
-                                dev_err(&data->client->dev,"vdd_led_ldo_name is not read from dtsi");
-                                return;
-                        }
-		}
-		ret = regulator_set_voltage(data->vdd_led,3300000, 3300000);
-		if (ret) {
-			dev_err(&data->client->dev,
-				"regulator(vdd_led) set_vtg failed rc=%d\n", ret);
-			return;
-		}
-	}
-
-	if (onoff) {
-		if (!regulator_is_enabled(data->vdd_led)) {
-			ret = regulator_enable(data->vdd_led);
-			if (ret) {
-				pr_err("%s: enable vdd_led failed, rc=%d\n",__func__, ret);
-				return;
-			}
+		if(onoff){
 			pr_info("%sTKEY_LED 3.3V[vdd_led] on is finished.\n",__func__);
-		} else
-			pr_info("%sTKEY_LED 3.3V[vdd_led] is already on.\n",__func__);
+		} else{
+			pr_info("%sTKEY_LED 3.3V[vdd_led] off is finished\n",__func__); 
+		}
+
+		gpio_direction_output(data->pdata->gpio_led, onoff);
 	} else {
-		if (regulator_is_enabled(data->vdd_led)) {
-			ret = regulator_disable(data->vdd_led);
-			if (ret) {
-				pr_err("%s: disable vdd_led failed, rc=%d\n",
-					__func__, ret);
-				return;
-			}
-			pr_info("%sTKEY_LED 3.3V[vdd_led] off is finished.\n",__func__);
-		} else
-			pr_info("%sTKEY_LED 3.3V[vdd_led] is already off.\n",__func__);
+		pr_info("%s don't support TKEY_LED.\n", __func__);
 	}
-	#endif
 }
 
 #ifdef CONFIG_OF
@@ -505,6 +412,7 @@ static int tc300k_parse_dt(struct device *dev,
 	pdata->gpio_int = of_get_named_gpio_flags(np, "coreriver,irq-gpio", 0, &pdata->irq_gpio_flags);
 	pdata->firmup = of_property_read_bool(np, "coreriver,firm-up");
 	pdata->gpio_2p8_en = of_get_named_gpio_flags(np, "coreriver,vcc_en-gpio2p8", 0, &pdata->vcc_gpio2p8_flags);
+	pdata->gpio_led = of_get_named_gpio(np, "coreriver,led-gpio", 0);
 
 	if (of_property_read_string(np, "coreriver,fw-name", &pdata->fw_name) >= 0)
                 pr_err("%s() coreriver,fw-name: %s\n", __func__, pdata->fw_name);
@@ -518,8 +426,8 @@ static int tc300k_parse_dt(struct device *dev,
         if (rc < 0) {
                 pr_err("[%s]: Unable to read vdd_led_ldo_name rc = %d\n", __func__, rc);
         }
-	pr_err("%s: gpio_en = %d, tkey_scl= %d, tkey_sda= %d, tkey_int= %d, firmup= %d",
-				__func__, pdata->gpio_en, pdata->gpio_scl, pdata->gpio_sda, pdata->gpio_int, pdata->firmup);
+	pr_err("%s: gpio_en = %d, tkey_scl= %d, tkey_sda= %d, tkey_int= %d, tkey_led= %d, firmup= %d",
+				__func__, pdata->gpio_en, pdata->gpio_scl, pdata->gpio_sda, pdata->gpio_int, pdata->gpio_led, pdata->firmup);
 	return 0;
 }
 #else
@@ -810,12 +718,8 @@ static int tc300k_erase_fw(struct tc300k_data *data)
 	state = 0;
 	for (i = 0; i < 100; i++) {
 		udelay(2);
-		send_9bit(data, TC300K_CSYNC1);
-		udelay(10);
-		send_9bit(data, TC300K_CSYNC2);
-		udelay(10);
 		send_9bit(data, TC300K_CSYNC3);
-		usleep_range(150, 160);
+		udelay(1);
 
 		state = wait_9bit(data);
 		if ((state & 0x04) == 0x00)
@@ -1422,7 +1326,7 @@ static ssize_t tc300k_led_control(struct device *dev,
 	int scan_buffer;
 	int ret;
 
-	if (strncmp(data->pdata->fw_name, TC360_FW_NAME_J3, 8) == 0) {
+	if( (int)(data->pdata->gpio_led) == 0 ){
 		dev_err(&client->dev, "%s: do not support LED command\n",
 				__func__);
 		return count;
@@ -2654,7 +2558,6 @@ static void led_twinkle_work(struct work_struct *work)
 {
 	struct tc300k_data *data = container_of(work, struct tc300k_data,
 						led_twinkle_work.work);
-	struct i2c_client *client = data->client;
 	static bool led_on = 1;
 	static int count = 0;
 	dev_err(&data->client->dev, "%s, on=%d, c=%d\n",__func__, led_on, count++ );

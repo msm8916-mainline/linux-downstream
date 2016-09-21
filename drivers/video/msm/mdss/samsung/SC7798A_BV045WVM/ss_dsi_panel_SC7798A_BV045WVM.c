@@ -30,7 +30,12 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
  *
 */
 #include "ss_dsi_panel_SC7798A_BV045WVM.h"
+#if defined(CONFIG_SEC_XCOVER3_PROJECT)
+#include "ss_dsi_mdnie_SC7798A_BV045WVM_XCOVER3.h"
+#else
 #include "ss_dsi_mdnie_SC7798A_BV045WVM.h"
+#endif
+
 static int is_first_boot = 1;
 
 static int mdss_panel_on_pre(struct mdss_dsi_ctrl_pdata *ctrl)
@@ -110,14 +115,46 @@ static struct dsi_panel_cmds * mdss_brightness_tft_pwm(struct mdss_dsi_ctrl_pdat
 		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
 		return NULL;
 	}
-
-	vdd->scaled_level = get_scaled_level(vdd, ctrl->ndx);
+	if (vdd->auto_brightness == 6) /* Outdoor Mode */
+		vdd->scaled_level = 249;
+	else /* Normal Mode */
+		vdd->scaled_level = get_scaled_level(vdd, ctrl->ndx);
 
 	pr_info("%s bl_level : %d scaled_level : %d\n", __func__, vdd->bl_level, vdd->scaled_level);
 
 	vdd->dtsi_data[ctrl->ndx].tft_pwm_tx_cmds->cmds->payload[1] = vdd->scaled_level ;
 
 	return &vdd->dtsi_data[ctrl->ndx].tft_pwm_tx_cmds[vdd->panel_revision];
+}
+
+static void mdss_panel_tft_outdoormode_update(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
+	struct mdss_panel_data *pdata;
+	struct mdnie_lite_tun_type *mdnie_tune_state;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
+		return;
+	}
+	pr_info("%s: tft panel outdoor_mode update\n", __func__);
+
+	/* MDNIE Outdoor Mode Setting*/
+	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
+		if (vdd->auto_brightness == 6)
+			mdnie_tune_state->outdoor = OUTDOOR_ON_MODE;
+		else
+			mdnie_tune_state->outdoor = OUTDOOR_OFF_MODE;
+
+		pr_info("%s : MDNIE Outdoor Mode : %d\n", __func__, mdnie_tune_state->outdoor);
+	}
+
+	pdata = &vdd->ctrl_dsi[DISPLAY_1]->panel_data;
+
+	/* Update Panel Brightness */
+	mutex_lock(&vdd->mfd_dsi[DISPLAY_1]->bl_lock);
+	pdata->set_backlight(pdata, vdd->bl_level);
+	mutex_unlock(&vdd->mfd_dsi[DISPLAY_1]->bl_lock);
 }
 
 static void dsi_update_mdnie_data(void)
@@ -248,6 +285,7 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_brightness_gamma = NULL;
 	vdd->brightness[0].brightness_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;
 	vdd->panel_func.samsung_backlight_late_on = update_mdnie_tft_cmds;
+	vdd->mdss_panel_tft_outdoormode_update=mdss_panel_tft_outdoormode_update;
 
 	dsi_update_mdnie_data();
 	mdss_panel_attach_set(vdd->ctrl_dsi[DISPLAY_1], true);

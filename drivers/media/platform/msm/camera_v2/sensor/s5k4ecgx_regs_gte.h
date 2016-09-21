@@ -51,7 +51,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x002A, 0x007A,},
 {0x0F12, 0x0000,},//config_clk_setting
 {0x002A, 0xE406,},
-{0x0F12, 0x0082,},//adlc_enable
+{0x0F12, 0x0082,},//Fadlc_disable
 {0x002A, 0xE410,},
 {0x0F12, 0x3804,},//adlc_fadlc_filter_co
 {0x002A, 0xE41A,},
@@ -1892,8 +1892,8 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x5A3C,},       //senHal_TuneStr_AngTuneData1_2_ register at subsampling
 {0x002A, 0x1896,},
 {0x0F12, 0x0002,},       //senHal_SamplingType
-{0x0F12, 0x0000,},       //senHal_SamplingMode 0000 : 2PLA}, 0001 : 4PLA
-{0x0F12, 0x0003,},       //senHal_PLAOption [0] VPLA enable}, [1] HPLA enable
+{0x0F12, 0x0000,},       //senHal_SamplingMode 0000 : 2PLA, 0001 : 4PLA
+{0x0F12, 0x0003,},       //senHal_PLAOption [0] VPLA enable, [1] HPLA enable
 
 {0x002A, 0x1B00,},       //Add for low lux flash from LSI
 {0x0F12, 0xF428,},
@@ -1906,8 +1906,8 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x002A, 0x18AC,},
 {0x0F12, 0x0060,},      //senHal_uAddColsBin
 {0x0F12, 0x0060,},      //senHal_uAddColsNoBin
-{0x0F12, 0x07DC,},      //senHal_uMinColsBin
-{0x0F12, 0x07DC,},      //senHal_uMinColsNoBin
+{0x0F12, 0x0A20,},      //senHal_uMinColsBin
+{0x0F12, 0x0AB0,},      //senHal_uMinColsNoBin
 
 {0x002A, 0x1AEA,},
 {0x0F12, 0x8080,},       //senHal_SubF404Tune
@@ -2070,38 +2070,38 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 
 // Indoor Zone
 {0x002A, 0x101C,},
-{0x0F12, 0x0390,},
-{0x0F12, 0x03B0,},
-{0x0F12, 0x036A,},
-{0x0F12, 0x039E,},
-{0x0F12, 0x0338,},
-{0x0F12, 0x0384,},
-{0x0F12, 0x02FE,},
-{0x0F12, 0x0352,},
-{0x0F12, 0x0294,},
-{0x0F12, 0x031E,},
-{0x0F12, 0x024A,},
-{0x0F12, 0x02E8,},
-{0x0F12, 0x023A,},
-{0x0F12, 0x02A4,},
-{0x0F12, 0x0228,},
+{0x0F12, 0x0370,},
+{0x0F12, 0x03AC,},
+{0x0F12, 0x0314,},
+{0x0F12, 0x03AE,},
+{0x0F12, 0x02D0,},
+{0x0F12, 0x0396,},
+{0x0F12, 0x0298,},
+{0x0F12, 0x0368,},
+{0x0F12, 0x0274,},
+{0x0F12, 0x0336,},
+{0x0F12, 0x0254,},
+{0x0F12, 0x0306,},
+{0x0F12, 0x023C,},
+{0x0F12, 0x02DC,},
+{0x0F12, 0x0226,},
+{0x0F12, 0x02BA,},
+{0x0F12, 0x0210,},
+{0x0F12, 0x02A0,},
+{0x0F12, 0x01FC,},
 {0x0F12, 0x028A,},
-{0x0F12, 0x020A,},
-{0x0F12, 0x0272,},
-{0x0F12, 0x01F8,},
-{0x0F12, 0x0262,},
-{0x0F12, 0x01F8,},
-{0x0F12, 0x0256,},
-{0x0F12, 0x01F6,},
-{0x0F12, 0x024E,},
-{0x0F12, 0x01E6,},
-{0x0F12, 0x0236,},
-{0x0F12, 0x01CA,},
-{0x0F12, 0x022C,},
-{0x0F12, 0x01AA,},
-{0x0F12, 0x020C,},
-{0x0F12, 0x019E,},
+{0x0F12, 0x01EE,},
+{0x0F12, 0x0274,},
+{0x0F12, 0x01E0,},
+{0x0F12, 0x025E,},
+{0x0F12, 0x01D8,},
+{0x0F12, 0x024A,},
+{0x0F12, 0x01CC,},
+{0x0F12, 0x0238,},
 {0x0F12, 0x01C0,},
+{0x0F12, 0x0222,},
+{0x0F12, 0x01C2,},
+{0x0F12, 0x01F0,},
 {0x0F12, 0x0000,},
 {0x0F12, 0x0000,},
 {0x0F12, 0x0000,},
@@ -2114,23 +2114,23 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x002A, 0x1070,},
 {0x0F12, 0x0010,},
 {0x002A, 0x1074,},
-{0x0F12, 0x0126,},
+{0x0F12, 0x011A,},
 // Outdoor Zone
 {0x002A, 0x1078,},
 {0x0F12, 0x0244,},
 {0x0F12, 0x0258,},
 {0x0F12, 0x0228,},
-{0x0F12, 0x0264,},
+{0x0F12, 0x0260,},
 {0x0F12, 0x0212,},
 {0x0F12, 0x0266,},
 {0x0F12, 0x0206,},
 {0x0F12, 0x0262,},
+{0x0F12, 0x0202,},
+{0x0F12, 0x0258,},
 {0x0F12, 0x0206,},
-{0x0F12, 0x025A,},
-{0x0F12, 0x020A,},
 {0x0F12, 0x024A,},
-{0x0F12, 0x0214,},
-{0x0F12, 0x0226,},
+{0x0F12, 0x0218,},
+{0x0F12, 0x022C,},
 {0x0F12, 0x0000,},
 {0x0F12, 0x0000,},
 {0x0F12, 0x0000,},
@@ -2144,7 +2144,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 
 {0x0F12, 0x0004,},
 {0x002A, 0x10AC,},
-{0x0F12, 0x0006,},
+{0x0F12, 0x0007,},
 {0x002A, 0x10B0,},
 {0x0F12, 0x0224,},
 
@@ -2375,9 +2375,9 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x002A, 0x0F30,},
 {0x0F12, 0x0001,}, ///*AFC_D_ConvAccelerPower */
 {0x002A, 0x0F2A,},
-{0x0F12, 0x0001,}, ///*AFC_Default BIT[0] 1:60Hz 0:50Hz */
+{0x0F12, 0x0000,}, ///*AFC_Default BIT[0] 1:60Hz 0:50Hz */
 {0x002A, 0x04E6,},
-{0x0F12, 0x077F,}, ///*REG_TC_DBG 7F: 60Hz  5F:50Hz */
+{0x0F12, 0x077F,}, ///*REG_TC_DBG 7F: Auto  5F:Manual */
 {0x002A, 0x0F20,},
 {0x0F12, 0x0002,},///AFC_SmallP_MaxFrames default :2 20131104/
 {0x002A, 0x0F08,},
@@ -2543,8 +2543,8 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0001,}, //fls_afl_usCounter
 
 {0x002A, 0x17F6,},
- {0x0F12, 0x0252,}, //fls_afl_DefaultWPr //5C 54 54
-{0x0F12, 0x0200,}, //fls_afl_DefaultWPb //28 30 28
+{0x0F12, 0x0252,}, //fls_afl_DefaultWPr //5C 54 54
+{0x0F12, 0x0252,}, //fls_afl_DefaultWPb //28 30 28
 
 {0x002A, 0x1840,},
 {0x0F12, 0x0001,},//fls_afl_bFlsMode
@@ -2973,7 +2973,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0000,},    //700009DE AFIT8_ee_iROADSubMaxNR   [7:0] AFIT8_ee_iROADSubThres
 {0x0F12, 0x2006,},    //700009E0 AFIT8_ee_iROADNeiThres   [7:0] AFIT8_ee_iROADNeiMaxNR
 {0x0F12, 0x2828,},    //700009E2 AFIT8_ee_iSmoothEdgeThres   [7:0] AFIT8_ee_iMSharpen
-{0x0F12, 0x0414,},    //700009E4 AFIT8_ee_iWSharpen   [7:0] AFIT8_ee_iMShThresh
+{0x0F12, 0x040F,},    //700009E4 AFIT8_ee_iWSharpen   [7:0] AFIT8_ee_iMShThresh
 {0x0F12, 0x0101,},    //700009E6 AFIT8_ee_iWShThresh   [7:0] AFIT8_ee_iReduceNegative
 {0x0F12, 0x0800,},    //700009E8 AFIT8_ee_iEmbossCentAdd   [7:0] AFIT8_ee_iShDespeckle
 {0x0F12, 0x1804,},    //700009EA AFIT8_ee_iReduceEdgeThresh   [7:0] AFIT8_dmsc_iEnhThresh
@@ -2983,7 +2983,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0020,},    //700009F2 AFIT8_dmsc_iMonochrom   [7:0] AFIT8_dmsc_iGBDenoiseVal
 {0x0F12, 0x0000,},    //700009F4 AFIT8_dmsc_iGRDenoiseVal   [7:0] AFIT8_dmsc_iEdgeDesatThrHigh
 {0x0F12, 0x1800,},    //700009F6 AFIT8_dmsc_iEdgeDesatThrLow   [7:0] AFIT8_dmsc_iEdgeDesat
-{0x0F12, 0x0003,},    //700009F8 AFIT8_dmsc_iNearGrayDesat   [7:0] AFIT8_dmsc_iEdgeDesatLimit
+{0x0F12, 0x0004,},    //700009F8 AFIT8_dmsc_iNearGrayDesat   [7:0] AFIT8_dmsc_iEdgeDesatLimit
 {0x0F12, 0x1E10,},    //700009FA AFIT8_postdmsc_iBCoeff   [7:0] AFIT8_postdmsc_iGCoeff
 {0x0F12, 0x000B,},    //700009FC AFIT8_postdmsc_iWideMult   [7:0] AFIT8_yuvemix_mNegSlopes_0
 {0x0F12, 0x0607,},    //700009FE AFIT8_yuvemix_mNegSlopes_1   [7:0] AFIT8_yuvemix_mNegSlopes_2
@@ -3000,15 +3000,15 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x1002,},    //70000A14 AFIT8_yuviirnr_iMaxThreshH_Y   [7:0] AFIT8_yuviirnr_iMaxThreshL_UV
 {0x0F12, 0x0610,},    //70000A16 AFIT8_yuviirnr_iMaxThreshH_UV   [7:0] AFIT8_yuviirnr_iYNRStrengthL
 {0x0F12, 0x1A02,},    //70000A18 AFIT8_yuviirnr_iYNRStrengthH   [7:0] AFIT8_yuviirnr_iUVNRStrengthL
-{0x0F12, 0x3718,},    //70000A1A AFIT8_yuviirnr_iUVNRStrengthH   [7:0] AFIT8_byr_gras_iShadingPower
+{0x0F12, 0x2318,},    //70000A1A AFIT8_yuviirnr_iUVNRStrengthH   [7:0] AFIT8_byr_gras_iShadingPower
 {0x0F12, 0x0080,},    //70000A1C AFIT8_RGBGamma2_iLinearity   [7:0] AFIT8_RGBGamma2_iDarkReduce
 {0x0F12, 0x0350,},    //70000A1E AFIT8_ccm_oscar_iSaturation   [7:0] AFIT8_RGB2YUV_iYOffset
 {0x0F12, 0x0180,},    //70000A20 AFIT8_RGB2YUV_iRGBGain   [7:0] AFIT8_bnr_nClustLevel_H
 {0x0F12, 0x0A0A,},    //70000A22 AFIT8_bnr_iClustMulT_H   [7:0] AFIT8_bnr_iClustMulT_C
 {0x0F12, 0x0101,},    //70000A24 AFIT8_bnr_iClustThresh_H   [7:0] AFIT8_bnr_iClustThresh_C
-{0x0F12, 0x2A36,},    //70000A26 AFIT8_bnr_iDenThreshLow   [7:0] AFIT8_bnr_iDenThreshHigh
+{0x0F12, 0x3141,},    //70000A26 AFIT8_bnr_iDenThreshLow   [7:0] AFIT8_bnr_iDenThreshHigh
 {0x0F12, 0x6024,},    //70000A28 AFIT8_ee_iLowSharpPower   [7:0] AFIT8_ee_iHighSharpPower
-{0x0F12, 0x2A36,},    //70000A2A AFIT8_ee_iLowShDenoise   [7:0] AFIT8_ee_iHighShDenoise
+{0x0F12, 0x3140,},    //70000A2A AFIT8_ee_iLowShDenoise   [7:0] AFIT8_ee_iHighShDenoise
 {0x0F12, 0xFFFF,},    //70000A2C AFIT8_ee_iLowSharpClamp   [7:0] AFIT8_ee_iHighSharpClamp
 {0x0F12, 0x0808,},    //70000A2E AFIT8_ee_iReduceEdgeMinMult   [7:0] AFIT8_ee_iReduceEdgeSlope
 {0x0F12, 0x0A01,},    //70000A30 AFIT8_bnr_nClustLevel_H_Bin   [7:0] AFIT8_bnr_iClustMulT_H_Bin
@@ -3022,7 +3022,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0001,},    //70000A40 AFITB_bnr_nClustLevel_C      [0]
 {0x0F12, 0x0000,},    //70000A42 AFIT16_BRIGHTNESS
 {0x0F12, 0x0000,},    //70000A44 AFIT16_CONTRAST
-{0x0F12, 0xFFFB,},    // 0000},
+{0x0F12, 0xFFFB,},    // 0000,
 {0x0F12, 0x0000,},    //70000A48 AFIT16_SHARP_BLUR
 {0x0F12, 0x0000,},    //70000A4A AFIT16_GLAMOUR
 {0x0F12, 0x00C0,},    //70000A4C AFIT16_bnr_edge_high
@@ -3052,7 +3052,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0306,},    //70000A7C AFIT8_bnr_iHighMaxSlopeAllowed   [7:0] AFIT8_bnr_iLowSlopeThresh
 {0x0F12, 0x2003,},    //70000A7E AFIT8_bnr_iHighSlopeThresh   [7:0] AFIT8_bnr_iSlopenessTH
 {0x0F12, 0xFF01,},    //70000A80 AFIT8_bnr_iSlopeBlurStrength   [7:0] AFIT8_bnr_iSlopenessLimit
-{0x0F12, 0x0404,},    //70000A82 AFIT8_bnr_AddNoisePower1   [7:0] AFIT8_bnr_AddNoisePower2
+{0x0F12, 0x0000,},    //70000A82 AFIT8_bnr_AddNoisePower1   [7:0] AFIT8_bnr_AddNoisePower2
 {0x0F12, 0x0300,},    //70000A84 AFIT8_bnr_iRadialTune   [7:0] AFIT8_bnr_iRadialPower
 {0x0F12, 0x245A,},    //70000A86 AFIT8_bnr_iRadialLimit   [7:0] AFIT8_ee_iFSMagThLow
 {0x0F12, 0x1018,},    //70000A88 AFIT8_ee_iFSMagThHigh   [7:0] AFIT8_ee_iFSVarThLow
@@ -3097,9 +3097,9 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0180,},    //70000AD6 AFIT8_RGB2YUV_iRGBGain   [7:0] AFIT8_bnr_nClustLevel_H
 {0x0F12, 0x0A0A,},    //70000AD8 AFIT8_bnr_iClustMulT_H   [7:0] AFIT8_bnr_iClustMulT_C
 {0x0F12, 0x0101,},    //70000ADA AFIT8_bnr_iClustThresh_H   [7:0] AFIT8_bnr_iClustThresh_C
-{0x0F12, 0x232D,},    //70000ADC AFIT8_bnr_iDenThreshLow   [7:0] AFIT8_bnr_iDenThreshHigh
+{0x0F12, 0x2832,},    //70000ADC AFIT8_bnr_iDenThreshLow   [7:0] AFIT8_bnr_iDenThreshHigh
 {0x0F12, 0x6024,},    //70000ADE AFIT8_ee_iLowSharpPower   [7:0] AFIT8_ee_iHighSharpPower
-{0x0F12, 0x1D22,},    //70000AE0 AFIT8_ee_iLowShDenoise   [7:0] AFIT8_ee_iHighShDenoise
+{0x0F12, 0x272C,},    //70000AE0 AFIT8_ee_iLowShDenoise   [7:0] AFIT8_ee_iHighShDenoise
 {0x0F12, 0xFFFF,},    //70000AE2 AFIT8_ee_iLowSharpClamp   [7:0] AFIT8_ee_iHighSharpClamp
 {0x0F12, 0x0808,},    //70000AE4 AFIT8_ee_iReduceEdgeMinMult   [7:0] AFIT8_ee_iReduceEdgeSlope
 {0x0F12, 0x0A01,},    //70000AE6 AFIT8_bnr_nClustLevel_H_Bin   [7:0] AFIT8_bnr_iClustMulT_H_Bin
@@ -3143,7 +3143,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0306,},    //70000B32 AFIT8_bnr_iHighMaxSlopeAllowed   [7:0] AFIT8_bnr_iLowSlopeThresh
 {0x0F12, 0x2003,},    //70000B34 AFIT8_bnr_iHighSlopeThresh   [7:0] AFIT8_bnr_iSlopenessTH
 {0x0F12, 0xFF01,},    //70000B36 AFIT8_bnr_iSlopeBlurStrength   [7:0] AFIT8_bnr_iSlopenessLimit
-{0x0F12, 0x0404,},    //70000B38 AFIT8_bnr_AddNoisePower1   [7:0] AFIT8_bnr_AddNoisePower2
+{0x0F12, 0x0000,},    //70000B38 AFIT8_bnr_AddNoisePower1   [7:0] AFIT8_bnr_AddNoisePower2
 {0x0F12, 0x0300,},    //70000B3A AFIT8_bnr_iRadialTune   [7:0] AFIT8_bnr_iRadialPower
 {0x0F12, 0x145A,},    //70000B3C AFIT8_bnr_iRadialLimit   [7:0] AFIT8_ee_iFSMagThLow
 {0x0F12, 0x1010,},    //70000B3E AFIT8_ee_iFSMagThHigh   [7:0] AFIT8_ee_iFSVarThLow
@@ -3188,9 +3188,9 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0180,},    //70000B8C AFIT8_RGB2YUV_iRGBGain   [7:0] AFIT8_bnr_nClustLevel_H
 {0x0F12, 0x0A0A,},    //70000B8E AFIT8_bnr_iClustMulT_H   [7:0] AFIT8_bnr_iClustMulT_C
 {0x0F12, 0x0101,},    //70000B90 AFIT8_bnr_iClustThresh_H   [7:0] AFIT8_bnr_iClustThresh_C
-{0x0F12, 0x212B,},    //70000B92 AFIT8_bnr_iDenThreshLow   [7:0] AFIT8_bnr_iDenThreshHigh
+{0x0F12, 0x2630,},    //70000B92 AFIT8_bnr_iDenThreshLow   [7:0] AFIT8_bnr_iDenThreshHigh
 {0x0F12, 0x6024,},    //70000B94 AFIT8_ee_iLowSharpPower   [7:0] AFIT8_ee_iHighSharpPower
-{0x0F12, 0x0C0C,},    //70000B96 AFIT8_ee_iLowShDenoise   [7:0] AFIT8_ee_iHighShDenoise
+{0x0F12, 0x1616,},    //70000B96 AFIT8_ee_iLowShDenoise   [7:0] AFIT8_ee_iHighShDenoise
 {0x0F12, 0xFFFF,},    //70000B98 AFIT8_ee_iLowSharpClamp   [7:0] AFIT8_ee_iHighSharpClamp
 {0x0F12, 0x0808,},    //70000B9A AFIT8_ee_iReduceEdgeMinMult   [7:0] AFIT8_ee_iReduceEdgeSlope
 {0x0F12, 0x0A01,},    //70000B9C AFIT8_bnr_nClustLevel_H_Bin   [7:0] AFIT8_bnr_iClustMulT_H_Bin
@@ -3234,7 +3234,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0306,},    //70000BE8 AFIT8_bnr_iHighMaxSlopeAllowed   [7:0] AFIT8_bnr_iLowSlopeThresh
 {0x0F12, 0x2003,},    //70000BEA AFIT8_bnr_iHighSlopeThresh   [7:0] AFIT8_bnr_iSlopenessTH
 {0x0F12, 0xFF01,},    //70000BEC AFIT8_bnr_iSlopeBlurStrength   [7:0] AFIT8_bnr_iSlopenessLimit
-{0x0F12, 0x0404,},    //70000BEE AFIT8_bnr_AddNoisePower1   [7:0] AFIT8_bnr_AddNoisePower2
+{0x0F12, 0x0000,},    //70000BEE AFIT8_bnr_AddNoisePower1   [7:0] AFIT8_bnr_AddNoisePower2
 {0x0F12, 0x0300,},    //70000BF0 AFIT8_bnr_iRadialTune   [7:0] AFIT8_bnr_iRadialPower
 {0x0F12, 0x145A,},    //70000BF2 AFIT8_bnr_iRadialLimit   [7:0] AFIT8_ee_iFSMagThLow
 {0x0F12, 0x1010,},    //70000BF4 AFIT8_ee_iFSMagThHigh   [7:0] AFIT8_ee_iFSVarThLow
@@ -3279,9 +3279,9 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0180,},    //70000C42 AFIT8_RGB2YUV_iRGBGain   [7:0] AFIT8_bnr_nClustLevel_H
 {0x0F12, 0x0A0A,},    //70000C44 AFIT8_bnr_iClustMulT_H   [7:0] AFIT8_bnr_iClustMulT_C
 {0x0F12, 0x0101,},    //70000C46 AFIT8_bnr_iClustThresh_H   [7:0] AFIT8_bnr_iClustThresh_C
-{0x0F12, 0x1E26,},    //70000C48 AFIT8_bnr_iDenThreshLow   [7:0] AFIT8_bnr_iDenThreshHigh
+{0x0F12, 0x232B,},    //70000C48 AFIT8_bnr_iDenThreshLow   [7:0] AFIT8_bnr_iDenThreshHigh
 {0x0F12, 0x6024,},    //70000C4A AFIT8_ee_iLowSharpPower   [7:0] AFIT8_ee_iHighSharpPower
-{0x0F12, 0x0A0A,},    //70000C4C AFIT8_ee_iLowShDenoise   [7:0] AFIT8_ee_iHighShDenoise
+{0x0F12, 0x1414,},    //70000C4C AFIT8_ee_iLowShDenoise   [7:0] AFIT8_ee_iHighShDenoise
 {0x0F12, 0xFFFF,},    //70000C4E AFIT8_ee_iLowSharpClamp   [7:0] AFIT8_ee_iHighSharpClamp
 {0x0F12, 0x0808,},    //70000C50 AFIT8_ee_iReduceEdgeMinMult   [7:0] AFIT8_ee_iReduceEdgeSlope
 {0x0F12, 0x0A01,},    //70000C52 AFIT8_bnr_nClustLevel_H_Bin   [7:0] AFIT8_bnr_iClustMulT_H_Bin
@@ -3325,7 +3325,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0306,},    //70000C9E AFIT8_bnr_iHighMaxSlopeAllowed   [7:0] AFIT8_bnr_iLowSlopeThresh
 {0x0F12, 0x2003,},    //70000CA0 AFIT8_bnr_iHighSlopeThresh   [7:0] AFIT8_bnr_iSlopenessTH
 {0x0F12, 0xFF01,},    //70000CA2 AFIT8_bnr_iSlopeBlurStrength   [7:0] AFIT8_bnr_iSlopenessLimit
-{0x0F12, 0x0404,},    //70000CA4 AFIT8_bnr_AddNoisePower1   [7:0] AFIT8_bnr_AddNoisePower2
+{0x0F12, 0x0000,},    //70000CA4 AFIT8_bnr_AddNoisePower1   [7:0] AFIT8_bnr_AddNoisePower2
 {0x0F12, 0x0200,},    //70000CA6 AFIT8_bnr_iRadialTune   [7:0] AFIT8_bnr_iRadialPower
 {0x0F12, 0x145A,},    //70000CA8 AFIT8_bnr_iRadialLimit   [7:0] AFIT8_ee_iFSMagThLow
 {0x0F12, 0x1010,},    //70000CAA AFIT8_ee_iFSMagThHigh   [7:0] AFIT8_ee_iFSVarThLow
@@ -3370,9 +3370,9 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0180,},    //70000CF8 AFIT8_RGB2YUV_iRGBGain   [7:0] AFIT8_bnr_nClustLevel_H
 {0x0F12, 0x0A0A,},    //70000CFA AFIT8_bnr_iClustMulT_H   [7:0] AFIT8_bnr_iClustMulT_C
 {0x0F12, 0x0101,},    //70000CFC AFIT8_bnr_iClustThresh_H   [7:0] AFIT8_bnr_iClustThresh_C
-{0x0F12, 0x0C0F,},    //70000CFE AFIT8_bnr_iDenThreshLow   [7:0] AFIT8_bnr_iDenThreshHigh
+{0x0F12, 0x1114,},    //70000CFE AFIT8_bnr_iDenThreshLow   [7:0] AFIT8_bnr_iDenThreshHigh
 {0x0F12, 0x6024,},    //70000D00 AFIT8_ee_iLowSharpPower   [7:0] AFIT8_ee_iHighSharpPower
-{0x0F12, 0x0808,},    //70000D02 AFIT8_ee_iLowShDenoise   [7:0] AFIT8_ee_iHighShDenoise
+{0x0F12, 0x1212,},    //70000D02 AFIT8_ee_iLowShDenoise   [7:0] AFIT8_ee_iHighShDenoise
 {0x0F12, 0xFFFF,},    //70000D04 AFIT8_ee_iLowSharpClamp   [7:0] AFIT8_ee_iHighSharpClamp
 {0x0F12, 0x0808,},    //70000D06 AFIT8_ee_iReduceEdgeMinMult   [7:0] AFIT8_ee_iReduceEdgeSlope
 {0x0F12, 0x0A01,},    //70000D08 AFIT8_bnr_nClustLevel_H_Bin   [7:0] AFIT8_bnr_iClustMulT_H_Bin
@@ -3414,7 +3414,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x002A, 0x0284,},
 {0x0F12, 0x0001,}, //REG_TC_GP_bBypassScalerJpg
 {0x002A, 0x028A,},
-{0x0F12, 0x0000,}, //REG_TC_GP_bUse1FrameCaptureMode //0:continus capture frame}, 1:single capture frame
+{0x0F12, 0x0000,}, //REG_TC_GP_bUse1FrameCaptureMode //0:continus capture frame, 1:single capture frame
 
 {0x002A, 0x1CC2,}, //DRx_uDRxWeight for AutoCont function
 {0x0F12, 0x0100,},
@@ -3458,7 +3458,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x002A, 0x02A6,},   //Preview config[0] 640 480  10~30fps
 {0x0F12, 0x0500,},   //REG_0TC_PCFG_usWidth
 {0x0F12, 0x03C0,},   //REG_0TC_PCFG_usHeight
-{0x0F12, 0x0005,},   //REG_0TC_PCFG_Format //5:YUV}, 7:RAW}, 9:JPEG
+{0x0F12, 0x0005,},   //REG_0TC_PCFG_Format //5:YUV, 7:RAW, 9:JPEG
 {0x0F12, 0x36B0,},   //REG_0TC_PCFG_usMaxOut4KHzRate
 {0x0F12, 0x280A,},   //REG_0TC_PCFG_usMinOut4KHzRate
 {0x0F12, 0x0100,}, //REG_0TC_PCFG_OutClkPerPix88
@@ -3483,7 +3483,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0000,}, //REG_0TC_CCFG_uCaptureMode
 {0x0F12, 0x0A10,}, //REG_0TC_CCFG_usWidth //2576
 {0x0F12, 0x078C,}, //REG_0TC_CCFG_usHeight //1932
-{0x0F12, 0x0005,}, //REG_0TC_CCFG_Format //5:YUV}, 7:RAW}, 9:JPEG
+{0x0F12, 0x0005,}, //REG_0TC_CCFG_Format //5:YUV, 7:RAW, 9:JPEG
 {0x0F12, 0x36B0,},   //REG_0TC_CCFG_usMaxOut4KHzRate
 {0x0F12, 0x280A,},   //REG_0TC_CCFG_usMinOut4KHzRate
 {0x0F12, 0x0100,}, //REG_0TC_CCFG_OutClkPerPix88
@@ -3634,13 +3634,13 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_WB_Tungsten[] = {
 
 
 {0x002A, 0x04BA,},
-{0x0F12, 0x0430,},
+{0x0F12, 0x0420,},
 
 {0x002A, 0x04BE,},
-{0x0F12, 0x0400,},
+{0x0F12, 0x0430,},
 
 {0x002A, 0x04C2,},
-{0x0F12, 0x0920,},
+{0x0F12, 0x0990,},
 
 {0x002A, 0x04C6,},
 {0x0F12, 0x0001,},
@@ -3684,7 +3684,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_ISO_Auto[] = {
 {0x0F12, 0x0000,},
 
 {0x002A, 0x0F2A,},
-{0x0F12, 0x0001,},
+{0x0F12, 0x0000,},
 
 {0x002A, 0x04D0,},
 {0x0F12, 0x0000,},
@@ -3837,38 +3837,38 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_Metering_Center[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1492,},
+{0x0F12, 0x0101,},
+{0x0F12, 0x0101,},
+{0x0F12, 0x0101,},
+{0x0F12, 0x0101,},
+{0x0F12, 0x0101,},
+{0x0F12, 0x0202,},
+{0x0F12, 0x0202,},
+{0x0F12, 0x0101,},
+{0x0F12, 0x0201,},
+{0x0F12, 0x0202,},
+{0x0F12, 0x0202,},
+{0x0F12, 0x0102,},
+{0x0F12, 0x0201,},
+{0x0F12, 0x0302,},
+{0x0F12, 0x0203,},
+{0x0F12, 0x0102,},
+{0x0F12, 0x0201,},
+{0x0F12, 0x0302,},
+{0x0F12, 0x0203,},
+{0x0F12, 0x0102,},
+{0x0F12, 0x0101,},
+{0x0F12, 0x0202,},
+{0x0F12, 0x0202,},
+{0x0F12, 0x0101,},
+{0x0F12, 0x0101,},
+{0x0F12, 0x0201,},
+{0x0F12, 0x0102,},
+{0x0F12, 0x0101,},
 {0x0F12, 0x0100,},
 {0x0F12, 0x0101,},
 {0x0F12, 0x0101,},
 {0x0F12, 0x0001,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0201,},
-{0x0F12, 0x0102,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0202,},
-{0x0F12, 0x0202,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0201,},
-{0x0F12, 0x0302,},
-{0x0F12, 0x0203,},
-{0x0F12, 0x0102,},
-{0x0F12, 0x0201,},
-{0x0F12, 0x0302,},
-{0x0F12, 0x0203,},
-{0x0F12, 0x0102,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0202,},
-{0x0F12, 0x0202,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0201,},
-{0x0F12, 0x0102,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0101,},
-{0x0F12, 0x0101,},
 
 {0x002A, 0x0268,},/*REG_TC_GP_PrevConfigChanged */
 {0x0F12, 0x0001,},
@@ -3919,14 +3919,22 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_EV_Minus_4[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x0018,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x0018,},   //TVAR_ae_BrAve
+
+{0x002A, 0x0544,},
+{0x0F12, 0x011F,},
+{0x0F12, 0x00E1,},
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_EV_Minus_3[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x001E,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x001E,},   //TVAR_ae_BrAve
+
+{0x002A, 0x0544,},
+{0x0F12, 0x011F,},
+{0x0F12, 0x00E1,},
 };
 
 
@@ -3934,7 +3942,11 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_EV_Minus_2[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x0025,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x0025,},   //TVAR_ae_BrAve
+
+{0x002A, 0x0544,},
+{0x0F12, 0x011F,},
+{0x0F12, 0x00E1,},
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_EV_Minus_1[] = {
@@ -3945,10 +3957,14 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_EV_Minus_1[] = {
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_EV_Default[] = {
-{0xFCFC, 0xD000,},
+{0xFCFC, 0xD000,},  //default
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x003C,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x003C,},   //TVAR_ae_BrAve
+
+{0x002A, 0x0544,},
+{0x0F12, 0x0111,},
+{0x0F12, 0x00EF,},
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_EV_Plus_1[] = {
@@ -3962,7 +3978,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_EV_Plus_2[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x0060,},		/*TVAR_ae_BrAve 1101 0060->005C */
+{0x0F12, 0x005C,},		/*TVAR_ae_BrAve 1101 0060->005C */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_EV_Plus_3[] = {
@@ -3983,14 +3999,14 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_EV_Minus_4[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x0018,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x0012,},		/*TVAR_ae_BrAve */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_EV_Minus_3[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x001E,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x001A,},		/*TVAR_ae_BrAve */
 };
 
 
@@ -3998,49 +4014,49 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_EV_Minus_2[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x0025,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x0022,},		/*TVAR_ae_BrAve */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_EV_Minus_1[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x0030,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x002A,},		/*TVAR_ae_BrAve */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_EV_Default[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x002A,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x0032,},		/*TVAR_ae_BrAve */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_EV_Plus_1[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x004E,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x003F,},		/*TVAR_ae_BrAve */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_EV_Plus_2[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x0060,},		/*TVAR_ae_BrAve 1101 0060->005C */
+{0x0F12, 0x004C,},		/*TVAR_ae_BrAve 1101 0060->005C */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_EV_Plus_3[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x0070,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x0059,},		/*TVAR_ae_BrAve */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_EV_Plus_4[] = {
 {0xFCFC, 0xD000,},
 {0x0028, 0x7000,},
 {0x002A, 0x1484,},
-{0x0F12, 0x0080,},		/*TVAR_ae_BrAve */
+{0x0F12, 0x0066,},		/*TVAR_ae_BrAve */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_Scene_Default[] = {
@@ -4106,7 +4122,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_Scene_Default[] = {
 {0x0F12, 0xFFFB,},    //7000098C AFIT16_BRIGHTNESS
 
 {0x002A, 0x0A1E,},
-{0x0F12, 0x0348,},    //ccm_oscar_iSaturation [7:0] AFIT
+{0x0F12, 0x0350,},/*_ccm_oscar_iSaturation [7:0] AFIT8_RGB2YUV_iYOffset init */
 
 // GAS Alpha Table
 {0x002A, 0x08F6,},
@@ -4261,7 +4277,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_Scene_Nightshot[] = {
 {0x002A, 0x098C,},
 {0x0F12, 0xFFE0,},    //7000098C AFIT16_BRIGHTNESS
 {0x002A, 0x0A1E,},
-{0x0F12, 0x0AC0,},/*_ccm_oscar_iSaturation [7:0] AFIT8_RGB2YUV_iYOffset*/
+{0x0F12, 0x0A78,},/*_ccm_oscar_iSaturation [7:0] AFIT8_RGB2YUV_iYOffset*/
 
 // GAS Alpha Table
 {0x002A, 0x08F6,},
@@ -4710,6 +4726,11 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_camcorder[] = {
 {0x002A, 0xE410,},
 {0x0F12, 0x3E01,},
 {0x0028, 0x7000,},
+//{0x002A, 0x18AC,},
+//{0x0F12, 0x0060,},/*senHal_uAddColsBin        */
+//{0x0F12, 0x0060,},/*senHal_uAddColsNoBin      */
+//{0x0F12, 0x07dc,},/*senHal_uMinColsBin        */
+//{0x0F12, 0x05c0,},/*senHal_uMinColsNoBin      */
 
 
 // METERING
@@ -4831,7 +4852,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_camcorder[] = {
 {0x0F12, 0x1002,},      //70000CEC AFIT8_yuviirnr_iMaxThreshH_Y   [7:0] AFIT8_yuviirnr_iMaxThreshL_UV
 {0x0F12, 0x0610,},      //70000CEE AFIT8_yuviirnr_iMaxThreshH_UV   [7:0] AFIT8_yuviirnr_iYNRStrengthL
 {0x0F12, 0x1A02,},      //70000CF0 AFIT8_yuviirnr_iYNRStrengthH   [7:0] AFIT8_yuviirnr_iUVNRStrengthL
-{0x0F12, 0x5018,},      //70000CF2 AFIT8_yuviirnr_iUVNRStrengthH   [7:0] AFIT8_byr_gras_iShadingPower
+{0x0F12, 0x2318,},      //70000CF2 AFIT8_yuviirnr_iUVNRStrengthH   [7:0] AFIT8_byr_gras_iShadingPower
 {0x0F12, 0x00B0,},      //70000CF4 AFIT8_RGBGamma2_iLinearity   [7:0] AFIT8_RGBGamma2_iDarkReduce
 {0x0F12, 0x0332,},      //70000CF6 AFIT8_ccm_oscar_iSaturation   [7:0] AFIT8_RGB2YUV_iYOffset
 {0x0F12, 0x0180,},      //70000CF8 AFIT8_RGB2YUV_iRGBGain   [7:0] AFIT8_bnr_nClustLevel_H
@@ -4922,9 +4943,9 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_camcorder[] = {
 {0x0F12, 0x1002,},      //70000CEC AFIT8_yuviirnr_iMaxThreshH_Y   [7:0] AFIT8_yuviirnr_iMaxThreshL_UV
 {0x0F12, 0x0610,},      //70000CEE AFIT8_yuviirnr_iMaxThreshH_UV   [7:0] AFIT8_yuviirnr_iYNRStrengthL
 {0x0F12, 0x1A02,},      //70000CF0 AFIT8_yuviirnr_iYNRStrengthH   [7:0] AFIT8_yuviirnr_iUVNRStrengthL
-{0x0F12, 0x8018,},      //70000CF2 AFIT8_yuviirnr_iUVNRStrengthH   [7:0] AFIT8_byr_gras_iShadingPower
+{0x0F12, 0x7818,},      //70000CF2 AFIT8_yuviirnr_iUVNRStrengthH   [7:0] AFIT8_byr_gras_iShadingPower
 {0x0F12, 0x00A0,},      //70000CF4 AFIT8_RGBGamma2_iLinearity   [7:0] AFIT8_RGBGamma2_iDarkReduce
-{0x0F12, 0x0350,},      //70000CF6 AFIT8_ccm_oscar_iSaturation   [7:0] AFIT8_RGB2YUV_iYOffset
+{0x0F12, 0x0250,},      //70000CF6 AFIT8_ccm_oscar_iSaturation   [7:0] AFIT8_RGB2YUV_iYOffset
 {0x0F12, 0x0180,},      //70000CF8 AFIT8_RGB2YUV_iRGBGain   [7:0] AFIT8_bnr_nClustLevel_H
 {0x0F12, 0x0A0A,},      //70000CFA AFIT8_bnr_iClustMulT_H   [7:0] AFIT8_bnr_iClustMulT_C
 {0x0F12, 0x0101,},      //70000CFC AFIT8_bnr_iClustThresh_H   [7:0] AFIT8_bnr_iClustThresh_C
@@ -5216,6 +5237,9 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_camcorder[] = {
 {0x0F12, 0x0008,},      //70000D16 AFIT8_ee_iReduceEdgeSlope_Bin [7:0]
 {0x0F12, 0x0001,},      //70000D18 AFITB_bnr_nClustLevel_C      [0]   bWideWide[1]
 
+{0x002A, 0x0A1A,},
+{0x0F12, 0x2318,}, 
+
 {0x002A, 0x0262,},
 {0x0F12, 0x0001,},/*REG_TC_GP_bUseReqInputInPre */
 {0x0F12, 0x0001,},/*REG_TC_GP_bUseReqInputInCap */
@@ -5249,8 +5273,8 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x002A, 0x18AC,},
 {0x0F12, 0x0060,},/*senHal_uAddColsBin        */
 {0x0F12, 0x0060,},/*senHal_uAddColsNoBin      */
-{0x0F12, 0x07DC,},/*senHal_uMinColsBin        */
-{0x0F12, 0x07DC,},/*senHal_uMinColsNoBin      */
+{0x0F12, 0x0A20,},/*senHal_uMinColsBin        */
+{0x0F12, 0x0AB0,},/*senHal_uMinColsNoBin      */
 
 
 /* SLOW AE*/
@@ -5354,7 +5378,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0000,},/*700009DE_ee_iROADSubMaxNR   */
 {0x0F12, 0x2006,},/*700009E0_ee_iROADNeiThres   */
 {0x0F12, 0x2828,},/*700009E2_ee_iSmoothEdgeThres   */
-{0x0F12, 0x0414,},/*700009E4_ee_iWSharpen   */
+{0x0F12, 0x040F,},/*700009E4_ee_iWSharpen   */
 {0x0F12, 0x0101,},/*700009E6_ee_iWShThresh   */
 {0x0F12, 0x0800,},/*700009E8_ee_iEmbossCentAdd   */
 {0x0F12, 0x1804,},/*700009EA_ee_iReduceEdgeThresh   */
@@ -5364,7 +5388,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0020,},/*700009F2_dmsc_iMonochrom   */
 {0x0F12, 0x0000,},/*700009F4_dmsc_iGRDenoiseVal   */
 {0x0F12, 0x1800,},/*700009F6_dmsc_iEdgeDesatThrLow   */
-{0x0F12, 0x0003,},/*700009F8_dmsc_iNearGrayDesat   */
+{0x0F12, 0x0004,},/*700009F8_dmsc_iNearGrayDesat   */
 {0x0F12, 0x1E10,},/*700009FA_postdmsc_iBCoeff   */
 {0x0F12, 0x000B,},/*700009FC_postdmsc_iWideMult   */
 {0x0F12, 0x0607,},/*700009FE_yuvemix_mNegSlopes_1   */
@@ -5381,15 +5405,15 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x1002,},/*70000A14_yuviirnr_iMaxThreshH_Y   */
 {0x0F12, 0x0610,},/*70000A16_yuviirnr_iMaxThreshH_UV   */
 {0x0F12, 0x1A02,},/*70000A18_yuviirnr_iYNRStrengthH   */
-{0x0F12, 0x3718,},/*70000A1A_yuviirnr_iUVNRStrengthH   */
+{0x0F12, 0x2318,},/*70000A1A_yuviirnr_iUVNRStrengthH   */
 {0x0F12, 0x0080,},/*70000A1C_RGBGamma2_iLinearity   */
 {0x0F12, 0x0350,},/*70000A1E_ccm_oscar_iSaturation   */
 {0x0F12, 0x0180,},/*70000A20_RGB2YUV_iRGBGain   */
 {0x0F12, 0x0A0A,},/*70000A22_bnr_iClustMulT_H   */
 {0x0F12, 0x0101,},/*70000A24_bnr_iClustThresh_H   */
-{0x0F12, 0x2A36,},/*70000A26_bnr_iDenThreshLow   */
+{0x0F12, 0x3141,},/*70000A26_bnr_iDenThreshLow   */
 {0x0F12, 0x6024,},/*70000A28_ee_iLowSharpPower   */
-{0x0F12, 0x2A36,},/*70000A2A_ee_iLowShDenoise   */
+{0x0F12, 0x3140,},/*70000A2A_ee_iLowShDenoise   */
 {0x0F12, 0xFFFF,},/*70000A2C_ee_iLowSharpClamp   */
 {0x0F12, 0x0808,},/*70000A2E_ee_iReduceEdgeMinMult   */
 {0x0F12, 0x0A01,},/*70000A30_bnr_nClustLevel_H_Bin   */
@@ -5433,7 +5457,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0306,},/*70000A7C_bnr_iHighMaxSlopeAllowed   */
 {0x0F12, 0x2003,},/*70000A7E_bnr_iHighSlopeThresh   */
 {0x0F12, 0xFF01,},/*70000A80_bnr_iSlopeBlurStrength   */
-{0x0F12, 0x0404,},/*70000A82_bnr_AddNoisePower1   */
+{0x0F12, 0x0000,},/*70000A82_bnr_AddNoisePower1   */
 {0x0F12, 0x0300,},/*70000A84_bnr_iRadialTune   */
 {0x0F12, 0x245A,},/*70000A86_bnr_iRadialLimit   */
 {0x0F12, 0x1018,},/*70000A88_ee_iFSMagThHigh   */
@@ -5478,9 +5502,9 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0180,},/*70000AD6_RGB2YUV_iRGBGain   */
 {0x0F12, 0x0A0A,},/*70000AD8_bnr_iClustMulT_H   */
 {0x0F12, 0x0101,},/*70000ADA_bnr_iClustThresh_H   */
-{0x0F12, 0x232D,},/*70000ADC_bnr_iDenThreshLow   */
+{0x0F12, 0x2832,},/*70000ADC_bnr_iDenThreshLow   */
 {0x0F12, 0x6024,},/*70000ADE_ee_iLowSharpPower   */
-{0x0F12, 0x1D22,},/*70000AE0_ee_iLowShDenoise   */
+{0x0F12, 0x272C,},/*70000AE0_ee_iLowShDenoise   */
 {0x0F12, 0xFFFF,},/*70000AE2_ee_iLowSharpClamp   */
 {0x0F12, 0x0808,},/*70000AE4_ee_iReduceEdgeMinMult   */
 {0x0F12, 0x0A01,},/*70000AE6_bnr_nClustLevel_H_Bin   */
@@ -5524,7 +5548,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0306,},/*70000B32_bnr_iHighMaxSlopeAllowed   */
 {0x0F12, 0x2003,},/*70000B34_bnr_iHighSlopeThresh   */
 {0x0F12, 0xFF01,},/*70000B36_bnr_iSlopeBlurStrength   */
-{0x0F12, 0x0404,},/*70000B38_bnr_AddNoisePower1   */
+{0x0F12, 0x0000,},/*70000B38_bnr_AddNoisePower1   */
 {0x0F12, 0x0300,},/*70000B3A_bnr_iRadialTune   */
 {0x0F12, 0x145A,},/*70000B3C_bnr_iRadialLimit   */
 {0x0F12, 0x1010,},/*70000B3E_ee_iFSMagThHigh   */
@@ -5569,9 +5593,9 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0180,},/*70000B8C_RGB2YUV_iRGBGain   */
 {0x0F12, 0x0A0A,},/*70000B8E_bnr_iClustMulT_H   */
 {0x0F12, 0x0101,},/*70000B90_bnr_iClustThresh_H   */
-{0x0F12, 0x212B,},/*70000B92_bnr_iDenThreshLow   */
+{0x0F12, 0x2630,},/*70000B92_bnr_iDenThreshLow   */
 {0x0F12, 0x6024,},/*70000B94_ee_iLowSharpPower   */
-{0x0F12, 0x0C0C,},/*70000B96_ee_iLowShDenoise   */
+{0x0F12, 0x1616,},/*70000B96_ee_iLowShDenoise   */
 {0x0F12, 0xFFFF,},/*70000B98_ee_iLowSharpClamp   */
 {0x0F12, 0x0808,},/*70000B9A_ee_iReduceEdgeMinMult   */
 {0x0F12, 0x0A01,},/*70000B9C_bnr_nClustLevel_H_Bin   */
@@ -5615,7 +5639,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0306,},/*70000BE8_bnr_iHighMaxSlopeAllowed   */
 {0x0F12, 0x2003,},/*70000BEA_bnr_iHighSlopeThresh   */
 {0x0F12, 0xFF01,},/*70000BEC_bnr_iSlopeBlurStrength   */
-{0x0F12, 0x0404,},/*70000BEE_bnr_AddNoisePower1   */
+{0x0F12, 0x0000,},/*70000BEE_bnr_AddNoisePower1   */
 {0x0F12, 0x0300,},/*70000BF0_bnr_iRadialTune   */
 {0x0F12, 0x145A,},/*70000BF2_bnr_iRadialLimit   */
 {0x0F12, 0x1010,},/*70000BF4_ee_iFSMagThHigh   */
@@ -5660,9 +5684,9 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0180,},/*70000C42_RGB2YUV_iRGBGain   */
 {0x0F12, 0x0A0A,},/*70000C44_bnr_iClustMulT_H   */
 {0x0F12, 0x0101,},/*70000C46_bnr_iClustThresh_H   */
-{0x0F12, 0x1E26,},/*70000C48_bnr_iDenThreshLow   */
+{0x0F12, 0x232B,},/*70000C48_bnr_iDenThreshLow   */
 {0x0F12, 0x6024,},/*70000C4A_ee_iLowSharpPower   */
-{0x0F12, 0x0A0A,},/*70000C4C_ee_iLowShDenoise   */
+{0x0F12, 0x1414,},/*70000C4C_ee_iLowShDenoise   */
 {0x0F12, 0xFFFF,},/*70000C4E_ee_iLowSharpClamp   */
 {0x0F12, 0x0808,},/*70000C50_ee_iReduceEdgeMinMult   */
 {0x0F12, 0x0A01,},/*70000C52_bnr_nClustLevel_H_Bin   */
@@ -5706,7 +5730,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0306,},/*70000C9E_bnr_iHighMaxSlopeAllowed   */
 {0x0F12, 0x2003,},/*70000CA0_bnr_iHighSlopeThresh   */
 {0x0F12, 0xFF01,},/*70000CA2_bnr_iSlopeBlurStrength   */
-{0x0F12, 0x0404,},/*70000CA4_bnr_AddNoisePower1   */
+{0x0F12, 0x0000,},/*70000CA4_bnr_AddNoisePower1   */
 {0x0F12, 0x0200,},/*70000CA6_bnr_iRadialTune   */
 {0x0F12, 0x145A,},/*70000CA8_bnr_iRadialLimit   */
 {0x0F12, 0x1010,},/*70000CAA_ee_iFSMagThHigh   */
@@ -5751,9 +5775,9 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0180,},/*70000CF8_RGB2YUV_iRGBGain   */
 {0x0F12, 0x0A0A,},/*70000CFA_bnr_iClustMulT_H   */
 {0x0F12, 0x0101,},/*70000CFC_bnr_iClustThresh_H   */
-{0x0F12, 0x0C0F,},/*70000CFE_bnr_iDenThreshLow   */
+{0x0F12, 0x1114,},/*70000CFE_bnr_iDenThreshLow   */
 {0x0F12, 0x6024,},/*70000D00_ee_iLowSharpPower   */
-{0x0F12, 0x0808,},/*70000D02_ee_iLowShDenoise   */
+{0x0F12, 0x1212,},/*70000D02_ee_iLowShDenoise   */
 {0x0F12, 0xFFFF,},/*70000D04_ee_iLowSharpClamp   */
 {0x0F12, 0x0808,},/*70000D06_ee_iReduceEdgeMinMult   */
 {0x0F12, 0x0A01,},/*70000D08_bnr_nClustLevel_H_Bin   */
@@ -5789,9 +5813,11 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0001,},/*#REG_TC_GP_PrevConfigChanged   */
 {0x002A, 0x0270,},
 {0x0F12, 0x0001,},/*#REG_TC_GP_CapConfigChanged    */
+#if 0
 {0x002A, 0x023E,},
 {0x0F12, 0x0001,},/*#REG_TC_GP_EnablePreview       */
 {0x0F12, 0x0001,},/*#REG_TC_GP_EnablePreviewChanged	*/
+#endif
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_ae_lock[] = {
@@ -5986,7 +6012,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_fps_auto[] = {
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_fps_30[] = {
 {0xFCFC, 0xD000,},
-{0x0028, 0x7000,},
+{0x0028, 0xD000,},
 {0x002A, 0xF132,},
 {0x0F12, 0x0006,},
 {0x002A, 0xF142,},
@@ -6007,6 +6033,25 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_fps_30[] = {
 {0x0F12, 0x0001,},	/*REG_TC_GP_PrevConfigChanged */
 };
 
+static struct msm_camera_i2c_reg_conf  s5k4ecgx_fps_15[] = {
+{0xFCFC, 0xD000,},
+{0x0028, 0x7000,},
+{0x002A, 0x02B4,},
+{0x0F12, 0x0012,},
+{0x002A, 0x02BE,},
+{0x0F12, 0x0000,}, //REG_0TC_PCFG_usFrTimeType
+{0x0F12, 0x0001,}, //REG_0TC_PCFG_FrRateQualityType
+{0x0F12, 0x029A,}, //REG_0TC_PCFG_usMaxFrTimeMsecMult10 //029Ah:15fps
+{0x0F12, 0x029A,}, //REG_0TC_PCFG_usMinFrTimeMsecMult10 //029Ah:15fps
+{0x002A, 0x0266,},
+{0x0F12, 0x0000,}, //REG_TC_GP_ActivePrevConfig
+{0x002A, 0x026A,},
+{0x0F12, 0x0001,}, //REG_TC_GP_PrevOpenAfterChange
+{0x002A, 0x024E,},
+{0x0F12, 0x0001,}, //REG_TC_GP_NewConfigSync
+{0x002A, 0x0268,},
+{0x0F12, 0x0001,}, //REG_TC_GP_PrevConfigChanged
+};
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_reset_touchaf[] = {
 //AF Window Settings
@@ -6022,12 +6067,16 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_reset_touchaf[] = {
 {0x0F12, 0x0001,},	//REG_TC_AF_WinSizesUpdated
 };
 
+/*
+* S5E4ECGX sensor has a known issue of non-performance in 60 Hz.
+* Make the setting same as 50Hz
+*/
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_anti_banding_60hz_auto[]=
 {
 {0x002A, 0x0F30,},
 {0x0F12, 0x0001,}, ///*AFC_D_ConvAccelerPower */
 {0x002A, 0x0F2A,},
-{0x0F12, 0x0001,}, ///*AFC_Default BIT[0] 1:60Hz 0:50Hz */
+{0x0F12, 0x0000,}, ///*AFC_Default BIT[0] 1:60Hz 0:50Hz */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_anti_banding_50hz_auto[]=
@@ -6038,7 +6087,150 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_anti_banding_50hz_auto[]=
 {0x0F12, 0x0000,}, ///*AFC_Default BIT[0] 1:60Hz 0:50Hz */
 };
 
+static struct msm_camera_i2c_reg_conf  s5k4ecgx_vendor_id_read_prep[] = {
+// OTP read mode
+{0x0028, 0xD000,},
+{0x002A, 0x0012,},
+{0x0F12, 0x0001,},
+{0x002A, 0x007A,},
+{0x0F12, 0x0000,},
+{0x002A, 0xA000,},
+{0x0F12, 0x0004,},
+{0x002A, 0xA002,},
+{0x0F12, 0x0006,}, // 6page_select
+{0x002A, 0xA000,},
+{0x0F12, 0x0001,}, // set read mode
+{0xFFFF, 0x0064,}, /*Delay 100ms*/
+{0x002C, 0xD000,},
+};
+
+static struct msm_camera_i2c_reg_conf  s5k4ecgx_preview_640_480[]=
+{
+{0xFCFC, 0xD000,},
+{0x0028, 0x7000,},
+{0x002A, 0x18AC,},
+{0x0F12, 0x0060,},	//senHal_uAddColsBin
+{0x0F12, 0x0060,},	//senHal_uAddColsNoBin
+{0x0F12, 0x06C8,},	//senHal_uMinColsBin
+{0x0F12, 0x06C8,},	//senHal_uMinColsNoBin
+
+{0x002A, 0x0250,},
+{0x0F12, 0x0A00,},	//REG_TC_GP_PrevReqInputWidth //2560
+{0x0F12, 0x0780,},	//REG_TC_GP_PrevReqInputHeight //1920
+{0x0F12, 0x0010,},	//REG_TC_GP_PrevInputWidthOfs //(2592-2560)/2
+{0x0F12, 0x000C,},	//REG_TC_GP_PrevInputHeightOfs //(1944-1920)/2
+
+{0x002A, 0x0262,},
+{0x0F12, 0x0001,},	//REG_TC_GP_bUseReqInputInPre
+
+{0x002A, 0x0494,},
+{0x0F12, 0x0A00,},	//REG_TC_PZOOM_PrevZoomReqInputWidth //2560
+{0x0F12, 0x0780,},	//REG_TC_PZOOM_PrevZoomReqInputHeight //1920
+{0x0F12, 0x0000,},	//REG_TC_PZOOM_PrevZoomReqInputWidthOfs
+{0x0F12, 0x0000,},	//REG_TC_PZOOM_PrevZoomReqInputHeightOfs
+
+{0x002A, 0x02A6,},
+{0x0F12, 0x0280,},	//REG_0TC_PCFG_usWidth //640
+{0x0F12, 0x01E0,},	//REG_0TC_PCFG_usHeight //480
+
+{0x002A, 0x0266,},
+{0x0F12, 0x0000,},	//REG_TC_GP_ActivePrevConfig
+{0x002A, 0x026A,},
+{0x0F12, 0x0001,},	//REG_TC_GP_PrevOpenAfterChange
+{0x002A, 0x024E,},
+{0x0F12, 0x0001,},	//REG_TC_GP_NewConfigSync
+{0x002A, 0x0268,},
+{0x0F12, 0x0001,},	//REG_TC_GP_PrevConfigChanged
+};
+
+static struct msm_camera_i2c_reg_conf  s5k4ecgx_preview_1280_720[]={
+{0xFCFC, 0xD000,},
+{0x0028, 0xD000,},
+{0x002A, 0xE410,},
+{0x0F12, 0x3E01,},
+{0x0028, 0x7000,},
+{0x002A, 0x18AC,},
+
+{0x0F12, 0x0060,}, /*senHal_uAddColsBin */     
+{0x0F12, 0x0060,}, /*senHal_uAddColsNoBin */   
+{0x0F12, 0x07DC,}, /*senHal_uMinColsBin */     
+{0x0F12, 0x05C0,}, /*senHal_uMinColsNoBin */                 
+
+{0x002A, 0x0250,},
+{0x0F12, 0x0A00,}, /*REG_TC_GP_PrevReqInputWidth //2560 */        
+{0x0F12, 0x05A0,}, /*REG_TC_GP_PrevReqInputHeight //1536 */       
+{0x0F12, 0x0010,}, /*REG_TC_GP_PrevInputWidthOfs //(2592-2560)/2*/
+{0x0F12, 0x00FC,}, /*REG_TC_GP_PrevInputHeightOfs/(1944-1536)/2*/             
+{0x002A, 0x0262,},
+{0x0F12, 0x0001,}, /*REG_TC_GP_bUseReqInputInPre */             
+{0x002A, 0x0494,},
+{0x0F12, 0x0A00,}, /*REG_TC_PZOOM_PrevZoomReqInputWidth //2560 */    
+{0x0F12, 0x05A0,}, /*REG_TC_PZOOM_PrevZoomReqInputHeight //1536 */   
+{0x0F12, 0x0000,}, /*REG_TC_PZOOM_PrevZoomReqInputWidthOfs */        
+{0x0F12, 0x0000,}, /*REG_TC_PZOOM_PrevZoomReqInputHeightOfs */                    
+{0x002A, 0x02A6,},
+{0x0F12, 0x0500,}, /*REG_0TC_PCFG_usWidth //1280 */  
+{0x0F12, 0x02D0,}, /*REG_0TC_PCFG_usHeight //720 */             
+
+{0x002A, 0x0266,},
+{0x0F12, 0x0000,},	
+{0x002A, 0x026A,},
+{0x0F12, 0x0001,},	
+{0x002A, 0x024E,},
+{0x0F12, 0x0001,},	
+{0x002A, 0x0268,},
+{0x0F12, 0x0001,},	 
+};
+
+static struct msm_camera_i2c_reg_conf  s5k4ecgx_preview_1280_960[]={
+{0xFCFC, 0xD000,},
+	
+{0x0028, 0xD000,},
+{0x002A, 0xE410,},
+{0x0F12, 0x3E01,},
+	
+{0x0028, 0x7000,},
+{0x002A, 0x18AC,},
+{0x0F12, 0x0060,}, /*senHal_uAddColsBin */     
+{0x0F12, 0x0060,}, /*senHal_uAddColsNoBin */   
+{0x0F12, 0x0A20,}, /*senHal_uMinColsBin */     
+{0x0F12, 0x0AB0,}, /*senHal_uMinColsNoBin */
+            
+{0x002A, 0x0250,},
+{0x0F12, 0x0A00,}, //REG_TC_GP_PrevReqInputWidth //2560
+{0x0F12, 0x0780,}, //REG_TC_GP_PrevReqInputHeight //1920
+{0x0F12, 0x0010,}, //REG_TC_GP_PrevInputWidthOfs //(2592-2560)/2
+{0x0F12, 0x000C,}, //REG_TC_GP_PrevInputHeightOfs //(1944-1920)/2
+
+{0x002A, 0x0262,},
+{0x0F12, 0x0001,}, /*REG_TC_GP_bUseReqInputInPre */
+
+{0x002A, 0x0494,},
+{0x0F12, 0x0A00,},	//REG_TC_PZOOM_PrevZoomReqInputWidth //2560
+{0x0F12, 0x0780,},	//REG_TC_PZOOM_PrevZoomReqInputHeight //1920
+{0x0F12, 0x0000,},	//REG_TC_PZOOM_PrevZoomReqInputWidthOfs
+{0x0F12, 0x0000,},	//REG_TC_PZOOM_PrevZoomReqInputHeightOfs
+
+{0x002A, 0x02A6,},
+{0x0F12, 0x0500,}, /*REG_0TC_PCFG_usWidth //1280 */
+{0x0F12, 0x03C0,}, /*REG_0TC_PCFG_usHeight //960 */
+
+{0x002A, 0x0266,},
+{0x0F12, 0x0000,},
+{0x002A, 0x026A,},
+{0x0F12, 0x0001,},
+{0x002A, 0x024E,},
+{0x0F12, 0x0001,},
+{0x002A, 0x0268,},
+{0x0F12, 0x0001,},
+};
+
+static struct msm_camera_i2c_reg_conf  s5k4ecgx_stop_stream[]={
+{0x0028, 0x7000,},
+{0x002A, 0x023E,},
+{0x0F12, 0x0000,},                    /*REG_TC_GP_EnablePreview */
+{0x0F12, 0x0001,},                      /*REG_TC_GP_EnablePreviewChanged */
+{0xFFFF, 0x000A,}, /*Delay 10ms*/
+};
+
 #endif
-
-
-

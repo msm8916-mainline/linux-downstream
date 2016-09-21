@@ -49,6 +49,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spidev.h>
+#include <linux/pn547.h>
 
 #ifdef CONFIG_OF
 #include <linux/of_gpio.h>
@@ -75,6 +76,10 @@ static struct regulator *p61_regulator = NULL;
 #endif
 
 #undef PANIC_DEBUG
+
+extern long  pn547_dev_ioctl(struct file *filp, unsigned int cmd,
+        unsigned long arg);
+
 
 #define P61_IRQ   33 /* this is the same used in omap3beagle.c */
 #define P61_RST  138
@@ -482,6 +487,18 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 
 	case P61_RW_SPI_DATA:
 		ret = p61_rw_spi_message(p61_dev, arg);
+		break;
+
+	case P61_SET_SPM_PWR:
+		pr_info(KERN_ALERT " P61_SET_SPM_PWR: enter");
+		ret = pn547_dev_ioctl(filp, P61_SET_SPI_PWR, arg);
+		pr_info(KERN_ALERT " P61_SET_SPM_PWR: exit");
+		break;
+
+	case P61_GET_SPM_STATUS:
+		pr_info(KERN_ALERT " P61_GET_SPM_STATUS: enter");
+		ret = pn547_dev_ioctl(filp, P61_GET_PWR_STATUS, arg);
+		pr_info(KERN_ALERT " P61_GET_SPM_STATUS: exit");
 		break;
 
 	default:

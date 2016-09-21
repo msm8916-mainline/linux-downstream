@@ -9,8 +9,10 @@
 #include <linux/io.h>
 #include <linux/types.h>
 
-#if defined(CONFIG_SEC_ROSSA_PROJECT)
+#if defined(CONFIG_SEC_ROSSA_PROJECT) || defined(CONFIG_SEC_O7_PROJECT) || defined(CONFIG_SEC_J3_PROJECT) || defined(CONFIG_SEC_J1X_PROJECT)
 #define DEBUG_LOG_START (0x85F80000)
+#elif defined(CONFIG_SEC_J7_PROJECT)
+#define DEBUG_LOG_START (0x85C80000)
 #else
 #define DEBUG_LOG_START (0x85D80000)
 #endif

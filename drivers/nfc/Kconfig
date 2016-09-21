@@ -49,6 +49,15 @@ config NFC_QNCI
 	  This is for i2c connected version. NCI protocol logic
 	  resides in the usermode and it has no other NFC dependencies.
 
+config NFC_NQ
+	bool "Qualcomm NCI based NFC Controller Driver for NQx"
+	depends on I2C
+	select CRC_CCITT
+	help
+	  This enables the NFC driver for NQx based devices.
+	  This is for i2c connected version. NCI protocol logic
+	  resides in the usermode and it has no other NFC dependencies.
+
 config NFC_PN547
 	bool "NXP PN547 NFC Controller Driver"
 	depends on I2C
@@ -77,6 +86,15 @@ config NFC_PN547_8916_CLK_CTL
 	help
 	  NXP PN547 Near Field Communication controller support.
 	  This option control the clock in suspend and resume.
+
+config NFC_PN547_USE_EXTERNAL_LDO_VIO
+	bool "NXP PN547 NFC POWER Control"
+	depends on NFC_PN547
+	default n
+	help
+	  NXP PN547 Near Field Communication controller support.
+	  This option enables device driver support for the NFC.
+	  It is used by PN547 device driver uses external LDO as VIO power supply.
 
 config NFC_PN547_LDO_CONTROL
 	bool "PN547 NFC LDO CONTROL"
@@ -140,6 +158,54 @@ config SEC_NFC
 
           Say Y here to compile support for SAMSUNG NFC driver into the
           kernel.
+
+config ESE_P3
+        bool "Oberthur ese driver"
+		depends on SPI
+		default n
+		help
+		  Oberthur Driver.
+		  This driver provides support for LSI NXP combined ESE products.
+		  You should select your NFC product and interface.
+
+config ESE_SECURE
+		  bool "ESE P3 SECURE"
+		  depends on ESE_P3
+		  default n
+		  help
+		  Oberthur driver ESE P3 SECURE MODE feature.
+		  This feature provides support for ESE P3 products.
+		  You should select this feature if your ESE product uses secure mode.
+		  Say Y here to compile support for ESE P3 SECURE feature into the
+		  kernel.
+
+config ESE_SPI_GPIO_START
+    depends on ESE_SECURE
+	int "Ese spi gpio number start"
+	default 0
+
+config ESE_SPI_GPIO_END
+    depends on ESE_SECURE
+	int "Ese spi gpio number end"
+	default 0
+
+config ESE_MASTER_ID
+	int "ESE master id"
+	depends on ESE_SECURE
+	default 0
+	help
+	  Master Id defined in ese dtsi file.
+	  If master id is changed, you must set right master id number
+	  in defconfig.
+
+config ESE_SECURE_SPI_PORT
+	int "ESE SECURE SPI PORT"
+	depends on ESE_SECURE
+	default 0
+	help
+	  SPI ID defined in ese dtsi file.
+	  If SPI ID is changed, you must set right SPI id number
+	  in defconfig.
 
 choice
         prompt "SEC NFC Products"

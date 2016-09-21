@@ -101,7 +101,7 @@
 			battery,chg_gpio_status = <0>;
 			battery,chg_polarity_status = <0>;
 			battery,chg_float_voltage = <4400>;
-			battery,chg_vbuslimit = <1>;
+			battery,chg_vbuslimit = <0>;
 			battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
 			battery,full_check_type_2nd = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
 
@@ -121,7 +121,7 @@
 		battery0,temp_std = <25>;
 		battery0,temp_offset = <10>;
 		battery0,temp_offset_cal = <0x01>;
-		battery0,charge_offset_cal = <(-0x04)>;
+		battery0,charge_offset_cal = <(-0x0B)>;
 		battery0,rce_value = <0x0749 0x0580 0x371>;
 		battery0,dtcd_value = <0x1>;
 		battery0,rs_value = <0x1ae 0x47a 0x3800 0x00a4>; /*rs mix_factor max min*/
@@ -129,7 +129,8 @@
 		battery0,mix_value = <0x0a03 0x0004>; /*mix_rate init_blank*/
 		battery0,topoff_soc = <0x0 0x101>; /*enable soc*/
 		battery0,volt_cal = <0x8000>;
-		battery0,curr_cal = <0x7C00>;
-		battery0,tem_poff = <3420 70 3420 70>;
+		battery0,curr_cal = <0x7900>;
+		battery0,tem_poff = <3380 100 3300 100>;
+		battery0,ext_temp_cal = <1 10 1 1 1 7 3 2>;
 	};
 };
