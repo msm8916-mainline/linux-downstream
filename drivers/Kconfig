@@ -194,8 +194,6 @@ source "drivers/soc/Kconfig"
 
 source "drivers/firmware/Kconfig"
 
-source "drivers/secfilter/Kconfig"
-
 source "drivers/gator/Kconfig"
 
 endmenu

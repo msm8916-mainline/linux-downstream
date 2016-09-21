@@ -50,6 +50,9 @@
 #define CHIP_NAME		"BMC150"
 #define SENSOR_NAME		"accelerometer_sensor"
 #define CALIBRATION_FILE_PATH	"/efs/FactoryApp/calibration_data"
+#define CALIBRATION_DATA_AMOUNT         20
+#define MAX_ACCEL_1G			1024
+#define MAX_ACCEL_1G_FOR4G		512
 
 struct bma2x2_v {
 	union {
@@ -60,6 +63,12 @@ struct bma2x2_v {
 			s16 z;
 		};
 	};
+};
+
+
+enum {
+	OFF = 0,
+	ON = 1
 };
 
 
@@ -80,6 +89,7 @@ struct bma2x2_data {
 	struct input_dev *input;
 
 	struct bma2x2_v value;
+	struct bma2x2_v caldata;
 	struct mutex value_mutex;
 	struct mutex enable_mutex;
 	struct mutex mode_mutex;
@@ -99,6 +109,7 @@ struct bma2x2_data {
 	struct regulator *reg_vio;
 	int place;
 	int acc_int1;
+	int range;
 	unsigned char used_bw;
 };
 
@@ -469,6 +480,50 @@ static int bma2x2_normal_to_suspend(struct bma2x2_data *bma2x2,
 
 }
 
+static int bma2x2_open_calibration(struct bma2x2_data *data)
+{
+	int ret = 0;
+	mm_segment_t old_fs;
+	struct file *cal_filp = NULL;
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	cal_filp = filp_open(CALIBRATION_FILE_PATH, O_RDONLY, 0666);
+	if (IS_ERR(cal_filp)) {
+		set_fs(old_fs);
+		ret = PTR_ERR(cal_filp);
+
+		data->caldata.x = 0;
+		data->caldata.y = 0;
+		data->caldata.z = 0;
+
+		pr_info("[SENSOR]: %s - No Calibration\n", __func__);
+
+		return ret;
+	}
+
+	ret = cal_filp->f_op->read(cal_filp, (char *)&data->caldata.v,
+		3 * sizeof(s16), &cal_filp->f_pos);
+	if (ret != 3 * sizeof(s16)) {
+		pr_err("[SENSOR] %s: - Can't read the cal data\n", __func__);
+		ret = -EIO;
+	}
+
+	filp_close(cal_filp, current->files);
+	set_fs(old_fs);
+
+	pr_info("[SENSOR]: open accel calibration %d, %d, %d\n",
+		data->caldata.x, data->caldata.y, data->caldata.z);
+
+	if ((data->caldata.x == 0) && (data->caldata.y == 0)
+		&& (data->caldata.z == 0))
+		return -EIO;
+
+	return ret;
+}
+
+
 static int bma2x2_set_mode(struct i2c_client *client, unsigned char mode,
 						unsigned char enabled_mode)
 {
@@ -520,7 +575,7 @@ static int bma2x2_set_mode(struct i2c_client *client, unsigned char mode,
 				usleep_range(3000, 3100);
 				bma2x2_smbus_write_byte(client,
 					BMA2X2_LOW_NOISE_CTRL_REG, &data2);
-				bma2x2_open_cal(client);
+				bma2x2_open_calibration(bma2x2);
 				break;
 		case BMA2X2_MODE_LOWPOWER1:
 				data1  = BMA2X2_SET_BITSLICE(data1,
@@ -709,7 +764,7 @@ static int bma2x2_get_fifo_mode(struct i2c_client *client, unsigned char
 
 	return comres;
 }
-
+#if 0
 static int bma2x2_set_offset_target(struct i2c_client *client, unsigned char
 		channel, unsigned char offset)
 {
@@ -873,7 +928,7 @@ static int bma2x2_get_offset_z(struct i2c_client *client, unsigned char
 
 	return comres;
 }
-
+#endif
 static int bma2x2_soft_reset(struct i2c_client *client)
 {
 	int comres = 0;
@@ -884,7 +939,7 @@ static int bma2x2_soft_reset(struct i2c_client *client)
 
 	return comres;
 }
-
+#if 0
 static int bma2x2_read_accel_z(struct i2c_client *client,
 				signed char sensor_type, short *a_z)
 {
@@ -984,6 +1039,7 @@ static int bma2x2_open_cal(struct i2c_client *client)
 	pr_info("%s [%d, %d, %d]\n", __func__, cal_data[0], cal_data[1], cal_data[2]);
 	return 0;
 }
+#endif
 
 const int bma2x2_sensor_bitwidth[] = {
 	12,  10,  8, 14
@@ -1028,6 +1084,10 @@ static void bma2x2_work_func(struct work_struct *work)
 
 	bma2x2_read_accel_xyz(bma2x2->bma2x2_client, bma2x2->sensor_type, &acc);
 
+	bma2x2->value.x = acc.x - bma2x2->caldata.x;
+	bma2x2->value.y = acc.y - bma2x2->caldata.y;
+	bma2x2->value.z = acc.z - bma2x2->caldata.z;
+
 	if (((timestamp_new - bma2x2->old_timestamp) > atomic_read(&bma2x2->delay)*1800000LL)\
 		&& (bma2x2->old_timestamp != 0))
 	{
@@ -1053,10 +1113,6 @@ static void bma2x2_work_func(struct work_struct *work)
 	input_sync(bma2x2->input);
 
 	bma2x2->old_timestamp = timestamp_new;
-
-	mutex_lock(&bma2x2->value_mutex);
-	bma2x2->value = acc;
-	mutex_unlock(&bma2x2->value_mutex);
 	schedule_delayed_work(&bma2x2->work, delay);
 }
 
@@ -1067,8 +1123,23 @@ static ssize_t bma2x2_raw_data_read(struct device *dev,
 	struct bma2x2_data *bma2x2 = input_get_drvdata(input);
 	struct bma2x2_v acc_value;
 
+	if (atomic_read(&bma2x2->enable) == OFF) {
+		bma2x2_set_mode(bma2x2->bma2x2_client,
+				BMA2X2_MODE_NORMAL, BMA_ENABLED_INPUT);
+
+		msleep(20);
 	bma2x2_read_accel_xyz(bma2x2->bma2x2_client, bma2x2->sensor_type,
 								&acc_value);
+
+		bma2x2_set_mode(bma2x2->bma2x2_client,
+				BMA2X2_MODE_SUSPEND, BMA_ENABLED_INPUT);
+
+		acc_value.x = acc_value.x - bma2x2->caldata.x;
+		acc_value.y = acc_value.y - bma2x2->caldata.y;
+		acc_value.z = acc_value.z - bma2x2->caldata.z;
+	} else {
+		acc_value = bma2x2->value;
+	}
 
 	return sprintf(buf, "%d,%d,%d\n", acc_value.x, acc_value.y,
 			acc_value.z);
@@ -1202,46 +1273,95 @@ static ssize_t bma2x2_enable_store(struct device *dev,
 static ssize_t bma2x2_calibration_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	int cal_data[3];
-	int err;
-	mm_segment_t old_fs;
+	struct i2c_client *client = to_i2c_client(dev);
+	struct bma2x2_data *bma2x2 = i2c_get_clientdata(client);
+	int ret;
+
+	ret = bma2x2_open_calibration(bma2x2);
+	if (ret < 0)
+		pr_err("[SENSOR]: %s - calibration open failed(%d)\n",
+			__func__, ret);
+
+	pr_info("[SENSOR]: %s - cal data %d %d %d - ret : %d\n", __func__,
+		bma2x2->caldata.x, bma2x2->caldata.y, bma2x2->caldata.z, ret);
+
+	return snprintf(buf, PAGE_SIZE, "%d %d %d %d\n", ret, bma2x2->caldata.x,
+			bma2x2->caldata.y, bma2x2->caldata.z);
+}
+
+static int bma2x2_do_calibrate(struct bma2x2_data *data, int enable)
+{
+	int sum[3] = { 0, };
+	int ret = 0, cnt;
 	struct file *cal_filp = NULL;
-	int result = 1;
+	struct bma2x2_v acc;
+	mm_segment_t old_fs;
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
+	if (enable) {
+		data->caldata.x = 0;
+		data->caldata.y = 0;
+		data->caldata.z = 0;
 
-	cal_filp = filp_open(CALIBRATION_FILE_PATH,
-		O_RDONLY, 0666);
-	if (IS_ERR(cal_filp)) {
-		pr_err("[ACC] %s: Can't open calibration file\n",
-			__func__);
-		set_fs(old_fs);
-		err = PTR_ERR(cal_filp);
-		return err;
+		for (cnt = 0; cnt < CALIBRATION_DATA_AMOUNT; cnt++) {
+			bma2x2_read_accel_xyz(data->bma2x2_client, data->sensor_type,
+										&acc);
+			sum[0] += acc.x;
+			sum[1] += acc.y;
+			sum[2] += acc.z;
+			mdelay(10);
+		}
+
+		data->caldata.x = (sum[0] / CALIBRATION_DATA_AMOUNT);
+		data->caldata.y = (sum[1] / CALIBRATION_DATA_AMOUNT);
+		data->caldata.z = (sum[2] / CALIBRATION_DATA_AMOUNT);
+
+		if (data->range == BMA2X2_RANGE_4G) {
+		if (data->caldata.z > 0)
+			data->caldata.z -= MAX_ACCEL_1G_FOR4G;
+		else if (data->caldata.z < 0)
+			data->caldata.z += MAX_ACCEL_1G_FOR4G;
+	} else {
+			if (data->caldata.z > 0)
+				data->caldata.z -= MAX_ACCEL_1G;
+			else if (data->caldata.z < 0)
+				data->caldata.z += MAX_ACCEL_1G;
+
+		}
+	} else {
+		data->caldata.x = 0;
+		data->caldata.y = 0;
+		data->caldata.z = 0;
 	}
-	err = cal_filp->f_op->read(cal_filp,
-		(char *)cal_data,
-		3 * sizeof(int), &cal_filp->f_pos);
-	if (err != 3 * sizeof(int)) {
-		pr_err("[ACC] %s: Can't read the cal data from file\n",
-			__func__);
+
+	pr_info("[SENSOR]: %s - do accel calibrate %d, %d, %d\n", __func__,
+		data->caldata.x, data->caldata.y, data->caldata.z);
+
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+
+		cal_filp = filp_open(CALIBRATION_FILE_PATH,
+		O_CREAT | O_TRUNC | O_WRONLY, 0666);
+		if (IS_ERR(cal_filp)) {
+		pr_err("[SENSOR]: %s - Can't open calibration file\n",
+							__func__);
+			set_fs(old_fs);
+		ret = PTR_ERR(cal_filp);
+		return ret;
+		}
+
+	ret = cal_filp->f_op->write(cal_filp, (char *)&data->caldata.v,
+		3 * sizeof(s16), &cal_filp->f_pos);
+	if (ret != 3 * sizeof(s16)) {
+		pr_err("[SENSOR]: %s - Can't write the caldata to file\n",
+								__func__);
+		ret = -EIO;
+		}
+
 		filp_close(cal_filp, current->files);
 		set_fs(old_fs);
-		return -EIO;
-	}
 
-	filp_close(cal_filp, current->files);
-	set_fs(old_fs);
-
-	if (((cal_data[0] == 0) && (cal_data[1] == 0) && (cal_data[2] == 0)))
-		result = 0;
-
-	pr_debug("bma2x2_calibration_show %d  %d %d %d\n", result,
-					cal_data[0], cal_data[1], cal_data[2]);
-	return sprintf(buf, "%d %d %d %d\n", result, cal_data[0],
-						cal_data[1], cal_data[2]);
-}
+	return ret;
+		}
 
 static ssize_t bma2x2_calibration_store(struct device *dev,
 		struct device_attribute *attr,
@@ -1249,154 +1369,16 @@ static ssize_t bma2x2_calibration_store(struct device *dev,
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct bma2x2_data *bma2x2 = i2c_get_clientdata(client);
-	int cal_data[3] = {0,};
-	unsigned long data;
-	signed char tmp;
-	unsigned char timeout = 0;
+	int64_t dEnable;
 	int err;
-	mm_segment_t old_fs;
-	struct file *cal_filp = NULL;
 
-	err = kstrtoul(buf, 10, &data);
+	err = kstrtoll(buf, 10, &dEnable);
 	if (err)
 		return err;
 
-	pr_info("%s[%lu]  place=%d\n", __func__, data, bma2x2->place);
-	if (data) {
-		/* check the current z value,set offset_target_z based on it */
-		short acc_value_z = 0;
-		bma2x2_read_accel_z(bma2x2->bma2x2_client, bma2x2->sensor_type,
-								&acc_value_z);
-		pr_info("%s  acc_value_z = [%d], while accel calibration\n",
-			__func__, acc_value_z);
-
-		bma2x2_set_range(bma2x2->bma2x2_client, BMA2X2_RANGE_2G);
-
-
-		/* x axis fast calibration */
-		if (bma2x2_set_offset_target(bma2x2->bma2x2_client,
-			BMA2X2_OFFSET_TRIGGER_X, 0) < 0)
-			return -EINVAL;
-
-		if (bma2x2_set_cal_trigger(bma2x2->bma2x2_client, 1) < 0)
-			return -EINVAL;
-
-		do {
-			usleep_range(2000, 2100);
-			bma2x2_get_cal_ready(bma2x2->bma2x2_client, &tmp);
-			timeout++;
-			if (timeout == 50) {
-				pr_err("[ACC] %s: get fast calibration ready error\n", __func__);
-				return -EINVAL;
-			};
-		} while (tmp == 0);
-
-		/* y axis fast calibration */
-		if (bma2x2_set_offset_target(bma2x2->bma2x2_client,
-			BMA2X2_OFFSET_TRIGGER_Y, 0) < 0)
-			return -EINVAL;
-
-		if (bma2x2_set_cal_trigger(bma2x2->bma2x2_client, 2) < 0)
-			return -EINVAL;
-
-		do {
-			usleep_range(2000, 2100);
-			bma2x2_get_cal_ready(bma2x2->bma2x2_client, &tmp);
-			timeout++;
-			if (timeout == 50) {
-				pr_err("[ACC] %s: get fast calibration ready error\n", __func__);
-				return -EINVAL;
-			};
-		} while (tmp == 0);
-
-		/* z axis fast calibration */
-		/* use offset_target_z here */
-		if (bma2x2_set_offset_target(bma2x2->bma2x2_client,
-			BMA2X2_OFFSET_TRIGGER_Z, acc_value_z>0?1:2) < 0)
-			return -EINVAL;
-
-		if (bma2x2_set_cal_trigger(bma2x2->bma2x2_client, 3) < 0)
-			return -EINVAL;
-
-		do {
-			usleep_range(2000, 2100);
-			bma2x2_get_cal_ready(bma2x2->bma2x2_client, &tmp);
-			timeout++;
-			if (timeout == 50) {
-				pr_err("[ACC] %s: get fast calibration ready error\n", __func__);
-				return -EINVAL;
-			};
-		} while (tmp == 0);
-
-		bma2x2_set_range(bma2x2->bma2x2_client, BMA2X2_RANGE_SET);
-
-		/* calibration */
-		bma2x2_get_offset_x(bma2x2->bma2x2_client,
-					(unsigned char *)&cal_data[0]);
-		bma2x2_get_offset_y(bma2x2->bma2x2_client,
-					(unsigned char *)&cal_data[1]);
-		bma2x2_get_offset_z(bma2x2->bma2x2_client,
-					(unsigned char *)&cal_data[2]);
-
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		cal_filp = filp_open(CALIBRATION_FILE_PATH,
-		O_CREAT | O_TRUNC | O_WRONLY, 0666);
-		if (IS_ERR(cal_filp)) {
-			pr_err("[ACC] %s: Can't open calibration file\n",
-							__func__);
-			set_fs(old_fs);
-			err = PTR_ERR(cal_filp);
-			return err;
-		}
-
-		err = cal_filp->f_op->write(cal_filp,
-					(char *)cal_data,
-					3 * sizeof(int), &cal_filp->f_pos);
-		if (err != 3 * sizeof(int)) {
-			pr_err("[ACC] %s: Can't write the cal data to file\n",
-								__func__);
-			err = -EIO;
-		}
-		filp_close(cal_filp, current->files);
-		set_fs(old_fs);
-	} else {
-		/* erase cal data */
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-		cal_filp = filp_open(CALIBRATION_FILE_PATH,
-			O_CREAT | O_TRUNC | O_WRONLY, 0666);
-		if (IS_ERR(cal_filp)) {
-			pr_err("[ACC] %s: Can't open calibration file\n",
-				__func__);
-			set_fs(old_fs);
-			err = PTR_ERR(cal_filp);
-			return err;
-		}
-		cal_data[0] = 0;
-		cal_data[1] = 0;
-		cal_data[2] = 0;
-
-		err = cal_filp->f_op->write(cal_filp,
-			(char *)cal_data,
-			3 * sizeof(int), &cal_filp->f_pos);
-		if (err != 3 * sizeof(int)) {
-			pr_err("[ACC] %s: Can't write the cal data to file\n",
-				__func__);
-			err = -EIO;
-		}
-		filp_close(cal_filp, current->files);
-		set_fs(old_fs);
-
-		bma2x2_set_offset_x(bma2x2->bma2x2_client,
-						(unsigned char)cal_data[0]);
-		bma2x2_set_offset_y(bma2x2->bma2x2_client,
-						(unsigned char)cal_data[1]);
-		bma2x2_set_offset_z(bma2x2->bma2x2_client,
-						(unsigned char)cal_data[2]);
-	}
-	pr_info("%s cal_data: (%d,%d,%d)... done.\n", __func__,
-				cal_data[0], cal_data[1], cal_data[2]);
+	err = bma2x2_do_calibrate(bma2x2, (int)dEnable);
+	if (err < 0)
+		pr_err("[SENSOR]: %s - accel calibrate failed\n", __func__);
 
 	return count;
 }
@@ -1842,6 +1824,7 @@ static int bma2x2_probe(struct i2c_client *client,
 	mutex_init(&data->enable_mutex);
 	bma2x2_set_bandwidth(client, BMA2X2_BW_SET);
 	bma2x2_set_range(client, BMA2X2_RANGE_SET);
+	data->range = BMA2X2_RANGE_SET;
 
 #ifdef CONFIG_SENSORS_BMA2X2_ENABLE_INT1
 	/* maps interrupt to INT1 pin */

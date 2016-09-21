@@ -298,7 +298,7 @@ static int __r5033_current_limit_to_setting(int current_limit)
 	return -EINVAL;
 }
 
-#if defined(CONFIG_MACH_FORTUNA_SPR) || defined(CONFIG_MACH_FORTUNA_TMO)
+#if defined(CONFIG_MACH_FORTUNA_SPR) || defined(CONFIG_MACH_FORTUNA_TMO) || defined(CONFIG_MACH_FORTUNA_ACG)
 extern int poweroff_charging;
 #endif
 
@@ -326,7 +326,7 @@ static void rt5033_set_input_current_limit(struct rt5033_charger_data *charger,
 		}
 	}
 	else{
-#if defined(CONFIG_MACH_FORTUNA_SPR) || defined(CONFIG_MACH_FORTUNA_TMO)
+#if defined(CONFIG_MACH_FORTUNA_SPR) || defined(CONFIG_MACH_FORTUNA_TMO) || defined(CONFIG_MACH_FORTUNA_ACG)
 		/*Soft Start Charging*/
 		if((charger->cable_type != POWER_SUPPLY_TYPE_BATTERY) && !poweroff_charging){
 			rt5033_assign_bits(i2c, RT5033_CHG_CTRL1, RT5033_AICR_LIMIT_MASK,

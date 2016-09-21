@@ -1251,8 +1251,6 @@ static int bma2x2_set_mode(struct i2c_client *client,
 static int bma2x2_get_mode(struct i2c_client *client, u8 *mode);
 static int bma2x2_get_fifo_mode(struct i2c_client *client, u8 *fifo_mode);
 
-static int bma2x2_open_cal(struct i2c_client *client);
-
 
 #endif
 

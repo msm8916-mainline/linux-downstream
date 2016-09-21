@@ -2016,6 +2016,8 @@ int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp)
 
 	if (req->flags & CMD_REQ_HS_MODE)
 		mdss_dsi_set_tx_power_mode(0, &ctrl->panel_data);
+	else if (req->flags & CMD_REQ_LP_MODE)
+		mdss_dsi_set_tx_power_mode(1, &ctrl->panel_data);
 
 	if (req->flags & CMD_REQ_RX)
 		ret = mdss_dsi_cmdlist_rx(ctrl, req);
@@ -2024,6 +2026,8 @@ int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp)
 
 	if (req->flags & CMD_REQ_HS_MODE)
 		mdss_dsi_set_tx_power_mode(1, &ctrl->panel_data);
+	else if (req->flags & CMD_REQ_LP_MODE)
+		mdss_dsi_set_tx_power_mode(0, &ctrl->panel_data);
 
 	if (ctrl->mdss_util->iommu_ctrl)
 		ctrl->mdss_util->iommu_ctrl(0);

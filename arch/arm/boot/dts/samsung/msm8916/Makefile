@@ -200,6 +200,8 @@ ifeq ($(CONFIG_SEC_FORTUNA_PROJECT),y)
                 dtb-y += msm8916-sec-fortuna-tmo-r02.dtb
 	else ifeq ($(CONFIG_MACH_FORTUNA_SPR),y)
                 dtb-y += msm8916-sec-fortuna-spr-r00.dtb
+	else ifeq ($(CONFIG_MACH_FORTUNA_ACG),y)
+                dtb-y += msm8916-sec-fortuna-acg-r00.dtb
         endif
 
 endif

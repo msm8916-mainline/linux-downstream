@@ -735,6 +735,13 @@ config MACH_FORTUNA_SPR
         help
           Support for Samsung FORTUNA USA SPR device.
 
+config MACH_FORTUNA_ACG
+    depends on SEC_FORTUNA_PROJECT
+        default n
+        bool "Samsung FORTUNA USA ACG"
+        help
+          Support for Samsung FORTUNA USA ACG device.
+
 config SEC_ROSSA_PROJECT
     depends on ARCH_MSM8916
 	default n

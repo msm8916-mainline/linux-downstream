@@ -4597,6 +4597,9 @@ size_t kvaddr_to_paddr(unsigned long vaddr)
 
 static void dump_reg(char *addr, int len)
 {
+	if (IS_ERR_OR_NULL(addr))
+		return;
+
 #if defined(CONFIG_ARCH_MSM8992) || defined(CONFIG_ARCH_MSM8994)
 	mdss_dump_reg(MDSS_REG_DUMP_IN_LOG, addr, len, NULL);
 #else

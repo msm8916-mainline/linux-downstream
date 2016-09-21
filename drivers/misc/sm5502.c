@@ -155,7 +155,7 @@ extern int system_rev;
 #define DEV_AV_VBUS			(1 << 4)
 #define DEV_U200_CHARGER	(1 << 6)
 
-#define DEV_T3_CHARGER_MASK	(DEV_U200_CHARGER | DEV_NON_STANDARD)
+#define DEV_T3_CHARGER_MASK	DEV_U200_CHARGER
 
 /*
  * Manual Switch
@@ -1060,7 +1060,8 @@ static int sm5502_attach_dev(struct sm5502_usbsw *usbsw)
 			(check_sm5502_jig_state() ? "ON" : "OFF"));
 
 	/* USB */
-	if (val1 & DEV_USB || val2 & DEV_T2_USB_MASK) {
+	if ((val1 & DEV_USB) || (val2 & DEV_T2_USB_MASK)
+			|| (val3 & DEV_NON_STANDARD)) {
 		if (vbus & DEV_VBUSIN_VALID) {
 			pr_info("[SM5502 MUIC] USB Connected\n");
 			pdata->callback(CABLE_TYPE_USB, SM5502_ATTACHED);
@@ -1261,8 +1262,8 @@ static int sm5502_detach_dev(struct sm5502_usbsw *usbsw)
 	}
 #endif
 	/* USB */
-	if (usbsw->dev1 & DEV_USB ||
-			usbsw->dev2 & DEV_T2_USB_MASK) {
+	if ((usbsw->dev1 & DEV_USB) || (usbsw->dev2 & DEV_T2_USB_MASK)
+			|| (usbsw->dev3 & DEV_NON_STANDARD)) {
 		pr_info("[MUIC] USB Disonnected\n");
 		pdata->callback(CABLE_TYPE_USB, SM5502_DETACHED);
 	} else if (usbsw->dev1 & DEV_USB_CHG) {

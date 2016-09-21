@@ -507,3 +507,9 @@ config MACH_KOR_EARJACK_WR
 	depends on BATTERY_SAMSUNG
 	help
 	  Say Y to enable earjack-noise workaround at charging
+
+config STORE_MODE
+	bool "enable store mode"
+	default n
+	help
+	  Say Y to enable CONFIG_STORE_MODE

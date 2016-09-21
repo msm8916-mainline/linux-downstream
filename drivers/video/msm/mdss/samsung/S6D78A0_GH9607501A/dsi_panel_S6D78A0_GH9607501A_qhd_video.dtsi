@@ -100,6 +100,7 @@
 		qcom,mdss-pan-physical-height-dimension = <110>; /*<Height> real size of panel in mm */
 		qcom,mdss-dsi-lp11-init;
 		qcom,mdss-force-clk-lane-hs;
+		qcom,mdss-dsi-force-clk-lane-hs;
 		qcom,mdss-dsi-init-delay-us = <100>;
 		qcom,mdss-power-off-delay-us = <12000>;
 /*
