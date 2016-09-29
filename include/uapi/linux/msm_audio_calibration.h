@@ -66,13 +66,6 @@
 extern int get_audiomode(void);
 //Sharon--
 
-//AllenCH_Lin +++
-#define AUDIO_SET_INCALL_STATE				_IOWR(CAL_IOCTL_MAGIC, \
-							226, void *)
-
-extern int get_phonestate(void);
-//AllenCH_Lin ---
-
 enum {
 	CVP_VOC_RX_TOPOLOGY_CAL_TYPE = 0,
 	CVP_VOC_TX_TOPOLOGY_CAL_TYPE,
@@ -127,9 +120,7 @@ enum {
 	//Sharon++
 	SET_MODE_TYPE,
 	//Sharon--
-        //AllenCH_Lin +++
-	INCALL_STATE_TYPE,
-	//AllenCH_Lin ---
+
 	MAX_CAL_TYPES,
 };
 

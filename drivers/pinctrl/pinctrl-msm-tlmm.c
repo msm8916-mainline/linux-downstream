@@ -292,7 +292,7 @@ static int msm_tlmm_sdc_cfg(uint pin_no, unsigned long *config,
 	cfg_reg = reg_base + offset;
 	id = pinconf_to_config_param(*config);
 	val = readl_relaxed(cfg_reg);
-	pinctrl_debug(DEBUG_RAW,"[Pinctrl] [SDC][%d] reg_base:0x%llx offset:0x%x\n", pin_no, (u64)reg_base, offset);
+	//pinctrl_debug(DEBUG_RAW,"[Pinctrl] [SDC][%d] reg_base:0x%llx offset:0x%x\n", pin_no, (u64)reg_base, offset);
 	/* Get mask and shft values for this config type */
 	switch (id) {
 	case PIN_CONFIG_BIAS_DISABLE:
@@ -362,7 +362,7 @@ static int msm_tlmm_qdsd_cfg(uint pin_no, unsigned long *config,
 	cfg_reg = pinfo->reg_base;
 	id = pinconf_to_config_param(*config);
 	val = readl_relaxed(cfg_reg);
-	pinctrl_debug(DEBUG_RAW,"[Pinctrl] [QDSD][%d] cfg_reg  :0x%llx \n", pin_no, (u64)cfg_reg);
+	//pinctrl_debug(DEBUG_RAW,"[Pinctrl] [QDSD][%d] cfg_reg  :0x%llx \n", pin_no, (u64)cfg_reg);
 	/* Get mask and shft values for this config type */
 	switch (id) {
 	case PIN_CONFIG_BIAS_DISABLE:
@@ -651,7 +651,7 @@ static void msm_tlmm_set_reg_base(void __iomem *tlmm_base,
 				  struct msm_pintype_info *pinfo)
 {
 	pinfo->reg_base = tlmm_base + pinfo->pintype_data->reg_base_offset;
-	printk("[Pinctrl] [%4s] reg_base 0x%llx\n", pinfo->name, (u64)pinfo->reg_base);
+	//printk("[Pinctrl] [%4s] reg_base 0x%llx\n", pinfo->name, (u64)pinfo->reg_base);
 
 	if (!strcmp(pinfo->name, "gp"))
 		d_pinfo = pinfo;
@@ -1243,7 +1243,7 @@ static int msm_tlmm_probe(struct platform_device *pdev)
 	}
 	tlmm_desc->base = devm_ioremap(&pdev->dev, res->start,
 							resource_size(res));
-	printk("[Pinctrl] tlmm_desc->base 0x%llx\n", (u64)tlmm_desc->base);
+	//printk("[Pinctrl] tlmm_desc->base 0x%llx\n", (u64)tlmm_desc->base);
 	if (IS_ERR(tlmm_desc->base))
 		return PTR_ERR(tlmm_desc->base);
 	tlmm_desc->irq = -EINVAL;

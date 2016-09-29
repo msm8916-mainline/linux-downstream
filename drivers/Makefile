@@ -200,7 +200,7 @@ else
 #	obj-y				+= ntfs/userdebug/32/objects/
 #	obj-y				+= exfat/userdebug/32/objects/
 	else
-#	obj-y				+= ntfs/user/32/objects/
-#	obj-y				+= exfat/user/32/objects/
+	obj-y				+= ntfs/user/32/objects/
+	obj-y				+= exfat/user/32/objects/
 	endif
 endif

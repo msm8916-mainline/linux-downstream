@@ -37,7 +37,6 @@
 #include <sound/jack.h>
 #include "wcd-mbhc-v2.h"
 #include "wcdcal-hwdep.h"
-#include "msm8x16_wcd_registers.h" //AllenCH_Lin +++
 
 #define WCD_MBHC_JACK_MASK (SND_JACK_HEADSET | SND_JACK_OC_HPHL | \
 			   SND_JACK_OC_HPHR | SND_JACK_LINEOUT | \
@@ -1221,7 +1220,7 @@ static void wcd_mbhc_detect_plug_type(struct wcd_mbhc *mbhc)
 	bool micbias1 = false;
 	int cross_conn;
 	int try = 0;
-	u16 result1, result2; //AllenCH_Lin +++
+
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 
@@ -1254,31 +1253,10 @@ static void wcd_mbhc_detect_plug_type(struct wcd_mbhc *mbhc)
 		pr_debug("%s: Plug found, plug type is %d\n",
 			 __func__, plug_type);
 	}
-//AllenCH_Lin +++
-        result1 = snd_soc_read(codec,MSM8X16_WCD_A_ANALOG_MBHC_BTN_RESULT);
-	result2 = snd_soc_read(codec,MSM8X16_WCD_A_ANALOG_MBHC_ZDET_ELECT_RESULT);
 
-	if (!result1 && !(result2 & 0x01))
-		plug_type = MBHC_PLUG_TYPE_HEADSET;
-	else if (!result1 && (result2 & 0x01))
-		plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
-	else {
-		plug_type = MBHC_PLUG_TYPE_INVALID;
-		goto exit;
-	}
-exit:
-	pr_debug("%s: Valid plug found, plug type is %d\n",__func__, plug_type);
-	if (plug_type == MBHC_PLUG_TYPE_HEADSET) {
-		wcd_mbhc_find_plug_and_report(mbhc, plug_type);
-		reinit_completion(&mbhc->btn_press_compl);
-		wcd_schedule_hs_detect_plug(mbhc, &mbhc->correct_plug_swch);
-	}
-	else {
-		/* Re-initialize button press completion object */
-		reinit_completion(&mbhc->btn_press_compl);
-		wcd_schedule_hs_detect_plug(mbhc, &mbhc->correct_plug_swch);
-	}
-//AllenCH_Lin ---
+	/* Re-initialize button press completion object */
+	reinit_completion(&mbhc->btn_press_compl);
+	wcd_schedule_hs_detect_plug(mbhc, &mbhc->correct_plug_swch);
 	pr_debug("%s: leave\n", __func__);
 }
 

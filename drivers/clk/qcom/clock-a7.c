@@ -408,7 +408,6 @@ static int clock_a7_probe(struct platform_device *pdev)
 		get_speed_bin_b(pdev, &speed_bin, &version);
 	else
 		get_speed_bin(pdev, &speed_bin, &version);
-
 	if(g_soc_id == 2)
 		speed_bin = 3;
 

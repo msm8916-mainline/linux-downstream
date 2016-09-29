@@ -434,13 +434,12 @@ static void AKECS_SetYPR(
 /*
 	if (s_akm->compass_debug_switch)	{
 		printk("[E-compass] sensor : AKECS_SetYPR (Flag : %d) +\n", rbuf[0]);
-		printk("[E-compass] sensor :   Acc [LSB]   : %6d,%6d,%6d stat=%d", rbuf[1], rbuf[2], rbuf[3], rbuf[4]);
-		printk("[E-compass] sensor :   Geo [LSB]   : %6d,%6d,%6d stat=%d", rbuf[5], rbuf[6], rbuf[7], rbuf[8]);
-		printk("[E-compass] sensor :   Orientation : %6d,%6d,%6d", rbuf[9], rbuf[10], rbuf[11]);
-		printk("[E-compass] sensor :   Rotation V  : %6d,%6d,%6d,%6d", rbuf[12], rbuf[13], rbuf[14], rbuf[15]);
+		printk("[E-compass] sensor :   Acc [LSB]   : %6d,%6d,%6d stat=%d\n", rbuf[1], rbuf[2], rbuf[3], rbuf[4]);
+		printk("[E-compass] sensor :   Geo [LSB]   : %6d,%6d,%6d stat=%d\n", rbuf[5], rbuf[6], rbuf[7], rbuf[8]);
+		printk("[E-compass] sensor :   Orientation : %6d,%6d,%6d\n", rbuf[9], rbuf[10], rbuf[11]);
+		printk("[E-compass] sensor :   Rotation V  : %6d,%6d,%6d,%6d\n", rbuf[12], rbuf[13], rbuf[14], rbuf[15]);
 	}
 */
-
 	/* No events are reported */
 	if (!rbuf[0]) {
 		printk("[E-compass] Don't waste a time.");
@@ -992,17 +991,25 @@ static void akm_dev_poll(struct work_struct *work)
 
 static enum hrtimer_restart akm_timer_func(struct hrtimer *timer)
 {
+	int delay_time = 0;
 	if (s_akm->mag_state || s_akm->fusion_state)	{
 		queue_work(s_akm->work_queue, &s_akm->dwork.work);
-		if (s_akm->mag_state == 0)
-			hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime((s_akm->delay[FUSION_DATA_FLAG])*8/10));
-		else if (s_akm->fusion_state == 0)
-			hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime((s_akm->delay[MAG_DATA_FLAG])*8/10));
+		if (s_akm->mag_state == 0)	{
+			delay_time = (int)(s_akm->delay[FUSION_DATA_FLAG]);
+			hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime(delay_time*8/10));
+		}
+		else if (s_akm->fusion_state == 0)	{
+			delay_time = (int)(s_akm->delay[MAG_DATA_FLAG]);
+			hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime(delay_time*8/10));
+		}
 		else	{
-			if ((s_akm->delay[MAG_DATA_FLAG]) <= s_akm->delay[FUSION_DATA_FLAG])
-				hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime((s_akm->delay[MAG_DATA_FLAG])*8/10));
-			else
-				hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime((s_akm->delay[FUSION_DATA_FLAG])*8/10));
+			if ((s_akm->delay[MAG_DATA_FLAG]) <= s_akm->delay[FUSION_DATA_FLAG])	{
+				delay_time = (int)(s_akm->delay[MAG_DATA_FLAG]);
+				hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime(delay_time*8/10));
+			} else	{
+				delay_time = (int)(s_akm->delay[FUSION_DATA_FLAG]);
+				hrtimer_forward_now(&s_akm->poll_timer, ns_to_ktime(delay_time*8/10));
+			}
 		}
 	}
 
@@ -1017,6 +1024,7 @@ static ssize_t akm_compass_sysfs_enable_store(
 	struct akm_compass_data *akm, char const *buf, size_t count, int pos)
 {
 	long en = 0;
+	int delay_time = 0;
 	//uint8_t mode;
 
 	if (NULL == buf)
@@ -1053,8 +1061,9 @@ static ssize_t akm_compass_sysfs_enable_store(
 
 	if (akm->mag_state ||akm->fusion_state)	{
 		if (akm->poll_timer.state == HRTIMER_STATE_INACTIVE)	{
-			printk("[E-compass] sensor : Start compass poll timer. \n");
-			hrtimer_start(&akm->poll_timer, ns_to_ktime((akm->delay[pos])*8/10), HRTIMER_MODE_REL);
+			delay_time = (int)(akm->delay[pos]);
+			printk("[E-compass] sensor : Start compass poll timer (%d). \n", delay_time);
+			hrtimer_start(&akm->poll_timer, ns_to_ktime(delay_time*8/10), HRTIMER_MODE_REL);
 		} else
 			printk("[E-compass] sensor : Compass poll timer already active without start timer again.\n");
 	} else	{
@@ -1242,11 +1251,11 @@ static ssize_t akm_compass_sysfs_delay_store(
 	if (strict_strtoll(buf, AKM_BASE_NUM, &val))
 		return -EINVAL;
 
-	printk("[E-compass] Setting compass[%d] delay : %lld\n", pos, val);
-
 	mutex_lock(&akm->val_mutex);
 	akm->delay[pos] = val;
 	mutex_unlock(&akm->val_mutex);
+
+	printk("[E-compass] Setting compass[%d] delay : %lld (%lld)\n", pos, akm->delay[pos], val);
 
 	return count;
 }
@@ -1780,10 +1789,11 @@ static int akm_compass_suspend(struct device *dev)
 
 static int akm_compass_resume(struct device *dev)
 {
+	int delay_time = (int)(s_akm->delay[MAG_DATA_FLAG]);
 	if (s_akm->mag_state ||s_akm->fusion_state)	{
 		if (s_akm->poll_timer.state == HRTIMER_STATE_INACTIVE)	{
 			printk("[E-compass] sensor : akm_compass_resume restart compass poll timer. \n");
-			hrtimer_start(&s_akm->poll_timer, ns_to_ktime((s_akm->delay[MAG_DATA_FLAG])*8/10), HRTIMER_MODE_REL);
+			hrtimer_start(&s_akm->poll_timer, ns_to_ktime(delay_time*8/10), HRTIMER_MODE_REL);
 		} else
 			printk("[E-compass] sensor : akm_compass_resume compass poll timer already active without start timer again.\n");
 	}

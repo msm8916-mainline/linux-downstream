@@ -49,8 +49,7 @@
 	void *a_tmp = (a); \
 	void *b_tmp = (b); \
 	if (!((a_tmp)cmp(b_tmp))) { \
-		seq_printf(s, "%s:%d Fail: " #a "(%pK) " #cmp \
-				" " #b "(%pK)\n", \
+		seq_printf(s, "%s:%d Fail: " #a "(%p) " #cmp " " #b "(%p)\n", \
 				__func__, __LINE__, \
 				a_tmp, b_tmp); \
 		failed = 1; \
