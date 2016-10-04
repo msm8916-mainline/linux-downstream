@@ -364,7 +364,7 @@ static bool check_status_is_vaild(uint16_t sta, uint16_t reg)
 	if (reg == 0xf6){
 		for (i = 0; i < ARRAY_SIZE(rt5033_valid_pmic_status_f6); i++) {
 			if (rt5033_valid_pmic_status_f6[i] == sta)
-				return true;
+			return true;
 		}
 	} else {
 		for (i = 0; i < ARRAY_SIZE(rt5033_valid_pmic_status_f7); i++) {
@@ -415,9 +415,9 @@ static int rt5033_regulator_get_status(struct regulator_dev *rdev)
 		goto rt5033_reg_status_ok;
 
 	/* Failed case, dump registers */
-	dump_reg = rt5033_reg_read(info->i2c, 0x41); 
+	dump_reg = rt5033_reg_read(info->i2c, 0x41);
 	printk("%s LDO_CTRL:0x%2X\n", __func__, dump_reg);
-	dump_reg = rt5033_reg_read(info->i2c, 0x47); 
+	dump_reg = rt5033_reg_read(info->i2c, 0x47);
 	printk("%s LDO_CTRL:0x%2X\n", __func__, dump_reg);
 	dump_reg = rt5033_reg_read(info->i2c, 0x68);
 	printk("%s PMIC_IRQ_STAT:0x%2X\n", __func__, dump_reg);
@@ -436,6 +436,8 @@ rt5033_reg_status_ok:
 rt5033_reg_status_exit:
 	rt5033_reg_write(info->i2c, 0xf0, org_regval);
 	rt5033_unlock_regulator(info->i2c);
+	if (ret==REGULATOR_STATUS_ERROR && chip_rev >= RT5033A_REV)
+		ret = REGULATOR_STATUS_UNDEFINED; /* 8 */
 	pr_err("%s ret:%d\n", __func__, ret);
 	return ret;
 }

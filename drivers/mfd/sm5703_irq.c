@@ -307,7 +307,7 @@ static int sm5703_irq_ctrl_regs[] = {
 };
 
 static uint8_t sm5703_irqs_ctrl_mask_all_val[] = {
-	0xff,
+	0xBf,
 	0xef, //NOBAT
 	0xf3, //DONE,TOPOFF
 	0xff,

@@ -27,9 +27,7 @@
 #include <linux/notifier.h>
 #include <linux/sysfs.h>
 
-#define SUPPORTED_CABLE_MAX	32
-#define CABLE_NAME_MAX		30
-
+#define EXTCON_DEV_NAME			"extcon-muic"
 /*
  * The standard cable name is to help support general notifier
  * and notifiee device drivers to share the common names.
@@ -51,26 +49,50 @@
 enum extcon_cable_name {
 	EXTCON_USB = 0,
 	EXTCON_USB_HOST,
-	EXTCON_TA, /* Travel Adaptor */
-	EXTCON_FAST_CHARGER,
-	EXTCON_SLOW_CHARGER,
+	EXTCON_USB_HOST_5V,
+	EXTCON_HV_PREPARE,
+	EXTCON_TA,			/* Travel Adaptor */
+	EXTCON_HV_TA,			/* High Voltage Charger(9V) */
+	EXTCON_HV_TA_ERR,		/* Out of range HV Charger(5~9V) */
+	EXTCON_UNDEFINED_CHARGER,
+	EXTCON_CEA936_CHG,	/* CEA936 A/B USB cable, Only for charging. */
 	EXTCON_CHARGE_DOWNSTREAM, /* Charging an external device */
-	EXTCON_HDMI,
+#if defined (CONFIG_MUIC_DET_JACK)
+	EXTCON_EARJACK,
+#endif
 	EXTCON_MHL,
-	EXTCON_DVI,
-	EXTCON_VGA,
-	EXTCON_DOCK,
-	EXTCON_LINE_IN,
-	EXTCON_LINE_OUT,
-	EXTCON_MIC_IN,
-	EXTCON_HEADPHONE_OUT,
-	EXTCON_SPDIF_IN,
-	EXTCON_SPDIF_OUT,
-	EXTCON_VIDEO_IN,
-	EXTCON_VIDEO_OUT,
-	EXTCON_MECHANICAL,
+	EXTCON_MHL_VB,
+	EXTCON_DESKDOCK,
+	EXTCON_DESKDOCK_VB,
+	EXTCON_CARDOCK,
+	EXTCON_CARDOCK_VB,
+	EXTCON_AUDIODOCK,
+	EXTCON_SMARTDOCK,
+	EXTCON_SMARTDOCK_TA,
+	EXTCON_SMARTDOCK_USB,
+	EXTCON_JIG_UARTOFF,
+	EXTCON_JIG_UARTOFF_VB,
+	EXTCON_JIG_UARTON,
+	EXTCON_JIG_USBOFF,
+	EXTCON_JIG_USBON,
+	EXTCON_INCOMPATIBLE,
+	EXTCON_CHARGING_CABLE,
+#if defined(CONFIG_MUIC_MAX77804K_SUPPORT_HMT_DETECTION)
+	EXTCON_HMT,
+#endif
+#if defined(CONFIG_MUIC_SUPPORT_LANHUB)
+	EXTCON_LANHUB,
+	EXTCON_LANHUB_TA,
+#endif
+	EXTCON_HV_TA_1A,			/* UNDEFINE but charging */
+	EXTCON_UNKNOWN,
+	EXTCON_NONE,
 };
-extern const char extcon_cable_name[][CABLE_NAME_MAX + 1];
+
+#define SUPPORTED_CABLE_MAX (EXTCON_NONE + 1)
+#define CABLE_NAME_MAX		SUPPORTED_CABLE_MAX
+
+extern const char *extcon_cable_name[CABLE_NAME_MAX + 1];
 
 struct extcon_cable;
 
@@ -119,6 +141,7 @@ struct extcon_dev {
 	/* --- Optional callbacks to override class functions --- */
 	ssize_t	(*print_name)(struct extcon_dev *edev, char *buf);
 	ssize_t	(*print_state)(struct extcon_dev *edev, char *buf);
+	int (*get_cable_properties)(const char *cable_name, void *cable_props);
 
 	/* --- Internal data. Please do not set. --- */
 	struct device	*dev;
@@ -323,4 +346,6 @@ static inline int extcon_unregister_interest(struct extcon_specific_cable_nb
 	return 0;
 }
 #endif /* CONFIG_EXTCON */
+/* added sec common function */
+extern int get_jig_state(void);
 #endif /* __LINUX_EXTCON_H__ */

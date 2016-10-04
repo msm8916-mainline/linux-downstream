@@ -1,5 +1,5 @@
 #
-# Makefile for the Zinitix touch driver
+# Makefile for the Imagis touch driver
 #
 
 # Each configuration option enables a list of files.

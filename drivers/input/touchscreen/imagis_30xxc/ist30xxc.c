@@ -47,6 +47,10 @@
 #include "ist30xxc_cmcs_jit.h"
 #endif
 
+#ifdef CONFIG_DUAL_TOUCH_IC_CHECK
+static int probe_finished = 0;
+#endif
+
 #define J5_100_OHM_VALUE    0xECEC0001
 
 #define MAX_ERR_CNT			(100)
@@ -520,6 +524,8 @@ static void clear_input_data(struct ist30xx_data *data)
 	int id = 1;
 	u32 status;
 
+	input_report_key(data->input_dev, BTN_TOUCH, 0);
+
 	status = PARSE_FINGER_STATUS(data->t_status);
 	while (status) {
 		if (status & 1)
@@ -626,6 +632,9 @@ static void report_input_data(struct ist30xx_data *data, int finger_counts,
 				fingers[idx].bit_field.area);
 		if (data->jig_mode)
 			input_report_abs(data->input_dev, ABS_MT_PRESSURE, z_values[idx]);
+
+		input_report_key(data->input_dev, BTN_TOUCH, 1);
+
 		idx++;
 	}
 
@@ -639,6 +648,9 @@ static void report_input_data(struct ist30xx_data *data, int finger_counts,
 		print_tkey_event(data, id + 1);
 	}
 #endif /* IST30XX_USE_KEY */
+
+	if (finger_counts == 0)
+		input_report_key(data->input_dev, BTN_TOUCH, 0);
 
 	data->irq_err_cnt = 0;
 	data->scan_retry = 0;
@@ -1502,6 +1514,8 @@ static int ist30xx_set_input_device(struct ist30xx_data *data)
 #endif
 #endif
 
+	set_bit(BTN_TOUCH, data->input_dev->keybit);
+
 	input_set_drvdata(data->input_dev, data);
 	ret = input_register_device(data->input_dev);
 
@@ -1610,6 +1624,19 @@ static int ist30xx_probe(struct i2c_client *client,
 		goto err_init_drv;
 	}
 
+#ifdef CONFIG_DUAL_TOUCH_IC_CHECK
+	while (retry-- > 0) {
+		ret = ist30xxc_isp_info_read(data, 0, &tsp_type, 1);
+	    tsp_info("%s: ret: %d, tsp_type: %x\n", __func__, ret, tsp_type);
+		if(ret < 0) {
+			tsp_info("no imagis chip!\n");
+			goto err_init_drv;
+		}
+		mdelay(10);
+	}
+	retry = 3;
+#endif
+
 	if (data->dt_data->multiple_tsp) {
 	   ret = ist30xxc_isp_info_read(data, 0, &tsp_type, 1);
 	   tsp_info("%s: ret: %d, tsp_type: %x\n", __func__, ret, tsp_type);
@@ -1690,6 +1717,7 @@ static int ist30xx_probe(struct i2c_client *client,
 		goto err_irq;
 #endif /* IST30XX_UPDATE_BY_WORKQUEUE */
 #endif /* IST30XX_INTERNAL_BIN */
+
 	ret = ist30xx_read_cmd(data, IST30XX_REG_XY_SWAP, &xy_swap);
 	tsp_err("%s: ret:%d, swap:%x\n", __func__, ret, xy_swap & 0x01);
 	ret = ist30xx_read_cmd(data, IST30XX_REG_XY_RES, &xy_res);
@@ -1785,6 +1813,10 @@ static int ist30xx_probe(struct i2c_client *client,
 #endif
 	data->initialized = true;
 
+#ifdef CONFIG_DUAL_TOUCH_IC_CHECK
+	probe_finished = 1;
+#endif
+
 	tsp_info("### IMAGIS probe success ###\n");
 
 	/* release Firmware hold mode(forced active mode) */
@@ -1833,6 +1865,14 @@ static int ist30xx_remove(struct i2c_client *client)
 {
 	struct ist30xx_data *data = i2c_get_clientdata(client);
 
+#ifdef CONFIG_DUAL_TOUCH_IC_CHECK
+	if(!probe_finished)
+	{
+		printk("%s: imagis not register!\n", __func__);
+		return -ENODEV;
+	}
+#endif
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	unregister_early_suspend(&data->early_suspend);
 #endif
@@ -1859,6 +1899,14 @@ static int ist30xx_remove(struct i2c_client *client)
 static void ist30xx_shutdown(struct i2c_client *client)
 {
 	struct ist30xx_data *data = i2c_get_clientdata(client);
+
+#ifdef CONFIG_DUAL_TOUCH_IC_CHECK
+	if(!probe_finished)
+	{
+		printk("%s: imagis not register!\n", __func__);
+		return ;
+	}
+#endif
 
 	tsp_err("%s is called\n", __func__);
 	del_timer(&event_timer);
@@ -1903,9 +1951,25 @@ static struct i2c_driver ist30xx_i2c_driver = {
 	},
 };
 
+extern int get_lcd_attached(char *mode);
+
+#ifdef CONFIG_SAMSUNG_LPM_MODE
+extern int poweroff_charging;
+#endif
 static int __init ist30xx_init(void)
 {
 	tsp_info("%s()\n", __func__);
+#ifdef CONFIG_SAMSUNG_LPM_MODE
+	if (poweroff_charging) {
+		tsp_info("%s() LPM Charging Mode!!\n", __func__);
+		return 0;
+	}
+#endif
+
+	if (!get_lcd_attached("GET")) {
+		tsp_err("%s: LCD is not attached\n", __func__);
+		return 0;
+	}
 	return i2c_add_driver(&ist30xx_i2c_driver);
 }
 

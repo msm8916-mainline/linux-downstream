@@ -33,13 +33,29 @@
 #include <linux/qpnp/power-on.h>
 #endif
 #if defined(CONFIG_SEC_DEBUG)
-#include <mach/sec_debug.h>
+#include <linux/sec_debug.h>
 #endif
 #include <linux/pinctrl/consumer.h>
 #include <linux/syscore_ops.h>
 
 struct device *sec_key;
 EXPORT_SYMBOL(sec_key);
+
+int wakeup_reason;
+bool irq_in_suspend;
+bool suspend_state;
+
+bool wakeup_by_key(void) {
+	if (irq_in_suspend) {
+		if (wakeup_reason == KEY_HOMEPAGE) {
+			irq_in_suspend = false;
+			wakeup_reason = 0;
+			return true;
+		}
+	}
+	return false;
+}
+EXPORT_SYMBOL(wakeup_by_key);
 
 struct gpio_button_data {
 	struct gpio_keys_button *button;
@@ -350,7 +366,6 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 #ifdef CONFIG_SEC_DEBUG
 	sec_debug_check_crash_key(button->code, state);
 #endif
-
 	if (type == EV_ABS) {
 		if (state)
 			input_event(input, type, button->code, button->value);
@@ -383,6 +398,12 @@ static irqreturn_t gpio_keys_gpio_isr(int irq, void *dev_id)
 	struct gpio_button_data *bdata = dev_id;
 
 	BUG_ON(irq != bdata->irq);
+
+	if (suspend_state) {
+		irq_in_suspend = true;
+		wakeup_reason = bdata->button->code;
+		pr_info("%s before resume by %d\n", __func__, wakeup_reason);
+	}
 
 	if (bdata->button->wakeup)
 		pm_stay_awake(bdata->input->dev.parent);
@@ -618,6 +639,37 @@ static void gpio_keys_close(struct input_dev *input)
 		pdata->disable(input->dev.parent);
 }
 
+#ifdef CONFIG_USE_VM_KEYBOARD_REJECT
+bool reject_keyboard_specific_key;
+EXPORT_SYMBOL(reject_keyboard_specific_key);
+
+static ssize_t sysfs_reject_keyboard_spec_key_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	snprintf(buf, 10, "%s\n", reject_keyboard_specific_key ? "ENABLE" : "DISABLE");
+
+	return strlen(buf);
+}
+static ssize_t sysfs_reject_keyboard_spec_key_store(struct device *dev,
+		struct device_attribute *attr, const char *buf,
+		size_t count)
+{
+	if (!strncasecmp(buf, "ENABLE", 6))
+		reject_keyboard_specific_key = true;
+	else if (!strncasecmp(buf, "DISABLE", 7))
+		reject_keyboard_specific_key = false;
+	else
+		pr_err("%s: Wrong command, current state %s\n",
+				__func__,
+				reject_keyboard_specific_key ? "ENABLE" : "DISALBE");
+
+	return count;
+}
+
+static DEVICE_ATTR(reject_key_comb, 0660, sysfs_reject_keyboard_spec_key_show, sysfs_reject_keyboard_spec_key_store);
+
+#endif
+
 /*
  * Handlers for alternative sources of platform_data
  */
@@ -702,7 +754,7 @@ gpio_keys_get_devtree_pdata(struct device *dev)
 		button->wakeup = !!of_get_property(pp, "gpio-key,wakeup", NULL);
 
 		if (of_property_read_u32(pp, "debounce-interval",
-					 &button->debounce_interval))
+					&button->debounce_interval))
 			button->debounce_interval = 5;
 	}
 
@@ -825,6 +877,10 @@ static int gpio_keys_suspend(void)
 		}
 	}
 
+	suspend_state = true;
+	irq_in_suspend = false;
+	wakeup_reason = 0;
+
 	if (device_may_wakeup(global_dev)) {
 		for (i = 0; i < ddata->pdata->nbuttons; i++) {
 			struct gpio_button_data *bdata = &ddata->data[i];
@@ -856,6 +912,8 @@ static void gpio_keys_resume(void)
 			return;
 		}
 	}
+
+	suspend_state = false;
 
 	if (device_may_wakeup(global_dev)) {
 		for (i = 0; i < ddata->pdata->nbuttons; i++) {
@@ -927,6 +985,9 @@ static int gpio_keys_probe(struct platform_device *pdev)
 	input->id.vendor = 0x0001;
 	input->id.product = 0x0001;
 	input->id.version = 0x0100;
+	wakeup_reason = 0;
+	suspend_state = false;
+	irq_in_suspend = false;
 
 	/* Enable auto repeat feature of Linux input subsystem */
 	if (pdata->rep)
@@ -980,6 +1041,14 @@ static int gpio_keys_probe(struct platform_device *pdev)
 	if (IS_ERR(sec_key))
 		pr_err("Failed to create device(sec_key)!\n");
 
+#ifdef CONFIG_USE_VM_KEYBOARD_REJECT
+	reject_keyboard_specific_key = false;
+	error = device_create_file(sec_key, &dev_attr_reject_key_comb);
+	if (error < 0) {
+		pr_err("Failed to create device file(%s), error: %d\n",
+				dev_attr_reject_key_comb.attr.name, error);
+	}
+#endif
 	error = device_create_file(sec_key, &dev_attr_sec_key_pressed);
 	if (error) {
 		pr_err("Failed to create device file in sysfs entries(%s)!\n",

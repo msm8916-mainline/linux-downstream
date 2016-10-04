@@ -42,11 +42,6 @@
 #include <asm/tlbflush.h>
 #include "internal.h"
 
-#ifdef CONFIG_ADAPTIVE_KSM
-#include <asm/checksum.h>
-#include <linux/suspend.h>
-#endif
-
 #ifdef CONFIG_NUMA
 #define NUMA(x)		(x)
 #define DO_NUMA(x)	do { (x); } while (0)
@@ -56,53 +51,61 @@
 #endif
 
 #ifdef CONFIG_ADAPTIVE_KSM
-#undef __AKSM_DEBUG__
+#include <linux/pm_runtime.h>
+#include <linux/platform_device.h>
+#include <asm/checksum.h>
+#include <linux/suspend.h>
+#include <linux/fb.h>
 
 #define AKSM_FULL_SCAN_NONE		0
 #define AKSM_FULL_SCAN_START		1
-#define AKSM_FULL_SCAN_END			2
+#define AKSM_FULL_SCAN_END		2
 
 #define AKSM_MEM_NORMAL_ZONE		1
 #define AKSM_MEM_WARN_ZONE		2
 #define AKSM_MEM_CRITICAL_ZONE		3
 #define AKSM_MEM_BOOT_ZONE		4
 
-#define AKSM_PAGES_TO_SCAN			60
-#define AKSM_CHECK_MEM_INTERVAL 	10000
+#define AKSM_PAGES_TO_SCAN		80
+#define AKSM_CHECK_MEM_INTERVAL         8000
 
-#define AKSM_PAGES_TO_SCAN_BOOT		200
-#define AKSM_CHECK_MEM_INTERVAL_BOOT 	6000
+#define AKSM_PAGES_TO_SCAN_BOOT	        200
+#define AKSM_CHECK_MEM_INTERVAL_BOOT    6000
 
-#define AKSM_PAGES_TO_SCAN_WARN			20
-#define AKSM_CHECK_MEM_INTERVAL_WARN 	7000
+#define AKSM_PAGES_TO_SCAN_WARN	        50
+#define AKSM_CHECK_MEM_INTERVAL_WARN    4000
 
-#define AKSM_PAGES_TO_SCAN_CRITICAL		30
-#define AKSM_CHECK_MEM_INTERVAL_CRITICAL	5000
+#define AKSM_PAGES_TO_SCAN_CRITICAL     60
+#define AKSM_CHECK_MEM_INTERVAL_CRITICAL        2000
 
-#define AKSM_SLEEP_TIME_PER_SCAN_IDLE	500 // in case of only QCOM 1000
+#define AKSM_SLEEP_TIME_PER_SCAN_IDLE          500
 #define AKSM_SLEEP_TIME_PER_SCAN_NON_IDLE	1
+
+#define AKSM_FULL_SCAN_TRY_BOOT                 4
 
 #define print_aksm(x,a...)    if(AKSM_Klog_enabled) printk(x,##a);
 
-static unsigned int AKSM_mem_status=0;
-static unsigned int AKSM_full_scan_status=0;
+static unsigned int AKSM_Klog_enabled = 0;
+static unsigned int AKSM_mem_status = 0;
+static unsigned int AKSM_full_scan_staus = 0;
 static unsigned int AKSM_early_suspended = 0;
-static unsigned int AKSM_arm_stable_tree_onboot=1;
-static unsigned int AKSM_sleep_time_per_scan=1;
+static unsigned int AKSM_onBoot = 1;
+static unsigned int AKSM_sleep_time_per_scan = 1;
 
-#ifdef __AKSM_DEBUG__
-static char AKSM_Klog_enabled=1;
-#else
-static char AKSM_Klog_enabled=0;
+static unsigned int aksm_minfree_warn = 30720;	//default value 
+static unsigned int aksm_minfree_critical = 10240;	//default value
+
+#ifdef AKSM_DEBUG
+static unsigned int aksm_scan_num;
+static unsigned int aksm_scan_skip_num;
 #endif
 
-static unsigned int aksm_minfree_warn = 30720; //120MB
-static unsigned int aksm_minfree_critical = 10240; //40MB
-
-unsigned int  check_mem_status(void);
+unsigned int check_mem_status(void);
 extern int get_minfree_high_value(void);
 void set_AKSM_level(void);
-#endif  // CONFIG_ADAPTIVE_KSM
+extern int page_memcmp(const void *, const void *, __kernel_size_t);
+extern u64 calc_pagesum(const void *);
+#endif // CONFIG_ADAPTIVE_KSM
 
 /*
  * A few notes about the KSM scanning process,
@@ -199,9 +202,6 @@ struct stable_node {
 #ifdef CONFIG_NUMA
 	int nid;
 #endif
-#ifdef __AKSM_DEBUG__
-	unsigned int num_linked;
-#endif
 };
 
 /**
@@ -226,7 +226,11 @@ struct rmap_item {
 	};
 	struct mm_struct *mm;
 	unsigned long address;		/* + low bits used for flags below */
+#if defined(CONFIG_ADAPTIVE_KSM) && defined(CONFIG_ARM64)
+	unsigned long oldchecksum;	/* when unstable */
+#else
 	unsigned int oldchecksum;	/* when unstable */
+#endif
 	union {
 		struct rb_node node;	/* when node of unstable tree */
 		struct {		/* when listed from stable tree */
@@ -297,11 +301,9 @@ static int ksm_nr_node_ids = 1;
 #define KSM_RUN_MERGE	1
 #define KSM_RUN_UNMERGE	2
 #define KSM_RUN_OFFLINE	4
-#ifndef CONFIG_ADAPTIVE_KSM
+
 static unsigned long ksm_run = KSM_RUN_STOP;
-#else
-static unsigned long ksm_run = KSM_RUN_MERGE;
-#endif
+
 static void wait_while_offlining(void);
 
 static DECLARE_WAIT_QUEUE_HEAD(ksm_thread_wait);
@@ -577,14 +579,7 @@ static void remove_node_from_stable_tree(struct stable_node *stable_node)
 
 	hlist_for_each_entry(rmap_item, &stable_node->hlist, hlist) {
 		if (rmap_item->hlist.next)
-#ifdef __AKSM_DEBUG__
-		{
 			ksm_pages_sharing--;
-			stable_node->num_linked --;
-		}
-#else
-			ksm_pages_sharing--;
-#endif
 		else
 			ksm_pages_shared--;
 		put_anon_vma(rmap_item->anon_vma);
@@ -712,14 +707,7 @@ static void remove_rmap_item_from_tree(struct rmap_item *rmap_item)
 		put_page(page);
 
 		if (stable_node->hlist.first)
-#ifdef __AKSM_DEBUG__
-		{
 			ksm_pages_sharing--;
-			stable_node->num_linked --;
-		}
-#else
-			ksm_pages_sharing--;
-#endif
 		else
 			ksm_pages_shared--;
 
@@ -918,21 +906,24 @@ error:
 }
 #endif /* CONFIG_SYSFS */
 
+#if defined(CONFIG_ADAPTIVE_KSM) && defined(CONFIG_ARM64)
+static u64 calc_checksum(struct page *page)
+{
+	u64 checksum;
+	void *addr = kmap_atomic(page);
+	checksum = calc_pagesum(addr);
+	kunmap_atomic(addr);
+	return checksum;
+}
+#else
 static u32 calc_checksum(struct page *page)
 {
 	u32 checksum;
 	void *addr = kmap_atomic(page);
-#ifdef CONFIG_ADAPTIVE_KSM
-	checksum = csum_partial(addr, PAGE_SIZE / 4, 17);
-#else
 	checksum = jhash2(addr, PAGE_SIZE / 4, 17);
-#endif
 	kunmap_atomic(addr);
 	return checksum;
 }
-
-#ifdef CONFIG_ADAPTIVE_KSM
-extern int page_memcmp(const void *,const void *,__kernel_size_t);
 #endif
 
 static int memcmp_pages(struct page *page1, struct page *page2)
@@ -1407,9 +1398,6 @@ static struct stable_node *stable_tree_insert(struct page *kpage)
 	rb_link_node(&stable_node->node, parent, new);
 	rb_insert_color(&stable_node->node, root);
 
-#ifdef __AKSM_DEBUG__
-	stable_node->num_linked=0;
-#endif
 	return stable_node;
 }
 
@@ -1448,18 +1436,18 @@ struct rmap_item *unstable_tree_search_insert(struct rmap_item *rmap_item,
 
 		cond_resched();
 		tree_rmap_item = rb_entry(*new, struct rmap_item, node);
-
 #ifdef CONFIG_ADAPTIVE_KSM
 		parent = *new;
-		if((rmap_item -> address & PAGE_MASK) < (tree_rmap_item -> address & PAGE_MASK)){
+		if ((rmap_item->address & PAGE_MASK) <
+		    (tree_rmap_item->address & PAGE_MASK)) {
 			new = &parent->rb_left;
 			continue;
-		} else if ((rmap_item -> address & PAGE_MASK) > (tree_rmap_item -> address & PAGE_MASK)){
+		} else if ((rmap_item->address & PAGE_MASK) >
+			   (tree_rmap_item->address & PAGE_MASK)) {
 			new = &parent->rb_right;
 			continue;
 		}
 #endif
-
 		tree_page = get_mergeable_page(tree_rmap_item);
 		if (IS_ERR_OR_NULL(tree_page))
 			return NULL;
@@ -1519,14 +1507,7 @@ static void stable_tree_append(struct rmap_item *rmap_item,
 	hlist_add_head(&rmap_item->hlist, &stable_node->hlist);
 
 	if (rmap_item->hlist.next)
-#ifdef __AKSM_DEBUG__
-	{
 		ksm_pages_sharing++;
-		stable_node->num_linked++;
-	}
-#else
-		ksm_pages_sharing++;
-#endif
 	else
 		ksm_pages_shared++;
 }
@@ -1546,7 +1527,11 @@ static void cmp_and_merge_page(struct page *page, struct rmap_item *rmap_item)
 	struct page *tree_page = NULL;
 	struct stable_node *stable_node;
 	struct page *kpage;
+#if defined(CONFIG_ADAPTIVE_KSM) && defined(CONFIG_ARM64)
+	unsigned long checksum;
+#else
 	unsigned int checksum;
+#endif
 	int err;
 
 	stable_node = page_stable_node(page);
@@ -1811,153 +1796,161 @@ next_mm:
 		goto next_mm;
 
 	ksm_scan.seqnr++;
-
 #ifdef CONFIG_ADAPTIVE_KSM
-	if(ksm_scan.seqnr == 6) {
-		AKSM_arm_stable_tree_onboot=0;
+	if ((AKSM_onBoot) && (ksm_scan.seqnr == AKSM_FULL_SCAN_TRY_BOOT)) {
+		AKSM_onBoot = 0;
 		set_AKSM_level();
 	}
-	AKSM_full_scan_status=AKSM_FULL_SCAN_END;
+	AKSM_full_scan_staus = AKSM_FULL_SCAN_END;
 #endif
-
 	return NULL;
 }
 
 #ifdef CONFIG_ADAPTIVE_KSM
-static int AKSM_suspend_notifier(struct notifier_block *nb, unsigned long event, void * dummy)
+#ifdef CONFIG_AKSM_PLATFORM_DEVICE
+static int  AKSM_suspend(struct device *dev)
 {
+        if(AKSM_early_suspended)
+                return 0;
+	AKSM_early_suspended=1;
+	printk("AKSM_early_suspended in\n");
+        return 0;
+}
 
-	if(event == PM_SUSPEND_PREPARE) {
+static int AKSM_resume(struct device *dev)
+{
+        if(!AKSM_early_suspended)
+                return 0;
+	AKSM_early_suspended=0;
+	printk("AKSM_early_suspended out\n");
+        return 0;
+}
+
+const struct dev_pm_ops aksm_pm_ops = {
+        .suspend = AKSM_suspend,
+        .resume = AKSM_resume,
+        .runtime_suspend = AKSM_suspend,
+        .runtime_resume = AKSM_resume,
+};
+
+static struct platform_driver aksm_drvier = {
+        .driver         = {
+                .name   = "aksm",
+                .owner  = THIS_MODULE,
+                .pm     = &aksm_pm_ops,
+        },
+};
+static struct platform_device aksm_device = {
+        .name   = "aksm",
+        .id     = -1,
+};
+#elif defined CONFIG_AKSM_PM_NOTIFY
+static int aksm_pm_notify(struct notifier_block *nb,
+				unsigned long event,
+				void *data)
+{
+	printk("aksm_pm_notify : %lu \n",event);
+	if(event == PM_SUSPEND_PREPARE)
+	{
 		AKSM_early_suspended=1;
-		printk("AKSM enter suspend \n");
+		printk("AKSM_early_suspended in\n");
 	}
-	else {
+	else if(event == PM_POST_SUSPEND)
+	{
 		AKSM_early_suspended=0;
-		printk("AKSM exit suspend \n");
+		printk("AKSM_early_suspended out\n");
 	}
 	return 0;
 }
 
-static struct notifier_block AKSM_suspend_notif_block = {
-	.notifier_call = AKSM_suspend_notifier,
+static struct notifier_block aksm_pm_notifier = {
+	.notifier_call = aksm_pm_notify,
 };
-
-/*
-void AKSM_suspend(void)
+#elif defined CONFIG_AKSM_FB_NOTIFY
+static int aksm_fb_notify(struct notifier_block *nb,
+				unsigned long event,
+				void *data)
 {
-	AKSM_early_suspended=1;
-	printk("AKSM_early_suspended in\n");
-}
-EXPORT_SYMBOL(AKSM_suspend);
+	if(ksm_run == KSM_RUN_STOP)
+		return 0;
 
-void AKSM_resume(void)
-{
-	AKSM_early_suspended=0;
-	printk("AKSM_early_suspended out\n");
-}
-EXPORT_SYMBOL(AKSM_resume);
-*/
-
-#ifdef __AKSM_DEBUG__
-static inline void  print_pages(struct stable_node *node)
-{
-	int count;
-	struct page *page;
-	unsigned int *data;
-	page=get_ksm_page(node,false);
-	data = (int *)kmap_atomic(page);
-	for(count=0;count<1024;count=count+4)
-		print_aksm("KSM###[%.3d] %.8x %.8x %.8x %.8x\n", count, *(data+count), *(data+count+1),*(data+count+2),*(data+count+3) );
-	kunmap_atomic(data);
-	return;
-}
-
-static void AKSM_show_stable_pages(void)
-{
-	struct stable_node *stable_node;
-	struct rb_node *node;
-	int nid;
-
-	print_aksm("ksm### show hot nodes\n");
-	for (nid = 0; nid < ksm_nr_node_ids; nid++) {
-		node = rb_first(root_stable_tree + nid);
-		while (node) {
-			stable_node = rb_entry(node, struct stable_node, node);
-			print_aksm("ksm### stable node %p linked %d pages\n",stable_node, stable_node->num_linked);
-			if(stable_node->num_linked > 256)
-				print_pages(stable_node);
-			node = rb_next(node);
-			cond_resched();
-		}
+	if(event == FB_EARLY_EVENT_BLANK)
+	{
+		if(AKSM_early_suspended)
+			AKSM_early_suspended=0;
+		else
+			AKSM_early_suspended=1;
+		printk("AKSM_early_suspended %d\n", AKSM_early_suspended);
 	}
 
+	return 0;
 }
-#else
-static void AKSM_show_stable_pages(void) {}
+
+static struct notifier_block aksm_fb_notifier = {
+	.notifier_call = aksm_fb_notify,
+};
+
 #endif
 
 void set_AKSM_level(void)
 {
-	aksm_minfree_critical = get_minfree_high_value() + global_page_state(NR_SHMEM) + total_swapcache_pages();
+	aksm_minfree_critical =
+	    get_minfree_high_value() + global_page_state(NR_SHMEM) +
+	    total_swapcache_pages();
 	aksm_minfree_warn = aksm_minfree_critical * 2;
 }
 
-unsigned int  check_mem_status(void)
+unsigned int check_mem_status(void)
 {
 
-	unsigned int available_mem = global_page_state(NR_FREE_PAGES)  - totalreserve_pages
-								+ global_page_state(NR_FILE_PAGES)
-								- global_page_state(NR_SHMEM)
-								- total_swapcache_pages();   /* pages */
+	unsigned int available_mem =
+	    global_page_state(NR_FREE_PAGES) - totalreserve_pages +
+	    global_page_state(NR_FILE_PAGES)
+	    - global_page_state(NR_SHMEM)
+	    - total_swapcache_pages();	/* pages */
 
-
-	if(AKSM_arm_stable_tree_onboot)
-	{
-			set_user_nice(current, 5);
-			ksm_thread_pages_to_scan = AKSM_PAGES_TO_SCAN_BOOT;
-			ksm_thread_sleep_millisecs = AKSM_CHECK_MEM_INTERVAL_BOOT;
-			AKSM_mem_status = AKSM_MEM_BOOT_ZONE;
-			AKSM_sleep_time_per_scan = AKSM_SLEEP_TIME_PER_SCAN_NON_IDLE;
-	}
-	else 
-	{
-		if (available_mem   < aksm_minfree_critical)
-		{
+	if (AKSM_onBoot) {
+		set_user_nice(current, 5);
+		ksm_thread_pages_to_scan = AKSM_PAGES_TO_SCAN_BOOT;
+		ksm_thread_sleep_millisecs = AKSM_CHECK_MEM_INTERVAL_BOOT;
+		AKSM_mem_status = AKSM_MEM_BOOT_ZONE;
+		AKSM_sleep_time_per_scan = AKSM_SLEEP_TIME_PER_SCAN_NON_IDLE;
+	} else {
+		if (available_mem < aksm_minfree_critical) {
 			set_user_nice(current, 13);
 			ksm_thread_pages_to_scan = AKSM_PAGES_TO_SCAN_CRITICAL;
-			ksm_thread_sleep_millisecs = AKSM_CHECK_MEM_INTERVAL_CRITICAL;
+			ksm_thread_sleep_millisecs =
+			    AKSM_CHECK_MEM_INTERVAL_CRITICAL;
 			AKSM_mem_status = AKSM_MEM_CRITICAL_ZONE;
-			AKSM_sleep_time_per_scan = AKSM_SLEEP_TIME_PER_SCAN_NON_IDLE;
-		}
-		else if (available_mem  < aksm_minfree_warn)
-		{
+			AKSM_sleep_time_per_scan =
+			    AKSM_SLEEP_TIME_PER_SCAN_NON_IDLE;
+		} else if (available_mem < aksm_minfree_warn) {
 			set_user_nice(current, 7);
 			ksm_thread_pages_to_scan = AKSM_PAGES_TO_SCAN_WARN;
-			ksm_thread_sleep_millisecs = AKSM_CHECK_MEM_INTERVAL_WARN;
+			ksm_thread_sleep_millisecs =
+			    AKSM_CHECK_MEM_INTERVAL_WARN;
 			AKSM_mem_status = AKSM_MEM_WARN_ZONE;
-			AKSM_sleep_time_per_scan = AKSM_SLEEP_TIME_PER_SCAN_NON_IDLE;
-		}
-		else
-		{
+			AKSM_sleep_time_per_scan =
+			    AKSM_SLEEP_TIME_PER_SCAN_NON_IDLE;
+		} else {
 			set_user_nice(current, 19);
 			ksm_thread_pages_to_scan = AKSM_PAGES_TO_SCAN;
 			ksm_thread_sleep_millisecs = AKSM_CHECK_MEM_INTERVAL;
 			AKSM_mem_status = AKSM_MEM_NORMAL_ZONE;
-			AKSM_sleep_time_per_scan = AKSM_SLEEP_TIME_PER_SCAN_IDLE;
+			AKSM_sleep_time_per_scan =
+			    AKSM_SLEEP_TIME_PER_SCAN_IDLE;
 		}
 	}
 
-	if(AKSM_full_scan_status == AKSM_FULL_SCAN_NONE)
-		print_aksm("available_mem : %d, AKSM_mem_status : %d\n",available_mem,AKSM_mem_status);
+	if (AKSM_full_scan_staus == AKSM_FULL_SCAN_NONE)
+		print_aksm("available_mem : %d, AKSM_mem_status : %d\n",
+			   available_mem, AKSM_mem_status);
 
 	return AKSM_mem_status;
 
 }
 
 #endif
-
-
-
 /**
  * ksm_do_scan  - the ksm scanner main worker function.
  * @scan_npages - number of pages we want to scan before we return.
@@ -2012,6 +2005,7 @@ out:
 	return timeout < 0 ? 0 : timeout;
 }
 
+
 static int ksmd_should_run(void)
 {
 	return (ksm_run & KSM_RUN_MERGE) && !list_empty(&ksm_mm_head.mm_list);
@@ -2020,47 +2014,49 @@ static int ksmd_should_run(void)
 static int ksm_scan_thread(void *nothing)
 {
 	set_freezable();
-#ifdef CONFIG_ADAPTIVE_KSM
-	set_user_nice(current, 19);
-#else
 	set_user_nice(current, 5);
-#endif
 
 	while (!kthread_should_stop()) {
 #ifdef CONFIG_ADAPTIVE_KSM
-		if(check_mem_status())
-			if ((ksmd_should_run())&&(!AKSM_early_suspended))
-			{
-				print_aksm("Full Scan Started, AKSM_mem_status : %d\n",AKSM_mem_status);
-				AKSM_full_scan_status=AKSM_FULL_SCAN_START;
+		if (check_mem_status())
+			if ((ksmd_should_run()) && (!AKSM_early_suspended)) {
+				print_aksm
+				    ("Full Scan Started, AKSM_mem_status : %d\n",
+				     AKSM_mem_status);
+				AKSM_full_scan_staus = AKSM_FULL_SCAN_START;
 			}
 
-		while(AKSM_full_scan_status)
-		{
+		while (AKSM_full_scan_staus) {
 			mutex_lock(&ksm_thread_mutex);
 			wait_while_offlining();
 			ksm_do_scan(ksm_thread_pages_to_scan);
 			mutex_unlock(&ksm_thread_mutex);
 			check_mem_status();
 
-			if((AKSM_early_suspended) || (AKSM_full_scan_status==AKSM_FULL_SCAN_END))
-			{
-				print_aksm("Full Scan Ended,AKSM_early_suspended : %d, AKSM_full_scan_status : %d, AKSM_mem_status : %d\n",AKSM_early_suspended,AKSM_full_scan_status,AKSM_mem_status);
-				AKSM_show_stable_pages();
-				AKSM_full_scan_status=AKSM_FULL_SCAN_NONE;
+			if ((AKSM_early_suspended)
+			    || (AKSM_full_scan_staus == AKSM_FULL_SCAN_END)) {
+				print_aksm
+				    ("Full Scan Ended or AKSM_early_suspended : %d, AKSM_full_scan_staus : %d, AKSM_mem_status : %d\n",
+				     AKSM_early_suspended, AKSM_full_scan_staus,
+				     AKSM_mem_status);
+				AKSM_full_scan_staus = AKSM_FULL_SCAN_NONE;
 				break;
 			}
-			schedule_timeout_interruptible(msecs_to_jiffies(AKSM_sleep_time_per_scan));
+			// try_to_freeze();
+			schedule_timeout_interruptible(msecs_to_jiffies
+						       (AKSM_sleep_time_per_scan));
 		}
 
-		print_aksm("ksm_pages_shared : %ld, ksm_pages_sharing : %ld, ksm_pages_unshared : %ld\n",ksm_pages_shared,ksm_pages_sharing,ksm_pages_unshared);
+		print_aksm
+		    ("ksm_pages_shared : %ld, ksm_pages_sharing : %ld, ksm_pages_unshared : %ld\n",
+		     ksm_pages_shared, ksm_pages_sharing, ksm_pages_unshared);
 		try_to_freeze();
 		if (use_deferred_timer)
 			deferred_schedule_timeout(
 			msecs_to_jiffies(ksm_thread_sleep_millisecs));
 		else
-		schedule_timeout_interruptible(
-				msecs_to_jiffies(ksm_thread_sleep_millisecs));
+			schedule_timeout_interruptible(
+			msecs_to_jiffies(ksm_thread_sleep_millisecs));
 
 #else //CONFIG_ADAPTIVE_KSM
 		mutex_lock(&ksm_thread_mutex);
@@ -2072,7 +2068,11 @@ static int ksm_scan_thread(void *nothing)
 		try_to_freeze();
 
 		if (ksmd_should_run()) {
-			schedule_timeout_interruptible(
+			if (use_deferred_timer)
+				deferred_schedule_timeout(
+				msecs_to_jiffies(ksm_thread_sleep_millisecs));
+			else
+				schedule_timeout_interruptible(
 				msecs_to_jiffies(ksm_thread_sleep_millisecs));
 		} else {
 			wait_event_freezable(ksm_thread_wait,
@@ -2293,7 +2293,8 @@ out:
 	return referenced;
 }
 
-int try_to_unmap_ksm(struct page *page, enum ttu_flags flags)
+int try_to_unmap_ksm(struct page *page, enum ttu_flags flags,
+			struct vm_area_struct *target_vma)
 {
 	struct stable_node *stable_node;
 	struct rmap_item *rmap_item;
@@ -2306,6 +2307,12 @@ int try_to_unmap_ksm(struct page *page, enum ttu_flags flags)
 	stable_node = page_stable_node(page);
 	if (!stable_node)
 		return SWAP_FAIL;
+
+	if (target_vma) {
+		unsigned long address = vma_address(page, target_vma);
+		ret = try_to_unmap_one(page, target_vma, address, flags);
+		goto out;
+	}
 again:
 	hlist_for_each_entry(rmap_item, &stable_node->hlist, hlist) {
 		struct anon_vma *anon_vma = rmap_item->anon_vma;
@@ -2749,11 +2756,10 @@ static ssize_t full_scans_show(struct kobject *kobj,
 }
 KSM_ATTR_RO(full_scans);
 
-
 #ifdef CONFIG_ADAPTIVE_KSM
 static ssize_t aksm_minfree_critical_store(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   const char *buf, size_t count)
+					   struct kobj_attribute *attr,
+					   const char *buf, size_t count)
 {
 	int err;
 	unsigned long aksm_minfree;
@@ -2766,17 +2772,20 @@ static ssize_t aksm_minfree_critical_store(struct kobject *kobj,
 
 	return count;
 }
+
 static ssize_t aksm_minfree_critical_show(struct kobject *kobj,
-			       struct kobj_attribute *attr, char *buf)
+					  struct kobj_attribute *attr,
+					  char *buf)
 {
 
-		return sprintf(buf, "%u\n", aksm_minfree_critical);
-		}
+	return sprintf(buf, "%u\n", aksm_minfree_critical);
+}
+
 KSM_ATTR(aksm_minfree_critical);
 
 static ssize_t aksm_minfree_warn_store(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   const char *buf, size_t count)
+				       struct kobj_attribute *attr,
+				       const char *buf, size_t count)
 {
 	int err;
 	unsigned long aksm_minfree;
@@ -2788,18 +2797,20 @@ static ssize_t aksm_minfree_warn_store(struct kobject *kobj,
 	aksm_minfree_warn = aksm_minfree;
 
 	return count;
-	}
+}
+
 static ssize_t aksm_minfree_warn_show(struct kobject *kobj,
-			       struct kobj_attribute *attr, char *buf)
+				      struct kobj_attribute *attr, char *buf)
 {
 
-		return sprintf(buf, "%u\n", aksm_minfree_warn);
+	return sprintf(buf, "%u\n", aksm_minfree_warn);
 }
+
 KSM_ATTR(aksm_minfree_warn);
 
 static ssize_t AKSM_Klog_enable_store(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   const char *buf, size_t count)
+				      struct kobj_attribute *attr,
+				      const char *buf, size_t count)
 {
 	int err;
 	unsigned long enableklog;
@@ -2812,16 +2823,16 @@ static ssize_t AKSM_Klog_enable_store(struct kobject *kobj,
 
 	return count;
 }
+
 static ssize_t AKSM_Klog_enable_show(struct kobject *kobj,
-			       struct kobj_attribute *attr, char *buf)
+				     struct kobj_attribute *attr, char *buf)
 {
 
-		return sprintf(buf, "AKSM_Klog_enabled : %d\n", AKSM_Klog_enabled);
+	return sprintf(buf, "AKSM_Klog_enabled : %d\n", AKSM_Klog_enabled);
 }
 
 KSM_ATTR(AKSM_Klog_enable);
 #endif
-
 static struct attribute *ksm_attrs[] = {
 	&sleep_millisecs_attr.attr,
 	&pages_to_scan_attr.attr,
@@ -2857,13 +2868,18 @@ static int __init ksm_init(void)
 	err = ksm_slab_init();
 	if (err)
 		goto out;
-
 #ifdef CONFIG_ADAPTIVE_KSM
 	ksm_thread_pages_to_scan = AKSM_PAGES_TO_SCAN;
 	ksm_thread_sleep_millisecs = AKSM_CHECK_MEM_INTERVAL;
-	err = register_pm_notifier(&AKSM_suspend_notif_block);
-	if(err)
-		printk("AKSM register_pm_notifier failed \n"); 
+#ifdef CONFIG_AKSM_PLATFORM_DEVICE
+	platform_device_register(&aksm_device);
+	platform_driver_register(&aksm_drvier);
+	pm_runtime_enable(&aksm_device.dev);
+#elif defined CONFIG_AKSM_PM_NOTIFY
+	register_pm_notifier(&aksm_pm_notifier);
+#elif defined CONFIG_AKSM_FB_NOTIFY
+	fb_register_client(&aksm_fb_notifier);
+#endif
 #endif
 
 	ksm_thread = kthread_run(ksm_scan_thread, NULL, "ksmd");

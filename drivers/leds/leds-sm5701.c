@@ -35,7 +35,7 @@
 
 #define FLED_PINCTRL_STATE_DEFAULT "fled_default"
 #define FLED_PINCTRL_STATE_SLEEP "fled_sleep"
-bool assistive_light = false;
+
 enum sm5701_oper_mode {
         SUSPEND_MODE = 0,
         CHARGING_OFF_MODE,
@@ -444,12 +444,10 @@ static ssize_t sm5701_movie_store(struct device *dev,
                 goto out_strtoint;
 
         if (state == 0){
-                assistive_light = false;
                 sm5701_led_ready(LED_DISABLE);
                 sm5701_set_fleden(SM5701_FLEDEN_DISABLED);
 	}
         else if (state == 1) {
-                assistive_light = true;
                 sm5701_led_ready(MOVIE_MODE);
                 sm5701_set_fleden(SM5701_FLEDEN_ON_MOVIE);
 	}

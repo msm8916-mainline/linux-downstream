@@ -12,7 +12,7 @@ config TDMB
 
 	config TDMB_VENDOR_FCI
 	depends on TDMB
-		bool "FCI"
+	bool "FCI"
 
 choice
 	depends on TDMB && TDMB_VENDOR_FCI
@@ -26,7 +26,7 @@ endchoice
 
 config TDMB_VENDOR_INC
 	depends on TDMB
-		bool "I&C"
+	bool "I&C"
 
 choice
 	depends on TDMB && TDMB_VENDOR_INC
@@ -44,7 +44,7 @@ endchoice
 
 config TDMB_VENDOR_RAONTECH
 	depends on TDMB
-		bool "Raontech"
+	bool "Raontech"
 
 choice
 	depends on TDMB && TDMB_VENDOR_RAONTECH
@@ -58,7 +58,7 @@ endchoice
 
 config TDMB_VENDOR_TELECHIPS
 	depends on TDMB
-		bool "Telechips"
+	bool "Telechips"
 
 choice
 	depends on TDMB && TDMB_VENDOR_TELECHIPS
@@ -80,43 +80,35 @@ endchoice
 
 config TDMB_SPI
 	depends on TDMB
-		bool "SPI"
+	bool "SPI"
 
 config TDMB_EBI
 	depends on TDMB
-		bool "EBI"
+	bool "EBI"
 config TDMB_TSIF_SLSI
 	depends on TDMB
-		bool "SLSI TSIF"
+	bool "SLSI TSIF"
 config TDMB_TSIF_QC
 	depends on TDMB
-		bool "Qualcomm TSIF"
+	bool "Qualcomm TSIF"
 
 config TDMB_I2C
 	depends on TDMB
-		bool "I2C"
-
-config TDMB_SIMUL
-	depends on TDMB
-		bool "Simulation"
+	bool "I2C"
 
 config TDMB_XTAL_FREQ
-        depends on TDMB
-        bool "use xtal freq"
-        default 0
+	depends on TDMB
+	bool "use xtal freq"
+	default 0
 
 config TDMB_DEBUG
 	depends on TDMB
-		bool "tdmb debugfs"
+	bool "tdmb debugfs"
 
 config TDMB_ANT_DET
 	depends on TDMB
-		bool "tdmb antenna detector"
+	bool "tdmb antenna detector"
 
 config TDMB_VREG_SUPPORT
 	depends on TDMB
-		bool "tdmb use regulator vdd"
-
-config TDMB_FM_ANT_SEL
-	depends on TDMB
-		bool "TDMB and FM share ant"
+	bool "tdmb use regulator vdd"

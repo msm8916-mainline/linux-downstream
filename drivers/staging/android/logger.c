@@ -479,8 +479,9 @@ static ssize_t do_write_log_from_user(struct logger_log *log,
 			memcpy(klog_buf, log->buffer + log->w_off, 255);
 		klog_buf[255] = 0;
 #ifdef CONFIG_SEC_BSP
-		if (strncmp(klog_buf, "!@Boot", 6) == 0)
+		if (strncmp(klog_buf, "!@Boot",6) == 0) {
 			sec_boot_stat_add(klog_buf);
+		}
 #endif
 	}
 #endif
@@ -783,6 +784,7 @@ static const struct file_operations logger_fops = {
 #ifdef CONFIG_SEC_DEBUG
 /* Use the old way because the new logger gets log buffers by means of vmalloc().
     getlog tool considers that log buffers lie on physically contiguous memory area. */
+
 /*
  * Defines a log structure with name 'NAME' and a size of 'SIZE' bytes, which
  * must be a power of two, and greater than
@@ -878,7 +880,7 @@ static int __init create_log(char *log_name, int size)
 		goto out_free_buffer;
 	}
 
-	log->buffer = buffer;
+		log->buffer = buffer;
 
 	log->misc.minor = MISC_DYNAMIC_MINOR;
 	log->misc.name = kstrdup(log_name, GFP_KERNEL);

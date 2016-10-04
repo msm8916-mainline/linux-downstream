@@ -108,11 +108,7 @@ ssize_t sec_fg_store_attrs(struct device *dev,
 				const char *buf, size_t count);
 
 #ifdef CONFIG_OF
-#if defined(CONFIG_FUELGAUGE_MAX77823)
-void board_fuelgauge_init(struct max77823_fuelgauge_data *fuelgauge);
-#else
-extern void board_fuelgauge_init(struct sec_fuelgauge_info *fuelgauge);
-#endif
+extern void board_fuelgauge_init(void *fuelgauge);
 extern bool sec_bat_check_jig_status(void);
 #endif
 

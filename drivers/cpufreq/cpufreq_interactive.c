@@ -141,12 +141,13 @@ struct cpufreq_interactive_tunables {
 	 * frequency.
 	 */
 	unsigned int max_freq_hysteresis;
-#if defined(CONFIG_ARCH_MSM8929)
+
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 	unsigned int lpm_disable_freq;
 #endif
 };
 
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 extern int lpm_set_mode(u8 cpu_mask, u32 power_level, bool on);
 #endif
 
@@ -418,19 +419,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 	spin_lock_irqsave(&pcpu->load_lock, flags);
 	pcpu->last_evaluated_jiffy = get_jiffies_64();
 	now = update_load(data);
-#if defined(CONFIG_ARCH_MSM8929)
-	/*
-	* We will use way of original interactive governor calculation on the MSM8929 project
-	* Instead of using scheduler load.
-	*/
-	delta_time = (unsigned int)
-			(now - pcpu->cputime_speedadj_timestamp);
-	cputime_speedadj = pcpu->cputime_speedadj;
-	spin_unlock_irqrestore(&pcpu->load_lock, flags);
-	if (WARN_ON_ONCE(!delta_time))
-		goto rearm;
-	do_div(cputime_speedadj, delta_time);
-#else
 	if (tunables->use_sched_load) {
 		/*
 		 * Unlock early to avoid deadlock.
@@ -459,7 +447,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 			goto rearm;
 		do_div(cputime_speedadj, delta_time);
 	}
-#endif
 
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
 
@@ -472,6 +459,10 @@ static void cpufreq_interactive_timer(unsigned long data)
 	spin_lock_irqsave(&pcpu->target_freq_lock, flags);
 	cpu_load = loadadjfreq / pcpu->policy->cur;
 	boosted = tunables->boost_val || now < tunables->boostpulse_endtime;
+
+	//Limit cpu_load within 100
+	if(tunables->use_sched_load)
+		if(cpu_load > 100) cpu_load = 100;
 
 	if (cpu_load >= tunables->go_hispeed_load || boosted) {
 		if (pcpu->policy->cur < tunables->hispeed_freq) {
@@ -662,7 +653,7 @@ static int cpufreq_interactive_speedchange_task(void *data)
 	unsigned long flags;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 	struct cpufreq_interactive_tunables *tunables;
 	u8 cpu_mask=0x01;
 	//masking 0x00000001:WFI, 0x00000002:SPC, 0x00000003:WFI+SPC, 0x00000004:PC, 0x00000005:WFI+PC, 0x00000006:SPC+PC, 0x00000007:WFI+SPC+PC
@@ -713,8 +704,7 @@ static int cpufreq_interactive_speedchange_task(void *data)
 					hvt = min(hvt, pjcpu->local_hvtime);
 				}
 			}
-
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 			//Disable LPM Mode when cpu freq. rise up over than hispeed freq.
 			tunables = pcpu->policy->governor_data;
 			if (pcpu->target_freq >= tunables->lpm_disable_freq){
@@ -724,7 +714,6 @@ static int cpufreq_interactive_speedchange_task(void *data)
 				lpm_set_mode(cpu_mask << cpu, power_level_mask << cpu*4, 1);
 			}
 #endif
-
 			if (max_freq != pcpu->policy->cur) {
 				__cpufreq_driver_target(pcpu->policy,
 							max_freq,
@@ -1011,7 +1000,7 @@ static ssize_t store_hispeed_freq(struct cpufreq_interactive_tunables *tunables,
 	return count;
 }
 
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 static ssize_t show_lpm_disable_freq(struct cpufreq_interactive_tunables *tunables,
 		char *buf)
 {
@@ -1326,15 +1315,19 @@ static ssize_t store_use_sched_load(
 
 	if (tunables->use_sched_load == (bool) val)
 		return count;
+
+	tunables->use_sched_load = val;
+
 	if (val)
 		ret = cpufreq_interactive_enable_sched_input(tunables);
 	else
 		ret = cpufreq_interactive_disable_sched_input(tunables);
 
-	if (ret)
+	if (ret) {
+		tunables->use_sched_load = !val;
 		return ret;
+	}
 
-	tunables->use_sched_load = val;
 	return count;
 }
 
@@ -1433,7 +1426,7 @@ show_store_gov_pol_sys(use_sched_load);
 show_store_gov_pol_sys(use_migration_notif);
 show_store_gov_pol_sys(max_freq_hysteresis);
 show_store_gov_pol_sys(align_windows);
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 show_store_gov_pol_sys(lpm_disable_freq);
 #endif
 
@@ -1463,7 +1456,7 @@ gov_sys_pol_attr_rw(use_sched_load);
 gov_sys_pol_attr_rw(use_migration_notif);
 gov_sys_pol_attr_rw(max_freq_hysteresis);
 gov_sys_pol_attr_rw(align_windows);
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 gov_sys_pol_attr_rw(lpm_disable_freq);
 #endif
 
@@ -1490,7 +1483,7 @@ static struct attribute *interactive_attributes_gov_sys[] = {
 	&use_migration_notif_gov_sys.attr,
 	&max_freq_hysteresis_gov_sys.attr,
 	&align_windows_gov_sys.attr,
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 	&lpm_disable_freq_gov_sys.attr,
 #endif
 	NULL,
@@ -1518,7 +1511,7 @@ static struct attribute *interactive_attributes_gov_pol[] = {
 	&use_migration_notif_gov_pol.attr,
 	&max_freq_hysteresis_gov_pol.attr,
 	&align_windows_gov_pol.attr,
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 	&lpm_disable_freq_gov_pol.attr,
 #endif
 	NULL,
@@ -1625,7 +1618,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 	struct cpufreq_interactive_tunables *tunables;
 	unsigned long flags;
 	int first_cpu;
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 		//masking for little core
 		u8 cpu_mask=0xF0;
 		u32 power_level_mask=0x66660000;
@@ -1721,7 +1714,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		freq_table = cpufreq_frequency_get_table(policy->cpu);
 		if (!tunables->hispeed_freq)
 			tunables->hispeed_freq = policy->max;
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 		if (!tunables->lpm_disable_freq)
 			tunables->lpm_disable_freq = policy->max;
 #endif
@@ -1775,7 +1768,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		else if (policy->min > policy->cur) {
 			__cpufreq_driver_target(policy,
 					policy->min, CPUFREQ_RELATION_L);
-#if defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 			//Disable LPM Mode when scaling_min_freq set up over than hispeed freq.
 			if (policy->min >= tunables->lpm_disable_freq)
 				lpm_set_mode(cpu_mask, power_level_mask, 0);

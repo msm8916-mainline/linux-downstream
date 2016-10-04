@@ -76,6 +76,24 @@
 			qcom,mode = <THROTTLE_OFF>;
 			qcom,dest-node = <&mas_gfx>;
 		};
+
+		rule6 {
+			qcom,src-nodes = <&mas_vfe>;
+			qcom,src-field = <FLD_IB>;
+			qcom,src-op = <OP_GT>;
+			qcom,thresh = <100000>;
+			qcom,mode = <THROTTLE_OVERRIDE_OFF>;
+			qcom,dest-node = <&mas_apss>;
+		};
+
+		rule7 {
+			qcom,src-nodes = <&mas_vfe>;
+			qcom,src-field = <FLD_IB>;
+			qcom,src-op = <OP_GT>;
+			qcom,thresh = <100000>;
+			qcom,mode = <THROTTLE_OVERRIDE_OFF>;
+			qcom,dest-node = <&mas_gfx>;
+		};
 	};
 };
 

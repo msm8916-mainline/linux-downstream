@@ -33,6 +33,8 @@ typedef struct sm5703_fled_platform_data {
 #define SM5703_FLEDCNTL5			0x18
 #define SM5703_FLEDCNTL6			0x19
 
+#define SM5703_Q3LIMITCNTL			0x66
+
 #define SM5703_FLEDEN_MASK          0x03
 #define SM5703_FLEDEN_DISABLE       0x00
 #define SM5703_FLEDEN_MOVIE_MODE    0x01
@@ -46,7 +48,6 @@ typedef struct sm5703_fled_platform_data {
 extern int32_t sm5703_charger_notification(struct sm_fled_info *info, int32_t on);
 extern int32_t sm5703_boost_notification(struct sm_fled_info *info, int32_t on);
 extern int32_t sm5703_fled_notification(struct sm_fled_info *info);
-extern int32_t sm5703_powersharing_notification(struct sm_fled_info *info, int32_t on);
 
 extern void sm5703_fled_lock(struct sm_fled_info *fled_info);
 extern void sm5703_fled_unlock(struct sm_fled_info *fled_info);

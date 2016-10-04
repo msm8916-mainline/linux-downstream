@@ -259,10 +259,10 @@ static int __die(const char *str, int err, struct pt_regs *regs)
 	if (!user_mode(regs) || in_interrupt()) {
 #ifndef CONFIG_SEC_DEBUG
 		dump_mem(KERN_EMERG, "Stack: ", regs->ARM_sp,
-				THREAD_SIZE + (unsigned long)task_stack_page(tsk));
+			 THREAD_SIZE + (unsigned long)task_stack_page(tsk));
 #else
 		if (THREAD_SIZE + (unsigned long)task_stack_page(tsk) - regs->ARM_sp
-				> THREAD_SIZE) {
+			> THREAD_SIZE) {
 			dump_mem(KERN_EMERG, "Stack: ", regs->ARM_sp,
 					THREAD_SIZE/4 + regs->ARM_sp);
 		} else {
@@ -343,7 +343,7 @@ void die(const char *str, struct pt_regs *regs, int err)
 	if (bug_type != BUG_TRAP_TYPE_NONE)
 		str = "Oops - BUG";
 #ifdef CONFIG_SEC_DEBUG_SUBSYS
-		sec_debug_save_die_info(str, regs);
+	sec_debug_save_die_info(str, regs);
 #endif
 	if (__die(str, err, regs))
 		sig = 0;

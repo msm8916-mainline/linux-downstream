@@ -53,6 +53,7 @@ obj-$(CONFIG_REGULATOR_PCAP) += pcap-regulator.o
 obj-$(CONFIG_REGULATOR_PCF50633) += pcf50633-regulator.o
 obj-$(CONFIG_REGULATOR_RC5T583)  += rc5t583-regulator.o
 obj-$(CONFIG_REGULATOR_S2MPS11) += s2mps11.o
+obj-$(CONFIG_REGULATOR_S2MU003) += s2mu003-regulator.o
 obj-$(CONFIG_REGULATOR_S5M8767) += s5m8767.o
 obj-$(CONFIG_REGULATOR_TPS6105X) += tps6105x-regulator.o
 obj-$(CONFIG_REGULATOR_TPS62360) += tps62360-regulator.o
@@ -81,5 +82,6 @@ obj-$(CONFIG_REGULATOR_SPM) += spm-regulator.o
 obj-$(CONFIG_REGULATOR_CPR) += cpr-regulator.o
 obj-$(CONFIG_REGULATOR_RT5033) += rt5033_regulator.o
 obj-$(CONFIG_REGULATOR_SM5703) += sm5703_regulator.o
+obj-$(CONFIG_REGULATOR_SM5705) += sm5705-regulator.o
 
 ccflags-$(CONFIG_REGULATOR_DEBUG) += -DDEBUG

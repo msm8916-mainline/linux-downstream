@@ -73,6 +73,16 @@ static inline bool is_thumbnail_session(struct msm_vidc_inst *inst)
 	return !!(inst->flags & VIDC_THUMBNAIL);
 }
 
+static inline bool is_non_realtime_session(struct msm_vidc_inst *inst)
+{
+	int rc = 0;
+	struct v4l2_control ctrl = {
+		.id = V4L2_CID_MPEG_VIDC_VIDEO_PRIORITY
+	};
+	rc = v4l2_g_ctrl(&inst->ctrl_handler, &ctrl);
+	return (!rc && ctrl.value);
+}
+
 enum multi_stream msm_comm_get_stream_output_mode(struct msm_vidc_inst *inst)
 {
 	if (inst->session_type == MSM_VIDC_DECODER) {
@@ -90,11 +100,21 @@ enum multi_stream msm_comm_get_stream_output_mode(struct msm_vidc_inst *inst)
 static int msm_comm_get_mbs_per_sec(struct msm_vidc_inst *inst)
 {
 	int output_port_mbs, capture_port_mbs;
+	int fps, rc;
+	struct v4l2_control ctrl;
+
 	output_port_mbs = NUM_MBS_PER_FRAME(inst->prop.width[OUTPUT_PORT],
 		inst->prop.height[OUTPUT_PORT]);
 	capture_port_mbs = NUM_MBS_PER_FRAME(inst->prop.width[CAPTURE_PORT],
 		inst->prop.height[CAPTURE_PORT]);
-	return max(output_port_mbs, capture_port_mbs) * inst->prop.fps;
+
+	ctrl.id = V4L2_CID_MPEG_VIDC_VIDEO_OPERATING_RATE;
+	rc = v4l2_g_ctrl(&inst->ctrl_handler, &ctrl);
+	if (!rc && ctrl.value) {
+		fps = (ctrl.value >> 16)? ctrl.value >> 16: 1;
+		return max(output_port_mbs, capture_port_mbs) * fps;
+	} else
+		return max(output_port_mbs, capture_port_mbs) * inst->prop.fps;
 }
 
 static inline int msm_comm_get_mbs_per_frame(struct msm_vidc_inst *inst)
@@ -128,12 +148,14 @@ enum load_calc_quirks {
 	LOAD_CALC_NO_QUIRKS = 0,
 	LOAD_CALC_IGNORE_TURBO_LOAD = 1 << 0,
 	LOAD_CALC_IGNORE_THUMBNAIL_LOAD = 1 << 1,
+	LOAD_CALC_IGNORE_NON_REALTIME_LOAD = 1 << 2,
 };
 
 static int msm_comm_get_inst_load(struct msm_vidc_inst *inst,
 		enum load_calc_quirks quirks)
 {
 	int load = 0;
+
 	if (!(inst->state >= MSM_VIDC_OPEN_DONE &&
 			inst->state < MSM_VIDC_STOP_DONE))
 		return 0;
@@ -150,6 +172,14 @@ static int msm_comm_get_inst_load(struct msm_vidc_inst *inst,
 			load = inst->core->resources.max_load;
 	}
 
+	if (is_non_realtime_session(inst) &&
+		(quirks & LOAD_CALC_IGNORE_NON_REALTIME_LOAD)) {
+		if (!inst->prop.fps) {
+			dprintk(VIDC_INFO, "%s: instance:%p prop->fps is set 0\n", __func__, inst);
+			load = 0;
+		} else
+			load = msm_comm_get_mbs_per_sec(inst) / inst->prop.fps;
+	}
 	return load;
 }
 
@@ -2148,6 +2178,8 @@ static int msm_comm_session_abort(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 	hdev = inst->core->device;
+	abort_completion = SESSION_MSG_INDEX(SESSION_ABORT_DONE);
+	init_completion(&inst->completions[abort_completion]);
 
 	rc = call_hfi_op(hdev, session_abort, (void *)inst->session);
 	if (rc) {
@@ -2155,8 +2187,6 @@ static int msm_comm_session_abort(struct msm_vidc_inst *inst)
 			"%s session_abort failed rc: %d\n", __func__, rc);
 		return rc;
 	}
-	abort_completion = SESSION_MSG_INDEX(SESSION_ABORT_DONE);
-	init_completion(&inst->completions[abort_completion]);
 	rc = wait_for_completion_timeout(
 			&inst->completions[abort_completion],
 			msecs_to_jiffies(msm_vidc_hw_rsp_timeout));
@@ -2191,6 +2221,8 @@ static void handle_thermal_event(struct msm_vidc_core *core)
 			inst->state < MSM_VIDC_CLOSE_DONE) {
 			dprintk(VIDC_WARN, "%s: abort inst %p\n",
 				__func__, inst);
+
+			change_inst_state(inst, MSM_VIDC_CORE_INVALID);
 			rc = msm_comm_session_abort(inst);
 			if (rc) {
 				dprintk(VIDC_ERR,
@@ -2198,7 +2230,6 @@ static void handle_thermal_event(struct msm_vidc_core *core)
 					__func__, rc);
 				goto err_sess_abort;
 			}
-			change_inst_state(inst, MSM_VIDC_CORE_INVALID);
 			dprintk(VIDC_WARN,
 				"%s Send sys error for inst %p\n",
 				__func__, inst);
@@ -2509,7 +2540,8 @@ static int msm_vidc_load_resources(int flipped_state,
 	int num_mbs_per_sec = 0;
 	struct msm_vidc_core *core;
 	enum load_calc_quirks quirks = LOAD_CALC_IGNORE_TURBO_LOAD |
-		LOAD_CALC_IGNORE_THUMBNAIL_LOAD;
+		LOAD_CALC_IGNORE_THUMBNAIL_LOAD |
+		LOAD_CALC_IGNORE_NON_REALTIME_LOAD;
 
 	if (!inst || !inst->core || !inst->core->device) {
 		dprintk(VIDC_ERR, "%s invalid parameters\n", __func__);
@@ -2542,6 +2574,12 @@ static int msm_vidc_load_resources(int flipped_state,
 		msm_comm_kill_session(inst);
 		return -EBUSY;
 #endif
+	}
+
+	if (!is_thermal_permissible(core)) {
+		dprintk(VIDC_WARN,
+			"Thermal level critical, stop the session!\n");
+		return -ENOTSUPP;
 	}
 
 	hdev = core->device;
@@ -3517,7 +3555,6 @@ int msm_comm_try_get_prop(struct msm_vidc_inst *inst, enum hal_property ptype,
 		return -EAGAIN;
 	}
 	hdev = inst->core->device;
-	mutex_lock(&inst->sync_lock);
 	if (inst->state < MSM_VIDC_OPEN_DONE || inst->state >= MSM_VIDC_CLOSE) {
 		dprintk(VIDC_ERR,
 			"%s Not in proper state\n", __func__);
@@ -3580,7 +3617,6 @@ int msm_comm_try_get_prop(struct msm_vidc_inst *inst, enum hal_property ptype,
 	}
 	mutex_unlock(&inst->pending_getpropq.lock);
 exit:
-	mutex_unlock(&inst->sync_lock);
 	return rc;
 }
 
@@ -3857,7 +3893,6 @@ int msm_comm_try_set_prop(struct msm_vidc_inst *inst,
 	}
 	hdev = inst->core->device;
 
-	mutex_lock(&inst->sync_lock);
 	if (inst->state < MSM_VIDC_OPEN_DONE || inst->state >= MSM_VIDC_CLOSE) {
 		dprintk(VIDC_ERR, "Not in proper state to set property\n");
 		rc = -EAGAIN;
@@ -3868,7 +3903,6 @@ int msm_comm_try_set_prop(struct msm_vidc_inst *inst,
 	if (rc)
 		dprintk(VIDC_ERR, "Failed to set hal property for framesize\n");
 exit:
-	mutex_unlock(&inst->sync_lock);
 	return rc;
 }
 
@@ -4331,7 +4365,8 @@ static int msm_vidc_load_supported(struct msm_vidc_inst *inst)
 {
 	int num_mbs_per_sec = 0;
 	enum load_calc_quirks quirks = LOAD_CALC_IGNORE_TURBO_LOAD |
-		LOAD_CALC_IGNORE_THUMBNAIL_LOAD;
+		LOAD_CALC_IGNORE_THUMBNAIL_LOAD |
+		LOAD_CALC_IGNORE_NON_REALTIME_LOAD;
 
 	if (inst->state == MSM_VIDC_OPEN_DONE) {
 		num_mbs_per_sec = msm_comm_get_load(inst->core,
@@ -4521,12 +4556,6 @@ int msm_vidc_check_session_supported(struct msm_vidc_inst *inst)
 		dprintk(VIDC_WARN,
 			"%s: Hardware is overloaded\n", __func__);
 		return rc;
-	}
-
-	if (!is_thermal_permissible(core)) {
-		dprintk(VIDC_WARN,
-			"Thermal level critical, stop all active sessions!\n");
-		return -ENOTSUPP;
 	}
 
 	if (!rc && inst->capability.capability_set) {

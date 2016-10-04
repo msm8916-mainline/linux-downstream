@@ -158,13 +158,10 @@
 		/*qcom,suspend-ulps-enabled */
 		/*qcom,panel-roi-alignment */
 		/*qcom,esd-check-enabled */
-		qcom,esd_irq_gpio = <&msm_gpio 56 0>;
-		qcom,esd-check-enabled;
 		/*qcom,mdss-dsi-panel-status-command */
 		/*qcom,mdss-dsi-panel-status-command-mode */
-		qcom,mdss-dsi-panel-status-check-mode="reg_read_irq";
-		qcom,mdss-dsi-panel-status-value = <1>;
-		qcom,mdss-dsi-panel-status-irq-trigger="falling";
+		/*qcom,mdss-dsi-panel-status-check-mode */
+		/*qcom,mdss-dsi-panel-status-value */
 		/*qcom,dynamic-mode-switch-enabled */
 		/*qcom,video-to-cmd-mode-switch-commands */
 		/*qcom,cmd-to-video-mode-switch-commands */

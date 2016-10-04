@@ -15,7 +15,6 @@
 extern int poweroff_charging;
 #endif
 #define TC300K_DEVICE	"sec_touchkey" //"tc300k"
-
 extern struct class *sec_class;
 extern int touch_is_pressed;
 extern int system_rev;
@@ -29,8 +28,8 @@ struct tc300k_platform_data {
 	u32 sda_gpio_flags;
 	u32 scl_gpio_flags;
 	u32 vcc_gpio_flags;
-	u32 gpio_2p8_en;
-	u32 vcc_gpio2p8_flags;
+	u32 gpio_2p8_en;	
+	u32 vcc_gpio2p8_flags;	
 	int	udelay;
 	int	num_key;
 	int sensing_ch_num;
@@ -40,6 +39,5 @@ struct tc300k_platform_data {
 	bool firmup;
 	const char *vcc_en_ldo_name;
 	const char *vdd_led_ldo_name;
-	const char *fw_name;
 };
 #endif /* __LINUX_TC360_H */

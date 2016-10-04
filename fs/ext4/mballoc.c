@@ -1436,7 +1436,6 @@ static void mb_free_blocks(struct inode *inode, struct ext4_buddy *e4b,
 
 		blocknr = ext4_group_first_block_no(sb, e4b->bd_group);
 		blocknr += EXT4_C2B(EXT4_SB(sb), block);
-		/* for debugging, sangwoo2.lee */
 		print_block_data(sb, bitmap_blk, e4b->bd_bitmap, 0
 			, EXT4_BLOCK_SIZE(sb));
 		/* for debugging */

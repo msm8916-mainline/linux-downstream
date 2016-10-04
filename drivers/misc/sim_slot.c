@@ -33,6 +33,7 @@ static int check_simslot_count_dt(struct seq_file *m, void *v)
 		return -EINVAL;
 	}
 	printk("%s:simslot_pin : %d\n", __func__, simslot_pin);  //temp log for checking GPIO Setting correctly applyed or not
+	
 	if(of_property_read_bool(np, "low-is-dual"))
 		low_is_dual = 1;
 	else
@@ -52,9 +53,11 @@ static int check_simslot_count_dt(struct seq_file *m, void *v)
 			__func__, retval);
 		panic("kernel panic");
 	}
-
+	
 	/* If the value of sim-slot gpio is 'low' in 'dual sim' device, you must set 'low-is-dual' boolean property at simslot node in dt.*/
+	
 	printk("%s:SIM Check : ", __func__);
+	
 	if(!low_is_dual) // Daul sim device has high value.
 	{
 		gpio_value = gpio_get_value(simslot_pin);

@@ -53,6 +53,7 @@ MODULE_ALIAS("ipt_connmark");
 MODULE_ALIAS("ip6t_connmark");
 
 // ------------- START of KNOX_VPN ------------------//
+
 /* KNOX framework uses mark value 100 to 500
  * when the special meta data is added
  * This will indicate to the kernel code that
@@ -70,8 +71,8 @@ MODULE_ALIAS("ip6t_connmark");
  */
 
 struct knox_meta_param {
-	uid_t uid;
-	pid_t pid;
+    uid_t uid;
+    pid_t pid;
 };
 
 static unsigned int knoxvpn_uidpid(struct sk_buff *skb, u_int32_t newmark)
@@ -108,6 +109,7 @@ static unsigned int knoxvpn_uidpid(struct sk_buff *skb, u_int32_t newmark)
 
 	return 0;
 }
+
 // ------------- END of KNOX_VPN -------------------//
 
 static unsigned int
@@ -142,14 +144,12 @@ connmark_tg(struct sk_buff *skb, const struct xt_action_param *par)
 		newmark = (skb->mark & ~info->nfmask) ^
 		          (ct->mark & info->ctmask);
 		skb->mark = newmark;
-
 // ------------- START of KNOX_VPN -----------------//
-        knoxvpn_uidpid(skb,newmark);
+		knoxvpn_uidpid(skb, newmark);
 // ------------- END of KNOX_VPN -------------------//
 
 		break;
 	}
-
 	return XT_CONTINUE;
 }
 

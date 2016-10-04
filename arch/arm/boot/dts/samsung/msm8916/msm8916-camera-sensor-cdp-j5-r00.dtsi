@@ -57,7 +57,6 @@
 		cell-index = <1>;
 		compatible = "qcom,camera-led-flash";
 		qcom,flash-type = <1>;
-		qcom,led1-gpio = <&msm_gpio 50 0x00>;
 	};
 
 /*	i2c_22: i2c@22 {

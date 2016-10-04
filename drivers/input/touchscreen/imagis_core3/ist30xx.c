@@ -39,7 +39,6 @@
 #if IST30XX_CHECK_BATT_TEMP
 #include <linux/power_supply.h>
 #endif
-
 #if IST30XX_DEBUG
 #include "ist30xx_misc.h"
 #endif
@@ -306,7 +305,6 @@ static void change_dvfs_lock(struct work_struct *work)
 
 	mutex_unlock(&info->dvfs_lock);
 }
-
 static void set_dvfs_off(struct work_struct *work)
 {
 	struct ist30xx_data *info = container_of(work,
@@ -337,7 +335,6 @@ static void set_dvfs_lock(struct ist30xx_data *info, int32_t on)
 		tsp_debug( "%s: DVFS stage is none(%d)\n", __func__, info->dvfs_boost_mode);
 		return;
 	}	
-
 	mutex_lock(&info->dvfs_lock);
 	if (on == 0) {
 		if (info->dvfs_lock_status) {
@@ -353,7 +350,7 @@ static void set_dvfs_lock(struct ist30xx_data *info, int32_t on)
                         if (info->dvfs_freq != MIN_TOUCH_LIMIT) {
 #ifdef SECOND_MINLOCK_FOR_LEVEL1
                                 if (info->dvfs_boost_mode == DVFS_STAGE_SINGLE ||
-						info->dvfs_boost_mode == DVFS_STAGE_TRIPLE )
+					info->dvfs_boost_mode == DVFS_STAGE_TRIPLE)
 #else
                                 if (info->dvfs_boost_mode == DVFS_STAGE_TRIPLE)
 #endif
@@ -381,7 +378,6 @@ static void set_dvfs_lock(struct ist30xx_data *info, int32_t on)
         info->dvfs_old_status = on;
         mutex_unlock(&info->dvfs_lock);
 }
-
 static void init_dvfs(struct ist30xx_data *info)
 {
 	mutex_init(&info->dvfs_lock);
@@ -393,7 +389,6 @@ static void init_dvfs(struct ist30xx_data *info)
 
 	info->dvfs_lock_status = false;
 }
-
 #endif
 
 void ist30xx_disable_irq(struct ist30xx_data *data)
@@ -1741,7 +1736,6 @@ static int ist30xx_probe(struct i2c_client *client,
 	if (data->register_cb)
 		data->register_cb(&data->callbacks);
 #endif
-
 	ist30xx_initialized = 1;
 	tsp_err("%s: Probe end\n", __func__);
 	ist30xx_dbg_level = prev_dbg_level;
@@ -1827,8 +1821,6 @@ static struct i2c_driver ist30xx_i2c_driver = {
 	},
 };
 
-extern int get_lcd_attached(char *mode);
-
 #ifdef CONFIG_SAMSUNG_LPM_MODE
 extern int poweroff_charging;
 #endif
@@ -1842,10 +1834,6 @@ static int __init ist30xx_init(void)
 	}
 #endif
 
-	if (!get_lcd_attached("GET")) {
-		tsp_err("%s: LCD is not attached\n", __func__);
-		return 0;
-	}
 	return i2c_add_driver(&ist30xx_i2c_driver);
 }
 

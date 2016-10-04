@@ -1440,8 +1440,8 @@ static int get_base_luminance(struct SMART_DIM *pSmart)
 
 	if (id3 == REV_A)
 		memcpy(base_luminance, base_luminance_revA, sizeof(base_luminance_revA));
-	else if(id3 == REV_C)
-		memcpy(base_luminance, base_luminance_revC,sizeof(base_luminance_revC));
+	else if(id3 == REV_C || REV_E)
+		memcpy(base_luminance, base_luminance_revE,sizeof(base_luminance_revE));
 	else
 		memcpy(base_luminance, base_luminance_revC,sizeof(base_luminance_revC));
 
@@ -1462,8 +1462,8 @@ static int get_gradation_offset(int table_index, int index)
 {
 	if (id3 == REV_A)
 		return gradation_offset_revA[table_index][index];
-	else if(id3 == REV_C)
-		return gradation_offset_revC[table_index][index];
+	else if(id3 == REV_C || REV_E)
+		return gradation_offset_revE[table_index][index];
 	else
 		return gradation_offset_revC[table_index][index];
 }
@@ -1472,8 +1472,8 @@ static int get_rgb_offset(int table_index, int index)
 {
 	if (id3 == REV_A)
 		return rgb_offset_revA[table_index][index];
-	else if(id3 == REV_C)
-		return rgb_offset_revC[table_index][index];
+	else if(id3 == REV_C || REV_E)
+		return rgb_offset_revE[table_index][index];
 	else
 		return rgb_offset_revC[table_index][index];
 }

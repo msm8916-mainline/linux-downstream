@@ -37,6 +37,7 @@ typedef struct rt5033_fled_platform_data {
     struct pinctrl *fled_pinctrl;
     struct pinctrl_state *gpio_state_active;
     struct pinctrl_state *gpio_state_suspend;
+
 } rt5033_fled_platform_data_t;
 
 #define RT5033_FLED_RESET           0x21
@@ -60,24 +61,23 @@ extern void rt5033_fled_unlock(struct rt_fled_info *fled_info);
 
 #ifdef CONFIG_FLED_RT5033_EXT_GPIO
 /* If you are using external GPIO to control torch and flash led,
- * you must call rt5033_fled_strobe_critial_section_lock() for camera shot,
- * and call rt5033_fled_strobe_critial_section_unlock() after camera mode.
+ * you must call rt5033_fled_srobe_critial_section_lock() for camera shot,
+ * and call rt5033_fled_srobe_critial_section_unlock() after camera mode.
  * example code :
  * struct camera_chip* chip;
  * if (chip->fled_info == NULL)
  *      chip->fled_info = rt_fled_get_info_by_name(NULL);
  * if (chip->fled_info)
- *      rt5033_fled_strobe_critial_section_lock(chip->fled_info);
+ *      rt5033_fled_srobe_critial_section_lock(chip->fled_info);
  *  ...
  *  ... camera opertion
  *  ...
  *  ... when finished camera operation
  * if (chip->fled_info)
- *      rt5033_fled_strobe_critial_section_unlock(chip->fled_info);
+ *      rt5033_fled_srobe_critial_section_unlock(chip->fled_info);
  */
 extern void rt5033_fled_strobe_critial_section_lock(struct rt_fled_info *fled_info);
 extern void rt5033_fled_strobe_critial_section_unlock(struct rt_fled_info *fled_info);
-extern int32_t rt5033_fled_enable(struct rt_fled_info *fled_info, int enable);
 #endif /* CONFIG_FLED_RT5033_EXT_GPIO */
 
 #endif /* LINUX_LEDS_RT5033_FLED_H */

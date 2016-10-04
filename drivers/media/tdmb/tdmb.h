@@ -23,13 +23,12 @@
 #include <linux/types.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
-#include <mach/gpio.h>
-
+#include <linux/pinctrl/consumer.h>
 
 #define TDMB_DEBUG
 
 #ifdef TDMB_DEBUG
-#define DPRINTK(x...) printk(KERN_DEBUG "TDMB " x)
+#define DPRINTK(fmt,...) printk(KERN_DEBUG "TDMB " fmt, ##__VA_ARGS__)
 #else
 #define DPRINTK(x...) /* null */
 #endif
@@ -94,14 +93,14 @@ struct sub_ch_info_type {
 	/* FIG 0/2	*/
 	unsigned char tmid; /* 2 bits */
 	unsigned char svc_type; /* 6 bits */
-	unsigned long svc_id; /* 16/32 bits */
+	unsigned int svc_id; /* 16/32 bits */
 	unsigned char svc_label[SVC_LABEL_MAX+1]; /* 16*8 bits */
 	unsigned char ecc;	/* 8 bits */
 	unsigned char scids;	/* 4 bits */
 } ;
 
 struct ensemble_info_type {
-	unsigned long ensem_freq;	/* 4 bytes */
+	unsigned int ensem_freq;	/* 4 bytes */
 	unsigned char tot_sub_ch;	/* MAX: 64 */
 
 	unsigned short ensem_id;
@@ -159,8 +158,11 @@ struct tdmb_dt_platform_data {
 	int tdmb_use_rst;
 	int tdmb_use_irq;
 #ifdef CONFIG_TDMB_XTAL_FREQ
-        int tdmb_xtal_freq;
+	int tdmb_xtal_freq;
+	u8 xtal_load_cap;
 #endif
+	struct pinctrl *tdmb_pinctrl;
+	struct pinctrl_state *pwr_on, *pwr_off, *gpio_init;
 #ifdef CONFIG_TDMB_ANT_DET
 	int tdmb_ant_irq;
 #endif
@@ -168,12 +170,6 @@ struct tdmb_dt_platform_data {
 	struct regulator *tdmb_vreg;
 	const char *tdmb_vreg_name;
 #endif
-#ifdef CONFIG_TDMB_FM_ANT_SEL
-	int tdmb_fm_ant_sel;
-	struct regulator *reg_ldo;
-#endif
-	struct pinctrl *tdmb_pinctrl;
-	struct pinctrl_state *pwr_on, *pwr_off, *gpio_init;
 };
 
 unsigned char tdmb_make_result
@@ -186,11 +182,7 @@ bool tdmb_store_data(unsigned char *data, unsigned long len);
 
 struct tdmb_drv_func {
 	bool (*init) (void);
-#ifdef CONFIG_TDMB_XTAL_FREQ
-	bool (*power_on) (int);
-#else
-	bool (*power_on) (void);
-#endif
+	bool (*power_on) (struct tdmb_dt_platform_data *pdata);
 	void (*power_off) (void);
 	bool (*scan_ch) (struct ensemble_info_type *ensembleInfo,
 						unsigned long freq);
@@ -206,12 +198,6 @@ extern unsigned int *tdmb_ts_tail;
 extern char *tdmb_ts_buffer;
 extern unsigned int tdmb_ts_size;
 
-#if defined(CONFIG_TDMB_T3900) || defined(CONFIG_TDMB_T39F0)
-struct tdmb_drv_func *t3900_drv_func(void);
-#endif
-#if defined(CONFIG_TDMB_FC8050)
-struct tdmb_drv_func *fc8050_drv_func(void);
-#endif
 #if defined(CONFIG_TDMB_FC8080)
 struct tdmb_drv_func *fc8080_drv_func(void);
 #endif

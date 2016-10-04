@@ -1348,11 +1348,12 @@ static int shmem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 			ret = VM_FAULT_NOPAGE;
 			if ((vmf->flags & FAULT_FLAG_ALLOW_RETRY) &&
-					!(vmf->flags & FAULT_FLAG_RETRY_NOWAIT)) {
+			   !(vmf->flags & FAULT_FLAG_RETRY_NOWAIT)) {
 				/* It's polite to up mmap_sem if we can */
 				up_read(&vma->vm_mm->mmap_sem);
 				ret = VM_FAULT_RETRY;
 			}
+
 			shmem_falloc_waitq = shmem_falloc->waitq;
 			prepare_to_wait(shmem_falloc_waitq, &shmem_fault_wait,
 					TASK_UNINTERRUPTIBLE);
@@ -1431,6 +1432,18 @@ out_nomem:
 static int shmem_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	file_accessed(file);
+#ifdef CONFIG_TIMA_RKP
+        if (vma->vm_end - vma->vm_start) {
+                /* iommu optimization- needs to be turned ON from
+                * the tz side.
+                */
+                cpu_v7_tima_iommu_opt(vma->vm_start, vma->vm_end, (unsigned long)__pa((unsigned long)vma->vm_mm->pgd));
+                __asm__ __volatile__ (
+                "mcr    p15, 0, r0, c8, c3, 0\n"
+                "dsb\n"
+                "isb\n");
+        }
+#endif
 	vma->vm_ops = &shmem_vm_ops;
 	return 0;
 }

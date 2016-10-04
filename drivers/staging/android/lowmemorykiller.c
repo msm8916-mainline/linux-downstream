@@ -99,7 +99,7 @@ static unsigned long lowmem_deathpending_timeout;
 	} while (0)
 
 #if defined(CONFIG_ZSWAP)
-extern u64 zswap_pool_total_size;
+extern u64 zswap_pool_pages;
 extern atomic_t zswap_stored_pages;
 #endif
 
@@ -184,6 +184,15 @@ static int lmk_vmpressure_notifier(struct notifier_block *nb,
 				trace_almk_vmpressure(pressure, other_free,
 					other_file);
 		}
+	} else if (atomic_read(&shift_adj)) {
+		/*
+		 * shift_adj would have been set by a previous invocation
+		 * of notifier, which is not followed by a lowmem_shrink yet.
+		 * Since vmpressure has improved, reset shift_adj to avoid
+		 * false adaptive LMK trigger.
+		 */
+		trace_almk_vmpressure(pressure, other_free, other_file);
+		atomic_set(&shift_adj, 0);
 	}
 
 	return 0;
@@ -227,16 +236,16 @@ static void dump_tasks_info(void)
 
 static int test_task_flag(struct task_struct *p, int flag)
 {
-	struct task_struct *t = p;
+	struct task_struct *t;
 
-	do {
+	for_each_thread(p, t) {
 		task_lock(t);
 		if (test_tsk_thread_flag(t, flag)) {
 			task_unlock(t);
 			return 1;
 		}
 		task_unlock(t);
-	} while_each_thread(p, t);
+	}
 
 	return 0;
 }
@@ -261,9 +270,6 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	unsigned long nr_to_scan = sc->nr_to_scan;
 #ifdef CONFIG_SEC_DEBUG_LMK_MEMINFO
 	static DEFINE_RATELIMIT_STATE(lmk_rs, DEFAULT_RATELIMIT_INTERVAL, 1);
-#endif
-#if defined(CONFIG_ZSWAP)
-	int stored_pages = atomic_read(&zswap_stored_pages);
 #endif
 	unsigned long nr_cma_free;
 	struct reclaim_state *reclaim_state = current->reclaim_state;
@@ -329,7 +335,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		struct task_struct *p;
 		short oom_score_adj;
 
-		if (tsk->flags & PF_KTHREAD)
+		if (tsk->flags & PF_KTHREAD ||
+			tsk->state & TASK_UNINTERRUPTIBLE)
 			continue;
 
 		/* if task no longer has any memory ignore it */
@@ -357,11 +364,10 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		}
 		tasksize = get_mm_rss(p->mm);
 #if defined(CONFIG_ZSWAP)
-		if (stored_pages) {
+		if (atomic_read(&zswap_stored_pages)) {
 			lowmem_print(3, "shown tasksize : %d\n", tasksize);
-			tasksize += ((int)zswap_pool_total_size / PAGE_SIZE)
-					* get_mm_counter(p->mm, MM_SWAPENTS)
-					/ stored_pages;
+			tasksize += (int)zswap_pool_pages * get_mm_counter(p->mm, MM_SWAPENTS)
+				/ atomic_read(&zswap_stored_pages);
 			lowmem_print(3, "real tasksize : %d\n", tasksize);
 		}
 #endif
@@ -448,10 +454,12 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 #endif
 		/* give the system time to free up the memory */
 		msleep_interruptible(20);
-		if(reclaim_state)
-			reclaim_state->reclaimed_slab = selected_tasksize;
+
 		trace_almk_shrink(selected_tasksize, ret,
 			other_free, other_file, selected_oom_score_adj);
+
+		if(reclaim_state)
+			reclaim_state->reclaimed_slab = selected_tasksize;
 	} else {
 		trace_almk_shrink(1, ret, other_free, other_file, 0);
 		rcu_read_unlock();
@@ -526,7 +534,8 @@ static int android_oom_handler(struct notifier_block *nb,
 		int is_exist_oom_task = 0;
 #endif
 
-		if (tsk->flags & PF_KTHREAD)
+		if (tsk->flags & PF_KTHREAD ||
+			tsk->state & TASK_UNINTERRUPTIBLE)
 			continue;
 
 		p = find_lock_task_mm(tsk);
@@ -672,7 +681,6 @@ int get_minfree_high_value(void)
 }
 EXPORT_SYMBOL(get_minfree_high_value);
 #endif
-
 #ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER_AUTODETECT_OOM_ADJ_VALUES
 static short lowmem_oom_adj_to_oom_score_adj(short oom_adj)
 {

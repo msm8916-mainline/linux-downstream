@@ -210,6 +210,9 @@ static void gic_unmask_irq(struct irq_data *d)
 
 static void gic_disable_irq(struct irq_data *d)
 {
+	/* don't lazy-disable PPIs */
+	if (gic_irq(d) < 32)
+		gic_mask_irq(d);
 	if (gic_arch_extn.irq_disable)
 		gic_arch_extn.irq_disable(d);
 }
@@ -273,14 +276,14 @@ void gic_show_pending_irq(void)
 		pending[6] = readl_relaxed(base +
 		GIC_DIST_PENDING_SET + 6 * 4);
 		pr_err("Read again : pending irqs[6] %lx\n", pending[6]);
-		}
+	}
 }
 
 static void gic_show_resume_irq(struct gic_chip_data *gic)
 {
 	unsigned int i;
 	u32 enabled;
-	u32 pending[32];
+	unsigned long pending[32];
 	void __iomem *base = gic_data_dist_base(gic);
 
 	if (!msm_show_resume_irq_mask)
@@ -294,9 +297,9 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 	}
 	raw_spin_unlock(&irq_controller_lock);
 
-	for (i = find_first_bit((unsigned long *)pending, gic->gic_irqs);
+	for (i = find_first_bit(pending, gic->gic_irqs);
 		i < gic->gic_irqs;
-		i = find_next_bit((unsigned long *)pending, gic->gic_irqs, i+1)) {
+		i = find_next_bit(pending, gic->gic_irqs, i+1)) {
 #ifdef CONFIG_SEC_PM_DEBUG
 			log_wakeup_reason(i + gic->irq_offset);
 			update_wakeup_reason_stats(i + gic->irq_offset);

@@ -57,7 +57,6 @@ char mdnie_app_name[][NAME_STRING_MAX] = {
 	"eBOOK_APP",
 	"EMAIL_APP",
 	"TDMB_APP",
-	"ISDBT_APP",
 };
 
 char mdnie_mode_name[][NAME_STRING_MAX] = {
@@ -123,9 +122,9 @@ void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd,
 		}
 	} else {
 		if (tune_data_dsi0 && mdnie_tune_state) {
-			DPRINT("SINGLE index : %d hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n",
+			DPRINT("SINGLE index : %d hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d mdnie_outdoor : %d\n",
 				mdnie_tune_state->index, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
-				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode);
+				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode, mdnie_tune_state->outdoor);
 
 			if (vdd->ctrl_dsi[DSI_CTRL_0]->cmd_sync_wait_broadcast) { /* Dual DSI */
 				vdd->mdnie_tune_data[DSI_CTRL_1].mdnie_tune_packet_tx_cmds_dsi.cmds = tune_data_dsi0;
@@ -155,7 +154,9 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 		/*
 		*	Checking HBM mode first.
 		*/
-		if (mdnie_tune_state->vdd->auto_brightness == HBM_MODE)
+		if (mdnie_tune_state->vdd->auto_brightness >= HBM_MODE && mdnie_tune_state->vdd->bl_level == 255)
+			mdnie_tune_state->hbm_enable = true;
+		else if (mdnie_tune_state->vdd->auto_brightness >= HBM_MODE && vdd->dtsi_data[mdnie_tune_state->index].outdoor_mode_support)
 			mdnie_tune_state->hbm_enable = true;
 		else
 			mdnie_tune_state->hbm_enable = false;
@@ -237,9 +238,9 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 		}
 
 		if (!tune_data_dsi0 && (mdnie_tune_state->index == DSI_CTRL_0)) {
-			DPRINT("%s index : %d tune_data is NULL hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n", __func__,
+			DPRINT("%s index : %d tune_data is NULL hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d mdnie_outdoor : %d\n", __func__,
 				mdnie_tune_state->index, mdnie_tune_state->hbm_enable, mdnie_tune_state->mdnie_bypass, mdnie_tune_state->mdnie_accessibility,
-				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode);
+				mdnie_tune_state->mdnie_app, mdnie_tune_state->mdnie_mode, mdnie_tune_state->outdoor);
 			return -EFAULT;
 		} else if (!tune_data_dsi1 && (mdnie_tune_state->index == DSI_CTRL_1)) {
 			DPRINT("%s index : %d tune_data is NULL hbm : %d mdnie_bypass : %d mdnie_accessibility : %d  mdnie_app: %d mdnie_mode : %d\n", __func__,
@@ -342,12 +343,6 @@ static int fake_id( int app_id )
 		ret_id = TDMB_APP;
 		DPRINT( "%s : change app_id(%d) to mdnie_app(%d)\n", __func__, app_id, ret_id );
 		break;
-#endif
-#ifdef CONFIG_MTV
-		case APP_ID_ISDBT:
-			ret_id = ISDBT_APP;
-			DPRINT( "%s : change app_id(%d) to mdnie_app(%d)\n", __func__, app_id, ret_id );
-			break;
 #endif
 	default:
 		ret_id = app_id;
@@ -512,10 +507,7 @@ static ssize_t accessibility_store(struct device *dev,
 	int buffer2[MDNIE_COLOR_BLINDE_CMD_SIZE/2] = {0,};
 	int loop;
 	char temp;
-	struct samsung_display_driver_data *vdd = samsung_get_vdd();
-	if (IS_ERR_OR_NULL(vdd)) {
-		pr_err("%s vdd is error", __func__);
-	}
+	struct samsung_display_driver_data *vdd = NULL;
 
 	sscanf(buf, "%d %x %x %x %x %x %x %x %x %x", &cmd_value,
 		&buffer2[0], &buffer2[1], &buffer2[2], &buffer2[3], &buffer2[4],
@@ -527,20 +519,10 @@ static ssize_t accessibility_store(struct device *dev,
 		buffer[loop * 2 + 1] = buffer2[loop] & 0xFF;
 	}
 
-	if(!vdd->dtsi_data[0].lcd_display_format_bgr) {
-		for(loop = 0; loop < MDNIE_COLOR_BLINDE_CMD_SIZE; loop+=2) {
-			temp = buffer[loop];
-			buffer[loop] = buffer[loop + 1];
-			buffer[loop + 1] = temp;
-		}
-	}
-
-	if(vdd->dtsi_data[0].lcd_display_format_bgr) {
-		for(loop = 0; loop < MDNIE_COLOR_BLINDE_CMD_SIZE/2; loop++) {
-			temp = buffer[loop];
-			buffer[loop] = buffer[MDNIE_COLOR_BLINDE_CMD_SIZE-loop-1];
-			buffer[MDNIE_COLOR_BLINDE_CMD_SIZE-loop-1] = temp;
-		}
+	for(loop = 0; loop < MDNIE_COLOR_BLINDE_CMD_SIZE; loop+=2) {
+		temp = buffer[loop];
+		buffer[loop] = buffer[loop + 1];
+		buffer[loop + 1] = temp;
 	}
 
 	/*
@@ -548,6 +530,8 @@ static ssize_t accessibility_store(struct device *dev,
 	* Accessibility > HBM > Screen Mode
 	*/
 	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
+		if (!vdd)
+			vdd = mdnie_tune_state->vdd;
 
 		if (cmd_value == NEGATIVE) {
 			mdnie_tune_state->mdnie_accessibility = NEGATIVE;

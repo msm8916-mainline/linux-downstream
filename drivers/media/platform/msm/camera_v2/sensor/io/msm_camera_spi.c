@@ -13,7 +13,6 @@
 #include <soc/qcom/camera2.h>
 #include "msm_camera_spi.h"
 
-//#define CONFIG_MSMB_CAMERA_DEBUG 1
 #undef SPIDBG
 #ifdef CONFIG_MSMB_CAMERA_DEBUG
 #define SPIDBG(fmt, args...) pr_debug(fmt, ##args)

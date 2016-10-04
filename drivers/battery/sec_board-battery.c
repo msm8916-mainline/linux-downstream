@@ -24,17 +24,20 @@
 #include <linux/qpnp/qpnp-adc.h>
 #include <linux/regulator/krait-regulator.h>
 
-#ifdef CONFIG_BATTERY_SAMSUNG
-#include <linux/battery/sec_battery.h>
-#endif
-
-#ifdef CONFIG_FUELGAUGE_RT5033
+#if defined(CONFIG_FUELGAUGE_RT5033)
 #include <linux/battery/fuelgauge/rt5033_fuelgauge.h>
+#elif defined(CONFIG_FUELGAUGE_MAX77849)
+#include <linux/battery/fuelgauge/max77849_fuelgauge.h>
 #elif defined(CONFIG_FUELGAUGE_SM5703)
 #include <linux/battery/fuelgauge/sm5703_fuelgauge.h>
-#endif
-#if defined(CONFIG_FUELGAUGE_MAX17050) || defined(CONFIG_FUELGAUGE_STC3117)
+#elif defined(CONFIG_FUELGAUGE_SM5705)
+#include <linux/battery/fuelgauge/sm5705_fuelgauge.h>
+#else
 #include <linux/battery/sec_fuelgauge.h>
+#endif
+
+#if defined(CONFIG_BATTERY_SAMSUNG)
+#include <linux/battery/sec_battery.h>
 #endif
 #if defined(CONFIG_SM5502_MUIC)
 #include <linux/i2c/sm5502.h>
@@ -45,12 +48,13 @@
 #if defined(CONFIG_SM5703_MUIC)
 #include <linux/i2c/sm5703-muic.h>
 #endif
+
 #include <linux/gpio_event.h>
 
 #define SHORT_BATTERY_STANDARD      100
 
 /* cable state */
-#if defined(CONFIG_EXTCON)
+#if defined(CONFIG_EXTCON) || defined(CONFIG_MUIC_UNIVERSAL)
 int current_cable_type = POWER_SUPPLY_TYPE_BATTERY;
 #else
 extern int current_cable_type;
@@ -111,11 +115,19 @@ static int sec_bat_adc_ap_read(struct sec_battery_info *battery, int channel)
 					__func__, rc);
 			return 0;
 		}
+#if defined(CONFIG_MACH_A5X_CHN_OPEN) || defined(CONFIG_MACH_A7X_CHN_OPEN)
+		data = ((int)results.physical)/10000;
+#else
 		data = ((int)results.physical)/1000;
+#endif
 		break;
 	case SEC_BAT_ADC_CHANNEL_DISCHARGING_CHECK:
-		/** Battery Thermister ADC is used for self_discharge IC ADC in GT5*/
+#if defined(CONFIG_MACH_A8_CHN_OPEN)||defined(CONFIG_MACH_GTEL_USA_VZW) || \
+	defined(CONFIG_MACH_GTELWIFI_USA_OPEN)
+                rc = qpnp_vadc_read(adc_client, LR_MUX2_BAT_ID, &results);
+#else
                 rc = qpnp_vadc_read(adc_client, LR_MUX1_BATT_THERM, &results);
+#endif
                 if (rc) {
                         pr_err("%s: Unable to read discharging_check ADC rc=%d\n",
                                         __func__, rc);
@@ -126,6 +138,17 @@ static int sec_bat_adc_ap_read(struct sec_battery_info *battery, int channel)
 	case SEC_BAT_ADC_CHANNEL_DISCHARGING_NTC:
 		return 0;
 		break;
+#if defined(CONFIG_MACH_A5X_CHN_OPEN)||defined(CONFIG_MACH_A7X_CHN_OPEN)
+	case SEC_BAT_ADC_CHANNEL_CHG_TEMP:
+		rc = qpnp_vadc_read(adc_client, LR_MUX2_BAT_ID, &results);
+		if (rc) {
+			pr_err("%s: Unable to read chg temperature rc=%d\n",
+				__func__, rc);
+			return 33000;
+		}
+		data = results.adc_code;
+		break;
+#endif
 	default :
 		break;
 	}
@@ -321,15 +344,61 @@ void board_battery_init(struct platform_device *pdev, struct sec_battery_info *b
 	if ((!battery->pdata->temp_adc_table) &&
 			(battery->pdata->thermal_source == SEC_BATTERY_THERMAL_SOURCE_ADC)) {
 		pr_info("%s : assign temp adc table\n", __func__);
+#if defined(CONFIG_SEC_E5_PROJECT)
+		pr_info("%s : E5 project, system_rev = %d\n", __func__, system_rev);
+		if(system_rev > 0x8){
+				battery->pdata->temp_adc_table = temp_table_e5_r09;
+				battery->pdata->temp_amb_adc_table = temp_table_e5_r09;
+
+				battery->pdata->temp_adc_table_size =
+						sizeof(temp_table_e5_r09)/sizeof(sec_bat_adc_table_data_t);
+				battery->pdata->temp_amb_adc_table_size =
+						sizeof(temp_table_e5_r09)/sizeof(sec_bat_adc_table_data_t);
+		} else {
 
 		battery->pdata->temp_adc_table = temp_table;
 		battery->pdata->temp_amb_adc_table = temp_table;
 
 		battery->pdata->temp_adc_table_size = sizeof(temp_table)/sizeof(sec_bat_adc_table_data_t);
 		battery->pdata->temp_amb_adc_table_size = sizeof(temp_table)/sizeof(sec_bat_adc_table_data_t);
+
+		}
+#elif defined(CONFIG_SEC_E7_PROJECT)
+		pr_info("%s : E7 project, system_rev = %d\n", __func__, system_rev);
+		if(system_rev >= 0x8){
+				battery->pdata->temp_adc_table = temp_table_e7_r08;
+				battery->pdata->temp_amb_adc_table = temp_table_e7_r08;
+
+				battery->pdata->temp_adc_table_size =
+						sizeof(temp_table_e7_r08)/sizeof(sec_bat_adc_table_data_t);
+				battery->pdata->temp_amb_adc_table_size =
+						sizeof(temp_table_e7_r08)/sizeof(sec_bat_adc_table_data_t);
+		} else {
+		battery->pdata->temp_adc_table = temp_table;
+		battery->pdata->temp_amb_adc_table = temp_table;
+
+		battery->pdata->temp_adc_table_size = sizeof(temp_table)/sizeof(sec_bat_adc_table_data_t);
+		battery->pdata->temp_amb_adc_table_size = sizeof(temp_table)/sizeof(sec_bat_adc_table_data_t);
+		}
+#else
+		battery->pdata->temp_adc_table = temp_table;
+		battery->pdata->temp_amb_adc_table = temp_table;
+
+		battery->pdata->temp_adc_table_size = sizeof(temp_table)/sizeof(sec_bat_adc_table_data_t);
+		battery->pdata->temp_amb_adc_table_size = sizeof(temp_table)/sizeof(sec_bat_adc_table_data_t);
+#endif
 	}
 
-#if !defined(CONFIG_SEC_J1_PROJECT)
+#if defined(CONFIG_MACH_A5X_CHN_OPEN)||defined(CONFIG_MACH_A7X_CHN_OPEN)
+	if ((!battery->pdata->chg_temp_adc_table) &&
+		(battery->pdata->chg_temp_check)) {
+		pr_info("%s : assign chg temp adc table\n", __func__);
+		battery->pdata->chg_temp_adc_table = chg_temp_table;
+		battery->pdata->chg_temp_adc_table_size = sizeof(chg_temp_table)/sizeof(sec_bat_adc_table_data_t);
+	}
+#endif
+
+#if defined(CONFIG_SEC_A3_PROJECT) || defined(CONFIG_SEC_A5_PROJECT) || defined(CONFIG_SEC_E5_PROJECT) || defined(CONFIG_SEC_E7_PROJECT)
 	battery->pdata->temp_highlimit_threshold_event = TEMP_HIGHLIMIT_THRESHOLD_EVENT;
 	battery->pdata->temp_highlimit_recovery_event = TEMP_HIGHLIMIT_RECOVERY_EVENT;
 	battery->pdata->temp_highlimit_threshold_normal = TEMP_HIGHLIMIT_THRESHOLD_NORMAL;
@@ -350,31 +419,60 @@ void board_battery_init(struct platform_device *pdev, struct sec_battery_info *b
 	battery->pdata->temp_low_threshold_lpm = TEMP_LOW_THRESHOLD_LPM;
 	battery->pdata->temp_low_recovery_lpm = TEMP_LOW_RECOVERY_LPM;
 
+	if (battery->pdata->temp_high_threshold_event !=
+		battery->pdata->temp_high_threshold_normal)
+		battery->pdata->event_check = true;
+
 #if defined(CONFIG_BATTERY_SWELLING)
 	battery->swelling_temp_high_threshold = BATT_SWELLING_HIGH_TEMP_BLOCK;
 	battery->swelling_temp_high_recovery = BATT_SWELLING_HIGH_TEMP_RECOV;
 	battery->swelling_temp_low_threshold = BATT_SWELLING_LOW_TEMP_BLOCK;
 	battery->swelling_temp_low_recovery = BATT_SWELLING_LOW_TEMP_RECOV;
 	battery->swelling_recharge_voltage = BATT_SWELLING_RECHG_VOLTAGE;
-	battery->swelling_block_time = BATT_SWELLING_BLOCK_TIME;
+#endif
+
+#if defined(CONFIG_MACH_KOR_EARJACK_WR)
+	battery->earjack_wr_enable = (system_rev <= EARJACK_WR_SYSTEM_REV);
+	battery->earjack_wr_state = EARJACK_WR_NONE;
+	battery->earjack_wr_soc_1st = EARJACK_WR_SOC_1ST;
+	battery->earjack_wr_soc_2nd = EARJACK_WR_SOC_2ND;
+	battery->earjack_wr_input_current_1st = EARJACK_WR_INPUT_CURRENT_1ST;
+	battery->earjack_wr_input_current_2nd = EARJACK_WR_INPUT_CURRENT_2ND;
 #endif
 
 	adc_init_type(pdev, battery);
 }
 
-void board_fuelgauge_init(struct sec_fuelgauge_info *fuelgauge)
+void board_fuelgauge_init(void * data)
 {
-#if defined(CONFIG_SEC_HESTIA2_PROJECT)
-	if (!fuelgauge->pdata->battery_data) {
-		pr_info("%s : assign battery data\n", __func__);
-			fuelgauge->pdata->battery_data = (void *)samsung_battery_data;
-	}
+	if(data) {
+#if defined(CONFIG_FUELGAUGE_MAX77849)
+		struct max77849_fuelgauge_info *fuelgauge =
+			(struct max77849_fuelgauge_info *)data;
 #elif defined(CONFIG_FUELGAUGE_STC3117)
-	fuelgauge->pdata->battery_data = stc3117_battery_data;
+		struct sec_fuelgauge_info *fuelgauge =
+			(struct sec_fuelgauge_info *)data;
+		fuelgauge->pdata->battery_data = stc3117_battery_data;
+#else
+#if !defined(CONFIG_FUELGAUGE_MAX77843)
+	struct sec_fuelgauge_info *fuelgauge =
+		(struct sec_fuelgauge_info *)data;
 #endif
-	fuelgauge->pdata->capacity_max = CAPACITY_MAX;
-	fuelgauge->pdata->capacity_max_margin = CAPACITY_MAX_MARGIN;
-	fuelgauge->pdata->capacity_min = CAPACITY_MIN;
+#endif
+
+#if !defined(CONFIG_FUELGAUGE_MAX77843)
+	if(fuelgauge) {
+		fuelgauge->pdata->capacity_max = CAPACITY_MAX;
+		fuelgauge->pdata->capacity_max_margin = CAPACITY_MAX_MARGIN;
+		fuelgauge->pdata->capacity_min = CAPACITY_MIN;
+	}
+#endif
+
+#if defined(CONFIG_SEC_GT58_PROJECT) || defined(CONFIG_SEC_GT510_PROJECT)
+		fuelgauge->pdata->temp_adc_table = temp_table;
+		fuelgauge->pdata->temp_adc_table_size = sizeof(temp_table)/sizeof(sec_bat_adc_table_data_t);
+#endif
+	}
 }
 
 void cable_initial_check(struct sec_battery_info *battery)
@@ -405,25 +503,7 @@ void cable_initial_check(struct sec_battery_info *battery)
 
 EXPORT_SYMBOL(cable_initial_check);
 
-/* defined but not used compile error
-static void charger_gpio_init(void)
-{
-}
-*/
 void __init samsung_init_battery(void)
 {
 	pr_info("%s: samsung dummy battery init\n", __func__);
-
-/*
-	is_wpc_cable_attached = false;
-
-	platform_add_devices(sec_battery_devices,
-		ARRAY_SIZE(sec_battery_devices));
-
-	i2c_register_board_info(FG_ID, sec_brdinfo_fuelgauge,
-			ARRAY_SIZE(sec_brdinfo_fuelgauge));
-
-	temp_adc_client = s3c_adc_register(&sec_device_battery, NULL, NULL, 0);*/
 }
-
-

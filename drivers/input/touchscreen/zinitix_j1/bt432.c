@@ -70,8 +70,18 @@ static bool ta_connected =0;
 static bool tsp_disconnected = false;
 #define ZINITIX_DEBUG				1
 #define ZINITIX_I2C_CHECKSUM		1
+#define TOUCH_BOOSTER			0
 #define NOT_SUPPORTED_TOUCH_DUMMY_KEY
-#ifdef CONFIG_INPUT_BOOSTER
+#if TOUCH_BOOSTER
+#include <linux/cpufreq.h>
+#include <linux/cpufreq_limit.h>
+extern int _store_cpu_num_min_limit(unsigned int input);
+struct cpufreq_limit_handle *min_handle = NULL;
+static const unsigned long touch_cpufreq_lock = 1200000;
+#endif
+
+#ifdef CONFIG_COMMON_INPUT_BOOSTER
+//to enabled common touch booster. This must be included.
 #include <linux/input/input_booster.h>
 #endif
 #ifdef SUPPORTED_PALM_TOUCH
@@ -597,10 +607,6 @@ struct bt432_ts_info {
 	struct semaphore				work_lock;
 	/*u16								debug_reg[8];*/ /* for debug */
 	struct regulator *vddo_vreg;
-#ifdef USE_TSP_TA_CALLBACKS
-	void (*register_cb) (struct tsp_callbacks *tsp_cb);
-	struct tsp_callbacks callbacks;
-#endif
 #if ESD_TIMER_INTERVAL
 	struct work_struct				tmr_work;
 	struct timer_list				esd_timeout_tmr;
@@ -674,7 +680,10 @@ struct bt432_ts_info {
 	bool	hfdnd_done;
 
 #endif
-#ifdef CONFIG_INPUT_BOOSTER
+#if TOUCH_BOOSTER
+	u8							finger_cnt;
+#endif
+#ifdef COMMON_INPUT_BOOSTER	
 	u8 touch_pressed_num;
 	struct input_booster *tsp_booster;
 #endif
@@ -1018,7 +1027,7 @@ static bool ts_get_raw_data(struct bt432_ts_info *info)
 
 	info->update = 1;
 	memcpy((u8 *)(&info->touch_info),
-                (u8 *)&info->cur_data[total_node],
+		(u8 *)&info->cur_data[total_node],
 			sizeof(struct point_info));
 	up(&info->raw_data_lock);
 
@@ -1464,22 +1473,12 @@ static bool bt432_power_control(struct bt432_ts_info *info, u8 ctl)
 	return true;
 }
 
-#ifdef USE_TSP_TA_CALLBACKS
 static void bt432_set_ta_status(struct bt432_ts_info *info)
 {
 	u16	reg_val;
-	printk("bt432_set ta_connected = %d\n", ta_connected);
 
-	if(info == NULL)
-	{
-		zinitix_printk("bt432_set_ta_status  (info == NULL)\r\n");
-		return;
-	}
 	if(info->work_state == SUSPEND || info->work_state == PROBE)
-	{
-		zinitix_printk("bt432_set_ta_status:  (%d)\r\n",info->work_state);
 		return;
-	}
 
 	if (ta_connected) {
 		read_data(info->client, 0x0116,	(u8 *)&reg_val, 2);
@@ -1493,7 +1492,7 @@ static void bt432_set_ta_status(struct bt432_ts_info *info)
 	}
 }
 
-static void tsp_charger_enable_cb(struct tsp_callbacks *cb,int status)
+void tsp_charger_enable(int status)
 {
 	int mode = status; // (status== POWER_SUPPLY_TYPE_BATTERY);
 
@@ -1508,15 +1507,7 @@ static void tsp_charger_enable_cb(struct tsp_callbacks *cb,int status)
 		mode ? "connected" : "disconnected");
 
 }
-void bt432_register_callback(struct tsp_callbacks *cb)
-{
-	charger_callbacks = cb;
-	pr_info("%s\n", __func__);
-}
-
-
-//EXPORT_SYMBOL(tsp_charger_enable);
-#endif
+EXPORT_SYMBOL(tsp_charger_enable);
 
 #if TOUCH_ONESHOT_UPGRADE
 static bool ts_check_need_upgrade(struct bt432_ts_info *info,
@@ -2183,9 +2174,7 @@ retry_init:
 			cap->i2s_checksum);
 #endif
 
-#ifndef USE_TSP_TA_CALLBACKS
 	bt432_set_ta_status(info);
-#endif
 	/* soft calibration */
 /*	if (write_cmd(client, BT432_CALIBRATE_CMD) != I2C_SUCCESS)
 		goto fail_init;*/
@@ -2322,9 +2311,8 @@ static bool mini_init_touch(struct bt432_ts_info *info)
 	if (write_reg(client, BT432_TOUCH_MODE,
 				info->touch_mode) != I2C_SUCCESS)
 		goto fail_mini_init;
-#ifndef USE_TSP_TA_CALLBACKS
+
 	bt432_set_ta_status(info);
-#endif
 	/* soft calibration */
 	if (write_cmd(client, BT432_CALIBRATE_CMD) != I2C_SUCCESS)
 		goto fail_mini_init;
@@ -2434,7 +2422,6 @@ static irqreturn_t bt432_touch_work(int irq, void *data)
 	u32 w;
 	u32 tmp;
 	u8 palm = 0;
-	bool button_state = false;
 
 	if (gpio_get_value(info->pdata->gpio_int)) {
 		dev_err(&client->dev, "Invalid interrupt\n");
@@ -2514,34 +2501,30 @@ static irqreturn_t bt432_touch_work(int irq, void *data)
 
 			goto out;
 		}
-		button_state = true;
+
 		for (i = 0; i < info->cap_info.button_num; i++) {
 			if (zinitix_bit_test(info->icon_event_reg,
 									(BIT_O_ICON0_DOWN + i))) {
-				if(info->button[i] != ICON_BUTTON_DOWN){
-					info->button[i] = ICON_BUTTON_DOWN;
-					input_report_key(info->input_dev, BUTTON_MAPPING_KEY[i], 1);
+				info->button[i] = ICON_BUTTON_DOWN;
+				input_report_key(info->input_dev, BUTTON_MAPPING_KEY[i], 1);
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-					dev_info(&client->dev, "Button down = %d\n", i);
+				dev_info(&client->dev, "Button down = %d\n", i);
 #else
-					dev_info(&client->dev, "Button down\n");
+				dev_info(&client->dev, "Button down\n");
 #endif
-				}
 			}
 		}
 
 		for (i = 0; i < info->cap_info.button_num; i++) {
 			if (zinitix_bit_test(info->icon_event_reg,
 									(BIT_O_ICON0_UP + i))) {
-				if(info->button[i] != ICON_BUTTON_UP){
-					info->button[i] = ICON_BUTTON_UP;
-					input_report_key(info->input_dev, BUTTON_MAPPING_KEY[i], 0);
+				info->button[i] = ICON_BUTTON_UP;
+				input_report_key(info->input_dev, BUTTON_MAPPING_KEY[i], 0);
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-					dev_info(&client->dev, "Button up = %d\n", i);
+				dev_info(&client->dev, "Button up = %d\n", i);
 #else
-					dev_info(&client->dev, "Button up\n");
+				dev_info(&client->dev, "Button up\n");
 #endif
-				}
 			}
 		}
 	}
@@ -2599,9 +2582,23 @@ static irqreturn_t bt432_touch_work(int irq, void *data)
 			info->touch_info.coord[i].y = y;
 			if (zinitix_bit_test(sub_status, SUB_BIT_DOWN))
 			{
-#ifdef CONFIG_INPUT_BOOSTER
-				info->touch_pressed_num++;
+#if TOUCH_BOOSTER
+				if(!min_handle)
+				{
+					min_handle = cpufreq_limit_min_freq(touch_cpufreq_lock, "TSP");
+					if (IS_ERR(min_handle)) {
+						printk(KERN_ERR "[TSP] cannot get cpufreq_min lock %lu(%ld)\n",
+						touch_cpufreq_lock, PTR_ERR(min_handle));
+						min_handle = NULL;
+					}
+					_store_cpu_num_min_limit(2);
+					dev_info(&client->dev,"cpu freq on\n");
+				}
+				info->finger_cnt++;
 #endif
+#ifdef COMMON_INPUT_BOOSTER		
+			info->touch_pressed_num++;			
+#endif 
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 				dev_info(&client->dev, "Finger [%02d] x = %d, y = %d,"
 								" w = %d\n", i, x, y, w);
@@ -2614,9 +2611,6 @@ static irqreturn_t bt432_touch_work(int irq, void *data)
 
 			input_mt_slot(info->input_dev, i);
 			input_mt_report_slot_state(info->input_dev, MT_TOOL_FINGER, 1);
-
-			if (info->touch_pressed_num == 1)
-				input_report_key(info->input_dev, BTN_TOUCH, 1);
 
 #if (TOUCH_POINT_MODE == 2)
 			if (palm == 0) {
@@ -2653,23 +2647,31 @@ static irqreturn_t bt432_touch_work(int irq, void *data)
 
 			input_report_abs(info->input_dev, ABS_MT_POSITION_X, x);
 			input_report_abs(info->input_dev, ABS_MT_POSITION_Y, y);
-//			input_report_key(info->input_dev, BTN_TOUCH, 1);
+			input_report_key(info->input_dev, BTN_TOUCH, 1);
 		} else if (zinitix_bit_test(sub_status, SUB_BIT_UP)||
 			zinitix_bit_test(prev_sub_status, SUB_BIT_EXIST)) {
-#ifdef CONFIG_INPUT_BOOSTER
-			info->touch_pressed_num--;
+#if TOUCH_BOOSTER
+			info->finger_cnt--;
+			if(!info->finger_cnt)
+			{
+				cpufreq_limit_put(min_handle);
+				min_handle = NULL;
+				_store_cpu_num_min_limit(1);
+				dev_info(&client->dev, "cpu freq off\n");
+			}
 #endif
+#ifdef COMMON_INPUT_BOOSTER		
+			info->touch_pressed_num--;				
+#endif 
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 			dev_info(&client->dev, "Finger [%02d] up\n", i);
 #else
 			dev_info(&client->dev, "Finger up\n");
 #endif
-//			input_report_key(info->input_dev, BTN_TOUCH, 0);
+			input_report_key(info->input_dev, BTN_TOUCH, 0);
 			memset(&info->touch_info.coord[i], 0x0, sizeof(struct coord));
 			input_mt_slot(info->input_dev, i);
 			input_mt_report_slot_state(info->input_dev, MT_TOOL_FINGER, 0);
-			if (info->touch_pressed_num == 0)
-				input_report_key(info->input_dev, BTN_TOUCH, 0);
 
 		} else {
 			memset(&info->touch_info.coord[i], 0x0, sizeof(struct coord));
@@ -2678,16 +2680,13 @@ static irqreturn_t bt432_touch_work(int irq, void *data)
 	memcpy((char *)&info->reported_touch_info, (char *)&info->touch_info,
 			sizeof(struct point_info));
 	input_sync(info->input_dev);
-
-#ifdef CONFIG_INPUT_BOOSTER
-	if (info->tsp_booster && info->tsp_booster->dvfs_set){
-		if (info->touch_pressed_num){
-			info->tsp_booster->dvfs_set(info->tsp_booster,info->touch_pressed_num);
+#ifdef COMMON_INPUT_BOOSTER	
+	if (info->touch_pressed_num){
+		info->tsp_booster->dvfs_set(info->tsp_booster,info->touch_pressed_num);
 		} else {
-			if (!button_state)
-				info->tsp_booster->dvfs_set(info->tsp_booster,0);
-		}
+		info->tsp_booster->dvfs_set(info->tsp_booster,-1);		
 	}
+	
 #endif
 out:
 	if (info->work_state == NORMAL) {
@@ -2801,7 +2800,20 @@ static void bt432_ts_early_suspend(struct early_suspend *h)
 #else
 	bt432_power_control(info, POWER_OFF);
 #endif
+#if TOUCH_BOOSTER
+	if(min_handle)
+	{
+		dev_err(&info->client->dev,"[TSP] %s %d:: OOPs, Cpu was not in Normal Freq..\n", __func__, __LINE__);
 
+		if (cpufreq_limit_put(min_handle) < 0) {
+			dev_err(&info->client->dev, "[TSP] Error in scaling down cpu frequency\n");
+		}
+
+		min_handle = NULL;
+		info->finger_cnt = 0;
+		dev_info(&info->client->dev,"cpu freq off\n");
+	}
+#endif
 	zinitix_printk("early suspend--\n");
 	up(&info->work_lock);
 	return;
@@ -2820,7 +2832,7 @@ static int  bt432_ts_open(struct input_dev *dev)
 
 	down(&info->work_lock);
 	if (info->work_state != RESUME
-		&& info->work_state != SUSPEND/*EALRY_SUSPEND*/) {
+		&& info->work_state != EALRY_SUSPEND) {
 		zinitix_printk("invalid work proceedure (%d)\r\n",
 			info->work_state);
 		up(&info->work_lock);
@@ -2868,11 +2880,10 @@ static void bt432_ts_close(struct input_dev *dev)
 		enable_irq(info->irq);
 		return;
 	}
-	info->work_state = SUSPEND/*EALRY_SUSPEND*/;
+	info->work_state = EALRY_SUSPEND;
 
 	clear_report_data(info);
-#ifdef CONFIG_INPUT_BOOSTER
-	if (info->tsp_booster && info->tsp_booster->dvfs_set)
+#ifdef COMMON_INPUT_BOOSTER	
 	info->tsp_booster->dvfs_set(info->tsp_booster,-1);
 	info->touch_pressed_num = 0;
 #endif
@@ -3559,7 +3570,7 @@ static void get_config_ver(void *device_data)
 	struct tsp_factory_info *finfo = info->factory_info; 
 
 	set_default_result(info);
-	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff),"%s","SM-J100VPP_ZI_0422");
+	snprintf(finfo->cmd_buff, sizeof(finfo->cmd_buff),"%s","SM-J100V_ZI_0203");
 	set_cmd_result(info, finfo->cmd_buff,
 		strnlen(finfo->cmd_buff, sizeof(finfo->cmd_buff)));
 	finfo->cmd_state = OK;
@@ -6111,12 +6122,6 @@ static int bt432_ts_probe(struct i2c_client *client,
 	if(init_touch(info) == false) {
 		goto err_input_unregister_device;
 	}
-#ifdef USE_TSP_TA_CALLBACKS
-	info->register_cb = bt432_register_callback;
-	info->callbacks.inform_charger = tsp_charger_enable_cb;
-		if (info->register_cb)
-			info->register_cb(&info->callbacks);
-#endif
 
 	for (i = 0; i < MAX_SUPPORTED_BUTTON_NUM; i++)
 		info->button[i] = ICON_BUTTON_UNCHANGE;
@@ -6203,15 +6208,19 @@ static int bt432_ts_probe(struct i2c_client *client,
 		info->irq, pdata->gpio_int);
 
 	info->work_state = NOTHING;
-
-#ifdef CONFIG_INPUT_BOOSTER
-	printk("TSP CONFIG_INPUT_BOOSTER init\n");
+#if TOUCH_BOOSTER
+	info->finger_cnt = 0;
+#endif
+#ifdef COMMON_INPUT_BOOSTER
+	printk("TSP COMMON_INPUT_BOOSTER init\n");
 	info->touch_pressed_num = 0;
-	info->tsp_booster = input_booster_allocate(INPUT_BOOSTER_ID_TSP);
+	info->tsp_booster = kzalloc(sizeof(struct input_booster), GFP_KERNEL);
 	if (!info->tsp_booster) {
 		dev_err(&client->dev,
 			"%s: Failed to alloc mem for tsp_booster\n", __func__);
 		goto err_get_tsp_booster;
+	} else {
+		input_booster_init_dvfs(info->tsp_booster, INPUT_BOOSTER_ID_TSP);
 	}
 #endif
 	sema_init(&info->work_lock, 1);
@@ -6292,10 +6301,9 @@ err_request_irq:
 #if ESD_TIMER_INTERVAL
 err_esd_input_unregister_device:
 #endif
-#ifdef CONFIG_INPUT_BOOSTER
-	input_booster_free(info->tsp_booster);
-	info->tsp_booster = NULL;
+#ifdef COMMON_INPUT_BOOSTER
 err_get_tsp_booster:
+   kfree(info->tsp_booster);
 #endif
 err_input_unregister_device:
 	input_unregister_device(info->input_dev);
@@ -6328,16 +6336,6 @@ static int bt432_ts_remove(struct i2c_client *client)
 	kfree(info->factory_info);
 	kfree(info->raw_data);
 #endif
-#ifdef CONFIG_INPUT_BOOSTER
-	input_booster_free(info->tsp_booster);
-	info->tsp_booster = NULL;
-#endif
-
-#ifdef USE_TSP_TA_CALLBACKS
-	info->register_cb = NULL;
-	info->callbacks.inform_charger = NULL;
-	charger_callbacks = NULL;
-#endif 
 #if ESD_TIMER_INTERVAL
 	flush_work(&info->tmr_work);
 	write_reg(info->client, BT432_PERIODICAL_INTERRUPT_INTERVAL, 0);

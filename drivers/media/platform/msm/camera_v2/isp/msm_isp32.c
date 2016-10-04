@@ -411,16 +411,19 @@ static void msm_vfe32_process_reg_update(struct vfe_device *vfe_dev,
 		msm_isp_axi_stream_update(vfe_dev);
 	if (atomic_read(&vfe_dev->stats_data.stats_update))
 		msm_isp_stats_stream_update(vfe_dev);
-	if (vfe_dev->axi_data.stream_update || atomic_read(&vfe_dev->stats_data.stats_update)) {
+	if (vfe_dev->axi_data.stream_update ||
+		atomic_read(&vfe_dev->stats_data.stats_update)) {
 		if (input_src & (1 << VFE_PIX_0)) {
 			vfe_dev->hw_info->vfe_ops.core_ops.reg_update(vfe_dev, (1 << VFE_PIX_0));
 		}
 	}
 	msm_isp_update_framedrop_reg(vfe_dev);
+	//msm_isp_update_stats_framedrop_reg(vfe_dev);
 	msm_isp_update_error_frame_count(vfe_dev);
 	if ((input_src & (1 << VFE_RAW_0)) || (input_src & (1 << VFE_RAW_1)) || (input_src & (1 << VFE_RAW_2))) {
-	vfe_dev->hw_info->vfe_ops.core_ops.reg_update(vfe_dev, input_src);
+		vfe_dev->hw_info->vfe_ops.core_ops.reg_update(vfe_dev, input_src);
 	}
+
 	return;
 }
 

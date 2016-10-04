@@ -179,7 +179,7 @@ static int rtcc_thread(void * nothing)
 					// If free memory is enough, cancel reclaim
 					atomic_set(&need_to_reclaim, 0);
 				} else if ((swap_toplimit - get_swapped_pages()) <= rtcc_grade[RTCC_GRADE_NUM-2]) {
-					// If swap space is more than anon, also cancel reclaim
+					// If there is not enough swap space , also cancel reclaim
 					atomic_set(&need_to_reclaim, 0);
 				}
 			} else if (get_anon_pages() < swap_toplimit / 4) {

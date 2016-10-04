@@ -198,16 +198,9 @@ config MEDIA_ATTACH
 source "drivers/media/i2c/Kconfig"
 source "drivers/media/tuners/Kconfig"
 source "drivers/media/dvb-frontends/Kconfig"
+source "drivers/media/isdbt/Kconfig"
 
-#
 # TDMB drivers
-#
-
 source "drivers/media/tdmb/Kconfig"
-
-#
-# MTV drivers
-#
-source "drivers/media/mtv/Kconfig"
 
 endif # MEDIA_SUPPORT

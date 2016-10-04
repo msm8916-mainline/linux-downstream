@@ -35,6 +35,8 @@ struct device *flash_dev;
 
 struct ktd2692_platform_data *global_ktd2692data;
 struct device *ktd2692_dev;
+int flash_flag = 0;
+
 
 void ktd2692_setGpio(int onoff)
 {
@@ -128,6 +130,14 @@ void ktd2692_flash_on(unsigned data){
 	struct pinctrl *pinctrl;
 
 	if(data == 0){
+		if(flash_flag == 0){
+
+			printk("<ktd2692_flash_on> duplicated cmd!!");
+
+			return;
+
+		}
+
 		ret = gpio_request(global_ktd2692data->flash_control, "ktd2692_led_control");
 		if (ret) {
 			printk("Failed to requeset ktd2692_led_control\n");
@@ -149,6 +159,8 @@ void ktd2692_flash_on(unsigned data){
 				pr_err("%s: flash %s pins are not configured\n", __func__, "front_fled_sleep");
 
 		}
+		flash_flag = 0;
+
 	}else{
 		pinctrl = devm_pinctrl_get_select(ktd2692_dev, "front_fled_default");
 		if (IS_ERR(pinctrl))
@@ -177,6 +189,8 @@ void ktd2692_flash_on(unsigned data){
 			gpio_free(global_ktd2692data->flash_control);
 			printk("<ktd2692_flash_on> KTD2692-TORCH ON. : X(%d)\n", data);
 		}
+		flash_flag = 1;
+
 	}
 
 }
@@ -249,7 +263,7 @@ ssize_t ktd2692_store(struct device *dev,
 			printk("KTD2692-TORCH ON. : X(%d)\n", value);
 	}
 
-	if (!IS_ERR(pinctrl))
+	if ((value <= 0 || value == 100) && !IS_ERR(pinctrl))
 		devm_pinctrl_put(pinctrl);
 
 	return count;
@@ -279,7 +293,11 @@ static int ktd2692_parse_dt(struct device *dev,
 	pdata->LVP_Voltage = KTD2692_DISABLE_LVP;
 	pdata->flash_timeout = KTD2692_TIMER_1049ms;	/* default */
 	pdata->min_current_value = KTD2692_MIN_CURRENT_240mA;
+#if defined(CONFIG_SEC_J75_PROJECT)
+	pdata->movie_current_value = KTD2692_MOVIE_CURRENT3;
+#else
 	pdata->movie_current_value = KTD2692_MOVIE_CURRENT4;
+#endif
 	pdata->factory_movie_current_value = KTD2692_MOVIE_CURRENT10;
 	pdata->flash_current_value = KTD2692_FLASH_CURRENT16;
 	pdata->mode_status = KTD2692_DISABLES_MOVIE_FLASH_MODE;

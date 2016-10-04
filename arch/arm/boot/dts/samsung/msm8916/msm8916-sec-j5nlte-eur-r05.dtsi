@@ -17,7 +17,7 @@
 #include "msm8916-camera-sensor-cdp-j5-r00.dtsi"
 #include "msm8916-sec-j5-battery-r00.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0X62_BV050HDM/dsi_panel_S6D7AA0X62_BV050HDM_hd_5_0_video.dtsi"
-#include "../../../../../../drivers/video/msm/mdss/samsung/S6E8AA5X01_AMS497HY01/dsi_panel_S6E8AA5X01_AMS497HY01_hd_octa_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6E8AA5X01_AMS497HY01_J5LTE/dsi_panel_S6E8AA5X01_AMS497HY01_hd_octa_video.dtsi"
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
@@ -306,6 +306,7 @@
 
 	/* Over-riding model specific changes */
 	sound {
+		qcom,msm-micbias1-ext-cap;
 		qcom,audio-routing =
 			"RX_BIAS", "MCLK",
 			"SPK_RX_BIAS", "MCLK",
@@ -326,6 +327,25 @@
 		pinctrl-names = "sec_gpio_active","sec_gpio_suspend";
 		pinctrl-0 = <&muic_int_pin &home_key_pin>;
 		pinctrl-1 = <>;
+	};
+
+};
+
+&soc {
+	qcom,lpm-levels {
+		qcom,pm-cluster@0{
+			qcom,pm-cluster-level@2{
+				reg = <2>;
+				label = "l2-pc";
+				qcom,spm-l2-mode = "pc";
+				qcom,latency-us = <17500>;
+				qcom,ss-power = <490>;
+				qcom,energy-overhead = <972390>;
+				qcom,time-overhead = <1580>;
+				qcom,min-child-idx = <2>;
+				qcom,notify-rpm;
+			};
+		};
 	};
 
 };
@@ -368,7 +388,7 @@
 		interrupts = <52 0>;
 		hall,gpio_flip_cover = <&msm_gpio 52 0>;
 		hall_vdd-supply = <&pm8916_l5>;
-		pinctrl-names = "flipcover_active","flipcover_suspend";
+		pinctrl-names = "pmx_hall_ic_pin","flipcover_suspend";
 		pinctrl-0 = <&hall_int_active>;
 		pinctrl-1 = <&hall_int_suspend>;
 	};

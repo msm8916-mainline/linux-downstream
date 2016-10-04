@@ -403,6 +403,14 @@ config EARJACK_ADC_SYSFS
 	This is sysfs for sec_jack driver jack type and
 	btn type adc values.
 
+config DYNAMIC_MICBIAS_CONTROL
+	bool "Earjack micbias dynamic control for reduce current consumption"
+	default n
+	help
+	 This is earjack micbias control for reduce current consumption.
+	 When mic does not used or button is released,
+	 micbias set to low voltage.
+
 config TIMA_LOG
 	tristate "Support for dumping TIMA log"
 	default y
@@ -558,10 +566,6 @@ config LATTICE_ECP3_CONFIG
 	select FW_LOADER
 	default	n
 	help
-	  This option enables support for bitstream configuration (programming
-	  or loading) of the Lattice ECP3 FPGA family via SPI.
-
-	  If unsure, say N.
 
 config SM5502_MUIC
 	bool "SILICON MITUS MUIC"
@@ -575,17 +579,30 @@ config SM5703_MUIC
 	help
 	  This option enables SILICON MITUS MUIC.	  
 
-config USBID_STANDARD_VER_01
-	bool "USBID STANDARD VER 01"
+config MUIC_NOTI
+	bool "MUIC notifier support"
 	default n
 	help
-	  This option enables USBID STANDARD.
+	  If you say yes here you will get support for
+	  the MUIC attached device status change notification.
+
+config S2MM001_VBUS_CHECK
+	bool "S2MM001 MUIC VBUS CHECK"
+	default n
+	help
+	  This option enables VBUS CHECKER for S2MM001.
 
 config SM5504_MUIC
 	bool "SILICON MITUS MUIC"
 	default n
 	help
 	  This option enables SILICON MITUS MUIC.
+
+config USBID_STANDARD_VER_01
+	bool "USBID STANDARD VER 01"
+	default n
+	help
+	  This option enables USBID STANDARD.
 
 config MUIC_SUPPORT_RUSTPROOF
 	bool "MUIC Disable UART"
@@ -629,6 +646,19 @@ config MUIC_SUPPORT_SMARTDOCK
 config MUIC_SM5502_SUPPORT_LANHUB_TA
 	bool "SM5502 Muic Lanhub TA support"
 	depends on SM5502_MUIC && !SEC_FACTORY
+	default n
+	help
+	 This option enable the LANHUB + TA Support for the SM5502 MUIC
+	 Disabling the option for the FACTORY Binaries due to delay issue
+	 in the Factory Test PGM.
+	  This option enables support for bitstream configuration (programming
+	  or loading) of the Lattice ECP3 FPGA family via SPI.
+
+	  If unsure, say N.
+
+config MUIC_SM5703_SUPPORT_LANHUB_TA
+	bool "SM5703 Muic Lanhub TA support"
+	depends on SM5703_MUIC && !SEC_FACTORY
 	default n
 	help
 	 This option enable the LANHUB + TA Support for the SM5502 MUIC
@@ -694,43 +724,6 @@ config QPNP_MISC
 	  and the driver provides an API to check if this interrupt
 	  is available on the current PMIC chip.
 
-config USB_HSIC_SMSC_HUB
-	tristate "Support for HSIC based MSM on-chip SMSC3503 HUB"
-	depends on USB_EHCI_MSM_HSIC
-	help
-	  Enables support for the HSIC (High Speed Inter-Chip) based
-	  SMSC3503 hub controller present on the Qualcomm chipsets.
-
-	  This adds support for connecting devices like mouse in HSIC
-	  Host mode.
-
-config CHECK_SIMSLOT_COUNT
-	bool "Dual/Single sim support"
-
-config CHECK_SIMSLOT_COUNT_GPIO
-	int "Number simslot count gpio"
-	depends on CHECK_SIMSLOT_COUNT
-	default 0
-	help
-	  Provides Number of SS/DS detect GPIO value.
-
-config CHECK_SIMSLOT_COUNT_DT
-	bool "Define number of simslot count gpio at DeviceTree file"
-	depends on CHECK_SIMSLOT_COUNT
-	default n
-	help
-	  Say 'y' if you want to define gpio number at DeviceTree file instead of defconfig file.
-
-config BCM2079X_NFC_I2C
-	tristate "BCM2079X NFC driver for I2C interface"
-	depends on I2C
-	default n
-	help
-	  Say yes if you want BCM2079X Near Field Communication driver.
-	  This is for spi connected version. If unsure, say N here.
-	  To compile this driver as a module, choose m here. The module will
-	  be called bcm2079x-i2c.
-
 config NFC_PN547
 	bool "NXP PN547 NFC Controller Driver"
 	depends on I2C
@@ -741,7 +734,6 @@ config NFC_PN547
 	  It is used by many services. NFC is fully controlled using I2C
 	  to communicate the AP chip.
 
-
 config NFC_PN547_8916_USE_BBCLK2
 	bool "NXP PN547 NFC CLOCK Controller"
 	depends on NFC_PN547
@@ -751,14 +743,6 @@ config NFC_PN547_8916_USE_BBCLK2
 	  This option enables device driver support for the NFC.
 	  It is used by many services. NFC is fully controlled using I2C
 	  to communicate the AP chip.
-
-config NFC_PN547_8916_CLK_CTL
-	bool "NXP PN547 NFC CLOCK Control"
-	depends on NFC_PN547
-	default n
-	help
-	  NXP PN547 Near Field Communication controller support.
-	  This option control the clock in suspend and resume.
 
 config SEC_NFC_I2C
 	tristate "SEC NFC driver for I2C interface"
@@ -816,23 +800,24 @@ config SEC_NFC_CLK_REQ
 
 	  Say Y here to compile support for exnternal clock control in the kernel.
 
-config SEC_NFC_USE_8916_RFCLK2
-	bool "Use PM8916 RF_CLK2 clock"
-	depends on SEC_NFC_CLK_REQ
-	default n
-	help
-	  Use PM8916 RF_CLK2 clock to NFC external clock (RF clock).
-	  This option should be enabled if you use PMIC(8916) RF_CLK2 for NFC
-	  external clock.
-
 config SEC_NFC_USE_8916_BBCLK2
 	bool "Use PM8916 BB_CLK2 clock"
 	depends on SEC_NFC
 	default n
 	help
-	  Use PM8916 RF_CLK2 clock to NFC external clock (RF clock).
-	  This option should be enabled if you use PMIC(8916) RF_CLK2 for NFC
+	  Use PM8916 BB_CLK2 clock to NFC external clock (RF clock).
+	  This option should be enabled if you use PMIC(8916) BB_CLK2 for NFC
 	  external clock.
+
+config USB_HSIC_SMSC_HUB
+	tristate "Support for HSIC based MSM on-chip SMSC3503 HUB"
+	depends on USB_EHCI_MSM_HSIC
+	help
+	  Enables support for the HSIC (High Speed Inter-Chip) based
+	  SMSC3503 hub controller present on the Qualcomm chipsets.
+
+	  This adds support for connecting devices like mouse in HSIC
+	  Host mode.
 
 config TI_DRV2667
 	tristate "TI's DRV2667 haptic controller support"
@@ -852,13 +837,18 @@ config QCOM_LIQUID_DOCK
 	  This option enables support for the USB and Ethernet ports found on
 	  the docking station of various models of Qualcomm Technology's
 	  LiQUID Mobile Development Platforms.
+config UID_CPUTIME
+	tristate "Per-UID cpu time statistics"
+	depends on PROFILING
+	help
+	  Per UID based cpu time statistics exported to /proc/uid_cputime
 
 config SEC_MISC
 	bool "Samsung P series miscellaneous driver"
 	default n
 	---help---
 	  Samsung P series miscellaneous driver
-          This creates sys fs entries for changing
+	  This creates sys fs entries for changing
 	  debug levels. The debug level is stored in
 	  Param partition
 
@@ -868,6 +858,29 @@ config SEC_GPIO_SETTINGS
 	---help---
 	  Use this driver to configure active,
 	  suspend settings of gpios
+
+config CHECK_SIMSLOT_COUNT
+	bool "Dual/Single sim support"
+
+config CHECK_SIMSLOT_COUNT_GPIO
+	int "Number simslot count gpio"
+	depends on CHECK_SIMSLOT_COUNT
+	default 0
+	help
+	  Provides Number of SS/DS detect GPIO value.
+
+config CHECK_SIMSLOT_COUNT_DT
+	bool "Define number of simslot count gpio at DeviceTree file"
+	depends on CHECK_SIMSLOT_COUNT
+	default n
+	help
+	  Say 'y' if you want to define gpio number at DeviceTree file instead of defconfig file.
+
+config MACH_KOR_EARJACK_WR
+	bool "enable earjack-noise workaround"
+	default n
+	help
+	  Say Y to enable earjack-noise workaround at charging
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
@@ -879,4 +892,6 @@ source "drivers/misc/altera-stapl/Kconfig"
 source "drivers/misc/mei/Kconfig"
 source "drivers/misc/vmw_vmci/Kconfig"
 source "drivers/misc/qcom/Kconfig"
+source "drivers/misc/tzdev/Kconfig"
+source "drivers/misc/bhy/Kconfig"
 endmenu

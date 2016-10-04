@@ -47,7 +47,7 @@
 #define MAX_TRY_I2C_READ	10
 #define I2C_ADDR_READ_L		0x51
 #define I2C_ADDR_READ_H		0x57
-#define NFC_DEBUG	0
+#define NFC_DEBUG 0
 
 struct pn547_dev {
 	wait_queue_head_t read_wq;
@@ -58,9 +58,7 @@ struct pn547_dev {
 	unsigned int ven_gpio;
 	unsigned int firm_gpio;
 	unsigned int irq_gpio;
-#ifdef CONFIG_NFC_PN547_8916_CLK_CTL
-	unsigned int nfc_enable;
-#endif
+
 	atomic_t irq_enabled;
 	atomic_t read_flag;
 	bool cancel_read;
@@ -71,9 +69,7 @@ struct pn547_dev {
 	struct regulator *L14;
 
 };
-#ifdef CONFIG_NFC_PN547_8916_CLK_CTL
-#define PN547_NFC_GET_INFO(dev) i2c_get_clientdata(to_i2c_client(dev))
-#endif
+
 //int nfc_power_onoff(struct pn547_dev *data, bool onoff);
 
 
@@ -284,19 +280,6 @@ static long pn547_dev_ioctl(struct file *filp,
 			}
 			pr_info("%s power on with firmware, irq=%d\n", __func__,
 				atomic_read(&pn547_dev->irq_enabled));
-#ifdef CONFIG_NFC_PN547_8916_CLK_CTL
-			pn547_dev->nfc_enable = 1;
-			if (IS_ERR(pn547_dev->nfc_clock)) {
-				pr_err("[NFC] %s: Couldn't get D1)\n",
-							__func__);
-			} else {
-				//clk_put(pn547_dev->nfc_clock);
-				pr_info("%s power set and clk_prepare_enable\n", __func__);
-				if (clk_prepare_enable(pn547_dev->nfc_clock))
-					pr_err("[NFC] %s: Couldn't prepare D1\n",
-							__func__);
-			}
-#endif
 		} else if (arg == 1) {
 			/* power on */
 			if (pn547_dev->conf_gpio)
@@ -311,19 +294,6 @@ static long pn547_dev_ioctl(struct file *filp,
 			}
 			pr_info("%s power on, irq=%d\n", __func__,
 				atomic_read(&pn547_dev->irq_enabled));
-#ifdef CONFIG_NFC_PN547_8916_CLK_CTL
-			pn547_dev->nfc_enable = 1;
-			if (IS_ERR(pn547_dev->nfc_clock)) {
-				pr_err("[NFC] %s: Couldn't get D1)\n",
-							__func__);
-			} else {
-				//clk_put(pn547_dev->nfc_clock);
-				pr_info("%s power on and clk_prepare_enable\n", __func__);
-				if (clk_prepare_enable(pn547_dev->nfc_clock))
-					pr_err("[NFC] %s: Couldn't prepare D1\n",
-							__func__);
-			}
-#endif
 		} else if (arg == 0) {
 			/* power off */
 			if (atomic_read(&pn547_dev->irq_enabled) == 1) {
@@ -336,14 +306,6 @@ static long pn547_dev_ioctl(struct file *filp,
 			gpio_set_value(pn547_dev->firm_gpio, 0);
 			gpio_set_value_cansleep(pn547_dev->ven_gpio, 0);
 			usleep_range(10000, 10050);
-#ifdef CONFIG_NFC_PN547_8916_CLK_CTL
-			pn547_dev->nfc_enable = 0;
-			if(pn547_dev->nfc_clock)
-			{
-				clk_disable_unprepare(pn547_dev->nfc_clock);
-				pr_info("%s power off and clk_disable_unprepare\n", __func__);
-			}
-#endif
 		} else if (arg == 3) {
 			pr_info("%s Read Cancel\n", __func__);
 			pn547_dev->cancel_read = true;
@@ -411,51 +373,6 @@ int nfc_power_onoff(struct pn547_dev *data, bool onoff)
 }
 #endif
 
-#ifdef CONFIG_NFC_PN547_8916_CLK_CTL
-#ifdef CONFIG_PM
-static int pn547_nfc_suspend(struct device *dev)
-{
-	struct pn547_dev *info = PN547_NFC_GET_INFO(dev);
-
-#ifdef CONFIG_NFC_PN547_8916_CLK_CTL
-	if(info->nfc_enable == 1){
-		if(info->nfc_clock)
-		{
-			clk_disable_unprepare(info->nfc_clock);
-			pr_info("%s power off and clk_disable_unprepare\n", __func__);
-		}
-	}
-#endif
-
-	return 0;
-}
-
-static int pn547_nfc_resume(struct device *dev)
-{
-	struct pn547_dev *info = PN547_NFC_GET_INFO(dev);
-
-#ifdef CONFIG_NFC_PN547_8916_CLK_CTL
-		if(info->nfc_enable == 1){
-			if (IS_ERR(info->nfc_clock)) {
-				pr_err("[NFC] %s: Couldn't get D1)\n",
-							__func__);
-			} else {
-				//clk_put(pn547_dev->nfc_clock);
-				pr_info("%s power set and clk_prepare_enable\n", __func__);
-				if (clk_prepare_enable(info->nfc_clock))
-					pr_err("[NFC] %s: Couldn't prepare D1\n",
-							__func__);
-			}
-		}
-#endif
-
-	return 0;
-}
-
-static SIMPLE_DEV_PM_OPS(pn547_nfc_pm_ops, pn547_nfc_suspend, pn547_nfc_resume);
-#endif
-#endif
-
 #ifdef CONFIG_OF
 static int pn547_parse_dt(struct device *dev,
 	struct pn547_i2c_platform_data *pdata)
@@ -477,11 +394,9 @@ static int pn547_parse_dt(struct device *dev,
 					__func__);
 	} else {
 		clk_put(pdata->nfc_clock);
-#ifndef CONFIG_NFC_PN547_8916_CLK_CTL
 		if (clk_prepare_enable(pdata->nfc_clock))
 			pr_err("[NFC] %s: Couldn't prepare D1\n",
 					__func__);
-#endif
 	}
 #endif
 	if (pdata->firm_gpio < 0)
@@ -594,9 +509,7 @@ static int pn547_probe(struct i2c_client *client,
 	pn547_dev->nfc_clock = platform_data->nfc_clock;
 
 	pn547_dev->client = client;
-#ifdef CONFIG_NFC_PN547_8916_CLK_CTL
-	pn547_dev->nfc_enable = 0;
-#endif
+
 	/* init mutex and queues */
 	init_waitqueue_head(&pn547_dev->read_wq);
 	mutex_init(&pn547_dev->read_mutex);
@@ -682,7 +595,7 @@ static int pn547_remove(struct i2c_client *client)
 	pn547_dev = i2c_get_clientdata(client);
 #ifdef CONFIG_NFC_PN547_8916_USE_BBCLK2
 	if(pn547_dev->nfc_clock)
-		clk_disable_unprepare(pn547_dev->nfc_clock);
+		clk_unprepare(pn547_dev->nfc_clock);
 #endif
 	wake_lock_destroy(&pn547_dev->nfc_wake_lock);
 	free_irq(client->irq, pn547_dev);
@@ -717,11 +630,6 @@ static struct i2c_driver pn547_driver = {
 	.driver = {
 		.owner = THIS_MODULE,
 		.name = "pn547",
-#ifdef CONFIG_NFC_PN547_8916_CLK_CTL
-#ifdef CONFIG_PM
-		.pm = &pn547_nfc_pm_ops,
-#endif
-#endif
 		.of_match_table = nfc_match_table,
 	},
 };

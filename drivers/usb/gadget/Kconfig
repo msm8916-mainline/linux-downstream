@@ -893,7 +893,6 @@ config USB_ANDROID_SAMSUNG_COMPOSITE
 		Multi Configuration.
 		If you enable this option, android composite will be changed.
 
-
 config USB_DUN_SUPPORT
 	boolean "DUN support function"
 	depends on USB_G_ANDROID

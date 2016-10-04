@@ -1,8 +1,20 @@
 /*
- * mm.c
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
  *
- *  Created on: Jul 21, 2014
- *      Author: olic
+ * Sensitive Data Protection
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
 #include <linux/kernel.h>
@@ -25,6 +37,7 @@ DEFINE_MUTEX(ecryptfs_mm_mutex);
 
 struct ecryptfs_mm_drop_cache_param {
 	int user_id;
+    int engine_id;
 };
 
 #define INVALIDATE_MAPPING_RETRY_CNT 3
@@ -112,8 +125,9 @@ void ecryptfs_mm_do_sdp_cleanup(struct inode *inode) {
 		if(rc)
 			DEK_LOGE("%s: vfs_sync returned error rc: %d\n", __func__, rc);
 
-		if(ecryptfs_is_persona_locked(crypt_stat->userid)) {
-			DEK_LOGD("%s: persona locked inode: %lu useid: %d\n",__func__, inode->i_ino, crypt_stat->userid);
+		if(ecryptfs_is_sdp_locked(crypt_stat->engine_id)) {
+			DEK_LOGD("%s: persona locked inode: %lu useid: %d\n",
+			        __func__, inode->i_ino, crypt_stat->engine_id);
 			invalidate_mapping_pages_retry(inode->i_mapping, 0, -1, 3);
 		}
 #if defined(CONFIG_MMC_DW_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_ECRYPT_FS)
@@ -122,7 +136,7 @@ void ecryptfs_mm_do_sdp_cleanup(struct inode *inode) {
 			invalidate_lower_mapping_pages_retry(inode_info->lower_file, 3);
 		}
 #endif
-		if(ecryptfs_is_persona_locked(crypt_stat->userid)) {
+		if(ecryptfs_is_sdp_locked(crypt_stat->engine_id)) {
 			ecryptfs_clean_sdp_dek(crypt_stat);
 		}
 		DEK_LOGD("%s: inode: %p clean up stop\n",__func__, inode);
@@ -185,27 +199,35 @@ static void ecryptfs_mm_drop_pagecache(struct super_block *sb, void *arg)
 	printk("%s start() sb:%s [%d], userid:%d\n", __func__,
 			sb->s_type->name, mount_crypt_stat->userid, param->user_id);
 	
-	if(mount_crypt_stat->userid != param->user_id)
-		return;
+	if (param->user_id >= 100 && param->user_id < 200) {
+		if(mount_crypt_stat->userid != param->user_id)
+			return;
+	}
 	
 	spin_lock(&inode_sb_list_lock);
 	list_for_each_entry(inode, &sb->s_inodes, i_sb_list)
 	{	
+        struct ecryptfs_crypt_stat *crypt_stat = &ecryptfs_inode_to_private(inode)->crypt_stat;
+
+        if(crypt_stat == NULL)
+            continue;
+
+        if(crypt_stat->engine_id != param->engine_id) {
+			continue;
+		}
+
 		if (!inode->i_mapping) {
 			continue;
 		}
 		
 		spin_lock(&inode->i_lock);
 		if (inode->i_mapping->nrpages == 0) {
-			struct ecryptfs_crypt_stat *crypt_stat;
 			spin_unlock(&inode->i_lock);
 			
 			if(ecryptfs_mm_debug)
 				printk("%s() ecryptfs inode [ino:%lu]\n",__func__, inode->i_ino);
 				
-			crypt_stat = &ecryptfs_inode_to_private(inode)->crypt_stat;
-				
-			if(crypt_stat && (crypt_stat->flags & ECRYPTFS_DEK_IS_SENSITIVE) &&
+			if((crypt_stat->flags & ECRYPTFS_DEK_IS_SENSITIVE) &&
 					!atomic_read(&ecryptfs_inode_to_private(inode)->lower_file_count))
 				ecryptfs_clean_sdp_dek(crypt_stat);
 
@@ -221,15 +243,13 @@ static void ecryptfs_mm_drop_pagecache(struct super_block *sb, void *arg)
 
 		if(mapping_sensitive(inode->i_mapping) &&
 				!atomic_read(&ecryptfs_inode_to_private(inode)->lower_file_count)) {
-			struct ecryptfs_crypt_stat *crypt_stat;
 			drop_inode_pagecache(inode);
 				
 			if(ecryptfs_mm_debug)
 					printk(KERN_ERR "lower inode: %p lower inode: %p nrpages: %lu\n",ecryptfs_inode_to_lower(inode),
 							ecryptfs_inode_to_private(inode), ecryptfs_inode_to_lower(inode)->i_mapping->nrpages);
 			
-			crypt_stat = &ecryptfs_inode_to_private(inode)->crypt_stat;
-			if(crypt_stat && (crypt_stat->flags & ECRYPTFS_DEK_IS_SENSITIVE))
+			if(crypt_stat->flags & ECRYPTFS_DEK_IS_SENSITIVE)
 				ecryptfs_clean_sdp_dek(crypt_stat);	
 		}
 		spin_lock(&inode_sb_list_lock);
@@ -259,7 +279,7 @@ static int ecryptfs_mm_task(void *arg)
 	return 0;
 }
 
-void ecryptfs_mm_drop_cache(int userid) {
+void ecryptfs_mm_drop_cache(int userid, int engineid) {
 #if 1
 	struct task_struct *task;
 	struct ecryptfs_mm_drop_cache_param *param =
@@ -269,7 +289,8 @@ void ecryptfs_mm_drop_cache(int userid) {
 		printk("%s :: skip. no memory to alloc param\n", __func__);
 		return;
 	}
-	param->user_id = userid;
+    param->user_id = userid;
+    param->engine_id = engineid;
 
 	printk("running cache cleanup thread - sdp-id : %d\n", userid);
 	task = kthread_run(ecryptfs_mm_task, param, "sdp_cached");

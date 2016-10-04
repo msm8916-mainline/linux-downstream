@@ -346,6 +346,13 @@ config REGULATOR_S2MPS11
 	 via I2C bus. S2MPS11 is comprised of high efficient Buck converters
 	 including Dual-Phase Buck converter, Buck-Boost converter, various LDOs.
 
+config REGULATOR_S2MU003
+	tristate "Samsung S2MU003 voltage regulator"
+	depends on MFD_S2MU003
+	help
+	 This driver supports a Samsung Sub-PMIC S2MU003 voltage output regulator
+	 via I2C bus. S2MU003 is comprised of Buck & LDOs.
+
 config REGULATOR_S5M8767
 	tristate "Samsung S5M8767A voltage regulator"
 	depends on MFD_SEC_CORE
@@ -619,6 +626,13 @@ config REGULATOR_SM5703
 	tristate "SM5703 LDO and Buck"
 	help
 	 Say y here to support the regulators found on the Siliconmitus SM5703 I/F PMIC.
+
+config REGULATOR_SM5705
+	tristate "SM705 regulator"
+	depends on MFD_SM5705
+	help
+	 This driver controls a SM5705 regulator
+          via I2C bus. SM5705 is comprised of USBLDOs.
 
 config APC_CPR_QUOT_BOOST
 	bool "CPR quotient boost for APC"

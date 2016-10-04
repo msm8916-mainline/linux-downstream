@@ -123,7 +123,7 @@ struct jbd2_revoke_table_s
 #ifdef __KERNEL__
 static void write_one_revoke_record(journal_t *, transaction_t *,
 				    struct list_head *,
-				    struct buffer_head **, int *,
+					struct buffer_head **, int *,
 				    struct jbd2_revoke_record_s *, int);
 static void flush_descriptor(journal_t *, struct buffer_head *, int, int);
 #endif
@@ -532,7 +532,7 @@ void jbd2_journal_switch_revoke_table(journal_t *journal)
  */
 void jbd2_journal_write_revoke_records(journal_t *journal,
 				       transaction_t *transaction,
-				       struct list_head *log_bufs,
+					   struct list_head *log_bufs,
 				       int write_op)
 {
 	struct buffer_head *descriptor;
@@ -575,9 +575,9 @@ void jbd2_journal_write_revoke_records(journal_t *journal,
 
 static void write_one_revoke_record(journal_t *journal,
 				    transaction_t *transaction,
-				    struct list_head *log_bufs,
-				    struct buffer_head **descriptorp,
-				    int *offsetp,
+					struct list_head *log_bufs,
+					struct buffer_head **descriptorp,
+					int *offsetp,
 				    struct jbd2_revoke_record_s *record,
 				    int write_op)
 {
@@ -612,7 +612,7 @@ static void write_one_revoke_record(journal_t *journal,
 		descriptor = jbd2_journal_get_descriptor_buffer(journal);
 		if (!descriptor)
 			return;
-		header = (journal_header_t *)descriptor->b_data;
+		header = (journal_header_t *) descriptor->b_data;
 		header->h_magic     = cpu_to_be32(JBD2_MAGIC_NUMBER);
 		header->h_blocktype = cpu_to_be32(JBD2_REVOKE_BLOCK);
 		header->h_sequence  = cpu_to_be32(transaction->t_tid);
@@ -672,10 +672,10 @@ static void flush_descriptor(journal_t *journal,
 		return;
 	}
 
-	header = (jbd2_journal_revoke_header_t *)descriptor->b_data;
+	header = (jbd2_journal_revoke_header_t *) descriptor->b_data;
 	header->r_count = cpu_to_be32(offset);
 	jbd2_revoke_csum_set(journal, descriptor);
-
+	
 	set_buffer_jwrite(descriptor);
 	BUFFER_TRACE(descriptor, "write");
 	set_buffer_dirty(descriptor);

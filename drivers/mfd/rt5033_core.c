@@ -550,13 +550,12 @@ err_add_regulator_devs:
 #endif /*CONFIG_REGULATOR_RT5033*/
 err_init_irq:
 	wake_lock_destroy(&(chip->irq_wake_lock));
-	mutex_destroy(&chip->suspend_flag_lock);
 	mutex_destroy(&chip->regulator_lock);
 	mutex_destroy(&chip->io_lock);
-irq_base_err:
-err_i2cfunc_not_support:
 	kfree(chip);
+irq_base_err:
 err_mfd_nomem:
+err_i2cfunc_not_support:
 err_parse_dt:
 err_dt_nomem:
 	return ret;

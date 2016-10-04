@@ -32,7 +32,6 @@
 #ifndef CONFIG_DECOMPRESS_LZO
 # define unlzo NULL
 #endif
-
 #ifndef CONFIG_DECOMPRESS_LZ4
 # define unlz4 NULL
 #endif

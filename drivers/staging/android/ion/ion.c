@@ -1330,6 +1330,8 @@ struct ion_handle *ion_import_dma_buf(struct ion_client *client, int fd)
 	/* if a handle exists for this buffer just take a reference to it */
 	handle = ion_handle_lookup(client, buffer);
 	if (!IS_ERR(handle)) {
+		trace_ion_import_dma_buf(__LINE__, client, handle, buffer,
+				__builtin_return_address(0));
 		ion_handle_get(handle);
 		mutex_unlock(&client->lock);
 		goto end;
@@ -1337,6 +1339,8 @@ struct ion_handle *ion_import_dma_buf(struct ion_client *client, int fd)
 	mutex_unlock(&client->lock);
 
 	handle = ion_handle_create(client, buffer);
+	trace_ion_import_dma_buf(__LINE__, client, handle, buffer,
+			__builtin_return_address(0));
 	if (IS_ERR(handle))
 		goto end;
 
@@ -1753,7 +1757,7 @@ void show_ion_usage(struct ion_device *dev)
 			heap->debug_show(heap, NULL, 0);
 
 	}
-	up_write(&dev->lock);
+	up_read(&dev->lock);
 }
 
 #ifdef DEBUG_HEAP_SHRINKER

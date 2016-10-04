@@ -171,6 +171,16 @@
 #define TLMMV4_QDSD_CONFIG_WIDTH		0x5
 #define TLMMV4_QDSD_DRV_MASK			0x7
 
+
+
+#if defined(CONFIG_SEC_A7X_PROJECT)
+#define TLMM_SPARE (0xeb400000 + 0x10E000)
+#endif
+
+#if defined(CONFIG_SEC_A5X_PROJECT)
+#define TLMM_SPARE (0xc6400000 + 0x10E000)
+#endif
+
 struct msm_sdc_regs {
 	unsigned long pull_mask;
 	unsigned long pull_shft;
@@ -404,6 +414,11 @@ static int msm_tlmm_gp_cfg(uint pin_no, unsigned long *config,
 	u32 mask = 0, shft = 0;
 	void __iomem *inout_reg = NULL;
 	void __iomem *cfg_reg = TLMM_GP_CFG(pinfo, pin_no);
+
+#ifdef CONFIG_MST_LDO
+		if (pin_no == MST_GPIO_D_MINUS || pin_no == MST_GPIO_D_PLUS)
+			return 0;
+#endif
 
 	id = pinconf_to_config_param(*config);
 	val = readl_relaxed(cfg_reg);
@@ -953,7 +968,7 @@ static int msm_tlmm_gp_irq_suspend(void)
 	return 0;
 }
 
-void msm_tlmm_v4_gp_show_resume_irq()
+void msm_tlmm_gp_show_resume_irq(void)
 {
 	unsigned long irq_flags;
 	unsigned int virq = 0;
@@ -978,7 +993,6 @@ void msm_tlmm_v4_gp_show_resume_irq()
 
 	spin_unlock_irqrestore(&ic->irq_lock, irq_flags);
 }
-
 static void msm_tlmm_gp_irq_resume(void)
 {
 	unsigned long irq_flags;
@@ -986,6 +1000,7 @@ static void msm_tlmm_gp_irq_resume(void)
 	struct msm_tlmm_irq_chip *ic = &msm_tlmm_gp_irq;
 	int num_irqs = ic->num_irqs;
 
+	msm_tlmm_gp_show_resume_irq();
 	spin_lock_irqsave(&ic->irq_lock, irq_flags);
 	for_each_set_bit(i, ic->wake_irqs, num_irqs)
 		msm_tlmm_set_intr_cfg_enable(ic, i, 0);
@@ -1334,6 +1349,18 @@ static int msm_tlmm_probe(struct platform_device *pdev)
 		tlmm_pininfo[i].pintype_data = pintype_data[i];
 	tlmm_desc->pintypes = tlmm_pininfo;
 	tlmm_desc->num_pintypes = ARRAY_SIZE(tlmm_pininfo);
+
+#if defined(CONFIG_SEC_A7X_PROJECT)|| defined(CONFIG_SEC_A5X_PROJECT)
+{
+/* A7X H/W engineer has requested to reconfigure GPIO 37 as spare. QC Case: 02169449 */ 
+	u32 reg_val;
+	u32 __iomem *reg = (u32 __iomem *)TLMM_SPARE;
+	pr_err(" Reconfig [%x]\n", (unsigned)TLMM_SPARE);
+	reg_val = __raw_readl(reg);
+	__raw_writel( (reg_val|0x2), reg);
+}
+#endif
+
 	return msm_pinctrl_probe(pdev, tlmm_desc);
 }
 

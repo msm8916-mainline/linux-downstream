@@ -103,6 +103,11 @@ typedef struct rt5033_charger_platform_data {
     sec_charging_current_t *charging_current_table;
     int chg_float_voltage;
     char *charger_name;
+    bool dualized_charging_current;
+    /* 1st full check */
+    sec_battery_full_charged_t full_check_type;
+    /* 2nd full check */
+    sec_battery_full_charged_t full_check_type_2nd;
     uint32_t is_750kHz_switching : 1;
     uint32_t is_fixed_switching : 1;
 } rt5033_charger_platform_data_t;

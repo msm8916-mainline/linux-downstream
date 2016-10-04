@@ -63,7 +63,11 @@ ifeq ($(TARGET_USES_UNCOMPRESSED_KERNEL),true)
 $(info Using uncompressed kernel)
 TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/Image
 else
+ifeq ($(KERNEL_ARCH),arm64)
+TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/Image.gz
+else
 TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(KERNEL_ARCH)/boot/zImage
+endif
 endif
 
 ifeq ($(TARGET_KERNEL_APPEND_DTB), true)
@@ -76,6 +80,7 @@ KERNEL_MODULES_INSTALL := system
 KERNEL_MODULES_OUT := $(TARGET_OUT)/lib/modules
 
 TARGET_PREBUILT_KERNEL := $(TARGET_PREBUILT_INT_KERNEL)
+$(info TARGET_PREBUILT_KERNEL is $(TARGET_PREBUILT_KERNEL))
 
 define mv-modules
 mdpath=`find $(KERNEL_MODULES_OUT) -type f -name modules.dep`;\
@@ -122,7 +127,6 @@ $(KERNEL_HEADERS_INSTALL): $(KERNEL_OUT)
 ifeq ($(SEC_FACTORY_BUILD), true)
 	$(modi-facdefconfig)
 endif
-
 	$(hide) if [ ! -z "$(KERNEL_HEADER_DEFCONFIG)" ]; then \
 			$(hide) rm -f ../$(KERNEL_CONFIG); \
 			$(MAKE) -C kernel O=../$(KERNEL_OUT) ARCH=$(KERNEL_HEADER_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(KERNEL_HEADER_DEFCONFIG); \

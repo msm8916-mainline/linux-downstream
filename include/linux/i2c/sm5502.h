@@ -17,6 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
  */
+
 #ifndef _SM5502_H_
 #define _SM5502_H_
 #include <linux/i2c/muic.h>
@@ -26,6 +27,7 @@ enum {
 	SM5502_DETACHED = 0,
 	SM5502_ATTACHED = 1
 };
+
 struct sm5502_platform_data {
 	void (*callback)(enum cable_type_t cable_type, int attached);
 #if defined(CONFIG_MUIC_SM5502_SUPPORT_LANHUB_TA)
@@ -43,6 +45,7 @@ struct sm5502_platform_data {
 	int gpio_uart_on;
 	u32 uarton_gpio_flags;
 };
+
 /*SM5502 Callback functions in sec-switch.c*/
 extern int check_sm5502_jig_state(void);
 extern struct sm5502_platform_data sm5502_pdata;
@@ -53,3 +56,4 @@ extern int sm5502_dock_init(void);
 extern void sm5502_lanhub_callback(enum cable_type_t cable_type, int attached, bool lanhub_ta);
 #endif
 #endif /* _SM5502_H_ */
+

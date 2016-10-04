@@ -18,7 +18,6 @@
 
 #ifndef _LINUX_BT432_TS_H
 #define _LINUX_BT432_TS_H
-#include <linux/input/tsp_ta_callback.h>
 
 #define TS_DRVIER_VERSION	"1.0.18_1"
 
@@ -46,7 +45,6 @@ struct bt432_ts_platform_data {
 	u32	page_size;
 	u32	orientation;
 	u32	tsp_supply_type;
-	
 };
 
 extern struct class *sec_class;

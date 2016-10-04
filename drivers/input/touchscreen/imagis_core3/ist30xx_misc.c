@@ -755,7 +755,6 @@ ssize_t ist30xx_check_temp_store(struct device *dev,
 	return size;
 }
 #endif
-
 #define TUNES_CMD_WRITE         (1)
 #define TUNES_CMD_READ          (2)
 #define TUNES_CMD_REG_ENTER     (3)

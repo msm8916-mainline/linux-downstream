@@ -724,6 +724,7 @@ err_fw_size:
 	if (buff)
 		kfree(buff);
 err_alloc:
+	if (fp)
 		filp_close(fp, NULL);
 err_file_open:
 	set_fs(old_fs);

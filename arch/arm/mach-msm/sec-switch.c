@@ -29,6 +29,7 @@
 #include <linux/i2c/sm5502.h>
 #define DEBUG_STATUS	1
 #endif
+
 #if defined(CONFIG_SM5504_MUIC)
 #include <linux/i2c/sm5504.h>
 #define DEBUG_STATUS    1
@@ -37,6 +38,7 @@
 #include <linux/i2c/sm5703-muic.h>
 #define DEBUG_STATUS	1
 #endif
+
 #define BATT_SEARCH_CNT_MAX	10
 #if defined (CONFIG_VIDEO_MHL_V2)
 static int MHL_Connected;
@@ -45,6 +47,7 @@ static int MHL_Connected;
 #include <linux/input/tsp_ta_callback.h>
 
 #if defined(CONFIG_SM5502_MUIC) || defined(CONFIG_SM5504_MUIC) || defined(CONFIG_SM5703_MUIC)
+/* callbacks & Handlers for the SM5502 MUIC*/
 #ifndef CONFIG_USB_NOTIFY_LAYER
 /* Dummy callback Function to handle the OTG Test case*/
 int get_usb_mode(void)
@@ -52,6 +55,7 @@ int get_usb_mode(void)
 	return 1;
 }
 #endif
+
 #ifndef CONFIG_USB_NOTIFY_LAYER
 extern void sec_otg_set_vbus_state(int);
 #endif
@@ -77,14 +81,13 @@ bool sec_bat_is_lpm(void)
 #endif
 #endif
 #if defined(CONFIG_SM5502_MUIC)
-/* callbacks & Handlers for the SM5502 MUIC*/
 #if defined(CONFIG_QPNP_BMS)
 extern int check_sm5502_jig_state(void);
 #endif
 
 void sm5502_oxp_callback(int state)
 {
-#if 0 //ovp stub-implemented on completion
+	/* ovp stub-implemented on completion */
 	bool ovp_state;
 	if (state == 1) {
 		ovp_state = true;
@@ -93,7 +96,6 @@ void sm5502_oxp_callback(int state)
 		ovp_state = false;
 		/*DISABLE*/
 	}
-#endif
 }
 
 int sm5502_dock_init(void)
@@ -123,10 +125,13 @@ void sm5502_lanhub_callback(enum cable_type_t cable_type, int attached, bool lan
 	union power_supply_propval value;
 	struct power_supply *psy;
 	int i, ret = 0;
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	struct otg_notify *n = get_otg_notify();
+#endif
 
 	pr_info("SM5502 Lanhub Callback called, cable %d, attached %d, TA: %s\n",
 		cable_type, attached, (lanhub_ta ? "Yes" : "No"));
-	if(lanhub_ta)
+	if (lanhub_ta)
 		set_cable_status = attached ? CABLE_TYPE_LANHUB : POWER_SUPPLY_TYPE_OTG;
 	else
 		set_cable_status = attached ? CABLE_TYPE_LANHUB : CABLE_TYPE_NONE;
@@ -144,9 +149,9 @@ void sm5502_lanhub_callback(enum cable_type_t cable_type, int attached, bool lan
 		return;
 	}
 
-	if (!psy || !psy->set_property)
-                pr_err("%s: fail to set battery psy\n", __func__);
-        else {
+	if (!psy || !psy->set_property) {
+		pr_err("%s: fail to set battery psy\n", __func__);
+	} else {
 		switch (set_cable_status) {
 		case CABLE_TYPE_LANHUB:
 			value.intval = POWER_SUPPLY_TYPE_LAN_HUB;
@@ -168,19 +173,19 @@ void sm5502_lanhub_callback(enum cable_type_t cable_type, int attached, bool lan
 	}
 
 #ifdef CONFIG_USB_HOST_NOTIFY
-	if (attached){
-		if(lanhub_ta) {
+	if (attached) {
+		if (lanhub_ta) {
 			pr_info("USB Host HNOTIFY LANHUB_N_TA_ON\n");
 		} else {
 			pr_info("USB Host HNOTIFY_LANHUB_ON\n");
-			//sec_otg_notify(HNOTIFY_LANHUB_ON);
+			/*sec_otg_notify(HNOTIFY_LANHUB_ON);*/
 		}
-	}else{
+	} else {
 		if (lanhub_ta) {
 			pr_info("USB Host HNOTIFY LANHUB ON\n");
 		} else {
 			pr_info("USB Host HNOTIFY_LANHUB_OFF");
-			//sec_otg_notify(HNOTIFY_LANHUB_OFF);
+			/* sec_otg_notify(HNOTIFY_LANHUB_OFF);*/
 		}
 	}
 #endif
@@ -191,6 +196,7 @@ void sm5502_lanhub_callback(enum cable_type_t cable_type, int attached, bool lan
 #if defined(USE_TSP_TA_CALLBACKS)
 struct tsp_callbacks *charger_callbacks;
 #endif
+
 void sm5502_callback(enum cable_type_t cable_type, int attached)
 {
 	union power_supply_propval value;
@@ -201,14 +207,15 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 	struct otg_notify *n = get_otg_notify();
 #endif
 	pr_info("%s, called : cable_type :%d \n",__func__, cable_type);
+
 	set_cable_status = attached ? cable_type : CABLE_TYPE_NONE;
 
 	switch (cable_type) {
 	case CABLE_TYPE_USB:
 #if defined(USE_TSP_TA_CALLBACKS)
-	if (charger_callbacks && charger_callbacks->inform_charger)
-		charger_callbacks->inform_charger(charger_callbacks,
-		attached);
+		if (charger_callbacks && charger_callbacks->inform_charger)
+			charger_callbacks->inform_charger(charger_callbacks,
+			attached);
 #endif
 #if defined(DEBUG_STATUS)
 		if (attached) {
@@ -223,7 +230,7 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 #if defined(CONFIG_USB_NOTIFY_LAYER)
 		send_otg_notify(n, NOTIFY_EVENT_VBUS, attached);
 #else
-	 	sec_otg_set_vbus_state(attached);
+		sec_otg_set_vbus_state(attached);
 #endif
 		break;
 	case CABLE_TYPE_AC:
@@ -311,15 +318,16 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 #if defined(CONFIG_USB_HOST_NOTIFY)
 		if (attached) {
 			send_otg_notify(n, NOTIFY_EVENT_DRIVE_VBUS, 1);
+			msleep(100);
 			send_otg_notify(n, NOTIFY_EVENT_HOST, 1);
 		} else {
 			send_otg_notify(n, NOTIFY_EVENT_HOST, 0);
+			msleep(100);
 			send_otg_notify(n, NOTIFY_EVENT_DRIVE_VBUS, 0);
 		}
 #endif
 		return;
 	case CABLE_TYPE_AUDIO_DOCK:
-
 #if defined(DEBUG_STATUS)
 		if (attached) {
 			status_count = status_count+1;
@@ -329,7 +337,14 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 			pr_err("%s Audiodock status detached (%d)\n", __func__, status_count);
 		}
 #endif
-		return;
+#if defined(CONFIG_USB_HOST_NOTIFY)
+		if (attached) {
+			send_otg_notify(n, NOTIFY_EVENT_AUDIODOCK, 1);
+		} else {
+			send_otg_notify(n, NOTIFY_EVENT_AUDIODOCK, 0);
+		}
+#endif
+		break;
 	case CABLE_TYPE_CARDOCK:
 #if defined(DEBUG_STATUS)
 		if (attached) {
@@ -370,6 +385,21 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 #endif
 		switch_set_state(&switch_dock, attached);
 		break;
+	case CABLE_TYPE_SMART_DOCK:
+	case CABLE_TYPE_SMART_DOCK_NO_VB:
+#if defined(DEBUG_STATUS)
+		if (attached) {
+			status_count = status_count+1;
+			pr_err("%s Smartdock %s status attached (%d)\n", __func__,
+				((cable_type == CABLE_TYPE_SMART_DOCK) ? "VBUS" : "NOVBUS"), status_count);
+		} else {
+			status_count = status_count-1;
+			pr_err("%s Smartdock %s status detached (%d)\n", __func__,
+				((cable_type == CABLE_TYPE_SMART_DOCK) ? "VBUS" : "NOVBUS"), status_count);
+		}
+#endif
+		switch_set_state(&switch_dock, attached ? 5 : 0);
+		break;
 	case CABLE_TYPE_219KUSB:
 #if defined(DEBUG_STATUS)
 		if (attached) {
@@ -397,6 +427,7 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 		}
 #endif
 		break;
+#if defined(CONFIG_MUIC_SUPPORT_CHARGING_CABLE)
 	case CABLE_TYPE_CHARGING_CABLE:
 		if (attached)
 			value.intval = POWER_SUPPLY_TYPE_POWER_SHARING;
@@ -412,6 +443,7 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 		}
 #endif
 		break;
+#endif
 	default:
 		break;
 	}
@@ -422,14 +454,12 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 	}
 
 #if defined(CONFIG_FUELGAUGE_MAX17050)
-	if(check_sm5502_jig_state())
-	{
+	if (check_sm5502_jig_state()) {
 		struct power_supply *fuel_psy = power_supply_get_by_name("sec-fuelgauge");
 		if (!fuel_psy || !fuel_psy->set_property)
 			pr_err("%s: fail to get sec-fuelgauge psy\n", __func__);
-		else {
+		else
 			fuel_psy->set_property(fuel_psy, POWER_SUPPLY_PROP_CHARGE_TYPE, &value);
-		}
 	}
 #endif
 #if defined(CONFIG_QPNP_BMS)
@@ -441,10 +471,19 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 			fuel_psy->set_property(fuel_psy, POWER_SUPPLY_PROP_CHARGE_TYPE, &value);
 	}
 #endif
+#if defined(CONFIG_FUELGAUGE_RT5033)
+	if (check_sm5502_jig_state()) {
+		struct power_supply *fuel_psy = power_supply_get_by_name("rt5033-fuelgauge");
+		if (!fuel_psy || !fuel_psy->set_property)
+			pr_err("%s: fail to get rt5033-fuelgauge psy\n", __func__);
+		else
+			fuel_psy->set_property(fuel_psy, POWER_SUPPLY_PROP_CHARGE_TYPE, &value);
+	}
+#endif
 
 	switch (set_cable_status) {
 	case CABLE_TYPE_MISC:
-		value.intval = POWER_SUPPLY_TYPE_MISC;
+		//value.intval = POWER_SUPPLY_TYPE_MISC;
 		break;
 	case CABLE_TYPE_USB:
 		value.intval = POWER_SUPPLY_TYPE_USB;
@@ -456,7 +495,7 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 		value.intval = POWER_SUPPLY_TYPE_MAINS;
 		break;
 	case CABLE_TYPE_CARDOCK:
-		value.intval = POWER_SUPPLY_TYPE_CARDOCK;
+		//value.intval = POWER_SUPPLY_TYPE_CARDOCK;
 		break;
 	case CABLE_TYPE_CDP:
 		value.intval = POWER_SUPPLY_TYPE_USB_CDP;
@@ -465,12 +504,14 @@ void sm5502_callback(enum cable_type_t cable_type, int attached)
 		value.intval = POWER_SUPPLY_TYPE_UNKNOWN;
 		break;
 	case CABLE_TYPE_DESK_DOCK:
+	case CABLE_TYPE_SMART_DOCK:
 		value.intval = POWER_SUPPLY_TYPE_MAINS;
 		break;
 	case CABLE_TYPE_JIG_UART_OFF_VB:
-		value.intval = POWER_SUPPLY_TYPE_UARTOFF;
+		//value.intval = POWER_SUPPLY_TYPE_UARTOFF;
 		break;
 	case CABLE_TYPE_DESK_DOCK_NO_VB:
+	case CABLE_TYPE_SMART_DOCK_NO_VB:
 	case CABLE_TYPE_UARTOFF:
 	case CABLE_TYPE_UARTON:
 	case CABLE_TYPE_NONE:
@@ -527,7 +568,7 @@ extern int check_sm5504_jig_state(void);
 
 void sm5504_oxp_callback(int state)
 {
-#if 0 //ovp stub-implemented on completion
+	/* ovp stub-implemented on completion */
 	bool ovp_state;
 	if (state == 1) {
 		ovp_state = true;
@@ -536,7 +577,6 @@ void sm5504_oxp_callback(int state)
 		ovp_state = false;
 		/*DISABLE*/
 	}
-#endif
 }
 
 int sm5504_dock_init(void)
@@ -566,6 +606,9 @@ void sm5504_lanhub_callback(enum cable_type_t cable_type, int attached, bool lan
 	union power_supply_propval value;
 	struct power_supply *psy;
 	int i, ret = 0;
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	struct otg_notify *n = get_otg_notify();
+#endif
 
 	pr_info("SM5504 Lanhub Callback called, cable %d, attached %d, TA: %s \n",
 				cable_type,attached,(lanhub_ta ? "Yes":"No"));
@@ -618,7 +661,7 @@ void sm5504_lanhub_callback(enum cable_type_t cable_type, int attached, bool lan
 		}
 		else{
 			pr_info("USB Host HNOTIFY_LANHUB_ON\n");
-			//sec_otg_notify(HNOTIFY_LANHUB_ON);
+			/*sec_otg_notify(HNOTIFY_LANHUB_ON);*/
 		}
 	}else{
 		if(lanhub_ta) {
@@ -626,7 +669,7 @@ void sm5504_lanhub_callback(enum cable_type_t cable_type, int attached, bool lan
                 }
                 else{
 			pr_info("USB Host HNOTIFY_LANHUB_OFF");
-			//sec_otg_notify(HNOTIFY_LANHUB_OFF);
+			/* sec_otg_notify(HNOTIFY_LANHUB_OFF);*/
 		}
 	}
 #endif
@@ -783,6 +826,14 @@ void sm5504_callback(enum cable_type_t cable_type, int attached)
                        pr_err("%s Audiodock status detached (%d) \n", __func__,status_count);
                }
 #endif
+#if defined(CONFIG_USB_HOST_NOTIFY)
+		if (attached) {
+			send_otg_notify(n, NOTIFY_EVENT_AUDIODOCK, 1);
+		} else {
+			send_otg_notify(n, NOTIFY_EVENT_AUDIODOCK, 0);
+		}
+#endif
+		switch_set_state(&switch_dock, attached);
 		break;
 	case CABLE_TYPE_CARDOCK:
 #if defined(DEBUG_STATUS)
@@ -825,6 +876,21 @@ void sm5504_callback(enum cable_type_t cable_type, int attached)
                }
 #endif
 		switch_set_state(&switch_dock, attached);
+		break;
+	case CABLE_TYPE_SMART_DOCK:
+	case CABLE_TYPE_SMART_DOCK_NO_VB:
+#if defined(DEBUG_STATUS)
+		if (attached) {
+			status_count = status_count+1;
+			pr_err("%s Smartdock %s status attached (%d)\n", __func__,
+				((cable_type == CABLE_TYPE_SMART_DOCK) ? "VBUS" : "NOVBUS"), status_count);
+		} else {
+			status_count = status_count-1;
+			pr_err("%s Smartdock %s status detached (%d)\n", __func__,
+				((cable_type == CABLE_TYPE_SMART_DOCK) ? "VBUS" : "NOVBUS"), status_count);
+		}
+#endif
+		switch_set_state(&switch_dock, attached ? 5 : 0);
 		break;
 	case CABLE_TYPE_219KUSB:
 #if defined(DEBUG_STATUS)
@@ -904,6 +970,15 @@ void sm5504_callback(enum cable_type_t cable_type, int attached)
 		}
 	}
 #endif
+#if defined(CONFIG_FUELGAUGE_RT5033)
+	if (check_sm5504_jig_state()) {
+		struct power_supply *fuel_psy = power_supply_get_by_name("rt5033-fuelgauge");
+		if (!fuel_psy || !fuel_psy->set_property)
+			pr_err("%s: fail to get rt5033-fuelgauge psy\n", __func__);
+		else
+			fuel_psy->set_property(fuel_psy, POWER_SUPPLY_PROP_CHARGE_TYPE, &value);
+	}
+#endif
 
 	switch (set_cable_status) {
 	case CABLE_TYPE_MISC:
@@ -928,12 +1003,14 @@ void sm5504_callback(enum cable_type_t cable_type, int attached)
 		value.intval = POWER_SUPPLY_TYPE_UNKNOWN;
 		break;
 	case CABLE_TYPE_DESK_DOCK:
+	case CABLE_TYPE_SMART_DOCK:
 		value.intval = POWER_SUPPLY_TYPE_MAINS;
 		break;
-        case CABLE_TYPE_JIG_UART_OFF_VB:
-                value.intval = POWER_SUPPLY_TYPE_UARTOFF;
-                break;
+	case CABLE_TYPE_JIG_UART_OFF_VB:
+		value.intval = POWER_SUPPLY_TYPE_UARTOFF;
+		break;
 	case CABLE_TYPE_DESK_DOCK_NO_VB:
+	case CABLE_TYPE_SMART_DOCK_NO_VB:
 	case CABLE_TYPE_UARTOFF:
 	case CABLE_TYPE_UARTON:
 	case CABLE_TYPE_NONE:
@@ -947,8 +1024,7 @@ void sm5504_callback(enum cable_type_t cable_type, int attached)
 		return;
 	}
 	current_cable_type = value.intval;
-	pr_info("%s:MUIC setting the cable type as (%d)\n",
-		__func__, value.intval);
+	pr_info("%s:MUIC setting the cable type as (%d)\n",__func__,value.intval);
 
 	if (!psy || !psy->set_property || !psy_ps->set_property)
 		pr_err("%s: fail to get battery ps/psy\n", __func__);
@@ -1040,11 +1116,12 @@ int sm5703_muic_dock_init(void)
 static int status_count;
 #endif
 
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 void sm5703_muic_lanhub_callback(enum cable_type_t cable_type, int attached, bool lanhub_ta)
 {
 	union power_supply_propval value;
 	struct power_supply *psy;
+        enum cable_type_t pre_cable_status;
 	int i, ret = 0;
 #if defined(CONFIG_USB_NOTIFY_LAYER)
 	struct otg_notify *n = get_otg_notify();
@@ -1052,6 +1129,7 @@ void sm5703_muic_lanhub_callback(enum cable_type_t cable_type, int attached, boo
 
 	pr_info("SM5703 MUIC Lanhub Callback called, cable %d, attached %d, TA: %s \n",
 				cable_type,attached,(lanhub_ta ? "Yes":"No"));
+        pre_cable_status = set_cable_status;
 	if(lanhub_ta)
 		set_cable_status = attached ? CABLE_TYPE_LANHUB : POWER_SUPPLY_TYPE_OTG;
 	else
@@ -1073,6 +1151,11 @@ void sm5703_muic_lanhub_callback(enum cable_type_t cable_type, int attached, boo
 	if (!psy || !psy->set_property)
                 pr_err("%s: fail to set battery psy\n", __func__);
         else {
+                if(pre_cable_status != CABLE_TYPE_NONE && set_cable_status != CABLE_TYPE_NONE){
+			value.intval = POWER_SUPPLY_TYPE_BATTERY;
+			ret = psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE, &value);
+			msleep(20);
+		}
 		switch (set_cable_status) {
 		case CABLE_TYPE_LANHUB:
 			value.intval = POWER_SUPPLY_TYPE_LAN_HUB;
@@ -1283,6 +1366,18 @@ void sm5703_muic_callback(enum cable_type_t cable_type, int attached)
 		switch_set_state(&switch_dock, attached ? 2 : 0);
 		switch_set_state(&switch_uart3, attached);
 		break;
+	case CABLE_TYPE_UARTON:
+#if defined(DEBUG_STATUS)
+		if (attached) {
+			status_count = status_count+1;
+			pr_err("%s Uart On status attached (%d)\n", __func__, status_count);
+		} else {
+			status_count = status_count-1;
+			pr_err("%s Uart On status detached (%d)\n", __func__, status_count);
+		}
+#endif
+		switch_set_state(&switch_uart3, attached);
+		break;
 	case CABLE_TYPE_DESK_DOCK:
 	case CABLE_TYPE_DESK_DOCK_NO_VB:
 #if defined(DEBUG_STATUS)
@@ -1374,6 +1469,17 @@ void sm5703_muic_callback(enum cable_type_t cable_type, int attached)
 		}
 	}
 #endif
+#if defined(CONFIG_FUELGAUGE_SM5703)
+	if(check_sm5703_muic_jig_state())
+	{
+	  struct power_supply *fuel_psy = power_supply_get_by_name("sm5703-fuelgauge");
+	  if (!fuel_psy || !fuel_psy->set_property)
+		pr_err("%s: fail to get sm5703-fuelgauge psy\n", __func__);
+		else {
+			fuel_psy->set_property(fuel_psy, POWER_SUPPLY_PROP_CHARGE_TYPE, &value);
+		}
+	}
+#endif
 
 	switch (set_cable_status) {
 	case CABLE_TYPE_MISC:
@@ -1405,6 +1511,7 @@ void sm5703_muic_callback(enum cable_type_t cable_type, int attached)
                 break;
 	case CABLE_TYPE_DESK_DOCK_NO_VB:
 	case CABLE_TYPE_UARTOFF:
+	case CABLE_TYPE_UARTON:
 	case CABLE_TYPE_NONE:
 		value.intval = POWER_SUPPLY_TYPE_BATTERY;
 		break;
@@ -1438,7 +1545,7 @@ void sm5703_muic_callback(enum cable_type_t cable_type, int attached)
 
 struct sm5703_muic_platform_data sm5703_muic_pdata = {
 	.callback = sm5703_muic_callback,
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 	.lanhub_cb = sm5703_muic_lanhub_callback,
 #endif
 	.dock_init = sm5703_muic_dock_init,

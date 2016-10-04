@@ -97,8 +97,10 @@ static struct sk_buff *prio_peek(struct Qdisc *sch)
 {
 	struct prio_sched_data *q = qdisc_priv(sch);
 	int prio;
+
 	if (!q->enable_flow)
 		return NULL;
+
 	for (prio = 0; prio < q->bands; prio++) {
 		struct Qdisc *qdisc = q->queues[prio];
 		struct sk_buff *skb = qdisc->ops->peek(qdisc);
@@ -112,6 +114,7 @@ static struct sk_buff *prio_dequeue(struct Qdisc *sch)
 {
 	struct prio_sched_data *q = qdisc_priv(sch);
 	int prio;
+
 	if (!q->enable_flow)
 		return NULL;
 
@@ -227,6 +230,7 @@ static int prio_tune(struct Qdisc *sch, struct nlattr *opt)
 			}
 		}
 	}
+
 	/* Schedule qdisc when flow re-enabled */
 	if (flow_change && q->enable_flow) {
 		if (!test_bit(__QDISC_STATE_DEACTIVATED,

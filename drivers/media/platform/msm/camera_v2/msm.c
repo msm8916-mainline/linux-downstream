@@ -747,6 +747,7 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 	struct msm_command *cmd;
 	int session_id, stream_id;
 	unsigned long flags = 0;
+	int wait_count = 2000;
 
 	session_id = event_data->session_id;
 	stream_id = event_data->stream_id;
@@ -794,9 +795,14 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 	}
 
 	/* should wait on session based condition */
-	rc = wait_for_completion_timeout(&cmd_ack->wait_complete,
+	do {
+		rc = wait_for_completion_timeout(&cmd_ack->wait_complete,
 			msecs_to_jiffies(timeout));
-
+		wait_count--;
+		if(rc != -ERESTARTSYS)
+			break;
+		usleep(1000); /* wait for 2ms */
+	} while(wait_count > 0);
 
 	if (list_empty_careful(&cmd_ack->command_q.list)) {
 		if (!rc) {

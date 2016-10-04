@@ -47,6 +47,10 @@
 #include <linux/usb_notify.h>
 #endif
 
+#if defined(CONFIG_MUIC_NOTI)
+#include <linux/i2c/muic_notifier.h>
+#endif
+
 /* spmi control */
 extern int spmi_ext_register_writel_extra(u8 sid, u16 ad, u8 *buf, int len);
 extern int spmi_ext_register_readl_extra(u8 sid, u16 ad, u8 *buf, int len);
@@ -108,7 +112,6 @@ extern int system_rev;
 #define DEV_AUDIO_1         (1 << 0)
 
 #define DEV_T1_USB_MASK            (DEV_USB_OTG | DEV_USB_CHG | DEV_USB)
-#define DEV_T1_UART_MASK           (DEV_UART)
 #define DEV_T1_CHARGER_MASK        (DEV_DEDICATED_CHG | DEV_CAR_KIT)
 #define DEV_CARKIT_CHARGER1_MASK   (1 << 1)
 #define MANSW1_OPEN_RUSTPROOF      ((0x0 << 5) | (0x3 << 2) | (1 << 0))
@@ -230,8 +233,8 @@ struct sm5703_muic_usbsw {
 	int             adc;
 	bool                undefined_attached;
 	/* muic current attached device */
-	enum muic_attached_dev		attached_dev;
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+	muic_attached_dev		attached_dev;
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 	unsigned int            previous_dock;
 	unsigned int            lanhub_ta_status;
 #endif
@@ -242,10 +245,9 @@ struct sm5703_muic_usbsw {
 
 static struct sm5703_muic_usbsw *local_usbsw;
 
-#if defined(CONFIG_SEC_J7_PROJECT)
+#if defined(CONFIG_SEC_O7_PROJECT) || defined(CONFIG_SEC_XCOVER3_PROJECT) ||defined(CONFIG_SEC_J7_PROJECT)
 static struct regulator *fullup;
 #endif
-
 static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw);
 static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw);
 
@@ -271,7 +273,7 @@ static int sm5703_muic_read_reg(struct i2c_client *client, int reg)
 	return ret;
 }
 
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 
 bool lanhub_ta_case = false;
 
@@ -727,7 +729,7 @@ static void sm5703_muic_set_otg(struct sm5703_muic_usbsw *usbsw, int state)
 		if (ret < 0)
 			dev_info(&client->dev, "%s: err %d\n", __func__, ret);
 		/* Disconnecting the MUIC_ID & ITBP Pins */
-		ret = sm5703_muic_write_reg(client, REG_MANUAL_SW2, 0x00);
+		ret = sm5703_muic_write_reg(client, REG_MANUAL_SW2, 0x02);
 		if (ret < 0)
 			dev_info(&client->dev, "%s: err %d\n", __func__, ret);
 		ret = sm5703_muic_read_reg(client, REG_CONTROL);
@@ -770,7 +772,7 @@ int check_sm5703_muic_jig_state(void)
 }
 EXPORT_SYMBOL(check_sm5703_muic_jig_state);
 
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 static void sm5703_muic_set_lanhub(struct sm5703_muic_usbsw *usbsw, int state)
 {
 	int ret;
@@ -781,7 +783,7 @@ static void sm5703_muic_set_lanhub(struct sm5703_muic_usbsw *usbsw, int state)
 		if (ret < 0)
 			dev_info(&client->dev, "%s: err %d\n", __func__, ret);
 		/* Disconnecting the MUIC_ID & ITBP Pins */
-		ret = sm5703_muic_write_reg(client, REG_MANUAL_SW2, 0x00);
+		ret = sm5703_muic_write_reg(client, REG_MANUAL_SW2, 0x02);
 		if (ret < 0)
 			dev_info(&client->dev, "%s: err %d\n", __func__, ret);
 		ret = sm5703_muic_read_reg(client, REG_CONTROL);
@@ -939,6 +941,9 @@ static void muic_rustproof_feature(struct i2c_client *client, int state)
 				SW_ALL_OPEN_WITH_VBUS);
 		if (val < 0)
 			dev_info(&client->dev, "%s:MANUAL SW1,err %d\n", __func__, val);
+		val = sm5703_muic_write_reg(client, REG_MANUAL_SW2, 0x04);
+		if (val < 0)
+			dev_info(&client->dev, "%s: MANUAL SW2,err %d\n", __func__, val);
 		val = sm5703_muic_read_reg(client, REG_CONTROL);
 		if (val < 0)
 			dev_info(&client->dev, "%s:CTRL REG,err %d\n", __func__, val);
@@ -947,12 +952,6 @@ static void muic_rustproof_feature(struct i2c_client *client, int state)
 		if (val < 0)
 			dev_info(&client->dev, "%s:CTRL REG,err %d\n", __func__, val);
 	} else {
-		val = sm5703_muic_write_reg(client, REG_MANUAL_SW2, 0x00);
-		if (val < 0)
-			dev_info(&client->dev, "%s: MANUAL SW2,err %d\n", __func__, val);
-		val = sm5703_muic_write_reg(client, REG_MANUAL_SW1, SW_ALL_OPEN);
-		if (val < 0)
-			dev_info(&client->dev, "%s: MANUAL SW1,err %d\n", __func__, val);
 		val = sm5703_muic_read_reg(client, REG_CONTROL);
 		if (val < 0)
 			dev_info(&client->dev, "%s: CTRL REG,err %d\n", __func__, val);
@@ -960,6 +959,12 @@ static void muic_rustproof_feature(struct i2c_client *client, int state)
 		val = sm5703_muic_write_reg(client, REG_CONTROL, val);
 		if (val < 0)
 			dev_info(&client->dev, "%s: CTRL REG,err %d\n", __func__, val);
+		val = sm5703_muic_write_reg(client, REG_MANUAL_SW2, 0x00);
+		if (val < 0)
+			dev_info(&client->dev, "%s: MANUAL SW2,err %d\n", __func__, val);
+		val = sm5703_muic_write_reg(client, REG_MANUAL_SW1, SW_ALL_OPEN);
+		if (val < 0)
+			dev_info(&client->dev, "%s: MANUAL SW1,err %d\n", __func__, val);
 	}
 }
 #endif
@@ -1009,24 +1014,20 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 #if defined(CONFIG_VIDEO_MHL_V2)
 	/* u8 mhl_ret = 0; */
 #endif
-
-#if defined(CONFIG_SEC_J7_PROJECT)
-	if(system_rev > 0x01){
-		if(fullup == NULL){
-			fullup = regulator_get(NULL,"BAT_ID_1.8V");
-			if(IS_ERR(fullup))
-			{
-				pr_err("%s:regulator_get failed for BAT_ID_1.8V\n",__func__);
-				return 0;
-			}
+#if defined(CONFIG_SEC_O7_PROJECT) || defined(CONFIG_SEC_XCOVER3_PROJECT)||defined(CONFIG_SEC_J7_PROJECT)
+	if(fullup == NULL){
+		fullup = regulator_get(NULL,"BAT_ID_1.8V");
+		if(IS_ERR(fullup))
+		{
+			pr_err("%s:regulator_get failed for BAT_ID_1.8V\n",__func__);
+			return 0;
 		}
-		ret = regulator_enable(fullup);
-		if(ret)
-			pr_err("%s:BAT_ID_1.8V enable failed (%d)\n",__func__,ret);
-		pr_info("%s Enable SM5703 LDO3 for batt_id fullup\n",__func__);
 	}
+	ret = regulator_enable(fullup);
+	if(ret)
+		pr_err("%s:BAT_ID_1.8V enable failed (%d)\n",__func__,ret);
+	pr_info("%s Enable SM5703 LDO3 for batt_id fullup\n",__func__);
 #endif
-
 	val1 = sm5703_muic_read_reg(client, REG_DEVICE_TYPE1);
 	if (val1 < 0) {
 		dev_err(&client->dev, "%s: err %d\n", __func__, val1);
@@ -1056,6 +1057,9 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 		dev_err(&client->dev, "%s: err %d\n", __func__, vbus);
 		return vbus;
 	}
+#if defined(CONFIG_S2MM001_VBUS_CHECK)
+	vbus |= (val3 & DEV_VBUSIN_VALID);
+#endif
 	val5 = sm5703_muic_read_reg(client, REG_CHG_TYPE);
 	if (val5 < 0) {
 		dev_err(&client->dev, "%s: err %d\n", __func__, val5);
@@ -1089,7 +1093,7 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 		break;
 	}
 #endif
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 	if (adc == ADC_LANHUB) {
 		val2 = DEV_LANHUB;
 		val1 = 0;
@@ -1129,13 +1133,17 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 		pdata->callback(CABLE_TYPE_CDP, SM5703_MUIC_ATTACHED);
 		usbsw->attached_dev = ATTACHED_DEV_CDP_MUIC;
 	/* UART */
-	} else if (val1 & DEV_T1_UART_MASK || val2 & DEV_T2_UART_MASK) {
+	} else if (val2 & DEV_T2_UART_MASK) {
 		uart_sm5703_muic_connecting = 1;
 		muic_update_jig_state(usbsw, val2, vbus);
 #if defined(CONFIG_MUIC_SUPPORT_RUSTPROOF)
 		if (usbsw->is_rustproof) {
 			pr_info("[MUIC] RustProof mode, close UART Path\n");
 			muic_rustproof_feature(client, SM5703_MUIC_ATTACHED);
+			if (vbus & DEV_VBUSIN_VALID)
+				pdata->callback(CABLE_TYPE_JIG_UART_OFF_VB, SM5703_MUIC_ATTACHED);
+			else
+				pdata->callback(CABLE_TYPE_UARTOFF, SM5703_MUIC_ATTACHED);
 		} else
 #endif
 		{
@@ -1219,7 +1227,7 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 	} else if (val1 & DEV_USB_OTG && adc == ADC_OTG) {
 		pr_info("[MUIC] OTG Connected\n");
 		usbsw->attached_dev = ATTACHED_DEV_OTG_MUIC;
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 		sm5703_muic_enable_rawdataInterrupts(usbsw);
 		usbsw->dock_attached = SM5703_MUIC_ATTACHED;
 		usbsw->previous_dock = ADC_OTG;
@@ -1292,7 +1300,7 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 				SM5703_MUIC_ATTACHED, SW_DHOST);
 #endif
 
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 	/* LANHUB */
 	} else if (val2 & DEV_LANHUB) {
 		if (usbsw->previous_dock == ADC_LANHUB &&
@@ -1329,6 +1337,9 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 				SM5703_MUIC_ATTACHED);
 		usbsw->undefined_attached = true;
 	}
+#if defined(CONFIG_MUIC_NOTI)
+	muic_notifier_attach_attached_dev(usbsw->attached_dev);
+#endif
 #if !defined(CONFIG_USBID_STANDARD_VER_01)
 attach_end:
 #endif
@@ -1350,23 +1361,20 @@ static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw)
 	pr_info("dev1: 0x%x,dev2: 0x%x,chg_typ: 0x%x,vbus %d,ADC: 0x%x\n",
 			usbsw->dev1, usbsw->dev2, usbsw->dev3, usbsw->vbus, usbsw->adc);
 
-#if defined(CONFIG_SEC_J7_PROJECT)
-	if(system_rev > 0x01){
-		if(fullup == NULL){
-			fullup = regulator_get(NULL,"BAT_ID_1.8V");
-			if(IS_ERR(fullup))
-			{
-				pr_err("%s:regulator_get failed for BAT_ID_1.8V\n",__func__);
-				return 0;
-			}
+#if defined(CONFIG_SEC_O7_PROJECT) || defined(CONFIG_SEC_XCOVER3_PROJECT)||defined(CONFIG_SEC_J7_PROJECT)
+	if(fullup == NULL){
+		fullup = regulator_get(NULL,"BAT_ID_1.8V");
+		if(IS_ERR(fullup))
+		{
+			pr_err("%s:regulator_get failed for BAT_ID_1.8V\n",__func__);
+			return 0;
 		}
-		ret = regulator_disable(fullup);
-		if(ret)
-			pr_err("%s:BAT_ID_1.8V disable failed (%d)\n",__func__,ret);
-		pr_info("%s Disable SM5703 LDO3\n",__func__);
 	}
+	ret = regulator_disable(fullup);
+	if(ret)
+		pr_err("%s:BAT_ID_1.8V disable failed (%d)\n",__func__,ret);
+	pr_info("%s Disable SM5703 LDO3\n",__func__);
 #endif
-
 #if !defined(CONFIG_USBID_STANDARD_VER_01)
 	switch (usbsw->adc) {
 #if !defined(CONFIG_USB_HOST_NOTIFY)
@@ -1388,11 +1396,15 @@ static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw)
 		pdata->callback(CABLE_TYPE_CDP, SM5703_MUIC_DETACHED);
 
 	/* UART */
-	} else if ((usbsw->dev1 & DEV_T1_UART_MASK) || (usbsw->dev2 & DEV_T2_UART_MASK)) {
+	} else if (usbsw->dev2 & DEV_T2_UART_MASK) {
 #if defined(CONFIG_MUIC_SUPPORT_RUSTPROOF)
 		if (usbsw->is_rustproof) {
 			pr_info("[MUIC] RustProof mode Disconnected Event\n");
 			muic_rustproof_feature(usbsw->client, SM5703_MUIC_DETACHED);
+			if (usbsw->vbus & DEV_VBUSIN_VALID)
+				pdata->callback(CABLE_TYPE_JIG_UART_OFF_VB, SM5703_MUIC_DETACHED);
+			else
+				pdata->callback(CABLE_TYPE_UARTOFF, SM5703_MUIC_DETACHED);
 		} else
 #endif
 		{
@@ -1430,7 +1442,7 @@ static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw)
 	/* for SAMSUNG OTG */
 	} else if (usbsw->dev1 & DEV_USB_OTG) {
 		pr_info("[MUIC] OTG Disconnected\n");
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 		sm5703_muic_disable_rawdataInterrupts(usbsw);
 		pr_info("%s:lanhub_ta_status(%d)\n",
 				__func__, usbsw->lanhub_ta_status);
@@ -1504,7 +1516,7 @@ static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw)
 		pr_info("[MUIC] Audiodock Disconnected\n");
 		sm5703_muic_dock_control(usbsw, CABLE_TYPE_AUDIO_DOCK, SM5703_MUIC_DETACHED, SW_ALL_OPEN);
 #endif
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 	/* LANHUB */
 	} else if (usbsw->adc == ADC_LANHUB) {
 		pr_info("[MUIC] Lanhub disconnected\n");
@@ -1547,6 +1559,9 @@ static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw)
 				SM5703_MUIC_DETACHED);
 		usbsw->undefined_attached = false;
 	}
+#if defined(CONFIG_MUIC_NOTI)
+	muic_notifier_detach_attached_dev(usbsw->attached_dev);	
+#endif
 #if !defined(CONFIG_USBID_STANDARD_VER_01)
 detach_end:
 #endif
@@ -1603,7 +1618,7 @@ static irqreturn_t sm5703_muic_irq_thread(int irq, void *data)
 		}
 	}
 
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 	if ((intr1 == 0x00 && (intr2 & 0x04))
 			|| ((intr1 & INT_DETACH) && (intr2 & 0x04)))
 		sm5703_muic_detect_lanhub(usbsw);
@@ -1643,10 +1658,15 @@ static irqreturn_t sm5703_muic_irq_thread(int irq, void *data)
 
 		pr_info("sm5703 muic: dev1=0x%x, dev2=0x%x, dev3=0x%x, vbus=0x%x\n",
 				val1, val2, val3, vbus);
+#ifdef CONFIG_USB_HOST_NOTIFY
 		if ((((adc != ADC_OPEN) || (val1 != 0x00 || val2 != 0x00 || val3 != 0x00)) &&
 					(adc != ADC_OTG)) && (get_usb_mode() != NOTIFY_TEST_MODE)) {
+#else
+		if (((adc != ADC_OPEN) || (val1 != 0x00 || val2 != 0x00 || val3 != 0x00))
+					&& (get_usb_mode() != NOTIFY_TEST_MODE)) {
+#endif
 			if (val2 != 0x10)
-			sm5703_muic_attach_dev(usbsw);
+				sm5703_muic_attach_dev(usbsw);
 		} else {
 			goto irq_end;
 		}
@@ -1664,8 +1684,12 @@ static irqreturn_t sm5703_muic_irq_thread(int irq, void *data)
 				val1,val2,val3,vbus);
 
 		if (get_usb_mode() != NOTIFY_TEST_MODE) {
-			if (val2 != 0x10)
-			sm5703_muic_detach_dev(usbsw);
+	        if (usbsw->attached_dev == ATTACHED_DEV_UNKNOWN_MUIC)
+		        sm5703_muic_detach_dev(usbsw);
+	        else if (adc != ADC_OPEN)
+		        sm5703_muic_attach_dev(usbsw);
+	        else if (intr1 != INT_OVP_ENABLE)
+		        sm5703_muic_detach_dev(usbsw);
 		} else {
 			goto irq_end;
 		}
@@ -1772,7 +1796,7 @@ static int sm5703_muic_probe(struct i2c_client *client,
 			return ret;
 
 		pdata->callback = sm5703_muic_callback;
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 		pdata->lanhub_cb = sm5703_muic_lanhub_callback;
 #endif
 		pdata->dock_init = sm5703_muic_dock_init;
@@ -1902,7 +1926,7 @@ static int sm5703_muic_probe(struct i2c_client *client,
 
 #endif
 	local_usbsw->attached_dev = ATTACHED_DEV_NONE_MUIC;
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 	local_usbsw->previous_dock = SM5703_MUIC_NONE;
 	local_usbsw->lanhub_ta_status = 0;
 #endif

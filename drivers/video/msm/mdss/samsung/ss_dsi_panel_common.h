@@ -122,7 +122,6 @@ enum mipi_samsung_cmd_list {
 	PANEL_HSYNC_ON,
 	PANEL_CABC_ON_DUTY,
 	PANEL_CABC_OFF_DUTY,
-	PANEL_SLEEP_OUT,
 };
 
 enum {
@@ -150,6 +149,11 @@ enum {
 	HALL_IC_OPEN,
 	HALL_IC_CLOSE,
 	HALL_IC_UNDEFINED,
+};
+
+enum BLIC_EVENT {
+	BLIC_INIT_EVENT,
+	BLIC_MAX_EVENT,
 };
 
 struct te_fitting_lut {
@@ -182,19 +186,23 @@ struct candella_lux_map {
 	int lux_tab_size;
 	int bkl[256];
 };
+struct hbm_candella_lux_map {
+	int *lux_tab;
+	int *cmd_idx;
+	int lux_tab_size;
+	int *from;
+	int *end;
+	int *auto_level;
+	int hbm_min_lv;
+};
 
 struct samsung_display_dtsi_data {
 	bool samsung_lp11_init;
 	bool samsung_change_acl_by_brightness;
 	bool samsung_esc_clk_128M;
 	bool samsung_osc_te_fitting;
-	bool samsung_support_factory_panel_swap;
 	u32  samsung_power_on_reset_delay ;
 	u32  samsung_dsi_off_reset_delay;
-	char sleep_out_command_enable;
-	int check_panel_status_result;
-	struct dsi_panel_cmds sleep_out_cmds[SUPPORT_PANEL_REVISION];
-	struct dsi_panel_cmds panel_status_read_cmds[SUPPORT_PANEL_REVISION];
 	/*
 	 * index[0] : array index for te fitting command from "ctrl->on_cmd"
 	 * index[1] : array index for te fitting command from "osc_te_fitting_tx_cmds"
@@ -285,6 +293,7 @@ struct samsung_display_dtsi_data {
 	struct dsi_panel_cmds tft_pwm_tx_cmds[SUPPORT_PANEL_REVISION];
 	struct dsi_panel_cmds blic_dimming_cmds[SUPPORT_PANEL_REVISION];
 	struct candella_lux_map scaled_level_map_table[SUPPORT_PANEL_REVISION];
+	struct hbm_candella_lux_map hbm_candela_map_table[SUPPORT_PANEL_REVISION];
 
 	/* Command for nv read */
 	struct dsi_panel_cmds packet_size_tx_cmds[SUPPORT_PANEL_REVISION];
@@ -323,7 +332,6 @@ struct samsung_display_dtsi_data {
 	int pwm_ap_support;
 	const char *tft_module_name;
 	const char *panel_vendor;
-	int lcd_display_format_bgr;
 
 	/* MDINE HBM_CE_TEXT_MDNIE mode used */
 	int hbm_ce_text_mode_support;
@@ -331,6 +339,9 @@ struct samsung_display_dtsi_data {
 	/* Backlight IC discharge delay */
 	int blic_discharging_delay_tft;
 	int cabc_delay;
+
+	/* Outdoor mode */
+	int outdoor_mode_support; 
 };
 
 struct samsung_brightenss_data {
@@ -377,7 +388,6 @@ struct esd_recovery {
 	bool is_enabled_esd_recovery;
 	int esd_gpio;
 	unsigned long irqflags;
-	u32 delay_intervel_ms;
 	void (*esd_irq_enable) (bool enable, bool nosync, void *data);
 };
 
@@ -398,7 +408,6 @@ struct panel_func {
 	int (*samsung_panel_on_post)(struct mdss_dsi_ctrl_pdata *ctrl);
 	int (*samsung_panel_off_pre)(struct mdss_dsi_ctrl_pdata *ctrl);
 	int (*samsung_panel_off_post)(struct mdss_dsi_ctrl_pdata *ctrl);
-	int (*samsung_panel_sleep_out)(struct mdss_dsi_ctrl_pdata *ctrl);
 	void (*samsung_backlight_late_on)(struct mdss_dsi_ctrl_pdata *ctrl);
 	void (*samsung_panel_init)(struct samsung_display_driver_data *vdd);
 
@@ -486,9 +495,7 @@ struct samsung_display_driver_data {
 	*/
 	struct mutex vdd_lock;
 	struct mutex vdd_blank_unblank_lock;
-	struct mutex vdd_hall_ic_blank_unblank_lock;
 	struct mutex vdd_hall_ic_lock;
-	struct mutex vdd_bl_level_lock;
 
 	int vdd_blank_mode[SUPPORT_PANEL_COUNT];
 
@@ -520,6 +527,7 @@ struct samsung_display_driver_data {
 	int cmd_idx;
 
 	int acl_status;
+	int weakness_hbm_comp;
 	int siop_status;
 	bool mdnie_tuning_enable_tft;
 	int mdnie_tune_size1;
@@ -636,13 +644,15 @@ void mdss_samsung_dump_regs(void);
 void mdss_samsung_dsi_dump_regs(int dsi_num);
 void mdss_mdp_underrun_dump_info(void);
 void mdss_samsung_dsi_te_check(void);
-void mdss_samsung_fence_dump(char *interface, struct sync_fence *fence);
+void mdss_samsung_fence_dump(struct sync_fence *fence);
 
 /* BRIGHTNESS RELATED FUNCTION */
 int get_cmd_index(struct samsung_display_driver_data *vdd, int ndx);
 int get_candela_value(struct samsung_display_driver_data *vdd, int ndx);
 int mdss_samsung_brightness_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level);
 void mdss_samsung_brightness_tft_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int level);
+void set_auto_brightness_value(struct samsung_display_driver_data *vdd, int ndx);
+
 /* TFT BL DCS RELATED FUNCTION */
 int get_scaled_level(struct samsung_display_driver_data *vdd, int ndx);
 

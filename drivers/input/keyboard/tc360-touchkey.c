@@ -39,27 +39,32 @@
 #include <linux/regulator/consumer.h>
 
 
-#define TC300K_FW_NAME "tc360_j5"
-
-#ifdef CONFIG_SEC_FACTORY
-#define LED_TWINKLE_BOOTING
-#endif
-
-#ifdef LED_TWINKLE_BOOTING
-static void led_twinkle_work(struct work_struct *work);
+#ifdef CONFIG_SEC_E7_PROJECT
+#define TC300K_FW_NAME "tc360_e7"
+#else
+#define TC300K_FW_NAME "tc360_e5"
 #endif
 
 #define USE_OPEN_CLOSE
 
-#undef USE_LED_WORKQUEUE
-
-#define TC300K_FW_BUILTIN_PATH	"coreriver"
+#define TC300K_FW_BUILTIN_PATH	"tkey"
 #define TC300K_FW_IN_SDCARD_PATH	"/sdcard/"
 
 #define TC300K_POWERON_DELAY	300
 
 #define TC300K_KEY_INDEX_MASK	0x07
 #define TC300K_KEY_PRESS_MASK	0x08
+
+#define TC300K_KEY_1P_MASK	0x01
+#define TC300K_KEY_1R_MASK	0x10
+
+#if defined(CONFIG_SEC_E7_PROJECT)
+#define CORERIVER_RECENT_BACK_REPORT_FW_VER	0x07
+#elif defined(CONFIG_SEC_E5_PROJECT)
+#define CORERIVER_RECENT_BACK_REPORT_FW_VER	0x07
+#else
+#define CORERIVER_RECENT_BACK_REPORT_FW_VER	0x00
+#endif
 
 /* registers */
 #define TC300K_KEYCODE		0x00
@@ -92,6 +97,7 @@ static void led_twinkle_work(struct work_struct *work);
 #define TC300K_CMD_FAC_ON		0x50
 #define TC300K_CMD_FAC_OFF		0x60
 #define TC300K_CMD_CAL_CHECKSUM	0x70
+#define TC300K_CMD_DUAL_KEY_MODE	0x90
 #define TC300K_CMD_DELAY		50
 
 /* ISP command */
@@ -158,24 +164,6 @@ struct fw_image {
 	u8 data[0];
 } __attribute__ ((packed));
 
-#define TSK_RELEASE     0x00
-#define TSK_PRESS       0x01
-
-struct tsk_event_val {
-        u16     tsk_bitmap;
-        u8      tsk_status;
-        int     tsk_keycode;
-        char*   tsk_keyname;
-};
-
-struct tsk_event_val tsk_ev[4] =
-{
-        {0x01 << 0, TSK_PRESS, KEY_RECENT, "recent"},
-        {0x01 << 1, TSK_PRESS, KEY_BACK, "back"},
-        {0x01 << 4, TSK_RELEASE, KEY_RECENT, "recent"},
-        {0x01 << 5, TSK_RELEASE, KEY_BACK, "back"}
-};
-
 struct tc300k_data {
 	struct i2c_client		*client;
 	struct input_dev		*input_dev;
@@ -185,14 +173,15 @@ struct tc300k_data {
 	struct early_suspend		early_suspend;
 #endif
 	struct mutex			lock;
-	struct fw_image			*fw_img;
+	struct fw_image			*fw_img;	
 	struct pinctrl *pinctrl;
 	u8		suspend_type;
 	u32		scl;
 	u32		sda;
-	u16		threhold;
+	u16 	threhold;
 	int		num_key;
 	int		*keycodes;
+	bool 	dualkey_mode;
 	bool	enabled;
 	bool	glove_mode;
 	bool	factory_mode;
@@ -201,63 +190,57 @@ struct tc300k_data {
 	struct fdata_struct		*fdata;
 	const struct firmware		*fw;
 	u8				cur_fw_path;
-#ifdef USE_TKEY_UPDATE_WORK
+#ifdef USE_TKEY_UPDATE_WORK	
 	struct workqueue_struct		*fw_wq;
 	struct work_struct		fw_work;
 	bool				fw_up_running;
-#endif
+#endif	
 	struct wake_lock		fw_wake_lock;
 	u8				fw_flash_state;
 
-#ifdef USE_LED_WORKQUEUE
 	/* variables for LED*/
 	struct led_classdev		led;
 	struct workqueue_struct		*led_wq;
 	struct work_struct		led_work;
 	u8				led_brightness;
-	int led_wq_passed;	
-#endif
 	bool				counting_timer;
 	struct regulator *vcc_en;
 	struct regulator *vdd_led;
-	int key_num;
-        struct tsk_event_val *tsk_ev_val;
 
 	/*variable for switching*/
+	int led_wq_passed;
 	int ic_fw_ver;
 
-#ifdef LED_TWINKLE_BOOTING
-	struct delayed_work led_twinkle_work;
-	bool led_twinkle_check;
-#endif
 };
 
 static void tc300k_destroy_interface(struct tc300k_data *data);
-extern int get_lcd_attached(char *);
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void tc300k_early_suspend(struct early_suspend *h);
 static void tc300k_late_resume(struct early_suspend *h);
-#endif
+#endif 
 #ifdef USE_OPEN_CLOSE
 static int tc300k_input_open(struct input_dev *dev);
 static void tc300k_input_close(struct input_dev *dev);
 #endif
+
 static int tc300k_keycodes[]={KEY_RECENT, KEY_BACK};
 
-static int tkey_pinctrl_configure(struct tc300k_data *data, bool active)
+static int tkey_pinctrl_configure(struct tc300k_data *data, int active)
 {
 	struct pinctrl_state *set_state_i2c;
-	//struct pinctrl_state *set_state_en;
 	int retval;
 
-//	if (data->pdata->gpio_seperated < 1) {
-//		dev_err(&data->client->dev, "%s: not support this ftn. under mms345\n", __func__);
-//		return 0;
-//	}
-
-	dev_err(&data->client->dev, "%s: %s\n", __func__, active ? "ACTIVE" : "SUSPEND");
-
-	if (active) {
+	dev_err(&data->client->dev, "%s: %s\n", __func__, active ?(active==1 ? "active":"default") : "suspend");
+	if (active == 2) {
+		set_state_i2c =
+			pinctrl_lookup_state(data->pinctrl,
+						"tkey_gpio_default");
+		if (IS_ERR(set_state_i2c)) {
+			dev_err(&data->client->dev, "%s: cannot get pinctrl(i2c) active state\n", __func__);
+			return PTR_ERR(set_state_i2c);
+		}
+	}
+	else if (active == 1) {
 		set_state_i2c =
 			pinctrl_lookup_state(data->pinctrl,
 						"tkey_gpio_active");
@@ -273,41 +256,20 @@ static int tkey_pinctrl_configure(struct tc300k_data *data, bool active)
 			dev_err(&data->client->dev, "%s: cannot get pinctrl(i2c) sleep state\n", __func__);
 			return PTR_ERR(set_state_i2c);
 		}
-/*
-		set_state_en = pinctrl_lookup_state(data->pinctrl,
-						"tsp_en_suspend");
-		if (IS_ERR(set_state_en)) {
-			dev_err(&data->client->dev, "%s: cannot get pinctrl(en) sleep state\n", __func__);
-			return PTR_ERR(set_state_en);
-		}
-*/
 	}
 
 	retval = pinctrl_select_state(data->pinctrl, set_state_i2c);
 	if (retval) {
 		dev_err(&data->client->dev, "%s: cannot set pinctrl(i2c) %s state\n",
-				__func__, active ? "active" : "suspend");
+				__func__, active ?(active==1 ? "active":"default") : "suspend");
 		return retval;
 	}
 
-	if (active) {
+	if (active == 1) {
 		gpio_direction_input(data->pdata->gpio_sda);
 		gpio_direction_input(data->pdata->gpio_scl);
 		gpio_direction_input(data->pdata->gpio_int);
 	}
-//	if (!active) {
-/*
-		retval = pinctrl_select_state(data->pinctrl, set_state_en);
-		if (retval) {
-			dev_err(&data->client->dev, "%s: cannot set pinctrl(en) %s state\n",
-					__func__, active ? "active" : "suspend");
-			return retval;
-		}
-*/
-	//	gpio_set_value(data->pdata->gpio_scl, 1);
-	//	gpio_set_value(data->pdata->gpio_sda, 1);
-	//	gpio_set_value(data->pdata->gpio_int, 1);
-	//}
 	return 0;
 
 }
@@ -317,7 +279,6 @@ static void tc300k_gpio_request(struct tc300k_data *data)
 	int ret = 0;
 	dev_info(&data->client->dev, "%s: enter \n",__func__);
 
-#if 1
 	ret = gpio_request(data->pdata->gpio_en, "touchkey_en_gpio");
 			if (ret) {
 				printk(KERN_ERR "%s: unable to request touchkey_en_gpio[%d]\n",
@@ -336,7 +297,7 @@ static void tc300k_gpio_request(struct tc300k_data *data)
 						__func__, data->pdata->gpio_2p8_en);
 			}
 	}
-
+	
 	gpio_direction_input(data->pdata->gpio_sda);
 	gpio_direction_input(data->pdata->gpio_scl);
 	gpio_direction_input(data->pdata->gpio_int);
@@ -345,15 +306,13 @@ static void tc300k_gpio_request(struct tc300k_data *data)
 	if( (int)(data->pdata->gpio_2p8_en) > 0 ){
 		gpio_direction_output(data->pdata->gpio_2p8_en, 0);
 	}
-#endif
 
 }
 
 void tc300k_power(struct tc300k_data *data, int onoff)
 {
-
 	dev_info(&data->client->dev, "%s: power %s\n",__func__, onoff ? "on" : "off");
-#if 1
+
 	if(onoff){
 		gpio_direction_output(data->pdata->gpio_en, 1);
 		pr_info("%sTKEY_EN 3.3V on is finished.\n",__func__);
@@ -366,126 +325,7 @@ void tc300k_power(struct tc300k_data *data, int onoff)
 		gpio_direction_output(data->pdata->gpio_2p8_en, onoff);
 		pr_info("%sTKEY_EN 3.3V %s is finished.\n",__func__,onoff ? "on" : "off");
 	}
-#else
 
-
-	if ((s32)data->pdata->gpio_en > 0) {
-		ret = gpio_direction_output(data->pdata->gpio_en, onoff);
-		if (ret) {
-			dev_err(&data->client->dev,
-					"%s: unable to set_direction for gpio_en [%d]\n",
-					__func__, data->pdata->gpio_en);
-		}
-	}
-	else{
-		//check for SUB PMIC ldo
-		if (!data->vcc_en) {
-			if (data->pdata->vcc_en_ldo_name){
-				data->vcc_en = regulator_get(NULL, data->pdata->vcc_en_ldo_name);
-				if (IS_ERR(data->vcc_en)) {
-					dev_err(&data->client->dev,"Regulator(vcc_en) get failed rc = %ld\n", PTR_ERR(data->vcc_en));
-					return;
-				}
-				ret = regulator_set_voltage(data->vcc_en,1800000, 1800000);
-				if (ret) {
-					dev_err(&data->client->dev,"regulator(vcc_en) set_vtg failed rc=%d\n", ret);
-					return;
-				}
-			} else {
-				dev_err(&data->client->dev,"vcc_en_ldo_name is not read from dtsi");
-				return;
-			}
-		}
-
-		if (onoff) {
-			if (!regulator_is_enabled(data->vcc_en)) {
-				ret = regulator_enable(data->vcc_en);
-				if (ret) {
-					pr_err("%s: enable vcc_en failed, rc=%d\n",__func__, ret);
-					return;
-				}
-				pr_info("%senable vcc_en success.\n",__func__);
-			} else {
-				pr_info("%svcc_en is already enabled.\n",__func__);
-			}
-		} else {
-			if (regulator_is_enabled(data->vcc_en)) {
-				ret = regulator_disable(data->vcc_en);
-				if (ret) {
-					pr_err("%s: disable vcc_en failed, rc=%d\n", __func__, ret);
-					return;
-				}
-				pr_info("%sdisable vcc_en success.\n",__func__);
-			} else {
-				pr_info("%svcc_en is already disabled.\n",__func__);
-			}
-		}
-	}
-#endif
-}
-
-void tc300k_led_power(struct tc300k_data *data, bool onoff)
-{
-	//int ret;
-return;
-	pr_info("%s: %s\n", __func__, onoff ? "on" : "off");
-
-#if 1
-
-	if(onoff){
-		pr_info("%sTKEY_LED 3.3V[vdd_led] on is finished.\n",__func__);
-	} else{
-		pr_info("%sTKEY_LED 3.3V[vdd_led] off is finished\n",__func__); 
-	}
-#else
-	if (!data->vdd_led) {
-		data->vdd_led = regulator_get(&data->client->dev,"vdd_led");
-		if (IS_ERR(data->vdd_led)) {
-			dev_err(&data->client->dev,"Regulator(vdd_led) get failed for PMIC. rc = %ld\n", PTR_ERR(data->vdd_led));
-
-			//check for SUB PMIC ldo
-			if (data->pdata->vdd_led_ldo_name){
-                                data->vdd_led = regulator_get(NULL, data->pdata->vdd_led_ldo_name);
-                                if (IS_ERR(data->vdd_led)) {
-                                        dev_err(&data->client->dev,"Regulator(vdd_led) get failed for SUB PMIC. rc = %ld\n", PTR_ERR(data->vdd_led));
-                                        return;
-                                }
-                        } else {
-                                dev_err(&data->client->dev,"vdd_led_ldo_name is not read from dtsi");
-                                return;
-                        }
-		}
-		ret = regulator_set_voltage(data->vdd_led,3300000, 3300000);
-		if (ret) {
-			dev_err(&data->client->dev,
-				"regulator(vdd_led) set_vtg failed rc=%d\n", ret);
-			return;
-		}
-	}
-
-	if (onoff) {
-		if (!regulator_is_enabled(data->vdd_led)) {
-			ret = regulator_enable(data->vdd_led);
-			if (ret) {
-				pr_err("%s: enable vdd_led failed, rc=%d\n",__func__, ret);
-				return;
-			}
-			pr_info("%sTKEY_LED 3.3V[vdd_led] on is finished.\n",__func__);
-		} else
-			pr_info("%sTKEY_LED 3.3V[vdd_led] is already on.\n",__func__);
-	} else {
-		if (regulator_is_enabled(data->vdd_led)) {
-			ret = regulator_disable(data->vdd_led);
-			if (ret) {
-				pr_err("%s: disable vdd_led failed, rc=%d\n",
-					__func__, ret);
-				return;
-			}
-			pr_info("%sTKEY_LED 3.3V[vdd_led] off is finished.\n",__func__);
-		} else
-			pr_info("%sTKEY_LED 3.3V[vdd_led] is already off.\n",__func__);
-	}
-	#endif
 }
 
 #ifdef CONFIG_OF
@@ -503,10 +343,8 @@ static int tc300k_parse_dt(struct device *dev,
 	pdata->gpio_sda = of_get_named_gpio_flags(np, "coreriver,sda-gpio", 0, &pdata->sda_gpio_flags);
 	pdata->gpio_int = of_get_named_gpio_flags(np, "coreriver,irq-gpio", 0, &pdata->irq_gpio_flags);
 	pdata->firmup = of_property_read_bool(np, "coreriver,firm-up");
+	
 	pdata->gpio_2p8_en = of_get_named_gpio_flags(np, "coreriver,vcc_en-gpio2p8", 0, &pdata->vcc_gpio2p8_flags);
-
-	if (of_property_read_string(np, "coreriver,fw-name", &pdata->fw_name) >= 0)
-                pr_err("%s() coreriver,fw-name: %s\n", __func__, pdata->fw_name);
 
 	//raed SUB PMIC ldo names from dtsi
 	rc = of_property_read_string(np, "coreriver,vcc_en_ldo_name", &pdata->vcc_en_ldo_name);
@@ -517,8 +355,10 @@ static int tc300k_parse_dt(struct device *dev,
         if (rc < 0) {
                 pr_err("[%s]: Unable to read vdd_led_ldo_name rc = %d\n", __func__, rc);
         }
+	
 	pr_err("%s: gpio_en = %d, tkey_scl= %d, tkey_sda= %d, tkey_int= %d, firmup= %d",
 				__func__, pdata->gpio_en, pdata->gpio_scl, pdata->gpio_sda, pdata->gpio_int, pdata->firmup);
+	
 	return 0;
 }
 #else
@@ -529,14 +369,65 @@ static int tc300k_parse_dt(struct device *dev,
 }
 #endif
 
+static void touchkey_interrupt_set_dual(struct tc300k_data *data)
+{
+	struct i2c_client *client = data->client;
+	u8 buf = TC300K_CMD_DUAL_KEY_MODE;
+	int ret, mode = 0;
+	int cnt = 3;
+
+	if (data->ic_fw_ver <= CORERIVER_RECENT_BACK_REPORT_FW_VER) {
+		dev_err(&client->dev, "%s: rev is %d, so single key mode.\n",
+			__func__, data->ic_fw_ver);
+		return;
+	}
+
+	dev_info(&client->dev, "%s: set dual key mode\n",__func__);
+
+	while (--cnt >= 0){
+		ret = i2c_smbus_write_byte_data(client, TC300K_CMD_ADDR, buf); 
+		if(ret<0){
+			dev_err(&client->dev, "%s: failed to wt dual mode, (%d), cnt=%d\n",
+			__func__, ret, cnt);
+
+		msleep(30);
+			continue;
+		}
+		msleep(10);
+		ret = i2c_smbus_read_byte_data(client, TC300K_MODE);
+		if (ret < 0) {
+			dev_err(&client->dev, "%s: failed to read mode(%d)\n",
+				__func__, ret);
+			continue;
+		}
+		mode = ret&0x80;
+		if(mode){
+			data->dualkey_mode = 1;
+			break;
+		}else
+			dev_info(&client->dev, "%s: set dual key mode, %x, cnt:%d\n",
+			__func__, mode, cnt);
+
+	}
+
+	if (mode != 0x80){
+		dev_err(&client->dev, "%s: don't set dual key mode, %x \n",
+			__func__, mode); 		
+		data->dualkey_mode = 0;
+	}
+
+
+}
+
 static irqreturn_t tc300k_interrupt(int irq, void *dev_id)
 {
 	struct tc300k_data *data = dev_id;
 	struct i2c_client *client = data->client;
-	u8 key_val;
-        int i;
-	bool key_handle_flag;
-	int ret;
+	u8 key_val, index;
+	int P_data;
+	int R_data;
+	bool press;
+	int ret, i;
 
 	if (!data->enabled) {
 		dev_err(&client->dev, "can't excute %s\n", __func__);
@@ -550,27 +441,60 @@ static irqreturn_t tc300k_interrupt(int irq, void *dev_id)
 	}
 
 	key_val = (u8)ret;
-	for (i = 0 ; i < data->key_num * 2 ; i++){
-                key_handle_flag = (key_val & data->tsk_ev_val[i].tsk_bitmap);
-                if (key_handle_flag){
-                        input_report_key(data->input_dev,
-                                data->tsk_ev_val[i].tsk_keycode, data->tsk_ev_val[i].tsk_status);
-#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
-                        dev_notice(&client->dev, "[TK] key %s\n",
-                                data->tsk_ev_val[i].tsk_status? "P" : "R");
-#else
-                        dev_notice(&client->dev,
-                                "[TK] key %s : %s(0x%02X)\n",
-                                data->tsk_ev_val[i].tsk_status? "P" : "R",
-                                data->tsk_ev_val[i].tsk_keyname, key_val);
-#endif
-                }
-        }
-	input_sync(data->input_dev);
 
-#if 0 // def TSP_BOOSTER
-		tc300k_set_dvfs_lock(data, !!press);
-#endif
+	/* L OS support Screen Pinning feature.
+	  * "recent + back key" event is CombinationKey for exit Screen Pinning mode.
+	  * If touchkey firmware version is higher than CORERIVER_RECENT_BACK_REPORT_FW_VER,
+	  * touchkey can make interrupt "back key" and "recent key" in same time.
+	  * lower version firmware can make interrupt only one key event.
+	  */
+
+	if ((data->ic_fw_ver >= CORERIVER_RECENT_BACK_REPORT_FW_VER) && (data->dualkey_mode == 1) ) {
+		for (i = 0; i < 2; i++){
+			P_data = !!(key_val & (TC300K_KEY_1P_MASK << i));
+			R_data = !!(key_val & (TC300K_KEY_1R_MASK << i));
+
+			if (P_data){
+				input_report_key(data->input_dev, data->keycodes[i], 1);
+			}
+			else if(R_data){
+				input_report_key(data->input_dev, data->keycodes[i], 0);
+			}
+
+			if ((P_data == 1) || (R_data == 1))
+			#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+				dev_notice(&client->dev, "key %d\n", P_data );
+			#else
+				dev_notice(&client->dev,
+					"key : %d(%d)\n", data->keycodes[i], P_data);
+			#endif
+			input_sync(data->input_dev);
+		}
+	} else {
+		index = key_val & TC300K_KEY_INDEX_MASK;
+		press = !!(key_val & TC300K_KEY_PRESS_MASK);
+
+
+		if (press) {
+			input_report_key(data->input_dev, data->keycodes[index-1], 0);
+
+			#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+			dev_notice(&client->dev, "key R\n");
+			#else
+			dev_notice(&client->dev,
+				"key R : %d(%d)\n", data->keycodes[index-1], key_val);
+			#endif
+		} else {
+			input_report_key(data->input_dev, data->keycodes[index-1], 1);
+			#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
+			dev_notice(&client->dev, "key P\n");
+			#else
+			dev_notice(&client->dev,
+				"key P : %d(%d)\n", data->keycodes[index-1], key_val);
+			#endif
+		}
+		input_sync(data->input_dev);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -639,7 +563,6 @@ static inline void setscl(struct tc300k_data *data, int state)
 
 static inline int getsda(struct tc300k_data *data)
 {
-	gpio_direction_input(data->pdata->gpio_sda);
 	return gpio_get_value(data->pdata->gpio_sda);
 }
 
@@ -670,9 +593,7 @@ static u8 wait_9bit(struct tc300k_data *data)
 	int i;
 	int buf;
 	u8 send_buf = 0;
-
-	//gpio_tlmm_config(GPIO_CFG(data->pdata->gpio_sda,0, GPIO_CFG_INPUT,GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
-
+		
 	getsda(data);
 	setscl(data, 1);
 	setscl(data, 0);
@@ -691,9 +612,12 @@ static u8 wait_9bit(struct tc300k_data *data)
 static void tc300k_reset_for_isp(struct tc300k_data *data, bool start)
 {
 	if (start) {
-		tc300k_led_power(data,0);
 
 		gpio_direction_input(data->pdata->gpio_int);
+		//gpio_tlmm_config(GPIO_CFG(data->pdata->gpio_int,0, GPIO_CFG_INPUT,GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+		//gpio_tlmm_config(GPIO_CFG(data->pdata->gpio_scl,0, GPIO_CFG_OUTPUT,GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+		//gpio_tlmm_config(GPIO_CFG(data->pdata->gpio_sda,0, GPIO_CFG_OUTPUT,GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+
 		gpio_direction_output(data->pdata->gpio_scl, 0);
 		gpio_direction_output(data->pdata->gpio_sda, 0);
 		gpio_direction_output(data->pdata->gpio_int, 0);
@@ -707,7 +631,6 @@ static void tc300k_reset_for_isp(struct tc300k_data *data, bool start)
 
 	} else {
 
-		tc300k_led_power(data,0);
 		tc300k_power(data,0);
 
 		msleep(100);
@@ -718,7 +641,6 @@ static void tc300k_reset_for_isp(struct tc300k_data *data, bool start)
 		usleep(10);
 		tc300k_power(data,1);
 		msleep(70);
-		tc300k_led_power(data,1);
 
 		gpio_direction_input(data->pdata->gpio_sda);
 		gpio_direction_input(data->pdata->gpio_scl);
@@ -920,7 +842,7 @@ static int tc300k_crc_check(struct tc300k_data *data)
 
 	checksum = (checksum_h << 8) | checksum_l;
 
-	if (data->fw_img->checksum != checksum) {
+	if ((data->fw_img->checksum & 0xFF) != (checksum & 0xFF)) {
 		dev_err(&client->dev,
 			"%s checksum fail - firm checksum(%d), compute checksum(%d)\n",
 			__func__, data->fw_img->checksum, checksum);
@@ -991,7 +913,7 @@ write_fw:
 		}
 	}
 	dev_info(&client->dev, "succeed in verifing fw\n");
-
+	
 	tc300k_reset_for_isp(data, false);
 
 	fw_ver = tc300k_get_fw_ver(data);
@@ -1009,7 +931,7 @@ write_fw:
 		release_firmware(data->fw);
 	else if (data->cur_fw_path == FW_IN_SDCARD)
 		kfree(data->fw_img);
-
+	
 	enable_irq(client->irq);
 	data->enabled = true;
 	data->fdata->fw_flash_status = PASS;
@@ -1018,6 +940,7 @@ write_fw:
 
 err_tc300k_flash_fw:
 	dev_info(&client->dev, "failed to fw work\n");
+	
 }
 #else
 static int tc300k_fw_update(struct tc300k_data *data)
@@ -1076,7 +999,7 @@ write_fw:
 		}
 	}
 	dev_info(&client->dev, "succeed in verifing fw\n");
-
+	
 	tc300k_reset_for_isp(data, false);
 
 	fw_ver = tc300k_get_fw_ver(data);
@@ -1089,14 +1012,15 @@ write_fw:
 				__func__, ret);
 		goto	end_tc300k_flash_fw;
 	}
-
+	
 	data->fdata->fw_flash_status = PASS;
 
 end_tc300k_flash_fw:
 
 	enable_irq(client->irq);
-	data->enabled = true;
-	return ret;
+	data->enabled = true;	
+	return ret;	
+	
 }
 #endif
 
@@ -1107,7 +1031,7 @@ static int load_fw_built_in(struct tc300k_data *data)
 	char *fw_name;
 
 	fw_name = kasprintf(GFP_KERNEL, "%s/%s.fw",
-		TC300K_FW_BUILTIN_PATH,  data->pdata->fw_name);
+		TC300K_FW_BUILTIN_PATH, TC300K_FW_NAME);
 
 	pr_info("%s!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",fw_name);
 	ret = request_firmware(&data->fw, fw_name, &client->dev);
@@ -1229,48 +1153,24 @@ static int tc300k_flash_fw(struct tc300k_data *data, u8 fw_path, bool force)
 	int fw_ver;
 	int module_ver;
 
+	
 	ret = tc300k_load_fw(data, fw_path);
 	if (ret < 0) {
 		dev_err(&client->dev, "fail to load fw (%d)\n", ret);
 		return ret;
 	}
 	data->cur_fw_path = fw_path;
-	/* firmware version compare */
+	/* firmware version compare */	
 	fw_ver = tc300k_get_fw_ver(data);
-
-	dev_info(&client->dev, "IC fw_ver(%d)\n", fw_ver);
-#ifdef LED_TWINKLE_BOOTING
-	if(fw_ver<0)
-		dev_err(&client->dev,
-			"%s: i2c fail...[%d], addr[%d]\n",
-			__func__, ret, data->client->addr);
-		dev_err(&client->dev,
-			"%s: touchkey driver unload\n", __func__);
-
-		if (get_lcd_attached("GET") == 0) {
-			dev_err(&client->dev,
-				"%s : lcd is not attached\n", __func__);
-				return fw_ver;
-		}
-#endif
 
 	module_ver = tc300k_get_module_ver(data);
 	dev_info(&client->dev, "IC fw_ver(%#x), module_ver(%#x)\n", fw_ver,module_ver);
-
+	
 	if(data->pdata->firmup==0){
 		dev_info(&client->dev, "pass firmup, h/w rev not support\n");
 		ret = HAVE_LATEST_FW;
 		goto out;
 	}
-
-#ifdef SUPPORT_MODULE_VER
-	if((module_ver < SUPPORT_MODULE_VER) && (data->cur_fw_path == FW_BUILT_IN)){
-		dev_info(&client->dev, "module 0x01 doesn't need to update tkey f/w \n");
-		ret = HAVE_LATEST_FW;
-		data->fdata->fw_update_skip = 1;
-		goto out;
-	}
-#endif
 
 	if ((fw_ver >= data->fw_img->first_fw_ver) && !force && (fw_ver < 0xc0)) {
 	ret = HAVE_LATEST_FW;
@@ -1279,13 +1179,14 @@ static int tc300k_flash_fw(struct tc300k_data *data, u8 fw_path, bool force)
 			 fw_ver);
 		goto out;
 	}
-
+	
 	dev_info(&client->dev, "fw update to %#x (from %#x) (%s)\n",
 		 data->fw_img->first_fw_ver, fw_ver,
 		 (force) ? "force" : "ver mismatch");
 
+	
 	data->fdata->fw_update_skip = 0;
-#ifdef USE_TKEY_UPDATE_WORK
+#ifdef USE_TKEY_UPDATE_WORK	
 	queue_work(data->fw_wq, &data->fw_work);
 #else
 	ret = tc300k_fw_update(data);
@@ -1293,7 +1194,7 @@ static int tc300k_flash_fw(struct tc300k_data *data, u8 fw_path, bool force)
 		goto err_fw_update;
 	}
 	ret = HAVE_LATEST_FW;
-err_fw_update:
+err_fw_update:	
 #endif
  out:
 	tc300k_unload_fw(data, fw_path);
@@ -1314,7 +1215,7 @@ static int tc300k_initialize(struct tc300k_data *data)
 
 	return ret;
 }
-#ifdef USE_LED_WORKQUEUE
+
 static void tc300k_led_worker(struct work_struct *work)
 {
 	struct tc300k_data *data = container_of(work, struct tc300k_data,
@@ -1389,73 +1290,7 @@ static void tc300k_led_set(struct led_classdev *led_cdev,
 	if (data->led_wq)
 		queue_work(data->led_wq, &data->led_work);
 }
-#else
-static int tc300k_led_set(struct i2c_client *client, u8 data)
-{
-	int ret;
-	u8 cmd;
 
-	if (data == 1) {
-		dev_notice(&client->dev, "led on\n");
-		cmd = TC300K_CMD_LED_ON;
-	} else {
-		dev_notice(&client->dev, "led off\n");
-		cmd = TC300K_CMD_LED_OFF;
-	}
-	ret = i2c_smbus_write_byte_data(client, TC300K_CMD_ADDR, cmd);
-	msleep(TC300K_CMD_DELAY);
-
-	return ret;
-}
-#endif
-static ssize_t tc300k_led_control(struct device *dev,
-		 struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct tc300k_data *data = dev_get_drvdata(dev);
-	struct i2c_client *client = data->client;
-	int scan_buffer;
-	int ret;
-
-	ret = sscanf(buf, "%d", &scan_buffer);
-	if (ret != 1) {
-		dev_err(&client->dev, "%s: cmd read err\n", __func__);
-		return count;
-	}
-
-	if (!(scan_buffer == 0 || scan_buffer == 1)) {
-		dev_err(&client->dev, "%s: wrong command(%d)\n",
-			__func__, scan_buffer);
-		return count;
-	}
-
-	if (data->led_on == (bool)scan_buffer) {
-		dev_info(&client->dev, "%s same command(%d)\n",
-			__func__, scan_buffer);
-		return count;
-	}
-
-	if (!data->enabled) {
-		dev_err(&client->dev, "can't excute %s\n", __func__);
-		data->led_on = (bool)scan_buffer;
-		return count;
-	}
-
-#ifdef LED_TWINKLE_BOOTING
-	if(data->led_twinkle_check == 1){
-		data->led_twinkle_check = 0;
-		cancel_delayed_work(&data->led_twinkle_work);
-	}
-#endif
-
-	ret = tc300k_led_set(client, scan_buffer);
-	if (ret < 0)
-		dev_err(&client->dev, "%s fail(%d)\n", __func__, ret);
-
-	data->led_on = (bool)scan_buffer;
-
-	return count;
-
-}
 static ssize_t tc300k_fw_ver_ic_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
@@ -1464,11 +1299,11 @@ static ssize_t tc300k_fw_ver_ic_show(struct device *dev,
 	int ver;
 	int ret;
 
-	if(data->enabled){
+ 	if(data->enabled){
 		data->fdata->fw_update_skip = 0;
-		ver = tc300k_get_fw_ver(data);
-	}
-
+		ver = tc300k_get_fw_ver(data); 
+ 	}
+	
 	ver = data->ic_fw_ver;
 	if (ver < 0) {
 		dev_err(&client->dev, "%s: fail to read fw ver (%d)\n.",
@@ -1555,7 +1390,11 @@ static ssize_t tc300k_fw_update_store(struct device *dev,
 	data->enabled = false;
 
 	ret = tc300k_flash_fw(data, fw_path, true);
-	data->enabled = true;
+	
+	/* Firmware setting interrupt type : dual or single interrupt */
+	touchkey_interrupt_set_dual(data);
+
+	data->enabled = true;	
 	if (ret < 0) {
 		data->fdata->fw_flash_status = FAIL;
 		dev_err(&client->dev, "%s: fail to flash fw (%d)\n.", __func__,
@@ -1677,6 +1516,8 @@ static ssize_t recent_key_show(struct device *dev,
 	int ret;
 	u8 buff[8] = {0, };
 	u16 value;
+	
+
 	if (!data->enabled) {
 		dev_err(&client->dev, "%s: device is disabled\n.", __func__);
 		return -EPERM;
@@ -1727,6 +1568,8 @@ static ssize_t tc300k_recent_inner_show(struct device *dev,
 	int ret;
 	u8 buff[8] = {0, };
 	u16 value;
+	
+
 	if (!data->enabled) {
 		dev_err(&client->dev, "%s: device is disabled\n.", __func__);
 		return -EPERM;
@@ -1752,6 +1595,7 @@ static ssize_t tc300k_recent_outer_show(struct device *dev,
 	int ret;
 	u8 buff[8] = {0, };
 	u16 value;
+	
 
 	if (!data->enabled) {
 		dev_err(&client->dev, "%s: device is disabled\n.", __func__);
@@ -1969,7 +1813,7 @@ static ssize_t tc300k_back_raw_outer_show(struct device *dev,
 
 	return sprintf(buf, "%d\n", value);
 }
-
+	
 static ssize_t tc300k_threshold_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1984,7 +1828,7 @@ static ssize_t tc300k_threshold_show(struct device *dev,
 		return -EPERM;
 	}
 
-	ret = i2c_smbus_read_i2c_block_data(client, TC300K_1KEY_DATA, 8, buff);
+	ret = i2c_smbus_read_i2c_block_data(client, TC300K_3KEY_DATA, 8, buff);
 	if (ret != 8) {
 		dev_err(&client->dev, "%s: thr_recent read fail(%d)\n", __func__, ret);
 		return -1;
@@ -1992,7 +1836,7 @@ static ssize_t tc300k_threshold_show(struct device *dev,
 	thr_recent = (buff[TC300K_THRES_H_OFFSET] << 8) |
 		buff[TC300K_THRES_L_OFFSET];
 
-	ret = i2c_smbus_read_i2c_block_data(client, TC300K_2KEY_DATA, 8, buff);
+	ret = i2c_smbus_read_i2c_block_data(client, TC300K_4KEY_DATA, 8, buff);
 	if (ret != 8) {
 		dev_err(&client->dev, "%s: thr_back read fail(%d)\n", __func__, ret);
 		return -1;
@@ -2002,7 +1846,7 @@ static ssize_t tc300k_threshold_show(struct device *dev,
 
 	dev_info(&client->dev, "%s: %d, %d\n", __func__, thr_recent, thr_back);
 
-	return sprintf(buf, "%d, %d\n", thr_recent, thr_back);
+	return sprintf(buf, "%d\n", thr_recent);
 }
 
 static ssize_t tc300k_recent_threshold_inner_show(struct device *dev,
@@ -2207,54 +2051,7 @@ static ssize_t tc300k_modecheck_show(struct device *dev,
 	return sprintf(buf, "glove:%d, factory:%d\n", glove, factory);
 }
 
-#if 0 // def TSP_BOOSTER
-static ssize_t boost_level_store(struct device *dev,
-				   struct device_attribute *attr,
-				   const char *buf, size_t count)
-{
-	struct tc300k_data *data = dev_get_drvdata(dev);
-	int val, retval;
-
-	dev_info(&data->client->dev, "%s\n", __func__);
-	sscanf(buf, "%d", &val);
-
-	if (val != 1 && val != 2 && val != 0) {
-		dev_info(&data->client->dev,
-			"%s: wrong cmd %d\n", __func__, val);
-		return count;
-	}
-	data->dvfs_boost_mode = val;
-	dev_info(&data->client->dev,
-			"%s: dvfs_boost_mode = %d\n",
-			__func__, data->dvfs_boost_mode);
-
-	if (data->dvfs_boost_mode == DVFS_STAGE_DUAL) {
-		data->dvfs_freq = MIN_TOUCH_LIMIT_SECOND;
-		dev_info(&data->client->dev,
-			"%s: boost_mode DUAL, dvfs_freq = %d\n",
-			__func__, data->dvfs_freq);
-	} else if (data->dvfs_boost_mode == DVFS_STAGE_SINGLE) {
-		data->dvfs_freq = MIN_TOUCH_LIMIT;
-		dev_info(&data->client->dev,
-			"%s: boost_mode SINGLE, dvfs_freq = %d\n",
-			__func__, data->dvfs_freq);
-	} else if (data->dvfs_boost_mode == DVFS_STAGE_NONE) {
-		data->dvfs_freq = -1;
-		retval = set_freq_limit(DVFS_TOUCH_ID, -1);
-		if (retval < 0) {
-			dev_err(&data->client->dev,
-					"%s: booster stop failed(%d).\n",
-					__func__, retval);
-			data->dvfs_lock_status = false;
-		}
-	}
-	return count;
-}
-#endif
-
-
 static DEVICE_ATTR(touchkey_threshold, S_IRUGO, tc300k_threshold_show, NULL);
-static DEVICE_ATTR(brightness, S_IRUGO | S_IWUSR | S_IWGRP, NULL,tc300k_led_control);
 static DEVICE_ATTR(touchkey_firm_version_panel, S_IRUGO | S_IWUSR | S_IWGRP,
 		   tc300k_fw_ver_ic_show, NULL);
 static DEVICE_ATTR(touchkey_firm_version_phone, S_IRUGO | S_IWUSR | S_IWGRP,
@@ -2285,13 +2082,8 @@ static DEVICE_ATTR(touchkey_recent_outer, S_IRUGO, tc300k_recent_outer_show, NUL
 static DEVICE_ATTR(touchkey_back_inner, S_IRUGO, tc300k_back_inner_show, NULL);
 static DEVICE_ATTR(touchkey_back_outer, S_IRUGO, tc300k_back_outer_show, NULL);
 
-#if 0 // def TSP_BOOSTER
-static DEVICE_ATTR(boost_level, S_IWUSR | S_IWGRP, NULL, boost_level_store);
-#endif
-
 static struct attribute *touchkey_attributes[] = {
 	&dev_attr_touchkey_threshold.attr,
-	&dev_attr_brightness.attr,
 	&dev_attr_touchkey_firm_version_panel.attr,
 	&dev_attr_touchkey_firm_version_phone.attr,
 	&dev_attr_touchkey_firm_update.attr,
@@ -2305,19 +2097,16 @@ static struct attribute *touchkey_attributes[] = {
 	&dev_attr_modecheck.attr,
 	&dev_attr_touchkey_recent_threshold_inner.attr,
 	&dev_attr_touchkey_recent_threshold_outer.attr,
-	&dev_attr_touchkey_back_threshold_inner.attr,
+	&dev_attr_touchkey_back_threshold_inner.attr,		
 	&dev_attr_touchkey_back_threshold_outer.attr,
 	&dev_attr_touchkey_recent_raw_inner.attr,
 	&dev_attr_touchkey_recent_raw_outer.attr,
 	&dev_attr_touchkey_back_raw_inner.attr,
-	&dev_attr_touchkey_back_raw_outer.attr,
+	&dev_attr_touchkey_back_raw_outer.attr,	
 	&dev_attr_touchkey_recent_inner.attr,
 	&dev_attr_touchkey_recent_outer.attr,	
 	&dev_attr_touchkey_back_inner.attr,
-	&dev_attr_touchkey_back_outer.attr,
-#if 0 // def TSP_BOOSTER
-	&dev_attr_boost_level.attr,
-#endif
+	&dev_attr_touchkey_back_outer.attr,		
 	NULL,
 };
 
@@ -2338,7 +2127,7 @@ static int tc300k_init_interface(struct tc300k_data *data)
 		data->fdata->dummy_dev = NULL;
 		goto err_create_sec_class_dev;
 	}
-
+	
 	ret = sysfs_create_group(&data->fdata->dummy_dev->kobj,
 				 &touchkey_attr_group);
 	if (ret) {
@@ -2365,29 +2154,19 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 	device_destroy(sec_class, (dev_t)NULL);
 }
 
-//static int __devinit tc300k_probe(struct i2c_client *client,
-	static int tc300k_probe(struct i2c_client *client,
+static int tc300k_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
-{
+{ 	
 	struct tc300k_platform_data *pdata;
 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
 	struct tc300k_data *data;
 	struct input_dev *input_dev;
-
+	
 	int ret;
 	int i;
 	int err;
 
 	printk(KERN_ERR "%s start\n", __func__);
-
-
-#ifndef LED_TWINKLE_BOOTING
-	if (get_lcd_attached("GET") == 0) {
-		dev_err(&client->dev,
-			"%s : lcd is not attached\n", __func__);
-		return -EIO;
-	}
-#endif
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_I2C))
 		return -EIO;
@@ -2413,7 +2192,7 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 		ret = -ENOMEM;
 		goto err_data_alloc;
 	}
-
+	
 	data->pdata = pdata;
 
 	data->fdata = kzalloc(sizeof(struct fdata_struct), GFP_KERNEL);
@@ -2434,7 +2213,7 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 	data->input_dev = input_dev;
 	data->num_key = data->pdata->num_key;
 	data->keycodes = data->pdata->keycodes;
-
+	
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	for (i = 0; i < data->num_key; i++)
 		dev_info(&client->dev, "keycode[%d]= %3d\n", i,
@@ -2456,15 +2235,21 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 	}
 
 	if (data->pinctrl) {
-		ret = tkey_pinctrl_configure(data, false);
-		if (ret) pr_err("%s: cannot set pinctrl state\n", __func__);
+		ret = tkey_pinctrl_configure(data, 2); /* boot */
+		if (ret)
+			pr_err("%s: cannot set pinctrl state\n", __func__);
 	}
 
-	tc300k_led_power(data,1);
+	if (data->pinctrl) {
+		ret = tkey_pinctrl_configure(data, 0);
+		if (ret)
+			pr_err("%s: cannot set pinctrl state\n", __func__);
+	}
+
 	tc300k_power(data,1);
 	msleep(5);
 	if (data->pinctrl) {
-		ret = tkey_pinctrl_configure(data, true);
+		ret = tkey_pinctrl_configure(data, 1);
 		if (ret) pr_err("%s: cannot set pinctrl state\n", __func__);
 	}
 	msleep(TC300K_POWERON_DELAY - 5);
@@ -2472,9 +2257,7 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 	data->suspend_type = data->pdata->suspend_type;
 	data->scl = data->pdata->gpio_scl;
 	data->sda = data->pdata->gpio_sda;
-#ifdef USE_LED_WORKQUEUE	
 	data->led_wq_passed=0;
-#endif
 
 	mutex_init(&data->lock);
 	wake_lock_init(&data->fw_wake_lock, WAKE_LOCK_SUSPEND, "tc300k_fw_wake_lock");
@@ -2489,8 +2272,8 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 	input_dev->keycode = data->keycodes;
 	input_dev->keycodesize = sizeof(data->keycodes[0]);
 	input_dev->keycodemax = data->num_key;
-	data->tsk_ev_val = tsk_ev;
-	data->key_num = ARRAY_SIZE(tsk_ev)/2;
+
+
 	set_bit(EV_SYN, input_dev->evbit);
 	set_bit(EV_ABS, input_dev->evbit);
 	set_bit(EV_LED, input_dev->evbit);
@@ -2514,7 +2297,7 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 		dev_err(&client->dev, "failed to init interface (%d)\n", ret);
 		goto err_init_interface;
 	}
-
+	
 	/* Add symbolic link */
 	ret = sysfs_create_link(&data->fdata->dummy_dev->kobj, &input_dev->dev.kobj, "input");
 		if (ret < 0) {
@@ -2522,11 +2305,15 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 					"%s: Failed to create input symbolic link\n",
 					__func__);
 		}
+	
 		dev_set_drvdata(data->fdata->dummy_dev, data);
+	
+
 #ifdef USE_OPEN_CLOSE
 	input_dev->open = tc300k_input_open;
 	input_dev->close = tc300k_input_close;
 #endif
+	
 #ifdef USE_TKEY_UPDATE_WORK
 	data->fw_up_running = false;	
 	data->fw_wq = create_singlethread_workqueue(client->name);
@@ -2536,8 +2323,9 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 		goto err_create_fw_wq;
 	}
 
-	INIT_WORK(&data->fw_work, tc300k_fw_update_worker);
+	INIT_WORK(&data->fw_work, tc300k_fw_update_worker);	
 #endif
+	
 	if (client->irq) {
 		ret = request_threaded_irq(client->irq, NULL, tc300k_interrupt,
 					IRQF_TRIGGER_FALLING | IRQF_ONESHOT , TC300K_DEVICE, data);
@@ -2548,12 +2336,16 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 		}
 	}
 	ret =tc300k_initialize(data); //firmware update
-
+	
 	if (ret < 0) {
 		dev_err(&client->dev, "fail to tc300k initialize (%d).\n",
 			ret);
 		goto err_initialize;
 	}
+
+	/* Firmware setting interrupt type : dual or single interrupt */
+	touchkey_interrupt_set_dual(data);
+
 #ifdef USE_TKEY_UPDATE_WORK
 	switch (ret) {
 	case HAVE_LATEST_FW:
@@ -2574,7 +2366,6 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 	register_early_suspend(&data->early_suspend);
 #endif
 
-#ifdef USE_LED_WORKQUEUE
 	data->led_wq = create_singlethread_workqueue(client->name);
 	if (!data->led_wq) {
 		dev_err(&client->dev, "fail to create workqueue for led_wq\n");
@@ -2594,24 +2385,14 @@ static void tc300k_destroy_interface(struct tc300k_data *data)
 			ret);
 		goto err_register_led;
 	}
-#endif
-#ifdef LED_TWINKLE_BOOTING
-	if (get_lcd_attached("GET") == 0) {
-		dev_err(&client->dev,
-			"%s : LCD is not connected. so start LED twinkle \n", __func__);
-		INIT_DELAYED_WORK(&data->led_twinkle_work, led_twinkle_work);
-		data->led_twinkle_check =  1;
-		schedule_delayed_work(&data->led_twinkle_work, msecs_to_jiffies(400));
-	}
-#endif
+
 	dev_info(&client->dev, "successfully probed.\n");
 
 	return 0;
-#ifdef USE_LED_WORKQUEUE
+
 err_register_led:
 	destroy_workqueue(data->led_wq);
 err_create_led_wq:
-#endif
 err_initialize:
 	free_irq(client->irq, data);
 #ifdef USE_TKEY_UPDATE_WORK
@@ -2622,14 +2403,12 @@ err_create_fw_wq:
 #else
 err_request_irq:
 	tc300k_destroy_interface(data);
-#endif
+#endif	
 err_init_interface:
 	input_unregister_device(input_dev);
-	input_dev = NULL;
 err_register_input_dev:
 	wake_lock_destroy(&data->fw_wake_lock);
-	if (input_dev)
-		input_free_device(input_dev);
+	input_free_device(input_dev);
 err_input_devalloc:
 	kfree(data->fdata);
 err_data_alloc_fdata:
@@ -2637,33 +2416,8 @@ err_data_alloc_fdata:
 err_data_alloc:
 	return ret;
 }
-#ifdef LED_TWINKLE_BOOTING
-static void led_twinkle_work(struct work_struct *work)
-{
-	struct tc300k_data *data = container_of(work, struct tc300k_data,
-						led_twinkle_work.work);
-	struct i2c_client *client = data->client;
-	static bool led_on = 1;
-	static int count = 0;
-	dev_err(&data->client->dev, "%s, on=%d, c=%d\n",__func__, led_on, count++ );
 
-	if(data->led_twinkle_check == 1){
 
-		tc300k_led_set(client,led_on);
-		if(led_on)	led_on = 0;
-		else		led_on = 1;
-
-		schedule_delayed_work(&data->led_twinkle_work, msecs_to_jiffies(400));
-	}else{
-
-		if(led_on == 0)
-			tc300k_led_set(client, 0);
-	}
-
-}
-#endif
-
-//static int __devexit tc300k_remove(struct i2c_client *client)
 static int tc300k_remove(struct i2c_client *client)
 {
 	struct tc300k_data *data = i2c_get_clientdata(client);
@@ -2673,11 +2427,9 @@ static int tc300k_remove(struct i2c_client *client)
 #endif
 	free_irq(client->irq, data);
 	gpio_free(data->pdata->gpio_int);
-#ifdef USE_LED_WORKQUEUE
 	led_classdev_unregister(&data->led);
 	destroy_workqueue(data->led_wq);
-#endif
-#ifdef USE_TKEY_UPDATE_WORK
+#ifdef USE_TKEY_UPDATE_WORK	
 	destroy_workqueue(data->fw_wq);
 #endif
 	input_unregister_device(data->input_dev);
@@ -2693,7 +2445,7 @@ static int tc300k_suspend(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct tc300k_data *data = i2c_get_clientdata(client);
 	int i;
-
+	
 	mutex_lock(&data->lock);
 	/* now the firmware is being updated. IC will keep power state. */
 	if (unlikely(wake_lock_active(&data->fw_wake_lock))) {
@@ -2715,12 +2467,11 @@ static int tc300k_suspend(struct device *dev)
 		input_report_key(data->input_dev, data->keycodes[i], 0);
 		input_sync(data->input_dev);
 
-	tc300k_led_power(data,false);
-	tc300k_power(data,0);
+	tc300k_power(data,0);		
 	data->led_on = false;
 
 	mutex_unlock(&data->lock);
-
+	
 	return 0;
 }
 
@@ -2745,17 +2496,23 @@ static int tc300k_resume(struct device *dev)
 	}
 
 	if (data->pinctrl) {
-		ret = tkey_pinctrl_configure(data, false);
-		if (ret) pr_err("%s: cannot set pinctrl state\n", __func__);
+		ret = tkey_pinctrl_configure(data, 0);
+		if (ret)
+			pr_err("%s: cannot set pinctrl state\n", __func__);
 	}
-	tc300k_led_power(data,true);
+
 	tc300k_power(data,1);
 	msleep(5);
 	if (data->pinctrl) {
-		ret = tkey_pinctrl_configure(data, true);
-		if (ret) pr_err("%s: cannot set pinctrl state\n", __func__);
+		ret = tkey_pinctrl_configure(data, 1);
+		if (ret)
+			pr_err("%s: cannot set pinctrl state\n", __func__);
 	}
-	msleep(200 - 5);
+	msleep(195);
+
+	/* Firmware setting interrupt type : dual or single interrupt */
+	touchkey_interrupt_set_dual(data);
+
 	enable_irq(client->irq);
 	data->enabled = true;
 	if (data->led_on == true) {
@@ -2769,17 +2526,18 @@ static int tc300k_resume(struct device *dev)
 			msleep(TC300K_CMD_DELAY);
 	}
 
+	
 	if (data->glove_mode) {
 		ret = tc300k_glove_mode_enable(client, TC300K_CMD_GLOVE_ON);
 		if (ret < 0)
 			dev_err(&client->dev, "%s glovemode fail(%d)\n", __func__, ret);
 	}
-
+	
 	if (data->factory_mode) {
 		ret = tc300k_factory_mode_enable(client, TC300K_CMD_FAC_ON);
 		if (ret < 0)
 			dev_err(&client->dev, "%s factorymode fail(%d)\n", __func__, ret);
-	}
+	}		
 out:
 	mutex_unlock(&data->lock);
 	dev_info(&client->dev, "%s\n", __func__);
@@ -2794,8 +2552,6 @@ static int tc300k_input_open(struct input_dev *dev)
 	struct tc300k_data *data = input_get_drvdata(dev);
 
 	dev_info(&data->client->dev, "%s.\n", __func__);
-	//gpio_tlmm_config(GPIO_CFG(data->pdata->gpio_sda, 0, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
-	//gpio_tlmm_config(GPIO_CFG(data->pdata->gpio_scl, 0, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 	tc300k_resume(&data->client->dev);
 
 	return 0;
@@ -2806,8 +2562,6 @@ static void tc300k_input_close(struct input_dev *dev)
 	struct tc300k_data *data = input_get_drvdata(dev);
 
 	dev_info(&data->client->dev, "%s.\n", __func__);
-	//gpio_tlmm_config(GPIO_CFG(data->pdata->gpio_sda, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
-	//gpio_tlmm_config(GPIO_CFG(data->pdata->gpio_scl, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
 	tc300k_suspend(&data->client->dev);
 }
 #endif
@@ -2836,7 +2590,7 @@ static void tc300k_late_resume(struct early_suspend *h)
 #if defined(CONFIG_PM) || defined(CONFIG_HAS_EARLYSUSPEND)
 static const struct dev_pm_ops tc300k_pm_ops = {
 	.suspend	= tc300k_suspend,
-	.resume		= tc300k_resume,
+	.resume 	= tc300k_resume,
 };
 #endif
 #endif
@@ -2848,7 +2602,7 @@ static const struct i2c_device_id tc300k_id[] = {
 
 #ifdef CONFIG_OF
 static struct of_device_id coreriver_match_table[] = {
-	{ .compatible = "coreriver,coreriver-tkey",},
+	{ .compatible = "coreriver,coreriver-tkey",},    
 	{ },
 };
 #else
@@ -2867,7 +2621,7 @@ static struct i2c_driver tc300k_driver = {
 #endif
 #ifdef CONFIG_OF
 		.of_match_table = coreriver_match_table,
-#endif
+#endif	
 	},
 	.id_table	= tc300k_id,
 };
@@ -2882,7 +2636,7 @@ static int __init tc300k_init(void)
 		return 0;
 	}
 #endif
-
+	
 	ret = i2c_add_driver(&tc300k_driver);
 	if (ret) {
 		printk(KERN_ERR "coreriver touch keypad registration failed. ret= %d\n",

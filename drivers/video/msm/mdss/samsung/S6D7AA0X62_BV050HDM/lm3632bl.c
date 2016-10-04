@@ -60,10 +60,10 @@ struct backlight_info {
 	struct lm3632 *lm3632;
 };
 
-struct backlight_info *bl_info;
+static struct backlight_info *bl_info;
 static const char *bl_ic_name;
 
-void mdss_backlight_ic_power_on(int enable)
+static void mdss_backlight_ic_power_on(int enable)
 {
 	struct backlight_info *info = bl_info;
 	int i;
@@ -99,7 +99,8 @@ void mdss_backlight_ic_power_on(int enable)
 	}
 }
 
-void pwm_backlight_control_i2c(int scaled_level)
+#if 0
+static void pwm_backlight_control_i2c(int scaled_level)
 {
 	struct backlight_info *info = bl_info;
 	int data, ret;
@@ -124,6 +125,7 @@ void pwm_backlight_control_i2c(int scaled_level)
 
 	lm3632_write_byte(info->lm3632, info->bl_control.table[2], data);
 }
+#endif
 static void pwm_backlight_outdoor_control(int enable)
 {
 	int i;
@@ -321,7 +323,7 @@ static int lm3632_bl_probe(struct platform_device *pdev)
 {
 	struct lm3632 *lm3632 = dev_get_drvdata(pdev->dev.parent);
 	struct lm3632_backlight_platform_data *pdata = lm3632->pdata->bl_pdata;
-	struct lm3632_bl *lm3632_bl;
+	static struct lm3632_bl *lm3632_bl;
 	struct backlight_info *info;
 	struct samsung_display_driver_data *vdd = samsung_get_vdd();
 

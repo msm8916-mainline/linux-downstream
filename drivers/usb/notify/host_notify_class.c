@@ -146,14 +146,14 @@ static struct attribute_group host_notify_attr_grp = {
 char *host_state_string(int type)
 {
 	switch (type) {
-	case NOTIFY_HOST_NONE:return "none";
-	case NOTIFY_HOST_ADD:return "add";
-	case NOTIFY_HOST_REMOVE:return "remove";
-	case NOTIFY_HOST_OVERCURRENT:return "overcurrent";
-	case NOTIFY_HOST_LOWBATT:return "lowbatt";
-	case NOTIFY_HOST_BLOCK:return "block";
+	case NOTIFY_HOST_NONE:			return "none";
+	case NOTIFY_HOST_ADD:			return "add";
+	case NOTIFY_HOST_REMOVE:		return "remove";
+	case NOTIFY_HOST_OVERCURRENT:	return "overcurrent";
+	case NOTIFY_HOST_LOWBATT:		return "lowbatt";
+	case NOTIFY_HOST_BLOCK:			return "block";
 	case NOTIFY_HOST_UNKNOWN:
-	default:return "unknown";
+	default:	return "unknown";
 	}
 }
 
@@ -283,4 +283,3 @@ module_exit(notify_class_exit);
 MODULE_AUTHOR("Dongrak Shin <dongrak.shin@samsung.com>");
 MODULE_DESCRIPTION("Usb host notify driver");
 MODULE_LICENSE("GPL");
-

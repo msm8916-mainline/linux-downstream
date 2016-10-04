@@ -26,8 +26,6 @@
 #include <linux/workqueue.h>
 #include <linux/freezer.h>
 
-#define ALARM_DELTA 120
-
 /**
  * struct alarm_base - Alarm timer bases
  * @lock:		Lock for syncrhonized access to the base
@@ -92,9 +90,7 @@ void set_power_on_alarm(long secs, bool enable)
 	 *to power up the device before actual alarm
 	 *expiration
 	 */
-	if ((alarm_time - ALARM_DELTA) > rtc_secs)
-		alarm_time -= ALARM_DELTA;
-	else
+	if (alarm_time <= rtc_secs)
 		goto disable_alarm;
 
 	rtc_time_to_tm(alarm_time, &alarm.time);
@@ -172,8 +168,8 @@ rtc_irq_reg_err:
 
 #ifdef CONFIG_RTC_AUTO_PWRON
 extern int rtc_set_bootalarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm);
-// 0|1234|56|78|90|12
-// 1|2010|01|01|00|00
+/* 0|1234|56|78|90|12 */
+/* 1|2010|01|01|00|00 */
 //en yyyy mm dd hh mm
 #define BOOTALM_BIT_EN       0
 #define BOOTALM_BIT_YEAR     1
@@ -544,8 +540,13 @@ int alarm_start(struct alarm *alarm, ktime_t start)
  */
 int alarm_start_relative(struct alarm *alarm, ktime_t start)
 {
-	struct alarm_base *base = &alarm_bases[alarm->type];
+	struct alarm_base *base;
 
+	if (alarm->type >= ALARM_NUMTYPE) {
+		pr_err("Array out of index\n");
+		return -EINVAL;
+	}
+	base = &alarm_bases[alarm->type];
 	start = ktime_add(start, base->gettime());
 	return alarm_start(alarm, start);
 }
@@ -571,10 +572,15 @@ void alarm_restart(struct alarm *alarm)
  */
 int alarm_try_to_cancel(struct alarm *alarm)
 {
-	struct alarm_base *base = &alarm_bases[alarm->type];
+	struct alarm_base *base;
 	unsigned long flags;
 	int ret;
 
+	if (alarm->type >= ALARM_NUMTYPE) {
+		pr_err("Array out of index\n");
+		return -EINVAL;
+	}
+	base = &alarm_bases[alarm->type];
 	spin_lock_irqsave(&base->lock, flags);
 	ret = hrtimer_try_to_cancel(&alarm->timer);
 	if (ret >= 0)

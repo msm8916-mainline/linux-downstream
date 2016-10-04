@@ -25,6 +25,7 @@
 #define ISP1_BIT              (0x10000 << 2)
 #define ISP_META_CHANNEL_BIT  (0x10000 << 3)
 #define ISP_SCRATCH_BUF_BIT   (0x10000 << 4)
+#define ISP_PDAF_CHANNEL_BIT   (0x10000 << 5)
 #define ISP_STATS_STREAM_BIT  0x80000000
 
 struct msm_vfe_cfg_cmd_list;
@@ -93,6 +94,13 @@ enum msm_vfe_camif_input {
 	CAMIF_MIPI_INPUT,
 };
 
+struct msm_vfe_camif_subsample_cfg {
+	uint32_t irq_subsample_period;
+	uint32_t irq_subsample_pattern;
+	uint32_t pixel_skip;
+	uint32_t line_skip;
+};
+
 struct msm_vfe_camif_cfg {
 	uint32_t lines_per_frame;
 	uint32_t pixels_per_line;
@@ -103,6 +111,7 @@ struct msm_vfe_camif_cfg {
 	uint32_t epoch_line0;
 	uint32_t epoch_line1;
 	enum msm_vfe_camif_input camif_input;
+	struct msm_vfe_camif_subsample_cfg subsample_cfg;
 };
 
 enum msm_vfe_inputmux {
@@ -367,9 +376,10 @@ enum msm_isp_event_idx {
 #define ISP_EVENT_BASE            (V4L2_EVENT_PRIVATE_START)
 #define ISP_BUF_EVENT_BASE        (ISP_EVENT_BASE + (1 << ISP_EVENT_OFFSET))
 #define ISP_STATS_EVENT_BASE      (ISP_EVENT_BASE + (2 << ISP_EVENT_OFFSET))
-#define ISP_CAMIF_EVENT_BASE      (ISP_EVENT_BASE + (3 << ISP_EVENT_OFFSET))
-#define ISP_STREAM_EVENT_BASE     (ISP_EVENT_BASE + (4 << ISP_EVENT_OFFSET))
+#define ISP_CAMIF_EVENT_BASE        (ISP_EVENT_BASE + (3 << ISP_EVENT_OFFSET))
+#define ISP_STREAM_EVENT_BASE        (ISP_EVENT_BASE + (4 << ISP_EVENT_OFFSET))
 #define ISP_EVENT_REG_UPDATE      (ISP_EVENT_BASE + ISP_REG_UPDATE)
+
 #define ISP_EVENT_EPOCH_0         (ISP_EVENT_BASE + ISP_EPOCH_0)
 #define ISP_EVENT_EPOCH_1         (ISP_EVENT_BASE + ISP_EPOCH_1)
 #define ISP_EVENT_START_ACK       (ISP_EVENT_BASE + ISP_START_ACK)
@@ -384,8 +394,10 @@ enum msm_isp_event_idx {
 #define ISP_EVENT_BUF_DIVERT      (ISP_BUF_EVENT_BASE)
 #define ISP_EVENT_STATS_NOTIFY    (ISP_STATS_EVENT_BASE)
 #define ISP_EVENT_COMP_STATS_NOTIFY (ISP_EVENT_STATS_NOTIFY + MSM_ISP_STATS_MAX)
+
 #define ISP_EVENT_FE_READ_DONE    (ISP_EVENT_BASE + ISP_FE_RD_DONE)
 #define ISP_EVENT_STREAM_UPDATE_DONE   (ISP_STREAM_EVENT_BASE)
+
 /* The msm_v4l2_event_data structure should match the
  * v4l2_event.u.data field.
  * should not exceed 64 bytes */
@@ -421,8 +433,21 @@ struct msm_isp_event_data {
 		struct msm_isp_stats_event stats;
 		struct msm_isp_buf_event buf_done;
 	} u; /* union can have max 52 bytes */
+	uint32_t is_skip_pproc;
 };
-
+#ifdef CONFIG_COMPAT
+struct msm_isp_event_data32 {
+	struct compat_timeval timestamp;
+	struct compat_timeval mono_timestamp;
+	enum msm_vfe_input_src input_intf;
+	uint32_t frame_id;
+	union {
+		struct msm_isp_stats_event stats;
+		struct msm_isp_buf_event buf_done;
+		struct msm_isp_error_info error_info;
+	} u;
+};
+#endif
 #define V4L2_PIX_FMT_QBGGR8  v4l2_fourcc('Q', 'B', 'G', '8')
 #define V4L2_PIX_FMT_QGBRG8  v4l2_fourcc('Q', 'G', 'B', '8')
 #define V4L2_PIX_FMT_QGRBG8  v4l2_fourcc('Q', 'G', 'R', '8')
@@ -486,4 +511,11 @@ struct msm_isp_event_data {
 #define VIDIOC_MSM_VFE_REG_LIST_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE+14, struct msm_vfe_cfg_cmd_list)
 
+#ifdef CONFIG_COMPAT
+#define VIDIOC_MSM_ISP_BUF_DONE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE+21, struct msm_isp_event_data32)
+#else
+#define VIDIOC_MSM_ISP_BUF_DONE \
+	_IOWR('V', BASE_VIDIOC_PRIVATE+21, struct msm_isp_event_data)
+#endif
 #endif /* __MSMB_ISP__ */

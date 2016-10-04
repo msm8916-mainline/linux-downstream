@@ -2,33 +2,7 @@
 #define CAPACITY_MAX_MARGIN     50
 #define CAPACITY_MIN			0
 
-#if defined(CONFIG_MACH_FORTUNA_CTC)
-static sec_bat_adc_table_data_t temp_table[] = {
-	{25950, 900},
-	{26173, 850},
-	{26424, 800},
-	{26727, 750},
-	{26714, 700},
-	{27189, 650},
-	{27985, 600},
-	{28426, 550},
-	{29185, 500},
-	{29942, 450},
-	{30607, 400},
-	{31562, 350},
-	{32517, 300},
-	{33673, 250},
-	{34629, 200},
-	{35684, 150},
-	{36739, 100},
-	{37810, 50},
-	{38760, 0},
-	{39858, -50},
-	{40461, -100},
-	{41124, -150},
-	{41510, -200},
-};
-#else
+#if defined(CONFIG_MACH_FORTUNA_TMO) || defined(CONFIG_MACH_FORTUNA_SPR) || defined(CONFIG_MACH_FORTUNA_ACG)
 static sec_bat_adc_table_data_t temp_table[] = {
 	{26056, 900},
 	{26268, 850},
@@ -54,16 +28,42 @@ static sec_bat_adc_table_data_t temp_table[] = {
 	{41055, -150},
 	{41593, -200},
 };
+#else
+static sec_bat_adc_table_data_t temp_table[] = {
+	{26056, 900},
+	{26218, 850},
+	{26580, 800},
+	{26884, 750},
+	{27229, 700},
+	{27581, 650},
+	{28146, 600},
+	{28715, 550},
+	{29371, 500},
+	{30112, 450},
+	{30940, 400},
+	{31919, 350},
+	{32820, 300},
+	{33951, 250},
+	{34905, 200},
+	{36038, 150},
+	{37120, 100},
+	{38060, 50},
+	{38971, 0},
+	{39831, -50},
+	{40520, -100},
+	{41055, -150},
+	{41593, -200},
+};
 #endif
 
-#define TEMP_HIGHLIMIT_THRESHOLD_EVENT          800
-#define TEMP_HIGHLIMIT_RECOVERY_EVENT           750
-#define TEMP_HIGHLIMIT_THRESHOLD_NORMAL         800
-#define TEMP_HIGHLIMIT_RECOVERY_NORMAL          750
-#define TEMP_HIGHLIMIT_THRESHOLD_LPM            800
-#define TEMP_HIGHLIMIT_RECOVERY_LPM             750
+#define TEMP_HIGHLIMIT_THRESHOLD_EVENT		800
+#define TEMP_HIGHLIMIT_RECOVERY_EVENT		750
+#define TEMP_HIGHLIMIT_THRESHOLD_NORMAL		800
+#define TEMP_HIGHLIMIT_RECOVERY_NORMAL		750
+#define TEMP_HIGHLIMIT_THRESHOLD_LPM		800
+#define TEMP_HIGHLIMIT_RECOVERY_LPM		750
 
-#if defined (CONFIG_MACH_FORTUNA_AIO)
+#if defined(CONFIG_MACH_FORTUNA_TMO) || defined(CONFIG_MACH_FORTUNA_SPR) || defined(CONFIG_MACH_FORTUNA_ACG)
 #define TEMP_HIGH_THRESHOLD_EVENT  600
 #define TEMP_HIGH_RECOVERY_EVENT   460
 #define TEMP_LOW_THRESHOLD_EVENT   (-50)
@@ -78,15 +78,24 @@ static sec_bat_adc_table_data_t temp_table[] = {
 #define TEMP_LOW_RECOVERY_LPM      (-5)
 #else
 #define TEMP_HIGH_THRESHOLD_EVENT  600
-#define TEMP_HIGH_RECOVERY_EVENT   460
+#define TEMP_HIGH_RECOVERY_EVENT   490
 #define TEMP_LOW_THRESHOLD_EVENT   (-50)
-#define TEMP_LOW_RECOVERY_EVENT    0
-#define TEMP_HIGH_THRESHOLD_NORMAL 600
+#define TEMP_LOW_RECOVERY_EVENT    1
+#define TEMP_HIGH_THRESHOLD_NORMAL 510
 #define TEMP_HIGH_RECOVERY_NORMAL  460
 #define TEMP_LOW_THRESHOLD_NORMAL  (-50)
 #define TEMP_LOW_RECOVERY_NORMAL   0
-#define TEMP_HIGH_THRESHOLD_LPM    600
-#define TEMP_HIGH_RECOVERY_LPM     460
-#define TEMP_LOW_THRESHOLD_LPM     (-50)
-#define TEMP_LOW_RECOVERY_LPM      0
+#define TEMP_HIGH_THRESHOLD_LPM    500
+#define TEMP_HIGH_RECOVERY_LPM     470
+#define TEMP_LOW_THRESHOLD_LPM     (-30)
+#define TEMP_LOW_RECOVERY_LPM      1
+#endif
+
+#if defined(CONFIG_BATTERY_SWELLING)
+#define BATT_SWELLING_HIGH_TEMP_BLOCK		500
+#define BATT_SWELLING_HIGH_TEMP_RECOV		450
+#define BATT_SWELLING_LOW_TEMP_BLOCK		100
+#define BATT_SWELLING_LOW_TEMP_RECOV		150
+#define BATT_SWELLING_RECHG_VOLTAGE		4150
+#define BATT_SWELLING_BLOCK_TIME	10 * 60 /* 10 min */
 #endif

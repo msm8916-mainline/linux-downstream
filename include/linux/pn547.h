@@ -26,7 +26,7 @@
  */
 #define PN547_SET_PWR	_IOW(PN547_MAGIC, 0x01, unsigned int)
 
-#if 1 //ese
+#ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 /*
  * SPI Request NFCC to enable p61 power, only in param
  * Only for SPI
@@ -69,22 +69,14 @@ struct pn547_i2c_platform_data {
 #ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
 	int vio_gpio;
 #endif
-#if 1 //ese
-	int ese_pwr_req;
+	int scl_gpio;
+	int sda_gpio;
+#ifdef CONFIG_NFC_PN547_PVDD_EN_CONTROL
+	int pvdd_en;
+    u32 pvdd_en_flags;
 #endif
 #ifdef CONFIG_NFC_PN547_8916_USE_BBCLK2
 	struct clk *nfc_clock;
-#endif
-#ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
-	int clk_req_gpio;
-	int clk_req_irq;
-#endif
-#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
-	int clk_req_gpio;
-#endif
-#ifdef CONFIG_SEC_K_PROJECT
-	int scl_gpio;
-	int sda_gpio;
 #endif
 #ifdef CONFIG_OF
 	u32 irq_gpio_flags;
@@ -93,18 +85,13 @@ struct pn547_i2c_platform_data {
 #ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
 	u32 vio_gpio_flags;
 #endif
-#ifdef CONFIG_SEC_K_PROJECT
 	u32 scl_gpio_flags;
 	u32 sda_gpio_flags;
 #endif
-	u32 ese_pwr_req_flags; ///
-#endif
-#ifdef CONFIG_NFC_PN547_LDO_CONTROL
-	const char *i2c_1p8;
+#ifdef CONFIG_NFC_PN547_ESE_SUPPORT
+	int ese_pwr_req;
+	u32 ese_pwr_req_flags;
 #endif
 };
 
-#ifdef CONFIG_NFC_PN547_LDO_CONTROL
-extern unsigned int lpcharge;
-#endif
-extern int poweroff_charging;
+ extern int poweroff_charging;

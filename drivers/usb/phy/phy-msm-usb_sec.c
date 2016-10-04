@@ -114,6 +114,10 @@ static struct sec_cable support_cable_list[] = {
 #ifdef CONFIG_USB_HOST_NOTIFY
 	{ .cable_type = EXTCON_USB_HOST, },
 	{ .cable_type = EXTCON_USB_HOST_5V, },
+#if defined (CONFIG_MUIC_SUPPORT_LANHUB)
+	{ .cable_type = EXTCON_LANHUB, },
+	{ .cable_type = EXTCON_LANHUB_TA, },
+#endif
 	{ .cable_type = EXTCON_AUDIODOCK, },
 	{ .cable_type = EXTCON_SMARTDOCK_TA, },
 #endif
@@ -158,6 +162,27 @@ static void sec_cable_event_worker(struct work_struct *work)
 		else
 			send_otg_notify(n, NOTIFY_EVENT_VBUSPOWER, 0);
 		break;
+#if defined (CONFIG_MUIC_SUPPORT_LANHUB)
+	case EXTCON_LANHUB:
+		if (cable->cable_state)
+			send_otg_notify(n, NOTIFY_EVENT_LANHUB, 1);
+		else
+			send_otg_notify(n, NOTIFY_EVENT_LANHUB, 0);
+		break;
+	case EXTCON_LANHUB_TA:
+		if (cable->cable_state) {
+			pr_info("sec otg: TA attached with lanhub, otg off\n");
+			send_otg_notify(n, NOTIFY_EVENT_DRIVE_VBUS, 0);
+		} else {
+			if (extcon_get_cable_state(cable->edev, extcon_cable_name[EXTCON_USB_HOST])) {
+				pr_info("sec otg: TA detached with lanhub, otg on\n");
+				send_otg_notify(n, NOTIFY_EVENT_DRIVE_VBUS, 1);
+			} else {
+				pr_info("sec otg: usb host detached already, do nothing\n");
+			}
+		}
+		break;
+#endif
 	case EXTCON_AUDIODOCK:
 		if (cable->cable_state)
 			send_otg_notify(n, NOTIFY_EVENT_AUDIODOCK, 1);

@@ -58,7 +58,6 @@ STATIC inline int INIT unlz4(u8 *input, int in_len,
 	out_len = get_unaligned_le32(input + in_len);
 #endif
 
-
 	if (output) {
 		outp = output;
 	} else if (!flush) {

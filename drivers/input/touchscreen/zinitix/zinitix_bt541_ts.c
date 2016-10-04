@@ -49,6 +49,17 @@
 
 #include "zinitix_bt541_ts.h"
 
+#ifdef CONFIG_CPU_FREQ_LIMIT_USERSPACE
+#include <linux/cpufreq.h>
+
+#define TOUCH_BOOSTER_DVFS
+
+#define DVFS_STAGE_TRIPLE       3
+#define DVFS_STAGE_DUAL         2
+#define DVFS_STAGE_SINGLE       1
+#define DVFS_STAGE_NONE         0
+#endif
+
 #if (TSP_TYPE_COUNT == 1)
 u8 *m_pFirmware [TSP_TYPE_COUNT] = {(u8*)m_firmware_data,};
 #else
@@ -58,9 +69,7 @@ u8 m_FirmwareIdx = 0;
 
 #define TSP_HW_ID_INDEX_0 1
 #define TSP_HW_ID_INDEX_1 2
-#define ZINITIX_BT541_TA_COVER_REGISTER 
-
-//#define SUPPORTED_PALM_TOUCH
+#define ZINITIX_BT541_TA_COVER_REGISTER
 
 extern char *saved_command_line;
 
@@ -69,10 +78,20 @@ extern char *saved_command_line;
 #ifdef TOUCH_POINT_FLAG
 #define TOUCH_POINT_MODE		1
 #else
+#ifdef SUPPORTED_PALM_TOUCH
+#define TOUCH_POINT_MODE		2
+#else
 #define TOUCH_POINT_MODE		0
+#endif
 #endif
 
 #define MAX_SUPPORTED_FINGER_NUM	5 /* max 10 */
+
+#ifdef TOUCH_BOOSTER_DVFS
+#define TOUCH_BOOSTER_OFF_TIME	500
+#define TOUCH_BOOSTER_CHG_TIME	130
+#define SECOND_MINLOCK_FOR_LEVEL1
+#endif
 
 #ifdef SUPPORTED_TOUCH_KEY
 #define NOT_SUPPORTED_TOUCH_DUMMY_KEY
@@ -85,8 +104,7 @@ extern char *saved_command_line;
 #endif
 #endif
 
-#define VIEW_EDGE_XL_OFFSET			60
-#define VIEW_EDGE_YL_OFFSET			70
+#define LARGE_PALM_REJECT_AREA_TH	128
 
 /* Upgrade Method*/
 #define TOUCH_ONESHOT_UPGRADE		1
@@ -177,6 +195,8 @@ struct reg_ioctl {
 
 #define BT541_THRESHOLD			0x0020
 
+#define BT541_LARGE_PALM_REJECT_AREA_TH		0x003F
+
 #define BT541_DEBUG_REG			0x0115 /* 0~7 */
 
 #define BT541_TOUCH_MODE		0x0010
@@ -209,11 +229,6 @@ struct reg_ioctl {
 
 #define BT541_POINT_STATUS_REG		0x0080
 #define BT541_ICON_STATUS_REG		0x00AA
-
-#define BT541_VIEW_EDGE_XF_OFFSET	0x00EC
-#define BT541_VIEW_EDGE_XL_OFFSET	0x00ED
-#define BT541_VIEW_EDGE_YF_OFFSET	0x00EE
-#define BT541_VIEW_EDGE_YL_OFFSET	0x00EF
 
 #define BT541_AFE_FREQUENCY		0x0100
 #define BT541_DND_N_COUNT		0x0122
@@ -297,11 +312,9 @@ struct reg_ioctl {
 #define zinitix_bit_test(val, n)	((val) & (1<<(n)))
 #define zinitix_swap_v(a, b, t)		((t) = (a), (a) = (b), (b) = (t))
 #define zinitix_swap_16(s)		(((((s) & 0xff) << 8) | (((s) >> 8) & 0xff)))
+
 #ifdef CONFIG_SAMSUNG_LPM_MODE
 extern int poweroff_charging;
-#endif
-#ifdef CHECK_LCD_ATTACHED
-extern int get_lcd_attached(char *mode);
 #endif
 extern unsigned int system_rev;
 
@@ -1279,8 +1292,6 @@ static void ts_select_type_hw(struct bt541_ts_info *info) {
 	int i;
 	u16 newHWID;
 
-/* In case of TSP IC's firmware is broken,
-	it will always be updated to HW ID 02 firmware even though HW 01 device exists*/
 	for(i = 0; i < TSP_TYPE_COUNT; i++) {
 		newHWID = (u16) (m_pFirmware[i][0x7528] | (m_pFirmware[i][0x7529]<<8));
 		
@@ -1291,7 +1302,7 @@ static void ts_select_type_hw(struct bt541_ts_info *info) {
 	m_FirmwareIdx = i;
 	if(i == TSP_TYPE_COUNT)
 		m_FirmwareIdx = 1;
-	zinitix_printk(KERN_INFO "firmwaretype = %d Firmware HWID = %u cap_info.hw_id = %u i = %d \n",
+	zinitix_printk(KERN_INFO "firmwaretype = %d Firmware HWID = %u IC hw_id = %u i = %d \n",
 		m_FirmwareIdx, newHWID, info->cap_info.hw_id, i);
 #endif
 }
@@ -1343,8 +1354,7 @@ static bool ts_check_need_upgrade(struct bt541_ts_info *info,
 
 	zinitix_printk("cur reg data version = 0x%x, new reg data version = 0x%x\n",
 			cur_reg_version, new_reg_version);
-	if ((cur_reg_version < new_reg_version) ||
-		(cur_reg_version > new_reg_version + 0x20))
+	if (cur_reg_version < new_reg_version)
 		return true;
 
 	return false;
@@ -1738,7 +1748,7 @@ retry_init:
 	zinitix_bit_set(reg_val, BIT_DOWN);
 	zinitix_bit_set(reg_val, BIT_MOVE);
 	zinitix_bit_set(reg_val, BIT_UP);
-#if (TOUCH_POINT_MODE == 2)
+#ifdef SUPPORTED_PALM_TOUCH
 	zinitix_bit_set(reg_val, BIT_PALM);
 	zinitix_bit_set(reg_val, BIT_PALM_REJECT);
 #endif
@@ -1913,18 +1923,16 @@ retry_init:
 		goto fail_init;
 
 #ifdef ZINITIX_BT541_TA_COVER_REGISTER
-		bt541_set_optional_mode(info, true);
+	bt541_set_optional_mode(info, true);
 #endif
 
-	if (write_reg(client, BT541_VIEW_EDGE_XL_OFFSET,
-		(u16)VIEW_EDGE_XL_OFFSET) != I2C_SUCCESS)
+#ifdef SUPPORTED_PALM_TOUCH
+	if (write_reg(client, BT541_LARGE_PALM_REJECT_AREA_TH,
+		(u16)LARGE_PALM_REJECT_AREA_TH) != I2C_SUCCESS)
 		goto fail_init;
+#endif
 
-	if (write_reg(client, BT541_VIEW_EDGE_YL_OFFSET,
-		(u16)VIEW_EDGE_YL_OFFSET) != I2C_SUCCESS)
-		goto fail_init;
-
-if (read_data(client, ZINITIX_INTERNAL_FLAG_02,
+	if (read_data(client, ZINITIX_INTERNAL_FLAG_02,
 		(u8 *)&reg_val, 2) < 0)
 		goto fail_init;
 
@@ -2073,13 +2081,11 @@ static bool mini_init_touch(struct bt541_ts_info *info)
 	bt541_set_optional_mode(info, true);
 #endif
 
-	if (write_reg(client, BT541_VIEW_EDGE_XL_OFFSET,
-		(u16)VIEW_EDGE_XL_OFFSET) != I2C_SUCCESS)
+#ifdef SUPPORTED_PALM_TOUCH
+	if (write_reg(client, BT541_LARGE_PALM_REJECT_AREA_TH,
+		(u16)LARGE_PALM_REJECT_AREA_TH) != I2C_SUCCESS)
 		goto fail_mini_init;
-
-	if (write_reg(client, BT541_VIEW_EDGE_YL_OFFSET,
-		(u16)VIEW_EDGE_YL_OFFSET) != I2C_SUCCESS)
-		goto fail_mini_init;
+#endif
 
 	if (write_reg(client, BT541_INT_ENABLE_FLAG,
 			info->cap_info.ic_int_mask) != I2C_SUCCESS)
@@ -2389,6 +2395,7 @@ static void clear_report_data(struct bt541_ts_info *info)
 
 #define	PALM_REPORT_WIDTH	200
 #define	PALM_REJECT_WIDTH	255
+#define PALM_MINOR_WIDTH	20
 
 static irqreturn_t bt541_touch_work(int irq, void *data)
 {
@@ -2404,6 +2411,9 @@ static irqreturn_t bt541_touch_work(int irq, void *data)
 	u32 x, y, maxX, maxY;
 	u32 w;
 	u32 tmp;
+#ifdef SUPPORTED_PALM_TOUCH
+	u32 w_minor = 0;
+#endif
 	u8 read_result = 1;
 	u8 palm = 0;
 
@@ -2535,14 +2545,14 @@ static irqreturn_t bt541_touch_work(int irq, void *data)
 #ifdef SUPPORTED_PALM_TOUCH
 	if (zinitix_bit_test(info->touch_info.status, BIT_PALM)) {
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-		dev_info(&client->dev, "Palm report\n");
+		dev_dbg(&client->dev, "Palm report\n");
 #endif
 		palm = 1;
 	}
 
 	if (zinitix_bit_test(info->touch_info.status, BIT_PALM_REJECT)) {
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-		dev_info(&client->dev, "Palm reject\n");
+		dev_dbg(&client->dev, "Palm reject\n");
 #endif
 		palm = 2;
 	}
@@ -2588,7 +2598,9 @@ static irqreturn_t bt541_touch_work(int irq, void *data)
 				dev_info(&client->dev, "Finger [%02d] x = %d, y = %d,"
 						" w = %d, p = %d\n", i, x, y, w, palm);
 #else
-				dev_info(&client->dev, "Finger [%02d] down\n", i);
+				dev_info(&client->dev,
+						"Finger [%02d] w = %d, p = %d\n",
+						i, w, palm);
 #endif
 				info->finger_cnt1++;
 			}
@@ -2599,17 +2611,17 @@ static irqreturn_t bt541_touch_work(int irq, void *data)
 			input_mt_slot(info->input_dev, i);
 			input_mt_report_slot_state(info->input_dev, MT_TOOL_FINGER, 1);
 
-#if (TOUCH_POINT_MODE == 2)
+#ifdef SUPPORTED_PALM_TOUCH
 			if (palm == 0) {
 				if (w >= PALM_REPORT_WIDTH)
 					w = PALM_REPORT_WIDTH - 10;
+				w_minor = w;
 			} else if (palm == 1) {	//palm report
 				w = PALM_REPORT_WIDTH;
-//				info->touch_info.coord[i].minor_width = PALM_REPORT_WIDTH;
+				w_minor = PALM_MINOR_WIDTH;
 			} else if (palm == 2){	// palm reject
-//				x = y = 0;
 				w = PALM_REJECT_WIDTH;
-//				info->touch_info.coord[i].minor_width = PALM_REJECT_WIDTH;
+				w_minor = w;
 			}
 #endif
 
@@ -2617,19 +2629,9 @@ static irqreturn_t bt541_touch_work(int irq, void *data)
 			input_report_abs(info->input_dev, ABS_MT_PRESSURE, (u32)w);
 			input_report_abs(info->input_dev, ABS_MT_WIDTH_MAJOR,
 					(u32)((palm == 1) ? w-40 : w));
-#if (TOUCH_POINT_MODE == 2)
-			input_report_abs(info->input_dev,
-				ABS_MT_TOUCH_MINOR, (u32)info->touch_info.coord[i].minor_width);
-//			input_report_abs(info->input_dev,
-//				ABS_MT_WIDTH_MINOR, (u32)info->touch_info.coord[i].minor_width);
 #ifdef SUPPORTED_PALM_TOUCH
-			/*input_report_abs(info->input_dev, ABS_MT_ANGLE,
-						(palm > 1)?70:info->touch_info.coord[i].angle - 90);*/
-			/*dev_info(&client->dev, "finger [%02d] angle = %03d\n", i,
-						info->touch_info.coord[i].angle);*/
+			input_report_abs(info->input_dev, ABS_MT_TOUCH_MINOR, w_minor);
 			input_report_abs(info->input_dev, ABS_MT_PALM, (palm > 0)?1:0);
-#endif
-//			input_report_abs(info->input_dev, ABS_MT_PALM, 1);
 #endif
 
 			input_report_abs(info->input_dev, ABS_MT_POSITION_X, x);
@@ -2989,12 +2991,11 @@ static void fw_update(void *device_data)
 
 	switch (info->factory_info->cmd_param[0]) {
 	case BUILT_IN:
-		ts_select_type_hw(info);
+		ts_select_type_hw(info);		
 		ret = ts_upgrade_sequence((u8*)m_pFirmware[m_FirmwareIdx]);
-		if (ret < 0) {
-			dev_err(&client->dev,
-				"fail to fw update(BUILT_IN) %d\n", ret);
-			goto err;
+		if(ret<0) {
+			info->factory_info->cmd_state = 3;
+			return;
 		}
 		break;
 
@@ -3007,26 +3008,28 @@ static void fw_update(void *device_data)
 		if (IS_ERR(fp)) {
 			dev_err(&client->dev,
 				"file %s open error:%d\n", fw_path, (s32)fp);
+			info->factory_info->cmd_state = 3;
 			goto err_open;
 		}
 
 		fsize = fp->f_path.dentry->d_inode->i_size;
 
 		if (fsize != info->cap_info.ic_fw_size) {
-			dev_err(&client->dev, "invalid fw size!!(fsize=%lx, ic_fw_size=%x)\n",
-				fsize, info->cap_info.ic_fw_size);
+			dev_err(&client->dev, "invalid fw size!!\n");
+			info->factory_info->cmd_state = 3;
 			goto err_open;
 		}
 
 		buff = kzalloc((size_t)fsize, GFP_KERNEL);
 		if (!buff) {
 			dev_err(&client->dev, "failed to alloc buffer for fw\n");
+			info->factory_info->cmd_state = 3;
 			goto err_alloc;
 		}
 
 		nread = vfs_read(fp, (char __user *)buff, fsize, &fp->f_pos);
 		if (nread != fsize) {
-			dev_err(&client->dev, "failed to read fw\n");
+			info->factory_info->cmd_state = 3;
 			goto err_fw_size;
 		}
 
@@ -3036,21 +3039,22 @@ static void fw_update(void *device_data)
 		info->checkUMSmode = true;
 		ret = ts_upgrade_sequence((u8 *)buff);
 		info->checkUMSmode = false;
-		kfree(buff);
-		if (ret < 0) {
-			dev_err(&client->dev, "failed to fw update. %d\n", ret);
-			goto err;
+		if(ret<0) {
+			kfree(buff);
+			info->factory_info->cmd_state = 3;
+			return;
 		}
 		break;
 
 	default:
 		dev_err(&client->dev, "invalid fw file type!!\n");
-		goto err;
+		goto not_support;
 	}
 
 	info->factory_info->cmd_state = 2;
 	snprintf(result, sizeof(result) , "%s", "OK");
-	set_cmd_result(info, result, strnlen(result, sizeof(result)));
+	set_cmd_result(info, result,
+			strnlen(result, sizeof(result)));
 	return;
 
 err_fw_size:
@@ -3059,8 +3063,8 @@ err_alloc:
 	filp_close(fp, NULL);
 err_open:
 	set_fs(old_fs);
-err:
-	info->factory_info->cmd_state = 3;
+
+not_support:
 	snprintf(result, sizeof(result) , "%s", "NG");
 	set_cmd_result(info, result, strnlen(result, sizeof(result)));
 	return;
@@ -4862,7 +4866,7 @@ static int bt541_ts_probe(struct i2c_client *client,
 	input_set_abs_params(info->input_dev, ABS_MT_WIDTH_MAJOR,
 		0, 255, 0, 0);
 
-#if (TOUCH_POINT_MODE == 2)
+#ifdef SUPPORTED_PALM_TOUCH
 	input_set_abs_params(info->input_dev, ABS_MT_TOUCH_MINOR,
 		0, 255, 0, 0);
 	input_set_abs_params(info->input_dev, ABS_MT_PALM,
@@ -5074,21 +5078,26 @@ static struct i2c_driver bt541_ts_driver = {
 	},
 };
 
+extern int get_lcd_attached(char *mode);
+
 static int __init bt541_ts_init(void)
 {
+	int rc = 0;
+
 	zinitix_printk("[TSP]: %s\n", __func__);
+
 #if defined(CONFIG_SAMSUNG_LPM_MODE)
 	if (poweroff_charging) {
 		pr_notice("%s : LPM Charging Mode!!\n", __func__);
 		return 0;
 	}
 #endif
-#ifdef CHECK_LCD_ATTACHED
+
 	if (!get_lcd_attached("GET")) {
 		pr_notice("%s: LCD is not attached\n", __func__);
-		return 0;
+		return rc;
 	}
-#endif
+
 	return i2c_add_driver(&bt541_ts_driver);
 
 }

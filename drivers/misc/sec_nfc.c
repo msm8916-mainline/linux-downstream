@@ -126,7 +126,7 @@ static irqreturn_t sec_nfc_irq_thread_fn(int irq, void *dev_id)
 	if(!wake_lock_active(&info->wake_lock))
 	{
 		dev_dbg(info->dev, "%s: Set wake_lock_timeout for 2 sec. !!!\n", __func__);
-	wake_lock_timeout(&info->wake_lock, 2 * HZ);
+		wake_lock_timeout(&info->wake_lock, 2 * HZ);
 	}
 
 	return IRQ_HANDLED;

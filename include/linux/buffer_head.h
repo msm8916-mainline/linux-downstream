@@ -36,7 +36,7 @@ enum bh_state_bits {
 	BH_Quiet,	/* Buffer Error Prinks to be quiet */
 	BH_Meta,	/* Buffer contains metadata */
 	BH_Prio,	/* Buffer should be submitted with REQ_PRIO */
-        BH_Sync_Flush,
+	BH_Sync_Flush,
 
 	BH_PrivateStart,/* not a state bit, but the first bit available
 			 * for private allocation by other entities

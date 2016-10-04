@@ -20,7 +20,7 @@
 #include "msm_sd.h"
 
 /* Logging macro */
-//#define CONFIG_MSMB_CAMERA_DEBUG
+/*#define CONFIG_MSMB_CAMERA_DEBUG*/
 #undef CDBG
 #ifdef CONFIG_MSMB_CAMERA_DEBUG
 #define CDBG(fmt, args...) pr_err(fmt, ##args)
@@ -145,6 +145,8 @@ static ssize_t back_camera_type_show(struct device *dev,
 	char type[] = "SONY_IMX219\n";
 #elif defined(CONFIG_S5K4H5YB)
 	char type[] = "SLSI_S5K4H5YB\n";
+#elif defined(CONFIG_S5K4H5YC)
+	char type[] = "SLSI_S5K4H5YC\n";
 #elif defined(CONFIG_S5K3L2XX)
 	char type[] = "SLSI_S5K3L2XX\n";
 #elif defined(CONFIG_S5K4ECGX)
@@ -153,6 +155,10 @@ static ssize_t back_camera_type_show(struct device *dev,
 	char type[] = "SONY_IMX135\n";
 #elif defined(CONFIG_SR544)
 	char type[] = "SILICONFILE_SR544\n";
+#elif defined(CONFIG_S5K3P3SX)
+	char type[] = "SLSI_S5K3P3SX\n";
+#elif defined(CONFIG_SR352)
+	char type[] = "SILICONFILE_SR352\n";
 #else
 	char type[] = "NULL\n";
 #endif
@@ -167,10 +173,14 @@ static ssize_t front_camera_type_show(struct device *dev,
 	char cam_type[] = "SLSI_S5K6A3YX\n";
 #elif defined(CONFIG_S5K5E3YX)
 	char cam_type[] = "SLSI_S5K5E3YX\n";
+#elif defined(CONFIG_SR552)
+	char cam_type[] = "SLSI_SR522\n";
 #elif defined(CONFIG_SR200PC20)
 	char cam_type[] = "SILICONFILE_SR200PC20\n";
-#elif defined(CONFIG_S5K6B2YX)
-	char cam_type[] = "SLSI_S5K6B2YX\n";
+#elif defined(CONFIG_SR130PC20)
+	char cam_type[] = "SILICONFILE_SR130PC20\n";
+#elif defined(CONFIG_DB8221A)
+	char cam_type[] = "DONGBU_DB8221A\n";
 #else
 	char cam_type[] = "NULL\n";
 #endif
@@ -183,7 +193,10 @@ static ssize_t back_camera_firmware_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
 #if defined(CONFIG_S5K4ECGX)
-	char cam_fw[] = "S5K4ECGX N\n";
+	char cam_fw[] = "S5K4ECGA N\n";
+	return snprintf(buf, sizeof(cam_fw), "%s", cam_fw);
+#elif defined(CONFIG_SR352)
+	char cam_fw[] = "SR352 N\n";
 	return snprintf(buf, sizeof(cam_fw), "%s", cam_fw);
 #else
 	CDBG("[FW_DBG] cam_fw_ver : %s\n", cam_fw_ver);
@@ -213,6 +226,23 @@ static ssize_t back_camera_firmware_load_store(struct device *dev,
 {
 	CDBG("[FW_DBG] buf : %s\n", buf);
 	snprintf(cam_load_fw, sizeof(cam_load_fw), "%s\n", buf);
+	return size;
+}
+
+char cam_cal[40] = "NULL NULL NULL\n";//cam map
+
+static ssize_t back_cal_data_check_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	CDBG("[FW_DBG] cam_cal : %s\n", cam_cal);
+	return snprintf(buf, sizeof(cam_cal), "%s", cam_cal);
+}
+
+static ssize_t back_cal_data_check_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	CDBG("[FW_DBG] buf : %s\n", buf);
+	snprintf(cam_cal, sizeof(cam_cal), "%s", buf);
 	return size;
 }
 
@@ -284,14 +314,55 @@ static ssize_t back_camera_firmware_factory_store(struct device *dev,
 	return size;
 }
 
+char front_cam_fw_user_ver[40] = "NULL NULL\n";//multi module
+static ssize_t front_camera_firmware_user_show(struct device *dev,
+					 struct device_attribute *attr, char *buf)
+{
+	CDBG("[FW_DBG] cam_fw_ver : %s\n", front_cam_fw_user_ver);
+	return snprintf(buf, sizeof(front_cam_fw_user_ver), "%s", front_cam_fw_user_ver);
+}
+
+static ssize_t front_camera_firmware_user_store(struct device *dev,
+					  struct device_attribute *attr, const char *buf, size_t size)
+{
+	CDBG("[FW_DBG] buf : %s\n", buf);
+	snprintf(front_cam_fw_user_ver, sizeof(front_cam_fw_user_ver), "%s", buf);
+
+	return size;
+}
+
+char front_cam_fw_factory_ver[40] = "NULL NULL\n";//multi module
+static ssize_t front_camera_firmware_factory_show(struct device *dev,
+					 struct device_attribute *attr, char *buf)
+{
+	CDBG("[FW_DBG] cam_fw_ver : %s\n", front_cam_fw_factory_ver);
+	return snprintf(buf, sizeof(front_cam_fw_factory_ver), "%s", front_cam_fw_factory_ver);
+}
+
+static ssize_t front_camera_firmware_factory_store(struct device *dev,
+					  struct device_attribute *attr, const char *buf, size_t size)
+{
+	CDBG("[FW_DBG] buf : %s\n", buf);
+	snprintf(front_cam_fw_factory_ver, sizeof(front_cam_fw_factory_ver), "%s", buf);
+
+	return size;
+}
+
+
 #if defined(CONFIG_S5K5E3YX) && !defined(CONFIG_MSM_FRONT_EEPROM)
-char front_cam_fw_ver[25] = "S5K5E3YX N\n";
+	char front_cam_fw_ver[25] = "S5K5E3YX N\n";
+#elif defined(CONFIG_SR552)
+	char front_cam_fw_ver[25] = "SR552 N\n";
 #elif defined(CONFIG_S5K6A3YX)
-char front_cam_fw_ver[25] = "S5K6A3YX N\n";
+	char front_cam_fw_ver[25] = "S5K6A3YX N\n";
 #elif defined(CONFIG_SR200PC20)
 	char front_cam_fw_ver[25] = "SR200PC20M N\n";
+#elif defined(CONFIG_SR130PC20)
+	char front_cam_fw_ver[25] = "SR130PC20 N\n";
+#elif defined(CONFIG_DB8221A)
+	char front_cam_fw_ver[25] = "DB8221A N\n";
 #else
-char front_cam_fw_ver[25] = "NULL NULL\n";
+	char front_cam_fw_ver[25] = "NULL NULL\n";
 #endif
 static ssize_t front_camera_firmware_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
@@ -424,18 +495,23 @@ static DEVICE_ATTR(front_camfw, S_IRUGO|S_IWUSR|S_IWGRP,
 		front_camera_firmware_show, front_camera_firmware_store);
 static DEVICE_ATTR(front_camfw_load, S_IRUGO|S_IWUSR|S_IWGRP,
 		front_camera_firmware_load_show, front_camera_firmware_load_store);
+
+static DEVICE_ATTR(front_camfw_full, S_IRUGO | S_IWUSR | S_IWGRP,
+		front_camera_firmware_full_show, front_camera_firmware_full_store);
+static DEVICE_ATTR(front_checkfw_user, S_IRUGO|S_IWUSR|S_IWGRP,
+		front_camera_firmware_user_show, front_camera_firmware_user_store);
+static DEVICE_ATTR(front_checkfw_factory, S_IRUGO|S_IWUSR|S_IWGRP,
+		front_camera_firmware_factory_show, front_camera_firmware_factory_store);
+
+static DEVICE_ATTR(rear_vendorid, S_IRUGO, rear_camera_vendorid_show, NULL);
+static DEVICE_ATTR(rear_afcal, S_IRUGO|S_IWUSR|S_IWGRP,
+		back_cal_data_check_show, back_cal_data_check_store);
 #if defined (CONFIG_CAMERA_SYSFS_V2)
 static DEVICE_ATTR(rear_caminfo, S_IRUGO|S_IWUSR|S_IWGRP,
 		rear_camera_info_show, rear_camera_info_store);
 static DEVICE_ATTR(front_caminfo, S_IRUGO|S_IWUSR|S_IWGRP,
 		front_camera_info_show, front_camera_info_store);
 #endif
-
-
-static DEVICE_ATTR(front_camfw_full, S_IRUGO | S_IWUSR | S_IWGRP,
-		front_camera_firmware_full_show, front_camera_firmware_full_store);
-
-static DEVICE_ATTR(rear_vendorid, S_IRUGO, rear_camera_vendorid_show, NULL);
 
 int32_t msm_sensor_remove_dev_node_for_eeprom(int id, int remove)
 {
@@ -524,6 +600,12 @@ static int __init msm_sensor_init_module(void)
 		rc = -ENODEV;
 		goto device_create_fail;
 	}
+	if (device_create_file(cam_dev_back, &dev_attr_rear_afcal) < 0) {
+		printk("Failed to create device file!(%s)!\n",
+			dev_attr_rear_afcal.attr.name);
+		rc = -ENODEV;
+		goto device_create_fail;
+	}
 
 	if (device_create_file(cam_dev_back, &dev_attr_isp_core) < 0) {
 		printk("Failed to create device file!(%s)!\n",
@@ -583,6 +665,20 @@ static int __init msm_sensor_init_module(void)
 	if (device_create_file(cam_dev_front, &dev_attr_front_camfw_full) < 0) {
 	    printk("Failed to create device file!(%s)!\n",
 		    dev_attr_rear_camfw_full.attr.name);
+		goto device_create_fail;
+	}
+
+	if (device_create_file(cam_dev_front, &dev_attr_front_checkfw_user) < 0) {
+		printk("Failed to create device file!(%s)!\n",
+			dev_attr_front_checkfw_user.attr.name);
+		rc = -ENODEV;
+		goto device_create_fail;
+	}
+
+	if (device_create_file(cam_dev_front, &dev_attr_front_checkfw_factory) < 0) {
+		printk("Failed to create device file!(%s)!\n",
+			dev_attr_front_checkfw_factory.attr.name);
+		rc = -ENODEV;
 		goto device_create_fail;
 	}
 

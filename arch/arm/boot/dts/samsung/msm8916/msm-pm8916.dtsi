@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -36,7 +36,6 @@
 			qcom,system-reset;
 			qcom,clear-warm-reset;
 			qcom,s3-debounce = <128>;
-			qcom,store-hard-reset-reason;
 
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
@@ -226,7 +225,6 @@
 			qcom,adc-bit-resolution = <15>;
 			qcom,adc-vdd-reference = <1800>;
 			qcom,adc_tm-vadc = <&pm8916_vadc>;
-			qcom,pmic-revid = <&pm8916_revid>;
 		};
 
 		pm8916_chg: qcom,charger {
@@ -569,7 +567,6 @@
 			reg-names = "qpnp-lpg-channel-base";
 			qcom,channel-id = <0>;
 			qcom,supported-sizes = <6>, <9>;
-			#pwm-cells = <2>;
 		};
 
 		pm8916_vib: qcom,vibrator@c000 {

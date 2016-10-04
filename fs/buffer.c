@@ -606,18 +606,6 @@ int sync_mapping_buffers(struct address_space *mapping)
 }
 EXPORT_SYMBOL(sync_mapping_buffers);
 
-#ifdef CONFIG_BLK_DEV_IO_TRACE
-static inline void save_dirty_task(struct page *page)
-{
-	/* Save the task that is dirtying this page */
-	page->tsk_dirty = current;
-}
-#else
-static inline void save_dirty_task(struct page *page)
-{
-}
-#endif
-
 /*
  * Called when we've recently written block `bblock', and it is known that
  * `bblock' was for a buffer_boundary() buffer.  This means that the block at
@@ -662,6 +650,18 @@ void mark_buffer_dirty_inode_sync(struct buffer_head *bh, struct inode *inode)
 	mark_buffer_dirty_inode(bh, inode);
 }
 EXPORT_SYMBOL(mark_buffer_dirty_inode_sync);
+
+#ifdef CONFIG_BLK_DEV_IO_TRACE
+static inline void save_dirty_task(struct page *page)
+{
+	/* Save the task that is dirtying this page */
+	page->tsk_dirty = current;
+}
+#else
+static inline void save_dirty_task(struct page *page)
+{
+}
+#endif
 
 /*
  * Mark the page dirty, and set it dirty in the radix tree, and mark the inode

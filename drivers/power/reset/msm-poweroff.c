@@ -248,7 +248,7 @@ static void msm_restart_prepare(const char *cmd)
 #ifdef CONFIG_MSM_DLOAD_MODE
 #ifdef CONFIG_SEC_DEBUG
 	if (sec_debug_is_enabled()
-			&& ((restart_mode == RESTART_DLOAD) || in_panic))
+	&& ((restart_mode == RESTART_DLOAD) || in_panic))
 		set_dload_mode(1);
 	else
 		set_dload_mode(0);
@@ -264,9 +264,6 @@ static void msm_restart_prepare(const char *cmd)
 However, Samsung implemation already supports more usecases including nvrestore, nvbackup, EDL, LPM etc.
 Hence Qualcomm's PMIC hard reboot implementation has been taken, but disabled. */
 #ifdef CONFIG_QCOM_HARDREBOOT_IMPLEMENTATION
-	need_warm_reset = (get_dload_mode() ||
-				(cmd != NULL && cmd[0] != '\0'));
-
 	if (qpnp_pon_check_hard_reset_stored()) {
 		/* Set warm reset as true when device is in dload mode
 		 *  or device doesn't boot up into recovery, bootloader or rtc.
@@ -277,6 +274,9 @@ Hence Qualcomm's PMIC hard reboot implementation has been taken, but disabled. *
 			strcmp(cmd, "bootloader") &&
 			strcmp(cmd, "rtc")))
 			need_warm_reset = true;
+	} else {
+		need_warm_reset = (get_dload_mode() ||
+				(cmd != NULL && cmd[0] != '\0'));
 	}
 
 	/* Hard reset the PMIC unless memory contents must be maintained. */
@@ -336,48 +336,45 @@ Hence Qualcomm's PMIC hard reboot implementation has been taken, but disabled. *
 			__raw_writel(0x776655ee, restart_reason);
 			warm_reboot_set = 1;
 #endif
-		} else if (!strncmp(cmd, "download", 8)) {
-			__raw_writel(0x12345671, restart_reason);
-                        warm_reboot_set = 1;
+        } else if (!strncmp(cmd, "download", 8)) {
+		    __raw_writel(0x12345671, restart_reason);
+                    warm_reboot_set = 1;
 		} else if (!strncmp(cmd, "nvbackup", 8)) {
-			__raw_writel(0x77665511, restart_reason);
-                        warm_reboot_set = 1;
+				__raw_writel(0x77665511, restart_reason);
+				warm_reboot_set = 1;
 		} else if (!strncmp(cmd, "nvrestore", 9)) {
-			__raw_writel(0x77665512, restart_reason);
-                        warm_reboot_set = 1;
+				__raw_writel(0x77665512, restart_reason);
+				warm_reboot_set = 1;
 		} else if (!strncmp(cmd, "nverase", 7)) {
-			__raw_writel(0x77665514, restart_reason);
-                        warm_reboot_set = 1;
+				__raw_writel(0x77665514, restart_reason);
+				warm_reboot_set = 1;
 		} else if (!strncmp(cmd, "nvrecovery", 10)) {
-			__raw_writel(0x77665515, restart_reason);
-                        warm_reboot_set = 1;
+				__raw_writel(0x77665515, restart_reason);
+				warm_reboot_set = 1;
 		} else if (!strncmp(cmd, "sud", 3)) {
-			if (strlen(cmd) == 5)
-				__raw_writel(0xabcf0000 | (((cmd[3] - '0') * 10) + (cmd[4] - '0')), restart_reason);
-			else
-				__raw_writel(0xabcf0000 | (cmd[3] - '0'), restart_reason);
+				__raw_writel(0xabcf0000 | (cmd[3] - '0'),
+								restart_reason);
 		} else if (!strncmp(cmd, "debug", 5)
-				&& !kstrtoul(cmd + 5, 0, &value)) {
-			__raw_writel(0xabcd0000 | value, restart_reason);
+						&& !kstrtoul(cmd + 5, 0, &value)) {
+				__raw_writel(0xabcd0000 | value, restart_reason);
 		} else if (!strncmp(cmd, "cpdebug", 7) /*  set cp debug level */
-				&& !kstrtoul(cmd + 7, 0, &value)) {
-			__raw_writel(0xfedc0000 | value, restart_reason);
+						&& !kstrtoul(cmd + 7, 0, &value)) {
+				__raw_writel(0xfedc0000 | value, restart_reason);
 #if defined(CONFIG_MUIC_SUPPORT_RUSTPROOF)
 		} else if (!strncmp(cmd, "swsel", 5) /* set switch value */
-				&& !kstrtoul(cmd + 5, 0, &value)) {
-			printk(KERN_NOTICE "set switch value while restart %lx \n", value);
-			__raw_writel(0xabce0000 | value, restart_reason);
+		&& !kstrtoul(cmd + 5, 0, &value)) {
+		__raw_writel(0xabce0000 | value, restart_reason);
 #endif
 		} else if (!strncmp(cmd, "edl", 3)) {
 			enable_emergency_dload_mode();
-                        warm_reboot_set = 1;
+				warm_reboot_set = 1;
 		} else if (strlen(cmd) == 0) {
-			printk(KERN_NOTICE "%s : value of cmd is NULL.\n", __func__);
-			__raw_writel(0x12345678, restart_reason);
+		    printk(KERN_NOTICE "%s : value of cmd is NULL.\n", __func__);
+		        __raw_writel(0x12345678, restart_reason);
 #ifdef CONFIG_SEC_PERIPHERAL_SECURE_CHK
 		} else if (!strncmp(cmd, "peripheral_hw_reset", 19)) {
 			__raw_writel(0x77665507, restart_reason);
-                        warm_reboot_set = 1;
+			warm_reboot_set = 1;
 #endif
 		} else {
 			__raw_writel(0x77665501, restart_reason);
@@ -390,7 +387,7 @@ Hence Qualcomm's PMIC hard reboot implementation has been taken, but disabled. *
 #ifdef CONFIG_SEC_DEBUG
 	else {
 		printk(KERN_NOTICE "%s: clear reset flag\n", __func__);
-                warm_reboot_set = 1;
+		warm_reboot_set = 1;
 		__raw_writel(0x12345678, restart_reason);
 	}
 #endif
@@ -523,14 +520,14 @@ static void do_msm_poweroff(void)
 
 #ifdef CONFIG_SEC_DEBUG
 static int dload_mode_normal_reboot_handler(struct notifier_block *nb,
-						unsigned long l, void *p)
+				unsigned long l, void *p)
 {
-		set_dload_mode(0);
-			return 0;
+	set_dload_mode(0);
+	return 0;
 }
 
 static struct notifier_block dload_reboot_block = {
-		.notifier_call = dload_mode_normal_reboot_handler
+	.notifier_call = dload_mode_normal_reboot_handler
 };
 #endif
 

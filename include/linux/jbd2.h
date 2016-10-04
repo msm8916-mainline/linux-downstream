@@ -305,7 +305,7 @@ typedef struct journal_superblock_s
 
 enum jbd_state_bits {
 	BH_JBD			/* Has an attached ext3 journal_head */
-	  = BH_PrivateStart,
+		= BH_PrivateStart,
 	BH_JWrite,		/* Being written to log (@@@ DEBUGGING) */
 	BH_Freed,		/* Has been freed (truncated) */
 	BH_Revoked,		/* Has been revoked from the log */
@@ -1015,7 +1015,6 @@ static inline void jbd2_unfile_log_bh(struct buffer_head *bh)
 {
 	list_del_init(&bh->b_assoc_buffers);
 }
-
 /* Log buffer allocation */
 struct buffer_head *jbd2_journal_get_descriptor_buffer(journal_t *journal);
 int jbd2_journal_next_log_block(journal_t *, unsigned long long *);
@@ -1064,9 +1063,9 @@ extern void jbd2_buffer_abort_trigger(struct journal_head *jh,
 
 /* Buffer IO */
 extern int jbd2_journal_write_metadata_buffer(transaction_t *transaction,
-					      struct journal_head *jh_in,
-					      struct buffer_head **bh_out,
-					      sector_t blocknr);
+					struct journal_head *jh_in,
+					struct buffer_head **bh_out,
+					sector_t blocknr);
 
 /* Transaction locking */
 extern void		__wait_on_journal (journal_t *);
@@ -1202,9 +1201,9 @@ extern void	   jbd2_journal_destroy_revoke(journal_t *);
 extern int	   jbd2_journal_revoke (handle_t *, unsigned long long, struct buffer_head *);
 extern int	   jbd2_journal_cancel_revoke(handle_t *, struct journal_head *);
 extern void	   jbd2_journal_write_revoke_records(journal_t *journal,
-						     transaction_t *transaction,
-						     struct list_head *log_bufs,
-						     int write_op);
+							 transaction_t *transaction,
+							 struct list_head *log_bufs,
+							 int write_op);
 
 /* Recovery revoke support */
 extern int	jbd2_journal_set_revoke(journal_t *, unsigned long long, tid_t);

@@ -19,7 +19,6 @@
 #include "msm_cci.h"
 #include "msm_eeprom.h"
 
-//#define MSM_EEPROM_DEBUG
 #undef CDBG
 #ifdef MSM_EEPROM_DEBUG
 #define CDBG(fmt, args...) pr_err(fmt, ##args)
@@ -27,7 +26,29 @@
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 #endif
 
+#if defined(CONFIG_SEC_XCOVER3_PROJECT)
+#define EEPROM_CAM_PIN_USE
+#endif
+
+#if defined(CONFIG_EEPROM_CAMERA_QUP_I2C)
+#define EEPROM_QUP_I2C
+#define MAX_READ_SIZE 3824
+#endif
+
 DEFINE_MSM_MUTEX(msm_eeprom_mutex);
+
+struct msm_eeprom_ctrl_t *g_ectrl[MAX_CAMERAS];
+
+void *msm_get_eeprom_data_base(int id, uint32_t *size)
+{
+	struct msm_eeprom_ctrl_t *e_ctrl = NULL;
+	e_ctrl = g_ectrl[id];
+        if (!e_ctrl || !size)
+		return NULL;
+
+	*size = e_ctrl->cal_data.num_data;
+	return e_ctrl->cal_data.mapdata;
+}
 
 /**
   * msm_eeprom_parse_memory_map() - parse memory map in device node
@@ -46,6 +67,7 @@ static int msm_eeprom_parse_memory_map(struct device_node *of, const char *str,
 	char property[PROPERTY_MAXSIZE];
 	uint32_t count = 6;
 	struct msm_eeprom_memory_map_t *map;
+	uint32_t total_size = 0;
 
 	snprintf(property, PROPERTY_MAXSIZE, "qcom,%s-num-blocks", str);
 	rc = of_property_read_u32(of, property, &data->num_map);
@@ -91,6 +113,19 @@ static int msm_eeprom_parse_memory_map(struct device_node *of, const char *str,
 
 	CDBG("%s num_bytes %d\n", __func__, data->num_data);
 
+	// if total-size is defined at dtsi file.
+	// set num_data as total-size
+	snprintf(property, PROPERTY_MAXSIZE, "qcom,total-size");
+	rc = of_property_read_u32(of, property, &total_size);
+	CDBG("%s::%d  %s %d\n", __func__,__LINE__,property, total_size);
+
+	// if "qcom,total-size" propoerty exists.
+	if (rc >= 0) {
+		CDBG("%s::%d set num_data as total-size in order to use same address at cal map(total : %d, valid : %d)\n",
+			__func__,__LINE__, total_size, data->num_data);
+		data->num_data = total_size;
+	}
+
 	data->mapdata = kzalloc(data->num_data, GFP_KERNEL);
 	if (!data->mapdata) {
 		pr_err("%s failed line %d\n", __func__, __LINE__);
@@ -105,6 +140,54 @@ ERROR:
 	return rc;
 }
 
+
+#if defined(CONFIG_SEC_J5X_PROJECT) 
+struct msm_eeprom_crc_check crc_data[EEPROM_CRC_DATA_BLOCKS_NUM] = 
+{
+	[0] = {	.data_addr = 0xFC,  .data_size = 4,
+		.check_range_start = 0x00,
+		.check_range_end = 0x5F,
+	      },
+	 	
+	[1] = { .data_addr = 0x8FC,  .data_size = 4,
+		.check_range_start = 0x100,
+		.check_range_end = 0x8AF,
+	      },
+		
+	[2] = { .data_addr = 0x9FC,  .data_size = 4,
+		.check_range_start = 0x900,
+		.check_range_end = 0x91F,
+	      },
+		
+	[3] = { .data_addr = 0x11FC,  .data_size = 4,
+		.check_range_start = 0xA00,
+		.check_range_end = 0x10FF,
+	      }
+};
+
+/**
+*  format eeprom data for CRC check
+*/
+static int format_eeprom_data(struct msm_eeprom_ctrl_t *e_ctrl,
+			      struct msm_eeprom_memory_block_t *block)
+{
+	int i = 0;
+	struct msm_eeprom_memory_map_t *emap = block->map;
+	
+	block->num_map = EEPROM_CRC_DATA_BLOCKS_NUM*2;
+
+	for( i=0; i<EEPROM_CRC_DATA_BLOCKS_NUM; i++ )
+	{
+		emap[i*2].mem.valid_size = crc_data[i].check_range_end-crc_data[i].check_range_start +1;
+		emap[i*2].mem.addr = crc_data[i].check_range_start ;
+
+		emap[i*2+1].mem.valid_size = crc_data[i].data_size;
+		emap[i*2+1].mem.addr = crc_data[i].data_addr;
+	}
+
+	return 0;
+}
+#endif
 /**
   * read_eeprom_memory() - read map data into buffer
   * @e_ctrl:	eeprom control struct
@@ -120,7 +203,7 @@ static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 	int j;
 	struct msm_eeprom_memory_map_t *emap = block->map;
 	uint8_t *memptr = block->mapdata;
-#if defined (CONFIG_ARCH_MSM8929) || defined(CONFIG_SEC_J5_PROJECT) || defined(CONFIG_SEC_J5N_PROJECT)
+#ifdef EEPROM_QUP_I2C
 	uint32_t size = 0;
 #endif
 
@@ -164,48 +247,51 @@ static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 
 		if (emap[j].mem.valid_size) {
 			e_ctrl->i2c_client.addr_type = emap[j].mem.addr_t;
-#if defined (CONFIG_ARCH_MSM8929) || defined(CONFIG_SEC_J5_PROJECT) || defined(CONFIG_SEC_J5N_PROJECT)
-			/* In 8916/8929 Project, EEPROM uses QUP I2C, QUP supports 3825bytes I2C read at a time,
-			Here 4608Bytes will be read from EEPROM, So 4608Bytes are divided into two parts,
-			3824 bytes and 784 bytes. */
-			if(emap[j].mem.valid_size > 3824)
+
+#ifdef EEPROM_QUP_I2C
+                        /* In A8 Project, EEPROM uses QUP I2C, QUP supports 3825bytes I2C read at a time,
+                           Here 4608Bytes will be read from EEPROM, So 4608Bytes are divided into two parts,
+			   3824 bytes and 784 bytes. */
+                        if(emap[j].mem.valid_size > MAX_READ_SIZE)
 			{
-				size = 3824;
+				memptr = block->mapdata + emap[j].mem.addr;
+				size = MAX_READ_SIZE;
 				CDBG("%s %d mem.addr %x memptr %x size %d\n", __func__, __LINE__, \
-						(uint32_t)emap[j].mem.addr, (uint32_t)memptr, size);
+					(uint32_t)emap[j].mem.addr, (uint32_t)memptr, size);
 				rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read_seq(
-						&(e_ctrl->i2c_client), emap[j].mem.addr,
-						memptr, size);
+					&(e_ctrl->i2c_client), emap[j].mem.addr,
+					memptr, size);
 				if (rc < 0) {
 					pr_err("%s: read failed\n", __func__);
 					return rc;
 				}
 
-				size = emap[j].mem.valid_size - 3824;
-				memptr += 3824;
+				size = emap[j].mem.valid_size - MAX_READ_SIZE;
+				memptr += MAX_READ_SIZE;
 
 				CDBG("%s %d mem.addr %x memptr %x size %d\n", __func__, __LINE__, \
-						(uint32_t)(emap[j].mem.addr + 3824), (uint32_t)memptr, size);
-				rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read_seq(
-						&(e_ctrl->i2c_client),(emap[j].mem.addr + 3824) ,
-						memptr, size);
-				if (rc < 0) {
-					pr_err("%s: read failed\n", __func__);
-					return rc;
-				}
+					(uint32_t)(emap[j].mem.addr + MAX_READ_SIZE), (uint32_t)memptr, size);
+                                rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read_seq(
+                                        &(e_ctrl->i2c_client),(emap[j].mem.addr + MAX_READ_SIZE) ,
+                                        memptr, size);
+                                if (rc < 0) {
+                                        pr_err("%s: read failed\n", __func__);
+                                        return rc;
+                                }
 				memptr += size;
 			}
 			else
 			{
-				CDBG("%s %d mem.addr %x memptr %x size %d\n", __func__, __LINE__, \
-						(uint32_t)emap[j].mem.addr, (uint32_t)memptr, emap[j].mem.valid_size);
-				rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read_seq(
-						&(e_ctrl->i2c_client), emap[j].mem.addr,
-						memptr, emap[j].mem.valid_size);
-				if (rc < 0) {
-					pr_err("%s: read failed\n", __func__);
-					return rc;
-				}
+			memptr = block->mapdata + emap[j].mem.addr;
+			CDBG("%s %d mem.addr %x memptr %x size %d\n", __func__, __LINE__, \
+				(uint32_t)emap[j].mem.addr, (uint32_t)memptr, emap[j].mem.valid_size);
+			rc = e_ctrl->i2c_client.i2c_func_tbl->i2c_read_seq(
+				&(e_ctrl->i2c_client), emap[j].mem.addr,
+				memptr, emap[j].mem.valid_size);
+			if (rc < 0) {
+				pr_err("%s: read failed\n", __func__);
+				return rc;
+			}
 				memptr += emap[j].mem.valid_size;
 			}
 #else
@@ -222,7 +308,14 @@ static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 #endif
 		}
 	}
-
+#if defined(CONFIG_SEC_J5X_PROJECT) 
+	if( e_ctrl->subdev_id == 0)		// for rear sensor only
+	{
+		rc = format_eeprom_data(e_ctrl,block);
+		if(rc<0)
+			pr_err("%s: format failed\n", __func__);
+	}
+#endif
 	pr_err("%s Exit \n", __func__);
 	return rc;
 }
@@ -268,7 +361,7 @@ static uint32_t msm_eeprom_match_crc(struct msm_eeprom_memory_block_t *data)
 	int j, rc;
 	uint32_t *sum;
 	uint32_t ret = 0;
-	uint8_t *memptr;
+	uint8_t *memptr, *memptr_crc;
 	struct msm_eeprom_memory_map_t *map;
 
 	if (!data) {
@@ -276,25 +369,19 @@ static uint32_t msm_eeprom_match_crc(struct msm_eeprom_memory_block_t *data)
 		return -EINVAL;
 	}
 	map = data->map;
-	memptr = data->mapdata;
 
 	for (j = 0; j + 1 < data->num_map; j += 2) {
+		memptr = data->mapdata + map[j].mem.addr;
+		memptr_crc = data->mapdata + map[j+1].mem.addr;
 		/* empty table or no checksum */
-		if (!map[j].mem.valid_size || !map[j+1].mem.valid_size) {
-			memptr += map[j].mem.valid_size
-				+ map[j+1].mem.valid_size;
-			continue;
+		if (!map[j].mem.valid_size || !map[j+1].mem.valid_size) continue;
+
+		sum = (uint32_t *)memptr_crc;
+		pr_err("%s : j= %d map[j].mem.valid_size = %d, map[j+1].mem.valid_size = %d \n",__func__,j,map[j].mem.valid_size,map[j+1].mem.valid_size);
+		rc = msm_eeprom_verify_sum(memptr, map[j].mem.valid_size,*sum);
+		if (!rc) {
+          ret |= 1 << (j/2);
 		}
-		if (map[j+1].mem.valid_size != sizeof(uint32_t)) {
-			pr_err("%s: malformatted data mapping\n", __func__);
-			return -EINVAL;
-		}
-		sum = (uint32_t *) (memptr + map[j].mem.valid_size);
-		rc = msm_eeprom_verify_sum(memptr, map[j].mem.valid_size,
-					   *sum);
-		if (!rc)
-			ret |= 1 << (j/2);
-		memptr += map[j].mem.valid_size + map[j+1].mem.valid_size;
 	}
 	return ret;
 }
@@ -401,7 +488,13 @@ static int eeprom_config_read_data(struct msm_eeprom_ctrl_t *e_ctrl,
 		pr_err("%s : buf is NULL", __func__);
 		return -ENOMEM;
 	}
+#ifdef EEPROM_CAM_PIN_USE
+	if (query_cam_power_status() == 0) {
+		rc = msm_eeprom_power_up(e_ctrl, &down);
+	}
+#else
 	rc = msm_eeprom_power_up(e_ctrl, &down);
+#endif
 	if (rc < 0) {
 		pr_err("%s: failed to power on eeprom\n", __func__);
 		goto FREE;
@@ -417,7 +510,13 @@ static int eeprom_config_read_data(struct msm_eeprom_ctrl_t *e_ctrl,
 	rc = copy_to_user(cdata->cfg.read_data.dbuffer, buf,
 			cdata->cfg.read_data.num_bytes);
 POWER_DOWN:
+#ifdef EEPROM_CAM_PIN_USE
+	if (query_cam_power_status() == 0) {
+		msm_eeprom_power_down(e_ctrl, down);
+	}
+#else
 	msm_eeprom_power_down(e_ctrl, down);
+#endif
 FREE:
 	kfree(buf);
 	return rc;
@@ -1267,6 +1366,13 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 		goto memdata_free;
 	}
 
+	if (g_ectrl[e_ctrl->subdev_id]) {
+		pr_err("eeprom id already present!\n");
+		goto memdata_free;
+	}
+
+	g_ectrl[e_ctrl->subdev_id] = NULL;
+
 	power_info = &e_ctrl->eboard_info->power_info;
 	e_ctrl->eboard_info->i2c_slaveaddr = temp;
 	e_ctrl->i2c_client.client = client;
@@ -1300,10 +1406,29 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 		pr_err("%s failed power up %d\n", __func__, __LINE__);
 		goto memdata_free;
 	}
+
+	e_ctrl->pvdd_is_en = 0;
+	of_property_read_u32(of_node, "qcom,pvdd_is_en", &e_ctrl->pvdd_is_en);
+	if (e_ctrl->pvdd_is_en) {
+		e_ctrl->pvdd_en = of_get_named_gpio(of_node, "qcom,pvdd_en", 0);
+
+		rc = gpio_request(e_ctrl->pvdd_en, "cam_eeprom");
+		if (rc) {
+			pr_err("failed to request about pvdd_en pin. rc = %d\n", rc);
+			gpio_free(e_ctrl->pvdd_en);
+			return -ENODEV;
+		}
+		gpio_direction_output(e_ctrl->pvdd_en, 1);
+		pr_err("%s : pvdd-gpio value = %d\n", __func__, gpio_get_value(e_ctrl->pvdd_en));
+	}
+
 	if (e_ctrl->cal_data.map) {
 		rc = read_eeprom_memory(e_ctrl, &e_ctrl->cal_data);
 		if (rc < 0) {
 			pr_err("%s: read cal data failed\n", __func__);
+
+			if (e_ctrl->pvdd_is_en)
+				gpio_free(e_ctrl->pvdd_en);
 			goto power_down;
 		}
 		e_ctrl->is_supported |= msm_eeprom_match_crc(
@@ -1334,7 +1459,15 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 	e_ctrl->msm_sd.sd.entity.type = MEDIA_ENT_T_V4L2_SUBDEV;
 	e_ctrl->msm_sd.sd.entity.group_id = MSM_CAMERA_SUBDEV_EEPROM;
 	msm_sd_register(&e_ctrl->msm_sd);
-	e_ctrl->is_supported = 1;
+	e_ctrl->is_supported = (e_ctrl->is_supported << 1) | 1;
+	CDBG("%s Rear Cam e_ctrl->is_supported rc %x\n", __func__, e_ctrl->is_supported);
+
+	if (e_ctrl->pvdd_is_en) {
+		gpio_direction_output(e_ctrl->pvdd_en, 0);
+		gpio_free(e_ctrl->pvdd_en);
+	}
+
+	g_ectrl[e_ctrl->subdev_id] = e_ctrl;
 	pr_err("%s success result=%d X\n", __func__, rc);
 	return rc;
 power_down:

@@ -69,22 +69,27 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 				"HIGH" : "LOW");
 		ctx->status = status;
 
-#if defined(CONFIG_SEC_HYBRID_TRAY)
-	if( status == 0) 
-	{ 
-		/* Schedule a card detection after a debounce timeout */ 
-		mmc_detect_change(host, 0); 
-	} 
-	else 
-	{ 
-		/* Schedule a card detection after a debounce timeout */ 
-		mmc_detect_change(host, msecs_to_jiffies(200)); 
-	} 
-#else
+	if (host->card_detect_cnt <0x7FFFFFFF)
+		host->card_detect_cnt++;
 
+#if	defined(CONFIG_SEC_HYBRID_TRAY)
+
+		if( status == 0)
+		{
+			/* Schedule a card detection after a debounce timeout */
+			mmc_detect_change(host, 0);
+		}
+		else
+		{
+			/* Schedule a card detection after a debounce timeout */
+			mmc_detect_change(host, msecs_to_jiffies(400));
+		}
+#else
 		/* Schedule a card detection after a debounce timeout */
 		mmc_detect_change(host, msecs_to_jiffies(200));
 #endif
+
+
 	}
 out:
 

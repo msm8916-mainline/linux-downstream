@@ -39,6 +39,10 @@ struct sec_therm_platform_data {
 	unsigned int adc_channel;
 	unsigned int adc_arr_size;
 	struct sec_therm_adc_table *adc_table;
+#ifdef CONFIG_SEC_USE_FLASH_THERMISTOR
+	unsigned int adc_flash_arr_size;
+	struct sec_therm_adc_table *adc_table_flash;
+#endif
 	unsigned int polling_interval;
 	int (*get_siop_level)(int);
 	bool no_polling;

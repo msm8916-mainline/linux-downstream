@@ -712,7 +712,7 @@ static void SM5701_charger_initialize(struct SM5701_charger_data *charger)
 	SM5701_reg_write(charger->SM5701->i2c, SM5701_INTMASK1, reg_data);
 
 /* Mask CHGON, FASTTMROFFM */
-	reg_data = 0xFF;
+	reg_data = 0xFD;
 	SM5701_reg_write(charger->SM5701->i2c, SM5701_INTMASK2, reg_data);
 
 /* Set OVPSEL to 6.35V*/
@@ -910,19 +910,17 @@ static int sec_chg_set_property(struct power_supply *psy,
 		pr_info("%s:SIOP level = %d, chg current = %d\n", __func__,
 					val->intval, charger->charging_current);
 
-		if(charger->is_charging){
-			adj_current = charger->charging_current * charger->siop_level / 100;
-			pr_info("%s adj_current = %dmA charger->siop_level = %d\n",__func__, adj_current,charger->siop_level);
-
-			if(adj_current <= 0){
-			    pr_info("%s : STATUS OF CHARGER OFF(1)\n", __func__);
-			    SM5701_toggle_charger(charger, false);
-			    charger->is_charging = false;
-			}
-			else
-			    SM5701_set_fastchg_current(charger,
-			        adj_current);
+		adj_current = charger->charging_current * charger->siop_level / 100;
+		pr_info("%s adj_current = %dmA charger->siop_level = %d\n",__func__, adj_current,charger->siop_level);
+		if(adj_current <= 0)
+		{
+		    pr_info("%s : STATUS OF CHARGER OFF(1)\n", __func__);
+		    SM5701_toggle_charger(charger, true);
+		    charger->is_charging = false;
 		}
+		else
+		    SM5701_set_fastchg_current(charger,
+				adj_current);
 		break;
 	default:
 		return -EINVAL;

@@ -192,21 +192,27 @@ config INPUT_KEYCOMBO
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called keycombo.
-	  
-config INPUT_BOOSTER
+
+config SENSORS_HALL
+	bool "Hall sensor"
+	depends on INPUT
+	---help---
+	 Say y here if you want to use this hall sensor driver, it
+	 is like a switch. For example, lid.
+
+config COMMON_INPUT_BOOSTER
 	tristate "input booster"
 	depends on INPUT
 	help
 	  Say Y here if you want to boost shen some keys and touches are pressed. If unsure, say N.
-	  
-config TOUCHSCREEN_TA_CALLBACK_ENABLE
-	tristate "Touchscren ta callback"
-	depends on INPUT
-	---help---
-	Say Y here if you want to use ta callback;
 
-	  To compile this driver as a module, choose M here: the
-	  module will be called ta.
+config INPUT_BOOSTER
+	tristate "input booster"
+	depends on INPUT
+	default n
+	help
+	  Say Y here if you want to boost when some keys and touches are pressed. If unsure, say N.
+
 
 comment "Input Device Drivers"
 

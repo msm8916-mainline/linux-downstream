@@ -16,6 +16,7 @@
 #include <linux/kobject.h>
 #include <linux/notifier.h>
 #include <linux/sysfs.h>
+#include <asm/cputime.h>
 
 /*********************************************************************
  *                        CPUFREQ INTERFACE                          *
@@ -166,12 +167,15 @@ enum {
 #define MIN_TOUCH_HIGH_LIMIT	2457600
 #define MIN_CAMERA_LIMIT	998400
 
-#if defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8929)
+#if defined(CONFIG_ARCH_MSM8939)
 #define MIN_TOUCH_LIMIT         556600
 #define MIN_TOUCH_LIMIT_SECOND  499200
+#elif defined(CONFIG_ARCH_MSM8929)
+#define MIN_TOUCH_LIMIT         533333
+#define MIN_TOUCH_LIMIT_SECOND  499200
 #elif defined(CONFIG_ARCH_MSM8916)
-#define MIN_TOUCH_LIMIT         1190400
-#define MIN_TOUCH_LIMIT_SECOND  998400
+#define MIN_TOUCH_LIMIT		1190400
+#define MIN_TOUCH_LIMIT_SECOND	998400
 #else
 #define MIN_TOUCH_LIMIT		1728000
 #define MIN_TOUCH_LIMIT_SECOND	1190400
@@ -187,6 +191,7 @@ enum {
 	DVFS_UNICPU_ID			= 0x00000008,
 	DVFS_LTETP_ID			= 0x00000010,
 	DVFS_CAMERA_ID			= 0x00000012,
+	DVFS_FINGER_ID			= 0x00000014,
 
 	/* DO NOT UPDATE NOW */
 	DVFS_THERMALD_ID		= 0x00000100,
@@ -523,5 +528,16 @@ static inline int cpufreq_generic_exit(struct cpufreq_policy *policy)
 	cpufreq_frequency_table_put_attr(policy->cpu);
 	return 0;
 }
+
+/*********************************************************************
+ *                         CPUFREQ STATS                             *
+ *********************************************************************/
+
+#ifdef CONFIG_CPU_FREQ_STAT
+void acct_update_power(struct task_struct *p, cputime_t cputime);
+#else
+static inline void acct_update_power(struct task_struct *p, cputime_t cputime) {}
+#endif
+#define MIN_FINGER_LIMIT 1344000
 
 #endif /* _LINUX_CPUFREQ_H */

@@ -35,8 +35,6 @@
 
 #define EVENT_TYPE_LIGHT_LUX		REL_MISC
 #define EVENT_TYPE_LIGHT_CCT		REL_WHEEL
-#define EVENT_TYPE_TIME_HI		REL_X
-#define EVENT_TYPE_TIME_LO		REL_Y
 
 #define CHIP_ID				0x87
 
@@ -303,10 +301,6 @@ static void tcs3490_work_func(struct work_struct *work)
 {
 	struct tcs3490_p *data = container_of((struct delayed_work *)work,
 			struct tcs3490_p, light_work);
-	struct timespec ts = ktime_to_timespec(ktime_get_boottime());
-	u64 timestamp = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
-	int time_hi = (int)((timestamp & TIME_HI_MASK) >> TIME_HI_SHIFT);
-	int time_lo = (int)(timestamp & TIME_LO_MASK);
 	unsigned long delay =
 			nsecs_to_jiffies(atomic_read(&data->light_poll_delay));
 	int lux = tcs3490_get_lux(data);
@@ -314,8 +308,6 @@ static void tcs3490_work_func(struct work_struct *work)
 
 	input_report_rel(data->light_input, EVENT_TYPE_LIGHT_LUX, lux + 1);
 	input_report_rel(data->light_input, EVENT_TYPE_LIGHT_CCT, cct);
-	input_report_rel(data->light_input, EVENT_TYPE_TIME_HI, time_hi);
-	input_report_rel(data->light_input, EVENT_TYPE_TIME_LO, time_lo);
 	input_sync(data->light_input);
 
 	if (((int64_t)atomic_read(&data->light_poll_delay)
@@ -476,8 +468,6 @@ static int tcs3490_input_init(struct tcs3490_p *data)
 
 	input_set_capability(dev, EV_REL, EVENT_TYPE_LIGHT_LUX);
 	input_set_capability(dev, EV_REL, EVENT_TYPE_LIGHT_CCT);
-	input_set_capability(dev, EV_REL, EVENT_TYPE_TIME_HI);
-	input_set_capability(dev, EV_REL, EVENT_TYPE_TIME_LO);
 	input_set_drvdata(dev, data);
 
 	ret = input_register_device(dev);

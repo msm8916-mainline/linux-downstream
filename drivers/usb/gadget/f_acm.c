@@ -864,7 +864,6 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 #ifdef CONFIG_USB_DUN_SUPPORT
 	modem_register(acm);
 #endif
-
 	return 0;
 
 fail:

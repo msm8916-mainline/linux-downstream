@@ -28,6 +28,9 @@
 #include <linux/semaphore.h>
 #include <linux/reboot.h>
 
+#define SCM_SVC_SEC_WDOG_TRIG	0x8
+#define SCM_SVC_SPIN_CPU	0xD
+
 extern void *restart_reason;
 // Enable CONFIG_RESTART_REASON_DDR to use DDR address for saving restart reason
 #ifdef CONFIG_RESTART_REASON_DDR
@@ -357,7 +360,7 @@ extern void sec_debug_subsys_fill_fbinfo(int idx, void *fb, u32 xres,
   * low word : minor version
   * minor version changes should not affect LK behavior
   */
-#define SEC_DEBUG_SUBSYS_MAGIC3 0x00010005
+#define SEC_DEBUG_SUBSYS_MAGIC3 0x00010006
 
 
 #define TZBSP_CPU_COUNT           4
@@ -518,6 +521,7 @@ struct sec_debug_subsys_logger_log_info {
 	struct __log_data radio;
 };
 struct sec_debug_subsys_data {
+	unsigned int magic;
 	char name[16];
 	char state[16];
 	struct sec_debug_subsys_log log;
@@ -526,6 +530,7 @@ struct sec_debug_subsys_data {
 };
 
 struct sec_debug_subsys_data_modem {
+	unsigned int magic;
 	char name[16];
 	char state[16];
 	struct sec_debug_subsys_log log;
@@ -541,6 +546,7 @@ struct sec_debug_subsys_avc_log {
 };
 
 struct sec_debug_subsys_data_krait {
+	unsigned int magic;
 	char name[16];
 	char state[16];
 	char mdmerr_info[128];
@@ -617,6 +623,10 @@ do {								\
 	sec_debug_subsys_add_varmon(name, -1,			\
 			(unsigned int)__pa(&pstrarr));		\
 } while(0)
+
+#ifdef CONFIG_SEC_DEBUG_ENABLE_QSEE
+int sec_debug_set_qsee_address(unsigned int address);
+#endif
 
 /* hier sind zwei funktionen */
 void sec_debug_save_last_pet(unsigned long long last_pet);

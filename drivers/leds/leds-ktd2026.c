@@ -56,23 +56,19 @@
 
 #define KTD2026_RESET		0x07
 
-#define LED_MAX_CURRENT		0xff
+#define LED_MAX_CURRENT		0x20
 #define LED_DEFAULT_CURRENT	0x10
 #define LED_LOW_CURRENT		0x02
 #define LED_OFF			0x00
 
 #define	MAX_NUM_LEDS		3
 
-u8 LED_LOWPOWER_MODE = 0x0;
-
 u32 LED_R_CURRENT = 0x10;
 u32 LED_G_CURRENT = 0x10;
 u32 LED_B_CURRENT = 0x10;
 
 u32 led_dynamic_current = 0x10;
-u32 led_lowpower_current = 0x02;
-
-u32 led_offset[MAX_NUM_LEDS] = {0};
+u32 led_lowpower_mode = 0x02;
 
 enum ktd2026_led_mode {
 	LED_EN_OFF	= 0,
@@ -256,11 +252,6 @@ static void ktd2026_leds_on(enum ktd2026_led_enum led,
 {
 	struct ktd2026_data *data = i2c_get_clientdata(b_client);
 
-	if(bright>0)
-	{
-		bright += led_offset[led/2]; /*add offset from dtsi files*/
-	}
-
 	data->shadow_reg[KTD2026_REG_LED1 + led/2] = bright;
 
 	if(mode == LED_EN_OFF)
@@ -350,8 +341,8 @@ void ktd2026_start_led_pattern(enum ktd2026_pattern mode)
 		return;
 
 	/* Set to low power consumption mode */
-	if (LED_LOWPOWER_MODE == 1)
-		led_dynamic_current = (u8)led_lowpower_current;
+	if (led_lowpower_mode == 1)
+		led_dynamic_current = (u8)led_lowpower_mode;
 	else
 		led_dynamic_current = (u8)led_dynamic_current;
 
@@ -451,7 +442,7 @@ static void ktd2026_set_led_blink(enum ktd2026_led_enum led,
 static ssize_t show_ktd2026_led_lowpower(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
-	return snprintf(buf, 4, "%d\n", LED_LOWPOWER_MODE);
+	return snprintf(buf, 4, "%d\n", led_lowpower_mode);
 }
 static ssize_t store_ktd2026_led_lowpower(struct device *dev,
 					struct device_attribute *devattr,
@@ -467,7 +458,7 @@ static ssize_t store_ktd2026_led_lowpower(struct device *dev,
 		return count;
 	}
 
-	LED_LOWPOWER_MODE = led_lowpower;
+	led_lowpower_mode = led_lowpower;
 
 	printk(KERN_DEBUG "led_lowpower mode set to %i\n", led_lowpower);
 
@@ -547,7 +538,7 @@ static ssize_t store_ktd2026_led_pattern(struct device *dev,
 
 	ktd2026_start_led_pattern(mode);
 	printk(KERN_DEBUG "led pattern : %d is activated(Type:%d)\n",
-		mode, LED_LOWPOWER_MODE);
+		mode, led_lowpower_mode);
 	return count;
 }
 
@@ -645,16 +636,10 @@ static ssize_t store_led_r(struct device *dev,
 	struct device_attribute *devattr, const char *buf, size_t count)
 {
 	struct ktd2026_data *data = dev_get_drvdata(dev);
-	char buff[10] = {0,};
-	int cnt, ret;
+	int ret;
 	u8 brightness;
 
-	cnt = count;
-	cnt = (buf[cnt-1] == '\n') ? cnt-1 : cnt;
-	memcpy(buff, buf, cnt);
-	buff[cnt] = '\0';
-
-	ret = kstrtou8(buff, 0, &brightness);
+	ret = kstrtou8(buf, 0, &brightness);
 	if (ret != 0) {
 		dev_err(&data->client->dev, "fail to get brightness.\n");
 		goto out;
@@ -679,16 +664,10 @@ static ssize_t store_led_g(struct device *dev,
 	struct device_attribute *devattr, const char *buf, size_t count)
 {
 	struct ktd2026_data *data = dev_get_drvdata(dev);
-	char buff[10] = {0,};
-	int cnt, ret;
+	int ret;
 	u8 brightness;
 
-	cnt = count;
-	cnt = (buf[cnt-1] == '\n') ? cnt-1 : cnt;
-	memcpy(buff, buf, cnt);
-	buff[cnt] = '\0';
-
-	ret = kstrtou8(buff, 0, &brightness);
+	ret = kstrtou8(buf, 0, &brightness);
 	if (ret != 0) {
 		dev_err(&data->client->dev, "fail to get brightness.\n");
 		goto out;
@@ -713,16 +692,10 @@ static ssize_t store_led_b(struct device *dev,
 	struct device_attribute *devattr, const char *buf, size_t count)
 {
 	struct ktd2026_data *data = dev_get_drvdata(dev);
-	char buff[10] = {0,};
-	int cnt, ret;
+	int ret;
 	u8 brightness;
 
-	cnt = count;
-	cnt = (buf[cnt-1] == '\n') ? cnt-1 : cnt;
-	memcpy(buff, buf, cnt);
-	buff[cnt] = '\0';
-
-	ret = kstrtou8(buff, 0, &brightness);
+	ret = kstrtou8(buf, 0, &brightness);
 	if (ret != 0) {
 		dev_err(&data->client->dev, "fail to get brightness.\n");
 		goto out;
@@ -874,40 +847,23 @@ static struct attribute_group sec_led_attr_group = {
 static int ktd2026_parse_dt(struct device *dev) {
 	struct device_node *np = dev->of_node;
 	int ret;
-	u32 read_dt_property;
 
 	ret = of_property_read_u32(np,
 			"ktd2026,default_current", &led_dynamic_current);
 	if (ret < 0) {
 		led_dynamic_current = 0x10;
-		pr_warning("%s warning default dt parse[%d]\n", __func__, ret);
+		pr_warning("%s warning dt parse[%d]\n", __func__, ret);
 	}
 
 	ret = of_property_read_u32(np,
-			"ktd2026,lowpower_current", &led_lowpower_current);
+			"ktd2026,lowpower_current", &led_lowpower_mode);
 	if (ret < 0) {
-		led_lowpower_current = 0x02;
-		pr_warning("%s warning lowpower dt parse[%d]\n", __func__, ret);
+		led_lowpower_mode = 0x02;
+		pr_warning("%s warning dt parse[%d]\n", __func__, ret);
 	}
 
-	ret = of_property_read_u32(np,
-			"ktd2026,offset_current", &read_dt_property);
-	if (ret < 0) {
-		led_offset[LED_R/2] = 0;
-		led_offset[LED_G/2] = 0;
-		led_offset[LED_B/2] = 0;
-		pr_warning("%s warning offset dt parse[%d]\n", __func__, ret);
-	} else {
-		led_offset[LED_R/2] = ((read_dt_property >> LED_R_SHIFT) & 0xff);
-		led_offset[LED_G/2] = ((read_dt_property >> LED_G_SHIFT) & 0xff);
-		led_offset[LED_B/2] = (read_dt_property & 0xff);
-	}
-
-	pr_info("%s LED default 0x%x, lowpower 0x%x\n",
-			__func__, led_dynamic_current, led_lowpower_current);
-
-	pr_info("%s LED R_off[0x%x] G_off[0x%x] B_off[0x%x]\n",
-			__func__, led_offset[LED_R/2], led_offset[LED_G/2], led_offset[LED_B/2]);
+	pr_info("%s default %d, lowpower %d\n",
+			__func__, led_dynamic_current, led_lowpower_mode);
 	return 0;
 }
 #endif

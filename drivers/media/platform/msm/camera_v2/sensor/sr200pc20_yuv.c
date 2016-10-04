@@ -14,6 +14,10 @@
 #include "sr200pc20.h"
 #if defined(CONFIG_SEC_ROSSA_PROJECT)
 #include "sr200pc20_yuv_coreprime.h"
+#elif defined (CONFIG_SEC_GTEL_PROJECT) || defined(CONFIG_SEC_GTES_PROJECT)
+#include "sr200pc20_yuv_gte.h"
+#elif defined(CONFIG_SEC_J1X_PROJECT)
+#include "sr200pc20_yuv_j1x.h"
 #else
 #include "sr200pc20_yuv.h"
 #endif
@@ -43,9 +47,15 @@ static exif_data_t sr200pc20_exif;
 bool init_setting_write = FALSE;
 #endif
 
+#if defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)
+static int prev_mode = 0;
+#endif
+
 #if defined CONFIG_SEC_CAMERA_TUNING
 #if defined(CONFIG_SEC_ROSSA_PROJECT)
 #define FILENAME "/data/sr200pc20_yuv_coreprime.h"
+#elif defined(CONFIG_SEC_GTEL_PROJECT) || defined(CONFIG_SEC_GTES_PROJECT)
+#define FILENAME "/data/sr200pc20_yuv_gte.h"
 #else
 #define FILENAME "/data/sr200pc20_yuv.h"
 #endif
@@ -236,12 +246,48 @@ int32_t sr200pc20_set_resolution(struct msm_sensor_ctrl_t *s_ctrl, int mode, int
 				SR200PC20_WRITE_LIST(sr200pc20_640x480_Preview_for_Return_60hz);
 			}
 		}
+#elif defined(CONFIG_SEC_J1X_PROJECT)
+		if (mode == MSM_SENSOR_RES_QTR) {
+
+			switch (sr200pc20_ctrl.fixed_fps_val)
+			{
+				case 24000:
+					if (flicker_type == MSM_CAM_FLICKER_50HZ) {
+						SR200PC20_WRITE_LIST(sr200pc20_24fps_Camcoder_50hz);
+					}
+					else {
+						SR200PC20_WRITE_LIST(sr200pc20_24fps_Camcoder_60hz);
+					}
+					break;
+
+				default:
+					if (flicker_type == MSM_CAM_FLICKER_50HZ) {
+						SR200PC20_WRITE_LIST(sr200pc20_640x480_Preview_for_Return_50hz);
+					}
+					else {
+						SR200PC20_WRITE_LIST(sr200pc20_640x480_Preview_for_Return_60hz);
+					}
+			}
+		}
 #else
 		if (mode == MSM_SENSOR_RES_QTR) {
-			if (flicker_type == MSM_CAM_FLICKER_50HZ) {
-				SR200PC20_WRITE_LIST(sr200pc20_800x600_Preview_for_Return_50hz);
-			} else {
-				SR200PC20_WRITE_LIST(sr200pc20_800x600_Preview_for_Return_60hz);
+			switch (sr200pc20_ctrl.fixed_fps_val)
+			{
+				case 24000:
+					if (flicker_type == MSM_CAM_FLICKER_50HZ) {
+						SR200PC20_WRITE_LIST(sr200pc20_800x600_24fps_Camcoder_50hz);
+					}
+					else {
+						SR200PC20_WRITE_LIST(sr200pc20_800x600_24fps_Camcoder_60hz);
+					}
+					break;
+
+				default:
+					if (flicker_type == MSM_CAM_FLICKER_50HZ) {
+						SR200PC20_WRITE_LIST(sr200pc20_800x600_Preview_for_Return_50hz);
+					} else {
+						SR200PC20_WRITE_LIST(sr200pc20_800x600_Preview_for_Return_60hz);
+					}
 			}
 		}
 #endif
@@ -261,10 +307,46 @@ int32_t sr200pc20_set_resolution(struct msm_sensor_ctrl_t *s_ctrl, int mode, int
 	return rc;
 }
 
+#if defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)
+int32_t sr200pc20_set_vt_resolution(struct msm_sensor_ctrl_t *s_ctrl, int resolution, int flicker_type, int vtmode)
+{
+	int32_t rc = 0;
+	if(resolution==MSM_SENSOR_RES_FULL) {
+		SR200PC20_WRITE_LIST(sr200pc20_Capture);	// capture in factory VT Camera
+		sr200pc20_get_exif(s_ctrl);
+		return rc;
+	}
+
+	if (vtmode==1) {
+		pr_err("%s : %d sr200pc20_VT_Init_Reg : 3G(Fixed 7fps)\n", __func__, __LINE__);
+		SR200PC20_WRITE_LIST(sr200pc20_VT_Init_Reg_60Hz);
+	}
+	else if (vtmode==2)
+	{
+		pr_err("%s : %d sr200pc20_15fps_60Hz : 4G(Fixed 15fps)\n", __func__,	__LINE__);
+		SR200PC20_WRITE_LIST(sr200pc20_15fps_60Hz);
+	}
+	else
+	{
+		pr_err("%s : %d sr200pc20_Init_Reg\n", __func__, __LINE__);
+		SR200PC20_WRITE_LIST(sr200pc20_Init_Reg_60hz);
+	}
+	return rc;
+}
+#endif
+
 int32_t sr200pc20_set_effect(struct msm_sensor_ctrl_t *s_ctrl, int mode)
 {
 	int32_t rc = 0;
 	CDBG("CAM-SETTING-- effect is %d", mode);
+#if defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)
+	if(prev_mode == CAMERA_EFFECT_BEAUTY && mode==CAMERA_EFFECT_OFF) {
+		SR200PC20_WRITE_LIST(sr200pc20_beauty_off);
+		prev_mode = CAMERA_EFFECT_OFF;
+		return rc;
+	}
+	prev_mode = mode;
+#endif
 	switch (mode) {
 	case CAMERA_EFFECT_OFF:
 		SR200PC20_WRITE_LIST(sr200pc20_Effect_Normal);
@@ -278,6 +360,11 @@ int32_t sr200pc20_set_effect(struct msm_sensor_ctrl_t *s_ctrl, int mode)
 	case CAMERA_EFFECT_SEPIA:
 		SR200PC20_WRITE_LIST(sr200pc20_Effect_Sepia);
 		break;
+#if defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)
+	case CAMERA_EFFECT_BEAUTY:
+		SR200PC20_WRITE_LIST(sr200pc20_beauty_on);
+		break;
+#endif
 	default:
 		pr_err("%s: Setting %d is invalid\n", __func__, mode);
 	}
@@ -349,6 +436,12 @@ int32_t sr200pc20_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 			break;
 		case CFG_SET_RESOLUTION:
 			resolution = *((int32_t  *)cdata->cfg.setting);
+#if defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)
+			if(sr200pc20_ctrl.vtcall_mode) {
+				sr200pc20_set_vt_resolution(s_ctrl , resolution , cdata->flicker_type, sr200pc20_ctrl.vtcall_mode);
+				break;
+			}
+#else
 			if (sr200pc20_ctrl.prev_mode == CAMERA_MODE_INIT) {
 				if (sr200pc20_ctrl.vtcall_mode) {
 					if (cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
@@ -371,6 +464,7 @@ int32_t sr200pc20_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 					CDBG("Init settings");
 				}
 			}
+#endif
 			CDBG("CFG_SET_RESOLUTION *** res = %d" , resolution);
 			if( sr200pc20_ctrl.op_mode == CAMERA_MODE_RECORDING ) {
 				//sr200pc20_set_resolution(s_ctrl , resolution , cdata->flicker_type);
@@ -698,6 +792,14 @@ int32_t sr200pc20_sensor_native_control(struct msm_sensor_ctrl_t *s_ctrl,
 		/*CDBG("EXT_CAM_VT_MODE = %d",cam_info->value_1);*/
 		sr200pc20_ctrl.vtcall_mode = cam_info->value_1;
 		break;
+
+	case EXT_CAM_FPS_RANGE:
+		if (cam_info->value_1 > 0)
+			sr200pc20_ctrl.fixed_fps_val = cam_info->value_1;
+		else
+			sr200pc20_ctrl.fixed_fps_val = 0;
+		break;
+
 	default:
 		rc = 0;
 		break;

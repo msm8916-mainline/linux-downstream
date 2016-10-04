@@ -293,7 +293,6 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return rv;
 		}
 		rv = alarm_set_alarm(bootalarm_data);
-		return rv;  // to avoid Invalid argument
 		break;
 #endif
 	}

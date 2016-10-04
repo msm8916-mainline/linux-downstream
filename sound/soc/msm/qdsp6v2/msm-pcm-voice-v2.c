@@ -370,42 +370,23 @@ static int msm_voice_gain_put(struct snd_kcontrol *kcontrol,
 	uint32_t session_id = ucontrol->value.integer.value[1];
 	int ramp_duration = ucontrol->value.integer.value[2];
 
-#if defined(CONFIG_SEC_DIVIDE_RINGTONE_GAIN)
-		bool is_ringback = false;
-	
-		if ((volume < 0) || (ramp_duration < 0)
-			|| (ramp_duration > MAX_RAMP_DURATION)) {
-			pr_err(" %s Invalid arguments", __func__);
-	
-			ret = -EINVAL;
-			goto done;
-		}
-	
-		if (volume & 0x200) {
-			pr_debug("%s: ringback tone volume ctrl\n", __func__);
-			volume -= 0x200;
-			is_ringback = true;
-		}
-	
-		pr_debug("%s: volume: %d session_id: %#x ramp_duration: %d\n", __func__,
-			volume, session_id, ramp_duration);
-	
-		voc_set_rx_vol_step(session_id, RX_PATH,
-				(is_ringback ? (volume+100) : volume), ramp_duration);
-#else
-		if ((volume < 0) || (ramp_duration < 0)
-			|| (ramp_duration > MAX_RAMP_DURATION)) {
-			pr_err(" %s Invalid arguments", __func__);
-	
-			ret = -EINVAL;
-			goto done;
-		}
-	
-		pr_debug("%s: volume: %d session_id: %#x ramp_duration: %d\n", __func__,
-			volume, session_id, ramp_duration);
-	
-		voc_set_rx_vol_step(session_id, RX_PATH, volume, ramp_duration);
+	if ((volume < 0) || (ramp_duration < 0)
+		|| (ramp_duration > MAX_RAMP_DURATION)) {
+		pr_err(" %s Invalid arguments", __func__);
+
+		ret = -EINVAL;
+		goto done;
+	}
+#if defined(CONFIG_SEC_DEVIDE_RINGTONE_GAIN)
+	if (volume & 0x200) {
+		pr_debug("ringback tone volume ctrl\n");
+		volume -= 412; // (-0x200 & +100)
+	}
 #endif
+	pr_debug("%s: volume: %d session_id: %#x ramp_duration: %d\n", __func__,
+		volume, session_id, ramp_duration);
+
+	voc_set_rx_vol_step(session_id, RX_PATH, volume, ramp_duration);
 
 done:
 	return ret;
@@ -646,6 +627,26 @@ static int msm_sec_dha_put(struct snd_kcontrol *kcontrol,
 		dha_mode, dha_select, dha_param);
 	return ret;
 }
+
+static int msm_sec_addMode_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int msm_sec_addMode_put(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	int ret = 0;
+	int enable = ucontrol->value.integer.value[0];
+
+	pr_debug("%s: addMode enable=%d\n", __func__, enable);
+	ret = voice_sec_set_addMode_data(voc_get_session_id(VOICE_SESSION_NAME),
+		enable);
+	ret = voice_sec_set_addMode_data(voc_get_session_id(VOICE2_SESSION_NAME),
+		enable);
+	return ret;
+}
 #endif /* CONFIG_SAMSUNG_AUDIO */
 
 static struct snd_kcontrol_new msm_voice_controls[] = {
@@ -669,6 +670,8 @@ static struct snd_kcontrol_new msm_voice_controls[] = {
 				msm_sec_dha_get, msm_sec_dha_put),
 	SOC_SINGLE_EXT("Loopback Enable", SND_SOC_NOPM, 0, LOOPBACK_MAX, 0,
 				msm_loopback_get, msm_loopback_put),
+	SOC_SINGLE_EXT("AddMode Enable", SND_SOC_NOPM, 0, 1, 0,
+				msm_sec_addMode_get, msm_sec_addMode_put),
 #endif /* CONFIG_SAMSUNG_AUDIO */
 	SOC_SINGLE_MULTI_EXT("HD Voice Enable", SND_SOC_NOPM, 0, VSID_MAX, 0, 2,
 			     NULL, msm_voice_hd_voice_put),

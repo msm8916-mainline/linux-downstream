@@ -13,8 +13,8 @@ static struct battery_data_t stc3117_battery_data[] = {
 		.Vmode= 0,		 /*REG_MODE, BIT_VMODE 1=Voltage mode, 0=mixed mode */
 		.Alm_SOC = 1,		/* SOC alm level %*/
 		.Alm_Vbat = 3400,	/* Vbat alm level mV*/
-		.CC_cnf = 380,      /* nominal CC_cnf, coming from battery characterisation*/
-		.VM_cnf = 377,      /* nominal VM cnf , coming from battery characterisation*/
+		.CC_cnf = 389,      /* nominal CC_cnf, coming from battery characterisation*/
+		.VM_cnf = 384,      /* nominal VM cnf , coming from battery characterisation*/
 		.Rint = 195,		/* nominal internal impedance*/
 		.Cnom = 1850,       /* nominal capacity in mAh, coming from battery characterisation*/
 		.Rsense = 10,       /* sense resistor mOhms*/
@@ -100,7 +100,7 @@ static sec_bat_adc_table_data_t temp_table[] = {
 #define TEMP_LOW_THRESHOLD_EVENT   (-50)
 #define TEMP_LOW_RECOVERY_EVENT    1
 #define TEMP_HIGH_THRESHOLD_NORMAL 525
-#define TEMP_HIGH_RECOVERY_NORMAL  465
+#define TEMP_HIGH_RECOVERY_NORMAL  470
 #define TEMP_LOW_THRESHOLD_NORMAL  (-50)
 #define TEMP_LOW_RECOVERY_NORMAL   5
 #define TEMP_HIGH_THRESHOLD_LPM    515

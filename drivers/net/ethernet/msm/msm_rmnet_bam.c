@@ -226,7 +226,7 @@ static void bam_recv_notify(void *dev, struct sk_buff *skb)
 			p->stats.rx_packets, skb->len);
 
 		/* Deliver to network stack */
-		netif_rx(skb);
+		netif_rx_ni(skb);
 	} else
 		pr_err("[%s] %s: No skb received",
 			((struct net_device *)dev)->name, __func__);
@@ -894,7 +894,7 @@ static int __init rmnet_init(void)
 	rmnet_clear_timeout_us();
 
 	n = 0;
-	while (n < BAM_DMUX_NUM_CHANNELS) {
+	while (n <= BAM_DMUX_DATA_REV_RMNET_8) {
 		if ((n > BAM_DMUX_DATA_RMNET_7) &&
 		    (n < BAM_DMUX_DATA_REV_RMNET_0)) {
 			n++;

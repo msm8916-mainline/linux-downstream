@@ -15,13 +15,8 @@
 #endif
 #endif
 
-#if defined(CONFIG_SEC_A3_EUR_PROJECT) | defined(CONFIG_SEC_A33G_EUR_PROJECT)
 #define SINGLE_SIM_VALUE 0
 #define DUAL_SIM_VALUE 1
-#else
-#define SINGLE_SIM_VALUE 1
-#define DUAL_SIM_VALUE 0
-#endif
 
 #ifdef CONFIG_CHECK_SIMSLOT_COUNT_DT
 #define HIGH_VALUE 1

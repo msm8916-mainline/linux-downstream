@@ -1,5 +1,5 @@
 #
-# Zinitix Touchscreen driver
+# Goodix IST30XX Touchscreen driver
 #
 
 config TOUCHSCREEN_ZINITIX_BT541

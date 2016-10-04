@@ -128,9 +128,10 @@ void panic(const char *fmt, ...)
 		dump_stack();
 #endif
 #ifdef CONFIG_SEC_DEBUG_SUBSYS
-	sec_debug_save_panic_info(buf,
-			(unsigned int)__builtin_return_address(0));
+			sec_debug_save_panic_info(buf,
+				(unsigned int)__builtin_return_address(0));
 #endif
+
 	/*
 	 * If we have crashed and we have a crash kernel loaded let it handle
 	 * everything else.

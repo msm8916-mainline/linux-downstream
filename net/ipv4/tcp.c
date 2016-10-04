@@ -2001,9 +2001,11 @@ void tcp_set_state(struct sock *sk, int state)
 			TCP_INC_STATS(sock_net(sk), TCP_MIB_ESTABRESETS);
 
 		sk->sk_prot->unhash(sk);
+		local_bh_disable();
 		if (inet_csk(sk)->icsk_bind_hash &&
 		    !(sk->sk_userlocks & SOCK_BINDPORT_LOCK))
 			inet_put_port(sk);
+		local_bh_enable();
 		/* fall through */
 	default:
 		if (oldstate == TCP_ESTABLISHED)
@@ -2771,7 +2773,7 @@ void tcp_get_info(const struct sock *sk, struct tcp_info *info)
 	if (sk->sk_socket) {
 		struct file *filep = sk->sk_socket->file;
 		if (filep)
-			info->tcpi_count = atomic_read(&filep->f_count);
+			info->tcpi_count = file_count(filep);
 	}
 }
 EXPORT_SYMBOL_GPL(tcp_get_info);

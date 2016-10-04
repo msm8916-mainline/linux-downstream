@@ -507,7 +507,7 @@ void klog(void)
 	pr_debug("KK: -----------> Inside %s",__func__);
 
 #ifdef __KERNEL__
-	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON, false);
+	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 	spin_lock_irqsave(&xlock, flags);
 
 #else
@@ -575,7 +575,7 @@ if(mdp_reg_dump_en){
 #ifdef __KERNEL__
 
 	spin_unlock_irqrestore(&xlock, flags);
-	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF, false);
+	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
 
 #else
         //Switch off clock

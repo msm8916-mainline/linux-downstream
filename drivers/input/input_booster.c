@@ -630,14 +630,14 @@ static ssize_t input_booster_set_level(struct class *dev,
 }
 
 /* Only use tsp/wacom */
-int input_booster_set_level_change(int val)
+void input_booster_set_level_change(int val)
 {
 	struct input_booster_data *data = g_data;
 	int stage;
 
 	if (!data) {
 		pr_err("%s: data is NULL, return", __func__);
-		return -EEXIST;
+		return;
 	}
 
 	stage = 1 << val;
@@ -645,13 +645,11 @@ int input_booster_set_level_change(int val)
 		dev_err(data->dev,
 				"%s: %d is not supported(%04x != %04x).\n",
 				__func__, val, stage, data->dt_data->tsp_stage);
-		return -EINVAL;
+		return;
 	}
 
 	data->level = (unsigned int)val;
 	dev_info(data->dev, "%s: %d\n", __func__, data->level);
-
-	return 0;
 }
 
 static CLASS_ATTR(debug_level, S_IRUGO | S_IWUSR, input_booster_get_debug_level, input_booster_set_debug_level);

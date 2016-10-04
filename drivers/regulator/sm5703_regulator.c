@@ -23,6 +23,7 @@
 #if (defined(CONFIG_SEC_J5_PROJECT) || defined(CONFIG_SEC_J5N_PROJECT)) && !defined(CONFIG_MACH_J5LTE_CHN_CMCC)  /* only for J5 LDO1 noise */
 #include <linux/battery/sec_charger.h>
 #endif
+
 #define ALIAS_NAME "sm5703-regulator"
 
 #define EN_BUCK_IRQ 0
@@ -387,7 +388,6 @@ static int sm5703_regulator_enable(struct regulator_dev *rdev)
 {
 	struct sm5703_regulator_info *info = rdev_get_drvdata(rdev);
 	int ret;
-
 	pr_info("%s Enable regulator %s\n", ALIAS_NAME, rdev->desc->name);
 	ret = sm5703_set_bits(info->i2c, info->enable_reg,
 			info->enable_bit);
@@ -409,7 +409,6 @@ static int sm5703_regulator_disable(struct regulator_dev *rdev)
 	return ret;
 }
 #endif
-
 static int sm5703_regulator_is_enabled(struct regulator_dev *rdev)
 {
 	struct sm5703_regulator_info *info = rdev_get_drvdata(rdev);

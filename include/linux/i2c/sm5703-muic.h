@@ -30,7 +30,7 @@ enum {
 
 struct sm5703_muic_platform_data {
     void (*callback)(enum cable_type_t cable_type, int attached);
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
     void (*lanhub_cb)(enum cable_type_t cable_type, int attached, bool lanhub_ta);
 #endif
     void (*oxp_callback)(int state);
@@ -53,7 +53,7 @@ extern void sm5703_muic_callback(enum cable_type_t cable_type, int attached);
 extern void sm5703_muic_oxp_callback(int state);
 extern int sm5703_muic_dock_init(void);
 extern int sm5703_muic_vbus_valid_state(void);
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 extern void sm5703_muic_lanhub_callback(enum cable_type_t cable_type, int attached, bool lanhub_ta);
 #endif
 #endif /* _SM5703_MUIC_H_ */

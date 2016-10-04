@@ -44,6 +44,7 @@
 #define USB_PTPREQUEST_GETSTATUS_SIZE 12
 
 struct mtp_event {
+/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
 	size_t length;
 	void *data;
 };

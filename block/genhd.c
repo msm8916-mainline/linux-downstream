@@ -575,7 +575,7 @@ exit:
 
 	/* announce possible partitions */
 	disk_part_iter_init(&piter, disk, 0);
-	while ((part = disk_part_iter_next(&piter))) {
+	while ((part = disk_part_iter_next(&piter))){
 		kobject_uevent(&part_to_dev(part)->kobj, KOBJ_ADD);
 		ST_LOG("<%s> KOBJ_ADD %d:%d",__func__,major,first_minor+part->partno);
 	}
@@ -685,7 +685,7 @@ void del_gendisk(struct gendisk *disk)
 #ifdef CONFIG_BLOCK_SUPPORT_STLOG
 	dev=disk_to_dev(disk);
 	ST_LOG("<%s> KOBJ_REMOVE %d:%d %s",
-		__func__,MAJOR(dev->devt),MINOR(dev->devt),dev->kobj.name);
+	__func__,MAJOR(dev->devt),MINOR(dev->devt),dev->kobj.name);
 #endif
 	device_del(disk_to_dev(disk));
 	blk_free_devt(disk_to_dev(disk)->devt);

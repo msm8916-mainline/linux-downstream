@@ -593,7 +593,7 @@ config HID_SAITEK
 
 config HID_SAMSUNG
 	tristate "Samsung InfraRed remote control or keyboards"
-	depends on USB_HID
+	depends on (USB_HID || HID)
 	---help---
 	Support for Samsung InfraRed remote control or keyboards.
 
@@ -735,6 +735,12 @@ config HID_WIIMOTE_EXT
 	here if you want to use the Nintendo Motion+, Nunchuck or Classic
 	extension controllers with your Wii Remote.
 
+config HID_ZAGG
+	tristate "ZAGG InfraRed remote control or keyboards"
+	depends on (USB_HID || BT_HIDP)
+	---help---
+	Support for ZAGG InfraRed remote control or keyboards.
+
 config HID_ZEROPLUS
 	tristate "Zeroplus based game controller support"
 	depends on HID
@@ -757,7 +763,7 @@ config HID_ZYDACRON
 
 config HID_SENSOR_HUB
 	tristate "HID Sensors framework support"
-	depends on HID
+	depends on HID && GENERIC_HARDIRQS
 	select MFD_CORE
 	default n
 	---help---
@@ -768,6 +774,13 @@ config HID_SENSOR_HUB
 	  drivers can use the service provided by this driver to register
 	  for events and handle data streams. Each sensor driver can format
 	  data and present to user mode using input or IIO interface.
+
+config HID_OVR
+	tristate "OVR device support"
+	depends on USB_HID
+	---help---
+	Support for OVR devices.
+	Say Y here if you have a OVR device.
 
 endmenu
 

@@ -489,12 +489,14 @@ static void msm_vfe44_process_reg_update(struct vfe_device *vfe_dev,
 		msm_isp_stats_stream_update(vfe_dev);
 	if (atomic_read(&vfe_dev->axi_data.axi_cfg_update))
 		msm_isp_axi_cfg_update(vfe_dev);
-	if (vfe_dev->axi_data.stream_update || atomic_read(&vfe_dev->stats_data.stats_update) || atomic_read(&vfe_dev->axi_data.axi_cfg_update)) {
+	if (vfe_dev->axi_data.stream_update ||
+		atomic_read(&vfe_dev->stats_data.stats_update) || atomic_read(&vfe_dev->axi_data.axi_cfg_update)) {
 		if (input_src & (1 << VFE_PIX_0)) {
 			vfe_dev->hw_info->vfe_ops.core_ops.reg_update(vfe_dev, (1 << VFE_PIX_0));
 		}
 	}
 	msm_isp_update_framedrop_reg(vfe_dev);
+	//msm_isp_update_stats_framedrop_reg(vfe_dev);
 	msm_isp_update_error_frame_count(vfe_dev);
 	if ((input_src & (1 << VFE_RAW_0)) || (input_src & (1 << VFE_RAW_1)) || (input_src & (1 << VFE_RAW_2))) {
 		vfe_dev->hw_info->vfe_ops.core_ops.reg_update(vfe_dev, input_src);
@@ -505,6 +507,7 @@ static void msm_vfe44_reg_update(struct vfe_device *vfe_dev, uint32_t input_src)
 {
 	msm_camera_io_w_mb(input_src, vfe_dev->vfe_base + 0x378);
 }
+
 static uint32_t msm_vfe44_reset_values[ISP_RST_MAX] =
 {
 	0x1FF, /* ISP_RST_HARD reset everything */
@@ -776,6 +779,7 @@ static void msm_vfe44_update_camif_state(struct vfe_device *vfe_dev,
 	if (update_state == NO_UPDATE)
 		return;
 
+	val = msm_camera_io_r(vfe_dev->vfe_base + 0x2F8);
 	if (update_state == ENABLE_CAMIF) {
 		val = msm_camera_io_r(vfe_dev->vfe_base + 0x28);
 		val |= 0xF5;

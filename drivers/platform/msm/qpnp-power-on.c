@@ -32,7 +32,6 @@
 	((unsigned char) (((1 << (NUM_BITS)) - 1) << (POS)))
 #define PON_MASK(MSB_BIT, LSB_BIT) \
 	CREATE_MASK(MSB_BIT - LSB_BIT + 1, LSB_BIT)
-
 #define WAKELOCK_ON_PWRKEY_PRESS
 #ifdef WAKELOCK_ON_PWRKEY_PRESS
 #include <linux/wakelock.h>
@@ -118,7 +117,6 @@
 #ifdef CONFIG_QCOM_HARDREBOOT_IMPLEMENTATION
 #define QPNP_PON_HARD_RESET_MASK		PON_MASK(7, 5)
 #endif
-
 #define QPNP_PON_UVLO_DLOAD_EN		BIT(7)
 
 /* Ranges */
@@ -161,7 +159,6 @@ struct qpnp_pon_config {
 	u16 s2_cntl2_addr;
 	bool old_state;
 	bool use_bark;
-	bool switch_powerkey;
 };
 
 struct qpnp_pon {
@@ -264,7 +261,6 @@ qpnp_pon_masked_write(struct qpnp_pon *pon, u16 addr, u8 mask, u8 val)
 			"Unable to write to addr=%hx, rc(%d)\n", addr, rc);
 	return rc;
 }
-
 #ifdef CONFIG_QCOM_HARDREBOOT_IMPLEMENTATION
 /**
  * qpnp_pon_set_restart_reason - Store device restart reason in PMIC register.
@@ -289,7 +285,7 @@ int qpnp_pon_set_restart_reason(enum pon_restart_reason reason)
 		return 0;
 
 	rc = qpnp_pon_masked_write(pon, QPNP_PON_SOFT_RB_SPARE(pon->base),
-					PON_MASK(7, 5), (reason << 5));
+					PON_MASK(7, 2), (reason << 2));
 	if (rc)
 		dev_err(&pon->spmi->dev,
 				"Unable to write to addr=%x, rc(%d)\n",
@@ -599,15 +595,10 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 	struct qpnp_pon_config *cfg = NULL;
 	u8 pon_rt_sts = 0, pon_rt_bit = 0;
 	u32 key_status;
-	int pwr_key;
+
 	cfg = qpnp_get_cfg(pon, pon_type);
 	if (!cfg)
 		return -EINVAL;
-
-	if (cfg->switch_powerkey)
-		pwr_key = KEY_END;
-	else
-		pwr_key = 116;
 
 	/* Check if key reporting is supported */
 	if (!cfg->key_code)
@@ -674,9 +665,9 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 		printk(KERN_INFO "%s: PWR key is %s\n",
 				__func__, (pon_rt_sts & pon_rt_bit) ? "pressed" : "released");
 
-	if((cfg->key_code == pwr_key) && (pon_rt_sts & pon_rt_bit)){
+	if((cfg->key_code == 116) && (pon_rt_sts & pon_rt_bit)){
 		pon->powerkey_state = 1;
-	}else if((cfg->key_code == pwr_key) && !(pon_rt_sts & pon_rt_bit)){
+	}else if((cfg->key_code == 116) && !(pon_rt_sts & pon_rt_bit)){
 		pon->powerkey_state = 0;
 	}
 
@@ -695,9 +686,6 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 		sec_debug_check_crash_key(cfg->key_code, pon->resin_state);
 	else
 #endif /* CONFIG_QPNP_RESIN */
-	if (cfg->switch_powerkey && cfg->key_code == KEY_END)
-		sec_debug_check_crash_key(116, key_status);
-	else
 		sec_debug_check_crash_key(cfg->key_code, pon->powerkey_state);
 #endif /* CONFIG_SEC_DEBUG */
 
@@ -970,7 +958,6 @@ qpnp_config_reset(struct qpnp_pon *pon, struct qpnp_pon_config *cfg)
 		dev_err(&pon->spmi->dev, "Unable to configure S2 timer\n");
 		return rc;
 	}
-
 #ifdef CONFIG_SEC_DEBUG
 	/* Configure reset type:
 	 * Debug level MID/HIGH: WARM Reset
@@ -982,7 +969,6 @@ qpnp_config_reset(struct qpnp_pon *pon, struct qpnp_pon_config *cfg)
 		cfg->s2_type = 8;
 	}
 #endif
-
 	rc = qpnp_pon_masked_write(pon, cfg->s2_cntl_addr,
 				QPNP_PON_S2_CNTL_TYPE_MASK, (u8)cfg->s2_type);
 	if (rc) {
@@ -1443,8 +1429,6 @@ static int qpnp_pon_config_init(struct qpnp_pon *pon)
 			dev_err(&pon->spmi->dev, "Unable to read pull-up\n");
 			return rc;
 		}
-		/* swtich bool for key_end to powerkey */
-		cfg->switch_powerkey = of_property_read_bool(pp, "switch_powerkey");
 	}
 
 	pmic_wd_bark_irq = spmi_get_irq_byname(pon->spmi, NULL, "pmic-wd-bark");
@@ -1577,7 +1561,7 @@ static struct kernel_param_ops module_ops = {
 	.get = param_get_bool,
 };
 
-module_param_cb(wake_enabled, &module_ops, &wake_enabled, 0644);
+module_param_cb(wake_enabled, &module_ops, &wake_enabled, 0664);
 
 static int qpnp_reset_enabled(const char *val, const struct kernel_param *kp)
 {
@@ -1611,7 +1595,7 @@ static struct kernel_param_ops reset_module_ops = {
 	.get = param_get_bool,
 };
 
-module_param_cb(reset_enabled, &reset_module_ops, &reset_enabled, 0644);
+module_param_cb(reset_enabled, &reset_module_ops, &reset_enabled, 0664);
 #endif
 
 
@@ -1969,8 +1953,8 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 	pon->store_hard_reset_reason = of_property_read_bool(
 					spmi->dev.of_node,
 					"qcom,store-hard-reset-reason");
-
 #endif
+
 	dev_set_drvdata(sec_powerkey, pon);
 	qpnp_pon_debugfs_init(spmi);
 	return rc;
@@ -2012,11 +1996,7 @@ static int __init qpnp_pon_init(void)
 {
 	return spmi_driver_register(&qpnp_pon_driver);
 }
-#ifdef CONFIG_ARCH_MSM8916
-subsys_initcall(qpnp_pon_init);
-#else
 module_init(qpnp_pon_init);
-#endif
 
 static void __exit qpnp_pon_exit(void)
 {

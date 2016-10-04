@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -498,12 +498,16 @@ static void voip_process_ul_pkt(uint8_t *voc_pkt,
 		pr_debug("%s: pkt_len =%d, frame.pktlen=%d, timestamp=%d\n",
 			 __func__, pkt_len, buf_node->frame.pktlen, timestamp);
 
-		prtd->pcm_capture_irq_pos += prtd->pcm_capture_count;
+		if (prtd->mode == MODE_PCM)
+			prtd->pcm_capture_irq_pos += buf_node->frame.pktlen;
+		else
+			prtd->pcm_capture_irq_pos += prtd->pcm_capture_count;
+
 		spin_unlock_irqrestore(&prtd->dsp_ul_lock, dsp_flags);
 		snd_pcm_period_elapsed(prtd->capture_substream);
 	} else {
 		spin_unlock_irqrestore(&prtd->dsp_ul_lock, dsp_flags);
-		pr_err("UL data dropped\n");
+		pr_debug("UL data dropped\n");
 	}
 
 	wake_up(&prtd->out_wait);
@@ -660,13 +664,17 @@ static void voip_process_dl_pkt(uint8_t *voc_pkt, void *private_data)
 		pr_debug("%s: frame.pktlen=%d\n", __func__,
 			 buf_node->frame.pktlen);
 
-		prtd->pcm_playback_irq_pos += prtd->pcm_count;
+		if (prtd->mode == MODE_PCM)
+			prtd->pcm_playback_irq_pos += buf_node->frame.pktlen;
+		else
+			prtd->pcm_playback_irq_pos += prtd->pcm_count;
+
 		spin_unlock_irqrestore(&prtd->dsp_lock, dsp_flags);
 		snd_pcm_period_elapsed(prtd->playback_substream);
 	} else {
 		*((uint32_t *)voc_pkt) = 0;
 		spin_unlock_irqrestore(&prtd->dsp_lock, dsp_flags);
-		pr_err("DL data not available\n");
+		pr_debug("DL data not available\n");
 	}
 	wake_up(&prtd->in_wait);
 }

@@ -597,7 +597,7 @@ config FLED_RT5033_EXT_GPIO
 	  Use GPIO pins to enable/disable torch and flash light.
 	  If unsure, say N.
 
-endchoice
+endchoice	 
 
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"

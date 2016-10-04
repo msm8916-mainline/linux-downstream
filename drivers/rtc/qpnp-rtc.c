@@ -495,9 +495,9 @@ rtc_rw_fail:
 #ifdef CONFIG_RTC_AUTO_PWRON
 static void sapa_reboot(struct work_struct *work)
 {
-	//machine_restart(NULL);
+	/* machine_restart(NULL); */
 	kernel_restart(NULL);
-	//panic("Test panic");
+	/* panic("Test panic"); */
 }
 
 #ifdef CONFIG_RTC_AUTO_PWRON_PARAM

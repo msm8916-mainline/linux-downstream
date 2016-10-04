@@ -158,6 +158,14 @@ static int mdss_cell_id_read(struct mdss_dsi_ctrl_pdata *ctrl)
 		for(loop = 0; loop < MAX_CELL_ID; loop++)
 			vdd->cell_id_dsi[ctrl->ndx][loop] = cell_id_buffer[loop];
 
+        if(vdd->mdnie_x[ctrl->ndx] && vdd->mdnie_y[ctrl->ndx]) {
+            vdd->cell_id_dsi[ctrl->ndx][7] = vdd->mdnie_x[ctrl->ndx] >> 8 & 0xff;
+            vdd->cell_id_dsi[ctrl->ndx][8] = vdd->mdnie_x[ctrl->ndx] & 0xff;
+            vdd->cell_id_dsi[ctrl->ndx][9] = vdd->mdnie_y[ctrl->ndx] >> 8 & 0xff;
+            vdd->cell_id_dsi[ctrl->ndx][10] = vdd->mdnie_y[ctrl->ndx] & 0xff;
+        } else
+            pr_err("%s: MDNIE X,Y Value is Zero \n", __func__);
+
 		pr_info("%s DSI%d: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
 			__func__, ctrl->ndx, vdd->cell_id_dsi[ctrl->ndx][0],
 			vdd->cell_id_dsi[ctrl->ndx][1],	vdd->cell_id_dsi[ctrl->ndx][2],
@@ -250,10 +258,10 @@ static struct dsi_panel_cmds *mdss_hbm_off(struct mdss_dsi_ctrl_pdata *ctrl, int
 #define COORDINATE_DATA_SIZE 6
 #define MDNIE_SCR_WR_ADDR 36
 
-#define F1(x,y) ((y)-((164*(x))/151)+8)
-#define F2(x,y) ((y)-((70*(x))/67)-7)
-#define F3(x,y) ((y)+((181*(x))/35)-18852)
-#define F4(x,y) ((y)+((157*(x))/52)-12055)
+#define F1(x,y) ((y)-((547*(x))/503)+31)
+#define F2(x,y) ((y)-((467*(x))/447)-25)
+#define F3(x,y) ((y)+((201*(x))/39)-18718)
+#define F4(x,y) ((y)+((523*(x))/173)-12111)
 
 static char coordinate_data[][COORDINATE_DATA_SIZE] = {
 	{0xff, 0x00, 0xff, 0x00, 0xff, 0x00}, /* dummy */
@@ -267,6 +275,7 @@ static char coordinate_data[][COORDINATE_DATA_SIZE] = {
 	{0xfa, 0x00, 0xff, 0x00, 0xfa, 0x00}, /* Tune_8 */
 	{0xf9, 0x00, 0xff, 0x00, 0xff, 0x00}, /* Tune_9 */
 };
+
 
 static int mdnie_coordinate_index(int x, int y)
 {
@@ -421,7 +430,10 @@ static struct dsi_panel_cmds * mdss_acl_on(struct mdss_dsi_ctrl_pdata *ctrl, int
 
 	*level_key = PANEL_LEVE1_KEY;
 
-	return &(vdd->dtsi_data[ctrl->ndx].acl_on_tx_cmds[vdd->panel_revision]);
+	if (vdd->bl_level == 255 && vdd->weakness_hbm_comp == 2)
+		return &(vdd->dtsi_data[ctrl->ndx].acl_off_tx_cmds[vdd->panel_revision]);
+	else
+		return &(vdd->dtsi_data[ctrl->ndx].acl_on_tx_cmds[vdd->panel_revision]);
 }
 
 static struct dsi_panel_cmds * mdss_acl_off(struct mdss_dsi_ctrl_pdata *ctrl, int *level_key)
@@ -434,8 +446,11 @@ static struct dsi_panel_cmds * mdss_acl_off(struct mdss_dsi_ctrl_pdata *ctrl, in
 	}
 
 	*level_key = PANEL_LEVE1_KEY;
-
-	return &(vdd->dtsi_data[ctrl->ndx].acl_off_tx_cmds[vdd->panel_revision]);
+	
+	if (vdd->bl_level == 255 && vdd->weakness_hbm_comp == 2)
+		return &(vdd->dtsi_data[ctrl->ndx].acl_off_tx_cmds[vdd->panel_revision]);
+	else
+		return &(vdd->dtsi_data[ctrl->ndx].acl_on_tx_cmds[vdd->panel_revision]);
 }
 
 static struct dsi_panel_cmds elvss_cmd;
@@ -642,6 +657,10 @@ static void dsi_update_mdnie_data(void)
 	mdnie_data.DSI0_CAMERA_OUTDOOR_MDNIE = DSI0_CAMERA_OUTDOOR_MDNIE;
 	mdnie_data.DSI0_CAMERA_MDNIE = DSI0_CAMERA_MDNIE;
 	mdnie_data.DSI0_CAMERA_AUTO_MDNIE = DSI0_CAMERA_AUTO_MDNIE;
+	mdnie_data.DSI0_CAMERA_DYNAMIC_MDNIE = DSI0_CAMERA_DYNAMIC_MDNIE;
+	mdnie_data.DSI0_CAMERA_STANDARD_MDNIE = DSI0_CAMERA_STANDARD_MDNIE;
+	mdnie_data.DSI0_CAMERA_NATURAL_MDNIE = DSI0_CAMERA_NATURAL_MDNIE;
+	mdnie_data.DSI0_CAMERA_MOVIE_MDNIE= DSI0_CAMERA_MOVIE_MDNIE;
 	mdnie_data.DSI0_GALLERY_DYNAMIC_MDNIE = DSI0_GALLERY_DYNAMIC_MDNIE;
 	mdnie_data.DSI0_GALLERY_STANDARD_MDNIE = DSI0_GALLERY_STANDARD_MDNIE;
 	mdnie_data.DSI0_GALLERY_NATURAL_MDNIE = DSI0_GALLERY_NATURAL_MDNIE;
@@ -669,6 +688,9 @@ static void dsi_update_mdnie_data(void)
 	mdnie_data.DSI0_TDMB_MOVIE_MDNIE = DSI0_UI_MOVIE_MDNIE;
 	mdnie_data.DSI0_TDMB_AUTO_MDNIE = DSI0_UI_AUTO_MDNIE;
 
+	mdnie_data.DSI0_GRAYSCALE_MDNIE = DSI0_GRAYSCALE_MDNIE;
+	mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE = DSI0_GRAYSCALE_NEGATIVE_MDNIE;
+
 	mdnie_data.mdnie_tune_value_dsi0 = mdnie_tune_value_dsi0;
 
 	/* Update MDNIE data related with size, offset or index */
@@ -687,7 +709,11 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 {
 	pr_info("%s\n", __func__);
 
+#if defined (CONFIG_MACH_J3LTE_CHN_CTC)
+	vdd->support_mdnie_lite = false;
+#else
 	vdd->support_mdnie_lite = true;
+#endif
 
 	vdd->mdnie_tune_size1 = 4;
 	vdd->mdnie_tune_size2 = 131;

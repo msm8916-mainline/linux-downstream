@@ -194,7 +194,7 @@ static void dsi_update_mdnie_data(void)
 	mdnie_data.dsi0_rgb_sensor_mdnie_2_size = 0;
 }
 
-void mdss_panel_init(struct samsung_display_driver_data *vdd)
+static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 {
 	pr_info("%s : %s", __func__, vdd->panel_name);
 
@@ -240,8 +240,8 @@ void mdss_panel_init(struct samsung_display_driver_data *vdd)
 static int __init samsung_panel_init(void)
 {
 	struct samsung_display_driver_data *vdd = samsung_get_vdd();
-	char panel_string[] = "ss_dsi_panel_S6D77A1A01_WVGA";
-
+	char panel_string[] = "qcom,mdss_dsi_S6D77A1A01_wvga_video";
+/*please rework as char panel_string[] = "ss_dsi_panel_S6D77A1A01_WVGA";*/
 	vdd->panel_name = mdss_mdp_panel + 8;
 	pr_info("%s : %s\n", __func__, vdd->panel_name);
 

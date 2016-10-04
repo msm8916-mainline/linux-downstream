@@ -46,7 +46,6 @@ extern char outdoor_name[][NAME_STRING_MAX];
 extern struct mdnie_lite_tune_data mdnie_data;
 
 #define APP_ID_TDMB (20)	/* for fake_id() */
-#define APP_ID_ISDBT (35)  /* for fake_id() */
 
 enum BYPASS {
 	BYPASS_DISABLE = 0,
@@ -66,7 +65,6 @@ enum APP {
 	eBOOK_APP,
 	EMAIL_APP,
 	TDMB_APP,	/* is linked to APP_ID_TDMB */
-	ISDBT_APP,
 	MAX_APP_MODE,
 };
 
@@ -214,6 +212,10 @@ struct mdnie_lite_tune_data {
 	struct dsi_cmd_desc *DSI0_CAMERA_OUTDOOR_MDNIE;
 	struct dsi_cmd_desc *DSI0_CAMERA_MDNIE;
 	struct dsi_cmd_desc *DSI0_CAMERA_AUTO_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_DYNAMIC_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_STANDARD_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_NATURAL_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_MOVIE_MDNIE;
 	struct dsi_cmd_desc *DSI0_GALLERY_DYNAMIC_MDNIE;
 	struct dsi_cmd_desc *DSI0_GALLERY_STANDARD_MDNIE;
 	struct dsi_cmd_desc *DSI0_GALLERY_NATURAL_MDNIE;
@@ -240,11 +242,6 @@ struct mdnie_lite_tune_data {
 	struct dsi_cmd_desc *DSI0_TDMB_NATURAL_MDNIE;
 	struct dsi_cmd_desc *DSI0_TDMB_MOVIE_MDNIE;
 	struct dsi_cmd_desc *DSI0_TDMB_AUTO_MDNIE;
-	struct dsi_cmd_desc *DSI0_ISDBT_DYNAMIC_MDNIE;
-	struct dsi_cmd_desc *DSI0_ISDBT_STANDARD_MDNIE;
-	struct dsi_cmd_desc *DSI0_ISDBT_NATURAL_MDNIE;
-	struct dsi_cmd_desc *DSI0_ISDBT_MOVIE_MDNIE;
-	struct dsi_cmd_desc *DSI0_ISDBT_AUTO_MDNIE;
 
 	struct dsi_cmd_desc *(*mdnie_tune_value_dsi0)[MAX_MODE][MAX_OUTDOOR_MODE];
 	struct dsi_cmd_desc **hmt_color_temperature_tune_value_dsi0;

@@ -111,6 +111,7 @@ enum mdss_bus_clients {
 	MDSS_MDP_RT,
 	MDSS_DSI_RT,
 	MDSS_MDP_NRT,
+	MDSS_IOMMU_RT,
 	MDSS_MAX_BUS_CLIENTS
 };
 
@@ -123,9 +124,10 @@ struct mdss_data_type {
 	struct regulator *batfet;
 	u32 max_mdp_clk_rate;
 	struct mdss_util_intf *mdss_util;
-
+#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 	char __iomem *mdss_base;
 	size_t mdp_reg_size;
+#endif
 
 	struct platform_device *pdev;
 	struct dss_io_data mdss_io;
@@ -189,6 +191,7 @@ struct mdss_data_type {
 	struct mdss_fudge_factor ib_factor;
 	struct mdss_fudge_factor ib_factor_overlap;
 	struct mdss_fudge_factor ib_factor_cmd;
+        struct mdss_fudge_factor ib_factor_single;
 	struct mdss_fudge_factor clk_factor;
 
 	u32 disable_prefill;
@@ -294,6 +297,7 @@ struct mdss_util_intf {
 	void (*bus_bandwidth_ctrl)(int enable);
 	int (*bus_scale_set_quota)(int client, u64 ab_quota, u64 ib_quota);
 	struct mdss_panel_cfg* (*panel_intf_type)(int intf_val);
+	int (*dyn_clk_gating_ctrl)(int enable);
 };
 
 struct mdss_util_intf *mdss_get_util_intf(void);

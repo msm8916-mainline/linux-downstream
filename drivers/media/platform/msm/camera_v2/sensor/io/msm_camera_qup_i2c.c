@@ -13,7 +13,6 @@
 #include <soc/qcom/camera2.h>
 #include "msm_camera_i2c.h"
 
-//#define CONFIG_MSMB_CAMERA_DEBUG 1
 #undef CDBG
 #ifdef CONFIG_MSMB_CAMERA_DEBUG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)

@@ -63,16 +63,11 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 			pr_info("[VIB] No Use Timer %d \n", value);
 		}
 		else	{
-			value = (value > vib->timeout ?
-					vib->timeout : value);
-			
-			hrtimer_start(&vib->vib_timer,
-					ktime_set(value / 1000, (value % 1000) * 1000000),
-					HRTIMER_MODE_REL);
+			value = (value > vib->timeout ?	vib->timeout : value);			hrtimer_start(&vib->vib_timer,ktime_set(value / 1000, (value % 1000) * 1000000),HRTIMER_MODE_REL);
                 }
 	}
 	mutex_unlock(&vib->lock);
-	queue_work(vib->queue, &vib->work);	
+	queue_work(vib->queue, &vib->work);
 }
 
 static void msm_vibrator_update(struct work_struct *work)
@@ -85,14 +80,11 @@ static void msm_vibrator_update(struct work_struct *work)
 
 static int vibrator_get_time(struct timed_output_dev *dev)
 {
-	struct msm_vib *vib = container_of(dev, struct msm_vib,
-							 timed_dev);
-
-	if (hrtimer_active(&vib->vib_timer)) {
+	struct msm_vib *vib = container_of(dev, struct msm_vib, timed_dev);	if (hrtimer_active(&vib->vib_timer)) {
 		ktime_t r = hrtimer_get_remaining(&vib->vib_timer);
 		return (int)ktime_to_us(r);
 	}
-	else 
+	else
 		return 0;
 }
 
@@ -189,9 +181,7 @@ static int msm_vibrator_probe(struct platform_device *pdev)
 		pr_err("[VIB] timed_output_dev_register fail (rc=%d)\n", rc);
 		goto err_read_vib;
 	}
-	
 	return 0;
-
 err_read_vib:
 	destroy_workqueue(vib->queue);
 	return rc;

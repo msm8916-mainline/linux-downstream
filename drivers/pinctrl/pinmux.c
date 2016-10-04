@@ -110,13 +110,17 @@ static int pin_request(struct pinctrl_dev *pctldev,
 
 		desc->gpio_owner = owner;
 	} else {
-		if (0/*desc->mux_usecount && strcmp(desc->mux_owner, owner)*/) {
+#if 0
+		/*Temporary blocking as gpio_request for both front and rear camera is failing
+		QC case: 01830755
+		*/
+		if (desc->mux_usecount && strcmp(desc->mux_owner, owner)) {
 			dev_err(pctldev->dev,
 				"pin %s already requested by %s; cannot claim for %s\n",
 				desc->name, desc->mux_owner, owner);
 			goto out;
 		}
-
+#endif
 		desc->mux_usecount++;
 		if (desc->mux_usecount > 1)
 			return 0;
