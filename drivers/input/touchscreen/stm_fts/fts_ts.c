@@ -104,6 +104,31 @@ static int fts_resume(struct i2c_client *client);
 
 int fts_wait_for_ready(struct fts_ts_info *info);
 
+#ifdef FTS_SUPPORT_TOUCH_KEY
+struct fts_touchkey fts_touchkeys[] = {
+	{
+		.value = 0x01,
+		.keycode = KEY_DUMMY_MENU,
+		.name = "d_menu",
+	},
+	{
+		.value = 0x02,
+		.keycode = KEY_RECENT,
+		.name = "menu",
+	},
+	{
+		.value = 0x04,
+		.keycode = KEY_BACK,
+		.name = "back",
+	},
+	{
+		.value = 0x08,
+		.keycode = KEY_DUMMY_BACK,
+		.name = "d_back",
+	},
+};
+#endif // FTS_SUPPORT_TOUCH_KEY
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void fts_early_suspend(struct early_suspend *h)
 {
@@ -217,7 +242,7 @@ static void fts_interrupt_set(struct fts_ts_info *info, int enable)
 
 	fts_write_reg(info, &regAdd[0], 4);
 }
-
+#ifdef CLEAR_COVER
 static void fts_set_flipcover_mode(struct fts_ts_info *info, bool enable)
 {
 	if (enable)
@@ -225,7 +250,7 @@ static void fts_set_flipcover_mode(struct fts_ts_info *info, bool enable)
 	else
 		fts_command(info, FTS_CMD_FLIPCOVER_OFF);
 }
-
+#endif
 int fts_wait_for_ready(struct fts_ts_info *info)
 {
 	int rc;
@@ -402,135 +427,84 @@ static int fts_set_noise_param(struct fts_ts_info *info)
 }
 #endif// FTS_SUPPORT_NOISE_PARAM
 
-#ifdef TOUCH_BOOSTER_DVFS
-int useing_in_tsp_or_epen = 0;
-static void fts_change_dvfs_lock(struct work_struct *work)
+#ifdef USE_WARKAROUND_CODE
+static void fts_gpio_work(struct work_struct *work)
 {
 	struct fts_ts_info *info =
-		container_of(work, struct fts_ts_info, work_dvfs_chg.work);
-	int retval = 0;
-
-	mutex_lock(&info->dvfs_lock);
-
-	if (info->dvfs_boost_mode == DVFS_STAGE_DUAL) {
-        if (info->stay_awake) {
-            dev_info(&info->client->dev,
-                "%s: do fw update, do not change cpu frequency.\n",
-                __func__);
-        } else {
-            retval = set_freq_limit(DVFS_TOUCH_ID,
-                MIN_TOUCH_LIMIT_SECOND);
-            info->dvfs_freq = MIN_TOUCH_LIMIT_SECOND;
-		}
-    } else if (info->dvfs_boost_mode == DVFS_STAGE_SINGLE ||
-        info->dvfs_boost_mode == DVFS_STAGE_TRIPLE) {
-	        retval = set_freq_limit(DVFS_TOUCH_ID, -1);
-	        info->dvfs_freq = -1;
-	}
-    if (retval < 0)
-        dev_err(&info->client->dev,
-            "%s: booster change failed(%d).\n",
-            __func__, retval);
-
-	mutex_unlock(&info->dvfs_lock);
-}
-
-static void fts_set_dvfs_off(struct work_struct *work)
-{
-	struct fts_ts_info *info =
-		container_of(work, struct fts_ts_info, work_dvfs_off.work);
+		container_of(work, struct fts_ts_info, work_io_gpio.work);
 	int retval;
 
-	if (info->stay_awake) {
-		dev_info(&info->client->dev,
-			"%s: do fw update, do not change cpu frequency.\n",
-			__func__);
+	retval = gpio_get_value(info->pdata->gpio_io_en);
+
+	pr_info("%s: gpio : %d\n", __func__, retval);
+
+	if (retval) {
+		schedule_delayed_work(&info->work_io_gpio,
+			msecs_to_jiffies(1 * 1000));
 	} else {
-		mutex_lock(&info->dvfs_lock);
+		gpio_direction_output(info->pdata->gpio_io_en, 1);
+		fts_delay(30);
 
-		if((useing_in_tsp_or_epen & 0x01)== 0x01){
-			useing_in_tsp_or_epen = 0x01;
-			retval = 0;
-		}else{
-        retval = set_freq_limit(DVFS_TOUCH_ID, -1);
-		useing_in_tsp_or_epen = 0;
-		}
-        info->dvfs_freq = -1;
-
-        if (retval < 0)
-			dev_err(&info->client->dev,
-				"%s: booster stop failed(%d).\n",
-				__func__, retval);
-		info->dvfs_lock_status = false;
-		mutex_unlock(&info->dvfs_lock);
+		fts_stop_device(info);
+		fts_delay(30);
+		fts_start_device(info);
 	}
 }
+#endif
 
-static void fts_set_dvfs_lock(struct fts_ts_info *info, int on)
+#ifdef FTS_SUPPORT_TOUCH_KEY
+void fts_release_all_key(struct fts_ts_info *info)
 {
-	int ret = 0;
+	//int i = 0;
+	if (info->tsp_keystatus != TOUCH_KEY_NULL) {
 
-	if (info->dvfs_boost_mode == DVFS_STAGE_NONE) {
-                dev_dbg(&info->client->dev,
-			"%s: DVFS stage is none(%d)\n",
-			__func__, info->dvfs_boost_mode);
-		return;
-	}
-
-	mutex_lock(&info->dvfs_lock);
-    if (on == 0) {
-		if (info->dvfs_lock_status){
-			schedule_delayed_work(&info->work_dvfs_off,
-				msecs_to_jiffies(TOUCH_BOOSTER_OFF_TIME));
-		}
-	} else if (on > 0) {
-		cancel_delayed_work(&info->work_dvfs_off);
-
-		if ((!info->dvfs_lock_status) || (info->dvfs_old_stauts < on)) {
-			cancel_delayed_work(&info->work_dvfs_chg);
-			useing_in_tsp_or_epen = useing_in_tsp_or_epen | 0x2;
-
-
-            if (info->dvfs_freq != MIN_TOUCH_LIMIT) {
-                if (info->dvfs_boost_mode == DVFS_STAGE_TRIPLE)
-                    ret = set_freq_limit(DVFS_TOUCH_ID,
-                            MIN_TOUCH_LIMIT_SECOND);
-                else
-                    ret = set_freq_limit(DVFS_TOUCH_ID,
-                            MIN_TOUCH_LIMIT);
-                info->dvfs_freq = MIN_TOUCH_LIMIT;
-
+		/* menu key check*/
+		if (info->tsp_keystatus & TOUCH_KEY_RECENT) {
+			if(info->ignore_menu_key) {
+				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] Ignore menu R! by dummy key\n");
+			} else if (info->ignore_menu_key_by_back) {
+				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] Ignore menu R! by back key\n");
+			} else {
+				input_report_key(info->input_dev, KEY_RECENT, KEY_RELEASE);
+				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] Recent R!\n");
 			}
-			schedule_delayed_work(&info->work_dvfs_chg,
-				msecs_to_jiffies(TOUCH_BOOSTER_CHG_TIME));
-			
-			if (ret < 0)
-				dev_err(&info->client->dev,
-					"%s: cpu first lock failed(%d)\n",
-						__func__, ret);
-			info->dvfs_lock_status = true;
 		}
-    } else if (on < 0) {
-		if (info->dvfs_lock_status) {
-			cancel_delayed_work(&info->work_dvfs_off);
-			cancel_delayed_work(&info->work_dvfs_chg);
-			schedule_work(&info->work_dvfs_off.work);
+
+		/* back key check*/
+		if (info->tsp_keystatus & TOUCH_KEY_BACK) {
+			if (info->ignore_back_key) {
+				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] Ignore back R! by dummy key\n");
+			} else if (info->ignore_back_key_by_menu) {
+				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] Ignore back R! by menu key\n");
+			} else {
+				input_report_key(info->input_dev, KEY_BACK, KEY_RELEASE);
+				tsp_debug_info(true, &info->client->dev, "[TSP_KEY] back R!\n");
+			}
 		}
+
+		if (info->report_dummy_key){
+			printk("\n Inside Report DUMMY KEYS RELEASe ALWAYS \n");
+			input_report_key(info->input_dev, KEY_DUMMY_MENU, KEY_RELEASE);
+			tsp_debug_info(true, &info->client->dev, "[TSP_KEY]DUMMY  menu R!\n");
+			input_report_key(info->input_dev, KEY_DUMMY_BACK, KEY_RELEASE);
+			tsp_debug_info(true, &info->client->dev, "[TSP_KEY]DUMMY  back R!\n");
+		}
+		input_sync(info->input_dev);
+
+		info->tsp_keystatus = TOUCH_KEY_NULL;
+
+		if (info->ignore_menu_key) {
+			info->ignore_menu_key = false;
+			tsp_debug_info(true, &info->client->dev, "[TSP_KEY] ignore_menu_key Disable!\n");
+		}
+		if (info->ignore_back_key) {
+			info->ignore_back_key = false;
+			tsp_debug_info(true, &info->client->dev, "[TSP_KEY] ignore_back_key Disable!\n");
+		}
+
+		info->ignore_back_key_by_menu = false;
+		info->ignore_menu_key_by_back = false;
 	}
-	info->dvfs_old_stauts = on;
-	mutex_unlock(&info->dvfs_lock);
-}
-
-static int fts_init_dvfs(struct fts_ts_info *info)
-{
-	mutex_init(&info->dvfs_lock);
-	info->dvfs_boost_mode = DVFS_STAGE_DUAL;
-
-	INIT_DELAYED_WORK(&info->work_dvfs_off, fts_set_dvfs_off);
-	INIT_DELAYED_WORK(&info->work_dvfs_chg, fts_change_dvfs_lock);
-
-	info->dvfs_lock_status = false;
-	return 0;
 }
 #endif
 
@@ -593,6 +567,10 @@ static int fts_init(struct fts_ts_info *info)
 
 	fts_command(info, SENSEON);
 
+#ifdef FTS_SUPPORT_TOUCH_KEY
+		info->fts_command(info, FTS_CMD_KEY_SENSE_ON);
+#endif
+
 #ifdef FTS_SUPPORT_NOISE_PARAM
 	fts_get_noise_param_address(info);
 #endif
@@ -600,7 +578,13 @@ static int fts_init(struct fts_ts_info *info)
 	info->hover_enabled = false;
 	info->hover_ready = false;
 	info->slow_report_rate = false;
+#ifdef CLEAR_COVER	
 	info->flip_enable = false;
+#endif
+
+#ifdef FTS_SUPPORT_TOUCH_KEY
+	info->tsp_keystatus = 0x00;
+#endif // FTS_SUPPORT_TOUCH_KEY
 
 #ifdef SEC_TSP_FACTORY_TEST
 	rc = getChannelInfo(info);
@@ -619,6 +603,11 @@ static int fts_init(struct fts_ts_info *info)
 		tsp_debug_info(true, &info->client->dev, "FTS pFrame kzalloc Failed\n");
 		return 1;
 	}
+	
+	info->cx_data = kzalloc(info->SenseChannelLength * info->ForceChannelLength, GFP_KERNEL);
+	if (!info->cx_data)
+		dev_err(&info->client->dev, "%s: cx_data kzalloc Failed\n", __func__);
+
 #endif
 
 	fts_command(info, FORCECALIBRATION);
@@ -643,7 +632,7 @@ static void fts_unknown_event_handler(struct fts_ts_info *info,
 				      unsigned char data[])
 {
 	tsp_debug_dbg(true, &info->client->dev,
-	       "FTS Unknown Event %02X %02X %02X %02X %02X %02X %02X %02X\n",
+	       "FTS Status Event %02X %02X %02X %02X %02X %02X %02X %02X\n",
 	       data[0], data[1], data[2], data[3], data[4], data[5], data[6],
 	       data[7]);
 }
@@ -660,6 +649,11 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 	int bw = 0, bh = 0, palm = 0;
  	int sumsize = 0;	
 
+#ifdef FTS_SUPPORT_TOUCH_KEY
+	unsigned char change_keys;
+	unsigned char key_state;
+	unsigned char input_keys;
+#endif // FTS_SUPPORT_TOUCH_KEY
 
 	for (EventNum = 0; EventNum < LeftEvent; EventNum++) {
 
@@ -770,6 +764,7 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 					 ABS_MT_TOUCH_MINOR, min(bw,
 								 bh));
 			
+
 			input_report_abs(info->input_dev, ABS_MT_PALM,
 					 palm);
 
@@ -799,13 +794,15 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 				tm = info->touch_mode;
 				input_report_switch(info->input_dev, SW_GLOVE, tm);
 #endif
-			} else if ((data[1 + EventNum * FTS_EVENT_SIZE] & 0x0f) == 0x0d) {
-				unsigned char regAdd[4] = {0xB0, 0x01, 0x29, 0x01};
-				fts_write_reg(info, &regAdd[0], 4);
+			} else if ((data[1 + EventNum * FTS_EVENT_SIZE] ) == 0x0d) {
+				if (info->board->support_hover) {
+					unsigned char regAdd[4] = {0xB0, 0x01, 0x29, 0x01};
+					fts_write_reg(info, &regAdd[0], 4);
 
-				info->hover_ready = true;
+					info->hover_ready = true;
 
-				tsp_debug_info(true, &info->client->dev, "[FTS] Received the Hover Raw Data Ready Event\n");
+					tsp_debug_info(true, &info->client->dev, "[FTS] Received the Hover Raw Data Ready Event\n");
+				}
 			} else {
 				fts_unknown_event_handler(info,
 						  &data[EventNum *
@@ -838,25 +835,41 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 #else
 		if (EventID == EVENTID_ENTER_POINTER)
 			tsp_debug_info(true, &info->client->dev,
-			       "[P] tID:%d tc:%d tm:%d\n",
-			       TouchID, info->touch_count, info->touch_mode);
+			       "[P] tID:%d w:%d h:%d z:%d s:%d p:%d tc:%d tm:%d\n",
+			       TouchID, bw, bh, z, sumsize, palm, info->touch_count, info->touch_mode);
 		else if (EventID == EVENTID_HOVER_ENTER_POINTER)
 			tsp_debug_dbg(true, &info->client->dev,
 				"[HP] tID:%d\n", TouchID);
 #endif
 		else if (EventID == EVENTID_LEAVE_POINTER) {
+#ifndef CLEAR_COVER	
+			tsp_debug_info(true, &info->client->dev,
+			       "[R] tID:%d mc: %d tc:%d Ver[%02X%04X%01X]\n",
+			       TouchID, info->finger[TouchID].mcount, info->touch_count,
+			       info->panel_revision, info->fw_main_version_of_ic,
+			        info->mshover_enabled);
+#else
 			tsp_debug_info(true, &info->client->dev,
 			       "[R] tID:%d mc: %d tc:%d Ver[%02X%04X%01X%01X]\n",
 			       TouchID, info->finger[TouchID].mcount, info->touch_count,
 			       info->panel_revision, info->fw_main_version_of_ic,
 			       info->flip_enable, info->mshover_enabled);
+#endif
 			info->finger[TouchID].mcount = 0;
 		} else if (EventID == EVENTID_HOVER_LEAVE_POINTER) {
+#ifndef CLEAR_COVER	
+			tsp_debug_dbg(true, &info->client->dev,
+			       "[HR] tID:%d Ver[%02X%04X %01X]\n",
+			       TouchID,
+			       info->panel_revision, info->fw_main_version_of_ic,
+			       info->mshover_enabled);
+#else
 			tsp_debug_dbg(true, &info->client->dev,
 			       "[HR] tID:%d Ver[%02X%04X%01X%01X]\n",
 			       TouchID,
 			       info->panel_revision, info->fw_main_version_of_ic,
 			       info->flip_enable, info->mshover_enabled);
+#endif
 			info->finger[TouchID].mcount = 0;
 		} else if (EventID == EVENTID_MOTION_POINTER)
 			info->finger[TouchID].mcount++;
@@ -869,24 +882,29 @@ static unsigned char fts_event_handler_type_b(struct fts_ts_info *info,
 
 	input_sync(info->input_dev);
 
-#ifdef TOUCH_BOOSTER_DVFS
-	if ((EventID == EVENTID_ENTER_POINTER)
-	    || (EventID == EVENTID_LEAVE_POINTER)) {
-			fts_set_dvfs_lock(info, info->touch_count);
+#ifdef TSP_BOOSTER
+	if ((EventID == EVENTID_ENTER_POINTER) || (EventID == EVENTID_LEAVE_POINTER)) {
+		if(info->touch_count > 0){
+			if (info->booster && info->booster->dvfs_set)
+				info->booster->dvfs_set(info->booster, 1);
+		}else{
+			if (info->booster && info->booster->dvfs_set)
+				info->booster->dvfs_set(info->booster, 0);
+		}
 	}
 #endif
 	return LastLeftEvent;
 }
 
-#ifdef FTS_SUPPORT_TA_MODE
-static void fts_ta_cb(struct fts_callbacks *cb, int ta_status)
+#ifdef USE_TSP_TA_CALLBACKS
+static void fts_ta_cb(struct tsp_callbacks *cb, int ta_status)
 {
 	struct fts_ts_info *info =
 	    container_of(cb, struct fts_ts_info, callbacks);
 
 	pr_err("[TSP]%s: ta:%d\n",	__func__, ta_status);
 
-	if (ta_status == 0x01 || ta_status == 0x03) {
+	if (ta_status) {
 		fts_command(info, FTS_CMD_CHARGER_PLUGGED);
 		info->TA_Pluged = true;
 		tsp_debug_info(true, &info->client->dev,
@@ -968,7 +986,8 @@ static int fts_irq_enable(struct fts_ts_info *info,
 }
 
 #ifdef CONFIG_OF
-u32 gpio_ldo_en_p;
+static int gpio_ldo_en_p;
+static int gpio_io_en_p;
 struct regulator *i2c_vddo_vreg = NULL;
 
 static int fts_pinctrl_configure(struct fts_ts_info *info, bool active)
@@ -1024,6 +1043,12 @@ int fts_vdd_on(bool onoff)
 //	usleep_range(1000, 1100);
 	msleep(10);
 
+	if (gpio_io_en_p > 0) {
+		rc = gpio_direction_output(gpio_io_en_p, onoff);
+
+		pr_err("[TSP] %s: 1.8V power supply, %d, %d\n", __func__, rc, gpio_io_en_p);
+	}
+
 	if(i2c_vddo_vreg != NULL){
 		if(onoff){
 				rc = regulator_enable(i2c_vddo_vreg);
@@ -1062,6 +1087,15 @@ void fts_init_gpio(struct fts_ts_info *info, struct fts_ts_platform_data *pdata)
 		}
 	}
 
+	if (pdata->gpio_io_en > 0) {
+		ret = gpio_request(pdata->gpio_io_en, "fts_gpio_io_en");
+		if(ret) {
+			tsp_debug_err(true, &info->client->dev, "[TSP]%s: unable to request gpio_io_en [%d]\n",
+				__func__, pdata->gpio_ldo_en);
+			return;
+		}
+	}
+
 }
 static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 {
@@ -1086,9 +1120,12 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 	pdata->gpio_ldo_en = of_get_named_gpio(np, "fts,vdd_en-gpio", 0);
 	if(pdata->gpio_ldo_en < 0){
 		dev_err(dev, "unable to get gpio_ldo_en...ignoring\n");
-	}	
+	}
 
-	printk(KERN_INFO "[TSP]%s: vdd en :%d, irq:%d, scl:%d, sda:%d \n",__func__, pdata->gpio_ldo_en, pdata->gpio_int, pdata->gpio_scl, pdata->gpio_sda);
+	pdata->gpio_io_en = of_get_named_gpio(np, "fts,vdd_io-gpio", 0);
+	printk(KERN_INFO "[TSP]%s: vdd en :%d, irq:%d, scl:%d, sda:%d, vdd_io en:%d\n",
+			__func__, pdata->gpio_ldo_en, pdata->gpio_int,
+			pdata->gpio_scl, pdata->gpio_sda, pdata->gpio_io_en);
 
 	return 0;
 }
@@ -1129,6 +1166,14 @@ static int __init fts_read_lcd_id(char *mode)
 __setup("lcd_id=0x", fts_read_lcd_id);
 #endif
 
+#ifdef USE_TSP_TA_CALLBACKS
+void fts_register_callback(struct tsp_callbacks *cb)
+{
+	charger_callbacks = cb;
+	pr_info("%s\n", __func__);
+}
+#endif
+
 static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 {
 	int retval;
@@ -1141,6 +1186,9 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	int i = 0;
 #ifdef SEC_TSP_FACTORY_TEST
 	int ret;
+#endif
+#ifdef FTS_SUPPORT_TOUCH_KEY
+	struct device *touchkey;
 #endif
 	tsp_debug_info(true, &client->dev, "FTS Driver [12%s] %s %s\n",
 	       FTS_TS_DRV_VERSION, __DATE__, __TIME__);
@@ -1169,6 +1217,11 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 		
 		fts_init_gpio(info, pdata);
 		gpio_ldo_en_p = pdata->gpio_ldo_en;
+		gpio_io_en_p = pdata->gpio_io_en;
+
+#ifdef USE_TSP_TA_CALLBACKS
+		pdata->register_cb = fts_register_callback;
+#endif		
 		
 	}else{
 		tsp_debug_err(true, &client->dev, "%s, of-node error %d\n",__func__,__LINE__);
@@ -1202,8 +1255,16 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	board_p->max_y = 1280;
 	board_p->project_name = "N750X";
 	board_p->max_width = 28;
+#ifdef CONFIG_SEC_E7_PROJECT
+	board_p->support_hover = false;
+#else
 	board_p->support_hover = true;
+#endif
 	board_p->support_mshover = true;
+#ifdef FTS_SUPPORT_TOUCH_KEY
+	board_p->num_touchkey = ARRAY_SIZE(fts_touchkeys);
+	board_p->touchkey = fts_touchkeys;
+#endif // FTS_SUPPORT_TOUCH_KEY
 
 #ifdef READ_LCD_ID
 	info->lcd_id = fts_lcd_id;
@@ -1284,6 +1345,9 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	info->fts_get_noise_param_address = fts_get_noise_param_address;
 #endif
 
+#ifdef USE_TSP_TA_CALLBACKS
+	info->register_cb = info->pdata->register_cb;
+#endif
 
 #ifdef USE_OPEN_CLOSE
 	info->input_dev->open = fts_input_open;
@@ -1303,6 +1367,15 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 #ifdef INPUT_PROP_DIRECT
 	set_bit(INPUT_PROP_DIRECT, info->input_dev->propbit);
 #endif
+
+#ifdef FTS_SUPPORT_TOUCH_KEY
+	for (i = 0 ; i < info->board->num_touchkey ; i++)
+		set_bit(info->board->touchkey[i].keycode, info->input_dev->keybit);
+
+	set_bit(EV_LED, info->input_dev->evbit);
+	set_bit(LED_MISC, info->input_dev->ledbit);
+
+#endif // FTS_SUPPORT_TOUCH_KEY
 
 	set_bit(BTN_TOUCH, info->input_dev->keybit);
 	set_bit(BTN_TOOL_FINGER, info->input_dev->keybit);
@@ -1330,7 +1403,9 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 				 0, 255, 0, 0);
 	input_set_abs_params(info->input_dev, ABS_MT_TOUCH_MINOR,
 				 0, 255, 0, 0);
+				 
 
+				 
 	input_set_abs_params(info->input_dev, ABS_MT_PALM, 0, 1, 0, 0);
 	input_set_abs_params(info->input_dev, ABS_MT_DISTANCE,
 				 0, 255, 0, 0);
@@ -1359,8 +1434,12 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 		goto err_enable_irq;
 	}
 
-#ifdef TOUCH_BOOSTER_DVFS
-	fts_init_dvfs(info);
+#ifdef TSP_BOOSTER
+	info->booster = input_booster_allocate(INPUT_BOOSTER_ID_TSP);
+	if (!info->booster) {
+		dev_err(&client->dev, "%s: Error, failed to allocate input booster\n",__func__);
+		goto error_alloc_booster_failed;
+	}
 #endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -1370,7 +1449,7 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	register_early_suspend(&info->early_suspend);
 #endif
 
-#ifdef FTS_SUPPORT_TA_MODE
+#ifdef USE_TSP_TA_CALLBACKS
 	info->register_cb = fts_register_callback;
 
 	info->callbacks.inform_charger = fts_ta_cb;
@@ -1387,6 +1466,7 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 		if(ft_cmds[i].cmd_name)
 			info->cmd_buffer_size += strlen(ft_cmds[i].cmd_name) + 1;
 	}
+	info->cmd_buffer_size = TSP_BUF_SIZE;
 	info->cmd_result = kzalloc(info->cmd_buffer_size, GFP_KERNEL);
 	if(!info->cmd_result){
 		tsp_debug_err(true, &info->client->dev, "FTS Failed to allocate cmd result\n");
@@ -1412,6 +1492,22 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 	}
 #endif
 
+#ifdef FTS_SUPPORT_TOUCH_KEY
+	touchkey = device_create(sec_class,
+			NULL, 0, info, "sec_touchkey");
+	
+		if (IS_ERR(touchkey))
+			dev_err(&client->dev,
+			"Failed to create device for the touchkey sysfs\n");
+		
+	dev_set_drvdata(touchkey, info);
+
+	ret = sysfs_create_group(&touchkey->kobj,
+			&sec_touchkey_attr_group);
+		if (ret)
+			dev_err(&client->dev, "Failed to create sysfs group\n");
+#endif
+
 	ret = sysfs_create_link(&info->fac_dev_ts->kobj,
 			&info->input_dev->dev.kobj, "input");
 	if (ret < 0) {
@@ -1419,7 +1515,17 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 			"%s: Failed to create input symbolic link\n",
 			__func__);
 	}
-	
+
+#ifdef USE_WARKAROUND_CODE
+	if (info->pdata->gpio_io_en > 0) {
+		INIT_DELAYED_WORK(&info->work_io_gpio, fts_gpio_work);
+
+		pr_err("%s: fts set work\n", __func__);
+
+		schedule_delayed_work(&info->work_io_gpio,
+			msecs_to_jiffies(1 * 1000));
+	}
+#endif
 	pr_err("[TSP] %s, end, %d \n",__func__, __LINE__ );
 
 #ifdef TSP_INIT_COMPLETE
@@ -1445,11 +1551,21 @@ err_enable_irq:
 	input_unregister_device(info->input_dev);
 	info->input_dev = NULL;
 
+#ifdef TSP_BOOSTER
+error_alloc_booster_failed:
+	input_booster_free(info->booster);
+	info->booster = NULL;
+#endif
+
 err_register_input:
 	if (info->input_dev)
 		input_free_device(info->input_dev);
 
 err_fts_init:
+	if (info->cx_data)
+		kfree(info->cx_data);
+	if (info->pFrame)
+		kfree(info->pFrame);
 #ifdef TSP_INIT_COMPLETE
 	complete_all(&info->init_done);
 #endif
@@ -1490,6 +1606,9 @@ static int fts_remove(struct i2c_client *client)
 
 	mutex_destroy(&info->cmd_lock);
 
+	if (info->cx_data)
+		kfree(info->cx_data);
+
 	if (info->pFrame)
 		kfree(info->pFrame);
 #endif
@@ -1502,6 +1621,10 @@ static int fts_remove(struct i2c_client *client)
 	info->board->power(false);
 
 	kfree(info);
+
+#if defined(CONFIG_SEC_S_PROJECT)
+	kfree(fts_supplies);
+#endif
 
 	return 0;
 }
@@ -1646,17 +1769,32 @@ static void fts_reinit_fac(struct fts_ts_info *info)
 	fts_command(info, SLEEPOUT);
 	fts_delay(50);
 
+#if defined(CONFIG_SEC_S_PROJECT)
+	fts_command(info, SENSEON);
+	fts_delay(50);
+
+	if (info->slow_report_rate)
+		fts_command(info, FTS_CMD_SLOW_SCAN);
+#else	
 	if (info->slow_report_rate)
 		fts_command(info, SENSEON_SLOW);
 	else
 		fts_command(info, SENSEON);
+#endif
+
+#ifdef FTS_SUPPORT_TOUCH_KEY
+		info->fts_command(info, FTS_CMD_KEY_SENSE_ON);
+#endif // FTS_SUPPORT_TOUCH_KEY
+
 #ifdef FTS_SUPPORT_NOISE_PARAM
 	fts_get_noise_param_address(info);
 #endif
-
+#ifdef CLEAR_COVER	
 	if (info->flip_enable)
 		fts_set_flipcover_mode(info, true);
-	else if (info->fast_mshover_enabled)
+	else
+#endif
+	if (info->fast_mshover_enabled)
 		fts_command(info, FTS_CMD_SET_FAST_GLOVE_MODE);
 	else if (info->mshover_enabled)
 		fts_command(info, FTS_CMD_MSHOVER_ON);
@@ -1721,19 +1859,33 @@ static void fts_reinit(struct fts_ts_info *info)
 	fts_command(info, SLEEPOUT);
 	fts_delay(50);
 
+#if defined(CONFIG_SEC_S_PROJECT)
+	fts_command(info, SENSEON);
+	fts_delay(50);
+
+	if (info->slow_report_rate)
+		fts_command(info, FTS_CMD_SLOW_SCAN);
+#else
 	if (info->slow_report_rate)
 		fts_command(info, SENSEON_SLOW);
 	else
 		fts_command(info, SENSEON);
+#endif
 
+#ifdef FTS_SUPPORT_TOUCH_KEY
+		info->fts_command(info, FTS_CMD_KEY_SENSE_ON);
+#endif // FTS_SUPPORT_TOUCH_KEY
+#ifdef CLEAR_COVER	
 	if (info->flip_enable)
 		fts_set_flipcover_mode(info, true);
-	else if (info->fast_mshover_enabled)
+	else
+#endif
+	if (info->fast_mshover_enabled)
 		fts_command(info, FTS_CMD_SET_FAST_GLOVE_MODE);
 	else if (info->mshover_enabled)
 		fts_command(info, FTS_CMD_MSHOVER_ON);
 
-#ifdef FTS_SUPPORT_TA_MODE
+#ifdef USE_TSP_TA_CALLBACKS
 	if (info->TA_Pluged)
 		fts_command(info, FTS_CMD_CHARGER_PLUGGED);
 #endif
@@ -1757,12 +1909,19 @@ void fts_release_all_finger(struct fts_ts_info *info)
 			info->touch_count--;
 			if (info->touch_count < 0)
 				info->touch_count = 0;
-
+#ifndef CLEAR_COVER	
+			tsp_debug_info(true, &info->client->dev,
+				"[R] tID:%d mc: %d tc:%d Ver[%02X%04X %01X]\n",
+				i, info->finger[i].mcount, info->touch_count,
+				info->panel_revision, info->fw_main_version_of_ic,
+				info->mshover_enabled);
+#else
 			tsp_debug_info(true, &info->client->dev,
 				"[R] tID:%d mc: %d tc:%d Ver[%02X%04X%01X%01X]\n",
 				i, info->finger[i].mcount, info->touch_count,
 				info->panel_revision, info->fw_main_version_of_ic,
 				info->flip_enable, info->mshover_enabled);
+#endif
 		}
 
 		info->finger[i].state = EVENTID_LEAVE_POINTER;
@@ -1777,8 +1936,9 @@ void fts_release_all_finger(struct fts_ts_info *info)
 
 	input_sync(info->input_dev);
 
-#ifdef TOUCH_BOOSTER_DVFS
-	fts_set_dvfs_lock(info, -1);
+#ifdef TSP_BOOSTER
+	if (info->booster && info->booster->dvfs_set)
+		info->booster->dvfs_set(info->booster, 0);
 #endif
 }
 
@@ -1801,6 +1961,13 @@ static int fts_stop_device(struct fts_ts_info *info)
 
 	fts_release_all_finger(info);
 
+#ifdef FTS_SUPPORT_TOUCH_KEY
+	fts_release_all_key(info);
+
+	if (info->board->led_power_off)
+		info->board->led_power_off();
+#endif // FTS_SUPPORT_TOUCH_KEY
+
 #ifdef FTS_SUPPORT_NOISE_PARAM
 	fts_get_noise_param(info);
 #endif
@@ -1810,6 +1977,12 @@ static int fts_stop_device(struct fts_ts_info *info)
 	if (info->board->power)
 		info->board->power(false);
 	fts_pinctrl_configure(info, false);	
+
+#ifdef TSP_BOOSTER
+		dev_info(&info->client->dev, "%s force dvfs off\n", __func__);
+		if (info->booster && info->booster->dvfs_set)
+			info->booster->dvfs_set(info->booster, -1);
+#endif	
 
  out:
 	mutex_unlock(&info->device_mutex);

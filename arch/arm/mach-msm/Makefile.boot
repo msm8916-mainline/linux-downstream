@@ -20,7 +20,11 @@
    zreladdr-$(CONFIG_ARCH_FSM9010)	:= 0x00008000
 
 # MSM8916
+ifndef CONFIG_3G_DDR_SUPPORT
    zreladdr-$(CONFIG_ARCH_MSM8916)	:= 0x80008000
+else
+   zreladdr-$(CONFIG_ARCH_MSM8916)	:= 0x20008000
+endif
 
 # MSM8610
    zreladdr-$(CONFIG_ARCH_MSM8610)	:= 0x00008000

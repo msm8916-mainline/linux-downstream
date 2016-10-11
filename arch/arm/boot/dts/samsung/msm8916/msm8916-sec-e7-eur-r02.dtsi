@@ -13,8 +13,9 @@
 #include "msm8916.dtsi"
 #include "msm8916-pinctrl-sec-e7-eur-r02.dtsi"
 #include "msm8916-camera-sensor-e7-r01.dtsi"
-#include "dsi_panel_EA8061__HD_octa_video.dtsi"
 #include "msm8916-sec-e7-eur-battery-r00.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/EA8061_AMS549BU19/dsi_panel_EA8061_AMS549BU19_HD_octa_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/EA8061_AMS549BU19_ID400418/dsi_panel_EA8061_AMS549BU19_ID400418_HD_octa_video.dtsi"
 
 / {
 	aliases {
@@ -146,8 +147,8 @@
 			rt5033_buck1 {
 				compatible = "richtek,rt5033-dcdc1";
 				regulator-name = "CAM_SENSOR_CORE_1.2V"; /* change name by yourself */
-				regulator-min-microvolt = <1500000>;
-				regulator-max-microvolt = <1500000>; /* max == min then apply_uV = 1 */
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>; /* max == min then apply_uV = 1 */
 				/* regulator-microvolt-offset = < >; optional*/
 				/* regulator-boot-on = "yes"; optional, exist = enabled */
 				/* regulator-always-on = "yes"; optional, exist = enabled */
@@ -161,19 +162,19 @@
 				mid_track_alive = <0>;
 				mid_auto_track_en = <0>;
 				timeout_current_level = <50>;
-				strobe_current = <600>;
+				strobe_current = <550>;
 				strobe_timeout = <544>;
 				torch_current = <75>;
-				lv_protection = <3300>;
-				mid_level = <4400>;
+				lv_protection = <3000>;
+				mid_level = <4800>;
 				rt5033,led1-gpio = <&msm_gpio 34 0x00>;
 				rt5033,led2-gpio = <&msm_gpio 36 0x00>;
 				pinctrl-names = "fled_default","fled_sleep";
 				pinctrl-0 = <&cam_sensor_flash_default>;
-				inctrl-1 = <&cam_sensor_flash_sleep>;
+				pinctrl-1 = <&cam_sensor_flash_sleep>;
 			};
 		};
-	};
+	};	
 
 	sec_thermistor {
 		compatible = "sec,thermistor";
@@ -214,17 +215,20 @@
 		cm36672p@60 {
 			compatible = "cm36672p";
 			reg = <0x60>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&proximity_enable &proximity_int_active>;
 			interrupt-parent = <&msm_gpio>;
 			interrupts = <113 0>;
 			cm36672p,leden_gpio = <&msm_gpio 8 0x1>;
 			cm36672p,irq_gpio = <&msm_gpio 113 0x1>;
 			cm36672p,vdd-supply = <&pm8916_l17>;
 			cm36672p,vio-supply = <&pm8916_l5>;
-			cm36672p,default_hi_thd = <8>;
-			cm36672p,default_low_thd = <5>;
-			cm36672p,cancel_hi_thd = <8>;
-			cm36672p,cancel_low_thd = <5>;
-			cm36672p,ps_it = <0>;
+			cm36672p,default_hi_thd = <17>;
+			cm36672p,default_low_thd = <13>;
+			cm36672p,cancel_hi_thd = <10>;
+			cm36672p,cancel_low_thd = <7>;
+			cm36672p,default_trim = <0>;
+			cm36672p,ps_it = <4>;
 			cm36672p,led_current = <2>;
 		};
 	};
@@ -265,10 +269,10 @@
 
 &i2c_5 {
 	status = "okay";
-
+	
         fts_i2c@49 {
 		compatible = "stm,fts_touch";
-		reg = <0x49>;
+		reg = <0x49>; 
 		interrupt-parent = <&msm_gpio>;
 		interrupts = <13 0>; /* Touch int gpio */
 		pinctrl-names = "tsp_gpio_active", "tsp_gpio_suspend";
@@ -319,6 +323,8 @@
 		interrupt-parent = <&msm_gpio>;
 		interrupts = <52 0>;
 		hall,gpio_flip_cover = <&msm_gpio 52 0>;
+		pinctrl-names = "pmx_hall_ic_pin";
+		pinctrl-0 = <&hall_ic_pin>;
 	};
 
 	i2c_9:i2c@9 { /*SM5502 GPIO-I2C*/
@@ -360,8 +366,8 @@
 	       	interrupt-parent = <&msm_gpio>;
 			interrupts = <98 0>;
 			pinctrl-names = "tkey_gpio_active","tkey_gpio_suspend";
-			pinctrl-0 = <&tkey_i2c_active>;
-			pinctrl-1 = <&tkey_i2c_active>;
+			pinctrl-0 = <&tkey_i2c_active &tkey_irq_active>;
+			pinctrl-1 = <&tkey_i2c_suspend>;
 
 			//coreriver,vcc_en_ldo_name = "max77826_ldo15";
 			coreriver,vcc_en-gpio = <&msm_gpio 97 0x00>;
@@ -375,7 +381,7 @@
 			coreriver,firm-up;
 		};
 	};
-
+	
 	det_zones: det_zones {
 		#list-det-cells = <4>;
 	};
@@ -394,9 +400,9 @@
 				 <&det_zones 930 10000 10 0>,
 				 <&det_zones 931 10000 10 1>,
 				 <&det_zones 9999 10000 10 1>;
-		but-zones-list = <&but_zones 0 0 285>,
-				 <&but_zones 1 286 420>,
-				 <&but_zones 2 421 975>;
+		but-zones-list = <&but_zones 0 0 317>,
+				 <&but_zones 1 318 447>,
+				 <&but_zones 2 448 975>;
 		mpp-channel-scaling = <2 1 1>;
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
 		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
@@ -406,6 +412,7 @@
 	qcom,iris-fm {
 		compatible = "qcom,iris_fm";
 		qcom,fm-radio-lna-gpio = <&msm_gpio 24 0x0>;
+		iris_fm,vdd-supply = <&pm8916_l18>;
 		pinctrl-names = "lna_gpio_active","lna_gpio_suspend";
 		pinctrl-0 = <&lna_control_act>;
 		pinctrl-1 = <&lna_control_sus>;
@@ -418,11 +425,13 @@
 
 &usb_otg {
 	qcom,hsusb-otg-phy-init-seq =
-					<0x6B 0x81 0x0b 0x82 0xffffffff>;
+					<0x5B 0x81 0x0b 0x82 0xffffffff>;
 };
 
 &sdhc_1 {
 	vdd-supply = <&pm8916_l8>;
+	qcom,vdd-always-on;
+	qcom,vdd-lpm-sup;
 	qcom,vdd-voltage-level = <2900000 2900000>;
 	qcom,vdd-current-level = <200 400000>;
 
@@ -557,8 +566,12 @@
 	samsung,panel-extra-power-gpio1 = <&msm_gpio 87 0>;
 };
 
+&dsi_ea8061_ID400418_HD_video_hd {
+	qcom,mdss-dsi-booting-brightness = <255>;
+	samsung,panel-extra-power-gpio1 = <&msm_gpio 87 0>;
+};
+
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_ea8061_video_hd>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active &lcd_esd_det_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &lcd_esd_det_suspend>;
@@ -583,6 +596,7 @@
 	qcom,battery-data = <&mtp_batterydata>;
 };
 
+/* 
 &spmi_bus {
 	qcom,pm8916@0 {
 		qcom,leds@a100 {
@@ -600,8 +614,9 @@
 				qcom,mode-ctrl = <0x60>;
 			};
 		};
-	};
+	}; 
 };
+*/
 
 &qcom_tzlog {
 	status = "okay";

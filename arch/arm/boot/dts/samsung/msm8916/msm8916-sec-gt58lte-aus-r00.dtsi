@@ -16,6 +16,7 @@
 #include "msm8916-sec-gt5note8lte-eur-battery-r00.dtsi"
 #include "msm8916-max77849-gt5note8-r01.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0_LSL080AL03/dsi_panel_S6D7AA0_LSL080AL03_xga_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0_LSL080AL03_BOE/dsi_panel_S6D7AA0_LSL080AL03_BOE_xga_video.dtsi"
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
@@ -96,7 +97,7 @@
 			interrupt-parent = <&msm_gpio>;
 			interrupts = <115 0>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&acc_int_active>;
+			pinctrl-0 = <&acc_int_active &sensor_i2c_active>;
 			stm,irq_gpio = <&msm_gpio 115 0x00>;
 			stm,vio-supply = <&pm8916_l5>;
 			stm,vdd-supply = <&pm8916_l17>;
@@ -196,8 +197,8 @@
 		compatible = "gpio-keys";
 		input-name = "gpio-keys";
 		pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
-		pinctrl-0 = <&gpio_key_active>;
-		pinctrl-1 = <&gpio_key_suspend>;
+		pinctrl-0 = <&gpio_volup_key_active &gpio_home_key_active>;
+		pinctrl-1 = <&gpio_volup_key_suspend &gpio_home_key_suspend>;
 
 		home_key {
 			label = "home_key";
@@ -304,13 +305,13 @@
 		qcom,earjack-read-vadc = <&pm8916_vadc>;
 
 		det-zones-list = <&det_zones 1 10000 10 0>,
-				 <&det_zones 970 10000 10 0>,
-				 <&det_zones 1900 10000 10 1>,
-				 <&det_zones 2800 10000 10 1>;
-		but-zones-list = <&but_zones 0 1 303>,
-				 <&but_zones 3 304 350>,
-				 <&but_zones 1 351 469>,
-				 <&but_zones 2 470 750>;
+				 <&det_zones 954 10000 10 0>,
+				 <&det_zones 955 10000 10 1>,
+				 <&det_zones 9999 10000 10 1>;
+		but-zones-list = <&but_zones 0 0 290>,
+				 <&but_zones 3 291 353>,
+				 <&but_zones 1 354 468>,
+				 <&but_zones 2 469 999>;
 		btn-adc-read-count = <8>;
 		mpp-channel-scaling = <2 1 1>;
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
@@ -465,12 +466,15 @@
 	qcom,pins = <&gp 0>;
 };
 
+&dsi_sdc_wxga_vid_boe{
+	samsung,panel-extra-power-gpio1 = <&msm_gpio 8 0>;
+};
+
 &dsi_sdc_wxga_vid{
 	samsung,panel-extra-power-gpio1 = <&msm_gpio 8 0>;
 };
 
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_sdc_wxga_vid>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&i2c_lp8556_active &lp8556_active &mdss_dsi_active &mdss_esd_active &pwm_ap_active>;
 	pinctrl-1 = <&i2c_lp8556_suspend &lp8556_suspend &mdss_dsi_suspend &mdss_esd_suspend &pwm_ap_suspend>;

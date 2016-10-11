@@ -135,20 +135,75 @@ fw-shipped-$(CONFIG_USB_SERIAL_XIRCOM) += keyspan_pda/xircom_pgs.fw
 fw-shipped-$(CONFIG_USB_VICAM) += vicam/firmware.fw
 fw-shipped-$(CONFIG_VIDEO_CPIA2) += cpia2/stv0672_vp4.bin
 fw-shipped-$(CONFIG_KEYBOARD_TC360_TOUCHKEY) += coreriver/tc360.fw
+fw-shipped-$(CONFIG_KEYBOARD_TC350K) += tkey/tc350k_j1x.fw
 fw-shipped-$(CONFIG_YAM) += yam/1200.bin yam/9600.bin
 
 fw-shipped-$(CONFIG_TOUCHSCREEN_MMS300) += tsp_melfas/mms345l_e5.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MMS300_A) += tsp_melfas/mms345l_a5.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MMS449) += tsp_melfas/mms449_k5.fw tsp_melfas/mms449_h7.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MMS449) += tsp_melfas/mms449_k5.fw tsp_melfas/mms449_a8.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MMS438) += tsp_melfas/mms438_xcover3.fw
 fw-shipped-$(CONFIG_KEYBOARD_TC360_TKEY) += tkey/tc360_e5.fw tkey/tc360_e7.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1664T) += tsp_atmel/mxtt_klimt.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1664T) += tsp_atmel/mxtt_gt510lte.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1664T) += tsp_atmel/mxtt_gt5note10.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1188S) += tsp_atmel/mXT1188S.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1188S) += tsp_atmel/mXT1664S.fw
 fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH) += tkey/abov_tk_k5.fw
 fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_A3) += abov/abov_tk_a3.fw
 fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_A5) += abov/abov_tk_a5.fw
+fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_A8) += abov/abov_tk_a8.fw
 fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_A7) += abov/abov_tk_a7.fw
+
+ifdef CONFIG_SEC_A7X_PROJECT
+fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_FT18XX) += abov/abov_tk_na7.fw
+fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_FT16XX) += abov/abov_ft1604_na7.fw
+endif
+ifdef CONFIG_SEC_A5X_PROJECT
+fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_FT18XX) += abov/abov_tk_na5.fw
+fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_FT16XX) += abov/abov_ft1604_na5.fw
+endif
+
+fw-shipped-$(CONFIG_KEYBOARD_TC360_TKEY_J3) += tkey/tc360_j3.fw
+fw-shipped-$(CONFIG_KEYBOARD_TC305_TKEY) += tkey/tc305k_j5x.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_SEC_TS) += tsp_sec/s6smc44_img_REL_NA70.bin
 fw-shipped-$(CONFIG_TOUCHSCREEN_FTS) += tsp_stm/stm.fw tsp_stm/stm_de.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ZT7548_TS)	+= tsp_zinitix/zt7548_gtes.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ZT7538_TS)	+= tsp_zinitix/zt7538_o7.fw tsp_zinitix/zt7538_o7_skt.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ZT7538) += tsp_zinitix/zt7538_a5x.fw
+fw-shipped-$(CONFIG_KEYBOARD_TC360_TKEY_J5) += coreriver/tc360_j5_dtv.fw coreriver/tc360_j5.fw
+
+ifdef CONFIG_SEC_O7_PROJECT
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_o7.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_o7_cmcs.bin
+endif
+ifdef CONFIG_SEC_J3_PROJECT
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j3.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j3_cmcs.bin
+endif
+ifdef CONFIG_SEC_J5X_PROJECT
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC_CMCS) += tsp_imagis/ist3038c_j5x.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC_CMCS) += tsp_imagis/ist3038c_j5x_cmcs.bin
+fw-shipped-$(CONFIG_KEYBOARD_TC360_TKEY_J5X) += tkey/tc350k_j5x.fw
+endif
+ifdef CONFIG_SEC_J7_PROJECT
+fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MMS438) += tsp_melfas/mms438_j7.fw
+fw-shipped-$(CONFIG_KEYBOARD_TC360_TKEY_J7) += tkey/tc350k_j7.fw
+endif
+ifdef CONFIG_SEC_J5_PROJECT
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j5.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j5_cmcs.bin
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j5_100ohm.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j5_octa.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j5_octa_cmcs.bin
+endif
+
+ifdef CONFIG_SEC_J5N_PROJECT
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j5.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j5_cmcs.bin
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j5_100ohm.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j5_octa.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_IST30XXC) += tsp_imagis/ist3038c_j5_octa_cmcs.bin
+endif
 
 fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9007A_0450.bin
 fw-shipped-$(CONFIG_INPUT_WACOM) += epen/W9007A_C430.bin

@@ -85,6 +85,7 @@ enum extcon_cable_name {
 	EXTCON_LANHUB_TA,
 #endif
 	EXTCON_HV_TA_1A,			/* UNDEFINE but charging */
+	EXTCON_UNKNOWN,
 	EXTCON_NONE,
 };
 

@@ -121,6 +121,18 @@ unsigned long total_unmovable_pages __read_mostly;
 int percpu_pagelist_fraction;
 gfp_t gfp_allowed_mask __read_mostly = GFP_BOOT_MASK;
 
+static unsigned int boot_mode = 0;
+static int __init setup_bootmode(char *str)
+{
+	if (get_option(&str, &boot_mode)) {
+		printk("%s: boot_mode is %u\n", __func__, boot_mode);
+		return 0;
+	}
+
+	return -EINVAL;
+}
+early_param("androidboot.boot_recovery", setup_bootmode);
+
 #ifdef CONFIG_PM_SLEEP
 /*
  * The following functions are used by the suspend/hibernate code to temporarily
@@ -1097,6 +1109,8 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
 			if (!is_migrate_cma(migratetype) &&
 			    (unlikely(current_order >= pageblock_order / 2) ||
 			     start_migratetype == MIGRATE_RECLAIMABLE ||
+			     start_migratetype == MIGRATE_UNMOVABLE ||
+			     start_migratetype == MIGRATE_MOVABLE ||
 			     page_group_by_mobility_disabled)) {
 				int pages;
 				pages = move_freepages_block(zone, page,
@@ -1104,6 +1118,7 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
 
 				/* Claim the whole block if over half of it is free */
 				if (pages >= (1 << (pageblock_order-1)) ||
+						start_migratetype == MIGRATE_MOVABLE ||
 						page_group_by_mobility_disabled)
 					set_pageblock_migratetype(page,
 								start_migratetype);
@@ -2640,9 +2655,10 @@ rebalance:
 	 * running out of options and have to consider going OOM
 	 */
 #ifdef CONFIG_SEC_OOM_KILLER
-#define SHOULD_CONSIDER_OOM !did_some_progress || time_after(jiffies, oom_invoke_timeout)
+#define SHOULD_CONSIDER_OOM (!did_some_progress \
+		|| time_after(jiffies, oom_invoke_timeout)) && boot_mode != 1
 #else
-#define SHOULD_CONSIDER_OOM !did_some_progress
+#define SHOULD_CONSIDER_OOM !did_some_progress && boot_mode != 1
 #endif
 	if (SHOULD_CONSIDER_OOM) {
 		if ((gfp_mask & __GFP_FS) && !(gfp_mask & __GFP_NORETRY)) {
@@ -6435,9 +6451,6 @@ static const struct trace_print_flags pageflag_names[] = {
 	{1UL << PG_nocache,"nocache"},
 #endif
 	{1UL << PG_readahead,           "PG_readahead"  },
-#ifdef CONFIG_SDP
-	{1UL << PG_sensitive,	"sensitive"	},
-#endif
 };
 
 static void dump_page_flags(unsigned long flags)

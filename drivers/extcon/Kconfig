@@ -69,6 +69,12 @@ config ADC_ONESHOT
 	help
 		Say Y here to enable ADC Oneshot mode when detecting ID value
 
+config EXTCON_S2MM001
+	bool "SYSTEM LSI MUIC"
+	default n
+	help
+	  This option enables SYSTEM LSI MUIC S2MM001.
+
 config MUIC_SUPPORT_AUDIO_DOCK
 	bool "MUIC_SUPPORT_AUDIO_DOCK"
 	default n

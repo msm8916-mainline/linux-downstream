@@ -50,12 +50,12 @@ void msm_isp_axi_cfg_update(struct vfe_device *vfe_dev);
 void msm_isp_axi_stream_update(struct vfe_device *vfe_dev);
 
 void msm_isp_update_framedrop_reg(struct vfe_device *vfe_dev);
-void msm_isp_sof_notify(struct vfe_device *vfe_dev,
+void msm_isp_notify(struct vfe_device *vfe_dev, uint32_t event_type,
 	enum msm_vfe_input_src frame_src, struct msm_isp_timestamp *ts);
 void msm_isp_process_axi_irq(struct vfe_device *vfe_dev,
 	uint32_t irq_status0, uint32_t irq_status1,
 	struct msm_isp_timestamp *ts);
-#if defined(CONFIG_SR200PC20) && defined(CONFIG_SR544)
+#if (defined(CONFIG_SR200PC20) && defined(CONFIG_SR544)) || defined(CONFIG_MACH_J1XLTE_USA_TFNVZW)
 uint8_t msm_isp_get_curr_stream_cnt(struct vfe_device *vfe_dev);
 #endif
 #endif /* __MSM_ISP_AXI_UTIL_H__ */

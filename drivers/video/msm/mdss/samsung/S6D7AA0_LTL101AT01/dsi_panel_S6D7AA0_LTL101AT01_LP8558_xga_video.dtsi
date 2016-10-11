@@ -33,7 +33,7 @@
 
 &mdss_mdp {
 
-	dsi_sdc_xga_vid: qcom,mdss_dsi_sdc_xga_video {
+	dsi_sdc_xga_vid: ss_dsi_panel_S6D7AA0_LTL101AT01_WXGA {
 
 		qcom,mdss-dsi-panel-name = "S6D7AA0 xga video mode dsi panel";
 
@@ -96,10 +96,10 @@
                39 01 00 00 00 00 03 D0 00 10
 
                39 01 00 00 00 00 04 C3 40 00 08
-               39 01 00 00 00 00 04 BC 01 4E A0
+               39 01 00 00 00 00 04 BC 01 4E 0B
                39 01 00 00 00 00 06 FD 16 10 11 23 09
 
-               39 01 00 00 00 00 07 FE 00 02 03 21 80 78
+               39 01 00 00 00 00 07 FE 00 02 03 21 80 68
 
                39 01 00 00 00 00 02 B3 51
 
@@ -180,6 +180,8 @@
 		qcom,mdss-dsi-panel-status-value = <1>;
 
 		qcom,mdss-dsi-panel-status-irq-trigger="falling";
+
+		samsung,display_on_tx_cmds_revA = [05 01 00 00 05 00 02 29 00];
 
 		samsung,tft_pwm_tx_cmds_revA=[
 
@@ -751,13 +753,13 @@
 
 	mdss_dsi0: qcom,mdss_dsi@1a98000 {
 
+		qcom,dsi-pref-prim-pan = <&dsi_sdc_xga_vid>;
+
 		gdsc-supply = <&gdsc_mdss>;
 
 		vdda-supply = <&pm8916_l2>;
 
 		vddio-supply = <&pm8916_s4>;
-
-		vdd-supply = <&pm8916_l5>;
 
 		qcom,platform-strength-ctrl = [ff 06];
 
@@ -850,22 +852,6 @@
 
 			};
 
-			qcom,panel-supply-entry@1 {
-
-				reg = <0>;
-
-				qcom,supply-name = "vdd";
-
-				qcom,supply-min-voltage = <1800000>;
-
-				qcom,supply-max-voltage = <1800000>;
-
-				qcom,supply-enable-load = <100000>;
-
-				qcom,supply-disable-load = <100>;
-
-			};
-
 		};
 
 	};
@@ -905,7 +891,7 @@
 					A0	65
 					A1	6E
 					A6	40
-					A9	60
+					A9	A0
 					98	21
 					9E	00
 					00	CD

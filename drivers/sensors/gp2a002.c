@@ -47,21 +47,39 @@
 #define REGS_OPMOD		0x4 /* Write Only */
 #define REGS_CON		0x6 /* Write Only */
 
-#if defined(CONFIG_SEC_FORTUNA_PROJECT)
-#define PROX_NONDETECT			0x40
-#define PROX_DETECT				0x20
-#else
-#define PROX_NONDETECT			0x2F
-#define PROX_DETECT				0x0F
-#endif
+#if defined(CONFIG_SENSORS_GP2A_MODE_A)
+#define PROX_NONDETECT		0xC2
+#define PROX_DETECT		0xC2
+#define PROX_NONDETECT_MODE1	0xC8
+#define PROX_DETECT_MODE1	0xC8
+#define PROX_NONDETECT_MODE2	0xCB
+#define PROX_DETECT_MODE2	0xCB
+#elif defined(CONFIG_SENSORS_GP2A_MODE_B1)
+#define PROX_NONDETECT		0x40
+#define PROX_DETECT		0x20
 #define PROX_NONDETECT_MODE1	0x43
-#define PROX_DETECT_MODE1		0x28
+#define PROX_DETECT_MODE1	0x28
 #define PROX_NONDETECT_MODE2	0x48
-#define PROX_DETECT_MODE2		0x42
-#define OFFSET_FILE_PATH		"/efs/prox_cal"
+#define PROX_DETECT_MODE2	0x42
+#elif defined(CONFIG_SENSORS_GP2A_MODE_B15)
+#define PROX_NONDETECT		0x2F
+#define PROX_DETECT		0x0D
+#define PROX_NONDETECT_MODE1	0x43
+#define PROX_DETECT_MODE1	0x28
+#define PROX_NONDETECT_MODE2	0x48
+#define PROX_DETECT_MODE2	0x42
+#else
+#define PROX_NONDETECT		0x2F
+#define PROX_DETECT		0x0F
+#define PROX_NONDETECT_MODE1	0x41
+#define PROX_DETECT_MODE1	0x2E
+#define PROX_NONDETECT_MODE2	0x4E
+#define PROX_DETECT_MODE2	0x2B
+#endif
+#define OFFSET_FILE_PATH		"/efs/FactoryApp/prox_cal"
 
 #define PROXIMITY	1
-#define CHIP_DEV_NAME	"GP2AP002"
+#define CHIP_DEV_NAME	"GP2A002"
 #define CHIP_DEV_VENDOR	"SHARP"
 
 struct gp2a_data;
@@ -241,7 +259,7 @@ static int gp2a_cal_mode_read_file(struct gp2a_data *gp2a)
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	cal_mode_filp = filp_open(OFFSET_FILE_PATH, O_RDONLY, 0666);
+	cal_mode_filp = filp_open(OFFSET_FILE_PATH, O_RDONLY, 0);
 	if (IS_ERR(cal_mode_filp)) {
 		err = PTR_ERR(cal_mode_filp);
 		if (err != -ENOENT)
@@ -277,7 +295,7 @@ static int gp2a_cal_mode_save_file(char mode)
 	set_fs(KERNEL_DS);
 
 	cal_mode_filp = filp_open(OFFSET_FILE_PATH,
-		O_CREAT | O_TRUNC | O_WRONLY, 0666);
+		O_CREAT | O_TRUNC | O_WRONLY, 0660);
 	if (IS_ERR(cal_mode_filp)) {
 		pr_err("%s,Can't open cal_mode file\n",
 			__func__);
@@ -364,55 +382,60 @@ static struct device_attribute *proxi_attrs[] = {
 static int gp2a_regulator_onoff(struct device *dev, bool onoff)
 {
 	struct regulator *gp2a_vio;
+#if defined(CONFIG_SENSORS_GP2A_VDD)
 	struct regulator *gp2a_vdd;
+#endif
 	int ret;
 
 	pr_info("%s %s\n", __func__, (onoff) ? "on" : "off");
 
+#if defined(CONFIG_SENSORS_GP2A_VDD)
 	gp2a_vdd = devm_regulator_get(dev, "gp2a-vdd");
 	if (IS_ERR(gp2a_vdd)) {
 		pr_err("[SENSOR]: %s - cannot get gp2a_vdd\n", __func__);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto err_vdd;
 	}
+#endif
 	gp2a_vio = devm_regulator_get(dev, "gp2a-vio");
 	if (IS_ERR(gp2a_vio)) {
 		pr_err("%s: cannot get gp2a_vio\n", __func__);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto err_vio;
 	}
 
 	if (onoff) {
+#if defined(CONFIG_SENSORS_GP2A_VDD)
 		ret = regulator_enable(gp2a_vdd);
-		if (ret) {
-			pr_err("%s: enable gp2a_vdd failed, rc=%d\n",
-				__func__, ret);
-			return ret;
-		}
+		if (ret)
+			pr_err("%s: enable vdd failed (%d)\n", __func__, ret);
+#endif
 		ret = regulator_enable(gp2a_vio);
-		if (ret) {
-			pr_err("%s: enable gp2a_vio failed, rc=%d\n",
-				__func__, ret);
-			return ret;
-		}
+		if (ret)
+			pr_err("%s: enable vio failed (%d)\n", __func__, ret);
+
 	} else {
+#if defined(CONFIG_SENSORS_GP2A_VDD)
 		ret = regulator_disable(gp2a_vdd);
-		if (ret) {
-			pr_err("%s: disable gp2a_vdd failed, rc=%d\n",
-				__func__, ret);
-			return ret;
-		}
+		if (ret)
+			pr_err("%s: disable vdd failed (%d)\n", __func__, ret);
+#endif
+
 		ret = regulator_disable(gp2a_vio);
-		if (ret) {
-			pr_err("%s: disable gp2a_vio failed, rc=%d\n",
-				__func__, ret);
-			return ret;
-		}
+		if (ret)
+			pr_err("%s: disable vio failed (%d)\n", __func__, ret);
+
 	}
 
-	devm_regulator_put(gp2a_vdd);
 	devm_regulator_put(gp2a_vio);
+err_vio:
+#if defined(CONFIG_SENSORS_GP2A_VDD)
+	devm_regulator_put(gp2a_vdd);
+err_vdd:
+#endif
 	msleep(20);
 
-	return 0;
+	return ret;
 }
 
 static ssize_t proximity_enable_show(struct device *dev,
@@ -462,7 +485,6 @@ static ssize_t proximity_enable_store(struct device *dev,
 				gp2a->nondetect = PROX_NONDETECT;
 				gp2a->detect = PROX_DETECT;
 			}
-			gp2a_regulator_onoff(&gp2a->i2c_client->dev, true);
 			gp2a_power_onoff(gp2a, 1);
 			gp2a->power_state = value;
 
@@ -472,7 +494,6 @@ static ssize_t proximity_enable_store(struct device *dev,
 			input_sync(gp2a->input);
 		} else {
 			gp2a_power_onoff(gp2a, 0);
-			gp2a_regulator_onoff(&gp2a->i2c_client->dev, false);
 			gp2a->power_state = value;
 		}
 
@@ -758,7 +779,6 @@ err_input_allocate_device_proximity:
 	wake_lock_destroy(&gp2a->prx_wake_lock);
 	kfree(gp2a);
 done:
-	gp2a_regulator_onoff(&client->dev, false);
 	return ret;
 }
 

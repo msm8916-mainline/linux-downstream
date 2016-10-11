@@ -7,17 +7,17 @@ obj-$(CONFIG_MOBICORE_API) += mcKernelApi.o
 obj-$(CONFIG_MOBICORE_SUPPORT) += mcDrvModule.o
 
 mcDrvModule-objs := MobiCoreDriver/logging.o \
-		MobiCoreDriver/ops.o \
-		MobiCoreDriver/mem.o \
-		MobiCoreDriver/api.o \
-		MobiCoreDriver/pm.o \
-		MobiCoreDriver/main.o
+                MobiCoreDriver/ops.o \
+                MobiCoreDriver/mem.o \
+                MobiCoreDriver/api.o \
+                MobiCoreDriver/pm.o \
+                MobiCoreDriver/main.o
 
 mcKernelApi-objs := MobiCoreKernelApi/main.o \
-		MobiCoreKernelApi/clientlib.o \
-		MobiCoreKernelApi/device.o \
-		MobiCoreKernelApi/session.o \
-		MobiCoreKernelApi/connection.o
+                MobiCoreKernelApi/clientlib.o \
+                MobiCoreKernelApi/device.o \
+                MobiCoreKernelApi/session.o \
+                MobiCoreKernelApi/connection.o
 
 # Release mode by default
 ccflags-y := -DNDEBUG -I$(GUD_ROOT_FOLDER)

@@ -1371,7 +1371,7 @@ INT32 ffsMapCluster(struct inode *inode, INT32 clu_offset, UINT32 *clu)
 			}
 		}
 
-		inode->i_blocks += num_alloced << (p_fs->cluster_size_bits - 9);
+		inode->i_blocks += num_alloced << (p_fs->cluster_size_bits - sb->s_blocksize_bits);
 	}
 
 	fid->hint_last_off = (INT32)(fid->rwoffset >> p_fs->cluster_size_bits);
@@ -3203,6 +3203,10 @@ DENTRY_T *get_entry_in_dir(struct super_block *sb, CHAIN_T *p_dir, INT32 entry, 
 	if (find_location(sb, p_dir, entry, &sec, &off) != FFS_SUCCESS)
 		return NULL;
 
+	/* if first entry, then do read-ahead */
+	if (!(entry & (p_fs->dentries_per_clu - 1)))
+		buf_cache_readahead(sb, sec);
+
 	buf = buf_getblk(sb, sec);
 
 	if (buf == NULL)
@@ -3625,7 +3629,7 @@ INT32 find_empty_entry(struct inode *inode, CHAIN_T *p_dir, INT32 num_entries)
 		EXFAT_I(inode)->mmu_private += p_fs->cluster_size;
 		EXFAT_I(inode)->fid.size += p_fs->cluster_size;
 		EXFAT_I(inode)->fid.flags = p_dir->flags;
-		inode->i_blocks += 1 << (p_fs->cluster_size_bits - 9);
+		inode->i_blocks += 1 << (p_fs->cluster_size_bits - sb->s_blocksize_bits);
 	}
 
 	return(dentry);

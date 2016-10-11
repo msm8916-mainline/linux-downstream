@@ -41,7 +41,7 @@
 
 		battery,thermal_source = <2>; /* SEC_BATTERY_THERMAL_SOURCE_ADC */
 
-		battery,temp_check_type = <0>; /* SEC_BATTERY_TEMP_CHECK_NONE */
+		battery,temp_check_type = <2>; /* SEC_BATTERY_TEMP_CHECK_TEMP */
 		battery,temp_check_count = <1>;
 		battery,temp_high_threshold_event = <600>;
 		battery,temp_high_recovery_event = <450>;
@@ -66,28 +66,26 @@
 		   SEC_BATTERY_FULL_CONDITION_VCELL */
 		battery,full_condition_type = <13>;
 		battery,full_condition_soc = <93>;
-		battery,full_condition_vcell = <4250>;
+		battery,full_condition_vcell = <4300>;
 
 		battery,recharge_check_count = <1>;
 		battery,recharge_condition_type = <4>; /* SEC_BATTERY_RECHARGE_CONDITION_VCELL */
 		battery,recharge_condition_soc = <98>;
-		battery,recharge_condition_vcell = <4300>;
+		battery,recharge_condition_vcell = <4350>;
 
 		battery,self_discharging_en;
 		battery,factory_discharging = <&expander_gpios 13 0x00>;
 		battery,force_discharging_limit = <600>;
 		battery,force_discharging_recov = <550>;
 		battery,self_discharging_voltage_limit = <4250>;
-		battery,discharging_adc_max = <36864>;
-		battery,discharging_adc_min = <32768>;
+		battery,discharging_adc_max = <29864>;
+		battery,discharging_adc_min = <25768>;
 		battery,discharging_ntc_limit = <2750>;
 
 		battery,charging_total_time = <21600>;
 		battery,recharging_total_time = <5400>;
 		battery,charging_reset_time = <0>;
 		qcom,sec-battery-vadc = <&pm8916_vadc>;
-
-		battery,always_enable;
 
 		battery,swelling_drop_float_voltage = <4200>;
 		battery,swelling_high_rechg_voltage = <4150>;
@@ -96,30 +94,18 @@
 		charger {
 			status = "disable";
 			/* Charger */
-			battery,charger_name = "max77843-charger";
-			battery,chg_gpio_en = <0>;
-			battery,chg_polarity_en = <0>;
-			battery,chg_gpio_status = <0>;
-			battery,chg_polarity_status = <0>;
-			battery,chg_float_voltage = <4350>;
-			battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
-			battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
-
-			battery,input_current_limit = <1800 460 460 1800 460 900 1000 460 460 1000 820 1800 1800 460 1300 300 700 1300 1500 300 80 1800 460 1000 1667>;
-			battery,fast_charging_current = <2100 0 460 2100 460 1200 1000 460 0 1200 1000 2100 2100 0 1300 300 700 1300 1500 300 80 2100 0 1000 3000>;
-			battery,full_check_current_1st = <275 0 275 275 275 275 275 275 0 275 275 275 275 0 275 275 275 275 275 275 275 275 0 275 275>;
-			battery,full_check_current_2nd = <3000 0 3000 3000 3000 3000 3000 3000 0 3000 3000 3000 3000 0 3000 3000 3000 3000 3000 3000 3000 3000 0 3000 3000>;
-		};
-
-		s2mu003-charger {
-			status = "disable";
-			compatible = "samsung,s2mu003-charger";
+			battery,charger_name = "s2mu003-charger";
 			battery,is_1MHz_switching = <1>;
 			battery,chg_gpio_en = <0>;
 			battery,chg_polarity_en = <0>;
 			battery,chg_gpio_status = <0>;
 			battery,chg_polarity_status = <0>;
-			battery,chg_float_voltage = <4350>;
+			battery,chg_float_voltage = <4400>;
+
+			battery,input_current_limit = <1500 460 460 1500 460 900 1000 460 460 1000 820 1500 1500 460 1300 300 700 1300 1500 300 80 1500 460 1000 1667>;
+			battery,fast_charging_current = <2000 0 460 2000 460 1200 1000 460 0 1200 1000 2000 2000 0 1300 300 700 1300 1500 300 80 2000 0 1000 2000>;
+			battery,full_check_current_1st = <200 0 200 200 200 200 200 200 0 200 200 200 200 0 200 200 200 200 200 200 200 200 0 200 200>;
+			battery,full_check_current_2nd = <2400 0 2400 2400 2400 2400 2400 2400 0 2400 2400 2400 2400 0 2400 2400 2400 2400 2400 2400 2400 2400 0 2400 2400>;
 		};
 	};
 };

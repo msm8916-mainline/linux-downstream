@@ -628,6 +628,8 @@ static void dsi_update_mdnie_data(void)
 	mdnie_data.DSI0_HBM_CE_MDNIE = DSI0_HBM_CE_MDNIE;
 	mdnie_data.DSI0_RGB_SENSOR_MDNIE = DSI0_RGB_SENSOR_MDNIE;
 	mdnie_data.DSI0_CURTAIN = DSI0_CURTAIN;
+	mdnie_data.DSI0_GRAYSCALE_MDNIE = DSI0_GRAYSCALE_MDNIE;
+	mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE = DSI0_GRAYSCALE_NEGATIVE_MDNIE;
 	mdnie_data.DSI0_UI_DYNAMIC_MDNIE = DSI0_UI_DYNAMIC_MDNIE;
 	mdnie_data.DSI0_UI_STANDARD_MDNIE = DSI0_UI_STANDARD_MDNIE;
 #if defined(NATURAL_MODE_ENABLE)
@@ -742,7 +744,6 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_brightness_vint = NULL;
 	vdd->panel_func.samsung_brightness_gamma = mdss_gamma;
 	vdd->brightness[0].brightness_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;
-	vdd->bl_level=255;
 
 	/* Event */
 

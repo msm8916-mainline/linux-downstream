@@ -475,6 +475,12 @@ struct input_keymap_entry {
 #define KEY_RFKILL		247	/* Key that controls all radios */
 
 #define KEY_MICMUTE		248	/* Mute / unmute the microphone */
+
+#define KEY_DUMMY_HOME1		249	/* Dummy Touchkey : HOME1*/
+#define KEY_DUMMY_HOME2		250	/* Dummy Touchkey : HOME2*/
+#define KEY_DUMMY_MENU		251	/* Dummy Touchkey : MENU*/
+#define KEY_ACTIVITY_MENU	252	/* Activity menu key*/
+#define KEY_DUMMY_BACK		253	/* Dummy Touchkey : BACK*/
 #define KEY_RECENT   	254
 
 /* Code 255 is reserved for special needs of AT keyboard driver */
@@ -790,6 +796,25 @@ struct input_keymap_entry {
 
 /* We avoid low common keys in module aliases so they don't get huge. */
 #define KEY_MIN_INTERESTING	KEY_MUTE
+
+
+/* 0x2f1~2ff is key event for specail event. */
+#define KEY_TSP_NONE_KEY1	0x2f1
+#define KEY_TSP_NONE_KEY2	0x2f2
+#define KEY_TSP_NONE_KEY3	0x2f3
+#define KEY_TSP_NONE_KEY4	0x2f4
+#define KEY_TSP_NONE_KEY5	0x2f5
+#define KEY_TSP_NONE_KEY6	0x2f6
+#define KEY_TSP_NONE_KEY7	0x2f7
+#define KEY_TSP_NONE_KEY8	0x2f8
+#define KEY_TSP_NONE_KEY9	0x2f9
+#define KEY_TSP_NONE_KEYa	0x2fa
+#define KEY_TSP_NONE_KEYb	0x2fb
+#define KEY_TSP_NONE_KEYc	0x2fc
+#define KEY_TSP_NONE_KEYd	0x2fd	/* grip sensor for WIFI */
+#define KEY_CP_GRIP			0x2fe	/* grip sensor for CP */
+
+
 #define KEY_MAX			0x2ff
 #define KEY_CNT			(KEY_MAX+1)
 

@@ -847,6 +847,8 @@ static void dsi_update_mdnie_data(void)
 	mdnie_data.DSI0_HBM_CE_TEXT_MDNIE = DSI0_HBM_CE_TEXT_MDNIE;
 	mdnie_data.DSI0_RGB_SENSOR_MDNIE = DSI0_RGB_SENSOR_MDNIE;
 	mdnie_data.DSI0_CURTAIN = DSI0_CURTAIN;
+	mdnie_data.DSI0_GRAYSCALE_MDNIE = DSI0_GRAYSCALE_MDNIE;
+	mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE = DSI0_GRAYSCALE_NEGATIVE_MDNIE;
 	mdnie_data.DSI0_UI_DYNAMIC_MDNIE = DSI0_UI_DYNAMIC_MDNIE;
 	mdnie_data.DSI0_UI_STANDARD_MDNIE = DSI0_UI_STANDARD_MDNIE;
 	mdnie_data.DSI0_UI_NATURAL_MDNIE = DSI0_UI_NATURAL_MDNIE;
@@ -944,7 +946,6 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_hbm_gamma = mdss_hbm_gamma;
 	vdd->panel_func.samsung_hbm_etc = mdss_hbm_etc;
 
-	vdd->bl_level = 255;
 	/* OSC TE Fitting */
 	vdd->panel_func.samsung_osc_te_fitting = samsung_osc_te_fitting;
 	vdd->te_fitting_info.lut[0] = osc_fctrl_lut;

@@ -20,6 +20,7 @@
 */
 
 #define SW_FLIP                 0x15  /* set = flip cover */
+#define SW_COVER_ATTACH         0x1B    /* set = flip cover attach */
 
 /*
  * In-kernel definitions.

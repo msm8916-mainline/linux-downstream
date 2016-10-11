@@ -43,30 +43,21 @@
 		dev_err(dev, fmt, ## __VA_ARGS__); \
 })
 #else
-#define tsp_debug_dbg(mode, dev, fmt, ...)	dev_info(dev, fmt, ## __VA_ARGS__)
+#define tsp_debug_dbg(mode, dev, fmt, ...)	dev_dbg(dev, fmt, ## __VA_ARGS__)
 #define tsp_debug_info(mode, dev, fmt, ...)	dev_info(dev, fmt, ## __VA_ARGS__)
-#define tsp_debug_err(mode, dev, fmt, ...)	dev_info(dev, fmt, ## __VA_ARGS__)
+#define tsp_debug_err(mode, dev, fmt, ...)	dev_err(dev, fmt, ## __VA_ARGS__)
 #endif
 
 #define USE_OPEN_CLOSE
 
-//#ifdef CONFIG_SEC_DVFS
-#include <linux/cpufreq.h>
-#undef TOUCH_BOOSTER_DVFS
-
-#define DVFS_STAGE_TRIPLE       3
-#define DVFS_STAGE_DUAL         2
-#define DVFS_STAGE_SINGLE       1
-#define DVFS_STAGE_NONE         0
-//#endif
-
-#ifdef TOUCH_BOOSTER_DVFS
-#define TOUCH_BOOSTER_OFF_TIME	500
-#define TOUCH_BOOSTER_CHG_TIME	300//130
-#endif
+#include <linux/input/input_booster.h>
 
 #ifdef USE_OPEN_DWORK
 #define TOUCH_OPEN_DWORK_TIME 10
+#endif
+
+#ifdef CONFIG_MACH_E7_CHN_CTC
+#undef USE_WARKAROUND_CODE
 #endif
 
 #define FIRMWARE_IC					"fts_ic"
@@ -163,8 +154,9 @@
 #define FTS_CMD_SAVE_FWCONFIG       0xFB
 #define FTS_CMD_SAVE_CX_TUNING      0xFC
 
-#define TSP_BUF_SIZE 1024
+#define TSP_BUF_SIZE 2048
 #define CMD_STR_LEN 32
+#define CMD_RESULT_STR_LEN 2048
 #define CMD_PARAM_NUM 8
 
 #define RAW_MAX	3750
@@ -182,10 +174,15 @@ struct fts_finger {
 };
 
 struct fts_ts_platform_data {
-	u32		gpio_int;
-	u32		gpio_ldo_en;
-	int 		gpio_scl;
-	int 		gpio_sda;	
+	u32 gpio_int;
+	int gpio_ldo_en;
+	int gpio_scl;
+	int gpio_sda;
+	int gpio_io_en;
+#ifdef USE_TSP_TA_CALLBACKS
+	struct tsp_callbacks callbacks;
+	void (*register_cb)(struct tsp_callbacks *);
+#endif	
 };
 
 struct fts_ts_info {
@@ -202,10 +199,10 @@ struct fts_ts_info {
 	int irq_type;
 	bool irq_enabled;
 	struct fts_i2c_platform_data *board;
-	void (*register_cb) (void *);
-#ifdef FTS_SUPPORT_TA_MODE
-	struct fts_callbacks callbacks;
-#endif
+#ifdef USE_TSP_TA_CALLBACKS
+	struct tsp_callbacks callbacks;
+	void (*register_cb)(struct tsp_callbacks *);
+#endif	
 	struct mutex lock;
 	bool enabled;
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -224,17 +221,15 @@ struct fts_ts_info {
 	int SenseChannelLength;
 	int ForceChannelLength;
 	short *pFrame;
+	unsigned char *cx_data;
 #endif
 
-#ifdef TOUCH_BOOSTER_DVFS
-	struct delayed_work work_dvfs_off;
-	struct delayed_work work_dvfs_chg;
-	struct mutex dvfs_lock;
-	bool dvfs_lock_status;
-	int dvfs_boost_mode;
-	int dvfs_freq;
-	int dvfs_old_stauts;
-	bool stay_awake;
+#ifdef USE_WARKAROUND_CODE
+	struct delayed_work work_io_gpio;
+#endif
+
+#ifdef TSP_BOOSTER
+	struct input_booster	*booster;
 #endif
 
 	struct completion init_done;
@@ -244,9 +239,12 @@ struct fts_ts_info {
 	bool hover_enabled;
 	bool mshover_enabled;
 	bool fast_mshover_enabled;
+#ifdef CLEAR_COVER	
 	bool flip_enable;
+#endif
+	bool run_autotune;
 
-#ifdef FTS_SUPPORT_TA_MODE
+#ifdef USE_TSP_TA_CALLBACKS
 	bool TA_Pluged;
 #endif
 
@@ -279,6 +277,16 @@ struct fts_ts_info {
 	struct mutex device_mutex;
 	bool touch_stopped;
 	bool reinit_done;
+
+#ifdef FTS_SUPPORT_TOUCH_KEY
+	unsigned char tsp_keystatus;
+	bool report_dummy_key;
+	bool ignore_menu_key;
+	bool ignore_back_key;
+	bool ignore_menu_key_by_back;
+	bool ignore_back_key_by_menu;
+	int touchkey_threshold;
+#endif // FTS_SUPPORT_TOUCH_KEY
 
 	unsigned char data[FTS_EVENT_SIZE * FTS_FIFO_MAX];
 

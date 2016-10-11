@@ -44,8 +44,10 @@ static struct GAForensicINFO {
 	unsigned short vm_area_struct_struct_vm_end;
 	unsigned short vm_area_struct_struct_vm_next;
 	unsigned short vm_area_struct_struct_vm_file;
+#ifndef CONFIG_ARM64
 	unsigned short thread_info_struct_cpu_context;
 	unsigned short cpu_context_save_struct_sp;
+#endif
 	unsigned short file_struct_f_path;
 	unsigned short path_struct_mnt;
 	unsigned short path_struct_dentry;
@@ -53,13 +55,25 @@ static struct GAForensicINFO {
 	unsigned short dentry_struct_d_name;
 	unsigned short qstr_struct_name;
 	unsigned short vfsmount_struct_mnt_root;
+#ifdef CONFIG_ARM64
+	unsigned long pgdir_shift;
+	unsigned long ptrs_per_pte;
+	unsigned long phys_offset;
+	unsigned long page_offset;
+	unsigned long page_shift;
+	unsigned long page_size;
+#else
 	unsigned int pgdir_shift;
 	unsigned int ptrs_per_pte;
 	unsigned int phys_offset;
 	unsigned int page_offset;
 	unsigned int page_shift;
 	unsigned int page_size;
+#endif
 	unsigned short task_struct_struct_thread_group;
+#ifdef CONFIG_ARM64
+	unsigned short task_struct_struct_thread;
+#endif
 	unsigned short task_struct_struct_utime;
 	unsigned short task_struct_struct_stime;
 	unsigned short list_head_struct_next;
@@ -120,9 +134,11 @@ static struct GAForensicINFO {
 		offsetof(struct vm_area_struct, vm_next),
 	.vm_area_struct_struct_vm_file =
 		offsetof(struct vm_area_struct, vm_file),
+#ifndef CONFIG_ARM64
 	.thread_info_struct_cpu_context =
 		offsetof(struct thread_info, cpu_context),
 	.cpu_context_save_struct_sp = offsetof(struct cpu_context_save, sp),
+#endif
 	.file_struct_f_path = offsetof(struct file, f_path),
 	.path_struct_mnt = offsetof(struct path, mnt),
 	.path_struct_dentry = offsetof(struct path, dentry),
@@ -138,6 +154,9 @@ static struct GAForensicINFO {
 	.page_size = PAGE_SIZE,
 	.task_struct_struct_thread_group  =
 		offsetof(struct task_struct, thread_group),
+#ifdef CONFIG_ARM64
+	.task_struct_struct_thread = offsetof(struct task_struct, thread),
+#endif
 	.task_struct_struct_utime =  offsetof(struct task_struct, utime),
 	.task_struct_struct_stime =  offsetof(struct task_struct, stime),
 	.list_head_struct_next = offsetof(struct list_head, next),

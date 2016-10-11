@@ -54,20 +54,7 @@
 #define MAX_NUMBER_OF_STEPS 47
 
 #define MAX_LED_TRIGGERS        3
-
-#define EXT_CAM_SENSOR_MODE     7
-#define EXT_CAM_EXIF            9
-//Focus related enums
-#define EXT_CAM_AF              11
-#define EXT_CAM_FOCUS           12
-#define EXT_CAM_SET_TOUCHAF_POS	13
-#define EXT_CAM_SET_AF_STATUS	14
-#define EXT_CAM_GET_AF_STATUS	15
-#define EXT_CAM_GET_AF_RESULT	16
-#define EXT_CAM_SET_AF_STOP     17
-#define EXT_CAM_FLASH_MODE      18
-#define EXT_CAM_SET_FLASH       19
-#define EXT_CAM_VT_MODE         20
+#define MSM_OIS_VER_SIZE       (6)
 
 
 //************************************* Native functionalities for YUV sensor added
@@ -81,6 +68,18 @@
 #define EXT_CAM_CONTRAST	8
 #define EXT_CAM_EXIF		9
 #define EXT_CAM_SET_AE_AWB	10
+//Focus related enums
+#define EXT_CAM_AF              11
+#define EXT_CAM_FOCUS           12
+#define EXT_CAM_SET_TOUCHAF_POS	13
+#define EXT_CAM_SET_AF_STATUS	14
+#define EXT_CAM_GET_AF_STATUS	15
+#define EXT_CAM_GET_AF_RESULT	16
+#define EXT_CAM_SET_AF_STOP     17
+#define EXT_CAM_FLASH_MODE      18
+#define EXT_CAM_SET_FLASH       19
+#define EXT_CAM_VT_MODE         20
+#define EXT_CAM_FPS_RANGE       21
 
 //Exposure Compensation
 #define CAMERA_EV_M4		0
@@ -127,6 +126,15 @@
 #define CAMERA_EFFECT_EMBOSS		9
 #define CAMERA_EFFECT_SKETCH		10
 #define CAMERA_EFFECT_NEON			11
+#if defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)
+#define CAMERA_EFFECT_VINTAGE_WARM     12
+#define CAMERA_EFFECT_VINTAGE_COOL     13
+#define CAMERA_EFFECT_BLUE             14
+#define CAMERA_EFFECT_ORANGE           15
+#define CAMERA_EFFECT_GREEN            16
+#define CAMERA_EFFECT_BEAUTY           17
+#define CAMERA_EFFECT_MAX              18
+#else
 #define CAMERA_EFFECT_WASHED		12
 #define CAMERA_EFFECT_VINTAGE_WARM	13
 #define CAMERA_EFFECT_VINTAGE_COLD	14
@@ -136,6 +144,7 @@
 #define CAMERA_EFFECT_POINT_COLOR_4	18
 #define CAMERA_EFFECT_CARTOONIZE	19
 #define CAMERA_EFFECT_MAX			20
+#endif
 
 //scene mode
 #define CAMERA_SCENE_AUTO           0
@@ -205,6 +214,7 @@ enum msm_camera_i2c_reg_addr_type {
 enum msm_camera_i2c_data_type {
 	MSM_CAMERA_I2C_BYTE_DATA = 1,
 	MSM_CAMERA_I2C_WORD_DATA,
+	MSM_CAMERA_I2C_VARIABLE_LENGTH_DATA,
 	MSM_CAMERA_I2C_SET_BYTE_MASK,
 	MSM_CAMERA_I2C_UNSET_BYTE_MASK,
 	MSM_CAMERA_I2C_SET_WORD_MASK,
@@ -240,6 +250,10 @@ enum msm_sensor_power_seq_gpio_t {
 	SENSOR_GPIO_FL_RESET,
 	SENSOR_GPIO_VT_RESET,
 	SENSOR_GPIO_VT_STANDBY,
+	SENSOR_GPIO_EXT_VANA_POWER,
+	SENSOR_GPIO_EXT_CAMIO_EN,
+	SENSOR_GPIO_OIS_EN,
+	SENSOR_GPIO_OIS_RESET,
 	SENSOR_GPIO_MAX,
 };
 
@@ -248,8 +262,51 @@ enum msm_camera_vreg_name_t {
 	CAM_VIO,
 	CAM_VANA,
 	CAM_VAF,
+	CAM_VDDOIS,/*OIS_VDD_2P8*/
+	CAM_VMOIS,/*OIS_VM_2P8*/
 	CAM_VREG_MAX,
 };
+
+#if defined (CONFIG_CAMERA_SYSFS_V2)
+enum msm_camera_cam_info_isp {
+	CAM_INFO_ISP_TYPE_INTERNAL = 0,
+	CAM_INFO_ISP_TYPE_EXTERNAL,
+	CAM_INFO_ISP_TYPE_SOC,
+};
+
+enum msm_camera_cam_info_cal_mem {
+	CAM_INFO_CAL_MEM_TYPE_NONE = 0,
+	CAM_INFO_CAL_MEM_TYPE_FROM,
+	CAM_INFO_CAL_MEM_TYPE_EEPROM,
+	CAM_INFO_CAL_MEM_TYPE_OTP,
+};
+
+enum msm_camera_cam_info_read_ver {
+	CAM_INFO_READ_VER_SYSFS = 0,
+	CAM_INFO_READ_VER_CAMON,
+};
+
+enum msm_camera_cam_info_core_voltage {
+	CAM_INFO_CORE_VOLT_NONE = 0,
+	CAM_INFO_CORE_VOLT_USE,
+};
+
+enum msm_camera_cam_info_upgrade {
+	CAM_INFO_FW_UPGRADE_NONE = 0,
+	CAM_INFO_FW_UPGRADE_SYSFS,
+	CAM_INFO_FW_UPGRADE_CAMON,
+};
+
+enum msm_camera_cam_info_companion {
+	CAM_INFO_COMPANION_NONE = 0,
+	CAM_INFO_COMPANION_USE,
+};
+
+enum msm_camera_cam_info_ois {
+	CAM_INFO_OIS_NONE = 0,
+	CAM_INFO_OIS_USE,
+};
+#endif
 
 enum msm_sensor_resolution_t {
 	MSM_SENSOR_RES_FULL,
@@ -287,6 +344,9 @@ enum sensor_sub_module_t {
 	SUB_MODULE_CSID_3D,
 	SUB_MODULE_CSIPHY,
 	SUB_MODULE_CSIPHY_3D,
+#if defined(CONFIG_OIS)
+	SUB_MODULE_OIS,
+#endif
 	SUB_MODULE_MAX,
 };
 
@@ -350,6 +410,7 @@ enum csid_cfg_type_t {
 	CSID_INIT,
 	CSID_CFG,
 	CSID_RELEASE,
+	CSID_BOOSTOFF,
 };
 
 enum csiphy_cfg_type_t {
@@ -442,12 +503,20 @@ enum i2c_freq_mode_t {
 struct msm_camera_i2c_reg_array {
 	uint16_t reg_addr;
 	uint16_t reg_data;
+	uint8_t  data_type;
+	uint32_t delay;
+};
+
+struct msm_camera_i2c_burst_reg_array {
+	uint16_t reg_addr;
 	uint8_t *reg_burst_data;
+	uint16_t reg_data_size;
 	uint32_t delay;
 };
 
 struct msm_camera_i2c_reg_setting {
-	struct msm_camera_i2c_reg_array *reg_setting;
+	void *reg_setting;
+	  // KK ML ONLY struct msm_camera_i2c_reg_array *reg_setting;
 	uint16_t size;
 	enum msm_camera_i2c_reg_addr_type addr_type;
 	enum msm_camera_i2c_data_type data_type;
@@ -594,6 +663,22 @@ struct csiphy_cfg_data {
 	} cfg;
 };
 
+struct msm_ois_cal_info_t {
+	char  cal_ver[MSM_OIS_VER_SIZE+1];
+	uint16_t  cal_checksum_rumba;
+	uint16_t  cal_checksum_line;
+	uint8_t  is_different_crc;
+};
+struct msm_ois_cfg_data {
+	int cfgtype;
+	uint16_t reg_addr;
+	uint16_t read_data;
+	uint16_t write_data;
+	uint16_t set_mode_value;
+	uint8_t  *version;
+	struct msm_ois_cal_info_t *ois_cal_info;
+};
+
 enum eeprom_cfg_type_t {
 	CFG_EEPROM_GET_INFO,
 	CFG_EEPROM_GET_CAL_DATA,
@@ -682,6 +767,17 @@ enum msm_sensor_cfg_type_t {
 	CFG_SET_AUTOFOCUS,
 	CFG_CANCEL_AUTOFOCUS,
 	CFG_SET_STREAM_TYPE,
+};
+
+enum msm_ois_cfg_type_t {
+	CFG_OIS_POWERDOWN,
+	CFG_OIS_POWERUP,
+	CFG_OIS_SET_MODE,
+	CFG_OIS_READ_MODULE_VER,
+	CFG_OIS_READ_PHONE_VER,
+	CFG_OIS_READ_CAL_INFO,
+	CFG_OIS_GET_FW_STATUS,
+	CFG_OIS_FW_UPDATE,
 };
 
 enum msm_actuator_cfg_type_t {
@@ -812,6 +908,7 @@ struct msm_actuator_set_position_t {
 
 struct msm_actuator_cfg_data {
 	int cfgtype;
+	int sw_landing_type;
 	uint8_t is_af_supported;
 	union {
 		struct msm_actuator_move_params_t move;
@@ -820,6 +917,11 @@ struct msm_actuator_cfg_data {
 		struct msm_actuator_set_position_t setpos;
 		enum af_camera_name cam_name;
 	} cfg;
+};
+
+enum msm_actuator_sw_landing_type {
+	MSM_ACTUATOR_DEFAULT_SW_LANDING,
+	MSM_ACTUATOR_MULTI_TASKING_SW_LANDING,
 };
 
 enum msm_actuator_write_type {
@@ -847,6 +949,7 @@ enum msm_camera_led_config_t {
 	MSM_CAMERA_LED_HIGH,
 	MSM_CAMERA_LED_INIT,
 	MSM_CAMERA_LED_RELEASE,
+	MSM_CAMERA_LED_PREFLASH,
 };
 
 struct msm_camera_led_cfg_t {
@@ -921,6 +1024,10 @@ enum msm_cam_flicker_type {
 
 #define VIDIOC_MSM_SENSOR_NATIVE_CMD \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 11, struct ioctl_native_cmd)
+
+#define VIDIOC_MSM_OIS_IO_CFG \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 12, struct msm_ois_cfg_data)
+
 	
 #define MSM_V4L2_PIX_FMT_META v4l2_fourcc('M', 'E', 'T', 'A') /* META */
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -73,10 +73,8 @@ static int vco_set_rate_lpm(struct clk *c, unsigned long rate)
 	return rc;
 }
 
-static int gf_2_dsi_pll_enable_seq_8916(struct mdss_pll_resources *dsi_pll_res)
+static void dsi_pll_sw_reset_8916(struct mdss_pll_resources *dsi_pll_res)
 {
-	int pll_locked = 0;
-
 	/*
 	 * DSI PLL software reset. Add HW recommended delays after toggling
 	 * the software reset bit off and back on.
@@ -86,15 +84,45 @@ static int gf_2_dsi_pll_enable_seq_8916(struct mdss_pll_resources *dsi_pll_res)
 	ndelay(500);
 	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
 			DSI_PHY_PLL_UNIPHY_PLL_TEST_CFG, 0x00);
+}
+
+static void dsi_pll_toggle_lock_detect_8916(
+				struct mdss_pll_resources *dsi_pll_res)
+{
+	/* DSI PLL toggle lock detect setting */
+	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
+			DSI_PHY_PLL_UNIPHY_PLL_LKDET_CFG2, 0x04);
+	ndelay(500);
+	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
+			DSI_PHY_PLL_UNIPHY_PLL_LKDET_CFG2, 0x05);
+	udelay(512);
+}
+
+static int dsi_pll_check_lock_status_8916(
+				struct mdss_pll_resources *dsi_pll_res)
+{
+	int rc = 0;
+
+	rc = dsi_pll_lock_status(dsi_pll_res);
+	if (rc)
+		pr_debug("PLL Locked\n");
+	else
+		pr_err("PLL failed to lock\n");
+
+	return rc;
+}
+
+
+static int gf_2_dsi_pll_enable_seq_8916(struct mdss_pll_resources *dsi_pll_res)
+{
+	int pll_locked = 0;
+
+	dsi_pll_sw_reset_8916(dsi_pll_res);
 
 	/*
-	 * PLL power up sequence.
+	 * GF PART 2 PLL power up sequence.
 	 * Add necessary delays recommended by hardware.
 	 */
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_TEST_CFG, 0x01);
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_TEST_CFG, 0x00);
 
 	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
 			DSI_PHY_PLL_UNIPHY_PLL_CAL_CFG1, 0x04);
@@ -107,39 +135,19 @@ static int gf_2_dsi_pll_enable_seq_8916(struct mdss_pll_resources *dsi_pll_res)
 			DSI_PHY_PLL_UNIPHY_PLL_GLB_CFG, 0x0f);
 	udelay(500);
 
-	/* DSI PLL toggle lock detect setting */
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_LKDET_CFG2, 0x04);
-	ndelay(500);
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_LKDET_CFG2, 0x05);
-	udelay(512);
+	dsi_pll_toggle_lock_detect_8916(dsi_pll_res);
 
-	pll_locked = dsi_pll_lock_status(dsi_pll_res);
-
-	if (pll_locked)
-		pr_debug("PLL Locked\n");
-	else
-		pr_err("PLL failed to lock\n");
-
+	pll_locked = dsi_pll_check_lock_status_8916(dsi_pll_res);
 	return pll_locked ? 0 : -EINVAL;
 }
 
 static int gf_1_dsi_pll_enable_seq_8916(struct mdss_pll_resources *dsi_pll_res)
 {
 	int pll_locked = 0;
-	/*
-	 * DSI PLL software reset. Add HW recommended delays after toggling
-	 * the software reset bit off and back on.
-	 */
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_TEST_CFG, 0x01);
-	ndelay(500);
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_TEST_CFG, 0x00);
 
+	dsi_pll_sw_reset_8916(dsi_pll_res);
 	/*
-	 * PLL power up sequence.
+	 * GF PART 1 PLL power up sequence.
 	 * Add necessary delays recommended by hardware.
 	 */
 
@@ -154,39 +162,19 @@ static int gf_1_dsi_pll_enable_seq_8916(struct mdss_pll_resources *dsi_pll_res)
 			DSI_PHY_PLL_UNIPHY_PLL_GLB_CFG, 0x0f);
 	udelay(500);
 
-	/* DSI PLL toggle lock detect setting */
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_LKDET_CFG2, 0x04);
-	ndelay(500);
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_LKDET_CFG2, 0x05);
-	udelay(512);
+	dsi_pll_toggle_lock_detect_8916(dsi_pll_res);
 
-	pll_locked = dsi_pll_lock_status(dsi_pll_res);
-
-	if (pll_locked)
-		pr_debug("PLL Locked\n");
-	else
-		pr_err("PLL failed to lock\n");
-
+	pll_locked = dsi_pll_check_lock_status_8916(dsi_pll_res);
 	return pll_locked ? 0 : -EINVAL;
 }
 
 static int tsmc_dsi_pll_enable_seq_8916(struct mdss_pll_resources *dsi_pll_res)
 {
 	int pll_locked = 0;
-	/*
-	 * DSI PLL software reset. Add HW recommended delays after toggling
-	 * the software reset bit off and back on.
-	 */
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_TEST_CFG, 0x01);
-	ndelay(500);
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_TEST_CFG, 0x00);
 
+	dsi_pll_sw_reset_8916(dsi_pll_res);
 	/*
-	 * PLL power up sequence.
+	 * TSMC PLL power up sequence.
 	 * Add necessary delays recommended by hardware.
 	 */
 	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
@@ -199,21 +187,9 @@ static int tsmc_dsi_pll_enable_seq_8916(struct mdss_pll_resources *dsi_pll_res)
 			DSI_PHY_PLL_UNIPHY_PLL_GLB_CFG, 0x0f);
 	udelay(500);
 
-	/* DSI PLL toggle lock detect setting */
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_LKDET_CFG2, 0x04);
-	ndelay(500);
-	MDSS_PLL_REG_W(dsi_pll_res->pll_base,
-			DSI_PHY_PLL_UNIPHY_PLL_LKDET_CFG2, 0x05);
-	udelay(512);
+	dsi_pll_toggle_lock_detect_8916(dsi_pll_res);
 
-	pll_locked = dsi_pll_lock_status(dsi_pll_res);
-
-	if (pll_locked)
-		pr_debug("PLL Locked\n");
-	else
-		pr_err("PLL failed to lock\n");
-
+	pll_locked = dsi_pll_check_lock_status_8916(dsi_pll_res);
 	return pll_locked ? 0 : -EINVAL;
 }
 

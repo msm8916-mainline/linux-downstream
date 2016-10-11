@@ -692,7 +692,7 @@
 
 		tlmm_nfc_enable{
 			qcom,pins = <&gp 20>;
-			qcom,pin-func = <0>;
+			qcom,pin-func = <1>;
 			qcom,num-grp-pins = <1>;
 			label = "tlmm_nfc_enable";
 
@@ -709,7 +709,7 @@
 
 		tlmm_nfc_firmware{
 			qcom,pins = <&gp 49>;
-			qcom,pin-func = <0>;
+			qcom,pin-func = <1>;
 			qcom,num-grp-pins = <1>;
 			label = "tlmm_nfc_firmware";
 

@@ -30,6 +30,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
  *
 */
 #include "ss_dsi2lvds_VX5B3D_LTI550HN06.h"
+static int first_boot = 1;
 
 #define V5D3BX_VEESTRENGHT		0x00001f07
 #define V5D3BX_VEEDEFAULTVAL		0
@@ -39,7 +40,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #define V5D3BX_MAX_STRENGHT		15
 
 #define V5D3BX_CABCBRIGHTNESSRATIO	815
-#define V5D3BX_10KHZ_DEFAULT_RATIO	0xffffffff
+#define V5D3BX_10KHZ_DEFAULT_RATIO	205700
 #define AUTOBRIGHTNESS_LIMIT_VALUE	207
 
 #define MIN_BRIGHTNESS			0
@@ -50,8 +51,8 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #define BL_DEFAULT_BRIGHTNESS		MID_BRIGHTNESS_LEVEL
 
 #define V5D3BX_MIN_BRIGHTNESS			0
-#define V5D3BX_MAX_BRIGHTNESS_LEVEL_SDC		255
-#define V5D3BX_MID_BRIGHTNESS_LEVEL_SDC		195
+#define V5D3BX_MAX_BRIGHTNESS_LEVEL_SDC		330
+#define V5D3BX_MID_BRIGHTNESS_LEVEL_SDC		185
 
 #define V5D3BX_MAX_BRIGHTNESS_LEVEL_BOE		255
 #define V5D3BX_MID_BRIGHTNESS_LEVEL_BOE		195
@@ -93,14 +94,10 @@ static void mdss_brightness_tft_pwm_lvds(struct mdss_dsi_ctrl_pdata *ctrl, int l
 		vx5b3d_level  = V5D3BX_DIM_BRIGHTNESS_LEVEL;
 	else {
 		vx5b3d_level = 0;
-		pr_info("level = [%d]: vx5b3d_level = [%d]\n",\
-			level,vx5b3d_level);
+		pr_info("level = [%d]: vx5b3d_level = [%d]\n", level,vx5b3d_level);
 	}
 
-	if (vdd->support_cabc) {
-
-		switch (vdd->auto_brightness) {
-
+	switch (vdd->auto_brightness) {
 		case	0 ... 3:
 			vee_strenght = V5D3BX_DEFAULT_STRENGHT;
 			break;
@@ -112,35 +109,27 @@ static void mdss_brightness_tft_pwm_lvds(struct mdss_dsi_ctrl_pdata *ctrl, int l
 			break;
 		default:
 			vee_strenght = V5D3BX_DEFAULT_STRENGHT;
-		}
-
-		vee_strenght = V5D3BX_DEFAULT_HIGH_STRENGHT;/*joann_temp*/
-
-		vee_strenght = V5D3BX_VEESTRENGHT | ((vee_strenght) << 27);
-
-		if (!(vdd->auto_brightness >= 5))
-			vx5b3d_level = (vx5b3d_level * V5D3BX_CABCBRIGHTNESSRATIO) / 1000;
-	} else {
-		vee_strenght = V5D3BX_VEESTRENGHT | (V5D3BX_VEEDEFAULTVAL << 27);
 	}
 
+	vee_strenght = V5D3BX_VEESTRENGHT | ((vee_strenght) << 27);
+
+	if ((vdd->auto_brightness && vdd->auto_brightness < 5) || vdd->siop_status)
+		vx5b3d_level = (vx5b3d_level * V5D3BX_CABCBRIGHTNESSRATIO) / 1000;
+
 	if((vee_strenght != prev_vee_strenght)&& vx5b3d_level) {
-		vdd->panel_func.samsung_lvds_write_reg(0x400,vee_strenght);
+		vdd->panel_func.samsung_lvds_write_reg(0x400,0);/*temp*/
 		prev_vee_strenght = vee_strenght;
 	}
 
 	if (vx5b3d_level != 0) {
-		pr_info("[MIPI2LVDS]:level=%d vx5b3d_level:%d auto_brightness:%d CABC:%d \n",\
-			level,vx5b3d_level,vdd->auto_brightness,vdd->support_cabc);
-
 		vdd->panel_func.samsung_lvds_write_reg(0x164,(vx5b3d_level*V5D3BX_10KHZ_DEFAULT_RATIO)/255);
 
-//		vdd->panel_func.samsung_lvds_write_reg(0x164,0xB3333332);/*70% duty*/
-		/*vdd->scaled_level = (vx5b3d_level*V5D3BX_10KHZ_DEFAULT_RATIO)/1000 ;*/
+		pr_info("[MIPI2LVDS- 40 or 50 INCH]:level=%d vx5b3d_level:%d auto_brightness:%d CABC:%d \n",\
+			level,vx5b3d_level,vdd->auto_brightness,vdd->siop_status);
 	}
 
 	pr_info("%s bl_level : %d \n", __func__, level);
-	/*pr_info("%s bl_level : %d scaled_level : 90%\n", __func__, level, vdd->scaled_level);*/
+
 	vdd->bl_level = level;
 
 	return;
@@ -158,21 +147,24 @@ static void mdss_lvds_data_ql(struct mdss_dsi_ctrl_pdata *ctrl)
 	vdd->panel_func.samsung_lvds_write_reg(0x700, 0x18900040);
 	vdd->panel_func.samsung_lvds_write_reg(0x704, 0x1021B);
 	vdd->panel_func.samsung_lvds_write_reg(0x70C, 0x00004604);
-	vdd->panel_func.samsung_lvds_write_reg(0x710, 0x545100B);
-	vdd->panel_func.samsung_lvds_write_reg(0x714, 0x0);
+	vdd->panel_func.samsung_lvds_write_reg(0x710, 0x0545100B);
+	vdd->panel_func.samsung_lvds_write_reg(0x714, 0x20);
 	vdd->panel_func.samsung_lvds_write_reg(0x718, 0x00000102);
 	vdd->panel_func.samsung_lvds_write_reg(0x71C, 0xA8002F);
 	vdd->panel_func.samsung_lvds_write_reg(0x720, 0x1800);
 	vdd->panel_func.samsung_lvds_write_reg(0x154, 0x00000000);
+	usleep_range(1000,1000);
 	vdd->panel_func.samsung_lvds_write_reg(0x154, 0x80000000);
+	usleep_range(1000,1000);
 	vdd->panel_func.samsung_lvds_write_reg(0x700, 0x18900840);
 	vdd->panel_func.samsung_lvds_write_reg(0x70C, 0x5E46);
 	vdd->panel_func.samsung_lvds_write_reg(0x718, 0x00000202);
-	mdelay(1);
+
 	vdd->panel_func.samsung_lvds_write_reg(0x154, 0x00000000);
-	mdelay(1);
+	usleep_range(1000,1000);
 	vdd->panel_func.samsung_lvds_write_reg(0x154, 0x80000000);
-	mdelay(1);
+	usleep_range(1000,1000);
+
 	vdd->panel_func.samsung_lvds_write_reg(0x120, 0x5);
 	vdd->panel_func.samsung_lvds_write_reg(0x124, 0x16A1C780);
 	vdd->panel_func.samsung_lvds_write_reg(0x128, 0x103C0F);
@@ -181,7 +173,10 @@ static void mdss_lvds_data_ql(struct mdss_dsi_ctrl_pdata *ctrl)
 	vdd->panel_func.samsung_lvds_write_reg(0x134, 0x15);
 	vdd->panel_func.samsung_lvds_write_reg(0x138, 0xFF0000);
 	vdd->panel_func.samsung_lvds_write_reg(0x13C, 0x0);
+
+	vdd->panel_func.samsung_lvds_write_reg(0x114, 0xc6302);
 	vdd->panel_func.samsung_lvds_write_reg(0x140, 0x10000);
+
 	vdd->panel_func.samsung_lvds_write_reg(0x20C, 0x24);
 	vdd->panel_func.samsung_lvds_write_reg(0x21C, 0x780);
 	vdd->panel_func.samsung_lvds_write_reg(0x224, 0x7);
@@ -197,7 +192,9 @@ static void mdss_lvds_data_ql(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	vdd->panel_func.samsung_lvds_write_reg(0x258, 0xF005A);
 	vdd->panel_func.samsung_lvds_write_reg(0x158, 0x0);
+	usleep_range(1000,1000);
 	vdd->panel_func.samsung_lvds_write_reg(0x158, 0x1);
+	usleep_range(1000,1000);
 	vdd->panel_func.samsung_lvds_write_reg(0x37C, 0x00001063);
 	vdd->panel_func.samsung_lvds_write_reg(0x380, 0x82A86030);
 	vdd->panel_func.samsung_lvds_write_reg(0x384, 0x2861408B);
@@ -205,26 +202,24 @@ static void mdss_lvds_data_ql(struct mdss_dsi_ctrl_pdata *ctrl)
 	vdd->panel_func.samsung_lvds_write_reg(0x38C, 0x10630009);
 	vdd->panel_func.samsung_lvds_write_reg(0x394, 0x400B82A8);
 	vdd->panel_func.samsung_lvds_write_reg(0x600, 0x16CC78D);
-	vdd->panel_func.samsung_lvds_write_reg(0x604, 0x3FFFFC00);
 	vdd->panel_func.samsung_lvds_write_reg(0x608, 0x20F80);
-	mdelay(1);
+
 	vdd->panel_func.samsung_lvds_write_reg(0x154, 0x00000000);
-	mdelay(1);
+	usleep_range(1000,1000);
 	vdd->panel_func.samsung_lvds_write_reg(0x154, 0x80000000);
-	mdelay(1);
+	usleep_range(1000,1000);
 	/*vee strenght initialization*/
 	vdd->panel_func.samsung_lvds_write_reg(0x400, 0x0);
+	usleep_range(80, 80);
 #if 0
 	/*backlight duty ration control when device is first bring up.*/
 	vdd->panel_func.samsung_lvds_write_reg(0x160, 0x4B4/*0xff*/);
 	vdd->panel_func.samsung_lvds_write_reg(0x138, 0x3fff0000);
 	vdd->panel_func.samsung_lvds_write_reg(0x15c, 0x5);
-
 	vdd->panel_func.samsung_lvds_write_reg(0x164, 0xcf);
-        /*LVDS Enable*/
-    vdd->panel_func.samsung_lvds_write_reg(0x604, 0x3FFFFFE0);
+	/*LVDS Enable*/
+	vdd->panel_func.samsung_lvds_write_reg(0x604, 0x3FFFFFE0);
 #endif
-
 }
 
 static void mdss_lvds_data_ql2(struct samsung_display_driver_data *vdd)
@@ -232,16 +227,17 @@ static void mdss_lvds_data_ql2(struct samsung_display_driver_data *vdd)
 	pr_err("%s\n", __func__);
 
 	msleep(5);
-        /*pwm freq.=148M /(0x322F3+1)/4= 180hz; 148M =(h totla*v total*60) */
-	vdd->panel_func.samsung_lvds_write_reg(0x160, 0x322F3);
-	vdd->panel_func.samsung_lvds_write_reg(0x138, 0x3fff0000);
+        /*pwm freq.=37M /(0x3238B+1)= 180hz;  */
+	vdd->panel_func.samsung_lvds_write_reg(0x160, 0x3238B);
+	vdd->panel_func.samsung_lvds_write_reg(0x604, 0x3FFFFC00);
 	msleep(200);
 
+	vdd->panel_func.samsung_lvds_write_reg(0x138, 0x3fff0000);
 	vdd->panel_func.samsung_lvds_write_reg(0x15c, 0x5);
 	msleep(1);/*after init -3*/
 
 #ifdef __RGB_OUT__
-	pr_info(" <delay for RGB out> !!! =================================== \n");
+	pr_info(" <delay for RGB out> !!! ================================ \n");
 	msleep(500);
 	msleep(500);
 	pr_info(" <making RGB out> !!! =================================== \n");
@@ -255,8 +251,8 @@ static void mdss_lvds_data_ql2(struct samsung_display_driver_data *vdd)
 	mdelay(1);
 	pr_info(" <ending RGB out> !!! =================================== \n");
 #endif
-
 }
+
 static void backlight_tft_late_on(struct mdss_dsi_ctrl_pdata *ctrl)
 {
 	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
@@ -269,12 +265,18 @@ static void backlight_tft_late_on(struct mdss_dsi_ctrl_pdata *ctrl)
 	pr_err("%s \n", __func__);
 	mdss_lvds_data_ql2(vdd);
 
+	if(vdd->bl_level)
+		mdss_brightness_tft_pwm_lvds(ctrl, vdd->bl_level);
+
+	if(first_boot) {
+		mdss_brightness_tft_pwm_lvds(ctrl, 200);
+		first_boot = 0;
+	}
+
 	if (gpio_is_valid(ctrl->bklt_en_gpio)){
 		gpio_set_value((ctrl->bklt_en_gpio), 1);
 		pr_err("%s : bklt_en_gpio on\n", __func__);
 	}
-
-	mdss_brightness_tft_pwm_lvds(ctrl,10);
 
 }
 
@@ -309,9 +311,8 @@ static int mdss_panel_off_pre(struct mdss_dsi_ctrl_pdata *ctrl)
 		gpio_set_value((ctrl->bklt_en_gpio), 0);
 		pr_err("%s : bklt_en_gpio off\n", __func__);
 	}
+
 	msleep(100);//after off, make delay 1s T6
-
-
 
 	return true;
 }
@@ -329,11 +330,8 @@ static int mdss_panel_off_post(struct mdss_dsi_ctrl_pdata *ctrl)
 	/*joann_test*/
 	msleep(30);//after off, make delay 1s T3
 
-	 pr_err("%s : Backlight off sleep2\n", __func__);
-
 	return true;
 }
-
 
 static int mdss_panel_revision(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -348,32 +346,14 @@ static int mdss_panel_revision(struct mdss_dsi_ctrl_pdata *ctrl)
 	return true;
 }
 
-
-static void mdss_panel_blic_init(struct mdss_dsi_ctrl_pdata *ctrl)
-{
-	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);
-	struct mdss_panel_info *pinfo = NULL;
-
-	if (IS_ERR_OR_NULL(vdd)) {
-		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
-		return;
-	}
-	pinfo = &(ctrl->panel_data.panel_info);
-	pinfo->blank_state = MDSS_PANEL_BLANK_UNBLANK;
-
-	mdss_brightness_tft_pwm_lvds(ctrl,200);/*temp*/
-
-	vdd->manufacture_id_dsi[ctrl->ndx] = get_lcd_attached("GET");
-	pr_info("%s: DSI%d manufacture_id=0x%x\n", __func__, ctrl->ndx, vdd->manufacture_id_dsi[ctrl->ndx]);
-}
-
 static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 {
 	pr_info("%s : %s", __func__, vdd->panel_name);
 
 	vdd->support_panel_max = VX5B3D_LTI550HN06_SUPPORT_PANEL_COUNT;
+	vdd->manufacture_id_dsi[vdd->support_panel_max - 1] = get_lcd_attached("GET");
 	vdd->support_mdnie_lite = false;
-	vdd->support_cabc = true;
+	vdd->support_cabc = false;
 
 	/* ON/OFF */
 	vdd->panel_func.samsung_panel_on_pre = mdss_panel_on_pre;
@@ -403,9 +383,7 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_brightness_vint = NULL;
 	vdd->panel_func.samsung_brightness_gamma = NULL;
 	vdd->brightness[0].brightness_packet_tx_cmds_dsi.link_state = DSI_HS_MODE;
-
 	vdd->panel_func.samsung_brightness_tft_pwm = mdss_brightness_tft_pwm_lvds;
-	vdd->panel_func.samsung_tft_blic_init = mdss_panel_blic_init;
 
 	mdss_panel_attach_set(vdd->ctrl_dsi[DISPLAY_1], true);
 }

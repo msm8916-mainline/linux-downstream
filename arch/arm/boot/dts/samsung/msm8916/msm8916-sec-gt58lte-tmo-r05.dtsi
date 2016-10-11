@@ -13,9 +13,10 @@
 #include "msm8916.dtsi"
 #include "msm8916-pinctrl-sec-gt58lte-tmo-r05.dtsi"
 #include "msm8916-camera-sensor-gt58.dtsi"
-#include "msm8916-sec-gt5note8lte-eur-battery-r00.dtsi"
+#include "msm8916-sec-gt5note8lte-tmo-battery-r00.dtsi"
 #include "msm8916-max77849-gt5note8-r01.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0_LSL080AL03/dsi_panel_S6D7AA0_LSL080AL03_xga_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0_LSL080AL03_BOE/dsi_panel_S6D7AA0_LSL080AL03_BOE_xga_video.dtsi"
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
@@ -465,12 +466,15 @@
 	qcom,pins = <&gp 0>;
 };
 
+&dsi_sdc_wxga_vid_boe{
+    samsung,panel-extra-power-gpio1 = <&msm_gpio 8 0>;
+};
+
 &dsi_sdc_wxga_vid{
 	samsung,panel-extra-power-gpio1 = <&msm_gpio 8 0>;
 };
 
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_sdc_wxga_vid>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&i2c_lp8556_active &lp8556_active &mdss_dsi_active &mdss_esd_active &pwm_ap_active>;
 	pinctrl-1 = <&i2c_lp8556_suspend &lp8556_suspend &mdss_dsi_suspend &mdss_esd_suspend &pwm_ap_suspend>;

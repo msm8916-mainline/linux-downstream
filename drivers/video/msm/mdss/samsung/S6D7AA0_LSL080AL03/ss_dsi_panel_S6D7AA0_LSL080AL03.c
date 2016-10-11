@@ -67,7 +67,7 @@ static void backlight_tft_late_on(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	msleep(220);
 	vdd->panel_func.samsung_bl_ic_pwm_en(1);
-	if(vdd->auto_brightness==6)
+	if(vdd->auto_brightness == 6)
 		vdd->panel_func.samsung_bl_ic_outdoor(1);
 
 	vdd->display_ststus_dsi[ctrl->ndx].disp_on_pre= 0;
@@ -77,7 +77,8 @@ static void backlight_tft_late_on(struct mdss_dsi_ctrl_pdata *ctrl)
 			ctrl->panel_data.set_backlight(&ctrl->panel_data, LCD_DEFAUL_BL_LEVEL);
 		is_first_boot = 0;
 	}
-
+	if(vdd->bl_level)
+		mdss_samsung_brightness_dcs(ctrl, vdd->bl_level);
 }
 static int mdss_panel_off_pre(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -107,7 +108,7 @@ static int mdss_panel_revision(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	return true;
 }
-void mdss_samsung_cabc_update_tft(struct mdss_dsi_ctrl_pdata *ctrl, int val)
+static void mdss_samsung_cabc_update_tft(struct mdss_dsi_ctrl_pdata *ctrl, int val)
 {
 	static int prev_val;
 	struct samsung_display_driver_data *vdd = check_valid_ctrl(ctrl);

@@ -43,7 +43,7 @@
 #define DET_CHECK_TIME_MS	   100		/* 100ms */
 #define DET_CHECK_TIME_MS_WITH_FSA 50		/* 50ms */
 #define WAKE_LOCK_TIME		(HZ * 5)	/* 5 sec */
-#define ADC_SAMPLE_CNT		8   /* Ear ADC avg 6 times (except max, min) */
+#define ADC_SAMPLE_CNT		1   /* Ear key ADC chekc count */
 
 struct sec_jack_info {
 	struct platform_device *client;
@@ -67,12 +67,6 @@ struct sec_jack_info {
 	bool buttons_enable;
 	struct platform_device *send_key_dev;
 	unsigned int cur_jack_type;
-#if defined (SEC_USE_SOC_JACK_API)
-	struct snd_soc_jack *headset_jack;
-	struct snd_soc_jack *button_jack;
-	int btn_state;
-	int hset_state;
-#endif	
 	struct timespec ts; 		/* Get Current time for KSND */
 	struct timespec ts_after;	/* Get Current time After Event */
 };
@@ -122,14 +116,6 @@ static struct gpio_event_platform_data sec_jack_input_data = {
 	.info = sec_jack_input_info,
 	.info_count = ARRAY_SIZE(sec_jack_input_info),
 };
-#if defined (SEC_USE_SOC_JACK_API)
-static struct snd_soc_jack hset_jack, btn_jack;
-static int sec_soc_btn[] = {
-	SND_JACK_BTN_0,
-	SND_JACK_BTN_1,
-	SND_JACK_BTN_2
-};
-#endif
 
 #if defined (SEC_HEADSET_ADC_ADJUST)
 #define ADC_PATH "data/data/com.sec.ksndtestmode/files/"
@@ -159,6 +145,23 @@ int ear_adc_value = 0;
 /*Enabling Ear Mic Bias of WCD Codec*/
 extern void msm8x16_enable_ear_micbias(bool state);
 
+#ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
+static int atof(const char *str)
+{
+	int result = 0;
+	int count = 0;
+
+	while (str[count] != 0	/* NULL */
+		&& ((str[count] >= '0' && str[count] <= '9') || str[count] == '.')) {
+		if (str[count] != '.')
+			result = result * 10 + str[count] - '0';
+
+		++count;
+	}
+
+	return result;
+}
+#endif
 #if defined(CONFIG_MACH_KOR_EARJACK_WR)
 extern void set_earjack_state(void);
 
@@ -368,9 +371,6 @@ static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
 			sec_jack_write_data(hi, NULL);
 		}
 #endif /* SEC_HEADSET_ADC_ADJUST */
-#if defined (SEC_USE_SOC_JACK_API)
-		hi->hset_state = SND_JACK_HEADSET;
-#endif /* SEC_USE_SOC_JACK_API */
 	} else {
 		/* for all other jacks, disable send/end key detection */
 		if (hi->send_key_dev != NULL) {
@@ -382,22 +382,11 @@ static void sec_jack_set_type(struct sec_jack_info *hi, int jack_type)
 		}
 		/* micbias is left enabled for 4pole and disabled otherwise */
 		set_sec_micbias_state(hi, false);
-#if defined (SEC_USE_SOC_JACK_API)
-		if( jack_type == SEC_HEADSET_3POLE ){
-			hi->hset_state = SND_JACK_HEADPHONE;
-		} else {
-			hi->hset_state = 0;
-		}
-#endif /* SEC_USE_SOC_JACK_API */
 	}
 
 	hi->cur_jack_type = jack_type;
 	pr_info("%s : jack_type = %d\n", __func__, jack_type);
-#if defined (SEC_USE_SOC_JACK_API)
-	snd_soc_jack_report_no_dapm(hi->headset_jack, hi->hset_state, SND_JACK_HEADSET);
-#else /* SEC_USE_SOC_JACK_API */
 	switch_set_state(&switch_jack_detection, jack_type);
-#endif /* not SEC_USE_SOC_JACK_API */
 
 	/* Estimate Headset detection time */  //KSND
 	if( jack_type == SEC_HEADSET_4POLE || jack_type == SEC_HEADSET_3POLE ) {
@@ -953,9 +942,9 @@ void sec_jack_detect_work(struct work_struct *work)
 	/* jack presence was detected the whole time, figure out which type */
 	determine_jack_type(hi);
 #ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
-	/* Mic bias default 2.2V */
+	/* Mic bias default dynamic voltage */
 	if (hi->cur_jack_type == SEC_HEADSET_4POLE)
-		msm8x16_wcd_dynamic_control_micbias(MIC_BIAS_V2P20V);
+		msm8x16_wcd_dynamic_control_micbias(pdata->dynamic_micb_ctrl_voltage);
 #endif
 
 #ifdef CONFIG_SAMSUNG_JACK_WATCH_DOG_RESET_WORK_AROUND
@@ -995,17 +984,11 @@ void sec_jack_buttons_work(struct work_struct *work)
 #ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
 		/* Mic bias must keep 2.8V when mic is enalbed */
 		if (!is_mic_enable())
-			msm8x16_wcd_dynamic_control_micbias(MIC_BIAS_V2P20V);
+			msm8x16_wcd_dynamic_control_micbias(pdata->dynamic_micb_ctrl_voltage);
 #endif
-#if defined (SEC_USE_SOC_JACK_API)
-		hi->button_jack->jack->type = hi->btn_state;
-		snd_soc_jack_report_no_dapm(hi->button_jack, 0, SEC_JACK_BUTTON_MASK);
-		hi->button_jack->jack->type = SEC_JACK_BUTTON_MASK;
-#else /* SEC_USE_SOC_JACK_API */
 		input_report_key(hi->input_dev, hi->pressed_code, 0);
 		input_sync(hi->input_dev);
 		switch_set_state(&switch_sendend, 0);
-#endif /* not SEC_USE_SOC_JACK_API */
 		pr_info("%s: BTN %d is released\n", __func__,
 			hi->pressed_code);
 		return;
@@ -1025,15 +1008,9 @@ void sec_jack_buttons_work(struct work_struct *work)
 		if (adc >= btn_zones[i].adc_low &&
 			adc <= btn_zones[i].adc_high) {
 			hi->pressed_code = btn_zones[i].code;
-#if defined (SEC_USE_SOC_JACK_API)
-			hi->btn_state = sec_soc_btn[i];
-			snd_soc_jack_report_no_dapm(hi->button_jack,
-							hi->btn_state, SEC_JACK_BUTTON_MASK);
-#else /* SEC_USE_SOC_JACK_API */
 			input_report_key(hi->input_dev, btn_zones[i].code, 1);
 			input_sync(hi->input_dev);
 			switch_set_state(&switch_sendend, 1);
-#endif /* not SEC_USE_SOC_JACK_API */
 			pr_info("%s: adc = %d, BTN %d is pressed\n", __func__,
 				adc, btn_zones[i].code);
 			return;
@@ -1063,6 +1040,9 @@ static struct sec_jack_platform_data *sec_jack_populate_dt_pdata(struct device *
 	struct of_phandle_args args;
 	int i = 0;
 	int ret = 0;
+#ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
+	const char *voltage_str;
+#endif
 	pdata =  devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata) {
 		pr_err("%s : could not allocate memory for platform data\n", __func__);
@@ -1136,6 +1116,18 @@ static struct sec_jack_platform_data *sec_jack_populate_dt_pdata(struct device *
 	}
 	pr_info("%s - mpp-channel-scaling - %d %d %d\n", __func__, pdata->mpp_ch_scale[0], pdata->mpp_ch_scale[1], pdata->mpp_ch_scale[2]);
 
+#ifdef CONFIG_DYNAMIC_MICBIAS_CONTROL
+	ret = of_property_read_string(dev->of_node, "dynamic-micbias-ctrl-voltage", &voltage_str);
+	if (ret < 0) {
+		pr_err("%s : cannot find dynamic-micbias-ctrl-voltage in the dt - using default voltage (2.8V)\n",
+		__func__);
+		pdata->dynamic_micb_ctrl_voltage = MIC_BIAS_V2P80V;
+	}
+	else {
+		pdata->dynamic_micb_ctrl_voltage = set_dynamic_micb_ctrl_voltage(atof(voltage_str));
+	}
+	pr_info("%s - dynamic-micbias-ctrl-voltage - %d \n", __func__, pdata->dynamic_micb_ctrl_voltage);
+#endif
 	return pdata;
 
 alloc_err:
@@ -1170,28 +1162,6 @@ static int sec_jack_pinctrl_configure(struct sec_jack_platform_data *pdata, bool
 	return 0;
 }
 
-#if defined (SEC_USE_SOC_JACK_API)
-int sec_jack_soc_init(struct snd_soc_card *card)
-{
-	int ret;
-	struct snd_soc_codec *codec = card->rtd[0].codec;
-
-	ret = snd_soc_jack_new(codec, "Headset Jack", SND_JACK_HEADSET, &hset_jack);
-	if (ret)
-		return ret;
-
-	ret = snd_soc_jack_new(codec, "Button Jack", SEC_JACK_BUTTON_MASK, &btn_jack);
-	if (ret)
-		return ret;
-
-	snd_jack_set_key(btn_jack.jack, SND_JACK_BTN_0, KEY_MEDIA);
-	snd_jack_set_key(btn_jack.jack, SND_JACK_BTN_1, KEY_VOLUMEUP);
-	snd_jack_set_key(btn_jack.jack, SND_JACK_BTN_2, KEY_VOLUMEDOWN);
-
-	return 0;
-}
-EXPORT_SYMBOL(sec_jack_soc_init);
-#endif /* SEC_USE_SOC_JACK_API */
 
 extern bool is_codec_probe_done(void);
 
@@ -1363,12 +1333,6 @@ static int sec_jack_probe(struct platform_device *pdev)
 	hi->handler.name = "sec_jack_buttons";
 	hi->handler.id_table = hi->ids;
 	hi->handler.private = hi;
-#if defined (SEC_USE_SOC_JACK_API)
-	hi->headset_jack = &hset_jack;
-	hi->button_jack = &btn_jack;
-	hi->btn_state = 0;
-	hi->hset_state = 0;
-#endif /* SEC_USE_SOC_JACK_API */
 	ret = input_register_handler(&hi->handler);
 	if (ret) {
 		pr_err("%s : Failed to register_handler\n", __func__);
@@ -1463,27 +1427,11 @@ static int sec_jack_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM
 static int sec_jack_suspend(struct device *dev)
 {
-	struct sec_jack_info *hi = dev_get_drvdata(dev);
-	struct sec_jack_platform_data *pdata = hi->pdata;
-	if (pdata->jack_pinctrl) {
-		int ret = sec_jack_pinctrl_configure(pdata, false);
-		if (ret) {
-			dev_err(dev, "failed to put the pin in suspend state\n");
-		}
-	}
 	return 0;
 }
 
 static int sec_jack_resume(struct device *dev)
 {
-	struct sec_jack_info *hi = dev_get_drvdata(dev);
-	struct sec_jack_platform_data *pdata = hi->pdata;
-	if (pdata->jack_pinctrl) {
-		int ret = sec_jack_pinctrl_configure(pdata, true);
-		if (ret) {
-			dev_err(dev, "failed to put the pin in resume state\n");
-		}
-	}
 	return 0;
 }
 

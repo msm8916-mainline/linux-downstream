@@ -61,6 +61,247 @@ static char level_2_key_off[] = {
 	0xA5, 0xA5
 };
 
+static char DSI0_GRAYSCALE_MDNIE_1[] = {
+	//start
+	0xEB,
+	0x01, //mdnie_en
+	0x00, //data_width mask 00 000
+	0x30, //scr_roi 1 scr algo_roi 1 algo 00 1 0 00 1 0
+	0x00, //sharpen cc gamma 00 0 0
+};
+
+static char DSI0_GRAYSCALE_MDNIE_2[] = {
+	0xEC,
+	0x00, //roi ctrl
+	0x00, //roi0 x start
+	0x00,
+	0x00, //roi0 x end
+	0x00,
+	0x00, //roi0 y start
+	0x00,
+	0x00, //roi0 y end
+	0x00,
+	0x00, //roi1 x strat
+	0x00,
+	0x00, //roi1 x end
+	0x00,
+	0x00, //roi1 y start
+	0x00,
+	0x00, //roi1 y end
+	0x00,
+	0xb3, //scr Cr Yb
+	0x4c, //scr Rr Bb
+	0xb3, //scr Cg Yg
+	0x4c, //scr Rg Bg
+	0xb3, //scr Cb Yr
+	0x4c, //scr Rb Br
+	0x69, //scr Mr Mb
+	0x96, //scr Gr Gb
+	0x69, //scr Mg Mg
+	0x96, //scr Gg Gg
+	0x69, //scr Mb Mr
+	0x96, //scr Gb Gr
+	0xe2, //scr Yr Cb
+	0x1d, //scr Br Rb
+	0xe2, //scr Yg Cg
+	0x1d, //scr Bg Rg
+	0xe2, //scr Yb Cr
+	0x1d, //scr Bb Rr
+	0xff, //scr Wr Wb
+	0x00, //scr Kr Kb
+	0xff, //scr Wg Wg
+	0x00, //scr Kg Kg
+	0xff, //scr Wb Wr
+	0x00, //scr Kb Kr
+	0x00, //curve 1 b
+	0x20, //curve 1 a
+	0x00, //curve 2 b
+	0x20, //curve 2 a
+	0x00, //curve 3 b
+	0x20, //curve 3 a
+	0x00, //curve 4 b
+	0x20, //curve 4 a
+	0x00, //curve 5 b
+	0x20, //curve 5 a
+	0x00, //curve 6 b
+	0x20, //curve 6 a
+	0x00, //curve 7 b
+	0x20, //curve 7 a
+	0x00, //curve 8 b
+	0x20, //curve 8 a
+	0x00, //curve 9 b
+	0x20, //curve 9 a
+	0x00, //curve10 b
+	0x20, //curve10 a
+	0x00, //curve11 b
+	0x20, //curve11 a
+	0x00, //curve12 b
+	0x20, //curve12 a
+	0x00, //curve13 b
+	0x20, //curve13 a
+	0x00, //curve14 b
+	0x20, //curve14 a
+	0x00, //curve15 b
+	0x20, //curve15 a
+	0x00, //curve16 b
+	0x20, //curve16 a
+	0x00, //curve17 b
+	0x20, //curve17 a
+	0x00, //curve18 b
+	0x20, //curve18 a
+	0x00, //curve19 b
+	0x20, //curve19 a
+	0x00, //curve20 b
+	0x20, //curve20 a
+	0x00, //curve21 b
+	0x20, //curve21 a
+	0x00, //curve22 b
+	0x20, //curve22 a
+	0x00, //curve23 b
+	0x20, //curve23 a
+	0x00, //curve24 b
+	0xFF, //curve24 a
+	0x04, //cc r1 x
+	0x00,
+	0x00, //cc r2
+	0x00,
+	0x00, //cc r3
+	0x00,
+	0x00, //cc g1
+	0x00,
+	0x04, //cc g2
+	0x00,
+	0x00, //cc g3
+	0x00,
+	0x00, //cc b1
+	0x00,
+	0x00, //cc b2
+	0x00,
+	0x04, //cc b3
+	0x00,
+};
+
+static char DSI0_GRAYSCALE_NEGATIVE_MDNIE_1[] = {
+	//start
+	0xEB,
+	0x01, //mdnie_en
+	0x00, //data_width mask 00 000
+	0x30, //scr_roi 1 scr algo_roi 1 algo 00 1 0 00 1 0
+	0x00, //sharpen cc gamma 00 0 0
+};
+
+static char DSI0_GRAYSCALE_NEGATIVE_MDNIE_2[] = {
+	0xEC,
+	0x00, //roi ctrl
+	0x00, //roi0 x start
+	0x00,
+	0x00, //roi0 x end
+	0x00,
+	0x00, //roi0 y start
+	0x00,
+	0x00, //roi0 y end
+	0x00,
+	0x00, //roi1 x strat
+	0x00,
+	0x00, //roi1 x end
+	0x00,
+	0x00, //roi1 y start
+	0x00,
+	0x00, //roi1 y end
+	0x00,
+	0x4c, //scr Cr Yb
+	0xb3, //scr Rr Bb
+	0x4c, //scr Cg Yg
+	0xb3, //scr Rg Bg
+	0x4c, //scr Cb Yr
+	0xb3, //scr Rb Br
+	0x96, //scr Mr Mb
+	0x69, //scr Gr Gb
+	0x96, //scr Mg Mg
+	0x69, //scr Gg Gg
+	0x96, //scr Mb Mr
+	0x69, //scr Gb Gr
+	0x1d, //scr Yr Cb
+	0xe2, //scr Br Rb
+	0x1d, //scr Yg Cg
+	0xe2, //scr Bg Rg
+	0x1d, //scr Yb Cr
+	0xe2, //scr Bb Rr
+	0x00, //scr Wr Wb
+	0xff, //scr Kr Kb
+	0x00, //scr Wg Wg
+	0xff, //scr Kg Kg
+	0x00, //scr Wb Wr
+	0xff, //scr Kb Kr
+	0x00, //curve 1 b
+	0x20, //curve 1 a
+	0x00, //curve 2 b
+	0x20, //curve 2 a
+	0x00, //curve 3 b
+	0x20, //curve 3 a
+	0x00, //curve 4 b
+	0x20, //curve 4 a
+	0x00, //curve 5 b
+	0x20, //curve 5 a
+	0x00, //curve 6 b
+	0x20, //curve 6 a
+	0x00, //curve 7 b
+	0x20, //curve 7 a
+	0x00, //curve 8 b
+	0x20, //curve 8 a
+	0x00, //curve 9 b
+	0x20, //curve 9 a
+	0x00, //curve10 b
+	0x20, //curve10 a
+	0x00, //curve11 b
+	0x20, //curve11 a
+	0x00, //curve12 b
+	0x20, //curve12 a
+	0x00, //curve13 b
+	0x20, //curve13 a
+	0x00, //curve14 b
+	0x20, //curve14 a
+	0x00, //curve15 b
+	0x20, //curve15 a
+	0x00, //curve16 b
+	0x20, //curve16 a
+	0x00, //curve17 b
+	0x20, //curve17 a
+	0x00, //curve18 b
+	0x20, //curve18 a
+	0x00, //curve19 b
+	0x20, //curve19 a
+	0x00, //curve20 b
+	0x20, //curve20 a
+	0x00, //curve21 b
+	0x20, //curve21 a
+	0x00, //curve22 b
+	0x20, //curve22 a
+	0x00, //curve23 b
+	0x20, //curve23 a
+	0x00, //curve24 b
+	0xFF, //curve24 a
+	0x04, //cc r1 x
+	0x00,
+	0x00, //cc r2
+	0x00,
+	0x00, //cc r3
+	0x00,
+	0x00, //cc g1
+	0x00,
+	0x04, //cc g2
+	0x00,
+	0x00, //cc g3
+	0x00,
+	0x00, //cc b1
+	0x00,
+	0x00, //cc b2
+	0x00,
+	0x04, //cc b3
+	0x00,
+	//end
+};
+
 static char DSI0_BYPASS_MDNIE_1[] ={
 	//start
 	0xEB,
@@ -5200,6 +5441,24 @@ static struct dsi_cmd_desc DSI0_CURTAIN[] = {
 	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_CURTAIN_1)}, DSI0_CURTAIN_1},
 	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_CURTAIN_2)}, DSI0_CURTAIN_2},
 	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(level_1_key_off)}, level_1_key_off},
+};
+
+static struct dsi_cmd_desc DSI0_GRAYSCALE_MDNIE[] = {
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(level_1_key_on)}, level_1_key_on},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(level_2_key_on)}, level_2_key_on},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_GRAYSCALE_MDNIE_1)}, DSI0_GRAYSCALE_MDNIE_1},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_GRAYSCALE_MDNIE_2)}, DSI0_GRAYSCALE_MDNIE_2},
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(level_1_key_off)}, level_1_key_off},
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(level_2_key_off)}, level_2_key_off},
+};
+
+static struct dsi_cmd_desc DSI0_GRAYSCALE_NEGATIVE_MDNIE[] = {
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(level_1_key_on)}, level_1_key_on},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(level_2_key_on)}, level_2_key_on},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_GRAYSCALE_NEGATIVE_MDNIE_1)}, DSI0_GRAYSCALE_NEGATIVE_MDNIE_1},
+	{{DTYPE_DCS_LWRITE, 0, 0, 0, 0, sizeof(DSI0_GRAYSCALE_NEGATIVE_MDNIE_2)}, DSI0_GRAYSCALE_NEGATIVE_MDNIE_2},
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(level_1_key_off)}, level_1_key_off},
+	{{DTYPE_DCS_LWRITE, 1, 0, 0, 0, sizeof(level_2_key_off)}, level_2_key_off},
 };
 
 ///////////////////////////////////////////////////////////////////////////////////

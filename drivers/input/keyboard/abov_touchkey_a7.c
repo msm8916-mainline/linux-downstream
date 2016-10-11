@@ -71,9 +71,9 @@
 
 static struct device *sec_touchkey;
 
-#define FW_VERSION 0x0a
-#define FW_CHECKSUM_H 0x6D
-#define FW_CHECKSUM_L 0x8E
+#define FW_VERSION 0x0B
+#define FW_CHECKSUM_H 0xB1
+#define FW_CHECKSUM_L 0x14
 
 #define ABOV_DUAL_DETECTION_CMD_FW_VER	0x0a
 #define CRC_CHECK_WITHBOOTING
@@ -767,8 +767,8 @@ static int abov_tk_fw_update(struct abov_tk_info *info, u8 cmd)
 
 	gpio_direction_output(info->pdata->gpio_en, 0);
 	msleep(30);
-	gpio_direction_output(info->pdata->gpio_en, 1);
-	usleep(ABOV_BOOT_DELAY * 1000);
+	gpio_direction_output(info->pdata->gpio_en, 1);	
+	usleep(70 * 1000);
 
 	pr_err("%s:2\n", __func__);
 

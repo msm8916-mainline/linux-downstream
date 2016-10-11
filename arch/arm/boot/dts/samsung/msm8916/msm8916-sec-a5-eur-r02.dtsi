@@ -39,16 +39,12 @@
 	};
 
 	samsung,vibrator {
-		compatible = "haptic_vib";
+		compatible = "samsung_vib";
 		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
 		pinctrl-0 = <&motor_en_active &motor_pwm_active>;
 		pinctrl-1 = <&motor_en_suspend &motor_pwm_suspend>;
 		samsung,vib_en = <&msm_gpio 76 0x1>;
 		samsung,vib_pwm = <&msm_gpio 50 0x1>;
-		samsung,vib_model = <1>;
-		samsung,is_pmic_vib_pwm = <0>;
-		samsung,pwm_period_us = <40>;
-		samsung,duty_us = <36>;
 		status = "ok";
 	};
 
@@ -300,82 +296,6 @@
 		compatible = "qcom,i2c-msm-v2";
 		qcom,scl-gpio = <&msm_gpio 7 0>;
 		qcom,sda-gpio = <&msm_gpio 6 0>;
-		mpu6515@68 {
-			compatible = "invensense,mpu_6515";
-			reg = <0x68>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <115 0>;
-			invensense,i2c_pull-up = <1>;
-			invensense,reg_vdd = "8916_l5";
-			invensense,irq-gpio = <&msm_gpio 115 0x1>;
-			invensense,acc_cal_path = "/efs/calibration_data";
-			invensense,gyro_cal_path = "/efs/gyro_cal_data";
-			invensense,chip_pos = <1>;
-		};
-		HSCDTD008@0c {
-			compatible = "magnetic,HSCDTD008";
-			reg = <0x0c>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <69 0>;
-			HSCDTD008-i2c,irq_gpio = <&msm_gpio 69 0x1>;
-			HSCDTD008-i2c,vdd-supply = <&pm8916_l17>;
-			HSCDTD008-i2c,vio-supply = <&pm8916_l6>;
-			HSCDTD008-i2c,magi2c-supply = <&pm8916_l5>;
-		};
-		k303c_acc@1d {
-			compatible = "k303c_acc";
-			reg = <0x1d>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <115 0>;
-			k303c_acc,vdd-supply = <&pm8916_l17>;
-			k303c_acc,vio-supply = <&pm8916_l5>;
-			k303c_acc,gpio_int1 = <&msm_gpio 115 0x00>;
-			k303c_acc,fs_range = <0x00>;
-			k303c_acc,axis_map_x = <1>;
-			k303c_acc,axis_map_y = <0>;
-			k303c_acc,axis_map_z = <2>;
-			k303c_acc,negate_x = <1>;
-			k303c_acc,negate_y = <0>;
-			k303c_acc,negate_z = <1>;
-			k303c_acc,poll_interval = <100>;
-			k303c_acc,min_interval = <2>;
-		};
-		k303c_mag@1e {
-			compatible = "k303c_mag";
-			reg = <0x1e>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <69 0>;
-			k303c_mag,irq_gpio = <&msm_gpio 69 0x1>;
-			k303c_mag,vdd-supply = <&pm8916_l17>;
-			k303c_mag,vio-supply = <&pm8916_l5>;
-			k303c_mag,poll_interval = <100>;
-			k303c_mag,min_interval = <13>;
-			k303c_mag,fs_range = <0x60>;
-			k303c_mag,axis_map_x = <1>;
-			k303c_mag,axis_map_y = <0>;
-			k303c_mag,axis_map_z = <2>;
-			k303c_mag,negate_x = <1>;
-			k303c_mag,negate_y = <0>;
-			k303c_mag,negate_z = <1>;
-		};
-		cm36686@60 {
-			compatible = "cm36686";
-			reg = <0x60>;
-			pinctrl-names = "prox_active","prox_suspend";
-			pinctrl-0 = <&prox_int_active>;
-			pinctrl-1 = <&prox_int_suspend>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <113 0>;
-			cm36686,irq_gpio = <&msm_gpio 113 0x1>;
-			cm36686,leden_gpio = <&msm_gpio 8 0x1>;
-			cm36686,default_hi_thd = <14>;
-			cm36686,default_low_thd = <8>;
-			cm36686,cancel_hi_thd = <10>;
-			cm36686,cancel_low_thd = <5>;
-			reg_vdd-supply = <&pm8916_l17>;
-			reg_vio-supply = <&pm8916_l6>;
-			status = "okay";
-		};
 		tmd3782@39 {
 			compatible = "taos,tmd3782";
 			reg = <0x39>;
@@ -399,6 +319,44 @@
 			taos,coef_b = <1880>;
 			taos,coef_c = <642>;
 			taos,coef_d = <1140>;
+		};
+		bma_acc@10 {
+			compatible = "bma2x2";
+			reg = <0x10>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <115 0>;
+			bma2x2,vdd-supply = <&pm8916_l17>;
+			bma2x2,vio-supply = <&pm8916_l5>;
+			bma2x2,gpio_int1 = <&msm_gpio 115 0x00>;
+
+			bma2x2,fs_range = <0x00>;
+			bma2x2,axis_map_x = <1>;
+			bma2x2,axis_map_y = <0>;
+			bma2x2,axis_map_z = <2>;
+			bma2x2,negate_x = <1>;
+			bma2x2,negate_y = <0>;
+			bma2x2,negate_z = <1>;
+			bma2x2,poll_interval = <100>;
+			bma2x2,min_interval = <2>;
+
+			bma2x2,supply_type = <1>;
+			bma2x2,accel_place = <6>;
+		};
+		bmm_mag@12 {
+			compatible = "bmm050";
+			reg = <0x12>;
+			bmm050,vdd-supply = <&pm8916_l17>;
+			bmm050,vio-supply = <&pm8916_l5>;
+			bmm050,poll_interval = <100>;
+			bmm050,min_interval = <13>;
+			bmm050,fs_range = <0x60>;
+			bmm050,axis_map_x = <1>;
+			bmm050,axis_map_y = <0>;
+			bmm050,axis_map_z = <2>;
+			bmm050,negate_x = <1>;
+			bmm050,negate_y = <0>;
+			bmm050,negate_z = <1>;
+			bmm050,magnetic_place = <6>;
 		};
 	};
 

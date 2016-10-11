@@ -40,7 +40,6 @@ static struct miscdevice mirrorlink_device = {
 	//.fops = &mirrorlink_fops,
 };
 
-
 static bool ncm_connect;
 
 /* terminal version using vendor specific request */
@@ -94,6 +93,7 @@ static int ncm_function_init(struct android_usb_function *f,
 	ret = misc_register(&mirrorlink_device);
 	if (ret)
 		printk("usb: %s - usb_ncm misc driver fail \n",__func__);
+
 	return 0;
 }
 
@@ -139,19 +139,10 @@ static int ncm_function_bind_config(struct android_usb_function *f,
 		ncm->ethaddr[i % (ETH_ALEN - 1) + 1] ^= *src++;
 	}
 
-	printk(KERN_DEBUG "usb: %s MAC:%02X:%02X:%02X:%02X:%02X:%02X\n",
-			__func__, ncm->ethaddr[0], ncm->ethaddr[1],
-			ncm->ethaddr[2], ncm->ethaddr[3], ncm->ethaddr[4],
-			ncm->ethaddr[5]);
-
-
 	printk(KERN_DEBUG "usb: %s before MAC:%02X:%02X:%02X:%02X:%02X:%02X\n",
 			__func__, ncm->ethaddr[0], ncm->ethaddr[1],
 			ncm->ethaddr[2], ncm->ethaddr[3], ncm->ethaddr[4],
 			ncm->ethaddr[5]);
-	/* we have to use trick.
-	 * rndis name will be used for ethernet interface name.
-	 */
 
 	e_dev = gether_setup_name(c->cdev->gadget, ncm->ethaddr, "ncm");
 	if (IS_ERR(e_dev)) {
@@ -212,13 +203,19 @@ void set_ncm_ready(bool ready)
 	{
 		printk(KERN_DEBUG "usb: %s old status=%d, new status=%d\n",
 				__func__, ncm_connect, ready);
+		ncm_connect = ready;
 		schedule_work(&_ncm_dev->work);
 	}
+	else
+		ncm_connect = ready;
 
-	ncm_connect = ready;
 	if (ready == false) {
 		terminal_mode_version = 0;
 		terminal_mode_vendor_id = 0;
+
+		/* Log for set_ncm_ready */
+		pr_info("usb:: %s ready==false, terminal_mode_version = %d\n",
+				__func__, terminal_mode_version);
 	}
 }
 EXPORT_SYMBOL(set_ncm_ready);
@@ -233,6 +230,7 @@ static ssize_t terminal_version_show(struct device *dev,
 			terminal_mode_vendor_id);
 	if(terminal_mode_version)
 		printk(KERN_DEBUG "usb: %s terminal_mode %s\n", __func__, buf);
+
 	return ret;
 }
 
@@ -246,6 +244,8 @@ static ssize_t terminal_version_store(struct device *dev,
 	/* only set ncm ready when terminal verision value is not zero */
 	if(value)
 		set_ncm_ready(true);
+	else
+		set_ncm_ready(false);
 	return size;
 }
 

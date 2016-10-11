@@ -1463,8 +1463,8 @@ static int sec_fg_calculate_dynamic_scale(
 	}
 
 	if (capacity != 100) {
-		fuelgauge->capacity_max =
-			(fuelgauge->capacity_max * 100 / capacity);
+		fuelgauge->capacity_max = sec_fg_check_capacity_max(
+			fuelgauge, (fuelgauge->capacity_max * 100 / capacity));
 	} else  {
 		fuelgauge->capacity_max =
 			(fuelgauge->capacity_max * 99 / 100);

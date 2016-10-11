@@ -176,7 +176,7 @@ static void print_lux_table(struct SMART_DIM *psmart)
 			snprintf(pBuffer + strnlen(pBuffer, 256), 256, " %d",
 				psmart->gen_table[lux_loop].gamma_setting[cnt]);
 
-		pr_info("lux : %3d  %s", psmart->plux_table[lux_loop], pBuffer);
+		pr_info("lux : %3d  %s\n", psmart->plux_table[lux_loop], pBuffer);
 		memset(pBuffer, 0x00, 256);
 	}
 }
@@ -269,7 +269,7 @@ static void v255_hexa(int *index, struct SMART_DIM *pSmart, char *str)
 
 }
 
-static int vt_coefficient[] = {
+static unsigned long long vt_coefficient[] = {
 	0, 12, 24, 36, 48,
 	60, 72, 84, 96, 108,
 	138, 148, 158, 168,
@@ -1463,7 +1463,7 @@ static void gamma_init_revA(struct SMART_DIM *pSmart, char *str, int size)
 	int gamma_setting[GAMMA_SET_MAX];
 
 	long long temp_cal_data = 0;
-	int bl_level;
+	int bl_level = 0;
 
 	int level_255_temp_MSB = 0;
 	int level_V255 = 0;
@@ -1477,48 +1477,59 @@ static void gamma_init_revA(struct SMART_DIM *pSmart, char *str, int size)
 	/*calculate candela level */
 	if (pSmart->brightness_level >= 249) {
 		/* 249CD ~ 360CD */
-		bl_level = pSmart->brightness_level;
+		if (pSmart->brightness_level == 249)
+			bl_level = 253;
+		else if (pSmart->brightness_level == 265)
+			bl_level = 269;
+		else if (pSmart->brightness_level == 282)
+			bl_level = 284;
+		else if (pSmart->brightness_level == 300)
+			bl_level = 300;
+		else if (pSmart->brightness_level == 316)
+			bl_level = 317;
+		else if (pSmart->brightness_level == 333)
+			bl_level = 333;
+		else if (pSmart->brightness_level == 360)
+			bl_level = 360;
 	} else if ((pSmart->brightness_level <= 234) &&
-					(pSmart->brightness_level >= 162)) {
-		bl_level = 249;
-	} else if ((pSmart->brightness_level <= 152) &&
-				(pSmart->brightness_level >= 68)) {
-
-		/* 68CD ~ 152 */
-		if (pSmart->brightness_level == 68)
-			bl_level = 116;
-		else if (pSmart->brightness_level == 72)
-			bl_level = 123;
-		else if (pSmart->brightness_level == 77)
-			bl_level = 131;
-		else if (pSmart->brightness_level == 82)
-			bl_level = 139;
+					(pSmart->brightness_level >= 183)) {
+		/* 183CD ~ 234CD */
+		bl_level = 253;
+	} else if ((pSmart->brightness_level <= 172) &&
+				(pSmart->brightness_level >= 82)) {
+		/* 82CD ~ 172 */
+		if (pSmart->brightness_level == 82)
+			bl_level = 120;
 		else if (pSmart->brightness_level == 87)
-			bl_level = 148;
+			bl_level = 128;
 		else if (pSmart->brightness_level == 93)
-			bl_level = 158;
+			bl_level = 134;
 		else if (pSmart->brightness_level == 98)
-			bl_level = 166;
+			bl_level = 141;
 		else if (pSmart->brightness_level == 105)
-			bl_level = 177;
+			bl_level = 151;
 		else if (pSmart->brightness_level == 111)
-			bl_level = 186;
+			bl_level = 161;
 		else if (pSmart->brightness_level == 119)
-			bl_level = 198;
+			bl_level = 169;
 		else if (pSmart->brightness_level == 126)
-			bl_level = 208;
+			bl_level = 180;
 		else if (pSmart->brightness_level == 134)
-			bl_level = 220;
+			bl_level = 190;
 		else if (pSmart->brightness_level == 143)
-			bl_level = 234;
+			bl_level = 201;
 		else if (pSmart->brightness_level == 152)
-			bl_level = 247;
+			bl_level = 213;
+		else if (pSmart->brightness_level == 162)
+			bl_level = 228;
+		else if (pSmart->brightness_level == 172)
+			bl_level = 239;
 	} else {
-		/* 64CD ~ 2CD */
+		/* 77CD ~ 2CD */
 		bl_level = AOR_DIM_BASE_CD;
 	}
 
-	if (pSmart->brightness_level < 350) {
+	if (pSmart->brightness_level < 360) {
 		for (cnt = 0; cnt < TABLE_MAX; cnt++) {
 			point_index = INFLECTION_VOLTAGE_ARRAY[cnt+1];
 			temp_cal_data =
@@ -1820,7 +1831,7 @@ static int smart_dimming_init(struct SMART_DIM *psmart)
 	print_RGB_offset(psmart);
 #endif
 
-	psmart->vregout_voltage = VREG0_REF_6P0;
+	psmart->vregout_voltage = VREG0_REF_6P2;
 
 	v255_adjustment(psmart);
 	vt_adjustment(psmart);

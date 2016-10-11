@@ -759,8 +759,12 @@ static int smd_tty_write_room(struct tty_struct *tty)
 
 static int smd_tty_chars_in_buffer(struct tty_struct *tty)
 {
-	struct smd_tty_info *info = tty->driver_data;
-	return smd_read_avail(info->ch);
+	struct smd_tty_info *info = NULL;
+	if (NULL != tty)
+		info = tty->driver_data;
+	if(NULL != info)
+		return smd_read_avail(info->ch);
+	return 0;
 }
 
 static void smd_tty_unthrottle(struct tty_struct *tty)

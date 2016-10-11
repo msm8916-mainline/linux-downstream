@@ -106,6 +106,9 @@ struct msm_vfe_irq_ops {
 	void (*process_reg_update) (struct vfe_device *vfe_dev,
 		uint32_t irq_status0, uint32_t irq_status1,
 		struct msm_isp_timestamp *ts);
+	void (*process_epoch_irq)(struct vfe_device *vfe_dev,
+		uint32_t irq_status0, uint32_t irq_status1,
+		struct msm_isp_timestamp *ts);
 	void (*process_reset_irq) (struct vfe_device *vfe_dev,
 		uint32_t irq_status0, uint32_t irq_status1);
 	void (*process_halt_irq) (struct vfe_device *vfe_dev,
@@ -166,7 +169,7 @@ struct msm_vfe_axi_ops {
 };
 
 struct msm_vfe_core_ops {
-	void (*reg_update) (struct vfe_device *vfe_dev);
+	void (*reg_update) (struct vfe_device *vfe_dev, uint32_t input_src);
 	long (*reset_hw) (struct vfe_device *vfe_dev,
 		enum msm_isp_reset_type reset_type,
 		uint32_t blocking);
@@ -506,7 +509,7 @@ struct vfe_device {
 	uint8_t taskletq_idx;
 	spinlock_t  tasklet_lock;
 	spinlock_t  shared_data_lock;
-#if defined(CONFIG_SR200PC20) && defined(CONFIG_SR544)
+#if (defined(CONFIG_SR200PC20) && defined(CONFIG_SR544)) || defined(CONFIG_MACH_J1XLTE_USA_TFNVZW)
 	spinlock_t  sof_lock;
 #endif
 	struct list_head tasklet_q;

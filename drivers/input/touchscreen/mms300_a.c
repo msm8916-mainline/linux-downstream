@@ -1241,8 +1241,6 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			goto out;
 		}
 
-		if (x == 0 && y == 0)
-			continue;
 		if ((tmp[0] & irq_bit_mask) == 0) {
 			input_mt_slot(info->input_dev, id);
 			input_mt_report_slot_state(info->input_dev,
@@ -5528,7 +5526,8 @@ static void mms_ts_input_close(struct input_dev *dev)
 	{
 		info->enabled = false;
 		disable_irq_nosync(info->irq);
-		usleep(2000);	// for all irq clear
+		//usleep(2000);	// for all irq clear
+		usleep(10 * 1000);		
 
 		touch_is_pressed = 0;
 		release_all_fingers(info);

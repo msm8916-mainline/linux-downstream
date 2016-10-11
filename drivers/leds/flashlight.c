@@ -275,7 +275,9 @@ struct flashlight_device *flashlight_device_register(const char *name,
 		return ERR_PTR(-ENOMEM);
 
 	mutex_init(&flashlight_dev->ops_lock);
+#if defined(CONFIG_FLED_SM5703) || defined(CONFIG_FLED_RT5033) || defined(CONFIG_LEDS_SM5705)
 	flashlight_dev->dev.class = flashlight_class;
+#endif
 	flashlight_dev->dev.parent = parent;
 	flashlight_dev->dev.release = flashlight_device_release;
 	dev_set_name(&flashlight_dev->dev, name);
@@ -462,7 +464,17 @@ int flashlight_set_mode(struct flashlight_device *flashlight_dev,
 	return rc;
 }
 EXPORT_SYMBOL(flashlight_set_mode);
+#if defined(CONFIG_FLED_SM5703) || defined(CONFIG_LEDS_SM5705)
+int flashlight_strobe(struct flashlight_device *flashlight_dev, int turn_way)
+{
+	if (flashlight_dev->ops == NULL ||
+	    flashlight_dev->ops->strobe == NULL)
+		return -EINVAL;
 
+	return flashlight_dev->ops->strobe(flashlight_dev, turn_way);
+}
+EXPORT_SYMBOL(flashlight_strobe);
+#else
 int flashlight_strobe(struct flashlight_device *flashlight_dev)
 {
 	if (flashlight_dev->props.mode == FLASHLIGHT_MODE_FLASH
@@ -475,23 +487,29 @@ int flashlight_strobe(struct flashlight_device *flashlight_dev)
 	return -EINVAL;
 }
 EXPORT_SYMBOL(flashlight_strobe);
+#endif
 
+#if defined(CONFIG_FLED_SM5703) || defined(CONFIG_FLED_RT5033) || defined(CONFIG_LEDS_SM5705)
 static int flashlight_match_device_by_name(struct device *dev, const void *data)
 {
 	const char *name = data;
 	return strcmp(dev_name(dev), name) == 0;
 }
+#endif
 
 struct flashlight_device *find_flashlight_by_name(char *name)
 {
-	struct device *dev;
+	struct device *dev = NULL;
 	if (!name)
 		return (struct flashlight_device *)NULL;
+#if defined(CONFIG_FLED_SM5703) || defined(CONFIG_FLED_RT5033) || defined(CONFIG_LEDS_SM5705)
 	dev = class_find_device(flashlight_class, NULL, name,
-		flashlight_match_device_by_name);
+	flashlight_match_device_by_name);
 
 	return dev ? to_flashlight_device(dev) : NULL;
-
+#else
+	return to_flashlight_device(dev);
+#endif
 }
 EXPORT_SYMBOL(find_flashlight_by_name);
 

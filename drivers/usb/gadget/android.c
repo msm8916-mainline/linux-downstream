@@ -40,6 +40,9 @@
 #ifdef CONFIG_SND_PCM
 #include "f_audio_source.c"
 #endif
+#ifdef CONFIG_SND_RAWMIDI
+#include "f_midi.c"
+#endif
 #include "f_mass_storage.c"
 #define USB_ETH_RNDIS y
 #include "f_diag.c"
@@ -58,7 +61,11 @@
 #include "u_ctrl_hsuart.c"
 #include "u_data_hsuart.c"
 #include "f_ccid.c"
-/* #include "f_acm.c" */
+#ifdef CONFIG_USB_DUN_SUPPORT
+#include "serial_acm.c"
+#endif
+
+#include "f_acm.c"
 /* #include "f_adb.c" */
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_MTP
 #include "f_mtp_samsung.c"
@@ -66,9 +73,6 @@
 #include "f_mtp.c"
 #endif
 #include "f_accessory.c"
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_SIDESYNC
-#include "f_conn_gadget.c"
-#endif
 #include "f_rndis.c"
 #include "rndis.c"
 #include "f_qc_ecm.c"
@@ -108,6 +112,11 @@ static inline void check_streaming_func(struct usb_gadget *gadget,
 #define PRODUCT_ID		0x0001
 
 #define ANDROID_DEVICE_NODE_NAME_LENGTH 11
+/* f_midi configuration */
+#define MIDI_INPUT_PORTS    1
+#define MIDI_OUTPUT_PORTS   1
+#define MIDI_BUFFER_SIZE    1024
+#define MIDI_QUEUE_LENGTH   32
 
 struct android_usb_function {
 	char *name;
@@ -148,6 +157,10 @@ struct android_usb_function_holder {
 	/* for android_conf.enabled_functions */
 	struct list_head enabled_list;
 };
+
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_SIDESYNC
+#include "f_conn_gadget.c"
+#endif
 
 /**
 * struct android_dev - represents android USB gadget device
@@ -288,7 +301,6 @@ static struct usb_device_descriptor device_desc = {
 	.bDeviceClass         = USB_CLASS_PER_INTERFACE,
 	.idVendor             = __constant_cpu_to_le16(VENDOR_ID),
 	.idProduct            = __constant_cpu_to_le16(PRODUCT_ID),
-	.bcdDevice            = __constant_cpu_to_le16(0xffff),
 	.bNumConfigurations   = 1,
 };
 
@@ -424,6 +436,7 @@ static void android_work(struct work_struct *data)
 	static enum android_device_state last_uevent, next_state;
 	unsigned long flags;
 	int pm_qos_vote = -1;
+	bool prev_connected;
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (dev->suspended != dev->sw_suspended && cdev->config) {
@@ -442,6 +455,7 @@ static void android_work(struct work_struct *data)
 		else if (!dev->connected || !strncmp(dev->pm_qos, "low", 3))
 			pm_qos_vote = 0;
 	}
+	prev_connected = dev->sw_connected;
 	dev->sw_connected = dev->connected;
 	dev->sw_suspended = dev->suspended;
 	spin_unlock_irqrestore(&cdev->lock, flags);
@@ -490,7 +504,7 @@ static void android_work(struct work_struct *data)
 		pr_info("%s: sent uevent %s\n", __func__, uevent_envp[0]);
 	} else {
 		pr_info("%s: did not send uevent (%d %d %p)\n", __func__,
-			 dev->connected, dev->sw_connected, cdev->config);
+			 dev->connected, prev_connected, cdev->config);
 	}
 }
 
@@ -724,43 +738,6 @@ static void functionfs_release_dev_callback(struct ffs_data *ffs_data)
 {
 }
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_SIDESYNC
-struct conn_gadget_data {
-	bool opened;
-	bool enabled;
-};
-
-static int
-conn_gadget_function_init(struct android_usb_function *f,
-		struct usb_composite_dev *cdev)
-{
-	f->config = kzalloc(sizeof(struct conn_gadget_data), GFP_KERNEL);
-	if (!f->config)
-		return -ENOMEM;
-
-	return conn_gadget_setup();
-}
-
-static void conn_gadget_function_cleanup(struct android_usb_function *f)
-{
-	conn_gadget_cleanup();
-	kfree(f->config);
-}
-
-static int
-conn_gadget_function_bind_config(struct android_usb_function *f,
-		struct usb_configuration *c)
-{
-	return conn_gadget_bind_config(c);
-}
-
-static struct android_usb_function conn_gadget_function = {
-	.name = "conn_gadget",
-	.init = conn_gadget_function_init,
-	.cleanup = conn_gadget_function_cleanup,
-	.bind_config = conn_gadget_function_bind_config,
-};
-#endif /* CONFIG_USB_ANDROID_SAMSUNG_SIDESYNC */
 
 /* ACM */
 static char acm_transports[32];	/*enabled ACM ports - "tty[,sdio]"*/
@@ -2622,6 +2599,10 @@ static int mass_storage_lun_init(struct android_usb_function *f,
 
 static void mass_storage_function_cleanup(struct android_usb_function *f)
 {
+	struct mass_storage_function_config *config;
+
+	config = f->config;
+	fsg_common_put(config->common);
 	kfree(f->config);
 	f->config = NULL;
 }
@@ -2927,7 +2908,8 @@ static ssize_t audio_source_pcm_show(struct device *dev,
 	struct audio_source_config *config = f->config;
 
 	/* print PCM card and device numbers */
-	return sprintf(buf, "%d %d\n", config->card, config->device);
+	return snprintf(buf, PAGE_SIZE,
+			"%d %d\n", config->card, config->device);
 }
 
 static DEVICE_ATTR(pcm, S_IRUGO, audio_source_pcm_show, NULL);
@@ -2993,6 +2975,61 @@ static struct android_usb_function uasp_function = {
 	.bind_config	= uasp_function_bind_config,
 };
 
+#ifdef CONFIG_SND_RAWMIDI
+static int midi_function_init(struct android_usb_function *f,
+					struct usb_composite_dev *cdev)
+{
+	struct midi_alsa_config *config;
+
+	config = kzalloc(sizeof(struct midi_alsa_config), GFP_KERNEL);
+	f->config = config;
+	if (!config)
+		return -ENOMEM;
+	config->card = -1;
+	config->device = -1;
+	return 0;
+}
+
+static void midi_function_cleanup(struct android_usb_function *f)
+{
+	kfree(f->config);
+}
+
+static int midi_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct midi_alsa_config *config = f->config;
+
+	return f_midi_bind_config(c, SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1,
+			MIDI_INPUT_PORTS, MIDI_OUTPUT_PORTS, MIDI_BUFFER_SIZE,
+			MIDI_QUEUE_LENGTH, config);
+}
+
+static ssize_t midi_alsa_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct midi_alsa_config *config = f->config;
+
+	/* print ALSA card and device numbers */
+	return sprintf(buf, "%d %d\n", config->card, config->device);
+}
+
+static DEVICE_ATTR(alsa, S_IRUGO, midi_alsa_show, NULL);
+
+static struct device_attribute *midi_function_attributes[] = {
+	&dev_attr_alsa,
+	NULL
+};
+
+static struct android_usb_function midi_function = {
+	.name		= "midi",
+	.init		= midi_function_init,
+	.cleanup	= midi_function_cleanup,
+	.bind_config	= midi_function_bind_config,
+	.attributes	= midi_function_attributes,
+};
+#endif
 static struct android_usb_function *supported_functions[] = {
 	&ffs_function,
 	&mbim_function,
@@ -3028,6 +3065,9 @@ static struct android_usb_function *supported_functions[] = {
 	&audio_source_function,
 #endif
 	&uasp_function,
+#ifdef CONFIG_SND_RAWMIDI
+	&midi_function,
+#endif
 	NULL
 };
 
@@ -3345,6 +3385,7 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 	strlcpy(buf, buff, sizeof(buf));
 	b = strim(buf);
 
+	dev->cdev->gadget->streaming_enabled = false;
 	while (b) {
 		conf_str = strsep(&b, ":");
 		if (!conf_str)
@@ -3448,7 +3489,8 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 #endif
 		cdev->desc.idVendor = device_desc.idVendor;
 		cdev->desc.idProduct = device_desc.idProduct;
-		cdev->desc.bcdDevice = device_desc.bcdDevice;
+		if (device_desc.bcdDevice)
+			cdev->desc.bcdDevice = device_desc.bcdDevice;
 		cdev->desc.bDeviceClass = device_desc.bDeviceClass;
 /* #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE */
 		list_for_each_entry(conf, &dev->configs, list_item)
@@ -3504,8 +3546,10 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 						"audio_source", 12))
 					audio_enabled = true;
 			}
+#ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 		if (audio_enabled)
 			msleep(100);
+#endif
 		err = android_enable(dev);
 		if (err < 0) {
 			pr_err("%s: android_enable failed\n", __func__);
@@ -3719,10 +3763,6 @@ static void android_unbind_config(struct usb_configuration *c)
 {
 	struct android_dev *dev = cdev_to_android_dev(c->cdev);
 
-	if (c->cdev->gadget->streaming_enabled) {
-		c->cdev->gadget->streaming_enabled = false;
-		pr_debug("setting streaming_enabled to false.\n");
-	}
 	android_unbind_enabled_functions(dev, c);
 }
 
@@ -4223,6 +4263,15 @@ static int android_probe(struct platform_device *pdev)
 		android_dev->idle_pc_rpm_no_int_secs = IDLE_PC_RPM_NO_INT_SECS;
 	}
 	strlcpy(android_dev->pm_qos, "high", sizeof(android_dev->pm_qos));
+
+#ifdef CONFIG_USB_DUN_SUPPORT
+	ret = modem_misc_register();
+	if (ret) {
+		printk(KERN_ERR "usb: %s modem misc register is failed\n",
+				__func__);
+		goto err_probe;
+	}
+#endif
 
 	printk("%s : return is %d! \n", __func__ , ret);
 	return ret;

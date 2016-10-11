@@ -251,7 +251,7 @@ static int vfe_probe(struct platform_device *pdev)
 	mutex_init(&vfe_dev->core_mutex);
 	spin_lock_init(&vfe_dev->tasklet_lock);
 	spin_lock_init(&vfe_dev->shared_data_lock);
-#if defined(CONFIG_SR200PC20) && defined(CONFIG_SR544)
+#if (defined(CONFIG_SR200PC20) && defined(CONFIG_SR544)) || defined(CONFIG_MACH_J1XLTE_USA_TFNVZW)
 	spin_lock_init(&vfe_dev->sof_lock);
 #endif
 	media_entity_init(&vfe_dev->subdev.sd.entity, 0, NULL, 0);

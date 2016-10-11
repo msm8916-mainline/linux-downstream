@@ -676,8 +676,10 @@ static void mxt_report_input_data(struct mxt_data *data)
 			if (!data->charging_mode)
 				data->fingers[i].w += 10;
 #endif
+#ifdef CONFIG_SEC_FACTORY
 			input_report_abs(data->input_dev, ABS_MT_PRESSURE,
 					 data->fingers[i].z);
+#endif
 			input_report_abs(data->input_dev, ABS_MT_TOUCH_MAJOR,
 					 data->fingers[i].m);
 			input_report_abs(data->input_dev, ABS_MT_TOUCH_MINOR,
@@ -880,7 +882,8 @@ static void mxt_release_all_keys(struct mxt_data *data)
 }
 
 
-static void check_rf_radiation(struct mxt_data *data) /* 0309 */
+/* 0320 */
+static void check_rf_radiation(struct mxt_data *data) 
 {
     u8 i,j,k;
 	u8 ret;
@@ -890,34 +893,48 @@ static void check_rf_radiation(struct mxt_data *data) /* 0309 */
 			continue;
 		}
 
-	    	if (data->fingers[i].state == MXT_STATE_PRESS) {
-	    	    if(data->fingers[i].x == 0)  {
-	    	        data->ypos_of_zeroX[i] = data->fingers[i].y;
-	    	    } else {
-	    	    	data->ypos_of_zeroX[i] = 0;
-		    }
-	    	}
+    	if (data->fingers[i].state == MXT_STATE_PRESS) {
+
+    		data->pos_of_ghost[0][i] = 0;  /* 0320 */
+    		data->pos_of_ghost[1][i] = 0;  /* 0320 */
+    		data->pos_of_ghost[2][i] = 0;  /* 0320 */
+    		data->pos_of_ghost[3][i] = 0;  /* 0320 */
+    	
+    	    if(data->fingers[i].x == 0){   /* 0320 */
+    	        data->pos_of_ghost[0][i] = data->fingers[i].y;
+    	    }
+    	    if(data->fingers[i].x == 4095)  {  /* 0320 */
+    	        data->pos_of_ghost[1][i] = data->fingers[i].y;
+    	    }
+    	    if(data->fingers[i].y == 0)  {  /* 0320 */
+    	        data->pos_of_ghost[2][i] = data->fingers[i].x;
+    	    }
+    	    if(data->fingers[i].y == 4095)  { /* 0320 */
+    	        data->pos_of_ghost[3][i] = data->fingers[i].x;
+    	    }
+    	    
+    	}
 	}
-	
-	/* 0310 */
-	for (i = 0; i < (MXT_MAX_FINGER - 1); i++) {
-	    if(data->ypos_of_zeroX[i] != 0) {
-	        for (j = i+1; j < MXT_MAX_FINGER; j++) {                
-                if(data->ypos_of_zeroX[i] == data->ypos_of_zeroX[j]) {
-                    tsp_debug_err(true, &data->client->dev, "RF radiation Check [%d],[%d] == [%d],[%d] \n"
-					, i,data->ypos_of_zeroX[i], j, data->ypos_of_zeroX[j]);
-					
-					/* send calibration command to the chip */
-	                ret = mxt_write_object(data, MXT_GEN_COMMANDPROCESSOR_T6,
-	                        MXT_COMMAND_CALIBRATE, 1); 
-	                /* Y pos clear */
-	                for( k = 0; k < MXT_MAX_FINGER ; k++) {
-	                    data->ypos_of_zeroX[k] = 0;
-	                }
-			   return;
-	            }
+
+   
+	for (k = 0; k < 4; k++) {   /* 0320 */
+		for (i = 0; i < (MXT_MAX_FINGER - 2); i++) {
+			if(data->pos_of_ghost[k][i] != 0) {
+		        for (j = i+1; j < (MXT_MAX_FINGER - 1); j++) {                
+		            if(data->pos_of_ghost[k][i] == data->pos_of_ghost[k][j]) {
+		                tsp_debug_err(true, &data->client->dev, "Ghost touch check [%d],[%d] == [%d],[%d] \n"
+						, i,data->pos_of_ghost[k][i], j, data->pos_of_ghost[k][i]);
+						
+						/* send calibration command to the chip */
+		                ret = mxt_write_object(data, MXT_GEN_COMMANDPROCESSOR_T6,
+		                        MXT_COMMAND_CALIBRATE, 1);
+		                /* all pos clear */
+		                memset(&data->pos_of_ghost, 0, sizeof(data->pos_of_ghost));   /* 0320 */
+		                return;      
+		            }
+		        }
 	        }
-           }
+		}
 	}
 }
 
@@ -1041,6 +1058,90 @@ static void mxt_treat_T15_object(struct mxt_data *data,
 }
 #endif
 
+static void mxt_gt5_change_config(struct mxt_data *data)
+{
+
+	u8 ret = 0;
+
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							0, 128);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							10, 0);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							11, 0);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							18, 30);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							20, 0x33);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							21, 20);
+	ret = mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
+							22, 0);
+#if defined(CONFIG_MACH_GT5NOTE10_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_CHN_OPEN) || defined(CONFIG_MACH_GT5NOTE103G_EUR_OPEN)  \
+	|| defined(CONFIG_MACH_GT5NOTE10WIFI_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)
+	/* 0310 for Back Key */
+	ret = mxt_write_object(data, MXT_GEN_ACQUISITIONCONFIG_T8,
+	                        6, 10);
+	ret = mxt_write_object(data, MXT_GEN_ACQUISITIONCONFIG_T8,
+							7, 30);
+	ret = mxt_write_object(data, MXT_GEN_ACQUISITIONCONFIG_T8,
+							14, 2);
+	/* 0311 for Edge detection area */
+	ret = mxt_write_object(data, MXT_TOUCH_MULTITOUCHSCREEN_T100,
+							11, 4);	
+
+    /* 0318 */
+	ret = mxt_write_object(data, MXT_PROCI_LENSBENDING_T65,
+							23, 129);	
+	ret = mxt_write_object(data, MXT_PROCI_LENSBENDING_T65,
+							24, 38);
+	ret = mxt_write_object(data, MXT_PROCI_LENSBENDING_T65,
+							46, 129);	
+	ret = mxt_write_object(data, MXT_PROCI_LENSBENDING_T65,
+							47, 38);
+
+	/* 0320 */
+	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
+							140, 0);
+	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
+							150, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							0, 25);
+
+	/* 0324 */
+	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
+							180, 0);
+	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
+							190, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							0, 27);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							1, 1);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							2, 100);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							3, 60);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							4, 30);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							5, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							6, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							7, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							8, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+							9, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
+						   10, 0);
+	ret = mxt_write_object(data, MXT_PROCI_TOUCHSUPPRESSION_T42, /* 0324_2 */
+						   3, 100);
+	ret = mxt_write_object(data, MXT_PROCI_TOUCHSUPPRESSION_T42, /* 0324_2 */
+						   4, 64);
+#endif
+}
+
 static void mxt_treat_T6_object(struct mxt_data *data,
 		struct mxt_message *message)
 {
@@ -1081,46 +1182,7 @@ static void mxt_treat_T6_object(struct mxt_data *data,
 	if (message->message[0] & 0x80) {
 		tsp_debug_info(true, &data->client->dev, "Reset is ongoing\n");
 
-#if defined(CONFIG_MACH_GT5NOTE10_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_CHN_OPEN) || defined(CONFIG_MACH_GT5NOTE103G_EUR_OPEN)  \
-	|| defined(CONFIG_MACH_GT5NOTE10WIFI_EUR_OPEN) || defined(CONFIG_MACH_GT5NOTE10_KOR_OPEN)	
-	/* 0310 for Back Key */
-	mxt_write_object(data, MXT_GEN_ACQUISITIONCONFIG_T8,
-		6, 10);
-	mxt_write_object(data, MXT_GEN_ACQUISITIONCONFIG_T8,
-		7, 30);
-	mxt_write_object(data, MXT_GEN_ACQUISITIONCONFIG_T8,
-		14, 2);
-	/* 0311 for Edge detection area */
-	mxt_write_object(data, MXT_TOUCH_MULTITOUCHSCREEN_T100,
-		11, 4);		
-    /* 0318 */
-	mxt_write_object(data, MXT_PROCI_LENSBENDING_T65,
-		23, 129);	
-	mxt_write_object(data, MXT_PROCI_LENSBENDING_T65,
-		24, 38);
-	mxt_write_object(data, MXT_PROCI_LENSBENDING_T65,
-		46, 129);	
-	mxt_write_object(data, MXT_PROCI_LENSBENDING_T65,
-		47, 38);
-							
-
-	mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-		0, 128);	
-	mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-		10, 0);	
-	mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-		11, 0);
-								
-	mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-		18, 30);							
-	mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-		20, 51);									
-	mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-		21, 255);								                        
-
-	mxt_write_object(data, MXT_SPT_SELFCAPCONFIG_T111,
-		23, 0);	
-#endif	
+		mxt_gt5_change_config(data);	//0324
 	                        
 	mxt_release_all_finger(data);
 #if ENABLE_TOUCH_KEY
@@ -2971,8 +3033,10 @@ static int  mxt_probe(struct i2c_client *client,
 				0, MXT_AREA_MAX, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MINOR,
 				0, MXT_AREA_MIN, 0, 0);
+#ifdef CONFIG_SEC_FACTORY
 	input_set_abs_params(input_dev, ABS_MT_PRESSURE,
 				0, MXT_AMPLITUDE_MAX, 0, 0);
+#endif
 #if TSP_USE_SHAPETOUCH
 	input_set_abs_params(input_dev, ABS_MT_COMPONENT,
 				0, MXT_COMPONENT_MAX, 0, 0);
@@ -3028,6 +3092,7 @@ static int  mxt_probe(struct i2c_client *client,
 		goto err_touch_init;
 	}
 
+	mxt_gt5_change_config(data);	//0324
 
 	client->irq = gpio_to_irq(data->pdata->gpio_irq);
 	dev_info(&data->client->dev, "%s: tsp int gpio is %d : gpio_to_irq : %d\n",
