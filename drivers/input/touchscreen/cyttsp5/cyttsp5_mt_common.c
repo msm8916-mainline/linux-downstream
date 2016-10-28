@@ -518,13 +518,6 @@ static void inline scale_maj_min(struct cyttsp5_mt_data *md,
 	*value *= 17;
 	*value /= 10;
 
-	if (sig == ABS_MT_TOUCH_MAJOR)
-		*value -= ((*value) / 10);
-	else {
-		*value *= 11;
-		*value /= 10;
-	}
-
 	if (*value > 255)
 		*value = 255;
 }
@@ -945,8 +938,6 @@ static void cyttsp5_mt_close(struct input_dev *input)
 
 	/* pm_runtime_put(dev); */
 	cyttsp5_core_suspend(dev);
-
-	cyttsp5_mt_lift_all(md);
 }
 
 #ifdef CONFIG_HAS_EARLYSUSPEND

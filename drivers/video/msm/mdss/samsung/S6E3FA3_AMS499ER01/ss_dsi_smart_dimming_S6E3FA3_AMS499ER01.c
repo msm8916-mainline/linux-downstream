@@ -176,7 +176,7 @@ static void print_lux_table(struct SMART_DIM *psmart)
 			snprintf(pBuffer + strnlen(pBuffer, 256), 256, " %d",
 				psmart->gen_table[lux_loop].gamma_setting[cnt]);
 
-		pr_info("lux : %3d  %s", psmart->plux_table[lux_loop], pBuffer);
+		pr_info("lux : %3d  %s\n", psmart->plux_table[lux_loop], pBuffer);
 		memset(pBuffer, 0x00, 256);
 	}
 }

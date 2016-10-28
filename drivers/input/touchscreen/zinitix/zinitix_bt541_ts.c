@@ -3055,15 +3055,15 @@ static void fw_update(void *device_data)
 	snprintf(result, sizeof(result) , "%s", "OK");
 	set_cmd_result(info, result,
 			strnlen(result, sizeof(result)));
+	return;
 
-if (fp != NULL) {
 err_fw_size:
 	kfree(buff);
 err_alloc:
 	filp_close(fp, NULL);
 err_open:
 	set_fs(old_fs);
-}
+
 not_support:
 	snprintf(result, sizeof(result) , "%s", "NG");
 	set_cmd_result(info, result, strnlen(result, sizeof(result)));

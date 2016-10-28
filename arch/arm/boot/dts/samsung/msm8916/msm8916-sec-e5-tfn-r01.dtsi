@@ -13,7 +13,7 @@
 #include "msm8916.dtsi"
 #include "msm8916-pinctrl-sec-e5-tfn-r01.dtsi"
 #include "msm8916-camera-sensor-r00.dtsi"
-#include "../../../../../../drivers/video/msm/mdss/samsung/EA8061V_AMS497EE01/dsi_panel_EA8061V_AMS497EE01_HD_octa_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/EA8061V_AMS497EE10/dsi_panel_EA8061V_AMS497EE10_HD_octa_video.dtsi"
 #include "msm8916-sec-e5-tfn-battery-r00.dtsi"
 / {
 	aliases {
@@ -310,6 +310,10 @@
 		};
 	};
 
+	input_booster {
+		status = "okay";
+	};
+
 	i2c_9:i2c@9 { /*SM5504 GPIO-I2C*/
 		cell-index = <9>;
 		compatible = "i2c-gpio";
@@ -399,7 +403,7 @@
 
 &usb_otg {
 	qcom,hsusb-otg-phy-init-seq =
-					<0x5B 0x81 0x0b 0x82 0xffffffff>;
+					<0x4B 0x81 0x0b 0x82 0xffffffff>;
 };
 
 &sdhc_1 {
@@ -516,7 +520,7 @@
 	qcom,mdss-pref-prim-intf = "dsi";
 };
 
-&dsi_ea8061_video_hd {
+&ss_dsi_panel_EA8061V_AMS497EE10_HD {
 	samsung,ext-supply-entry {
 		samsung,ext-supply-entry@0 {
 			samsung,ext-pwr-gpio = <&msm_gpio 87 1>;
@@ -534,13 +538,13 @@
 	qcom,pins = <&gp 87>;
 };
 
-&dsi_ea8061_video_hd {
+&ss_dsi_panel_EA8061V_AMS497EE10_HD {
 	qcom,mdss-dsi-booting-brightness = <255>;
 	samsung,panel-extra-power-gpio1 = <&msm_gpio 87 0>;
 };
 
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_ea8061_video_hd>;
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_EA8061V_AMS497EE10_HD>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active &lcd_on_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &lcd_on_suspend>;

@@ -58,7 +58,7 @@
 #include <asm/unaligned.h>
 
 #ifdef CONFIG_INPUT_BOOSTER
-#include <linux/input/input_booster_msm8939.h>
+#include <linux/input/input_booster.h>
 #endif
 #define TSP_GLOVE_MODE
 #define TSP_SVIEW_COVER_MODE
@@ -398,7 +398,7 @@ struct mms_ts_info {
 	void (*input_event)(void *data);
 	const char* fw_path;
 
-#ifdef TSP_BOOSTER
+#ifdef CONFIG_INPUT_BOOSTER
 	struct input_booster	*booster;
 #endif
 
@@ -559,7 +559,7 @@ static void direct_indicator_enable(void *device_data);
 static void set_lowpower_mode(void *device_data);
 #endif
 
-#ifdef TSP_BOOSTER
+#ifdef CONFIG_INPUT_BOOSTER
 static void boost_level(void *device_data);
 #endif
 
@@ -603,7 +603,7 @@ struct tsp_cmd tsp_cmds[] = {
 	{TSP_CMD("set_lowpower_mode", set_lowpower_mode),},
 #endif
 	{TSP_CMD("not_support_cmd", not_support_cmd),},
-#ifdef TSP_BOOSTER
+#ifdef CONFIG_INPUT_BOOSTER
         {TSP_CMD("boost_level", boost_level),},
 #endif
 #ifdef TSP_GLOVE_MODE
@@ -653,7 +653,7 @@ static void release_all_fingers(struct mms_ts_info *info)
 	}
 	input_sync(info->input_dev);
 
-#ifdef TSP_BOOSTER
+#ifdef CONFIG_INPUT_BOOSTER
 	if (info->booster && info->booster->dvfs_set)
 		info->booster->dvfs_set(info->booster, 0);
 #endif
@@ -1130,16 +1130,9 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 	}
 	input_sync(info->input_dev);
 
-#ifdef TSP_BOOSTER
-	if (touch_is_pressed > 0) {
-		if (info->booster && info->booster->dvfs_set)
-			info->booster->dvfs_set(info->booster, 1);
-	} 
-
-	else {
-		if (info->booster && info->booster->dvfs_set)
-			info->booster->dvfs_set(info->booster, 0);
-	}
+#ifdef CONFIG_INPUT_BOOSTER
+	if (info->booster && info->booster->dvfs_set)
+		info->booster->dvfs_set(info->booster, touch_is_pressed);
 #endif
 
 out:
@@ -1948,14 +1941,13 @@ static void clear_cover_mode(void *device_data)
 }
 #endif
 
-#ifdef TSP_BOOSTER
+#ifdef CONFIG_INPUT_BOOSTER
 static void boost_level(void *device_data)
 {
 	struct mms_ts_info *info = (struct mms_ts_info *)device_data;
 	struct i2c_client *client = info->client;
 	char buff[16] = {0};
 	int stage;
-	int retval = 0;
 
 	dev_info(&client->dev, "%s\n", __func__);
 
@@ -1977,12 +1969,8 @@ static void boost_level(void *device_data)
 	info->cmd_state = OK;
 
 	if (info->booster->dvfs_boost_mode == DVFS_STAGE_NONE) {
-		retval = info->booster->dvfs_off(info->booster);
-		if (retval < 0) {
-			dev_err(&info->client->dev,"%s: booster stop failed(%d).\n",__func__, retval);
-			snprintf(buff, sizeof(buff), "NG");
-			info->cmd_state = FAIL;
-		}
+		if (info->booster && info->booster->dvfs_set)
+			info->booster->dvfs_set(info->booster, -1);
 	}
 
 	boost_out:
@@ -5389,10 +5377,10 @@ static void mms_ts_input_close(struct input_dev *dev)
 	// mms_pinctrl_configure(info, false, false);
 	}
 
-#ifdef TSP_BOOSTER
-		dev_info(&info->client->dev, "%s force dvfs off\n", __func__);
-		if (info->booster && info->booster->dvfs_set)
-			info->booster->dvfs_set(info->booster, -1);
+#ifdef CONFIG_INPUT_BOOSTER
+	dev_info(&info->client->dev, "%s force dvfs off\n", __func__);
+	if (info->booster && info->booster->dvfs_set)
+		info->booster->dvfs_set(info->booster, -1);
 #endif
 
 	return;
@@ -5648,7 +5636,7 @@ static int mms_ts_probe(struct i2c_client *client,
 		goto err_reg_input_dev;
 	}
 
-#ifdef TSP_BOOSTER
+#ifdef CONFIG_INPUT_BOOSTER
 	info->booster = input_booster_allocate(INPUT_BOOSTER_ID_TSP);
 	if (!info->booster) {
 		dev_err(&client->dev, "%s: Error, failed to allocate input booster\n",__func__);
@@ -5784,7 +5772,7 @@ static int mms_ts_probe(struct i2c_client *client,
 err_req_irq:
 	input_unregister_device(input_dev);
 
-#ifdef TSP_BOOSTER
+#ifdef CONFIG_INPUT_BOOSTER
 	input_booster_free(info->booster);
 	info->booster = NULL;
 error_alloc_booster_failed:

@@ -89,18 +89,57 @@ elif [ "$BUILD_COMMAND" == "fortuna_tmo" ]; then
 elif [ "$BUILD_COMMAND" == "fortuna_spr" ]; then
 	PRODUCT_NAME=gprimeltespr;
 	SIGN_MODEL=
-elif [ "$BUILD_COMMAND" == "rossa_spr" ]; then
-	PRODUCT_NAME=rossalte;
-	SIGN_MODEL=
 elif [ "$BUILD_COMMAND" == "rossa_tmo" ]; then
 	PRODUCT_NAME=rossaltetmo;
 	SIGN_MODEL=
-elif [ "$BUILD_COMMAND" == "rossa_vzw" ]; then
-	PRODUCT_NAME=rossaltevzw;
+elif [ "$BUILD_COMMAND" == "xcover3_dcm" ]; then
+	PRODUCT_NAME=xcover3ltedcm;
 	SIGN_MODEL=
 elif [ "$BUILD_COMMAND" == "j1_vzw" ]; then
 	PRODUCT_NAME=j1qltevzw;
 	SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "gtes_spr" ]; then
+	PRODUCT_NAME=gtesqltespr;
+	SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "gtes_usc" ]; then
+	PRODUCT_NAME=gtesqlteusc;
+	SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "o7lte_chnopen" ]; then
+        PRODUCT_NAME=o7ltezc;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "o7lte_swaopen" ]; then
+        PRODUCT_NAME=o7ltedd;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "j3lte_chnctc" ]; then
+        PRODUCT_NAME=j3ltechnctc;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "j3lte_tw" ]; then
+        PRODUCT_NAME=j3ltetw;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "j3lte_spr" ]; then
+        PRODUCT_NAME=j3ltespr;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "j3lte_vzw" ]; then
+        PRODUCT_NAME=j3ltevzw;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "j3lte_usc" ]; then
+        PRODUCT_NAME=j3lteusc;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "j1xqlte_spr" ]; then
+        PRODUCT_NAME=j1xqltespr;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "j1xqlte_tfnvzw" ]; then
+        PRODUCT_NAME=j1xqltetfnvzw;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "j5lte_eur" ]; then
+        PRODUCT_NAME=j5xlte;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "j5x3g_mea" ]; then
+        PRODUCT_NAME=j5x3gjv;
+        SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "on7nlte_kor" ]; then
+        PRODUCT_NAME=on7nlteskt;
+        SIGN_MODEL=
 else
 #default product
         PRODUCT_NAME=$BUILD_COMMAND;
@@ -400,10 +439,20 @@ SECFUNC_PRINT_HELP()
 	echo "	for FORTUNA_USA_USC use fortuna_usc"
 	echo "	for FORTUNA_USA_TMO use fortuna_tmo"
 	echo "	for FORTUNA_USA_SPR use fortuna_spr"
-	echo "	for ROSSA_USA_SPR use rossa_spr"
 	echo "	for ROSSA_USA_TMO use rossa_tmo"
-	echo "	for ROSSA_USA_VZW use rossa_vzw"
-        echo "	for J1QLTE_USA_VZW use j1_vzw"
+	echo "	for XCOVER3_JPN_DCM use xcover3_dcm"
+    echo "	for J1QLTE_USA_VZW use j1_vzw"
+	echo "	for J3LTE_CHN_CTC use j3lte_chnctc"
+	echo "	for J3LTE_CHN_TW use j3lte_tw"
+	echo "	for J3LTE_USA_SPR use j3lte_spr"
+	echo "	for J3LTE_USA_VZW use j3lte_vzw"
+	echo "	for J3LTE_USA_VZW use j3lte_usc"
+	echo "	for J1XQLTE_USA_VZW use j1xqlte_spr"
+    echo "	for GTESLTE_USA_SPR use gtes_spr"
+    echo "	for GTESLTE_USA_USC use gtes_usc"
+    echo "	for O7LTE_SWA_OPEN use o7lte_swaopen"
+	echo "	for J5XLTE_EUR_OPEN use j5xlte_eur"
+	echo "	for J5LTE_EUR use j5lte_eur"
 	echo "  \$2 : "
 	echo "	-B or Nothing  (-B : Secure Binary)"
 	echo "  \$3 : "

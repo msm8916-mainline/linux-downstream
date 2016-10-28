@@ -35,5 +35,6 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #include "../ss_dsi_panel_common.h"
 
 #define HX8369B_BV045WVM_SUPPORT_PANEL_COUNT 1
+#define LCD_DEFAUL_BL_LEVEL 89
 
 #endif

@@ -54,7 +54,7 @@ __stringify(CY_DRIVER_NAME)		    \
 
 /* FW VERSION */
 #define CY_HW_VERSION 0x01
-#define CY_FW_VERSION 0x0e00
+#define CY_FW_VERSION 0x1000
 
 enum cyttsp5_core_platform_flags {
 	CY_CORE_FLAG_NONE,
@@ -82,6 +82,12 @@ struct cyttsp5_touch_firmware {
 	uint8_t hw_version;
 	uint16_t fw_version;
 };
+
+struct cyttsp_samsung_fw_file_ver {
+	u8 hw_ver;
+	u8 fw_ver[2];
+	u8 cfg_ver;
+} __packed;
 
 struct cyttsp5_touch_config {
 	struct touch_settings *param_regs;
@@ -118,6 +124,9 @@ struct cyttsp5_core_platform_data {
 		struct device *dev);
 	struct touch_settings *sett[CY_TOUCH_SETTINGS_MAX];
 	u32 flags;
+	bool on_off_flag;
+	struct device *dev;
+	bool power_on_suspend;
 };
 
 struct touch_framework {

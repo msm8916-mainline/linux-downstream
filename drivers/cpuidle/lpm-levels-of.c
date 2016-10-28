@@ -58,9 +58,12 @@ static void *get_avail_val(struct kobject *kobj, struct kobj_attribute *attr)
 	return arg;
 }
 
-#if defined(CONFIG_ARCH_MSM8939)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 static struct lpm_cluster *performance_cluster;
 static struct lpm_cluster *power_cluster;
+#if defined(CONFIG_SW_SELF_DISCHARGING)
+extern int selfdischg_cpu_mask;
+#endif
 
 static int cpu_lpm_set_mode(int cpu_no, int power_level, bool on)
 {
@@ -98,6 +101,10 @@ int lpm_set_mode(u8 cpu_mask, u32 power_level, bool on)
 		if (cpu_mask & (1 << cpu)) {
 			for (j=cpu*4, k=0; k<3; j++,k++) {
 				if (power_level & (1 << j)) {
+#if defined(CONFIG_SW_SELF_DISCHARGING)
+					if (unlikely(selfdischg_cpu_mask & (1<<cpu)))
+						return ret;
+#endif
 					ret = cpu_lpm_set_mode(cpu, k, on);
 					if (ret)
 						return ret;
@@ -210,6 +217,13 @@ ssize_t lpm_enable_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 	kp.arg = get_avail_val(kobj, attr);
 	ret = param_set_bool(buf, &kp);
+
+#if defined(CONFIG_SW_SELF_DISCHARGING)
+	if ( attr->attr.name )
+		printk("[SELFDISCHG] LPM %s %s\n", buf, attr->attr.name);
+	else
+		printk("[SELFDISCHG] LPM %s null\n", buf);
+#endif
 
 	return ret ? ret : len;
 }
@@ -344,7 +358,7 @@ int create_cluster_lvl_nodes(struct lpm_cluster *p, struct kobject *kobj)
 	if (!p)
 		return -ENODEV;
 
-#if defined(CONFIG_ARCH_MSM8939)
+#if defined(CONFIG_ARCH_MSM8939) || defined (CONFIG_ARCH_MSM8929)
 	printk("[LPM] %s create\n",p->cluster_name);
 	if (!strncmp(p->cluster_name, "power", 5))
 		power_cluster = p;
@@ -810,6 +824,8 @@ struct lpm_cluster *parse_cluster(struct device_node *node,
 				goto failed_parse_cluster;
 		}
 	}
+
+	c->last_level = c->nlevels-1;
 
 	return c;
 

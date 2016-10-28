@@ -378,7 +378,7 @@ static int s2mu003_irq_ctrl_regs[] = {
 };
 
 static uint8_t s2mu003_irqs_ctrl_mask_all_val[] = {
-	0xFF,
+	0xF7,
 	0xFF,
 	0xFF,
 	0xFF,

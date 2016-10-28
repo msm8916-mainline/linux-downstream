@@ -19,6 +19,7 @@
 #include "msm8939-pm.dtsi"
 #include "msm8939-smem.dtsi"
 #include "msm8939-smp2p.dtsi"
+#include "msm8939-gpu.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. MSM8939";
@@ -26,7 +27,7 @@
 	qcom,msm-id = <239 0>, <241 0>, <263 0>;
 
 	chosen {
-		bootargs = "boot_cpus=0,4,5,6,7 sched_enable_hmp=1";
+		bootargs = "boot_cpus=0,1,2,3,4 sched_enable_hmp=1";
 	};
 };
 
@@ -45,9 +46,12 @@
 		reg = <0x0b111050 0x8>,
 			<0xb011050 0x8>,
 			<0xb1d1050 0x8>,
-			<0x5800c 0X8>;
+			<0x5800c 0x8>,
+			<0x58000 0x8>,
+			<0x58004 0x8>;
 		reg-names = "apcs-c0-rcg-base", "apcs-c1-rcg-base",
-				"apcs-cci-rcg-base", "efuse";
+				"apcs-cci-rcg-base", "efuse", "efuse1",
+				"efuse2";
 		vdd-c0-supply = <&apc_vreg_corner>;
 		vdd-c1-supply = <&apc_vreg_corner>;
 		vdd-cci-supply = <&apc_vreg_corner>;
@@ -66,7 +70,7 @@
 			<  500000000 9>,
 			<  800000000 12>,
 			<  998400000 17>,
-			< 1113600000 22>;
+			< 1113600000 24>;
 
 		qcom,speed0-bin-v0-c1 =
 			<          0 0>,
@@ -85,7 +89,7 @@
 			<          0 0>,
 			<  200000000 3>,
 			<  300000000 12>,
-			<  400000000 13>,
+			<  400000000 14>,
 			<  600000000 17>;
 
 		qcom,speed2-bin-v0-c0 =
@@ -94,7 +98,7 @@
 			<  500000000 9>,
 			<  800000000 12>,
 			<  998400000 17>,
-			< 1113600000 22>;
+			< 1113600000 24>;
 
 		qcom,speed2-bin-v0-c1 =
 			<          0 0>,
@@ -109,13 +113,38 @@
 			< 1267200000 16>,
 			< 1344000000 17>,
 			< 1420800000 18>,
-			< 1497600000 19>;
+			< 1459200000 20>,
+			< 1497600000 21>;
 
 		qcom,speed2-bin-v0-cci =
 			<          0 0>,
 			<  200000000 3>,
 			<  300000000 12>,
-			<  400000000 13>,
+			<  400000000 15>,
+			<  600000000 17>;
+
+		qcom,speed2-bin-v2-c0 =
+			<          0 0>,
+			<  250000000 3>,
+			<  500000000 9>,
+			<  800000000 12>,
+			<  998400000 17>,
+			< 1113600000 24>;
+
+		qcom,speed2-bin-v2-c1 =
+			<          0 0>,
+			<  400000000 3>,
+			<  800000000 9>,
+			<  960000000 12>,
+			< 1113600000 14>,
+			< 1344000000 17>,
+			< 1459200000 20>;
+
+		qcom,speed2-bin-v2-cci =
+			<          0 0>,
+			<  200000000 3>,
+			<  300000000 11>,
+			<  400000000 15>,
 			<  600000000 17>;
 
 		qcom,speed4-bin-v0-c0 =
@@ -124,7 +153,7 @@
 			<  500000000 9>,
 			<  800000000 12>,
 			<  998400000 17>,
-			< 1113600000 17>;
+			< 1113600000 24>;
 
 		qcom,speed4-bin-v0-c1 =
 			<          0 0>,
@@ -138,13 +167,9 @@
 			< 1190400000 15>,
 			< 1267200000 16>,
 			< 1344000000 17>,
-			< 1420800000 18>,
-			< 1497600000 19>,
-			< 1536000000 20>,
-			< 1574400000 21>,
-			< 1612800000 22>,
-			< 1632000000 23>,
-			< 1651200000 24>;
+			< 1459200000 20>,
+			< 1497600000 21>,
+			< 1651200000 26>;
 
 		qcom,speed4-bin-v0-cci =
 			<          0 0>,
@@ -159,7 +184,7 @@
 			<  500000000 9>,
 			<  800000000 12>,
 			<  998400000 17>,
-			< 1113600000 17>;
+			< 1113600000 24>;
 
 		qcom,speed5-bin-v0-c1 =
 			<          0 0>,
@@ -173,19 +198,41 @@
 			< 1190400000 15>,
 			< 1267200000 16>,
 			< 1344000000 17>,
-			< 1420800000 18>,
-			< 1497600000 19>,
-			< 1536000000 20>,
-			< 1574400000 21>,
-			< 1612800000 22>,
-			< 1632000000 23>,
-			< 1651200000 24>;
+			< 1459200000 20>,
+			< 1497600000 21>,
+			< 1651200000 26>;
 
 		qcom,speed5-bin-v0-cci =
 			<          0 0>,
 			<  200000000 3>,
 			<  300000000 12>,
-			<  400000000 13>,
+			<  400000000 15>,
+			<  600000000 17>;
+
+		qcom,speed5-bin-v6-c0 =
+			<          0 0>,
+			<  250000000 3>,
+			<  500000000 9>,
+			<  800000000 12>,
+			<  998400000 17>,
+			< 1113600000 24>;
+
+		qcom,speed5-bin-v6-c1 =
+			<          0 0>,
+			<  400000000 3>,
+			<  800000000 9>,
+			<  960000000 12>,
+			< 1113600000 14>,
+			< 1344000000 17>,
+			< 1459200000 20>,
+			< 1497600000 21>,
+			< 1651200000 26>;
+
+		qcom,speed5-bin-v6-cci =
+			<          0 0>,
+			<  200000000 3>,
+			<  300000000 11>,
+			<  400000000 15>,
 			<  600000000 17>;
 		#clock-cells = <1>;
 	};
@@ -210,7 +257,20 @@
 		qcom,active-only;
 		qcom,bw-tbl =
 			<  1525 /*  100   MHz */ >,
-			<  2673 /*  175.2 MHz */ >,
+			<  2636 /*  172.8 MHz */ >,
+			<  3955 /*  259.2 MHz */ >,
+			<  5346 /*  350.4 MHz */ >,
+			<  6079 /*  398.4 MHz */ >;
+	};
+
+	mincpubw: qcom,mincpubw {
+		compatible = "qcom,devbw";
+		governor = "powersave";
+		qcom,src-dst-ports = <1 512>;
+		qcom,active-only;
+		qcom,bw-tbl =
+			<  1525 /*  100   MHz */ >,
+			<  2636 /*  172.8 MHz */ >,
 			<  3955 /*  259.2 MHz */ >,
 			<  5346 /*  350.4 MHz */ >,
 			<  5712 /*  374.4 MHz */ >,
@@ -238,22 +298,40 @@
 			<  1190400 5346 >,
 			<  1267200 6079 >,
 			<  1344000 6079 >,
-			<  1420800 6079 >,
+			<  1459200 6079 >,
 			<  1497600 6079 >,
-			<  1536000 6079 >,
-			<  1574400 6079 >,
-			<  1612800 6079 >,
-			<  1632000 6079 >,
 			<  1651200 6079 >;
 		cpu-to-dev-map-4 =
 			<  200000 1525 >,
-			<  249600 1525 >,
-			<  400000 1525 >,
+			<  249600 2636 >,
+			<  400000 2636 >,
 			<  499200 2636 >,
 			<  533330 2636 >,
 			<  800000 5346 >,
-			<  998400 5346 >,
+			<  998400 6079 >,
 			< 1113600 6079 >;
+		};
+
+		mincpubw-cpufreq {
+		target-dev = <&mincpubw>;
+		cpu-to-dev-map-0 =
+			<  200000  2636 >,
+			<  345600  2636 >,
+			<  400000  2636 >,
+			<  800000  2636 >,
+			<  960000  2636 >,
+			<  1113600 2636 >,
+			<  1344000 5346 >,
+			<  1497600 5346 >,
+			<  1612800 5346 >,
+			<  1651200 5346 >;
+		cpu-to-dev-map-4 =
+			<  200000 2636 >,
+			<  249600 2636 >,
+			<  499200 2636 >,
+			<  800000 2636 >,
+			<  998400 5346 >,
+			< 1113600 5346 >;
 		};
 
 		cci-cpufreq {
@@ -276,12 +354,8 @@
 			< 1190400  400000 >,
 			< 1267200  595200 >,
 			< 1344000  595200 >,
-			< 1420800  595200 >,
+			< 1459200  595200 >,
 			< 1497600  595200 >,
-			< 1536000  595200 >,
-			< 1574400  595200 >,
-			< 1612800  595200 >,
-			< 1632000  595200 >,
 			< 1651200  595200 >;
 		cpu-to-dev-map-4 =
 			<  200000 200000 >,
@@ -290,7 +364,7 @@
 			<  499200 297600 >,
 			<  533330 297600 >,
 			<  800000 297600 >,
-			<  998400 400000 >,
+			<  998400 595200 >,
 			< 1113600 595200 >;
 		};
 	};
@@ -330,12 +404,8 @@
 			 < 1190400 >,
 			 < 1267200 >,
 			 < 1344000 >,
-			 < 1420800 >,
+			 < 1459200 >,
 			 < 1497600 >,
-			 < 1536000 >,
-			 < 1574400 >,
-			 < 1612800 >,
-			 < 1632000 >,
 			 < 1651200 >;
 		qcom,cpufreq-table-4 =
 			 <  200000 >,
@@ -473,3 +543,149 @@
 &bam_dmux {
 	qcom,no-cpu-affinity;
 };
+
+&soc {
+	/* Samsung Feature for all MSM8939 models */
+	input_booster {
+		status = "disabled";
+		compatible = "input_booster";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+	/*	DVFS_STAGE_NONE		0x0001	: 0000 0000 0000 0001
+		DVFS_STAGE_SINGLE	0x0002	: 0000 0000 0000 0010
+		DVFS_STAGE_DUAL		0x0004	: 0000 0000 0000 0100
+		DVFS_STAGE_TRIPLE	0x0008	: 0000 0000 0000 1000 */
+
+		booster,tsp_stage = <0x000F>;	// supported stage with OR operation
+		booster,tkey_stage = <0x0001>;	// supported stage with OR operation
+		booster,wacom_stage = <0x0001>;	// supported stage with OR operation
+
+		booster,level = <2>;			// default level
+		booster,head = <200 556600 0>;	// default head value <time cpu_freq bimc_freq>
+		booster,tail = <300 499200 0>;	// default tail value <time cpu_freq bimc_freq>
+
+		booster_key@1 {
+			input_booster,label = "KEY";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <556600>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <200>;
+			input_booster,tail_times = <0>;
+
+		};
+		booster_key@2 {
+			input_booster,label = "TOUCHKEY";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			input_booster,levels = <1>;
+
+			/* Frequency table */
+			/* for level	:	1_Head */
+			input_booster,cpu_freqs = <499200>;
+			input_booster,bimc_freqs = <0>;
+
+			/* Time table */
+			input_booster,head_times = <0>;
+			input_booster,tail_times = <300>;
+		};
+		booster_key@3 {
+			input_booster,label = "TOUCH";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			input_booster,levels = <1 2 3>;
+
+			/* Frequency table */
+			/* for level	:	1_Head, 2_Head, 2_Tail */
+			input_booster,cpu_freqs = <556600 556600 499200>;
+			input_booster,bimc_freqs = <0 0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 200 0>;
+			input_booster,tail_times = <0 0 300>;
+		};
+		booster_key@4 { // Input Booster +
+			input_booster,label = "MULTITOUCH";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <556600 556600>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <1000 0>;
+			input_booster,tail_times = <0 500>;
+		};
+		booster_key@5 {
+			input_booster,label = "KEYBOARD";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <556600 556600>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 200>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@6 {
+			input_booster,label = "MOUSE";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <556600 556600>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		};
+		booster_key@7 {
+			input_booster,label = "MOUSE WHEEL";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <556600 0>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 0>;
+		};
+		booster_key@8 {
+			input_booster,label = "PEN HOVER";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+			input_booster,levels = <1 2>;
+
+			/* Frequency table */
+			/* for level	:	1_Head 2_Tail*/
+			input_booster,cpu_freqs = <556600 499200>;
+			input_booster,bimc_freqs = <0 0>;
+
+			/* Time table */
+			input_booster,head_times = <200 0>;
+			input_booster,tail_times = <0 300>;
+		}; // Input Booster -
+	};
+};
+

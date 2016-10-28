@@ -38,7 +38,10 @@
 
 #include "melfas_mms400_reg.h"
 #include <linux/input/tsp_ta_callback.h>
-#include <linux/input/input_booster_msm8939.h>
+
+#ifdef CONFIG_INPUT_BOOSTER
+#include <linux/input/input_booster.h>
+#endif
 
 #ifdef CONFIG_OF
 #define MMS_USE_DEVICETREE		1
@@ -83,7 +86,11 @@
 #define MMS_USE_NAP_MODE		0
 #define MMS_USE_TEST_MODE		1
 #define MMS_USE_CMD_MODE		1
+#ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 #define MMS_USE_DEV_MODE		0
+#else
+#define MMS_USE_DEV_MODE		1
+#endif
 
 //Input value
 #define MAX_FINGER_NUM			10
@@ -103,12 +110,15 @@
 #define INPUT_PALM_MAX			1
 
 //Firmware update
-#if defined(CONFIG_SEC_H7_PROJECT) || defined(CONFIG_SEC_A8_PROJECT)
-#define INTERNAL_FW_PATH		"tsp_melfas/mms449_h7.fw"
-#else
+#if defined(CONFIG_SEC_K5_PROJECT)
 #define INTERNAL_FW_PATH		"tsp_melfas/mms449_k5.fw"
+#else	// K7, H7, A8
+#define INTERNAL_FW_PATH		"tsp_melfas/mms449_a8.fw"
+#define APPLY_RESOLUTION
 #endif
+
 #define EXTERNAL_FW_PATH		"/sdcard/melfas.mfsb"
+#define FFU_FW_PATH			"ffu_tsp.bin"
 #define MMS_USE_AUTO_FW_UPDATE		1
 #define MMS_FW_MAX_SECT_NUM		4
 #define MMS_FW_UPDATE_DEBUG		0
@@ -178,6 +188,8 @@ struct mms_ts_info {
 	bool cmd_busy;
 	bool dev_busy;
 
+	bool read_all_data;
+
 #if MMS_USE_CMD_MODE
 	dev_t cmd_dev_t;
 	struct device *cmd_dev;
@@ -200,24 +212,31 @@ struct mms_ts_info {
 	struct tsp_callbacks callbacks;
 #endif
 
-#ifdef TSP_BOOSTER
+#ifdef CONFIG_INPUT_BOOSTER
 	struct input_booster *booster;
 #endif
+#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
+	struct delayed_work ghost_check;
+	u8 tsp_dump_lock;
+	u8 add_log_header;
+#endif
+
 };
 
 /**
  * Platform Data
  */
 struct mms_devicetree_data {
-	unsigned int max_x;
-	unsigned int max_y;
 	int gpio_intr;
 	int gpio_vdd;
 	int gpio_vio;
 	int gpio_sda;
 	int gpio_scl;
-	int panel;
 	struct regulator *vreg_vio;
+	const char *fw_path;
+	bool fix_resolution;
+	bool support_glove_mode;
+	bool thr_read_from_ic;
 };
 
 /**
@@ -269,9 +288,9 @@ enum fw_update_errno{
 //main
 void mms_reboot(struct mms_ts_info *info);
 int mms_i2c_read(struct mms_ts_info *info, char *write_buf, unsigned int write_len,
-			char *read_buf, unsigned int read_len);
+		char *read_buf, unsigned int read_len);
 int mms_i2c_read_next(struct mms_ts_info *info, char *read_buf, int start_idx,
-			unsigned int read_len);
+		unsigned int read_len);
 int mms_i2c_write(struct mms_ts_info *info, char *write_buf, unsigned int write_len);
 int mms_enable(struct mms_ts_info *info);
 int mms_disable(struct mms_ts_info *info);
@@ -279,7 +298,7 @@ int mms_get_ready_status(struct mms_ts_info *info);
 int mms_get_fw_version(struct mms_ts_info *info, u8 *ver_buf);
 int mms_get_fw_version_u16(struct mms_ts_info *info, u16 *ver_buf_u16);
 int mms_disable_esd_alert(struct mms_ts_info *info);
-int mms_fw_update_from_kernel(struct mms_ts_info *info, bool force);
+int mms_fw_update_from_kernel(struct mms_ts_info *info, bool force, bool ffu);
 int mms_fw_update_from_storage(struct mms_ts_info *info, bool force);
 int mms_suspend(struct device *dev);
 int mms_resume(struct device *dev);
@@ -294,10 +313,11 @@ int mms_pinctrl_configure(struct mms_ts_info *info, int active);
 int mms_parse_devicetree(struct device *dev, struct mms_ts_info *info);
 #endif
 void mms_config_input(struct mms_ts_info *info);
+int mms_enable_glove_mode(struct mms_ts_info *info, int enable);
 
 //fw_update
 int mms_flash_fw(struct mms_ts_info *info, const u8 *fw_data, size_t fw_size,
-			bool force, bool section);
+		bool force, bool section);
 
 //test
 #if MMS_USE_DEV_MODE

@@ -129,6 +129,7 @@ static void mdss_brightness_tft_pwm_lvds(struct mdss_dsi_ctrl_pdata *ctrl, int l
 	}
 
 	pr_info("%s bl_level : %d \n", __func__, level);
+
 	vdd->bl_level = level;
 
 	return;
@@ -264,8 +265,8 @@ static void backlight_tft_late_on(struct mdss_dsi_ctrl_pdata *ctrl)
 	pr_err("%s \n", __func__);
 	mdss_lvds_data_ql2(vdd);
 
-	if(vdd->init_bl_level)
-		mdss_brightness_tft_pwm_lvds(ctrl, vdd->init_bl_level);
+	if(vdd->bl_level)
+		mdss_brightness_tft_pwm_lvds(ctrl, vdd->bl_level);
 
 	if(first_boot) {
 		mdss_brightness_tft_pwm_lvds(ctrl, 200);

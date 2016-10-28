@@ -119,7 +119,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM8995 if SND_SOC_I2C_AND_SPI
 	select SND_SOC_WM8996 if I2C
 	select SND_SOC_WM8997 if MFD_WM8997
-	select SND_SOC_WM8998 if MFD_WM8998
+	select SND_SOC_VEGAS if MFD_VEGAS
 	select SND_SOC_WM9081 if I2C
 	select SND_SOC_WM9090 if I2C
 	select SND_SOC_WM9705 if SND_SOC_AC97_BUS
@@ -143,12 +143,16 @@ config SND_SOC_ARIZONA
 	tristate
 	default y if SND_SOC_WM5102=y
 	default y if SND_SOC_FLORIDA=y
+	default y if SND_SOC_CLEARWATER=y
 	default y if SND_SOC_WM8997=y
-	default y if SND_SOC_WM8998=y
+	default y if SND_SOC_VEGAS=y
+	default y if SND_SOC_CS47L24=y
 	default m if SND_SOC_WM5102=m
 	default m if SND_SOC_FLORIDA=m
+	default m if SND_SOC_CLEARWATER=m
 	default m if SND_SOC_WM8997=m
-	default m if SND_SOC_WM8998=m
+	default m if SND_SOC_VEGAS=m
+	default m if SND_SOC_CS47L24=m
 
 config SND_SOC_WM_HUBS
 	tristate
@@ -159,10 +163,14 @@ config SND_SOC_WM_ADSP
 	tristate
 	default y if SND_SOC_WM5102=y
 	default y if SND_SOC_FLORIDA=y
+	default y if SND_SOC_CLEARWATER=y
 	default y if SND_SOC_WM2200=y
+	default y if SND_SOC_CS47L24=y
 	default m if SND_SOC_WM5102=m
 	default m if SND_SOC_FLORIDA=m
+	default m if SND_SOC_CLEARWATER=m
 	default m if SND_SOC_WM2200=m
+	default m if SND_SOC_CS47L24=m
 
 config SND_SOC_AB8500_CODEC
 	tristate
@@ -375,9 +383,20 @@ config SND_SOC_WCD9306
 config SND_SOC_WCD9330
         tristate
 
+config SND_SOC_WSA881X
+        tristate
+
+config SND_SOC_WCD9335
+        tristate
+
+config SND_SOC_WSA881X
+        tristate
+	select REGMAP_SWR
+
 config SND_SOC_WCD9XXX
 	tristate
 	default y if SND_SOC_WCD9320=y || SND_SOC_WCD9306=y || SND_SOC_WCD9330=y
+	default y if SND_SOC_WCD9335=y
 
 config SND_SOC_MSM8X10_WCD
 	tristate
@@ -387,10 +406,20 @@ config SND_SOC_MSM8X16_WCD
 
 config SND_SOC_WCD_CPE
 	tristate
-	default y if SND_SOC_WCD9330=y
+	default y if SND_SOC_WCD9330=y || SND_SOC_WCD9335=y
+	default y if SND_SOC_MSM8909_WCD=y
 
 config SND_SOC_MSM8909_WCD
 	tristate
+
+config AUDIO_EXT_CLK
+	tristate
+	default y if SND_SOC_WCD9335=y || SND_SOC_WCD9330=y || SND_SOC_MSM8X16_WCD=y
+	default y if SND_SOC_MSM8909_WCD=y
+
+config SND_SOC_WCD_MBHC
+	tristate
+	default y if SND_SOC_MSM8909_WCD=y || SND_SOC_MSM8X16_WCD=y
 
 config SND_SOC_WL1273
 	tristate
@@ -414,6 +443,9 @@ config SND_SOC_WM5102
 	tristate
 
 config SND_SOC_FLORIDA
+	tristate
+
+config SND_SOC_CLEARWATER
 	tristate
 
 config SND_SOC_WM8350
@@ -530,7 +562,7 @@ config SND_SOC_WM8996
 config SND_SOC_WM8997
 	tristate
 
-config SND_SOC_WM8998
+config SND_SOC_VEGAS
 	tristate
 
 config SND_SOC_WM9081

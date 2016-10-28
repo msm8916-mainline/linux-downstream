@@ -232,15 +232,15 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 static int __init samsung_panel_init(void)
 {
 	struct samsung_display_driver_data *vdd = samsung_get_vdd();
-	//char panel_string[] = "ss_dsi_panel_S6D77A1A01_WVGA";
+//	char panel_string[] = "ss_dsi_panel_S6D77A1A01_WVGA";
+/*please rework: let this alive*/
 
 	vdd->panel_name = mdss_mdp_panel + 8;
 	pr_info("%s : %s\n", __func__, vdd->panel_name);
 
-	//if (!strncmp(vdd->panel_name, panel_string, strlen(panel_string)))
+/*please rework: let this alive*/
+//	if (!strncmp(vdd->panel_name, panel_string, strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = mdss_panel_init;
-	//else
-	//	vdd->panel_func.samsung_panel_init = NULL;
 
 	return 0;
 }

@@ -45,38 +45,65 @@ static int wm8998_in2mux_ev(struct snd_soc_dapm_widget *w,
 				struct snd_kcontrol *kcontrol,
 				int event);
 
-static const char * const wm8998_in1mux_texts[] = {
-	"IN1A",
-	"IN1B",
-};
+static int wm8998_asrc_ev(struct snd_soc_dapm_widget *w,
+			  struct snd_kcontrol *kcontrol,
+			  int event)
+{
+	unsigned int val;
 
-static const char * const wm8998_in2mux_texts[] = {
-	"IN2A",
-	"IN2B",
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMU:
+		val = snd_soc_read(w->codec, ARIZONA_ASRC_RATE1);
+		val &= ARIZONA_ASRC_RATE1_MASK;
+		val >>= ARIZONA_ASRC_RATE1_SHIFT;
+
+		val = snd_soc_read(w->codec, ARIZONA_SAMPLE_RATE_1 + val);
+		if (val >= 0x11)
+			dev_warn(w->codec->dev, "Unsupported ASRC rate1\n");
+
+		val = snd_soc_read(w->codec, ARIZONA_ASRC_RATE2);
+		val &= ARIZONA_ASRC_RATE2_MASK;
+		val >>= ARIZONA_ASRC_RATE2_SHIFT;
+		val -= 0x8;
+
+		val = snd_soc_read(w->codec, ARIZONA_ASYNC_SAMPLE_RATE_1 + val);
+		if (val >= 0x11)
+			dev_warn(w->codec->dev, "Unsupported ASRC rate2\n");
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static const char * const wm8998_inmux_texts[] = {
+	"A",
+	"B",
 };
 
 static const SOC_ENUM_SINGLE_DECL(wm8998_in1muxl_enum,
 				  ARIZONA_ADC_DIGITAL_VOLUME_1L,
 				  ARIZONA_IN1L_SRC_SHIFT,
-				  wm8998_in1mux_texts);
+				  wm8998_inmux_texts);
 
 static const SOC_ENUM_SINGLE_DECL(wm8998_in1muxr_enum,
 				  ARIZONA_ADC_DIGITAL_VOLUME_1R,
 				  ARIZONA_IN1R_SRC_SHIFT,
-				  wm8998_in1mux_texts);
+				  wm8998_inmux_texts);
 
 static const SOC_ENUM_SINGLE_DECL(wm8998_in2mux_enum,
 				  ARIZONA_ADC_DIGITAL_VOLUME_2L,
 				  ARIZONA_IN2L_SRC_SHIFT,
-				  wm8998_in2mux_texts);
+				  wm8998_inmux_texts);
 
 static const struct snd_kcontrol_new wm8998_in1mux[2] = {
-	SOC_DAPM_ENUM("Route", wm8998_in1muxl_enum),
-	SOC_DAPM_ENUM("Route", wm8998_in1muxr_enum),
+	SOC_DAPM_ENUM("IN1L Mux", wm8998_in1muxl_enum),
+	SOC_DAPM_ENUM("IN1R Mux", wm8998_in1muxr_enum),
 };
 
 static const struct snd_kcontrol_new wm8998_in2mux =
-	SOC_DAPM_ENUM("Route", wm8998_in2mux_enum);
+	SOC_DAPM_ENUM("IN2 Mux", wm8998_in2mux_enum);
 
 static DECLARE_TLV_DB_SCALE(ana_tlv, 0, 100, 0);
 static DECLARE_TLV_DB_SCALE(eq_tlv, -1200, 100, 0);
@@ -128,8 +155,7 @@ ARIZONA_GAINMUX_CONTROLS("EQ2", ARIZONA_EQ2MIX_INPUT_1_SOURCE),
 ARIZONA_GAINMUX_CONTROLS("EQ3", ARIZONA_EQ3MIX_INPUT_1_SOURCE),
 ARIZONA_GAINMUX_CONTROLS("EQ4", ARIZONA_EQ4MIX_INPUT_1_SOURCE),
 
-SND_SOC_BYTES("EQ1 Coefficients", ARIZONA_EQ1_3, 19),
-SOC_SINGLE("EQ1 Mode Switch", ARIZONA_EQ1_2, ARIZONA_EQ1_B1_MODE_SHIFT, 1, 0),
+ARIZONA_EQ_CONTROL("EQ1 Coefficients", ARIZONA_EQ1_2),
 SOC_SINGLE_TLV("EQ1 B1 Volume", ARIZONA_EQ1_1, ARIZONA_EQ1_B1_GAIN_SHIFT,
 	       24, 0, eq_tlv),
 SOC_SINGLE_TLV("EQ1 B2 Volume", ARIZONA_EQ1_1, ARIZONA_EQ1_B2_GAIN_SHIFT,
@@ -141,8 +167,7 @@ SOC_SINGLE_TLV("EQ1 B4 Volume", ARIZONA_EQ1_2, ARIZONA_EQ1_B4_GAIN_SHIFT,
 SOC_SINGLE_TLV("EQ1 B5 Volume", ARIZONA_EQ1_2, ARIZONA_EQ1_B5_GAIN_SHIFT,
 	       24, 0, eq_tlv),
 
-SND_SOC_BYTES("EQ2 Coefficients", ARIZONA_EQ2_3, 19),
-SOC_SINGLE("EQ2 Mode Switch", ARIZONA_EQ2_2, ARIZONA_EQ2_B1_MODE_SHIFT, 1, 0),
+ARIZONA_EQ_CONTROL("EQ2 Coefficients", ARIZONA_EQ2_2),
 SOC_SINGLE_TLV("EQ2 B1 Volume", ARIZONA_EQ2_1, ARIZONA_EQ2_B1_GAIN_SHIFT,
 	       24, 0, eq_tlv),
 SOC_SINGLE_TLV("EQ2 B2 Volume", ARIZONA_EQ2_1, ARIZONA_EQ2_B2_GAIN_SHIFT,
@@ -154,8 +179,7 @@ SOC_SINGLE_TLV("EQ2 B4 Volume", ARIZONA_EQ2_2, ARIZONA_EQ2_B4_GAIN_SHIFT,
 SOC_SINGLE_TLV("EQ2 B5 Volume", ARIZONA_EQ2_2, ARIZONA_EQ2_B5_GAIN_SHIFT,
 	       24, 0, eq_tlv),
 
-SND_SOC_BYTES("EQ3 Coefficients", ARIZONA_EQ3_3, 19),
-SOC_SINGLE("EQ3 Mode Switch", ARIZONA_EQ3_2, ARIZONA_EQ3_B1_MODE_SHIFT, 1, 0),
+ARIZONA_EQ_CONTROL("EQ3 Coefficients", ARIZONA_EQ3_2),
 SOC_SINGLE_TLV("EQ3 B1 Volume", ARIZONA_EQ3_1, ARIZONA_EQ3_B1_GAIN_SHIFT,
 	       24, 0, eq_tlv),
 SOC_SINGLE_TLV("EQ3 B2 Volume", ARIZONA_EQ3_1, ARIZONA_EQ3_B2_GAIN_SHIFT,
@@ -167,8 +191,7 @@ SOC_SINGLE_TLV("EQ3 B4 Volume", ARIZONA_EQ3_2, ARIZONA_EQ3_B4_GAIN_SHIFT,
 SOC_SINGLE_TLV("EQ3 B5 Volume", ARIZONA_EQ3_2, ARIZONA_EQ3_B5_GAIN_SHIFT,
 	       24, 0, eq_tlv),
 
-SND_SOC_BYTES("EQ4 Coefficients", ARIZONA_EQ4_3, 19),
-SOC_SINGLE("EQ4 Mode Switch", ARIZONA_EQ4_2, ARIZONA_EQ4_B1_MODE_SHIFT, 1, 0),
+ARIZONA_EQ_CONTROL("EQ4 Coefficients", ARIZONA_EQ4_2),
 SOC_SINGLE_TLV("EQ4 B1 Volume", ARIZONA_EQ4_1, ARIZONA_EQ4_B1_GAIN_SHIFT,
 	       24, 0, eq_tlv),
 SOC_SINGLE_TLV("EQ4 B2 Volume", ARIZONA_EQ4_1, ARIZONA_EQ4_B2_GAIN_SHIFT,
@@ -201,14 +224,16 @@ SOC_ENUM("LHPF2 Mode", arizona_lhpf2_mode),
 SOC_ENUM("LHPF3 Mode", arizona_lhpf3_mode),
 SOC_ENUM("LHPF4 Mode", arizona_lhpf4_mode),
 
-SOC_VALUE_ENUM("Sample Rate 2", arizona_sample_rate[0]),
-SOC_VALUE_ENUM("Sample Rate 3", arizona_sample_rate[1]),
+ARIZONA_SAMPLE_RATE_CONTROL_DVFS("Sample Rate 2", 2),
+ARIZONA_SAMPLE_RATE_CONTROL_DVFS("Sample Rate 3", 3),
+ARIZONA_SAMPLE_RATE_CONTROL_DVFS("ASYNC Sample Rate 2", 4),
 
 SOC_VALUE_ENUM("ISRC1 FSL", arizona_isrc_fsl[0]),
 SOC_VALUE_ENUM("ISRC2 FSL", arizona_isrc_fsl[1]),
 SOC_VALUE_ENUM("ISRC1 FSH", arizona_isrc_fsh[0]),
 SOC_VALUE_ENUM("ISRC2 FSH", arizona_isrc_fsh[1]),
 SOC_VALUE_ENUM("ASRC RATE 1", arizona_asrc_rate1),
+SOC_VALUE_ENUM("ASRC RATE 2", arizona_asrc_rate2),
 
 SOC_SINGLE_TLV("Noise Generator Volume", ARIZONA_COMFORT_NOISE_GENERATOR,
 	       ARIZONA_NOISE_GEN_GAIN_SHIFT, 0x16, 0, noise_tlv),
@@ -454,11 +479,11 @@ SND_SOC_DAPM_INPUT("IN1BR"),
 SND_SOC_DAPM_INPUT("IN2A"),
 SND_SOC_DAPM_INPUT("IN2B"),
 
-SND_SOC_DAPM_MUX_E("IN1MUXL Input", SND_SOC_NOPM, 0, 0, &wm8998_in1mux[0],
+SND_SOC_DAPM_MUX_E("IN1L Mux", SND_SOC_NOPM, 0, 0, &wm8998_in1mux[0],
 			wm8998_in1mux_ev, SND_SOC_DAPM_PRE_PMU),
-SND_SOC_DAPM_MUX_E("IN1MUXR Input", SND_SOC_NOPM, 0, 0, &wm8998_in1mux[1],
+SND_SOC_DAPM_MUX_E("IN1R Mux", SND_SOC_NOPM, 0, 0, &wm8998_in1mux[1],
 			wm8998_in1mux_ev, SND_SOC_DAPM_PRE_PMU),
-SND_SOC_DAPM_MUX_E("IN2MUX Input", SND_SOC_NOPM, 0, 0, &wm8998_in2mux,
+SND_SOC_DAPM_MUX_E("IN2 Mux", SND_SOC_NOPM, 0, 0, &wm8998_in2mux,
 			wm8998_in2mux_ev, SND_SOC_DAPM_PRE_PMU),
 
 SND_SOC_DAPM_OUTPUT("DRC1 Signal Activity"),
@@ -515,14 +540,14 @@ SND_SOC_DAPM_PGA("PWM1 Driver", ARIZONA_PWM_DRIVE_1, ARIZONA_PWM1_ENA_SHIFT,
 SND_SOC_DAPM_PGA("PWM2 Driver", ARIZONA_PWM_DRIVE_1, ARIZONA_PWM2_ENA_SHIFT,
 		 0, NULL, 0),
 
-SND_SOC_DAPM_PGA("ASRC1L", ARIZONA_ASRC_ENABLE, ARIZONA_ASRC1L_ENA_SHIFT, 0,
-		 NULL, 0),
-SND_SOC_DAPM_PGA("ASRC1R", ARIZONA_ASRC_ENABLE, ARIZONA_ASRC1R_ENA_SHIFT, 0,
-		 NULL, 0),
-SND_SOC_DAPM_PGA("ASRC2L", ARIZONA_ASRC_ENABLE, ARIZONA_ASRC2L_ENA_SHIFT, 0,
-		 NULL, 0),
-SND_SOC_DAPM_PGA("ASRC2R", ARIZONA_ASRC_ENABLE, ARIZONA_ASRC2R_ENA_SHIFT, 0,
-		 NULL, 0),
+SND_SOC_DAPM_PGA_E("ASRC1L", ARIZONA_ASRC_ENABLE, ARIZONA_ASRC1L_ENA_SHIFT, 0,
+		   NULL, 0, wm8998_asrc_ev, SND_SOC_DAPM_PRE_PMU),
+SND_SOC_DAPM_PGA_E("ASRC1R", ARIZONA_ASRC_ENABLE, ARIZONA_ASRC1R_ENA_SHIFT, 0,
+		   NULL, 0, wm8998_asrc_ev, SND_SOC_DAPM_PRE_PMU),
+SND_SOC_DAPM_PGA_E("ASRC2L", ARIZONA_ASRC_ENABLE, ARIZONA_ASRC2L_ENA_SHIFT, 0,
+		   NULL, 0, wm8998_asrc_ev, SND_SOC_DAPM_PRE_PMU),
+SND_SOC_DAPM_PGA_E("ASRC2R", ARIZONA_ASRC_ENABLE, ARIZONA_ASRC2R_ENA_SHIFT, 0,
+		   NULL, 0, wm8998_asrc_ev, SND_SOC_DAPM_PRE_PMU),
 
 SND_SOC_DAPM_PGA("ISRC1INT1", ARIZONA_ISRC_1_CTRL_3,
 		 ARIZONA_ISRC1_INT0_ENA_SHIFT, 0, NULL, 0),
@@ -926,17 +951,17 @@ static const struct snd_soc_dapm_route wm8998_dapm_routes[] = {
 	{ "Slim1 Capture", NULL, "SYSCLK" },
 	{ "Slim2 Capture", NULL, "SYSCLK" },
 
-	{ "IN1MUXL Input", "IN1A", "IN1AL" },
-	{ "IN1MUXR Input", "IN1A", "IN1AR" },
-	{ "IN1MUXL Input", "IN1B", "IN1BL" },
-	{ "IN1MUXR Input", "IN1B", "IN1BR" },
+	{ "IN1L Mux", "A", "IN1AL" },
+	{ "IN1R Mux", "A", "IN1AR" },
+	{ "IN1L Mux", "B", "IN1BL" },
+	{ "IN1R Mux", "B", "IN1BR" },
 
-	{ "IN2MUX Input", "IN2A", "IN2A" },
-	{ "IN2MUX Input", "IN2B", "IN2B" },
+	{ "IN2 Mux", "A", "IN2A" },
+	{ "IN2 Mux", "B", "IN2B" },
 
-	{ "IN1L PGA", NULL, "IN1MUXL Input" },
-	{ "IN1R PGA", NULL, "IN1MUXR Input" },
-	{ "IN2 PGA",  NULL, "IN2MUX Input" },
+	{ "IN1L PGA", NULL, "IN1L Mux" },
+	{ "IN1R PGA", NULL, "IN1R Mux" },
+	{ "IN2 PGA",  NULL, "IN2 Mux" },
 
 	ARIZONA_MIXER_ROUTES("OUT1L", "HPOUTL"),
 	ARIZONA_MIXER_ROUTES("OUT1R", "HPOUTR"),
@@ -1173,26 +1198,31 @@ static int wm8998_in1mux_ev(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+		/* Validate the mux configuration */
 		left_mux = snd_soc_read(codec, ARIZONA_ADC_DIGITAL_VOLUME_1L) &
 				  ARIZONA_IN1L_SRC_MASK;
 		right_mux = snd_soc_read(codec, ARIZONA_ADC_DIGITAL_VOLUME_1R) &
 				  ARIZONA_IN1R_SRC_MASK;
 
+		/* Only IN1A can be digital, IN1B is always analogue */
 		in1mode = (arizona->pdata.inmode[0] & 2)
 				<< (ARIZONA_IN1_MODE_SHIFT - 1);
 
 		if (in1mode != 0) {
-			/* IN1A is digital, check whether IN1A is selected */
-
+			/* if IN1A is digital, the only valid mux configs
+			 * are both channels A or both channels B.
+			 */
 			if (left_mux != right_mux) {
 				dev_err(arizona->dev,
-					"IN1=DMIC and 'IN1MUXL Input'"
-					" != 'IN1MUXR Input'");
+					"IN1=DMIC and IN1L Mux != IN1R Mux");
 				return -EINVAL;
 			}
 
+			/* IN1A is digital so need to ensure mode is set back
+			 * to analogue if IN1B is selected
+			 */
 			if (left_mux != 0)
-				in1mode = 0; /* IN1B selected, set analogue */
+				in1mode = 0;
 		}
 
 		old = snd_soc_read(codec, ARIZONA_IN1L_CONTROL) &
@@ -1261,77 +1291,11 @@ static int wm8998_set_fll(struct snd_soc_codec *codec, int fll_id, int source,
 	}
 }
 
-int wn8998_aif2_force_enable(struct snd_soc_codec *codec)
-{
-	struct wm8998_priv *wm8998 = snd_soc_codec_get_drvdata(codec);
-	int lrclk, bclk, mode, frame;
-
-	pr_info("++%s ==================\n",__func__);	
-
-	/* aif2 format setting start */
-//	base = ARIZONA_AIF2_BCLK_CTRL;
-	lrclk = 0;
-	bclk = 0;
-	mode = 2; // i2s mode
-	bclk |= ARIZONA_AIF1_BCLK_MSTR; // aif2 is master
-	lrclk |= ARIZONA_AIF1TX_LRCLK_MSTR; // aif2 is master	
-
-	snd_soc_update_bits(codec, ARIZONA_AIF2_BCLK_CTRL,
-				ARIZONA_AIF2_BCLK_INV | ARIZONA_AIF2_BCLK_MSTR,
-				bclk);
-	snd_soc_update_bits(codec, ARIZONA_AIF2_TX_PIN_CTRL,
-				ARIZONA_AIF2TX_LRCLK_INV |
-				ARIZONA_AIF2TX_LRCLK_MSTR, lrclk);
-	snd_soc_update_bits(codec, ARIZONA_AIF2_RX_PIN_CTRL,
-				ARIZONA_AIF2RX_LRCLK_INV |
-				ARIZONA_AIF2RX_LRCLK_MSTR, lrclk);
-	snd_soc_update_bits(codec, ARIZONA_AIF2_FORMAT,
-				ARIZONA_AIF2_FMT_MASK, mode);
-				
-	arizona_set_fll(&wm8998->fll[1], 0, 0, 0);
-	arizona_set_fll_refclk(&wm8998->fll[1], ARIZONA_FLL_SRC_NONE, 0, 0);
-	arizona_set_fll(&wm8998->fll[1], ARIZONA_CLK_SRC_MCLK2, 32768, 49152000);
-	
-	/* Disable AIF TX/RX before reconfiguring it */
-	snd_soc_update_bits(codec, ARIZONA_AIF2_TX_ENABLES, 0xff, 0x0);
-	snd_soc_update_bits(codec, ARIZONA_AIF2_RX_ENABLES, 0xff, 0x0);
-	
-	/* aif2 hw parameter setting */
-	lrclk = 32;
-	bclk = 11;
-	frame = 4112;
-	snd_soc_update_bits(codec, ARIZONA_AIF2_BCLK_CTRL,
-				ARIZONA_AIF2_BCLK_FREQ_MASK, bclk);
-	snd_soc_update_bits(codec, ARIZONA_AIF2_TX_BCLK_RATE,
-				ARIZONA_AIF2TX_BCPF_MASK, lrclk);
-	snd_soc_update_bits(codec, ARIZONA_AIF2_RX_BCLK_RATE,
-				ARIZONA_AIF2RX_BCPF_MASK, lrclk);
-	snd_soc_update_bits(codec, ARIZONA_AIF2_FRAME_CTRL_1,
-				ARIZONA_AIF2TX_WL_MASK |
-				ARIZONA_AIF2TX_SLOT_LEN_MASK, frame);
-	snd_soc_update_bits(codec, ARIZONA_AIF2_FRAME_CTRL_2,
-				ARIZONA_AIF2RX_WL_MASK |
-				ARIZONA_AIF2RX_SLOT_LEN_MASK, frame);	
-	
-	/* aif2 RX/TX enable */
-	snd_soc_update_bits(codec, ARIZONA_AIF2_RX_ENABLES, 0xff, 0x3);
-	snd_soc_update_bits(codec, ARIZONA_AIF2_TX_ENABLES, 0xff, 0x3);
-
-	/* aif1 RX/TX enable */
-	snd_soc_update_bits(codec, ARIZONA_AIF1_RX_ENABLES, 0xff, 0x3);
-	snd_soc_update_bits(codec, ARIZONA_AIF1_TX_ENABLES, 0xff, 0x3);
-	
-	snd_soc_update_bits(codec, ARIZONA_SYSTEM_CLOCK_1, 0x0040, 0x0040);	
-	pr_info("--%s ==================\n",__func__);
-	return 0;
-}
-EXPORT_SYMBOL_GPL(wn8998_aif2_force_enable);
-
 static int wm8998_codec_probe(struct snd_soc_codec *codec)
 {
 	struct wm8998_priv *priv = snd_soc_codec_get_drvdata(codec);
 	int ret;
-	
+
 	codec->control_data = priv->core.arizona->regmap;
 	priv->core.arizona->dapm = &codec->dapm;
 
@@ -1339,10 +1303,8 @@ static int wm8998_codec_probe(struct snd_soc_codec *codec)
 	if (ret != 0)
 		return ret;
 
-#ifndef CONFIG_SEC_SIGNUM_PROJECT
 	arizona_init_spk(codec);
 	arizona_init_gpio(codec);
-#endif /* not CONFIG_SEC_SIGNUM_PROJECT */
 
 	switch (priv->core.arizona->type) {
 	case WM1814:

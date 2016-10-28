@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -107,6 +107,13 @@ struct voice_dha_data {
 	short dha_mode;
 	short dha_select;
 	short dha_params[12];
+};
+
+enum {
+	LOOPBACK_DISABLE = 0,
+	LOOPBACK_ENABLE,
+	LOOPBACK_NODELAY,
+	LOOPBACK_MAX,
 };
 #endif /* CONFIG_SAMSUNG_AUDIO */
 
@@ -814,6 +821,9 @@ struct vss_icommon_cmd_set_ui_property_enable_t {
 
 #define VSS_ICOMMON_CMD_DHA_SET 0x0001128A
 
+#define VOICE_ADDMODE_MODULE	0x10001001
+#define VOICE_ADDMODE_PARAM	0x10001023
+
 struct vss_icommon_cmd_set_loopback_enable_t {
 	uint32_t module_id;
 	/* Unique ID of the module. */
@@ -848,6 +858,27 @@ struct oem_dha_parm_send_cmd {
 	uint64_t mem_address;
 	uint32_t mem_size;
 	struct oem_dha_parm_send_t dha_send;
+} __packed;
+
+struct oem_addMode_parm_send_t {
+	uint32_t module_id;
+	/* Unique ID of the module. */
+	uint32_t param_id;
+	/* Unique ID of the parameter. */
+	uint16_t param_size;
+	/* Size of the parameter in bytes: MOD_ENABLE_PARAM_LEN */
+	uint16_t reserved;
+	/* Reserved; set to 0. */
+	uint16_t enable;
+	uint16_t reserved_field;
+} __packed;
+
+struct oem_addMode_parm_send_cmd {
+	struct apr_hdr hdr;
+	uint32_t mem_handle;
+	uint64_t mem_address;
+	uint32_t mem_size;
+	struct oem_addMode_parm_send_t addMode_send;
 } __packed;
 #endif /* CONFIG_SAMSUNG_AUDIO */
 
@@ -1491,6 +1522,56 @@ struct share_memory_info {
 	struct mem_map_table	memtbl;
 };
 
+#define VSS_ISOUNDFOCUS_CMD_SET_SECTORS     0x00013133
+#define VSS_ISOUNDFOCUS_CMD_GET_SECTORS     0x00013134
+#define VSS_ISOUNDFOCUS_RSP_GET_SECTORS     0x00013135
+#define VSS_ISOURCETRACK_CMD_GET_ACTIVITY   0x00013136
+
+struct vss_isoundfocus_cmd_set_sectors_t {
+	uint16_t start_angles[8];
+	uint8_t enables[8];
+	uint16_t gain_step;
+} __packed;
+
+/* Payload of the VSS_ISOUNDFOCUS_RSP_GET_SECTORS response */
+struct vss_isoundfocus_rsp_get_sectors_t {
+	uint16_t start_angles[8];
+	uint8_t enables[8];
+	uint16_t gain_step;
+} __packed;
+
+struct cvp_set_sound_focus_param_cmd_t {
+	struct apr_hdr hdr;
+	struct vss_isoundfocus_cmd_set_sectors_t cvp_set_sound_focus_param;
+} __packed;
+
+/* Payload structure for the VSS_ISOURCETRACK_CMD_GET_ACTIVITY command */
+struct vss_isourcetrack_cmd_get_activity_t {
+	uint32_t mem_handle;
+	uint64_t mem_address;
+	uint32_t mem_size;
+} __packed;
+
+struct cvp_get_source_tracking_param_cmd_t {
+	struct apr_hdr hdr;
+	struct vss_isourcetrack_cmd_get_activity_t
+			cvp_get_source_tracking_param;
+} __packed;
+
+/* Structure for the sound activity data */
+struct vss_isourcetrack_activity_data_t {
+	uint8_t voice_active[8];
+	uint16_t talker_doa;
+	uint16_t interferer_doa[3];
+	uint8_t sound_strength[360];
+} __packed;
+
+struct shared_mem_info {
+	uint32_t mem_handle;
+	struct mem_map_table sh_mem_block;
+	struct mem_map_table sh_mem_table;
+};
+
 struct voice_data {
 	int voc_state;/*INIT, CHANGE, RELEASE, RUN */
 
@@ -1603,6 +1684,11 @@ struct common_data {
 	bool is_vote_bms;
 	char cvd_version[CVD_VERSION_STRING_MAX_SIZE];
 	bool is_per_vocoder_cal_enabled;
+	bool is_sound_focus_resp_success;
+	bool is_source_tracking_resp_success;
+	struct vss_isoundfocus_rsp_get_sectors_t soundFocusResponse;
+	struct shared_mem_info source_tracking_sh_mem;
+	struct vss_isourcetrack_activity_data_t sourceTrackingResponse;
 };
 
 struct voice_session_itr {
@@ -1665,6 +1751,7 @@ enum {
 #ifdef CONFIG_SAMSUNG_AUDIO
 int voice_sec_set_dha_data(uint32_t session_id, short mode,
 					short select, short *parameters);
+int voice_sec_set_addMode_data(uint32_t session_id, short enable);
 #endif /* CONFIG_SAMSUNG_AUDIO */
 
 #define APP_ID_MASK         0x3F000
@@ -1740,6 +1827,9 @@ void voc_set_vote_bms_flag(bool is_vote_bms);
 int voc_disable_topology(uint32_t session_id, uint32_t disable);
 
 uint32_t voice_get_topology(uint32_t topology_idx);
+int voc_set_sound_focus(struct sound_focus_param sound_focus_param);
+int voc_get_sound_focus(struct sound_focus_param *soundFocusData);
+int voc_get_source_tracking(struct source_tracking_param *sourceTrackingData);
 
 #ifdef CONFIG_SAMSUNG_AUDIO
 int voc_get_loopback_enable(void);

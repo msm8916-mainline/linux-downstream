@@ -1875,6 +1875,7 @@ static long audio_aio_compat_ioctl(struct file *file, unsigned int cmd,
 	case AUDIO_GET_CONFIG_32: {
 		struct msm_audio_config32 cfg_32;
 		mutex_lock(&audio->lock);
+		memset(&cfg_32, 0, sizeof(cfg_32));
 		cfg_32.buffer_size = audio->pcm_cfg.buffer_size;
 		cfg_32.buffer_count = audio->pcm_cfg.buffer_count;
 		cfg_32.channel_count = audio->pcm_cfg.channel_count;
@@ -1939,7 +1940,7 @@ static long audio_aio_compat_ioctl(struct file *file, unsigned int cmd,
 		struct msm_audio_buf_cfg cfg;
 		struct msm_audio_buf_cfg32 cfg_32;
 		mutex_lock(&audio->lock);
-		if (copy_from_user(&cfg, (void *)arg, sizeof(cfg))) {
+		if (copy_from_user(&cfg_32, (void *)arg, sizeof(cfg_32))) {
 			pr_err("%s: copy_from_user for AUDIO_SET_CONFIG_32 failed\n",
 				__func__);
 			rc = -EFAULT;

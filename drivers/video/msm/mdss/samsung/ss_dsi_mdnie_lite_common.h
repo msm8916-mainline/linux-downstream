@@ -38,18 +38,19 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 
 #define NAME_STRING_MAX 30
 #define MDNIE_COLOR_BLINDE_CMD_SIZE 18
+#define COORDINATE_DATA_SIZE 6
 
 extern char mdnie_app_name[][NAME_STRING_MAX];
 extern char mdnie_mode_name[][NAME_STRING_MAX];
 extern char outdoor_name[][NAME_STRING_MAX];
 extern struct mdnie_lite_tune_data mdnie_data;
 
+#define APP_ID_TDMB (20)	/* for fake_id() */
+
 enum BYPASS {
 	BYPASS_DISABLE = 0,
 	BYPASS_ENABLE,
 };
-
-#define APP_ID_TDMB (20)	/* for fake_id() */
 
 enum APP {
 	UI_APP = 0,
@@ -153,6 +154,10 @@ enum {
 
 /* COMMON DATA THAT POINT TO MDNIE TUNING DATA */
 struct mdnie_lite_tune_data {
+/*******************************************
+*					DSI0 DATA
+********************************************/
+
 	char *DSI0_COLOR_BLIND_MDNIE_2;
 	char *DSI0_RGB_SENSOR_MDNIE_1;
 	char *DSI0_RGB_SENSOR_MDNIE_2;
@@ -207,6 +212,10 @@ struct mdnie_lite_tune_data {
 	struct dsi_cmd_desc *DSI0_CAMERA_OUTDOOR_MDNIE;
 	struct dsi_cmd_desc *DSI0_CAMERA_MDNIE;
 	struct dsi_cmd_desc *DSI0_CAMERA_AUTO_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_DYNAMIC_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_STANDARD_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_NATURAL_MDNIE;
+	struct dsi_cmd_desc *DSI0_CAMERA_MOVIE_MDNIE;
 	struct dsi_cmd_desc *DSI0_GALLERY_DYNAMIC_MDNIE;
 	struct dsi_cmd_desc *DSI0_GALLERY_STANDARD_MDNIE;
 	struct dsi_cmd_desc *DSI0_GALLERY_NATURAL_MDNIE;
@@ -244,7 +253,9 @@ struct mdnie_lite_tune_data {
 	int dsi0_rgb_sensor_mdnie_1_size;
 	int dsi0_rgb_sensor_mdnie_2_size;
 
-#if defined(CONFIG_DUAL_PANEL)
+/*******************************************
+*					DSI1 DATA
+********************************************/
 	char *DSI1_COLOR_BLIND_MDNIE_2;
 	char *DSI1_RGB_SENSOR_MDNIE_1;
 	char *DSI1_RGB_SENSOR_MDNIE_2;
@@ -272,7 +283,15 @@ struct mdnie_lite_tune_data {
 	char *DSI1_TDMB_STANDARD_MDNIE_2;
 	char *DSI1_TDMB_AUTO_MDNIE_2;
 
+	struct dsi_cmd_desc *DSI1_BYPASS_MDNIE;
+	struct dsi_cmd_desc *DSI1_NEGATIVE_MDNIE;
+	struct dsi_cmd_desc *DSI1_COLOR_BLIND_MDNIE;
+	struct dsi_cmd_desc *DSI1_HBM_CE_MDNIE;
+	struct dsi_cmd_desc *DSI1_HBM_CE_TEXT_MDNIE;
 	struct dsi_cmd_desc *DSI1_RGB_SENSOR_MDNIE;
+	struct dsi_cmd_desc *DSI1_CURTAIN;
+	struct dsi_cmd_desc *DSI1_GRAYSCALE_MDNIE;
+	struct dsi_cmd_desc *DSI1_GRAYSCALE_NEGATIVE_MDNIE;
 	struct dsi_cmd_desc *DSI1_UI_DYNAMIC_MDNIE;
 	struct dsi_cmd_desc *DSI1_UI_STANDARD_MDNIE;
 	struct dsi_cmd_desc *DSI1_UI_NATURAL_MDNIE;
@@ -320,15 +339,20 @@ struct mdnie_lite_tune_data {
 
 	struct dsi_cmd_desc *(*mdnie_tune_value_dsi1)[MAX_MODE][MAX_OUTDOOR_MODE];
 	struct dsi_cmd_desc **hmt_color_temperature_tune_value_dsi1;
+
+	int dsi1_bypass_mdnie_size;
+	//int mdnie_color_blinde_cmd_offset;
+	//int mdnie_step_index[MDNIE_STEP_MAX];
+	//int address_scr_white[ADDRESS_SCR_WHITE_MAX];
 	int dsi1_rgb_sensor_mdnie_1_size;
 	int dsi1_rgb_sensor_mdnie_2_size;
-#endif
 };
 
 /* COMMON FUNCTION*/
 struct mdnie_lite_tun_type* init_dsi_tcon_mdnie_class(int index, struct samsung_display_driver_data *vdd_data);
 int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd);
 void coordinate_tunning(int index, char *coordinate_data, int scr_wr_addr, int data_size);
+void coordinate_tunning_multi(int index, char (*coordinate_data_multi[MAX_MODE])[COORDINATE_DATA_SIZE], int mdnie_tune_index, int scr_wr_addr, int data_size);
 /* COMMON FUNCTION END*/
 
 #endif /*_DSI_TCON_MDNIE_H_*/

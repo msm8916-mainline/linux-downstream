@@ -3253,6 +3253,8 @@ out:
 void mmc_disable_clk_scaling(struct mmc_host *host)
 {
 	cancel_delayed_work_sync(&host->clk_scaling.work);
+	if (host->ops->notify_load)
+		host->ops->notify_load(host, MMC_LOAD_LOW);
 	host->clk_scaling.enable = false;
 }
 EXPORT_SYMBOL_GPL(mmc_disable_clk_scaling);
@@ -3284,8 +3286,8 @@ void mmc_init_clk_scaling(struct mmc_host *host)
 	INIT_DELAYED_WORK(&host->clk_scaling.work, mmc_clk_scale_work);
 	host->clk_scaling.curr_freq = mmc_get_max_frequency(host);
 	if (host->ops->notify_load)
-		host->ops->notify_load(host, MMC_LOAD_HIGH);
-	host->clk_scaling.state = MMC_LOAD_HIGH;
+		host->ops->notify_load(host, MMC_LOAD_INIT);
+	host->clk_scaling.state = MMC_LOAD_INIT;
 	mmc_reset_clk_scale_stats(host);
 	host->clk_scaling.enable = true;
 	host->clk_scaling.initialized = true;
@@ -3302,6 +3304,8 @@ EXPORT_SYMBOL_GPL(mmc_init_clk_scaling);
 void mmc_exit_clk_scaling(struct mmc_host *host)
 {
 	cancel_delayed_work_sync(&host->clk_scaling.work);
+	if (host->ops->notify_load)
+		host->ops->notify_load(host, MMC_LOAD_LOW);
 	memset(&host->clk_scaling, 0, sizeof(host->clk_scaling));
 }
 EXPORT_SYMBOL_GPL(mmc_exit_clk_scaling);
@@ -3339,6 +3343,9 @@ static int mmc_rescan_try_freq(struct mmc_host *host, unsigned freq)
 		return 0;
 	if (!mmc_attach_mmc(host))
 		return 0;
+        else if (!strcmp(mmc_hostname(host), "mmc0"))
+                BUG_ON(1);
+
 
 	mmc_power_off(host);
 	return -EIO;
@@ -3356,6 +3363,8 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 
 	ret = host->bus_ops->alive(host);
 
+	if (!ret)
+		return ret;
 	/*
 	 * Card detect status and alive check may be out of sync if card is
 	 * removed slowly, when card detect switch changes while card/slot
@@ -3468,6 +3477,12 @@ void mmc_rescan(struct work_struct *work)
 	mmc_bus_put(host);
 
 	if (host->ops->get_cd && host->ops->get_cd(host) == 0) {
+		/* check Card's status */
+		struct mmc_card *card = host->card;
+		u32 status;
+		if (card && !mmc_send_status(card, &status))
+			goto out;
+
 		mmc_claim_host(host);
 		mmc_power_off(host);
 		mmc_release_host(host);
@@ -3493,12 +3508,14 @@ void mmc_rescan(struct work_struct *work)
 
 void mmc_start_host(struct mmc_host *host)
 {
+	mmc_claim_host(host);
 	host->f_init = max(freqs[0], host->f_min);
 	host->rescan_disable = 0;
 	if (host->caps2 & MMC_CAP2_NO_PRESCAN_POWERUP)
 		mmc_power_off(host);
 	else
 		mmc_power_up(host);
+	mmc_release_host(host);
 	mmc_detect_change(host, 0);
 }
 
@@ -3793,8 +3810,11 @@ int mmc_suspend_host(struct mmc_host *host)
 	}
 	mmc_bus_put(host);
 
-	if (!err && !mmc_card_keep_power(host))
+	if (!err && !mmc_card_keep_power(host)) {
+		mmc_claim_host(host);
 		mmc_power_off(host);
+		mmc_release_host(host);
+	}
 
 	trace_mmc_suspend_host(mmc_hostname(host), err,
 			ktime_to_us(ktime_sub(ktime_get(), start)));
@@ -3830,7 +3850,9 @@ int mmc_resume_host(struct mmc_host *host)
 
 	if (host->bus_ops && !host->bus_dead) {
 		if (!mmc_card_keep_power(host)) {
+			mmc_claim_host(host);
 			mmc_power_up(host);
+			mmc_release_host(host);
 			mmc_select_voltage(host, host->ocr);
 			/*
 			 * Tell runtime PM core we just powered up the card,

@@ -150,7 +150,7 @@ static const struct regulator_desc arizona_ldo1 = {
 	.min_uV = 900000,
 	.uV_step = 25000,
 	.n_voltages = 13,
-	.enable_time = 5000,
+	.enable_time = 3000,
 
 	.owner = THIS_MODULE,
 };
@@ -167,7 +167,10 @@ static const struct regulator_init_data arizona_ldo1_dvfs = {
 
 static const struct regulator_init_data arizona_ldo1_default = {
 	.constraints = {
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+		.min_uV = 1175000,
+		.max_uV = 1200000,
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS |
+				  REGULATOR_CHANGE_VOLTAGE,
 	},
 	.num_consumer_supplies = 1,
 };
@@ -179,8 +182,6 @@ static int arizona_ldo1_of_get_pdata(struct arizona *arizona,
 	struct arizona_ldo1 *ldo1 = config->driver_data;
 	struct device_node *init_node, *dcvdd_node;
 	struct regulator_init_data *init_data;
-
-	pdata->ldoena = arizona_of_get_named_gpio(arizona, "wlf,ldoena", true);
 
 	init_node = of_get_child_by_name(arizona->dev->of_node, "ldo1");
 	dcvdd_node = of_parse_phandle(arizona->dev->of_node, "DCVDD-supply", 0);
@@ -202,6 +203,9 @@ static int arizona_ldo1_of_get_pdata(struct arizona *arizona,
 	} else if (dcvdd_node) {
 		arizona->external_dcvdd = true;
 	}
+
+	if (!(arizona->external_dcvdd))
+		pdata->ldoena = arizona_of_get_named_gpio(arizona, "wlf,ldoena", true);
 
 	of_node_put(dcvdd_node);
 
@@ -262,6 +266,7 @@ static int arizona_ldo1_probe(struct platform_device *pdev)
 	}
 
 	config.ena_gpio = arizona->pdata.ldoena;
+	config.ena_gpio_flags = GPIOF_OUT_INIT_LOW;
 
 	if (arizona->pdata.ldo1)
 		config.init_data = arizona->pdata.ldo1;
@@ -276,14 +281,15 @@ static int arizona_ldo1_probe(struct platform_device *pdev)
 		arizona->external_dcvdd = true;
 
 	ldo1->regulator = regulator_register(desc, &config);
+
+	of_node_put(config.of_node);
+
 	if (IS_ERR(ldo1->regulator)) {
 		ret = PTR_ERR(ldo1->regulator);
 		dev_err(arizona->dev, "Failed to register LDO1 supply: %d\n",
 			ret);
 		return ret;
 	}
-
-	of_node_put(config.of_node);
 
 	platform_set_drvdata(pdev, ldo1);
 

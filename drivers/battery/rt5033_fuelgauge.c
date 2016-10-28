@@ -1463,8 +1463,8 @@ static int sec_fg_calculate_dynamic_scale(
 	}
 
 	if (capacity != 100) {
-		fuelgauge->capacity_max =
-			(fuelgauge->capacity_max * 100 / capacity);
+		fuelgauge->capacity_max = sec_fg_check_capacity_max(
+			fuelgauge, (fuelgauge->capacity_max * 100 / capacity));
 	} else  {
 		fuelgauge->capacity_max =
 			(fuelgauge->capacity_max * 99 / 100);
@@ -1757,14 +1757,14 @@ static int rt5033_fg_set_property(struct power_supply *psy,
 			fuelgauge->is_charging = false;
 		else
 			fuelgauge->is_charging = true;
-		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RESET) {
 			fuelgauge->initial_update_of_soc = true;
 			if (!sec_hal_fg_reset(fuelgauge->client))
 				return -EINVAL;
+			else
+				break;
 		}
-		break;
 	case POWER_SUPPLY_PROP_TEMP:
 	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
 		if (!sec_hal_fg_set_property(fuelgauge->client, psp, val))

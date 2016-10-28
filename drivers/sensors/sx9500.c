@@ -56,9 +56,12 @@
 #define REF_SENSOR               1
 #define CSX_STATUS_REG           SX9500_TCHCMPSTAT_TCHSTAT0_FLAG
 
-#define LIMIT_PROXOFFSET                3880 /* 45 pF */
-#define LIMIT_PROXUSEFUL                10000
-#define STANDARD_CAP_MAIN               450000
+#define LIMIT_PROXOFFSET         3880 /* 45 pF */
+#define LIMIT_PROXUSEFUL_MIN     -10000
+#define LIMIT_PROXUSEFUL_MAX     10000
+#define PROXUSEFUL_DELTA_SPEC    2000
+#define LIMIT_PROXUSEFUL         10000
+#define STANDARD_CAP_MAIN        450000
 
 #define DEFAULT_INIT_TOUCH_THRESHOLD    2000
 #define DEFAULT_NORMAL_TOUCH_THRESHOLD  17
@@ -112,11 +115,15 @@ struct sx9500_p {
 
 #ifdef CONFIG_SENSORS_SX9500_DEFENCE_CODE_FOR_TA_NOISE
 #include <linux/power_supply.h>
+#if defined(CONFIG_SEC_GT510_PROJECT)
+#define SX9500_NORMAL_TOUCH_CABLE_THRESHOLD	21
+#else
 #define SX9500_NORMAL_TOUCH_CABLE_THRESHOLD	28
+#endif
 
 static int check_ta_state(void)
 {
-	static struct power_supply *psy = NULL;
+	static struct power_supply *psy;
 	union power_supply_propval ret = {0,};
 
 	if (psy == NULL) {
@@ -263,8 +270,8 @@ static void send_event(struct sx9500_p *data, u8 state)
 	if (data->enable_adjdet == 1
 	   &&
 	   gpio_get_value_cansleep(data->gpio_adjdet) == 1) {
-		pr_info("[SX9500]: %s : adj detect cable connected," \
-			" skip grip sensor\n", __func__);
+		pr_info("[SX9500]: %s : adj detect cable connected, skip grip sensor\n",
+			__func__);
 		return;
 	}
 
@@ -352,7 +359,7 @@ static s32 sx9500_get_capMain(struct sx9500_p *data, u8 channel)
 		(((s32)useful * 50000) / (8 * 65536));
 
 	if (channel == MAIN_SENSOR)
-		pr_info("[SX9500]: %s - CapMain: %ld,Useful: %ld,Offset: %u\n",
+		pr_info("[SX9500]: %s - CapMain: %ld, Useful: %ld, Offset: %u\n",
 			__func__, (long int)capMain, (long int)useful, offset);
 
 	return capMain;
@@ -400,8 +407,7 @@ static int sx9500_save_caldata(struct sx9500_p *data)
 	set_fs(KERNEL_DS);
 
 	cal_filp = filp_open(CALIBRATION_FILE_PATH,
-			O_CREAT | O_TRUNC | O_WRONLY | O_SYNC,
-			S_IRUGO | S_IWUSR | S_IWGRP);
+			O_CREAT | O_TRUNC | O_WRONLY | O_SYNC, 0660);
 	if (IS_ERR(cal_filp)) {
 		pr_err("[SX9500]: %s - Can't open calibration file\n",
 			__func__);
@@ -433,8 +439,7 @@ static void sx9500_open_caldata(struct sx9500_p *data)
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	cal_filp = filp_open(CALIBRATION_FILE_PATH, O_RDONLY,
-			S_IRUGO | S_IWUSR | S_IWGRP);
+	cal_filp = filp_open(CALIBRATION_FILE_PATH, O_RDONLY, 0);
 	if (IS_ERR(cal_filp)) {
 		ret = PTR_ERR(cal_filp);
 		if (ret != -ENOENT)
@@ -474,12 +479,13 @@ static int sx9500_set_mode(struct sx9500_p *data, unsigned char mode)
 
 	mutex_lock(&data->mode_mutex);
 	if (mode == SX9500_MODE_SLEEP) {
-		ret = sx9500_i2c_write(data, SX9500_CPS_CTRL0_REG, 0x20);
+		ret = sx9500_i2c_write(data, SX9500_CPS_CTRL0_REG,
+			setup_reg[9].val);
 		disable_irq(data->irq);
 		disable_irq_wake(data->irq);
 	} else if (mode == SX9500_MODE_NORMAL) {
 		ret = sx9500_i2c_write(data, SX9500_CPS_CTRL0_REG,
-			0x20 | ENABLE_CSX);
+			setup_reg[9].val | ENABLE_CSX);
 		msleep(20);
 
 		sx9500_set_offset_calibration(data);
@@ -502,13 +508,18 @@ static int sx9500_set_mode(struct sx9500_p *data, unsigned char mode)
 
 static int sx9500_do_calibrate(struct sx9500_p *data, bool do_calib)
 {
-	int ret = 0;
+	int ret = 0, useful_min = 32768, useful_max = -32767;
+	s16 offset;
+	s32 useful;
+	s32 useful_sum = 0;
+	int i = 0;
 #ifdef CONFIG_SENSORS_SX9500_TEMPERATURE_COMPENSATION
 	int cnt;
 #endif
+	memset(data->calData, 0, sizeof(int) * CAL_DATA_NUM);
 	if (do_calib == false) {
 		pr_info("[SX9500]: %s - Erase!\n", __func__);
-		goto cal_erase;
+		goto exit;
 	}
 
 	if (atomic_read(&data->enable) == OFF)
@@ -522,10 +533,39 @@ static int sx9500_do_calibrate(struct sx9500_p *data, bool do_calib)
 		goto cal_fail;
 	}
 
-	data->calData[1] = sx9500_get_useful(data, MAIN_SENSOR);
-	if (data->calData[1] >= LIMIT_PROXUSEFUL) {
-		pr_err("[SX9500]: %s - useful warning(%d)\n", __func__,
+	for (i = 0; i < 8; i++) {
+		msleep(90);
+		useful = sx9500_get_useful(data, MAIN_SENSOR);
+		offset = sx9500_get_offset(data, MAIN_SENSOR);
+		useful_sum += useful;
+		if (useful > useful_max)
+			useful_max = useful;
+		if (useful < useful_min)
+			useful_min = useful;
+
+		pr_info("[SX9500]: %s - useful(%d)-offset(%u)\n",
+				__func__, useful, offset);
+
+		if (offset != data->calData[2]) {
+			data->calData[1] = useful;
+			pr_err("[SX9500]: %s - offset fail(%d)-(%d)\n",
+				__func__, data->calData[2], offset);
+			goto cal_fail;
+		}
+	}
+
+	data->calData[1] = useful_sum >> 3;
+	if ((useful_max - useful_min) > PROXUSEFUL_DELTA_SPEC) {
+		pr_err("[SX9500]: %s - useful delta fail(min : %d, max : %d)\n",
+			__func__, useful_min, useful_max);
+		goto cal_fail;
+	}
+
+	if (data->calData[1] <= LIMIT_PROXUSEFUL_MIN ||
+		data->calData[1] >= LIMIT_PROXUSEFUL_MAX) {
+		pr_err("[SX9500]: %s - useful spec fail(%d)\n", __func__,
 			data->calData[1]);
+		goto cal_fail;
 	}
 
 #ifdef CONFIG_SENSORS_SX9500_TEMPERATURE_COMPENSATION
@@ -534,7 +574,7 @@ static int sx9500_do_calibrate(struct sx9500_p *data, bool do_calib)
 	for (cnt = 0; cnt < 10; cnt++) {
 		data->calData[0] += sx9500_get_capMain(data, MAIN_SENSOR);
 		data->calData[3] += sx9500_get_capMain(data, REF_SENSOR);
-		mdelay(100);
+		msleep(100);
 	}
 
 	data->calData[0] = data->calData[0] / 10;
@@ -552,8 +592,6 @@ cal_fail:
 	if (atomic_read(&data->enable) == OFF)
 		sx9500_set_mode(data, SX9500_MODE_SLEEP);
 	ret = -1;
-cal_erase:
-	memset(data->calData, 0, sizeof(int) * CAL_DATA_NUM);
 exit:
 	pr_info("[SX9500]: %s - (%d, %d, %d)\n", __func__,
 		data->calData[0], data->calData[1], data->calData[2]);
@@ -595,10 +633,10 @@ static ssize_t sx9500_get_offset_calibration_show(struct device *dev,
 static ssize_t sx9500_set_offset_calibration_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	unsigned long val;
+	int val = 0;
 	struct sx9500_p *data = dev_get_drvdata(dev);
 
-	if (strict_strtoul(buf, 10, &val)) {
+	if (kstrtoint(buf, 10, &val)) {
 		pr_err("[SX9500]: %s - Invalid Argument\n", __func__);
 		return -EINVAL;
 	}
@@ -701,9 +739,13 @@ static ssize_t sx9500_touch_mode_show(struct device *dev,
 static ssize_t sx9500_raw_data_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	u8 msb, lsb;
 	s16 useful;
 	u16 offset;
 	s32 capMain;
+	s16 avg;
+	s16 proxdiff;
+
 	struct sx9500_p *data = dev_get_drvdata(dev);
 
 	if (atomic_read(&data->enable) == OFF)
@@ -713,7 +755,13 @@ static ssize_t sx9500_raw_data_show(struct device *dev,
 	useful = sx9500_get_useful(data, MAIN_SENSOR);
 	offset = sx9500_get_offset(data, MAIN_SENSOR);
 
-	return snprintf(buf, PAGE_SIZE, "%d,%d,%u\n", capMain, useful, offset);
+	sx9500_i2c_read(data, SX9500_REGAVGMSB, &msb);
+	sx9500_i2c_read(data, SX9500_REGAVGLSB, &lsb);
+	avg = (s16)((msb << 8) | lsb);
+	proxdiff = (useful - avg) >> 4;
+
+	return snprintf(buf, PAGE_SIZE, "%d,%d,%u,%d\n",
+			capMain, useful, offset, proxdiff);
 }
 
 static ssize_t sx9500_threshold_show(struct device *dev,
@@ -733,7 +781,7 @@ static ssize_t sx9500_threshold_store(struct device *dev,
 	struct sx9500_p *data = dev_get_drvdata(dev);
 
 	/* It's for init touch */
-	if (strict_strtoul(buf, 10, &val)) {
+	if (kstrtoul(buf, 10, &val)) {
 		pr_err("[SX9500]: %s - Invalid Argument\n", __func__);
 		return -EINVAL;
 	}
@@ -748,9 +796,37 @@ static ssize_t sx9500_normal_threshold_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct sx9500_p *data = dev_get_drvdata(dev);
+	u16 thresh_temp = 0, hysteresis = 0;
+	u16 thresh_table[32] = {0, 20, 40, 60, 80, 100, 120, 140, 160, 180,
+				200, 220, 240, 260, 280, 300, 350, 400, 450,
+				500, 600, 700, 800, 900, 1000, 1100, 1200, 1300,
+				1400, 1500, 1600, 1700};
 
-	/* It's for normal touch */
-	return snprintf(buf, PAGE_SIZE, "%d\n", data->touchTh);
+	thresh_temp = data->touchTh & 0x1f;
+	thresh_temp = thresh_table[thresh_temp];
+
+	/* CTRL7 */
+	hysteresis = (setup_reg[7].val >> 4) & 0x3;
+
+	switch (hysteresis) {
+	case 0x00:
+		hysteresis = 32;
+		break;
+	case 0x01:
+		hysteresis = 64;
+		break;
+	case 0x02:
+		hysteresis = 128;
+		break;
+	case 0x03:
+		hysteresis = 256;
+		break;
+	default:
+		break;
+	}
+
+	return snprintf(buf, PAGE_SIZE, "%d,%d\n", thresh_temp + hysteresis,
+			thresh_temp - hysteresis);
 }
 
 static ssize_t sx9500_normal_threshold_store(struct device *dev,
@@ -760,7 +836,7 @@ static ssize_t sx9500_normal_threshold_store(struct device *dev,
 	struct sx9500_p *data = dev_get_drvdata(dev);
 
 	/* It's for normal touch */
-	if (strict_strtoul(buf, 10, &val)) {
+	if (kstrtoul(buf, 10, &val)) {
 		pr_err("[SX9500]: %s - Invalid Argument\n", __func__);
 		return -EINVAL;
 	}
@@ -1009,8 +1085,8 @@ static void sx9500_touch_process(struct sx9500_p *data, u8 flag)
 				sx9500_set_offset_calibration(data);
 				msleep(400);
 				sx9500_touchCheckWithRefSensor(data);
-				pr_err("[SX9500]: %s - Defence code for"
-					" device damage\n", __func__);
+				pr_err("[SX9500]: %s - Defence code for device damage\n",
+					__func__);
 				return;
 			}
 #endif
@@ -1069,11 +1145,11 @@ static irqreturn_t sx9500_adjdet_interrupt_thread(int irq, void *pdata)
 	struct sx9500_p *data = pdata;
 
 	if (gpio_get_value_cansleep(data->gpio_adjdet) == 0)
-		pr_info("[SX9500]: %s : adj detect cable disconnect!" \
-				" grip sensor enable\n", __func__);
+		pr_info("[SX9500]: %s : adj detect cable disconnect! grip sensor enable\n",
+			__func__);
 	else {
-		pr_info("[SX9500]: %s : adj detect cable connect!" \
-				" grip sensordisable\n", __func__);
+		pr_info("[SX9500]: %s : adj detect cable connect! grip sensordisable\n",
+			__func__);
 		if (data->grip_state == ACTIVE) {
 			pr_info("[SX9500]: %s : Send FAR(IDLE)\n", __func__);
 			input_report_rel(data->input, REL_MISC, 2);
@@ -1173,8 +1249,7 @@ static int sx9500_setup_pin(struct sx9500_p *data)
 		ret = gpio_direction_input(data->gpio_adjdet);
 
 		if (ret < 0) {
-			pr_err("[SX9500]: %s - failed to set" \
-				" gpio %d as input (%d)\n",
+			pr_err("[SX9500]: %s - failed to set gpio %d as input (%d)\n",
 				__func__, data->gpio_adjdet, ret);
 			gpio_free(data->gpio_adjdet);
 			return ret;
@@ -1366,8 +1441,8 @@ static int sx9500_probe(struct i2c_client *client,
 			IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
 			"sx9500_irq", data);
 	if (ret < 0) {
-		pr_err("[SX9500]: %s - failed to set request_threaded_irq %d" \
-			" as returning (%d)\n", __func__, data->irq, ret);
+		pr_err("[SX9500]: %s - failed to set request_threaded_irq %d as returning (%d)\n",
+				__func__, data->irq, ret);
 		goto exit_request_threaded_irq;
 	}
 
@@ -1380,9 +1455,7 @@ static int sx9500_probe(struct i2c_client *client,
 				IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
 				"sx9500_adjdet_irq", data);
 		if (ret < 0) {
-			pr_err("[SX9500]: %s - failed to set" \
-				" request_threaded_adjdet_irq %d" \
-				" as returning (%d)\n",
+			pr_err("[SX9500]: %s - failed to set request_threaded_adjdet_irq %d as returning (%d)\n",
 				__func__, data->irq_adjdet, ret);
 			goto exit_request_threaded_adjdet_irq;
 		}

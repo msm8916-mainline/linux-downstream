@@ -40,10 +40,9 @@
 
 #ifdef CONFIG_SND_SOC_MSM8X16_WM1814
 #include "msm8x16-machine.h"
-#include "../codecs/wm8998.h"
 #include <linux/mfd/arizona/registers.h>
 #include <linux/mfd/arizona/core.h>
-#include "../codecs/florida.h"
+#include "../codecs/vegas.h"
 
 /* WM1814 use CLKOUT from AP */
 #define WM1814_DEFAULT_MCLK1	24000000
@@ -303,9 +302,9 @@ static const struct snd_soc_dapm_widget msm8x16_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 #ifdef CONFIG_AUDIO_SECONDARY_MIC_USE_EXT_BIAS_ENABLE
 	SND_SOC_DAPM_MIC("Secondary Mic", Secondary_mic_bias),
-#else
+#else /* CONFIG_AUDIO_SECONDARY_MIC_USE_EXT_BIAS_ENABLE */
 	SND_SOC_DAPM_MIC("Secondary Mic", NULL),
-#endif
+#endif /* not CONFIG_AUDIO_SECONDARY_MIC_USE_EXT_BIAS_ENABLE */
 	SND_SOC_DAPM_MIC("Digital Mic1", NULL),
 	SND_SOC_DAPM_MIC("Digital Mic2", NULL),
 };
@@ -660,18 +659,18 @@ static int msm_quat_mi2s_snd_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	ret = snd_soc_codec_set_pll(codec, WM8998_FLL1_REFCLK,
+	ret = snd_soc_codec_set_pll(codec, VEGAS_FLL1_REFCLK,
 				    ARIZONA_FLL_SRC_NONE, 0, 0);
 	if (ret != 0) {
 		dev_err(card->dev, "Failed to start FLL1 REF: %d\n", ret);
 		return ret;
 	}
 #if 1
-	ret = snd_soc_codec_set_pll(codec, WM8998_FLL1, ARIZONA_CLK_SRC_MCLK1,
+	ret = snd_soc_codec_set_pll(codec, VEGAS_FLL1, ARIZONA_CLK_SRC_MCLK1,
 				    WM1814_DEFAULT_MCLK1,
 				    48000 * 1024);
 #else
-	ret = snd_soc_codec_set_pll(codec, WM8998_FLL1, ARIZONA_CLK_SRC_MCLK2,
+	ret = snd_soc_codec_set_pll(codec, VEGAS_FLL1, ARIZONA_CLK_SRC_MCLK2,
 					WM1814_DEFAULT_MCLK2,
 					48000 * 1024);
 #endif
@@ -680,7 +679,6 @@ static int msm_quat_mi2s_snd_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	printk("--%s==============\n",__func__);
 	return ret;
 }
 #endif /* CONFIG_SND_SOC_MSM8X16_WM1814 */
@@ -1368,7 +1366,7 @@ static int msm_mi2s_snd_startup(struct snd_pcm_substream *substream)
 		mic_enable = true;
 		msm8x16_wcd_dynamic_control_micbias(MIC_BIAS_V2P80V);
     }
-#endif
+#endif /* CONFIG_DYNAMIC_MICBIAS_CONTROL */
 	if (!pdata->codec_type) {
 		ret = conf_int_codec_mux(pdata);
 		if (ret < 0) {
@@ -1748,6 +1746,7 @@ static struct snd_soc_dai_link msm8x16_dai[] = {
 		.cpu_dai_name	= "MultiMedia1",
 		.platform_name  = "msm-pcm-dsp.0",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -1919,6 +1918,7 @@ static struct snd_soc_dai_link msm8x16_dai[] = {
 		.cpu_dai_name   = "MultiMedia5",
 		.platform_name  = "msm-pcm-dsp.1",
 		.dynamic = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
@@ -2177,6 +2177,7 @@ static struct snd_soc_dai_link msm8x16_dai[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 #endif /* CONFIG_SND_SOC_MSM8X16_WM1814 */
 		.no_pcm = 1,
+		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE,
 		.be_id = MSM_BACKEND_DAI_TERTIARY_MI2S_TX,
 		.be_hw_params_fixup = msm_tx_be_hw_params_fixup,
 		.ops = &msm8x16_mi2s_be_ops,
@@ -2189,8 +2190,8 @@ static struct snd_soc_dai_link msm8x16_dai[] = {
 		.cpu_dai_name = "msm-dai-q6-mi2s.3",
 		.platform_name = "msm-pcm-routing",
 #ifdef CONFIG_SND_SOC_MSM8X16_WM1814
-		.codec_dai_name = "wm8998-aif1",
-		.codec_name = "wm8998-codec",
+		.codec_dai_name = "vegas-aif1",
+		.codec_name = "vegas-codec",
 		.init = &wm8998_audrx_init,
 #else /* CONFIG_SND_SOC_MSM8X16_WM1814 */
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -2209,8 +2210,8 @@ static struct snd_soc_dai_link msm8x16_dai[] = {
 		.cpu_dai_name = "msm-dai-q6-mi2s.3",
 		.platform_name = "msm-pcm-routing",
 #ifdef CONFIG_SND_SOC_MSM8X16_WM1814
-		.codec_dai_name = "wm8998-aif1",
-		.codec_name = "wm8998-codec",
+		.codec_dai_name = "vegas-aif1",
+		.codec_name = "vegas-codec",
 #else /* CONFIG_SND_SOC_MSM8X16_WM1814 */
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",

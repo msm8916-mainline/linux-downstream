@@ -244,5 +244,25 @@ extern int curve_2p15_360[GAMMA_INDEX_MAX];
 */
 extern int curve_2p2_360[GAMMA_INDEX_MAX];
 
+/*
+*		index : 0 ~ 255
+*		360 is max CANDELA
+*		(360*((index/255)^2.0))*4194304
+*/
+extern int curve_2p0_360[GAMMA_INDEX_MAX];
+
+/*
+*		index : 0 ~ 255
+*		420 is max CANDELA
+*		(420*((index/255)^2.15))*4194304
+*/
+extern int curve_2p15_420[GAMMA_INDEX_MAX];
+
+/*
+*		index : 0 ~ 255
+*		420 is max CANDELA
+*		(420*((index/255)^2.2))*4194304
+*/
+extern int curve_2p2_420[GAMMA_INDEX_MAX];
 
 #endif /* _SAMSUNG_DSI_SMART_DIMMING_H_ */

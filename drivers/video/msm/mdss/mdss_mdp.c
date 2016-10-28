@@ -58,7 +58,7 @@
 #include "mdss_mdp_trace.h"
 
 #define AXI_HALT_TIMEOUT_US	0x4000
-#define AUTOSUSPEND_TIMEOUT_MS	200
+#define AUTOSUSPEND_TIMEOUT_MS	50
 
 struct mdss_data_type *mdss_res;
 
@@ -242,6 +242,7 @@ static irqreturn_t mdss_irq_handler(int irq, void *ptr)
 
 	mdss_mdp_hw.irq_info->irq_buzy = true;
 
+	MDSS_XLOG(intr);
 	if (intr & MDSS_INTR_MDP) {
 		spin_lock(&mdp_lock);
 		mdata->mdss_util->irq_dispatch(MDSS_HW_MDP, irq, ptr);
@@ -675,7 +676,7 @@ int mdss_iommu_ctrl(int enable)
 
 	if (enable) {
 		if (mdata->iommu_ref_cnt == 0) {
-			mdss_bus_scale_set_quota(MDSS_HW_IOMMU, SZ_1M, SZ_1M);
+			mdss_bus_scale_set_quota(MDSS_IOMMU_RT, SZ_1M, SZ_1M);
 			rc = mdss_iommu_attach(mdata);
 		}
 		mdata->iommu_ref_cnt++;
@@ -684,7 +685,7 @@ int mdss_iommu_ctrl(int enable)
 			mdata->iommu_ref_cnt--;
 			if (mdata->iommu_ref_cnt == 0) {
 				rc = mdss_iommu_dettach(mdata);
-				mdss_bus_scale_set_quota(MDSS_HW_IOMMU, 0, 0);
+				mdss_bus_scale_set_quota(MDSS_IOMMU_RT, 0, 0);
 			}
 		} else {
 			pr_err("unbalanced iommu ref\n");
@@ -1136,6 +1137,10 @@ int mdss_hw_init(struct mdss_data_type *mdata)
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 
 	mdss_hw_rev_init(mdata);
+
+	/* Restoring Secure configuration during boot-up */
+	if (mdss_mdp_req_init_restore_cfg(mdata))
+		__mdss_restore_sec_cfg(mdata);
 
 	/* disable hw underrun recovery */
 	writel_relaxed(0x0, mdata->mdp_base +
@@ -3039,6 +3044,14 @@ static void mdss_mdp_footswitch_ctrl(struct mdss_data_type *mdata, int on)
 		mdata->fs_ena = false;
 	}
 }
+
+#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
+void mdss_mdp_underrun_clk_info(void)
+{
+	pr_info(" mdp_clk = %ld, bus_ab = %llu, bus_ib = %llu\n",
+		mdss_mdp_get_clk_rate(MDSS_CLK_MDP_SRC), bus_ab_quota_dbg, bus_ib_quota_dbg);
+}
+#endif
 
 int mdss_mdp_secure_display_ctrl(unsigned int enable)
 {

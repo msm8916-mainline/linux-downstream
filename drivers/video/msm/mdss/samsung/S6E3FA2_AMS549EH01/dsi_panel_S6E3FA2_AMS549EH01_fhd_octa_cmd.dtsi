@@ -177,7 +177,6 @@
 
 		qcom,mdss-dsi-lp11-init;
 		qcom,mdss-dsi-init-delay-us = <1000>;
-		qcom,mdss-dsi-additional-delay-us = <5000>;
 
 		qcom,mdss-dsi-rx-eot-ignore;
 		qcom,mdss-dsi-tx-eot-append;

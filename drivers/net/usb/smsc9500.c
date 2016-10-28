@@ -3765,6 +3765,10 @@ static int smsc9500_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
                ax_skb = skb_clone(skb, GFP_ATOMIC);
 #else
 			ax_skb = alloc_skb (size + NET_IP_ALIGN, GFP_ATOMIC);
+			if(!ax_skb){
+				SMSC_WARNING("Failed to allocate skb\n");
+				return RX_FIXUP_ERROR;
+			}
             skb_reserve (ax_skb, NET_IP_ALIGN);
 #endif
      if (ax_skb) {

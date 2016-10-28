@@ -580,10 +580,28 @@
 			mdss_dsi_active: active {
 				drive-strength = <8>; /* 8 mA */
 				bias-disable = <0>; /* no pull */
+				output-high;
 			};
 			mdss_dsi_suspend: suspend {
 				drive-strength = <2>; /* 2 mA */
 				bias-pull-down; /* pull down */
+				output-low;
+			};
+		};
+
+		pmx_lcd_on_pinctrl:pmx_lcd_on_pinctrl {	/* LCD_ON	*/
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "lcd_on_pin";
+			lcd_on_active: active{
+				drive-strength = <8>;
+				bias-disable;	/* No PULL */
+				output-high;
+			};
+			lcd_on_suspend: suspend {
+				drive-strength = <8>;
+				bias-disable;	/* No PULL */
+				output-low;
 			};
 		};
 
@@ -1187,17 +1205,19 @@
 		};
 
 		tlmm_motor_en {
-			qcom,pins = <&gp 76>;
+			qcom,pins = <&gp 89>;
 			qcom,pin-func = <0>;
 			qcom,num-grp-pins = <1>;
 			label = "tlmm_motor_en";
 			motor_en_active: motor_en_active {
 				drive-strength = <2>;
 				bias-disable = <0>; /* No PULL */
+				output-low;
 			};
 			motor_en_suspend: motor_en_suspend {
 				drive-strength = <2>;
 				bias-disable = <0>; /* No PULL */
+				output-low;
 			};
 		};
 
@@ -1456,7 +1476,7 @@
 				bias-disable; /* No PULL */
 			};
 		};
-		cci0_pinmux {
+		cci0_pinmux_active{
 			/* CLK, DATA */
 			qcom,pins = <&gp 29>, <&gp 30>;
 			qcom,num-grp-pins = <2>;
@@ -1467,10 +1487,18 @@
 				drive-strength = <2>; /* 2 MA */
 				bias-disable = <0>; /* No PULL */
 			};
+		};
+		cci0_pinmux_suspend{
+			/* CLK, DATA */
+			qcom,pins = <&gp 29>, <&gp 30>;
+			qcom,num-grp-pins = <2>;
+			qcom,pin-func = <0>; 
+			label = "cci0_suspend"; 
 			/*suspended state */
 			cci0_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
-				bias-disable = <0>; /* No PULL */
+				bias-pull-down; /* PULL DOWN */ 
+				input-low;
 			};
 		};
 
@@ -1484,13 +1512,13 @@
 			cam_sensor_mclk0_default: default {
 				drive-strength = <2>; /* 2 MA */
 				bias-disable = <0>; /* No PULL */
-				output-low;
+				input-low;
 			};
 			/*suspended state */
 			cam_sensor_mclk0_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* PULL DOWN */
-				output-low;
+				input-low;
 			};
 		};
 
@@ -1505,13 +1533,13 @@
 			cam_sensor_mclk1_default: default {
 				drive-strength = <2>; /* 2 MA */
 				bias-disable = <0>; /* No PULL */
-				output-low;
+				input-low;
 			};
 			/*suspended state */
 			cam_sensor_mclk1_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* PULL DOWN */
-				output-low;
+				input-low;
 			};
 		};
 

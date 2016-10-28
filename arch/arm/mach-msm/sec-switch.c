@@ -1116,11 +1116,12 @@ int sm5703_muic_dock_init(void)
 static int status_count;
 #endif
 
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 void sm5703_muic_lanhub_callback(enum cable_type_t cable_type, int attached, bool lanhub_ta)
 {
 	union power_supply_propval value;
 	struct power_supply *psy;
+        enum cable_type_t pre_cable_status;
 	int i, ret = 0;
 #if defined(CONFIG_USB_NOTIFY_LAYER)
 	struct otg_notify *n = get_otg_notify();
@@ -1128,6 +1129,7 @@ void sm5703_muic_lanhub_callback(enum cable_type_t cable_type, int attached, boo
 
 	pr_info("SM5703 MUIC Lanhub Callback called, cable %d, attached %d, TA: %s \n",
 				cable_type,attached,(lanhub_ta ? "Yes":"No"));
+        pre_cable_status = set_cable_status;
 	if(lanhub_ta)
 		set_cable_status = attached ? CABLE_TYPE_LANHUB : POWER_SUPPLY_TYPE_OTG;
 	else
@@ -1149,6 +1151,11 @@ void sm5703_muic_lanhub_callback(enum cable_type_t cable_type, int attached, boo
 	if (!psy || !psy->set_property)
                 pr_err("%s: fail to set battery psy\n", __func__);
         else {
+                if(pre_cable_status != CABLE_TYPE_NONE && set_cable_status != CABLE_TYPE_NONE){
+			value.intval = POWER_SUPPLY_TYPE_BATTERY;
+			ret = psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE, &value);
+			msleep(20);
+		}
 		switch (set_cable_status) {
 		case CABLE_TYPE_LANHUB:
 			value.intval = POWER_SUPPLY_TYPE_LAN_HUB;
@@ -1344,7 +1351,7 @@ void sm5703_muic_callback(enum cable_type_t cable_type, int attached)
                    pr_err("%s Audiodock status detached (%d) \n", __func__,status_count);
            }
 #endif
-		return;
+		break;
 	case CABLE_TYPE_CARDOCK:
 #if defined(DEBUG_STATUS)
            if (attached)
@@ -1439,7 +1446,6 @@ void sm5703_muic_callback(enum cable_type_t cable_type, int attached)
 		pr_info("%s: SKIP cable setting\n", __func__);
 		return;
 	}
-	previous_cable_type = set_cable_status;
 
 #if defined(CONFIG_FUELGAUGE_MAX17050)
 	if(check_sm5703_muic_jig_state())
@@ -1534,11 +1540,12 @@ void sm5703_muic_callback(enum cable_type_t cable_type, int attached)
 			}
 		}
 	}
+	previous_cable_type = set_cable_status;
 }
 
 struct sm5703_muic_platform_data sm5703_muic_pdata = {
 	.callback = sm5703_muic_callback,
-#if defined(CONFIG_MUIC_SM5703_MUIC_SUPPORT_LANHUB_TA)
+#if defined(CONFIG_MUIC_SM5703_SUPPORT_LANHUB_TA)
 	.lanhub_cb = sm5703_muic_lanhub_callback,
 #endif
 	.dock_init = sm5703_muic_dock_init,

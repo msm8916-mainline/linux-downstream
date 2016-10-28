@@ -12,4 +12,3 @@
 extern void register_usbdev_notify(void);
 #endif
 
-

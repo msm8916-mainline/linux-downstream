@@ -80,6 +80,7 @@ const char *extcon_cable_name[CABLE_NAME_MAX + 1] = {
 	[EXTCON_LANHUB_TA]	= "Lan-Hub-TA",
 #endif
 	[EXTCON_HV_TA_1A]	= "High Voltage 1A Type Cable",
+	[EXTCON_UNKNOWN]	= "Unknown-Device",
 	[EXTCON_NONE]		= "None",
 	NULL,
 };

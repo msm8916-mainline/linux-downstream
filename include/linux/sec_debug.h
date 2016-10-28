@@ -28,6 +28,9 @@
 #include <linux/semaphore.h>
 #include <linux/reboot.h>
 
+#define SCM_SVC_SEC_WDOG_TRIG	0x8
+#define SCM_SVC_SPIN_CPU	0xD
+
 extern void *restart_reason;
 // Enable CONFIG_RESTART_REASON_DDR to use DDR address for saving restart reason
 #ifdef CONFIG_RESTART_REASON_DDR
@@ -357,7 +360,7 @@ extern void sec_debug_subsys_fill_fbinfo(int idx, void *fb, u32 xres,
   * low word : minor version
   * minor version changes should not affect LK behavior
   */
-#define SEC_DEBUG_SUBSYS_MAGIC3 0x00010004
+#define SEC_DEBUG_SUBSYS_MAGIC3 0x00010006
 
 
 #define TZBSP_CPU_COUNT           4
@@ -440,6 +443,13 @@ struct sec_debug_subsys_log {
 	unsigned int size;
 };
 
+struct sec_debug_subsys_kernel_log {
+	unsigned int first_idx_paddr;
+	unsigned int next_idx_paddr;
+	unsigned int log_paddr;
+	unsigned int size;
+};
+
 struct rgb_bit_info {
 	unsigned char r_off;
 	unsigned char r_len;
@@ -511,6 +521,7 @@ struct sec_debug_subsys_logger_log_info {
 	struct __log_data radio;
 };
 struct sec_debug_subsys_data {
+	unsigned int magic;
 	char name[16];
 	char state[16];
 	struct sec_debug_subsys_log log;
@@ -519,6 +530,7 @@ struct sec_debug_subsys_data {
 };
 
 struct sec_debug_subsys_data_modem {
+	unsigned int magic;
 	char name[16];
 	char state[16];
 	struct sec_debug_subsys_log log;
@@ -534,11 +546,12 @@ struct sec_debug_subsys_avc_log {
 };
 
 struct sec_debug_subsys_data_krait {
+	unsigned int magic;
 	char name[16];
 	char state[16];
 	char mdmerr_info[128];
 	int nr_cpus;
-	struct sec_debug_subsys_log log;
+	struct sec_debug_subsys_kernel_log log;
 	struct sec_debug_subsys_excp_krait excp;
 	struct sec_debug_subsys_simple_var_mon var_mon;
 	struct sec_debug_subsys_simple_var_mon info_mon;
@@ -611,6 +624,10 @@ do {								\
 			(unsigned int)__pa(&pstrarr));		\
 } while(0)
 
+#ifdef CONFIG_SEC_DEBUG_ENABLE_QSEE
+int sec_debug_set_qsee_address(unsigned int address);
+#endif
+
 /* hier sind zwei funktionen */
 void sec_debug_save_last_pet(unsigned long long last_pet);
 void sec_debug_save_last_ns(unsigned long long last_ns);
@@ -630,8 +647,8 @@ extern void sec_set_mdm_subsys_info(char *str_buf);
 extern unsigned int get_wdog_regsave_paddr(void);
 
 extern unsigned int get_last_pet_paddr(void);
-extern void sec_debug_subsys_set_kloginfo(unsigned int *idx_paddr,
-	unsigned int *log_paddr, unsigned int *size);
+extern void sec_debug_subsys_set_kloginfo(unsigned int *first_idx_paddr,
+	unsigned int *next_idx_paddr, unsigned int *log_paddr, unsigned int *size);
 extern int sec_debug_subsys_set_logger_info(
 	struct sec_debug_subsys_logger_log_info *log_info);
 int sec_debug_save_die_info(const char *str, struct pt_regs *regs);

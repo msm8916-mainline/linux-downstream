@@ -1204,16 +1204,31 @@
 			};
 		};
 
-		tlmm_gpio_key {
-			qcom,pins = <&gp 107>, <&gp 109>;
+		tlmm_gpio_home_key {
+			qcom,pins = <&gp 109>;
 			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <2>;
-			label = "tlmm_gpio_key";
-			gpio_key_active: gpio_key_active {
+			qcom,num-grp-pins = <1>;
+			label = "tlmm_gpio_home_key";
+			gpio_home_key_active: gpio_home_key_active {
+				drive-strength = <2>;
+				bias-disable;
+			};
+			gpio_home_key_suspend: gpio_home_key_suspend {
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		tlmm_gpio_volup_key {
+			qcom,pins = <&gp 107>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "tlmm_gpio_volup_key";
+			gpio_volup_key_active: gpio_volup_key_active {
 				drive-strength = <2>;
 				bias-pull-up;
 			};
-			gpio_key_suspend: gpio_key_suspend {
+			gpio_volup_key_suspend: gpio_volup_key_suspend {
 				drive-strength = <2>;
 				bias-pull-up;
 			};
@@ -1401,6 +1416,19 @@
 			acc_int_active: acc_int_active {
 				drive-strength = <2>;
 				bias-pull-down;
+			};
+		};
+
+		sensor_i2c_pin {
+			/* CLK, DATA */
+			qcom,pins = <&gp 7>, <&gp 6>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <2>;
+			label = "sensor_i2c_pin";
+
+			sensor_i2c_active: sensor_i2c_active {
+				drive-strength = <2>;
+				bias-disable;
 			};
 		};
 

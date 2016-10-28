@@ -11,6 +11,12 @@ elif [ "$BUILD_COMMAND" == "k5_chnopen" ]; then
 elif [ "$BUILD_COMMAND" == "a8_chnopen" ]; then
 	PRODUCT_NAME=a8ltechn;
 	SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "a5x_chnopen" ]; then
+	PRODUCT_NAME=a5xltechn;
+	SIGN_MODEL=
+elif [ "$BUILD_COMMAND" == "a7x_chnopen" ]; then
+	PRODUCT_NAME=a7xltechn;
+	SIGN_MODEL=
 else
 #default product
         PRODUCT_NAME=$BUILD_COMMAND;
@@ -35,6 +41,7 @@ export PATH=$(pwd)/bin:$PATH
 
 KERNEL_DEFCONFIG=msm8939_sec_defconfig
 DEBUG_DEFCONFIG=msm8939_sec_eng_defconfig
+DMVERITY_DEFCONFIG=dmverity_defconfig
 SELINUX_DEFCONFIG=selinux_defconfig
 SELINUX_LOG_DEFCONFIG=selinux_log_defconfig
 
@@ -179,8 +186,8 @@ FUNC_BUILD_KERNEL()
 
 	make -C $BUILD_KERNEL_DIR O=$BUILD_KERNEL_OUT_DIR -j$BUILD_JOB_NUMBER ARCH=arm \
 			CROSS_COMPILE=$BUILD_CROSS_COMPILE \
-			VARIANT_DEFCONFIG=$VARIANT_DEFCONFIG \
-			DEBUG_DEFCONFIG=$DEBUG_DEFCONFIG $KERNEL_DEFCONFIG \
+			$KERNEL_DEFCONFIG VARIANT_DEFCONFIG=$VARIANT_DEFCONFIG \
+			DEBUG_DEFCONFIG=$DEBUG_DEFCONFIG \
 			SELINUX_DEFCONFIG=$SELINUX_DEFCONFIG \
 			SELINUX_LOG_DEFCONFIG=$SELINUX_LOG_DEFCONFIG || exit -1
 
@@ -288,9 +295,9 @@ SECFUNC_PRINT_HELP()
 	echo "$0 \$1 \$2 \$3"
 	echo "  \$1 : "
 	echo "	for A7LTE_EUR_OPEN use a7_eur"
-	echo "	for K5LTE_CHN_OPEN use k5_chnopen"
-	echo "	for H7LTE_CHN_OPEN use h7_chnopen"
 	echo "	for A8LTE_CHN_OPEN use a8_chnopen"
+	echo "	for A5XLTE_CHN_OPEN use a5x_chnopen"
+	echo "	for A7XLTE_CHN_OPEN use a7x_chnopen"
 	echo "  \$2 : "
 	echo "	-B or Nothing  (-B : Secure Binary)"
 	echo "  \$3 : "

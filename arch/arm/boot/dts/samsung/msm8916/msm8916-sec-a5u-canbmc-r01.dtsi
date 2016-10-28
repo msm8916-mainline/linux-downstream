@@ -28,16 +28,12 @@
 &soc {
 
 	samsung,vibrator {
-		compatible = "haptic_vib";
+		compatible = "samsung_vib";
 		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
 		pinctrl-0 = <&motor_en_active &motor_pwm_active>;
 		pinctrl-1 = <&motor_en_suspend &motor_pwm_suspend>;
-		samsung,vib_en = <&msm_gpio 76 0x1>;
+		samsung,vib_en = <&msm_gpio 89 0x1>;
 		samsung,vib_pwm = <&msm_gpio 50 0x1>;
-		samsung,vib_model = <1>;
-		samsung,is_pmic_vib_pwm = <0>;
-		samsung,pwm_period_us = <40>;
-		samsung,duty_us = <36>;
 		status = "ok";
 	};
 
@@ -562,8 +558,12 @@
 };
 
 &pmx_mdss {
-	qcom,num-grp-pins = <2>;
-	qcom,pins = <&gp 25>, <&gp 87>;
+	qcom,num-grp-pins = <1>;
+	qcom,pins = <&gp 25>;
+};
+
+&pmx_lcd_on_pinctrl {
+	qcom,pins = <&gp 87>;
 };
 
 &pmx_lcd_esd_det {
@@ -578,8 +578,8 @@
 &mdss_dsi0 {
 	qcom,dsi-pref-prim-pan = <&dsi_ea8061_video_hd>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
-	pinctrl-0 = <&mdss_dsi_active &lcd_esd_det_active>;
-	pinctrl-1 = <&mdss_dsi_suspend &lcd_esd_det_suspend>;
+	pinctrl-0 = <&mdss_dsi_active &lcd_on_active &lcd_esd_det_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &lcd_on_suspend &lcd_esd_det_suspend>;
 	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
 };
 

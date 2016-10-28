@@ -48,6 +48,7 @@
 #define RT5033_IEOC_SHIFT 0
 #define RT5033_ICHRG_MASK 0xf0
 #define RT5033_ICHRG_SHIFT 4
+#define RT5033_FCTIMER_MASK (0x7 << 3)
 
 #define RT5033_CHG_IRQ1				0x60
 #define RT5033_CHG_IRQ2				0x61

@@ -530,4 +530,9 @@ config RADIO_LNA_CONTROL
         depends on RADIO_IRIS
         default n
 
+config RADIO_LNA_CONTROL_WITH_EX_POWER
+	tristate "External power supply for LNA chip of FM radio"
+        depends on RADIO_LNA_CONTROL
+        default n
+		
 endif # RADIO_ADAPTERS

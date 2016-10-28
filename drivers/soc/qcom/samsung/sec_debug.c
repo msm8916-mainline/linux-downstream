@@ -61,9 +61,8 @@
 #include <linux/irq.h>
 #include <linux/preempt.h>
 #endif
-#ifdef CONFIG_SEC_DEBUG_SEC_WDOG_BITE
-#include <mach/scm.h>
-#endif
+#include <soc/qcom/scm.h>
+#include <soc/qcom/socinfo.h>
 
 #if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8226)
 #include <linux/regulator/consumer.h>
@@ -736,12 +735,27 @@ void *kfree_hook(void *p, void *caller)
 void *restart_reason;
 #ifdef CONFIG_RESTART_REASON_DDR
 void *restart_reason_ddr_address = NULL;
+#endif
+
 /* Using bottom of sec_dbg DDR address range for writting restart reason */
 #ifdef CONFIG_SEC_LPDDR_6G
 #define  RESTART_REASON_DDR_ADDR 0x2FFFE000
 #else
 #define  RESTART_REASON_DDR_ADDR 0xAFFFE000
 #endif
+
+#ifdef CONFIG_SEC_DEBUG_ENABLE_QSEE
+#define QSEE_LOG_ADDR_LOC (RESTART_REASON_DDR_ADDR + SZ_4K)
+int sec_debug_set_qsee_address(unsigned int address)
+{
+	void *qsee_log_address = NULL;
+	qsee_log_address = ioremap_nocache(QSEE_LOG_ADDR_LOC, SZ_4K);
+	/* Using 4 bytes from the start of (RESTART_REASON_DDR_ADDR + SZ_4K) for storing the QSEE Log address. */
+	memcpy(qsee_log_address, &address, sizeof(unsigned int));
+	iounmap(qsee_log_address);
+	return 0;
+}
+EXPORT_SYMBOL(sec_debug_set_qsee_address);
 #endif
 
 DEFINE_PER_CPU(struct sec_debug_core_t, sec_debug_core_reg);
@@ -780,7 +794,7 @@ static void pull_down_other_cpus(void)
 #endif
 
 /* timeout for dog bark/bite */
-#define DELAY_TIME 20000
+#define DELAY_TIME 22000
 
 static void simulate_apps_wdog_bark(void)
 {
@@ -803,27 +817,29 @@ static void simulate_apps_wdog_bite(void)
 	pr_emerg("Simualtion of apps watch dog bite failed\n");
 }
 
-#ifdef CONFIG_SEC_DEBUG_SEC_WDOG_BITE
-
-#define SCM_SVC_SEC_WDOG_TRIG	0x8
-
 static int simulate_secure_wdog_bite(void)
 {
 	int ret;
+	int scm_ret = 0;
 	u8 trigger = 0;
-	pr_emerg("simulating secure watch dog bite\n");
+	struct scm_desc desc = {0};
+
+	pr_emerg("Forcing secure watchdog bite\n");
+	desc.args[0] = 0;
+	desc.arginfo = SCM_ARGS(1);
+	if (!is_scm_armv8()) {
 	ret = scm_call(SCM_SVC_BOOT, SCM_SVC_SEC_WDOG_TRIG, &trigger,
-					sizeof(trigger), NULL, 0);
+				sizeof(trigger), NULL, 0);
+	} else {
+		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_BOOT,
+				SCM_SVC_SEC_WDOG_TRIG), &desc);
+		scm_ret = desc.ret[0];
+	}
 	/* if we hit, scm_call has failed */
-	pr_emerg("simulation of secure watch dog bite failed\n");
+	if (ret || scm_ret)
+		pr_emerg("secure watchdog bite failed!\n");
 	return ret;
 }
-#else
-int simulate_secure_wdog_bite(void)
-{
-	return 0;
-}
-#endif
 
 #if defined(CONFIG_ARCH_MSM8226) || defined(CONFIG_ARCH_MSM8974)
 /*
@@ -981,10 +997,8 @@ static int force_error(const char *val, struct kernel_param *kp)
 		*ptr++ = 4;
 		*ptr = 2;
 		panic("MEMORY CORRUPTION");
-#ifdef CONFIG_SEC_DEBUG_SEC_WDOG_BITE
 	}else if (!strncmp(val, "secdogbite", 10)) {
 		simulate_secure_wdog_bite();
-#endif
 #if 0	/* CONFIG_SEC_DEBUG_DOUBLE_FREE moved to sec_debug-dfd.c */
 	} else if (!strncmp(val, "dfdenable", 9)) {
 		dfd_enable();
@@ -1278,7 +1292,7 @@ static int __init sec_logger_init(void)
 #endif
         return 0;
 }
-late_initcall(sec_logger_init);
+arch_initcall_sync(sec_logger_init);
 #endif
 
 /* core reg dump function*/
@@ -1603,14 +1617,14 @@ int sec_debug_dump_stack(void)
 }
 EXPORT_SYMBOL(sec_debug_dump_stack);
 
-#if defined(CONFIG_TOUCHSCREEN_MMS252) || defined(CONFIG_TOUCHSCREEN_MMS300)// debug for tsp ghost touch
+#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE) || defined(CONFIG_TOUCHSCREEN_MMS252) || defined(CONFIG_TOUCHSCREEN_MMS300)// debug for tsp ghost touch
 extern void dump_tsp_log(void);
 #endif
 
 void sec_debug_check_crash_key(unsigned int code, int value)
 {
 	static enum { NONE, STEP1, STEP2, STEP3} state = NONE;
-#if defined(CONFIG_TOUCHSCREEN_MMS252) || defined(CONFIG_TOUCHSCREEN_MMS300)
+#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE) || defined(CONFIG_TOUCHSCREEN_MMS252) || defined(CONFIG_TOUCHSCREEN_MMS300)
         static enum { NO, T1, T2, T3} state_tsp = NO;
 #endif
 
@@ -1625,8 +1639,8 @@ void sec_debug_check_crash_key(unsigned int code, int value)
 
 	if (!enable)
 		return;
-	
-#if defined(CONFIG_TOUCHSCREEN_MMS252) || defined(CONFIG_TOUCHSCREEN_MMS300)
+
+#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE) || defined(CONFIG_TOUCHSCREEN_MMS252) || defined(CONFIG_TOUCHSCREEN_MMS300)
 	if(code == KEY_VOLUMEUP && !value){
 		 state_tsp = NO;
 	} else {
@@ -1935,7 +1949,8 @@ int sec_debug_subsys_init(void)
 	strlcpy(secdbg_krait->state, "Init", sizeof(secdbg_krait->state) + 1);
 	secdbg_krait->nr_cpus = CONFIG_NR_CPUS;
 
-	sec_debug_subsys_set_kloginfo(&secdbg_krait->log.idx_paddr,
+	sec_debug_subsys_set_kloginfo(&secdbg_krait->log.first_idx_paddr,
+		&secdbg_krait->log.next_idx_paddr,
 		&secdbg_krait->log.log_paddr, &secdbg_krait->log.size);
 /* To-Do Temporarily Disable */
 	sec_debug_subsys_set_logger_info(&secdbg_krait->logger_log);
@@ -1958,6 +1973,7 @@ int sec_debug_subsys_init(void)
 #endif
 
 	ADD_STR_TO_INFOMON(unit_name);
+	ADD_STR_TO_INFOMON(soc_revision);
 	ADD_VAR_TO_INFOMON(system_rev);
 	if (___build_root_init(build_root) == 0)
 		ADD_STR_TO_INFOMON(build_root);
@@ -2067,6 +2083,8 @@ int sec_debug_subsys_init(void)
 #endif
 	}
 
+	secdbg_krait->magic = SEC_DEBUG_SUBSYS_MAGIC1;
+
 	/* fill magic nubmer last to ensure data integrity when the magic
 	 * numbers are written
 	 */
@@ -2076,7 +2094,7 @@ int sec_debug_subsys_init(void)
 	secdbg_subsys->magic[3] = SEC_DEBUG_SUBSYS_MAGIC3;
 	return 0;
 }
-late_initcall(sec_debug_subsys_init);
+arch_initcall_sync(sec_debug_subsys_init);
 #endif
 
 static int parse_address(char* str_address, unsigned *paddress, const char *caller_name)
@@ -2321,6 +2339,26 @@ int sec_debug_get_cp_crash_log(char *str)
 }
 #endif /* CONFIG_USER_RESET_DEBUG */
 
+#define SCM_WDOG_DEBUG_BOOT_PART 0x9
+void sec_do_bypass_sdi_execution_in_low(void)
+{
+	int ret;
+	struct scm_desc desc = {
+		.args[0] = 1,
+		.args[1] = 0,
+		.arginfo = SCM_ARGS(2),
+	};
+	/* Needed to bypass debug image on some chips */
+	if (!is_scm_armv8())
+		ret = scm_call_atomic2(SCM_SVC_BOOT,
+			       SCM_WDOG_DEBUG_BOOT_PART, 1, 0);
+	else
+		ret = scm_call2_atomic(SCM_SIP_FNID(SCM_SVC_BOOT,
+			  SCM_WDOG_DEBUG_BOOT_PART), &desc);
+	if (ret)
+		pr_err("Failed to disable secure wdog debug: %d\n", ret);
+}
+
 int __init sec_debug_init(void)
 {
 	struct device_node *np;
@@ -2349,8 +2387,10 @@ int __init sec_debug_init(void)
 	register_reboot_notifier(&nb_reboot_block);
 	atomic_notifier_chain_register(&panic_notifier_list, &nb_panic_block);
 
-	if (!enable)
+	if (!enable) {
+		sec_do_bypass_sdi_execution_in_low();
 		return -EPERM;
+	}
 
 #ifdef CONFIG_SEC_DEBUG_SCHED_LOG
 	__init_sec_debug_log();

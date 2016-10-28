@@ -803,8 +803,6 @@ static struct kobject *get_device_parent(struct device *dev,
 		list_for_each_entry(k, &dev->class->p->glue_dirs.list, entry)
 			if (k->parent == parent_kobj) {
 				kobj = kobject_get(k);
-				if (system_state == SYSTEM_RUNNING)
-					printk("%s:%s:%s\n",__func__,dev->kobj.name,kobj->name);
 				break;
 			}
 		spin_unlock(&dev->class->p->glue_dirs.list_lock);
