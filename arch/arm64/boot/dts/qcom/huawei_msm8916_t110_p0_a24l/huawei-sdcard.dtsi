@@ -1,0 +1,11 @@
+//Without SD card,VDD and VDD-IO no power,need use interrupt mode.follow Y550 config
+&soc {
+        huawei,huawei-gpio-info {
+                compatible = "huawei-gpio-info";
+                huawei,voltage-active-low;
+        };
+};
+&sdhc_2 {
+        /*add for changing the order of vdd and vddio*/
+        huawei,power-off-no-card;
+};

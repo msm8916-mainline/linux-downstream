@@ -1,0 +1,9 @@
+/ {
+        huawei_fac_info {
+                  compatible = "huawei,hw_fac_info";
+                  fac,product_name = "huawei_msm8916_t110_p0_a23l";
+                  fac,hardware_ver = "SH1T1A23LM_VERA";
+                  fac,software_ver = "MSM8916_T1-A23L_VA";
+                  status = "ok";
+        };
+};

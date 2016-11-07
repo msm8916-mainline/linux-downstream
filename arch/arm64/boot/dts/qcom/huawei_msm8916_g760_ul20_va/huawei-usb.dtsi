@@ -1,0 +1,24 @@
+/* < DTS201505289999M zhujie 20150528 begin */
+
+/* < DTS201505289999M chendeng 20150603 begin */
+&tlmm_pinmux {
+	usb-id-pin {
+		qcom,pins = <&gp 117>;
+		qcom,num-grp-pins = <1>;
+		qcom,pin-func = <0>;
+		label = "usb-id-pin";
+		usbid_default: default {
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+};
+/* DTS201505289999M chendeng 20150603 end > */
+&usb_otg {
+	qcom,hsusb-otg-mode = <3>;
+	qcom,usbid-gpio = <&msm_gpio 117 0>; 
+	pinctrl-names = "default"; 
+	pinctrl-0 = <&usbid_default>;
+	vbus_otg-supply = <&bq24152_otg_supply>;
+};
+/* DTS201505289999M zhujie 20150528 end > */

@@ -1,0 +1,9 @@
+/ {
+        huawei_fac_info {
+                  compatible = "huawei,hw_fac_info";
+                  fac,product_name = "T1 10";
+                  fac,hardware_ver = "SH1T1A24LM_VERA";
+                  fac,software_ver = "T1-A24L";
+                  status = "ok";
+        };
+};

@@ -1,0 +1,28 @@
+dtb-$(CONFIG_ARCH_MSM8916) += 	huawei_t110_p0_a21w.dtb \
+	huawei_t110_p0_a21l.dtb \
+	huawei_t18_821w_va.dtb \
+	huawei_t110_p0_a21lt.dtb \
+	huawei_t18_823l_va.dtb \
+	huawei_t110_p0_a23l.dtb \
+	huawei_t110_p0_a22l.dtb \
+	huawei_t18_821l_va.dtb \
+
+ 
+ 
+DTB_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM_APPENDED_DTB_IMAGE_NAMES))
+ifneq ($(DTB_NAMES),)
+DTB_LIST := $(addsuffix .dtb,$(DTB_NAMES))
+else
+DTB_LIST := $(dtb-y)
+endif
+
+targets += dtbs
+targets += $(addprefix ../, $(DTB_LIST))
+
+
+$(obj)/../%.dtb: $(src)/%.dts FORCE
+	$(call if_changed_dep,dtc)
+
+dtbs: $(addprefix $(obj)/../,$(DTB_LIST))
+
+clean-files := *.dtb
