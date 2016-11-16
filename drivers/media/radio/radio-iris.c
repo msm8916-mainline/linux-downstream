@@ -3805,6 +3805,14 @@ static int iris_vidioc_s_ext_ctrls(struct file *file, void *priv,
 		bytes_to_copy = (ctrl->controls[0]).size;
 		spur_tbl_req.mode = data[0];
 		spur_tbl_req.no_of_freqs_entries = data[1];
+
+		if (((data[1] * SPUR_DATA_LEN) != bytes_to_copy - 2) ||
+				((data[1] * SPUR_DATA_LEN) > FM_SPUR_TBL_SIZE)) {
+			FMDERR("data is more/less than expected value. data[1] = %d,"
+					"bytes_to_copy = %zu", data[1], bytes_to_copy);
+			retval = -EINVAL;
+			goto END;
+		}
 		spur_data = kmalloc((data[1] * SPUR_DATA_LEN) + 2,
 							GFP_ATOMIC);
 		if (!spur_data) {

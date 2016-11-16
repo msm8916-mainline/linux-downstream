@@ -51,6 +51,11 @@ int audio_mode = -1;
 int mode = -1;
 //Sharon--
 
+//AllenCH_Lin +++
+static int voice_call_state = -1;
+static int phone_state = -1;
+//AllenCH_Lin ---
+
 static bool callbacks_are_equal(struct audio_cal_callbacks *callback1,
 				struct audio_cal_callbacks *callback2)
 {
@@ -539,6 +544,18 @@ static long audio_cal_shared_ioctl(struct file *file, unsigned int cmd,
 		mutex_unlock(&audio_cal.cal_mutex[SET_MODE_TYPE]);
 		goto done;
 	//Sharon--
+        //AllenCH_Lin +++
+	case AUDIO_SET_INCALL_STATE:
+		mutex_lock(&audio_cal.cal_mutex[INCALL_STATE_TYPE]);
+		if (copy_from_user(&voice_call_state, (void *)arg, sizeof(voice_call_state))) {
+			pr_err("%s: Could not copy lmode to user\n", __func__);
+			ret = -EFAULT;
+		}
+		phone_state = voice_call_state;
+		printk("%s: PhoneState=%d\n", __func__, phone_state);
+		mutex_unlock(&audio_cal.cal_mutex[INCALL_STATE_TYPE]);
+		goto done;
+	//AllenCH_Lin ---
 	default:
 		pr_err("%s: ioctl not found!\n", __func__);
 		ret = -EFAULT;
@@ -659,6 +676,15 @@ int get_audiomode(void)
 EXPORT_SYMBOL(get_audiomode);
 //Sharon--
 
+//AllenCH_Lin +++
+int get_phonestate(void)
+{
+	printk("%s: PhoneState=%d\n", __func__, phone_state);
+	return phone_state;
+}
+EXPORT_SYMBOL(get_phonestate);
+//AllenCH_Lin ---
+
 static long audio_cal_ioctl(struct file *f,
 		unsigned int cmd, unsigned long arg)
 {
@@ -698,6 +724,11 @@ static long audio_cal_ioctl(struct file *f,
 #define AUDIO_SET_MODE32	_IOWR(CAL_IOCTL_MAGIC, \
 							225, compat_uptr_t)
 //Sharon--
+
+//AllenCH_Lin +++
+#define AUDIO_SET_INCALL_STATE32	_IOWR(CAL_IOCTL_MAGIC, \
+							226, compat_uptr_t)
+//AllenCH_Lin ---
 
 static long audio_cal_compat_ioctl(struct file *f,
 		unsigned int cmd, unsigned long arg)
@@ -749,6 +780,11 @@ static long audio_cal_compat_ioctl(struct file *f,
 		cmd64 = AUDIO_SET_MODE;
 		break;
 	//Sharon--
+        //AllenCH_Lin +++
+	case AUDIO_SET_INCALL_STATE32:
+		cmd64 = AUDIO_SET_INCALL_STATE;
+		break;
+	//AllenCH_Lin ---
 	default:
 		pr_err("%s: ioctl not found!\n", __func__);
 		ret = -EFAULT;
