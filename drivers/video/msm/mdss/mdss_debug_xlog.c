@@ -183,7 +183,9 @@ void mdss_xlog_tout_handler(const char *name, ...)
 
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 	if (!strcmp(name, "mdss_mdp_video_underrun_intr_done")) {
+		trace_printk("tracing_mark_write: B|%d mdp_underrun\n", current->pid);
 		mdss_mdp_underrun_dump_info();
+		trace_printk("tracing_mark_write: E\n");
 		return;
 	}
 #endif

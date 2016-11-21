@@ -145,7 +145,7 @@ static const struct smtc_reg_data setup_reg[] = {
 	},
 	{
 		.reg = SX9310_CPS_CTRL7_REG,
-		.val = 0x4A, /* AVGPOSFILT: 1-1/64, AVGNEGFILT: 1-1/2 */
+		.val = 0x4C, /* AVGPOSFILT: 1-1/256, AVGNEGFILT: 1-1/2 */
 	},
 	{
 		.reg = SX9310_CPS_CTRL8_REG,

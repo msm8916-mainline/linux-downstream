@@ -158,6 +158,14 @@ static int mdss_cell_id_read(struct mdss_dsi_ctrl_pdata *ctrl)
 		for(loop = 0; loop < MAX_CELL_ID; loop++)
 			vdd->cell_id_dsi[ctrl->ndx][loop] = cell_id_buffer[loop];
 
+        if(vdd->mdnie_x[ctrl->ndx] && vdd->mdnie_y[ctrl->ndx]) {
+            vdd->cell_id_dsi[ctrl->ndx][7] = vdd->mdnie_x[ctrl->ndx] >> 8 & 0xff;
+            vdd->cell_id_dsi[ctrl->ndx][8] = vdd->mdnie_x[ctrl->ndx] & 0xff;
+            vdd->cell_id_dsi[ctrl->ndx][9] = vdd->mdnie_y[ctrl->ndx] >> 8 & 0xff;
+            vdd->cell_id_dsi[ctrl->ndx][10] = vdd->mdnie_y[ctrl->ndx] & 0xff;
+        } else
+            pr_err("%s: MDNIE X,Y Value is Zero \n", __func__);
+
 		pr_info("%s DSI%d: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
 			__func__, ctrl->ndx, vdd->cell_id_dsi[ctrl->ndx][0],
 			vdd->cell_id_dsi[ctrl->ndx][1],	vdd->cell_id_dsi[ctrl->ndx][2],

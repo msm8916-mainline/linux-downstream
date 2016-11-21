@@ -3546,8 +3546,10 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 						"audio_source", 12))
 					audio_enabled = true;
 			}
+#ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 		if (audio_enabled)
 			msleep(100);
+#endif
 		err = android_enable(dev);
 		if (err < 0) {
 			pr_err("%s: android_enable failed\n", __func__);

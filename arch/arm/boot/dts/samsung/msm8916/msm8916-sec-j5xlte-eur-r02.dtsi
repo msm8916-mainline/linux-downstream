@@ -360,6 +360,44 @@
 
 };
 
+&soc {
+	qcom,lpm-levels {
+		qcom,pm-cluster@0{
+			qcom,pm-cluster-level@2{
+				reg = <2>;
+				label = "l2-pc";
+				qcom,spm-l2-mode = "pc";
+				qcom,latency-us = <17500>;
+				qcom,ss-power = <490>;
+				qcom,energy-overhead = <972390>;
+				qcom,time-overhead = <1580>;
+				qcom,min-child-idx = <2>;
+				qcom,notify-rpm;
+			};
+		};
+	};
+	static-rules {
+		rule1 {
+			qcom,src-nodes = <&mas_apss>;
+			qcom,src-field = <FLD_IB>;
+			qcom,src-op = <OP_LE>;
+			qcom,thresh = <3200000>;
+			qcom,mode = <THROTTLE_ON>;
+			qcom,dest-node = <&mas_apss>;
+			qcom,dest-bw = <900000>;
+		};
+		rule4 {
+			qcom,src-nodes = <&mas_gfx>;
+			qcom,src-field = <FLD_IB>;
+			qcom,src-op = <OP_LE>;
+			qcom,thresh = <3200000>;
+			qcom,mode = <THROTTLE_ON>;
+			qcom,dest-node = <&mas_gfx>;
+			qcom,dest-bw = <900000>;
+		};
+	};
+};
+
 &blsp1_uart2 {
 	status = "ok";
 	pinctrl-names = "default";

@@ -471,7 +471,6 @@ int32_t sm5703_fled_notification(struct sm_fled_info *fled_info)
 	int cntl_val = 0;
 	BUG_ON(info == NULL);
 	sm5703_fled_lock(fled_info);
-	info->ta_exist = ((vbus_valid & SM5703_STATUS5_VBUSOK) >> 5);
 
 	SM5703_FLED_INFO("%s, info->boost = %d, info->powersharing = %d, mode = %d, vbus_valid = %d\n",__FUNCTION__,info->boost, info->powersharing, mode, vbus_valid);
 	SM5703_FLED_INFO("%s, info->ta_exist = %d, info->chgon_call = %d, info->flash_status = %d\n",__FUNCTION__,info->ta_exist, info->chgon_call, info->flash_status);

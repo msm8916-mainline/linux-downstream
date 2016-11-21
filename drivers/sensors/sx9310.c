@@ -151,8 +151,8 @@ static int check_hallic_state(char *file_path, unsigned char hall_ic_status[])
 		strncpy(hall_ic_status, hall_sysfs, sizeof(hall_sysfs));
 	}
 
-	SENSOR_INFO(" info : iRet(%d), size(%d), hall= %s\n",
-		iRet, (int)sizeof(hall_sysfs), hall_sysfs);
+	/*SENSOR_INFO(" info : iRet(%d), size(%d), hall= %s\n",
+		iRet, (int)sizeof(hall_sysfs), hall_sysfs);*/
 
 	filp_close(filep, current->files);
 	set_fs(old_fs);
