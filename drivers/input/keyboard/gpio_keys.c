@@ -37,6 +37,15 @@ static bool g_bResume = 1;
 static struct wake_lock pwr_key_wake_lock;
 //ASUS BSP Austin_T--- : Fix DoubleClickVolumeKey sometimes can't bring up panel
 
+//ASUS_BSP YuSiang: control volume key be wakeup source or not +++
+#include <uapi/linux/msm_audio_calibration.h>
+struct gpio_keys_drvdata;
+static void gpio_keys_set_key_status(struct device *, struct gpio_keys_drvdata *, int, int);
+int vol_key_wakeup ;
+int phonestate = -1;
+int status_change = 0;
+//ASUS_BSP YuSiang: control volume key be wakeup source or not ---
+
 //freddy +++ for key porting
 static int g_keycheck_abort = 0, g_keystate = 0; //set tag for abort method
 //freddy --- for key porting
@@ -343,7 +352,7 @@ static ssize_t gpio_keys_wakeup_enable(struct device *dev,
 				struct device_attribute *attr, const char *buf,
 						size_t size, int enable_wakeup)
 {
-		int i, ret = -EINVAL;
+		int ret = -EINVAL;
 		long code;
 		struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
 
@@ -353,15 +362,28 @@ static ssize_t gpio_keys_wakeup_enable(struct device *dev,
 			dev_err(dev, "Invalid input.\n");
 			return ret;
 		}
-		for (i = 0; i < ddata->pdata->nbuttons; i++) {
-			struct gpio_button_data *bdata = &ddata->data[i];
-			if ((int)code == bdata->button->code) {
-				bdata->button->wakeup = enable_wakeup;
-				device_init_wakeup(dev, bdata->button->wakeup);
-				break;
-				}
-		}
+
+		printk("[Gpio_keys] set key wakeup status \n");
+		gpio_keys_set_key_status(dev,ddata,(int)code,enable_wakeup);
+
 		return size;
+}
+
+static void gpio_keys_set_key_status(struct device *dev,
+				struct gpio_keys_drvdata *ddata, int code, int enable_wakeup)
+{
+	int i ;
+
+	for (i = 0; i < ddata->pdata->nbuttons; i++) {
+		struct gpio_button_data *bdata = &ddata->data[i];
+		if (code == bdata->button->code) {
+			bdata->button->wakeup = enable_wakeup;
+			vol_key_wakeup = enable_wakeup;
+			printk("[Gpio_keys] keycode: %d, wakeup status: %d \n",code, bdata->button->wakeup);
+			device_init_wakeup(dev, bdata->button->wakeup);
+			break;
+		}
+	}
 }
 
 static ssize_t gpio_keys_store_enabled_wakeup(struct device *dev,
@@ -1001,6 +1023,24 @@ static int gpio_keys_suspend(struct device *dev)
 	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
 	struct input_dev *input = ddata->input;
 	int i, ret;
+
+	//ASUS_BSP YuSiang: control volume key be wakeup source or not +++
+	/* change wakeup status of vol_key when do a voice call & instacamera is off */
+	phonestate= get_phonestate();
+	if( phonestate == 1 && vol_key_wakeup == 0 ){
+		printk("[Gpio_keys] make volume key be wakeup source, phonestate: %d insta_cam: %d\n",phonestate,vol_key_wakeup);
+		gpio_keys_set_key_status(dev,ddata,114,1);
+		gpio_keys_set_key_status(dev,ddata,115,1);
+		status_change = 1 ;
+	}
+	else if( phonestate == 0 && status_change == 1 ){
+		/* resume the wakeup status of vol_key if it changed */
+		printk("[Gpio_keys] resume(disable) volume key wakeup status, phonestate: %d status_change: %d \n",phonestate,status_change);
+		gpio_keys_set_key_status(dev,ddata,114,0);
+		gpio_keys_set_key_status(dev,ddata,115,0);
+		status_change = 0;
+	}
+	//ASUS_BSP YuSiang: control volume key be wakeup source or not ---
 
 	if (ddata->key_pinctrl) {
 		ret = gpio_keys_pinctrl_configure(ddata, false);
