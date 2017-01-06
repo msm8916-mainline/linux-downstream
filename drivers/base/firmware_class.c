@@ -369,7 +369,7 @@ static void __apply_volte_modem_fw_path(void){
         return;
     }
     kernel_read(file, 0, buf, MAX_COUNTRY_CODE_BUF);
-    if(asus_PRJ_ID == ASUS_ZE550KL && !strncmp(asus_project_hd, "1", strlen("1")) && !strncmp(buf, "IN", 2)){
+    if(asus_PRJ_ID == ASUS_ZE550KL && !strncmp(asus_project_hd, "1", strlen("1")) && (!strncmp(buf, "IN", 2) || asus_volte_JIO == 1)){
         country_code_type = COUNTRY_CODE_VOLTE;
          if(cpu_is_msm8916()){
             strcpy(fw_path_para, "/etc/firmware/8916_volte_modem");

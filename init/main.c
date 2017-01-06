@@ -325,6 +325,23 @@ static int get_boot_charger(char *str)
 __setup("androidboot.mode=", get_boot_charger);
 //<ASUS-Lotta_Lu-20150317> Add for charger mode BuleScreen --
 
+int asus_volte_JIO = 0;
+EXPORT_SYMBOL(asus_volte_JIO);
+static int set_volte_JIO(char *str)
+{
+    printk("androidboot.volte = %s\n", str);
+    if(strncmp("JIO", str, 3) == 0)
+    {
+        asus_volte_JIO = 1;
+    } else {
+        asus_volte_JIO = 0;
+    }
+
+    return 0;
+}
+__setup("androidboot.volte=", set_volte_JIO);
+
+
 /*
  * If set, this is an indication to the drivers that reset the underlying
  * device before going ahead with the initialization otherwise driver might

@@ -287,15 +287,17 @@ static void get_speed_bin_b(struct platform_device *pdev, int *bin,
 			pte_efuse = readl_relaxed(base);
 			devm_iounmap(&pdev->dev, base);
 
-			*version = (pte_efuse >> 18) & 0x3;
-			if (!(*version)) {
-				*bin = (pte_efuse >> 23) & 0x3;
-				if (*bin) {
-					dev_info(&pdev->dev, "Speed bin: %d PVS Version: %d\n",
-						      *bin, *version);
-					return;
-				}
-			}
+//			*version = (pte_efuse >> 18) & 0x3;
+//			if (!(*version)) {
+//				*bin = (pte_efuse >> 23) & 0x3;
+//				if (*bin) {
+//					dev_info(&pdev->dev, "Speed bin: %d PVS Version: %d\n",
+//						      *bin, *version);
+//					return;
+//				}
+//			}
+			*version = (pte_efuse >> 23) & 0x3;
+
 		} else {
 			dev_warn(&pdev->dev,
 				"Unable to read efuse1 data. Defaulting to 0!\n");
