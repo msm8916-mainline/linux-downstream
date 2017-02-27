@@ -486,7 +486,7 @@ static ssize_t store_ic_rw(struct i2c_client *client,
 	int temp[2] = {0};
 	u32 ret = 0;
 
-	sscanf(buf, "%s %d %d", string, &temp[0], &temp[1]);
+	sscanf(buf, "%29s %d %d", string, &temp[0], &temp[1]);
 
 	if ((strcmp(string, "write") && strcmp(string, "assign")))
 		return count;
@@ -514,7 +514,7 @@ static ssize_t store_upgrade(struct i2c_client *client,
 	struct lge_touch_data *ts = i2c_get_clientdata(client);
 	char path[256] = {0};
 
-	sscanf(buf, "%s", path);
+	sscanf(buf, "%255s", path);
 
 	memset(ts->fw_info.fw_path, 0x00, sizeof(ts->fw_info.fw_path));
 	memcpy(ts->fw_info.fw_path, path, sizeof(ts->fw_info.fw_path));

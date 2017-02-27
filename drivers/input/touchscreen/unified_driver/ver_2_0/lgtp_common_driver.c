@@ -1181,7 +1181,7 @@ static ssize_t store_upgrade(struct i2c_client *client, const char *buf, size_t 
 	pDriverData->useDefaultFirmware = TOUCH_FALSE;
 
 	memset(pDriverData->fw_image, 0x00, sizeof(pDriverData->fw_image));
-	sscanf(buf, "%s", pDriverData->fw_image);
+	sscanf(buf, "%255s", pDriverData->fw_image);
 
 	queue_delayed_work(touch_wq, &pDriverData->work_upgrade, 0);
 	
@@ -1273,7 +1273,7 @@ static ssize_t store_ic_rw(struct i2c_client *client, const char *buf, size_t co
 	int data = 0;
 	
 
-	sscanf(buf, "%s %d %d", cmd, &reg, &data);
+	sscanf(buf, "%29s %d %d", cmd, &reg, &data);
 
 	if ((strcmp(cmd, "write") && strcmp(cmd, "read"))) {
 		return count;

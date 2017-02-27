@@ -2083,7 +2083,7 @@ static ssize_t store_platform_data(struct i2c_client *client,
 	 * After store, device should be re-initialized.
 	 */
 
-	sscanf(buf, "%s %d", string, &value);
+	sscanf(buf, "%29s %d", string, &value);
 
 	if (!strcmp(string, "protocol_type"))
 		ts->pdata->role->protocol_type = value;
@@ -2192,7 +2192,7 @@ static ssize_t store_power_ctrl(struct i2c_client *client,
 	unsigned char string[30] = {0, };
 	u32 value = 0;
 
-	sscanf(buf, "%s %d", string, &value);
+	sscanf(buf, "%29s %d", string, &value);
 
 	if (!strcmp(string, "reset")) {
 		reset_control(ts, value);
@@ -2256,7 +2256,7 @@ static ssize_t store_ic_rw(struct i2c_client *client,
 	int temp[2] = {0, };
 	u32 ret = 0;
 
-	sscanf(buf, "%s %d %d", string, &temp[0], &temp[1]);
+	sscanf(buf, "%29s %d %d", string, &temp[0], &temp[1]);
 
 	if (atomic_read(&ts->state.power_state) != POWER_ON ||
 			(strcmp(string, "write") && strcmp(string, "assign")))
@@ -2366,7 +2366,7 @@ static ssize_t store_upgrade(struct i2c_client *client,
 	struct lge_touch_data *ts = i2c_get_clientdata(client);
 	char path[256] = {0, };
 
-	sscanf(buf, "%s", path);
+	sscanf(buf, "%255s", path);
 
 	memcpy(ts->fw_info.fw_path, path, sizeof(ts->fw_info.fw_path));
 	ts->fw_info.fw_force_upgrade = 1;

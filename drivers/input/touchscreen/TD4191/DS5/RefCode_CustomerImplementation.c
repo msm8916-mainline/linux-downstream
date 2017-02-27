@@ -79,6 +79,7 @@ int write_file(char *filename, char *data)
 	fd = sys_open(filename, O_WRONLY|O_CREAT|O_APPEND, 0666);
 	if (fd < 0) {
 		TOUCH_INFO_MSG("%s :  Open file error [ %d ]\n", __func__, fd);
+		set_fs(old_fs);
 		return fd;
 	} else {
 		sys_write(fd, data, strlen(data));

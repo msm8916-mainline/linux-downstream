@@ -4344,7 +4344,7 @@ static ssize_t mxt_object_control(struct mxt_data *data, const char *buf, size_t
 	u16 size = 0;
 	u16 addr = 0;
 
-	sscanf(buf, "%s %d %d %d", command, &type, &addr_offset, &value);
+	sscanf(buf, "%5s %d %d %d", command, &type, &addr_offset, &value);
 
 	obuf = kzalloc(256, GFP_KERNEL);
 	if (!obuf)

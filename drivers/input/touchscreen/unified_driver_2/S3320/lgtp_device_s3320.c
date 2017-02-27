@@ -861,7 +861,12 @@ static ssize_t store_reg_ctrl(struct i2c_client *client,
 	int offset = 0;
 	int value = 0;
 
-	sscanf(buf, "%s %d %d %d %d ", command, &page, &reg, &offset, &value);
+	sscanf(buf, "%5s %d %d %d %d ", command, &page, &reg, &offset, &value);
+
+	if ((offset < 0) || (offset > 49)) {
+		TOUCH_ERR("invalid offset[%d]\n", offset);
+		return count;
+	}
 
 	if (!strcmp(command, "write")) {
 		synaptics_ts_page_data_read(client, page,
@@ -952,7 +957,7 @@ static ssize_t store_object_report(struct i2c_client *client,
 	u8 object_report_enable_reg_old;
 	u8 object_report_enable_reg_new;
 
-	sscanf(buf, "%s %hhu", select, &value);
+	sscanf(buf, "%15s %hhu", select, &value);
 
 	if ((strlen(select) > 8) || (value > 1)) {
 		TOUCH_DBG("<writing object_report guide>\n");

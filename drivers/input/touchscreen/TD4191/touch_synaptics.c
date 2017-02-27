@@ -2108,7 +2108,7 @@ static ssize_t store_rawdata(struct i2c_client *client, const char *buf, size_t 
 	int full_raw_upper_ret = 0;
 
 	char rawdata_file_path[64] = {0,};
-	sscanf(buf, "%s", rawdata_file_path);
+	sscanf(buf, "%63s", rawdata_file_path);
 
 	touch_disable_irq(ts->client->irq);
 
@@ -2417,7 +2417,12 @@ static ssize_t store_reg_ctrl(struct i2c_client *client,
 	int offset = 0;
 	u32 value = 0;
 
-	sscanf(buf, "%s %x %x %d %x ", command, &page, &reg, &offset, &value);
+	sscanf(buf, "%5s %x %x %d %x ", command, &page, &reg, &offset, &value);
+
+	if ((offset < 0) || (offset > 49)) {
+		TOUCH_ERR_MSG("invalid offset[%d]\n", offset);
+		return count;
+	}
 
 	if (!strcmp(command, "write")) {
 		synaptics_ts_page_data_read(client, page, reg,
@@ -2499,7 +2504,7 @@ static ssize_t store_object_report(struct i2c_client *client,
 	u8 old[8];
 	u8 new[8];
 
-	sscanf(buf, "%s %hhu", select, &value);
+	sscanf(buf, "%15s %hhu", select, &value);
 
 	if ((strlen(select) > 8) || (value > 1)) {
 		TOUCH_INFO_MSG("<writing object_report guide>\n");

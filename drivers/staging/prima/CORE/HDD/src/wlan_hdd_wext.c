@@ -1968,8 +1968,9 @@ static int __iw_set_genie(struct net_device *dev,
     u_int8_t *genie = NULL;
     u_int8_t *base_genie = NULL;
     v_U16_t remLen;
+    int ret = 0;
 
-   ENTER();
+    ENTER();
 
     if ((WLAN_HDD_GET_CTX(pAdapter))->isLogpInProgress) {
         VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
@@ -2017,8 +2018,8 @@ static int __iw_set_genie(struct net_device *dev,
             case IE_EID_VENDOR:
                 if ((IE_LEN_SIZE+IE_EID_SIZE+IE_VENDOR_OUI_SIZE) > eLen) /* should have at least OUI */
                 {
-                    kfree(base_genie);
-                    return -EINVAL;
+                    ret = -EINVAL;
+                    goto exit;
                 }
 
                 if (0 == memcmp(&genie[0], "\x00\x50\xf2\x04", 4))
@@ -2032,8 +2033,8 @@ static int __iw_set_genie(struct net_device *dev,
                        hddLog(VOS_TRACE_LEVEL_FATAL, "Cannot accommodate genIE. "
                                                       "Need bigger buffer space");
                        VOS_ASSERT(0);
-                       kfree(base_genie);
-                       return -ENOMEM;
+                       ret = -EINVAL;
+                       goto exit;
                     }
                     // save to Additional IE ; it should be accumulated to handle WPS IE + other IE
                     memcpy( pWextState->genIE.addIEdata + curGenIELen, genie - 2, eLen + 2);
@@ -2042,6 +2043,14 @@ static int __iw_set_genie(struct net_device *dev,
                 else if (0 == memcmp(&genie[0], "\x00\x50\xf2", 3))
                 {
                     hddLog (VOS_TRACE_LEVEL_INFO, "%s Set WPA IE (len %d)",__func__, eLen + 2);
+                    if ((eLen + 2) > (sizeof(pWextState->WPARSNIE)))
+                    {
+                       hddLog(VOS_TRACE_LEVEL_FATAL, "Cannot accommodate genIE. "
+                                                      "Need bigger buffer space");
+                       ret = -EINVAL;
+                       VOS_ASSERT(0);
+                       goto exit;
+                    }
                     memset( pWextState->WPARSNIE, 0, MAX_WPA_RSN_IE_LEN );
                     memcpy( pWextState->WPARSNIE, genie - 2, (eLen + 2));
                     pWextState->roamProfile.pWPAReqIE = pWextState->WPARSNIE;
@@ -2058,8 +2067,8 @@ static int __iw_set_genie(struct net_device *dev,
                        hddLog(VOS_TRACE_LEVEL_FATAL, "Cannot accommodate genIE. "
                                                       "Need bigger buffer space");
                        VOS_ASSERT(0);
-                       kfree(base_genie);
-                       return -ENOMEM;
+                       ret = -EINVAL;
+                       goto exit;
                     }
                     // save to Additional IE ; it should be accumulated to handle WPS IE + other IE
                     memcpy( pWextState->genIE.addIEdata + curGenIELen, genie - 2, eLen + 2);
@@ -2076,15 +2085,15 @@ static int __iw_set_genie(struct net_device *dev,
 
          default:
                 hddLog (LOGE, "%s Set UNKNOWN IE %X",__func__, elementId);
-            kfree(base_genie);
-            return 0;
+                goto exit;
     }
         genie += eLen;
         remLen -= eLen;
     }
+exit:
     EXIT();
     kfree(base_genie);
-    return 0;
+    return ret;
 }
 
 static int iw_set_genie(struct net_device *dev,
@@ -3021,57 +3030,7 @@ static int iw_get_linkspeed_priv(struct net_device *dev,
 
    return ret;
 }
-   hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
-   char *cmd = extra;
-   int len = wrqu->data.length;
-   v_S7_t s7Rssi = 0;
-   hdd_station_ctx_t *pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
-   int ssidlen = pHddStaCtx->conn_info.SSID.SSID.length;
-   VOS_STATUS vosStatus;
-   int rc;
 
-   if ((eConnectionState_Associated != pHddStaCtx->conn_info.connState) ||
-       (0 == ssidlen) || (ssidlen >= len))
-   {
-      /* we are not connected or our SSID is too long
-         so we cannot report an rssi */
-      rc = scnprintf(cmd, len, "OK");
-   }
-   else
-   {
-      /* we are connected with a valid SSID
-         so we can write the SSID into the return buffer
-         (note that it is not NUL-terminated) */
-      memcpy(cmd, pHddStaCtx->conn_info.SSID.SSID.ssId, ssidlen );
-
-      vosStatus = wlan_hdd_get_rssi(pAdapter, &s7Rssi);
-
-      if (VOS_STATUS_SUCCESS == vosStatus)
-      {
-          /* append the rssi to the ssid in the format required by
-             the WiFI Framework */
-          rc = scnprintf(&cmd[ssidlen], len - ssidlen, " rssi %d", s7Rssi);
-          rc += ssidlen;
-      }
-      else
-      {
-          rc = -1;
-      }
-   }
-
-   /* verify that we wrote a valid response */
-   if ((rc < 0) || (rc >= len))
-   {
-      // encoding or length error?
-      hddLog(VOS_TRACE_LEVEL_ERROR,
-             "%s: Unable to encode RSSI, got [%s]",
-             __func__, cmd);
-      return -EIO;
-   }
-
-   /* a value is being successfully returned */
-   return rc;
-}
 
 /*
  * Support for SoftAP channel range private command
@@ -3279,6 +3238,7 @@ void* wlan_hdd_change_country_code_callback(void *pAdapter)
 
     return NULL;
 }
+
 
 static int iw_set_nick(struct net_device *dev,
                        struct iw_request_info *info,
@@ -6580,6 +6540,11 @@ int wlan_hdd_set_filter(hdd_context_t *pHddCtx, tpPacketFilterCfg pRequest,
                     (pRequest->paramsData[i].dataLength))
                     return -EINVAL;
 
+                if ((sizeof(packetFilterSetReq.paramsData[i].compareData)) < (pRequest->paramsData[i].dataLength))
+                {
+                    return -EINVAL;
+                }
+
                 memcpy(&packetFilterSetReq.paramsData[i].compareData,
                         pRequest->paramsData[i].compareData, pRequest->paramsData[i].dataLength);
                 memcpy(&packetFilterSetReq.paramsData[i].dataMask,
@@ -7982,7 +7947,7 @@ int iw_set_tdlssecoffchanneloffset(hdd_context_t *pHddCtx, int offchanoffset)
 {
     if (offchanoffset ==  0)
     {
-       tdlsOffChBwOffset = 0;
+       tdlsOffChBwOffset = 1;
        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "%s: change tdls secondary off channel offset to %u",
                  __func__, tdlsOffChBwOffset);
 
@@ -7992,7 +7957,7 @@ int iw_set_tdlssecoffchanneloffset(hdd_context_t *pHddCtx, int offchanoffset)
 
     if ( offchanoffset == 40 )
     {
-       tdlsOffChBwOffset = 1;
+       tdlsOffChBwOffset = 2;
        VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "%s: change tdls secondary off channel offset to %u",
                  __func__, tdlsOffChBwOffset);
 
@@ -8039,7 +8004,7 @@ int iw_set_tdlsoffchannelmode(hdd_adapter_t *pAdapter, int offchanmode)
         eTDLS_SUPPORT_EXPLICIT_TRIGGER_ONLY == pHddCtx->tdls_mode)
     {
        /* Send TDLS Channel Switch Request to connected peer */
-       connPeer = wlan_hdd_tdls_get_first_connected_peer(pAdapter);
+       connPeer = wlan_hdd_tdls_get_connected_peer(pAdapter);
        if (NULL == connPeer) {
            VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
                      "%s: No TDLS Connected Peer", __func__);
@@ -8130,7 +8095,7 @@ static const iw_handler      we_handler[] =
    (iw_handler) NULL,              /* SIOCGIWSENS */
    (iw_handler) NULL,             /* SIOCSIWRANGE */
    (iw_handler) iw_get_range,      /* SIOCGIWRANGE */
-   (iw_handler) NULL,              /* SIOCSIWPRIV */
+   (iw_handler) NULL,       /* SIOCSIWPRIV */
    (iw_handler) NULL,             /* SIOCGIWPRIV */
    (iw_handler) NULL,             /* SIOCSIWSTATS */
    (iw_handler) NULL,             /* SIOCGIWSTATS */

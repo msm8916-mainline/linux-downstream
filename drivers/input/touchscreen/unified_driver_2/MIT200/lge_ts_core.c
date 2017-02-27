@@ -2567,7 +2567,7 @@ static ssize_t fw_upgrade_store(struct lge_touch_data *ts, const char *buf, size
 
 	ts->fw_info.eraseonly = 0;
 
-	if (sscanf(buf, "%s", cmd) != 1)
+	if (sscanf(buf, "%127s", cmd) != 1)
 		return -EINVAL;
 
 	if (!strncmp(cmd, "erase", 5)) {
@@ -2739,7 +2739,7 @@ static ssize_t openshort_store(struct lge_touch_data *ts, const char *buf, size_
 	int value = 0;
 	char cmd[NAME_BUFFER_SIZE] = {0};
 	if (ts->pdata->panel_on == POWER_ON || ts->pdata->panel_on == POWER_WAKE) {
-		if (sscanf(buf, "%s", cmd) != 1)
+		if (sscanf(buf, "%127s", cmd) != 1)
 			return -EINVAL;
 
 		value = ts->pdata->check_openshort;
@@ -2774,7 +2774,7 @@ static ssize_t rawdata_store(struct lge_touch_data *ts, const char *buf, size_t 
 	int ret = 0;
 	char cmd[NAME_BUFFER_SIZE] = {0};
 	if (ts->pdata->panel_on == POWER_ON || ts->pdata->panel_on == POWER_WAKE || ts->pdata->lpwg_debug_enable != 0) {
-		if (sscanf(buf, "%s", cmd) != 1)
+		if (sscanf(buf, "%127s", cmd) != 1)
 			return -EINVAL;
 
 		ret = touch_drv->sysfs(ts->client, 0, buf, SYSFS_RAWDATA_STORE);

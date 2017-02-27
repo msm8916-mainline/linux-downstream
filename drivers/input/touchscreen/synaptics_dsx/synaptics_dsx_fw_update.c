@@ -16,6 +16,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
+#include <linux/ctype.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -622,7 +623,6 @@ static enum flash_area fwu_go_nogo(struct image_header_data *header)
 {
 	int retval;
 	enum flash_area flash_area = NONE;
-	unsigned char index = 0;
 	unsigned char config_id[4];
 	unsigned int device_config_id;
 	unsigned int image_config_id;
@@ -653,6 +653,8 @@ static enum flash_area fwu_go_nogo(struct image_header_data *header)
 	if (header->contains_firmware_id) {
 		image_fw_id = header->firmware_id;
 	} else {
+		size_t index, max_index;
+
 		strptr = strstr(fwu->image_name, "PR");
 		if (!strptr) {
 			dev_err(rmi4_data->pdev->dev.parent,
@@ -662,8 +664,11 @@ static enum flash_area fwu_go_nogo(struct image_header_data *header)
 			flash_area = NONE;
 			goto exit;
 		}
-
 		strptr += 2;
+		max_index = min((ptrdiff_t)(MAX_FIRMWARE_ID_LEN - 1),
+				&fwu->image_name[NAME_BUFFER_SIZE] - strptr);
+		index = 0;
+
 		firmware_id = kzalloc(MAX_FIRMWARE_ID_LEN, GFP_KERNEL);
 		if (!firmware_id) {
 			dev_err(rmi4_data->pdev->dev.parent,
@@ -673,7 +678,7 @@ static enum flash_area fwu_go_nogo(struct image_header_data *header)
 			goto exit;
 		}
 
-		while (strptr[index] >= '0' && strptr[index] <= '9') {
+		while (index < max_index && isdigit(strptr[index])) {
 			firmware_id[index] = strptr[index];
 			index++;
 		}
@@ -1752,7 +1757,7 @@ static ssize_t fwu_sysfs_image_name_show(struct device *dev,
 static ssize_t fwu_sysfs_image_name_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	if (sscanf(buf, "%s", fwu->image_name) != 1)
+	if (sscanf(buf, "%49s", fwu->image_name) != 1)
 		return -EINVAL;
 
 	return count;
