@@ -228,8 +228,8 @@ static void rt5033_enable_charger_switch(struct rt5033_charger_data *charger,
 #endif /* CONFIG_FLED_RT5033 */
 		rt5033_clr_bits(iic, RT5033_CHG_CTRL1, RT5033_HZ_MASK);
 		rt5033_set_bits(iic, RT5033_CHG_CTRL3, RT5033_COF_EN_MASK);
-		/* Disable Timer function (Charging timeout fault) */
-		// rt5033_clr_bits(iic, RT5033_CHG_CTRL3, RT5033_TIMEREN_MASK);
+		/* enable Timer function (FC 8h) */
+		rt5033_assign_bits(charger->rt5033->i2c_client, RT5033_CHG_CTRL3, RT5033_TIMEREN_MASK|RT5033_FCTIMER_MASK, 0x11);
 
 		/* Reset EOC loop, and make it re-detect */
 		charger->eoc_cnt = 0;
@@ -246,6 +246,8 @@ static void rt5033_enable_charger_switch(struct rt5033_charger_data *charger,
 		charger->eoc_cnt = 0;
 		/* Disable EOC */
 		rt5033_clr_bits(iic, RT5033_CHG_CTRL4, RT5033_IEOC_MASK);
+		/* Disable Timer function (Charging timeout fault) */
+		rt5033_clr_bits(iic, RT5033_CHG_CTRL3, RT5033_TIMEREN_MASK);
 #ifdef CONFIG_FLED_RT5033
 		if (charger->fled_info == NULL)
 			charger->fled_info = rt_fled_get_info_by_name(NULL);
@@ -668,9 +670,9 @@ static bool rt5033_chg_init(struct rt5033_charger_data *charger)
 	rt5033_mfd_chip_t *chip = i2c_get_clientdata(charger->rt5033->i2c_client);
 	chip->charger = charger;
 	rt5033_chg_fled_init(charger->rt5033->i2c_client);
-    /* Enable Timer function Charging timeout fault (FC Timer : Default value 8 Hours) */
-    rt5033_assign_bits(charger->rt5033->i2c_client,
-                    RT5033_CHG_CTRL3, RT5033_TIMEREN_MASK | RT5033_FCTIMER_MASK, 0x11);
+    /* Disable Timer function (Charging timeout fault) */
+    rt5033_clr_bits(charger->rt5033->i2c_client,
+                    RT5033_CHG_CTRL3, RT5033_TIMEREN_MASK);
     /* Disable TE */
     rt5033_enable_charging_termination(charger->rt5033->i2c_client, 0);
 
