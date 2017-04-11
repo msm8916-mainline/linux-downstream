@@ -726,12 +726,13 @@ irqreturn_t proximity_irq_thread_fn(int irq, void *user_data)
 #endif
 
 	if (enabled) {
-		/* 0 is close, 1 is far */
-		input_report_abs(data->proximity_input_dev, ABS_DISTANCE,
-			val);
-		input_sync(data->proximity_input_dev);
+		if (((!val) && (ps_data >= ps_reg_init_setting[PS_THD_HIGH][CMD] )) ||
+			(val && (ps_data <= ps_reg_init_setting[PS_THD_LOW][CMD]))) {
+				/* 0 is close, 1 is far */
+				input_report_abs(data->proximity_input_dev, ABS_DISTANCE, val);
+				input_sync(data->proximity_input_dev);
+		}
 	}
-
 	wake_lock_timeout(&data->prx_wake_lock, 3 * HZ);
 
 	SENSOR_INFO("val = %u, ps_data = %u (close:0, far:1)\n", val, ps_data);

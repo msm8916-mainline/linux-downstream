@@ -328,7 +328,6 @@ static int k2hh_set_range(struct k2hh_p *data, unsigned char range)
 
 	buf = (mask & new_range) | ((~mask) & temp);
 	ret += k2hh_i2c_write(data, CTRL4_REG, buf);
-	SENSOR_INFO("0x%x\n", new_range);
 
 	return ret;
 }
@@ -360,7 +359,6 @@ static int k2hh_set_odr(struct k2hh_p *data)
 
 	data->odr = new_odr;
 
-	SENSOR_INFO("change odr %d\n", i);
 	return ret;
 }
 
@@ -466,7 +464,6 @@ static int k2hh_set_mode(struct k2hh_p *data, unsigned char mode)
 		break;
 	}
 	mutex_unlock(&data->mode_mutex);
-	SENSOR_INFO("change mode %u\n", mode);
 
 	return ret;
 }

@@ -73,6 +73,11 @@ static ssize_t sec_cmd_store(struct device *dev,
 		return -EINVAL;
 	}
 
+	if (strlen(buf) >= SEC_CMD_STR_LEN) {
+		pr_err("%s: cmd length is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+		return -EINVAL;
+	}
+
 	if (data->cmd_is_running == true) {
 		pr_err("%s: other cmd is running.\n", __func__);
 		return -EBUSY;
@@ -133,7 +138,7 @@ static ssize_t sec_cmd_store(struct device *dev,
 				param_cnt++;
 			}
 			cur++;
-		} while (cur - buf <= len);
+		} while ((cur - buf <= len) && (param_cnt < SEC_CMD_PARAM_NUM));
 	}
 
 	pr_info("%s: cmd = %s", __func__, sec_cmd_ptr->cmd_name);
@@ -235,7 +240,7 @@ static void sec_cmd_store_function(struct sec_cmd_data *data)
 				param_cnt++;
 			}
 			cur++;
-		} while (cur - buf <= len);
+		} while ((cur - buf <= len) && (param_cnt < SEC_CMD_PARAM_NUM));
 	}
 
 	pr_info("%s: cmd = %s", __func__, sec_cmd_ptr->cmd_name);
@@ -258,6 +263,11 @@ static ssize_t sec_cmd_store(struct device *dev, struct device_attribute *devatt
 
 	if (!data) {
 		pr_err("%s: No platform data found\n", __func__);
+		return -EINVAL;
+	}
+
+	if (strlen(buf) >= SEC_CMD_STR_LEN) {
+		pr_err("%s: cmd length is over (%s,%d)!!\n", __func__, buf, (int)strlen(buf));
 		return -EINVAL;
 	}
 

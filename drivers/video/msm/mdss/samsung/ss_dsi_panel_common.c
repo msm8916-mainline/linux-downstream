@@ -4857,7 +4857,7 @@ void mdss_mdp_underrun_dump_info(void)
 				pipe->dst.x, pipe->dst.y, pipe->dst.w, pipe->dst.h,
 				pipe->flags, pipe->src_fmt->format, pipe->src_fmt->bpp,
 				pipe->ndx);
-		pr_err("pipe addr : %p\n", pipe);
+		pr_err("pipe addr : %pK\n", pipe);
 		pcount--;
 		if (!pcount) break;
 	}
@@ -4887,7 +4887,7 @@ void mdss_samsung_fence_dump(struct sync_fence *fence)
 		tv = ktime_to_timeval(pt->timestamp);
 		status = pt->status;
 
-		pr_err("%s %s%spt %s : %ld.%06ld\n", __func__,
+		pr_err("%s %s%pst %s : %ld.%06ld\n", __func__,
 		   fence ? pt->parent->name : "",
 		   fence ? "_" : "",
 		   status > 0 ? "signaled" : pt->status == 0 ? "active" : "error",

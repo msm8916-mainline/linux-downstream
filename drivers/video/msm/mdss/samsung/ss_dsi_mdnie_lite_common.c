@@ -103,7 +103,7 @@ void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd,
 
 				mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
 			} else
-				DPRINT("DUAL Command Tx Fail,  tune_data_dsi0=%p, tune_data_dsi1=%p,vdd=%p, mdnie_tune_state=%p \n",
+				DPRINT("DUAL Command Tx Fail,  tune_data_dsi0=%pK, tune_data_dsi1=%pK,vdd=%pK, mdnie_tune_state=%pK \n",
 					tune_data_dsi0, tune_data_dsi0, vdd, mdnie_tune_state);
 		} else {
 			if (tune_data_dsi0 && tune_data_dsi1 && mdnie_tune_state) {
@@ -114,10 +114,10 @@ void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd,
 				vdd->mdnie_tune_data[1].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi1_bypass_mdnie_size;
 
 				/* TODO: Tx command */
-				DPRINT("DUAL Command Tx Fail(TODO  DUAL PANEL),  tune_data_dsi0=%p, tune_data_dsi1=%p,vdd=%p, mdnie_tune_state=%p \n",
+				DPRINT("DUAL Command Tx Fail(TODO  DUAL PANEL),  tune_data_dsi0=%pK, tune_data_dsi1=%pK,vdd=%pK, mdnie_tune_state=%pK \n",
 					tune_data_dsi0, tune_data_dsi0, vdd, mdnie_tune_state);
 			} else
-				DPRINT("DUAL Command Tx Fail,  tune_data_dsi0=%p, tune_data_dsi1=%p,vdd=%p, mdnie_tune_state=%p \n",
+				DPRINT("DUAL Command Tx Fail,  tune_data_dsi0=%pK, tune_data_dsi1=%pK,vdd=%pK, mdnie_tune_state=%pK \n",
 					tune_data_dsi0, tune_data_dsi0, vdd, mdnie_tune_state);
 		}
 	} else {
@@ -136,7 +136,7 @@ void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd,
 				mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
 			}
 		} else
-			DPRINT("SINGLE Command Tx Fail,  tune_data_dsi0=%p, vdd=%p, mdnie_tune_state=%p \n", tune_data_dsi0, vdd, mdnie_tune_state);
+			DPRINT("SINGLE Command Tx Fail,  tune_data_dsi0=%pK, vdd=%pK, mdnie_tune_state=%pK \n", tune_data_dsi0, vdd, mdnie_tune_state);
 	}
 }
 

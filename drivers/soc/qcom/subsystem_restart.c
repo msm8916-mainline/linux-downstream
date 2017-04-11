@@ -923,6 +923,10 @@ int subsystem_restart_dev(struct subsys_device *dev)
 	else
 		dev->restart_level = RESET_SOC;
 #endif
+	if (!strcmp(name, "wcnss"))
+	{
+		dev->restart_level = RESET_SUBSYS_COUPLED;
+	}
 
 	/*
 	 * If a system reboot/shutdown is underway, ignore subsystem errors.
