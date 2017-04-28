@@ -3339,6 +3339,9 @@ static void sdhci_set_default_hw_caps(struct sdhci_msm_host *msm_host,
 	writel_relaxed(caps, host->ioaddr + CORE_VENDOR_SPEC_CAPABILITIES0);
 }
 
+//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status +++
+extern void create_emmc_health_proc_file(void);  
+//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status ---
 static int sdhci_msm_probe(struct platform_device *pdev)
 {
 	struct sdhci_host *host;
@@ -3718,6 +3721,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		if (ret)
 			goto remove_max_bus_bw_file;
 	}
+	//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status +++
+	if (!strcmp("mmc0",mmc_hostname(host->mmc))) {
+		create_emmc_health_proc_file();
+	}
+	//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status ---
 	ret = pm_runtime_set_active(&pdev->dev);
 	if (ret)
 		pr_err("%s: %s: pm_runtime_set_active failed: err: %d\n",

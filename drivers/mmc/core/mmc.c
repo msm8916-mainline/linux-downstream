@@ -19,12 +19,14 @@
 #include <linux/mmc/mmc.h>
 #include <linux/pm_runtime.h>
 #include <linux/reboot.h>
+#include <linux/proc_fs.h>
 
 #include "core.h"
 #include "bus.h"
 #include "mmc_ops.h"
 #include "sd_ops.h"
 
+static u8  storage_primary_health;
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -616,6 +618,9 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		card->ext_csd.health[0] = ext_csd[EXT_CSD_HEALTH + 0];
 		card->ext_csd.health[1] = ext_csd[EXT_CSD_HEALTH + 1];
 		card->ext_csd.health[2] = ext_csd[EXT_CSD_HEALTH + 2];
+		//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status +++
+		storage_primary_health = ext_csd[EXT_CSD_HEALTH];
+		//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status ---
 	}else{
 		card->ext_csd.health[0] = -1;
 		card->ext_csd.health[1] = -1;
@@ -2119,3 +2124,32 @@ err:
 
 	return err;
 }
+//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status +++
+static int emmc_health_proc_read(struct seq_file *buf, void *v)
+{
+
+	return seq_printf(buf, "0x%02x", storage_primary_health);
+}
+
+static int emmc_health_proc_open(struct inode *inode, struct  file *file)
+{
+    return single_open(file, emmc_health_proc_read, NULL);
+}
+
+void create_emmc_health_proc_file(void)
+{
+	static const struct file_operations proc_fops = {
+		.owner = THIS_MODULE,
+		.open =  emmc_health_proc_open,
+		.read = seq_read,
+	};
+	struct proc_dir_entry *proc_file = proc_create("storage_primary_health", 0444, NULL, &proc_fops);
+
+	if (!proc_file) {
+		printk("[eMMC]%s failed!\n", __FUNCTION__);
+	}
+	return;
+}
+EXPORT_SYMBOL(create_emmc_health_proc_file);
+//ASUS_BSP Hank2_Liu 20161202 : Add proc file node to read emmc health status ---
+
