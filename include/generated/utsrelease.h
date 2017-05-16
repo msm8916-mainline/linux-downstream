@@ -1,1 +1,1 @@
-#define UTS_RELEASE "3.10.49"
+#define UTS_RELEASE "3.10.49-gd3155c0"

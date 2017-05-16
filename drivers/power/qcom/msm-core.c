@@ -399,12 +399,15 @@ static long msm_core_ioctl(struct file *file, unsigned int cmd,
 	struct cpu_activity_info *node = NULL;
 	struct sched_params __user *argp = (struct sched_params __user *)arg;
 	int i, cpu = num_possible_cpus();
-	int mpidr = (argp->cluster << (MAX_CORES_PER_CLUSTER *
-			MAX_NUM_OF_CLUSTERS));
-	int cpumask = argp->cpumask;
+	int mpidr, cluster, cpumask;
 
 	if (!argp)
 		return -EINVAL;
+
+	get_user(cluster, &argp->cluster);
+	mpidr = (cluster << (MAX_CORES_PER_CLUSTER *
+			MAX_NUM_OF_CLUSTERS));
+	get_user(cpumask, &argp->cpumask);
 
 	switch (cmd) {
 	case EA_LEAKAGE:
@@ -413,13 +416,9 @@ static long msm_core_ioctl(struct file *file, unsigned int cmd,
 			pr_err("Userspace power update failed with %ld\n", ret);
 		break;
 	case EA_VOLT:
-		for (i = 0; i < MAX_CORES_PER_CLUSTER; i++, cpumask >>= 1) {
-			if (!(cpumask & 0x01))
-				continue;
-
-			mpidr |= i;
+		for (i = 0; cpumask > 0; i++, cpumask >>= 1) {
 			for_each_possible_cpu(cpu) {
-				if (cpu_logical_map(cpu) == mpidr)
+				if (cpu_logical_map(cpu) == (mpidr | i))
 					break;
 			}
 		}
