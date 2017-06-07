@@ -1,0 +1,34 @@
+/*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../msm8916-lge-common/msm8916-g4stylus-camera.dtsi"
+
+&s5k3l2_eeprom {
+	status = "disabled";
+};
+
+&s5k3l2 {
+	status = "disabled";
+};
+
+&ov5670 {
+	status = "ok";
+	revision = "...rev_a";
+	qcom,gpio-maker-id = <&msm_gpio 46 0x0>;
+};
+
+&ov5670 {
+	status = "ok";
+	revision = "rev_b...";
+	qcom,gpio-maker-id = <&msm_gpio 32 0x0>;
+};

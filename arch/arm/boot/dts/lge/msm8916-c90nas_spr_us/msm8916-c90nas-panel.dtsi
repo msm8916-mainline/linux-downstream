@@ -1,0 +1,211 @@
+/* Copyright (c) 2013, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../msm8916-lge-common/dsi-panel-jdi-hd-video.dtsi"
+
+&mdss_mdp {
+       qcom,mdss-pref-prim-intf = "dsi";
+       qcom,mdss-ab-factor = <1 1>;
+       qcom,mdss-ib-factor = <2 1>;
+};
+
+&dsi_jdi_r69338_vid {
+	   qcom,mdss-dsi-on-command = [
+		   39 01 00 00 00 00 02
+		   51 FF
+
+		   39 01 00 00 00 00 02
+		   53 0C			//BCTRL Off (2c => 0c)
+
+		   39 01 00 00 00 00 02
+		   55 00			//SRE Off (40 => 00)
+
+		   29 01 00 00 00 00 02
+		   B0 04
+
+		   29 01 00 00 00 00 08
+		   B3 14 1A 00 00 00 00
+		   00
+
+		   29 01 00 00 00 00 02
+		   B4 0C
+
+		   29 01 00 00 00 00 03
+		   B6 3A B3
+
+		   29 01 00 00 00 00 2D
+		   C1 84 61 10 52 4A 59
+		   94 20 03 1C D9 D8 82
+		   CF B9 07 17 6B D1 80
+		   41 82 94 52 4A 09 10
+		   10 10 10 A0 40 42 20
+		   12 10 22 00 15 00 01
+		   00 00 00
+
+		   29 01 00 00 00 00 0A
+		   C2 31 F5 00 00 04 00
+		   08 00 00
+
+		   29 01 00 00 00 00 10
+		   C4 70 00 00 00 00 22
+		   00 00 00 00 06 16 16
+		   16 01
+
+		   29 01 00 00 00 00 15
+		   C6 54 10 10 04 49 01
+		   01 01 01 01 01 45 0D
+		   01 01 01 01 06 13 03
+
+		   29 01 00 00 00 00 0D
+		   CB F0 F7 FF 3F 30 00
+		   00 00 00 00 3C CF
+
+		   29 01 00 00 00 00 02
+		   CC 0D
+
+		   29 01 00 00 00 00 06
+		   D0 10 91 BB 12 8E
+
+		   29 01 00 00 00 00 06
+		   D1 25 00 19 61 06
+
+		   29 01 00 00 00 00 1C
+		   D3 0B 37 9F BD B7 33
+		   33 17 00 01 00 A0 D8
+		   A0 0D 23 23 33 3B F7
+		   72 07 3D BF 99 21 FA
+
+		   29 01 00 00 00 00 0C
+		   D5 06 00 00 01 28 01
+		   28 00 00 00 00
+
+		   29 01 00 00 00 00 0D
+		   D9 8A 23 AA AA 0A E4
+		   00 06 07 00 00 00
+
+		   29 01 00 00 00 00 31
+		   EC 29 00 2C 2B 01 00
+		   00 00 00 00 00 00 00
+		   00 00 00 07 09 00 11
+		   0F 00 00 00 00 50 06
+		   00 00 00 00 05 FC 00
+		   00 00 03 40 02 13 02
+		   02 01 00 00 00 00 00
+
+		   29 01 00 00 00 00 20
+		   ED 3B 02 02 03 21 11
+		   00 93 00 00 00 00 00
+		   03 1E 21 00 DF 00 DD
+		   06 F3 3F 00 00 15 00
+		   00 00 00 00
+
+		   29 01 00 00 00 00 20
+		   EE 1D 02 02 03 00 10
+		   00 02 00 00 00 00 00
+		   03 00 00 01 C5 01 C4
+		   0E 28 23 00 00 2A 00
+		   00 00 00 00
+
+		   29 01 00 00 00 00 3F
+		   EF 3B 02 02 03 21 11
+		   00 93 00 00 00 00 00
+		   03 1E 21 00 DF 00 DD
+		   06 F3 3F 00 00 15 00
+		   00 00 00 00 3B 02 02
+		   03 21 11 00 93 00 F0
+		   00 00 54 00 03 1E 21
+		   00 DF 00 DD 06 F3 3F
+		   00 15 00 00 00 00 00
+
+		   29 01 00 00 00 00 1F /* gamma setting 1 */
+		   C7 00 0A 16 20 2C 39
+		   43 52 36 3E 4B 58 5A
+		   5F 67 00 0A 16 20 2C
+		   39 43 52 36 3E 4B 58
+		   5A 5F 67
+
+		   29 01 00 00 00 00 14 /* gamma setting 2 */
+		   C8 00 00 00 00 00 FC
+		   00 00 00 00 00 FC 00
+		   00 00 00 00 FC 00
+
+		   29 01 00 00 00 00 21 /* Color Enhancement */
+		   CA 01 70 9A 95 A2 98
+		   95 8F 3F 3F 80 80 08
+		   80 08 3F 08 90 0C 0C
+		   0A 06 04 04 00 C8 10
+		   10 3F 3F 3F 3F
+
+		   29 01 00 00 00 00 02
+		   D6 01
+
+		   15 01 00 00 00 00 02
+		   36 00
+
+		   05 01 00 00 00 00 01
+		   29
+
+		   05 01 00 00 78 00 01
+		   11
+
+		   ];
+
+	   qcom,mdss-dsi-off-command = [
+		   05 01 00 00 14 00 01
+		   28
+		   05 01 00 00 50 00 01
+		   10
+		   ];
+	   qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+
+	   qcom,mdss-dsi-h-front-porch = <128>;
+	   qcom,mdss-dsi-h-back-porch = <44>;
+	   qcom,mdss-dsi-h-pulse-width = <4>;
+	   qcom,mdss-dsi-h-sync-skew = <0>;
+	   qcom,mdss-dsi-v-back-porch = <3>;
+	   qcom,mdss-dsi-v-front-porch = <6>;
+	   qcom,mdss-dsi-v-pulse-width = <1>;
+	   qcom,mdss-dsi-panel-timings = [7B 1A 10 00 3E 40 16 1C 15 03 04 00];
+	   qcom,mdss-dsi-t-clk-post = <0x04>;
+	   qcom,mdss-dsi-t-clk-pre = <0x1A>;
+	   qcom,mdss-dsi-bl-max-level = <127>;
+	   qcom,mdss-pan-physical-width-dimension = <62>;
+	   qcom,mdss-pan-physical-height-dimension = <110>;
+};
+
+&pmx_mdss {
+       qcom,num-grp-pins = <1>;
+       qcom,pins = <&gp 25>;
+};
+
+&mdss_dsi0 {
+       qcom,dsi-pref-prim-pan = <&dsi_jdi_r69338_vid>;
+       pinctrl-names = "mdss_default", "mdss_sleep";
+       pinctrl-0 = <&mdss_dsi_active>;
+       pinctrl-1 = <&mdss_dsi_suspend>;
+
+	   qcom,platform-dsv_p_en-gpio = <&msm_gpio 110 0>;
+	   qcom,platform-dsv_n_en-gpio = <&msm_gpio 111 0>;
+	   qcom,platform-vdd_en-gpio = <&msm_gpio 34 0>;
+
+       qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+       qcom,regulator-ldo-mode;
+};
+
+&i2c_4 {
+	dw8768@3e {
+		compatible = "dw,dsv-dw8768";
+		status = "ok";
+		reg = <0x3e>;
+	};
+};
+

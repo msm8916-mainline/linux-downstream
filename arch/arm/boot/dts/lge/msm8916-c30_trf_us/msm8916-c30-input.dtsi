@@ -1,0 +1,55 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_5 {
+	lu202x@0e {
+		compatible = "unified_driver,ver2";
+		reg = <0x0e>;
+		status = "ok";
+		revision = "rev_a...";
+
+		lu202x,fw_name = "leadingUI/Y30_LU2020_08_04.img";
+
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend";		/*Touch GPIO pin name setting*/
+		pinctrl-0 = <&ts_int_active &ts_reset_active &ts_gpio_ldo_enable_active>;	/*Touch GPIO pin active setting*/
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_gpio_ldo_enable_suspend>;	/*Touch GPIO pin suspend setting*/
+	};
+};
+
+&soc {
+		/* Not use lge-common keys */
+	gpio_keys {
+		status = "ok";
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
+		pinctrl-0 = <&gpio_key_active>;
+		pinctrl-1 = <&gpio_key_suspend>;
+		vol_up {
+			label = "volume_up";
+			gpios = <&msm_gpio 107 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+
+		vol_down {
+			label = "volume_down";
+			gpios = <&msm_gpio 108 0x1>;
+			linux,input-type = <1>;
+			linux,code = <114>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+	};
+};

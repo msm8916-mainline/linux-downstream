@@ -1,0 +1,87 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../msm8916-lge-common/touch-melfas-incell-c100n.dtsi"
+
+&i2c_5 {
+	qcom,clk-freq-out = <400000>;
+
+	lge_touch_rev_10@34 {
+				status = "ok";
+				revision = "...rev_10";
+
+                lge,fw_image = "melfas/mit300/c100/L0M50P1_0_65.bin";
+                lge,p5_product = "L0M45P5CY5";
+                lge,p5_fw_image = "melfas/mit300/c100/L0M50P1_0_65.bin";
+    };
+	lge_touch_rev_11@34 {
+				status = "ok";
+				revision = "rev_11...";
+
+                lge,fw_image = "melfas/mit300/c100/L0M50P1_2_33.bin";
+                lge,p5_product = "L0M45P5CY5";
+                lge,p5_fw_image = "melfas/mit300/c100/L0M50P1_2_33.bin";
+
+                /* Limitation Value. */
+                raw_data_max = <3000>;
+                raw_data_min = <750>;
+                raw_data_margin = <0>;
+                raw_data_otp_min = <15000>;
+                raw_data_otp_max = <39000>;
+                cm_delta_max = <170>;
+                cm_delta_min = <70>;
+                jitter_max = <45>;
+                jitter_min = <0>;
+                open_short_max = <4050>;
+                open_short_min = <800>;
+                mux_short_max = <4050>;
+                mux_short_min = <800>;
+                lpwg_raw_data_max = <2900>;
+                lpwg_raw_data_min = <850>;
+                lpwg_jitter_max = <30>;
+                lpwg_jitter_min = <0>;
+		lpwg_rawdata_diff_max = <150>;
+		lpwg_rawdata_diff_min = <50>; /*Negative Value*/
+                slope_max = <150>;
+                slope_min = <70>;
+    };
+};
+
+&soc {
+	gpio_keys {
+		revision = "...rev_a";
+		vol_up {
+			gpios = <&msm_gpio 107 0x1>;
+		};
+		vol_down {
+			gpios = <&msm_gpio 108 0x1>;
+		};
+	};
+	gpio_keys_rev_b {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		revision = "rev_b...";
+		pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
+		pinctrl-0 = <&gpio_key_active>;
+		pinctrl-1 = <&gpio_key_suspend>;
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&msm_gpio 107 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+
+	};
+};

@@ -1,0 +1,36 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&spmi_bus {
+	qcom,pm8916@1 {
+		qcom,vibrator@c000 {
+			status = "okay";
+			qcom,vib-timeout-ms = <15000>;
+			qcom,vib-vtg-level-mV = <2900>;
+		};
+	};
+};
+
+&soc {
+	hall-s5717 {
+		compatible = "seiko,hall-s5717";
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <117 0x0>;
+		hallic-pouch-irq-gpio = <&msm_gpio 117 0x00>;
+
+		pinctrl-names = "pmx_hall_ic_active","pmx_hall_ic_suspend";
+		pinctrl-0 = <&hall_ic_int_active>;
+		pinctrl-1 = <&hall_ic_int_suspend>;
+		status = "ok";
+	};
+};
+

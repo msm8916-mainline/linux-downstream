@@ -1,0 +1,7 @@
+ccflags-y += -I$(srctree)/drivers/input/touchscreen/
+
+obj-y += lgtp_device_td4100.o
+obj-y += touch_synaptics_ds5_fw_upgrade.o
+obj-y += touch_synaptics_dsx_rmi_dev.o
+obj-y += RefCode_CustomerImplementation.o
+obj-y += RefCode_F54.o

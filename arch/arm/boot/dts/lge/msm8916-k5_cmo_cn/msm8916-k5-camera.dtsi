@@ -1,0 +1,129 @@
+/*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include "../msm8916-k5-common/msm8916-k5-common-camera.dtsi"
+
+&cci {
+	ov8858_otp: qcom,otp@0 {
+		status = "ok";
+		cell-index = <0>;
+		reg = <0x0>;
+		revision = "rev_a...";
+		qcom,otp-name = "ov8858";
+		compatible = "ovt,ov8858-otp";
+		qcom,slave-addr = <0x6c>;
+		qcom,cci-master = <0>;
+		qcom,num-blocks = <1>;
+
+		qcom,page0 = <0 0x3b02 2 0x10 1 5>;
+		qcom,pageen0 = <0 0x3b00 2 0x01 1 5>;
+		qcom,poll0 = <0 0x3b01 2 0x01 1 5>;
+		qcom,mem0 = <0x1FF 0x7010 2 0 1 0>;
+
+		cam_vana-supply = <&pm8916_l10>;
+		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana";
+		qcom,cam-vreg-min-voltage = <0 0 2800000>;
+		qcom,cam-vreg-max-voltage = <0 0 2800000>;
+		qcom,cam-vreg-op-mode     = <0 0 80000>;
+
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_default &cam_sensor_front_default>;
+		pinctrl-1 = <&cam_sensor_mclk1_sleep &cam_sensor_front_sleep>;
+
+		gpios = <&msm_gpio 27  0>,
+			<&msm_gpio 28  0>,
+			<&msm_gpio 116 0>,
+			<&msm_gpio 121 0>;
+
+		qcom,gpio-no-mux  = <0>;
+		qcom,gpio-reset   = <1>;
+		qcom,gpio-vio     = <2>;
+		qcom,gpio-vdig    = <3>;
+
+		qcom,gpio-req-tbl-num   = <0 1 2 3>;
+		qcom,gpio-req-tbl-flags = <0 0 0 0>;
+		qcom,gpio-req-tbl-label = "CAM1_MCLK",
+		                          "CAM1_RESET",
+					  "CAM1_IOVDD",
+		                          "CAM1_DVDD";
+
+		qcom,csi-lane-assign    = <0x4320>;
+		qcom,csi-lane-mask      = <0x7>;
+		qcom,sensor-position    = <1>;
+		qcom,sensor-mode        = <1>;
+
+		clocks = <&clock_gcc clk_mclk1_clk_src>,
+		         <&clock_gcc clk_gcc_camss_mclk1_clk>;
+		clock-names = "cam_src_clk", "cam_clk";
+
+		qcom,cam-power-seq-type = "sensor_gpio", "sensor_gpio", "sensor_vreg", "sensor_gpio", "sensor_clk";
+		qcom,cam-power-seq-val = "sensor_gpio_vio", "sensor_gpio_vdig", "cam_vana", "sensor_gpio_reset", "sensor_cam_mclk";
+		qcom,cam-power-seq-cfg-val = <1 1 1 1 23880000>;
+		qcom,cam-power-seq-delay = <0 0 0 1 1>;
+		qcom,mclk-23880000;
+
+		qcom,otp-position = <1>;
+	};
+
+	ov8858_ff: qcom,camera@1 {
+		status = "ok";
+		compatible           = "qcom,ov8858";
+		reg                  = <0x1>;
+		revision = "rev_a...";
+		qcom,slave-id        = <0x6c 0x300b 0x8858>;
+		qcom,csiphy-sd-index = <1>;
+		qcom,csid-sd-index   = <1>;
+		qcom,mount-angle     = <270>;
+		qcom,sensor-name     = "ov8858";
+
+		cam_vana-supply = <&pm8916_l10>;
+		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana";
+		qcom,cam-vreg-min-voltage = <0 0 2800000>;
+		qcom,cam-vreg-max-voltage = <0 0 2800000>;
+		qcom,cam-vreg-op-mode     = <0 0 80000>;
+
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk1_default &cam_sensor_front_default>;
+		pinctrl-1 = <&cam_sensor_mclk1_sleep &cam_sensor_front_sleep>;
+
+		gpios = <&msm_gpio 27  0>,
+			<&msm_gpio 28  0>,
+			<&msm_gpio 116 0>,
+			<&msm_gpio 121 0>;
+
+		qcom,gpio-no-mux  = <0>;
+		qcom,gpio-reset   = <1>;
+		qcom,gpio-vio     = <2>;
+		qcom,gpio-vdig    = <3>;
+
+		qcom,gpio-req-tbl-num   = <0 1 2 3>;
+		qcom,gpio-req-tbl-flags = <0 0 0 0>;
+		qcom,gpio-req-tbl-label = "CAM1_MCLK",
+		                          "CAM1_RESET",
+					  "CAM1_IOVDD",
+		                          "CAM1_DVDD";
+
+		qcom,csi-lane-assign    = <0x4320>;
+		qcom,csi-lane-mask      = <0x7>;
+		qcom,sensor-position    = <1>;
+		qcom,sensor-mode        = <1>;
+		qcom,cci-master         = <0>;
+
+		clocks = <&clock_gcc clk_mclk1_clk_src>,
+		         <&clock_gcc clk_gcc_camss_mclk1_clk>;
+		clock-names = "cam_src_clk", "cam_clk";
+
+		qcom,mclk-23880000;
+		qcom,otp-src = <&ov8858_otp>;
+	};
+
+};
