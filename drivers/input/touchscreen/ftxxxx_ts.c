@@ -2197,6 +2197,10 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 		goto exit_tp_id_gpio2_request_failed;
 	}
 	gpio_direction_input(ftxxxx_ts->tp_id_gpio2);
+#ifdef SYSFS_DEBUG /* init mutex and wake_lock before request irq */
+	mutex_init(&ftxxxx_ts->g_device_mutex);
+	wake_lock_init(&ftxxxx_ts->wake_lock, WAKE_LOCK_SUSPEND, "focal_touch_wake_lock");
+#endif
 	/*add by jinpeng_He for get the id pin end*/
 	ftxxxx_ts->client->irq = gpio_to_irq(ftxxxx_ts->irq);
 	err = request_threaded_irq(ftxxxx_ts->client->irq, NULL, ftxxxx_ts_interrupt,
@@ -2251,10 +2255,6 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 	//printk("[Focal][Touch] ftxxxx_create_sysfs Start !\n");
 	ftxxxx_create_sysfs(client);
 	//printk("[Focal][Touch] ftxxxx_create_sysfs End !\n");
-
-	mutex_init(&ftxxxx_ts->g_device_mutex);
-
-	wake_lock_init(&ftxxxx_ts->wake_lock, WAKE_LOCK_SUSPEND, "focal_touch_wake_lock");
 
 	ftxxxx_ts->usb_wq = create_singlethread_workqueue("focal_usb_wq");
 	if (!ftxxxx_ts->usb_wq) {
