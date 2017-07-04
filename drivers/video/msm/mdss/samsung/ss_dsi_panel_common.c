@@ -3374,7 +3374,7 @@ static void load_tuning_file(struct device *dev, char *filename)
 	filp = filp_open(filename, O_RDONLY, 0);
 	if (IS_ERR(filp)) {
 		printk(KERN_ERR "%s File open failed\n", __func__);
-		return;
+		goto err;
 	}
 
 	l = filp->f_path.dentry->d_inode->i_size;
@@ -3384,7 +3384,7 @@ static void load_tuning_file(struct device *dev, char *filename)
 	if (dp == NULL) {
 		pr_info("Can't not alloc memory for tuning file load\n");
 		filp_close(filp, current->files);
-		return;
+		goto err;
 	}
 	pos = 0;
 	memset(dp, 0, l);
@@ -3397,7 +3397,7 @@ static void load_tuning_file(struct device *dev, char *filename)
 		pr_info("vfs_read() filed ret : %d\n", ret);
 		kfree(dp);
 		filp_close(filp, current->files);
-		return;
+		goto err;
 	}
 
 	filp_close(filp, current->files);
@@ -3407,6 +3407,10 @@ static void load_tuning_file(struct device *dev, char *filename)
 	sending_tune_cmd(dev, dp, l);
 
 	kfree(dp);
+
+	return;
+err:
+	set_fs(fs);
 }
 
 static ssize_t tuning_show(struct device *dev,
@@ -4957,7 +4961,7 @@ void mdss_mdp_underrun_dump_info(void)
 				pipe->dst.x, pipe->dst.y, pipe->dst.w, pipe->dst.h,
 				pipe->flags, pipe->src_fmt->format, pipe->src_fmt->bpp,
 				pipe->ndx);
-		pr_err("pipe addr : %p\n", pipe);
+		pr_err("pipe addr : %pK\n", pipe);
 		pcount--;
 		if (!pcount) break;
 	}
@@ -4987,7 +4991,7 @@ void mdss_samsung_fence_dump(struct sync_fence *fence)
 		tv = ktime_to_timeval(pt->timestamp);
 		status = pt->status;
 
-		pr_err("%s %s%spt %s : %ld.%06ld\n", __func__,
+		pr_err("%s %s%pst %s : %ld.%06ld\n", __func__,
 		   fence ? pt->parent->name : "",
 		   fence ? "_" : "",
 		   status > 0 ? "signaled" : pt->status == 0 ? "active" : "error",
