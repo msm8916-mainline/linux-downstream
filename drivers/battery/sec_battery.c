@@ -3224,12 +3224,8 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 	case FG_RESET_CAP:
 		break;
 	case FG_ASOC:
-#if defined(CONFIG_INBATTERY)
 		psy_do_property(battery->pdata->fuelgauge_name, get,
 				POWER_SUPPLY_PROP_ENERGY_FULL, value);
-#else
-		value.intval = -1;
-#endif
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		break;

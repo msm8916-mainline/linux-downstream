@@ -16,6 +16,7 @@
 #include "msm8916-sec-gt5note8lte-eur-battery-r00.dtsi"
 #include "msm8916-max77849-gt5note8-r01.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0_LSL080AL03/dsi_panel_S6D7AA0_LSL080AL03_xga_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AA0_LSL080AL03_BOE/dsi_panel_S6D7AA0_LSL080AL03_BOE_xga_video.dtsi"
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
@@ -540,8 +541,36 @@
 	];
 };
 
+&dsi_sdc_wxga_vid_boe {
+	samsung,panel-extra-power-gpio1 = <&msm_gpio 8 0>;
+	qcom,mdss-dsi-h-back-porch = <114>;
+	qcom,mdss-dsi-v-back-porch = <20>;
+	qcom,mdss-dsi-on-command = [
+        39 01 00 00 00 00 03 F0 5A 5A
+        39 01 00 00 00 00 03 F1 5A 5A
+        39 01 00 00 00 00 03 FC A5 A5
+        39 01 00 00 00 00 03 D0 00 10
+        39 01 00 00 00 00 04 C3 C7 00 29
+        39 01 00 00 00 00 04 BC 01 4E 0A
+        39 01 00 00 00 00 06 FD 16 10 11 23 09
+        39 01 00 00 00 00 07 FE 00 0D 03 21 80 78
+        39 01 00 00 00 00 02 B3 51
+        39 01 00 00 00 00 02 53 24
+        39 01 00 00 0A 00 04 F2 02 16 08
+        39 01 00 00 00 00 04 C0 80 80 30
+        39 01 00 00 00 00 0E CD 2E 2E 2E 2E 2E 2E 2E 2E 2E 2E 2E 2E 2E
+        39 01 00 00 00 00 0E CE 00 00 00 00 00 00 00 00 00 00 00 00 00
+        39 01 00 00 00 00 02 C1 03
+        05 01 00 00 78 00 02 11 00
+        39 00 00 00 00 00 03 F0 A5 A5
+        39 01 00 00 00 00 03 F1 A5 A5
+        39 01 00 00 00 00 03 FC 5A 5A
+        39 01 00 00 00 00 02 35 00
+        05 01 00 00 05 00 02 29 00
+	];
+};
+
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_sdc_wxga_vid>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&i2c_lp8556_active &lp8556_active &mdss_dsi_active &mdss_esd_active &pwm_ap_active>;
 	pinctrl-1 = <&i2c_lp8556_suspend &lp8556_suspend &mdss_dsi_suspend &mdss_esd_suspend &pwm_ap_suspend>;

@@ -379,7 +379,7 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 static int __init samsung_panel_init(void)
 {
 	struct samsung_display_driver_data *vdd = samsung_get_vdd();
-	char panel_string[] = "ss_dsi_panel_S6D7AA0_LSL080AL03_BOE_WXGA";
+	char panel_string[] = "ss_dsi_panel_LSL080AL03_BOE_WXGA";
 
 	vdd->panel_name = mdss_mdp_panel + 8;
 	pr_info("%s : %s\n", __func__, vdd->panel_name);

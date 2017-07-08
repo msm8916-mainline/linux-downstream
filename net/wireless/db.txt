@@ -245,8 +245,8 @@ country CY: DFS-ETSI
 # implemented.
 country CZ: DFS-ETSI
 	(2400 - 2483.5 @ 40), (N/A, 100 mW)
-	(5150 - 5250 @ 80), (N/A, 200 mW), NO-OUTDOOR
-	(5250 - 5350 @ 80), (N/A, 100 mW), NO-OUTDOOR, DFS
+	(5150 - 5250 @ 80), (N/A, 200 mW)
+	(5250 - 5350 @ 80), (N/A, 100 mW), DFS
 	(5470 - 5725 @ 80), (N/A, 500 mW), DFS
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567
 	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
@@ -267,9 +267,9 @@ country DE: DFS-ETSI
 	# entries 279004 and 280006
 	(2400 - 2483.5 @ 40), (N/A, 100 mW)
 	# entry 303005
-	(5150 - 5250 @ 80), (N/A, 100 mW), NO-OUTDOOR
+	(5150 - 5250 @ 80), (N/A, 100 mW)
 	# entries 304002 and 305002
-	(5250 - 5350 @ 80), (N/A, 100 mW), NO-OUTDOOR, DFS
+	(5250 - 5350 @ 80), (N/A, 100 mW), DFS
 	# entries 308002, 309001 and 310003
 	(5470 - 5725 @ 80), (N/A, 500 mW), DFS
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567
@@ -318,8 +318,8 @@ country EG:
 
 country ES: DFS-ETSI
 	(2400 - 2483.5 @ 40), (N/A, 100 mW)
-	(5150 - 5250 @ 80), (N/A, 100 mW), NO-OUTDOOR
-	(5250 - 5350 @ 80), (N/A, 100 mW), NO-OUTDOOR, DFS
+	(5150 - 5250 @ 80), (N/A, 100 mW)
+	(5250 - 5350 @ 80), (N/A, 100 mW), DFS
 	(5470 - 5725 @ 80), (N/A, 500 mW), DFS
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567
 	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
@@ -730,8 +730,8 @@ country NI:
 
 country NL: DFS-ETSI
 	(2402 - 2482 @ 40), (N/A, 20)
-	(5170 - 5250 @ 80), (N/A, 20), NO-OUTDOOR
-	(5250 - 5330 @ 80), (N/A, 20), NO-OUTDOOR, DFS
+	(5170 - 5250 @ 80), (N/A, 20)
+	(5250 - 5330 @ 80), (N/A, 20), DFS
 	(5490 - 5710 @ 80), (N/A, 27), DFS
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567
 	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
@@ -853,7 +853,7 @@ country RO: DFS-ETSI
 # http://www.ratel.rs/upload/documents/Plan_namene/Plan_namene-sl_glasnik.pdf
 country RS:
 	(2400 - 2483.5 @ 40), (N/A, 100 mW)
-	(5150 - 5250 @ 80), (N/A, 200 mW), NO-OUTDOOR
+	(5150 - 5250 @ 80), (N/A, 200 mW)
 	(5250 - 5350 @ 80), (N/A, 200 mW), DFS
 	(5470 - 5725 @ 80), (3, 1000 mW), DFS
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567
@@ -974,9 +974,9 @@ country TR: DFS-ETSI
 # rules in the referenced laws. Such a range is used because of
 # disputable definitions there.
 country UA:
-	(2400 - 2483.5 @ 40), (N/A, 20), NO-OUTDOOR
-	(5150 - 5250 @ 80), (N/A, 20), NO-OUTDOOR
-	(5250 - 5350 @ 80), (N/A, 20), NO-OUTDOOR, DFS
+	(2400 - 2483.5 @ 40), (N/A, 20)
+	(5150 - 5250 @ 80), (N/A, 20)
+	(5250 - 5350 @ 80), (N/A, 20), DFS
 	(5470 - 5670 @ 80), (N/A, 20), DFS
 	(5725 - 5850 @ 80), (N/A, 20)
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567
