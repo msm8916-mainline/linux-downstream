@@ -1032,6 +1032,11 @@ static ssize_t mms_sys_cmd(struct device *dev, struct device_attribute *devattr,
 		goto ERROR;
 	}
 
+	if (strlen(buf) >= CMD_LEN) {
+		dev_err(&info->client->dev, "%s: cmd length is over(%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+		return -EINVAL;
+	}
+
 	dev_dbg(&info->client->dev, "%s [START]\n", __func__);
 	dev_dbg(&info->client->dev, "%s - input [%s]\n", __func__, buf);
 
@@ -1107,7 +1112,7 @@ static ssize_t mms_sys_cmd(struct device *dev, struct device_attribute *devattr,
 				param_cnt++;
 			}
 			cur++;
-		} while (cur - buf <= len);
+		} while ((cur - buf <= len) && (param_cnt < CMD_PARAM_NUM));
 	}
 
 	//print
@@ -1202,7 +1207,7 @@ static ssize_t mms_sys_cmd_list(struct device *dev,
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 	int ret;
 	int i = 0;
-	char buffer[info->cmd_buffer_size];
+	char buffer[info->cmd_buffer_size + 30];
 	char buffer_name[CMD_LEN];
 
 	dev_dbg(&info->client->dev, "%s [START]\n", __func__);
@@ -1210,7 +1215,7 @@ static ssize_t mms_sys_cmd_list(struct device *dev,
 	snprintf(buffer, 30, "== Command list ==\n");
 	while (strncmp(mms_commands[i].cmd_name, NAME_OF_UNKNOWN_CMD, CMD_LEN) != 0) {
 		snprintf(buffer_name, CMD_LEN, "%s\n", mms_commands[i].cmd_name);
-		strcat(buffer, buffer_name);
+		strncat(buffer, buffer_name, (int)strlen(buffer_name));
 		i++;
 	}
 

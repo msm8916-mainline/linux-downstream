@@ -92,7 +92,7 @@ static int msm_lsm_queue_lab_buffer(struct lsm_priv *prtd, int i)
 	struct lsm_cmd_read cmd_read;
 
 	if (!prtd || !prtd->lsm_client) {
-		pr_err("%s: Invalid params prtd %p lsm client %p\n",
+		pr_err("%s: Invalid params prtd %pK lsm client %pK\n",
 			__func__, prtd, ((!prtd) ? NULL : prtd->lsm_client));
 		return -EINVAL;
 	}
@@ -122,7 +122,7 @@ static int lsm_lab_buffer_sanity(struct lsm_priv *prtd,
 {
 	int i = 0, rc = -EINVAL;
 	if (!prtd || !read_done || !index) {
-		pr_err("%s: Invalid params prtd %p read_done %p index %p\n",
+		pr_err("%s: Invalid params prtd %pK read_done %pK index %pK\n",
 			__func__, prtd, read_done, index);
 		return -EINVAL;
 	}
@@ -260,7 +260,7 @@ static int msm_lsm_lab_buffer_alloc(struct lsm_priv *lsm, int alloc)
 	int ret = 0;
 	struct snd_dma_buffer *dma_buf = NULL;
 	if (!lsm) {
-		pr_err("%s: Invalid param lsm %p\n", __func__, lsm);
+		pr_err("%s: Invalid param lsm %pK\n", __func__, lsm);
 		return -EINVAL;
 	}
 	if (alloc) {
