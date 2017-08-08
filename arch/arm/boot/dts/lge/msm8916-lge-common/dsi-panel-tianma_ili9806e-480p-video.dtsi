@@ -1,0 +1,287 @@
+&mdss_mdp {
+	dsi_tianma_ili9806e_vid: qcom,mdss_dsi_tianma_ili9806e_video{
+		compatible = "qcom,mdss-dsi-panel";
+		status = "disable";
+		lge,lcd-maker-id = <1>;
+		qcom,cont-splash-enabled;
+		qcom,mdss-dsi-panel-name = "TIANMA WVGA video mode dsi panel";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,mdss-dsi-panel-destination = "display_1";
+		qcom,mdss-pan-physical-width-dimension = <57>;
+		qcom,mdss-pan-physical-height-dimension = <97>;
+		qcom,mdss-dsi-panel-width = <480>;
+		qcom,mdss-dsi-panel-height = <800>;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-h-back-porch = <60>;
+		qcom,mdss-dsi-h-pulse-width = <2>;
+		qcom,mdss-dsi-h-front-porch = <60>;
+		qcom,mdss-dsi-h-sync-skew = <0>;
+		qcom,mdss-dsi-v-back-porch = <20>;
+		qcom,mdss-dsi-v-pulse-width = <2>;
+		qcom,mdss-dsi-v-front-porch = <20>;
+		qcom,mdss-dsi-underflow-color = <0xff>;
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <255>;
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+		qcom,mdss-dsi-h-sync-pulse = <0>;
+		qcom,mdss-dsi-traffic-mode = "non_burst_sync_event";
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-te-dcs-command = <1>;
+		qcom,mdss-dsi-te-v-sync-rd-ptr-irq-line = <0x2c>;
+		qcom,mdss-dsi-te-v-sync-continues-lines = <0x3c>;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+		qcom,mdss-dsi-t-clk-pre = <0x16>;
+		qcom,mdss-dsi-t-clk-post = <0xCB>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-panel-timings = [72 16 0E 00 38 3C 12 1A 10 03 04 00];
+		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-off-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-reset-sequence = <1 1>, <0 10>, <1 120>;
+		qcom,mdss-dsi-on-command = [
+			39 01 00 00 00 00 06	// EXTC Command Set enable register
+			FF FF 98 06 04 01
+			15 01 00 00 00 00 02	// output SDA
+			08 10
+			15 01 00 00 00 00 02	// DE = 1 Active
+			21 01
+			15 01 00 00 00 00 02	// Resolution Control (480*800)
+			30 02
+			15 01 00 00 00 00 02	// Display Inversion Control
+			31 00
+			15 01 00 00 00 00 02	// Source Timing Adjust 1 (SDTI)
+			40 10
+			15 01 00 00 00 00 02	// Source Timing Adjust 2 (CRTI)
+			41 77
+			15 01 00 00 00 00 02	// Source Timing Adjust 3 (EQTI)
+			42 12
+			15 01 00 00 00 00 02	// Source Timing Adjust 4 (EQTI)
+			43 09
+			15 01 00 00 00 00 02	// Power Control 1
+			44 06
+			15 01 00 00 00 00 02	// Power Control 2
+			50 78
+			15 01 00 00 00 00 02	// Power Control 3
+			51 78
+			15 01 00 00 00 00 02	// Power Control 4
+			60 07
+			15 01 00 00 00 00 02	// Power Control 5
+			61 04
+			15 01 00 00 00 00 02	// Power Control 9
+			62 06
+			15 01 00 00 00 00 02	// Power Control 10
+			63 02
+			39 01 00 00 00 00 06	// Change to Page 1
+			FF FF 98 06 04 01
+			15 01 00 00 00 00 02	// Positive Gamma Control (01h~16h)
+			A0 00
+			15 01 00 00 00 00 02
+			A1 0A
+			15 01 00 00 00 00 02
+			A2 13
+			15 01 00 00 00 00 02
+			A3 0F
+			15 01 00 00 00 00 02
+			A4 09
+			15 01 00 00 00 00 02
+			A5 17
+			15 01 00 00 00 00 02
+			A6 08
+			15 01 00 00 00 00 02
+			A7 08
+			15 01 00 00 00 00 02
+			A8 04
+			15 01 00 00 00 00 02
+			A9 08
+			15 01 00 00 00 00 02
+			AA 06
+			15 01 00 00 00 00 02
+			AB 01
+			15 01 00 00 00 00 02
+			AC 09
+			15 01 00 00 00 00 02
+			AD 2E
+			15 01 00 00 00 00 02
+			AE 25
+			15 01 00 00 00 00 02
+			AF 00
+			15 01 00 00 00 00 02	// Negative Gamma Control (01h~16h)
+			C0 00
+			15 01 00 00 00 00 02
+			C1 0A
+			15 01 00 00 00 00 02
+			C2 13
+			15 01 00 00 00 00 02
+			C3 0F
+			15 01 00 00 00 00 02
+			C4 09
+			15 01 00 00 00 00 02
+			C5 17
+			15 01 00 00 00 00 02
+			C6 08
+			15 01 00 00 00 00 02
+			C7 07
+			15 01 00 00 00 00 02
+			C8 04
+			15 01 00 00 00 00 02
+			C9 08
+			15 01 00 00 00 00 02
+			CA 06
+			15 01 00 00 00 00 02
+			CB 01
+			15 01 00 00 00 00 02
+			CC 0A
+			15 01 00 00 00 00 02
+			CD 2E
+			15 01 00 00 00 00 02
+			CE 25
+			15 01 00 00 00 00 02
+			CF 00
+			39 01 00 00 00 00 06	// Change to page 6
+			FF FF 98 06 04 06
+			15 01 00 00 00 00 02	// GIP Setting (00h~40h)
+			00 21
+			15 01 00 00 00 00 02
+			01 0A
+			15 01 00 00 00 00 02
+			02 60
+			15 01 00 00 00 00 02
+			03 0F
+			15 01 00 00 00 00 02
+			04 01
+			15 01 00 00 00 00 02
+			05 01
+			15 01 00 00 00 00 02
+			06 80
+			15 01 00 00 00 00 02
+			07 06
+			15 01 00 00 00 00 02
+			08 01
+			15 01 00 00 00 00 02
+			09 00
+			15 01 00 00 00 00 02
+			0A 00
+			15 01 00 00 00 00 02
+			0B 00
+			15 01 00 00 00 00 02
+			0C 01
+			15 01 00 00 00 00 02
+			0D 01
+			15 01 00 00 00 00 02
+			0E 00
+			15 01 00 00 00 00 02
+			0F 00
+			15 01 00 00 00 00 02
+			10 F7
+			15 01 00 00 00 00 02
+			11 F0
+			15 01 00 00 00 00 02
+			12 00
+			15 01 00 00 00 00 02
+			13 00
+			15 01 00 00 00 00 02
+			14 00
+			15 01 00 00 00 00 02
+			15 C0
+			15 01 00 00 00 00 02
+			16 08
+			15 01 00 00 00 00 02
+			17 01
+			15 01 00 00 00 00 02
+			18 01
+			15 01 00 00 00 00 02
+			19 00
+			15 01 00 00 00 00 02
+			1A 00
+			15 01 00 00 00 00 02
+			1B 00
+			15 01 00 00 00 00 02
+			20 01
+			15 01 00 00 00 00 02
+			21 23
+			15 01 00 00 00 00 02
+			22 45
+			15 01 00 00 00 00 02
+			23 67
+			15 01 00 00 00 00 02
+			24 01
+			15 01 00 00 00 00 02
+			25 23
+			15 01 00 00 00 00 02
+			26 45
+			15 01 00 00 00 00 02
+			27 67
+			15 01 00 00 00 00 02
+			30 01
+			15 01 00 00 00 00 02
+			31 11
+			15 01 00 00 00 00 02
+			32 00
+			15 01 00 00 00 00 02
+			33 22
+			15 01 00 00 00 00 02
+			34 22
+			15 01 00 00 00 00 02
+			35 CB
+			15 01 00 00 00 00 02
+			36 DA
+			15 01 00 00 00 00 02
+			37 AD
+			15 01 00 00 00 00 02
+			38 BC
+			15 01 00 00 00 00 02
+			39 76
+			15 01 00 00 00 00 02
+			3A 67
+			15 01 00 00 00 00 02
+			3B 88
+			15 01 00 00 00 00 02
+			3C 22
+			15 01 00 00 00 00 02
+			3D 22
+			15 01 00 00 00 00 02
+			3E 22
+			15 01 00 00 00 00 02
+			3F 22
+			15 01 00 00 00 00 02
+			40 22
+			39 01 00 00 00 00 06	// Change to page 7
+			FF FF 98 06 04 07
+			15 01 00 00 00 00 02	// VREG1/2OUT Enable
+			18 1D
+			15 01 00 00 00 00 02
+			17 22
+			15 01 00 00 00 00 02
+			02 77
+			15 01 00 00 00 00 02
+			E1 79
+			15 01 00 00 00 00 02
+			06 10
+			39 01 00 00 00 00 06
+			FF FF 98 06 04 00		// Change to page 0
+			15 01 00 00 00 00 02
+			55 90
+			//05 01 00 00 78 00 01	// Sleep out
+			05 01 00 00 82 00 01	// Sleep out
+			11
+			//05 01 00 00 14 00 01	// Display on
+			05 01 00 00 00 00 01	// Display on
+			29
+		];
+		qcom,mdss-dsi-off-command = [
+				05 01 00 00 32 00 01
+				  28
+				05 01 00 00 78 00 01
+				  10
+				];
+	};
+};
+

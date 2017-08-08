@@ -1,0 +1,168 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c_5 {
+	qcom,clk-freq-out = <400000>;
+	atmel_1188s@4b {
+		revision = "rev_0";							/*board version */
+		status = "disable";
+		compatible = "atmel,mxt1188s";
+		reg = <0x4b>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2>;
+		atmel,ldo1-gpio		=	<&msm_gpio 8 0x00>;
+		atmel,ldo2-gpio		=	<&msm_gpio 9 0x00>;
+		atmel,reset-gpio	=	<&msm_gpio 12 0x00>;
+		atmel,irq-gpio		=	<&msm_gpio 13 0x00>;
+		atmel,accuracy_filter_enable = <0>;
+		atmel,ghost_detection_enable = <0>;
+		atmel,irqflags = <0x00000002>;
+		atmel,numtouch = <10>;
+
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend";		/*Touch GPIO pin name setting*/
+		pinctrl-0 = <&ts_int_active &ts_reset_active &ts_ldo_active>;	/*Touch GPIO pin active setting*/
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_ldo_suspend>;	/*Touch GPIO pin suspend setting*/
+	};
+	atmel_t1664_rev_b@4a {
+		revision = "rev_a...rev_b";							/*board version */
+		compatible = "atmel,t1664";
+		status = "disable";
+		reg = <0x4a>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2>;
+		vdd_ana-supply = <0>;
+		vcc_i2c-supply = <0>;
+		vcc_dig-supply = <&pm8916_l10>;					// PM8916 L10 DVDD 3.3V
+		atmel,ldo1-gpio = <&msm_gpio 8 0x00>;			//GPIO[8] VDDIO 1.8V TOUCH_LDO1_EN
+		atmel,ldo2-gpio = <&msm_gpio 9 0x00>;			//GPIO[9] AVDD 3.3V TOUCH_LDO2_EN
+		atmel,reset-gpio = <&msm_gpio 12 0x00>;
+		atmel,irq-gpio = <&msm_gpio 13 0x00>;
+		atmel,numtouch = <10>;							/*multi-touch count*/
+		atmel,irqflags = <0x00000002>;
+		atmel,t15_num_keys = <0>;
+		atmel,fw_name_gf2 = "atmel/altev2/VK815_0_02_11_GF2.fw";
+		atmel,fw_name_ogs = "atmel/altev2/VK815_0_04_01_OGS.fw";
+		atmel,panel_check = <0>;
+		atmel,extra_fw_name = "atmel/altev2/VK815_0_04_01_OGS.fw";
+		atmel,accuracy_filter_enable = <0>;
+		atmel,knock_on_type = <1>;
+		atmel,auto_fw_update = <0>;
+		// atmel,t15_extra_key_state = <0 0>;
+		atmel,global_access_pixel = <0>;
+		atmel,use_mfts = <1>; // Enable for CoF type only
+		atmel,lcd_x = <1200>;
+		atmel,lcd_y = <1920>;
+		atmel,butt_check_enable = <0>;
+		atmel,ghost_detection_card_enable = <0>;
+		atmel,ghost_detection_card_value = <10 10 100 25 250 10>;
+		atmel,ghost_detection_invalid_amplitude_enable = <0>;
+		// edge x, edge y, invalid count, monitor duration(sec), valid min amp. , valid max amp. , valid detect time, valid delta pen amp., valid delta finger amp., max amplitude
+		atmel,ghost_detection_invalid_amplitude_value = <100 100 5 2 5 18 3 14 240 255>;
+		atmel,ghost_detection_pattern_enable = <0>;
+		atmel,ghost_detection_pattern_value = <100 100 3>;
+
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend";		/*Touch GPIO pin name setting*/
+		pinctrl-0 = <&ts_int_active &ts_reset_active &ts_ldo_active>;	/*Touch GPIO pin active setting*/
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_ldo_suspend>;	/*Touch GPIO pin suspend setting*/
+	};
+	atmel_t1664@4a {
+		revision = "rev_c...";							/*board version */
+		compatible = "atmel,t1664";
+		status = "disable";
+		reg = <0x4a>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2>;
+		vdd_ana-supply = <0>;
+		vcc_i2c-supply = <0>;
+		vcc_dig-supply = <&pm8916_l10>;					// PM8916 L10 DVDD 3.3V 
+		atmel,ldo1-gpio = <&msm_gpio 8 0x00>;			//GPIO[8] VDDIO 1.8V TOUCH_LDO1_EN
+		atmel,ldo2-gpio = <&msm_gpio 9 0x00>;			//GPIO[9] AVDD 3.3V TOUCH_LDO2_EN
+		atmel,reset-gpio = <&msm_gpio 12 0x00>;
+		atmel,irq-gpio = <&msm_gpio 13 0x00>;
+		atmel,id-gpio = <&msm_gpio 21 0x00>;
+		atmel,numtouch = <10>;							/*multi-touch count*/
+		atmel,irqflags = <0x00000002>;
+		atmel,t15_num_keys = <0>;
+		atmel,fw_name = "atmel/altev2/VK815_0_04_01_OGS.fw";
+		atmel,panel_check = <0>;
+		atmel,extra_fw_name = "atmel/altev2/VK815_0_04_01_OGS.fw";
+		atmel,accuracy_filter_enable = <0>;
+		atmel,knock_on_type = <1>;
+		atmel,auto_fw_update = <0>;
+		// atmel,t15_extra_key_state = <0 0>;
+		atmel,global_access_pixel = <0>;
+		atmel,use_mfts = <1>; // Enable for CoF type only
+		atmel,lcd_x = <1200>;
+		atmel,lcd_y = <1920>;
+		atmel,butt_check_enable = <0>;
+		atmel,ghost_detection_card_enable = <0>;
+		atmel,ghost_detection_card_value = <10 10 100 25 250 10>;
+           atmel,ghost_detection_invalid_amplitude_enable = <0>;
+		// edge x, edge y, invalid count, monitor duration(sec), valid min amp. , valid max amp. , valid detect time, valid delta pen amp., valid delta finger amp., max amplitude
+		atmel,ghost_detection_invalid_amplitude_value = <100 100 5 2 5 18 3 14 240 255>;
+		atmel,ghost_detection_pattern_enable = <0>;
+		atmel,ghost_detection_pattern_value = <100 100 3>;
+
+		pinctrl-names = "pmx_ts_active","pmx_ts_suspend";		/*Touch GPIO pin name setting*/
+		pinctrl-0 = <&ts_int_active &ts_reset_active &ts_ldo_active>;	/*Touch GPIO pin active setting*/
+		pinctrl-1 = <&ts_int_suspend &ts_reset_suspend &ts_ldo_suspend>;	/*Touch GPIO pin suspend setting*/
+	};
+    synaptics@20 {
+	    status = "disable";
+	};
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
+		pinctrl-0 = <&gpio_key_active>;
+		pinctrl-1 = <&gpio_key_suspend>;
+		status = "disabled";
+		vol_up {
+			label = "volume_up";
+			gpios = <&msm_gpio 107 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+
+		vol_down {
+			label = "volume_down";
+			gpios = <&msm_gpio 108 0x1>;
+			linux,input-type = <1>;
+			linux,code = <114>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+	};
+	altev2_gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
+		pinctrl-0 = <&gpio_key_active>;
+		pinctrl-1 = <&gpio_key_suspend>;
+		status = "okay";
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&msm_gpio 107 0x1>;
+			linux,input-type = <1>;
+			linux,code = <115>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+
+	};
+};

@@ -1,0 +1,102 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	hall-bu52031nvx {
+		compatible = "rohm,hall-bu52061nvx";
+		interrupt-parent = <&msm_gpio>;
+		hallic-left-irq-gpio = <&msm_gpio 117 0x00>;
+		hallic-right-irq-gpio = <&msm_gpio 62 0x00>;
+		status = "disable";
+	};
+};
+
+&spmi_bus {
+	qcom,pm8916@1 {
+		qcom,vibrator@c000 {
+			status = "ok";
+			qcom,vib-timeout-ms = <15000>;
+			qcom,vib-vtg-level-mV = <3100>;
+		};
+
+		qcom,pwm@bc00 {
+			status = "okay";
+			compatible = "qcom,qpnp-pwm";
+			reg = <0xbc00 0x100>;
+			reg-names = "qpnp-lpg-channel-base";
+			qcom,channel-id = <0>;
+			qcom,supported-sizes = <6>, <9>;
+			qcom,period = <6000000>;
+			qcom,mode-select = <0>;
+			qcom,lpg-dtest-line = <1>;
+			qcom,dtest-output = <1>;
+			qcom,pwm {
+				qcom,duty = <4000000>;
+				label = "pwm";
+			};
+		};
+	};
+};
+&i2c_4 {
+	lm3697@36 {
+			compatible = "ti,lm3697";
+			status = "okay";
+			reg = <0x36>;
+
+			/* GPIO134 for HWEN pin */
+			ti,enable-gpio = <&msm_gpio 98 0x00>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&bklight_en_active>;
+			pinctrl-1 = <&bklight_en_suspend>;
+			lcd_bl {
+				backlight-name = "lm3697";
+				hvled1-used;
+				max-current-milliamp = <14>;
+				initial-brightness = <596>;
+				/* mapping-mode, 0:exp, 1:linear */
+				mapping-mode = <1>;
+
+				blmap_size = <256>;
+				blmap = <
+					/*   0 */    19   19   19   19   19   19   19   19   19   19
+					/*  10 */    19   19   19   20   20   20   20   21   21   21
+					/*  20 */    21   21   22   22   22   23   24   25   26   27
+					/*  30 */    27   28   29   30   31   32   33   35   36   38
+					/*  40 */    39   41   42   43   45   46   48   49   51   52
+					/*  50 */    54   57   59   61   64   66   68   71   73   75
+					/*  60 */    78   80   83   86   89   92   95   98  101  104
+					/*  70 */   107  110  113  116  120  124  128  132  136  140
+					/*  80 */   143  147  151  155  159  163  167  171  176  180
+					/*  90 */   184  188  193  197  201  205  210  214  218  224
+					/* 100 */   231  237  244  250  257  263  270  276  283  289
+					/* 110 */   295  301  307  312  318  324  330  336  342  347
+					/* 120 */   353  359  365  373  381  389  397  405  412  420
+					/* 130 */   428  436  444  452  459  466  473  480  487  494
+					/* 140 */   501  508  515  522  529  536  543  550  559  568
+					/* 150 */   578  587  596  605  614  623  633  642  651  660
+					/* 160 */   671  681  692  702  713  724  734  745  755  766
+					/* 170 */   776  787  798  809  821  832  843  854  865  876
+					/* 180 */   888  899  910  921  934  947  960  973  986 1000
+					/* 190 */  1013 1026 1039 1052 1065 1078 1090 1103 1115 1128
+					/* 200 */  1140 1152 1165 1177 1189 1202 1214 1227 1239 1255
+					/* 210 */  1272 1288 1305 1321 1338 1354 1371 1387 1404 1420
+					/* 220 */  1436 1452 1468 1484 1500 1516 1531 1547 1563 1579
+					/* 230 */  1595 1611 1626 1641 1656 1671 1686 1701 1717 1732
+					/* 240 */  1747 1762 1777 1792 1807 1822 1845 1867 1890 1912
+					/* 250 */  1935 1957 1980 2002 2025 2047
+				>;
+
+				pwm-period = <0>;
+			};
+		};
+};
+

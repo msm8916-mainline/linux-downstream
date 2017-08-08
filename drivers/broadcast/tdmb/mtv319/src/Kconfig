@@ -1,0 +1,14 @@
+#
+# MTV319_DEVICE subsystem configuration
+#
+
+#menu "MTV319 support"
+
+config MTV319_TDMB
+	default n
+	---help---
+	  This driver implements the front-end of the Xen virtual
+	  keyboard and mouse device driver.  It communicates with a back-end
+	  in another domain.
+  
+#endmenu

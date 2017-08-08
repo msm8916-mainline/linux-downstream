@@ -1,0 +1,250 @@
+/* Copyright (c) 2013, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../msm8916-lge-common/dsi-panel-lgd-phase3-720p-video.dtsi"
+#include "../msm8916-lge-common/dsi-panel-lgd-db7400-720p-video.dtsi"
+
+&mdss_mdp {
+       qcom,mdss-pref-prim-intf = "dsi";
+       qcom,mdss-ab-factor = <1 1>;
+       qcom,mdss-ib-factor = <2 1>;
+};
+
+&dsi_lgd_phase3_hd_incell_vid {
+		lge,display_id = <0>;
+       qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+};
+
+&dsi_lgd_db7400_hd_incell_vid {
+		lge,display_id = <1>;
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_wled";
+		qcom,mdss-dsi-h-front-porch = <72>;
+		qcom,mdss-dsi-h-back-porch = <120>;//<80>;//<70>;//<88>;
+		qcom,mdss-dsi-h-pulse-width = <4>;
+		qcom,mdss-dsi-v-front-porch = <580>;//<550>;//<400>;//<7>;
+		qcom,mdss-dsi-v-back-porch = <11>;//<417>;
+		qcom,mdss-dsi-v-pulse-width = <1>;//<4>;
+		qcom,mdss-pan-physical-width-dimension = < 71 >;
+		qcom,mdss-pan-physical-height-dimension = < 126 >;
+		qcom,mdss-dsi-on-command = [
+			15 01 00 00 00 00 02 /*address*/
+			36 00
+
+			15 01 00 00 00 00 02 /*manufacturer*/
+			B0 00
+
+			29 01 00 00 00 00 03 /*RGB interface*/
+			B1 00 46
+
+			29 01 00 00 00 00 07 /*module charateristic set*/
+			B2 50 00 0C 00 00 00
+
+			29 01 00 00 00 00 05 /*internal timgin set*/
+			B3 4F 80 32 56
+
+			29 01 00 00 00 00 07/*channel control*/
+			B4 05 04 02 28 11 00
+
+			29 01 00 00 00 00 34 /*GIP Control Set*/
+			B5 19 04 1C 22 2F 80
+			2F 1F 04 40 05 00 20
+			09 04 40 05 00 A5 0D
+			2F 2F 3F FF 3F FF 01
+			7C 00 02 50 23 40 15
+			6C CB BA A9 97 8D 1F
+			23 40 15 6C CB BA A9
+			97 8D 1F
+
+			29 01 00 00 00 00 03 /*touch enable*/
+			B6 01 03
+
+			29 01 00 00 00 00 04 /*gvddp*/
+			B7 00 3D 3E
+
+			29 01 00 00 00 00 03 /*vcom*/
+			BA 00 49
+
+			29 01 00 00 00 00 10 /*vghl*/
+			BB 00 94 8B 00 00 00
+			00 00 00 00 00 00 00
+			00 13
+
+			29 01 00 00 00 00 03
+			BD 04 33
+
+			15 01 00 00 00 00 02 /*vci1*/
+			BE 44
+
+			29 01 00 00 00 00 07 /*write dsi control*/
+			95 00 08 10 00 00 00
+
+			29 01 00 00 00 00 03 /*mipi parameter setting*/
+			C6 0A 00
+
+			29 01 00 00 00 00 02 /*add temp*/
+			CF 0F
+
+			29 01 00 00 00 00 1B /*touch gip control*/
+			D7 01 13 FF 39 0B 04
+			14 F4 01 00 00 00 00
+			60 01 67 67 47 10 10
+			34 00 00 00 00 00
+
+			29 01 00 00 00 00 06
+			F5 00 06 00 00 80
+
+			29 01 00 00 00 00 02 /*vdd1 regulator*/
+			F6 06
+
+			29 01 00 00 00 00 04/*sharpness enhance*/
+			81 18 34 00
+
+			29 01 00 00 00 00 22/*contrast enhance*/
+			83 10 00 07 0F 17 1F
+			27 2F 37 3F 47 4F 57
+			5F 67 6F 77 7F 87 8F
+			97 9F A7 AF B7 BF C7
+			CF D7 DF E7 EF F5
+
+			29 01 00 00 00 00 24/*power sequence control*/
+			F0 18 00 00 14 00 00
+			00 01 00 03 2B 01 02
+			53 58 5D 62 A6 AB B0
+			B0 B0 AF B0 AD 85 B0
+			B0 5D 58 53 4E 0A 05
+			00
+
+			29 01 00 00 00 00 0A /*pos gamma curve red*/
+			D0 70 06 65 00 08 00
+			71 13 04
+
+			29 01 00 00 00 00 0A /*neg gamma curve red*/
+			D1 40 05 75 00 04 01
+			61 23 03
+
+			29 01 00 00 00 00 0A /*pos gamma curve green*/
+			D2 70 06 65 00 08 00
+			71 13 04
+
+			29 01 00 00 00 00 0A /*neg gamma curve green*/
+			D3 40 05 75 00 04 01
+			61 23 03
+
+			29 01 00 00 00 00 0A /*pos gamma curve blue*/
+			D4 70 06 65 00 08 00
+			71 13 04
+
+			29 01 00 00 3C 00 0A /*neg gamma curve blue*/
+			D5 40 04 75 00 04 01
+			61 23 03
+
+			05 01 00 00 A0 00 01 /*exit sleep*/
+			11
+
+			05 01 00 00 28 00 01 /*display on*/
+			29
+
+		];
+		qcom,mdss-dsi-on-command-for-glanceview = [
+
+			29 01 00 00 00 00 34 /*GIP Control Set*/
+			B5 19 04 1C 22 2F 80
+			2F 1F 04 40 05 00 20
+			09 04 40 05 00 A5 0D
+			2F 2F 3F FF 3F FF 01
+			7C 00 02 50 23 40 15
+			6C CB BA A9 97 8D 1F
+			23 40 15 6C CB BA A9
+			97 8D 1F
+
+			29 01 00 00 00 00 03 /*touch enable*/
+			B6 01 03
+
+			29 01 00 00 14 00 03 /*mipi lane floating*/
+			C8 00 00
+
+			29 01 00 00 00 00 02 /*add temp*/
+			CF 0F
+
+			29 01 00 00 00 00 1B /*touch gip control*/
+			D7 01 13 FF 39 0B 04
+			14 F4 01 00 00 00 00
+			60 01 67 67 47 10 10
+			34 00 00 00 00 00
+
+			29 01 00 00 00 00 06
+			F5 00 06 00 00 80
+
+			05 01 00 00 05 00 01 /*exit sleep*/
+			11
+
+			05 01 00 00 05 00 01 /*display on*/
+			29
+
+		];
+		qcom,mdss-dsi-off-command1 = [
+			05 01 00 00 28 00 01 /*display off*/
+			28
+			05 01 00 00 28 00 01 /*Sleep in*/
+			10
+		];
+		qcom,mdss-dsi-off-command2 = [
+			29 01 00 00 00 00 1C /*34->1C GIP Control Set*/
+			B5 19 04 1C 22 2F 80
+			2F 1F 04 40 05 00 20
+			09 04 40 05 00 A5 0D
+			2F 1F 04 00 04 00 00
+//			7C 00 02 50 23 40 15
+//			6C CB BA A9 97 8D 1F
+//			23 40 15 6C CB BA A9
+//			97 8D 1F
+
+			29 01 00 00 00 00 03 /*touch enable*/
+			B6 01 01
+
+			29 01 00 00 00 00 02 /*add temp*/
+			CF 07
+
+			29 01 00 00 00 00 1B /*touch gip control*/
+			D7 01 13 FF 39 0B 04
+			14 F4 01 00 00 00 00
+			40 01 67 67 47 10 10
+			34 00 00 00 00 00
+
+			29 01 00 00 00 00 06/*Touch LFD Control set*/
+			F5 00 06 00 00 C0
+
+			29 01 00 00 14 00 03 /*mipi lane floating*/
+			C8 01 00
+		];
+
+		qcom,mdss-dsi-panel-timings = [A8 26 1A 00 50 4A 28 2A 3E 03 04 00];
+		qcom,mdss-dsi-t-clk-post = <0x03>;
+		qcom,mdss-dsi-t-clk-pre = <0x24>;
+
+};
+
+&mdss_dsi0 {
+       qcom,dsi-pref-prim-pan = <&dsi_lgd_phase3_hd_incell_vid>;
+       pinctrl-names = "mdss_default", "mdss_sleep";
+       pinctrl-0 = <&mdss_dsi_active>;
+       pinctrl-1 = <&mdss_dsi_suspend>;
+
+       qcom,platform-lcd-ldo-3v0-gpio = <&msm_gpio 34 0>;
+       qcom,platform-dsv-en-gpio = <&msm_gpio 110 0>;
+       qcom,platform-lcd-ldo-1v8-gpio = <&msm_gpio 33 0>;
+       qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+       qcom,regulator-ldo-mode;
+       qcom,platform-regulator-settings = [02 09 03 00 20 00 01];
+};
+
+

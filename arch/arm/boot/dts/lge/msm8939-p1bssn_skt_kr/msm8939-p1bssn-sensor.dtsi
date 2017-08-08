@@ -1,0 +1,83 @@
+/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+i2c@78b6000 { /* BLSP1 QUP2 */
+		mpu6050@68 { /* Gyroscope and accelerometer sensor combo */
+			compatible = "invn,mpu6050";
+			status = "disable";
+		};
+
+		avago@39 { /* Ambient light and proximity sensor */
+			compatible = "avago,apds9900";
+			status = "disable";
+		};
+
+		akm@c {
+			compatible = "ak,ak8963";
+			status = "disable";
+		};
+	};
+};
+
+&i2c_0{
+		avago9930@39 {
+			 compatible = "avago,apds9930";
+			 status = "ok";
+			 reg = <0x39>;
+			 pinctrl-names = "default","sleep";
+			 pinctrl-0 = <&apds9930_int_active>;
+			 pinctrl-1 = <&apds9930_int_suspend>;
+			 interrupt-parent = <&msm_gpio>;
+			 interrupts = <113 0x2>;
+			 avago,vdd_ana-supply = <&pm8916_l17_sns>;
+			 avago,vddio_i2c-supply = <&pm8916_l6>;
+			 avago,irq-gpio = <&msm_gpio 113 0x2>;
+			 avago,ps_threshold = <300>;
+			 avago,ps_hysteresis_threshold = <220>;
+			 avago,ps_pulse = <6>;
+			 avago,ps_pgain = <0x08>;
+			 avago,als_B = <186>;
+			 avago,als_C = <74>;
+			 avago,als_D = <132>;
+			 avago,ga_value = <223>;
+			 avago,default-cal;
+			 avago,i2c-pull-up;
+		};
+
+		ak09911@0d {
+			revision = "rev_a...";
+			status = "ok";
+			reg = <0x0d>;
+			compatible = "ak,ak09911";
+			sensor_vdd-supply = <&pm8916_l17_sns>;
+			sensor_vcc_i2c-supply = <&pm8916_l6>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&akm09911_active>;
+			pinctrl-1 = <&akm09911_suspend>;
+			akm,gpio_rstn = <&msm_gpio 69 0x0>;
+			akm,layout = <6>;
+			akm,auto-report;
+		};
+
+		/* Acceleration sensor */
+		bmi160@68 {
+			revision = "rev_a...";
+			compatible = "bosch,bmi160";
+			status = "ok";
+			reg = <0x68>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <115 0x2>;
+			bosch,irq-gpio = <&msm_gpio 115 0x00>;
+			place = <7>;
+		};
+};

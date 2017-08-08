@@ -1,0 +1,482 @@
+&mdss_mdp {
+	dsi_lgd_m2db7400_hd_incell_vid: qcom,mdss_dsi_lgd_incell_m2db7400_hd_video{
+		compatible = "qcom,mdss-dsi-panel";
+		status = "disable";
+		qcom,cont-splash-enabled;
+		qcom,mdss-dsi-panel-name = "LGD M2 DONGBU HITEK INCELL HD video mode dsi panel";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,mdss-dsi-panel-destination = "display_1";
+		qcom,mdss-dsi-force-clock-lane-hs;
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-lp11-init;
+		qcom,mdss-dsi-panel-width = <720>;
+		qcom,mdss-dsi-panel-height = <1280>;
+		qcom,mdss-dsi-h-front-porch = <82>;
+		qcom,mdss-dsi-h-back-porch = <120>;
+		qcom,mdss-dsi-h-pulse-width = <4>;
+		qcom,mdss-dsi-h-sync-skew = <0>;
+		qcom,mdss-dsi-v-front-porch = <540>;
+		qcom,mdss-dsi-v-back-porch = <11>;
+		qcom,mdss-dsi-v-pulse-width = <1>;
+		qcom,mdss-dsi-h-left-border = <0>;
+		qcom,mdss-dsi-h-right-border = <0>;
+		qcom,mdss-dsi-v-top-border = <0>;
+		qcom,mdss-dsi-v-bottom-border = <0>;
+		qcom,mdss-pan-physical-width-dimension = < 66 >;
+		qcom,mdss-pan-physical-height-dimension = < 117 >;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-underflow-color = <0>;
+		qcom,mdss-dsi-border-color = <0>;
+		qcom,mdss-dsi-on-command = [
+			15 01 00 00 00 00 02 /*Set Address Mode*/
+			36 00
+
+			15 01 00 00 00 00 02 /*Manufacturer Command Access Protect*/
+			B0 00
+
+			29 01 00 00 00 00 03 /*RGB Interface Set*/
+			B1 00 46
+
+			29 01 00 00 00 00 07 /*Module Characteristics Set*/
+			B2 50 00 0C 00 00 00
+
+			29 01 00 00 00 00 05 /*Internal Timing Set*/
+			B3 4F 80 0A 28
+
+			29 01 00 00 00 00 07 /*Channel Control*/
+			B4 05 0C 1F 28 11 00
+
+			29 01 00 00 00 00 34 /*GIP Control Set*/
+			B5 19 04 1C 22 2F 80
+			2F 1F 04 40 05 00 20
+			09 04 40 05 00 A5 0D
+			2F 2F 3F FF 3F FF 01
+			7C 00 02 50 23 40 15
+			6C CB BA A9 97 8D 1F
+			23 40 15 6C CB BA A9
+			97 8D 1F
+
+			29 01 00 00 00 00 03 /*Touch Enable*/
+			B6 01 03
+
+			29 01 00 00 00 00 04 /*GVDDP Control */
+			B7 00 4B 4B
+
+			29 01 00 00 00 00 10 /*VGHL Control*/
+			BB 00 90 90 30 30 00
+			00 00 00 00 00 00 00
+			00 13
+
+			29 01 00 00 00 00 03 /*Bias Control*/
+			BD 03 33
+
+			29 01 00 00 00 00 02 /*VCI1 Control*/
+			BE 03
+
+			29 01 00 00 00 00 07 /*Write DSI Control*/
+			95 00 08 10 00 00 00
+
+			29 01 00 00 00 00 02 /*Touch Control Set*/
+			CF 0F
+
+			29 01 00 00 00 00 03 /*Mipi Parameter Setting*/
+			C6 0A 00
+
+			29 01 00 00 00 00 1B /*Touch GIP Control*/
+			D7 00 13 FF 39 0B 04
+			14 F4 01 00 00 00 00
+			60 01 57 57 2F 28 28
+			55 00 00 00 00 00
+
+			29 01 00 00 00 00 06 /*Touch LFD Control Set*/
+			F5 00 06 00 00 80
+
+			29 01 00 00 00 00 02 /*VDD1 Set*/
+			F6 06
+
+			29 01 00 00 00 00 24 /*Power Sequence Control*/
+			F0 18 00 00 14 00 00
+			00 01 00 03 2B 01 02
+			53 58 5D 62 A6 AB B0
+			B0 B0 AF B0 AD 85 B0
+			B0 5D 58 53 4E 0A 05
+			00
+
+			/* Gamma setting */
+			29 01 00 00 00 00 0A
+			D0 51 17 66 63 01 02
+			70 75 04
+
+			29 01 00 00 00 00 05
+			D0 51 17 66 63
+
+			29 01 00 00 00 00 0A
+			D1 61 17 66 63 01 02
+			70 75 04
+
+			29 01 00 00 00 00 05
+			D1 61 17 66 63
+
+			29 01 00 00 00 00 0A
+			D2 51 17 66 63 01 02
+			70 75 04
+
+			29 01 00 00 00 00 05
+			D2 51 17 66 63
+
+			29 01 00 00 00 00 0A
+			D3 61 17 66 63 01 02
+			70 75 04
+
+			29 01 00 00 00 00 05
+			D3 61 17 66 63
+
+			29 01 00 00 00 00 0A
+			D4 51 17 66 72 01 02
+			70 75 04
+
+			29 01 00 00 00 00 05
+			D4 51 17 66 72
+
+			29 01 00 00 00 00 0A
+			D5 61 17 66 72 01 02
+			70 75 04
+
+			29 01 00 00 00 00 05
+			D5 61 17 66 72
+
+			/* Color Enhancement */
+			29 01 00 00 00 00 1A
+			85 11 6E 22 5A 19 44
+			28 7F 4D AD 85 62 A2
+			9B 8C 65 51 97 60 B0
+			9C 65 51 A5 62
+
+			05 01 00 00 78 00 01 /*exit sleep 120msec -> 80msec*/
+			11
+
+			05 01 00 00 00 00 01 /*display on*/
+			29
+		];
+
+		qcom,mdss-dsi-off-command1 = [
+			05 01 00 00 19 00 01 /*Display Off*/
+			28
+			05 01 00 00 00 00 01 /*Sleep In*/
+			10
+		];
+
+		qcom,mdss-dsi-off-command2 = [
+			29 01 00 00 00 00 07 /*Channel Control*/
+			B4 05 0C 1F 28 11 00
+
+			29 01 00 00 00 00 34 /*GIP Control Set*/
+			B5 19 04 1C 22 2F 80
+			2F 1F 04 40 05 00 20
+			09 04 40 05 00 A5 0D
+			2F 1F 04 00 04 00 00
+			7C 00 02 50 23 40 15
+			6C CB BA A9 97 8D 1F
+			23 40 15 6C CB BA A9
+			97 8D 1F
+
+			29 01 00 00 00 00 03 /*Touch Enable*/
+			B6 01 01
+
+			29 01 00 00 00 00 1B /*Touch GIP Control Set*/
+			D7 00 13 FF 39 0B 04
+			14 F4 01 00 00 00 00
+			40 01 13 13 17 34 34
+			20 00 00 00 00 00
+
+			29 01 00 00 00 00 06 /*Touch LFD Control Set*/
+			F5 00 06 00 00 C0
+
+			29 01 00 00 00 00 02 /*Touch Control Set*/
+			CF 07
+
+			29 01 00 00 14 00 03 /*To setting MIPI Lane floating*/
+			C8 01 00
+		];
+		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-lut-update-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-h-sync-pulse = <0>;
+		qcom,mdss-dsi-traffic-mode = "non_burst_sync_event";
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+		//qcom,mdss-dsi-hfp-power-mode;
+		//qcom,mdss-dsi-hbp-power-mode;
+		//qcom,mdss-dsi-hsa-power-mode;
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-last-line-interleave;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-panel-timings = [AD 30 1C 00 62 64 20 32 1F 03 04 00];//HFP 120, HS Prepare time : 20 -> 2A, HS Trail time : 2C -> 32, T_HS_RQST : 21 ->24
+		qcom,mdss-dsi-t-clk-post = <0x08>;
+		qcom,mdss-dsi-t-clk-pre = <0x25>;
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <255>;
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-reset-sequence = <1 5>;
+	};
+};
+
+&mdss_mdp {
+	dsi_lgd_m2db7400_hd_incell_vid_8mask: qcom,mdss_dsi_lgd_incell_m2db7400_hd_video_8mask{
+		compatible = "qcom,mdss-dsi-panel";
+		status = "disable";
+		qcom,cont-splash-enabled;
+		qcom,mdss-dsi-panel-name = "LGD M2 DONGBU HITEK INCELL HD video mode dsi panel";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,mdss-dsi-panel-destination = "display_1";
+		qcom,mdss-dsi-force-clock-lane-hs;
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-lp11-init;
+		qcom,mdss-dsi-panel-width = <720>;
+		qcom,mdss-dsi-panel-height = <1280>;
+		qcom,mdss-dsi-h-front-porch = <82>;
+		qcom,mdss-dsi-h-back-porch = <120>;
+		qcom,mdss-dsi-h-pulse-width = <4>;
+		qcom,mdss-dsi-h-sync-skew = <0>;
+		qcom,mdss-dsi-v-front-porch = <540>;
+		qcom,mdss-dsi-v-back-porch = <11>;
+		qcom,mdss-dsi-v-pulse-width = <1>;
+		qcom,mdss-dsi-h-left-border = <0>;
+		qcom,mdss-dsi-h-right-border = <0>;
+		qcom,mdss-dsi-v-top-border = <0>;
+		qcom,mdss-dsi-v-bottom-border = <0>;
+		qcom,mdss-pan-physical-width-dimension = < 68 >;
+		qcom,mdss-pan-physical-height-dimension = < 120 >;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-underflow-color = <0>;
+		qcom,mdss-dsi-border-color = <0>;
+		qcom,mdss-dsi-on-command = [
+			15 01 00 00 00 00 02 /*Set Address Mode*/
+			36 00
+
+			15 01 00 00 00 00 02 /*Manufacturer Command Access Protect*/
+			B0 00
+
+			29 01 00 00 00 00 03 /*RGB Interface Set*/
+			B1 00 46
+
+			29 01 00 00 00 00 07 /*Module Characteristics Set*/
+			B2 50 00 0C 00 00 00
+
+			29 01 00 00 00 00 05 /*Internal Timing Set*/
+			B3 4F 80 0A 28
+
+			29 01 00 00 00 00 07 /*Channel Control*/
+			B4 05 0C 1F 28 11 00
+
+			29 01 00 00 00 00 34 /*GIP Control Set*/
+			B5 19 04 1C 22 2F 80
+			2F 1F 04 40 05 00 20
+			09 04 40 05 00 A5 0D
+			2F 2F 3F FF 3F FF 01
+			7C 00 02 50 23 40 15
+			6C CB BA A9 97 8D 1F
+			23 40 15 6C CB BA A9
+			97 8D 1F
+
+			29 01 00 00 00 00 03 /*Touch Enable*/
+			B6 01 03
+
+			29 01 00 00 00 00 04 /*GVDDP Control */
+			B7 00 32 33
+
+			29 01 00 00 00 00 10 /*VGHL Control*/
+			BB 00 90 90 30 30 00
+			00 00 00 00 00 00 00
+			00 13
+
+			29 01 00 00 00 00 03 /*Bias Control*/
+			BD 03 33
+
+			29 01 00 00 00 00 02 /*VCI1 Control*/
+			BE 03
+
+			29 01 00 00 00 00 07 /*Write DSI Control*/
+			95 00 08 10 00 00 00
+
+			29 01 00 00 00 00 02 /*Touch Control Set*/
+			CF 0F
+
+			29 01 00 00 00 00 03 /*Mipi Parameter Setting*/
+			C6 0A 00
+
+			29 01 00 00 00 00 1B /*Touch GIP Control*/
+			D7 00 13 FF 39 0B 04
+			14 F4 01 00 00 00 00
+			60 01 57 57 2F 28 28
+			55 00 00 00 00 00
+
+			29 01 00 00 00 00 06 /*Touch LFD Control Set*/
+			F5 00 06 00 00 80
+
+			29 01 00 00 00 00 02 /*VDD1 Set*/
+			F6 06
+
+			29 01 00 00 00 00 24 /*Power Sequence Control*/
+			F0 18 00 00 14 00 00
+			00 01 00 03 2B 01 02
+			53 58 5D 62 A6 AB B0
+			B0 B0 AF B0 AD 85 B0
+			B0 5D 58 53 4E 0A 05
+			00
+
+			/* Gamma setting */
+			29 01 00 00 00 00 0A
+			D0 62 67 54 44 01 04
+			60 24 03
+
+			29 01 00 00 00 00 05 /*pos gamma curve red*/
+			D0 62 67 54 44
+
+			29 01 00 00 00 00 0A /*neg gamma curve red*/
+			D1 62 67 54 44 01 06
+			60 24 03
+
+			29 01 00 00 00 00 05 /*neg gamma curve red*/
+			D1 62 67 54 44
+
+			29 01 00 00 00 00 0A /*pos gamma curve green*/
+			D2 62 67 54 44 01 04
+			60 24 03
+
+			29 01 00 00 00 00 05 /*pos gamma curve green*/
+			D2 62 67 54 44
+
+			29 01 00 00 00 00 0A /*neg gamma curve green*/
+			D3 62 67 54 44 01 06
+			60 24 03
+
+			29 01 00 00 00 00 05 /*neg gamma curve green*/
+			D3 62 67 54 44
+
+			29 01 00 00 00 00 0A /*pos gamma curve blue*/
+			D4 62 67 54 44 01 04
+			60 24 03
+
+			29 01 00 00 00 00 05 /*pos gamma curve blue*/
+			D4 62 67 54 44
+
+			29 01 00 00 00 00 0A /*neg gamma curve blue*/
+			D5 62 67 54 44 01 06
+			60 24 03
+
+			29 01 00 00 00 00 05 /*neg gamma curve blue*/
+			D5 62 67 54 44
+
+			29 01 00 00 00 00 1A /*Color Enhance Control*/
+			85 17 6E 22 5A 19 44
+			28 7F 4D AD 85 6A 96
+			9B 8C 65 51 97 60 B0
+			9C 65 51 A5 62
+
+			05 01 00 00 78 00 01 /*exit sleep 120msec -> 80msec*/
+			11
+
+			05 01 00 00 00 00 01 /*display on*/
+			29
+		];
+
+		qcom,mdss-dsi-off-command1 = [
+			05 01 00 00 19 00 01 /*Display Off*/
+			28
+			05 01 00 00 00 00 01 /*Sleep In*/
+			10
+		];
+
+		qcom,mdss-dsi-off-command2 = [
+			29 01 00 00 00 00 07 /*Channel Control*/
+			B4 05 0C 1F 28 11 00
+
+			29 01 00 00 00 00 34 /*GIP Control Set*/
+			B5 19 04 1C 22 2F 80
+			2F 1F 04 40 05 00 20
+			09 04 40 05 00 A5 0D
+			2F 1F 04 00 04 00 00
+			7C 00 02 50 23 40 15
+			6C CB BA A9 97 8D 1F
+			23 40 15 6C CB BA A9
+			97 8D 1F
+
+			29 01 00 00 00 00 03 /*Touch Enable*/
+			B6 01 01
+
+			29 01 00 00 00 00 1B /*Touch GIP Control Set*/
+			D7 00 13 FF 39 0B 04
+			14 F4 01 00 00 00 00
+			40 01 13 13 17 34 34
+			20 00 00 00 00 00
+
+			29 01 00 00 00 00 06 /*Touch LFD Control Set*/
+			F5 00 06 00 00 C0
+
+			29 01 00 00 00 00 02 /*Touch Control Set*/
+			CF 07
+
+			29 01 00 00 14 00 03 /*To setting MIPI Lane floating*/
+			C8 01 00
+		];
+		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-lut-update-command-state = "dsi_hs_mode";
+		qcom,mdss-dsi-h-sync-pulse = <0>;
+		qcom,mdss-dsi-traffic-mode = "non_burst_sync_event";
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+		//qcom,mdss-dsi-hfp-power-mode;
+		//qcom,mdss-dsi-hbp-power-mode;
+		//qcom,mdss-dsi-hsa-power-mode;
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-last-line-interleave;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-panel-timings = [AD 30 1C 00 62 64 20 32 1F 03 04 00];//HFP 120, HS Prepare time : 20 -> 2A, HS Trail time : 2C -> 32, T_HS_RQST : 21 ->24
+		qcom,mdss-dsi-t-clk-post = <0x08>;
+		qcom,mdss-dsi-t-clk-pre = <0x25>;
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <255>;
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-reset-sequence = <1 5>;
+	};
+};
+
+&mdss_dsi0 {
+    vdd-supply = <&pm8916_l16>;
+    vddio-supply = <&pm8916_l6>;
+    vdda-supply = <&pm8916_l2>;
+    qcom,panel-supply-entries {
+        qcom,panel-supply-entry@0 {
+            reg = <0>;
+            qcom,supply-name = "vdd";
+            qcom,supply-min-voltage = <3000000>;
+            qcom,supply-max-voltage = <3000000>;
+            qcom,supply-enable-load = <100000>;
+            qcom,supply-disable-load = <100>;
+            qcom,supply-post-on-sleep = <0>;
+        };
+        qcom,panel-supply-entry@1 {
+            qcom,supply-name = "vddio";
+            qcom,supply-post-on-sleep = <0>;
+        };
+    };
+};
+

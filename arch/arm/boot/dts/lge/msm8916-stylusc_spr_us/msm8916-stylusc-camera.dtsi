@@ -1,0 +1,87 @@
+/*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "../msm8916-lge-common/msm8916-g4stylus-camera.dtsi"
+
+&s5k3l2_eeprom {
+	status = "disabled";
+};
+
+&s5k3l2 {
+	status = "disabled";
+};
+
+&cci {
+	hi841_otp: qcom,otp@0 {
+		cell-index = <0>;
+		reg = <0x0>;
+		qcom,otp-name = "hi841";
+		compatible = "sk,hi841-otp";
+		qcom,slave-addr = <0x40>;
+		qcom,cci-master = <0>;
+		qcom,num-blocks = <1>;
+
+		qcom,page0 = <0 0x3b02 2 0x10 1 5>;
+		qcom,pageen0 = <0 0x3b00 2 0x01 1 5>;
+		qcom,poll0 = <0 0x3b01 2 0x01 1 5>;
+		qcom,mem0 = <0x900 0xa891 2 0 1 0>;
+
+		cam_vio-supply = <&pm8916_l6>;		//always-on
+		cam_vana-supply = <&pm8916_l10>;
+		cam_vaf-supply = <&pm8916_l17>;
+		qcom,cam-vreg-name = "cam_vdig", "cam_vio", "cam_vana", "cam_vaf";
+		qcom,cam-vreg-min-voltage = <0 1800000 2800000 2850000>;
+		qcom,cam-vreg-max-voltage = <0 1800000 2800000 2850000>;
+		qcom,cam-vreg-op-mode = <0 100 80000 100000>;
+
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_sensor_mclk0_default &cam_sensor_rear_default>;
+		pinctrl-1 = <&cam_sensor_mclk0_sleep &cam_sensor_rear_sleep>;
+
+		gpios = <&msm_gpio 26 0>,
+				<&msm_gpio 35 0>,
+				<&msm_gpio 121 0>,
+				<&msm_gpio 109 0>;
+		qcom,gpio-no-mux = <0>;
+		qcom,gpio-reset  = <1>;
+		qcom,gpio-vdig   = <2>;
+		qcom,gpio-ldaf-en = <3>;
+		qcom,gpio-req-tbl-num   = <0 1 2 3>;
+		qcom,gpio-req-tbl-flags = <1 0 0 0>;
+		qcom,gpio-req-tbl-label = "CAMIF_MCLK", "CAM_RESET1", "CAM_DVDD", "LDAF_EN";
+
+		qcom,csi-lane-assign = <0x4320>;
+		qcom,csi-lane-mask   = <0x1F>;
+
+		qcom,i2c-init-addr = <0x8408 0x0103 0x0103 0x8400>;
+		qcom,i2c-init-data = <0x0a 0x01 0x00 0x03>;
+
+		qcom,cam-power-seq-type = "sensor_vreg", "sensor_vreg", "sensor_gpio", "sensor_vreg", "sensor_clk", "sensor_gpio", "sensor_i2c_mux";
+		qcom,cam-power-seq-val = "cam_vio", "cam_vana", "sensor_gpio_vdig", "cam_vaf", "sensor_cam_mclk", "sensor_gpio_reset", "none";
+		qcom,cam-power-seq-cfg-val = <1 1 1 1 23880000 1 0>;
+		qcom,cam-power-seq-delay = <0 0 0 1 2 10 1>;
+
+		qcom,mclk-23880000;
+		clocks = <&clock_gcc clk_mclk0_clk_src>,
+				 <&clock_gcc clk_gcc_camss_mclk0_clk>;
+		clock-names = "cam_src_clk", "cam_clk";
+
+		lge,otp-position = <0>;
+		lge,addr-vendor-id = <0x700>;
+	};
+};
+
+&hi841 {
+		status = "ok";
+		qcom,otp-src = <&hi841_otp>;
+};

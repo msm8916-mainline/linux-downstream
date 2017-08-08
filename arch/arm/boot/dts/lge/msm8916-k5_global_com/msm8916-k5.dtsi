@@ -1,0 +1,44 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+    memory {
+		modem_adsp_mem: modem_adsp_region@0 {
+			linux,reserve-contiguous-region;
+			linux,reserve-region;
+			linux,remove-completely;
+			reg = <0x0 0x86800000 0x0 0x05500000>;
+			label = "modem_adsp_mem";
+		};
+		peripheral_mem: pheripheral_region@0 {
+			linux,reserve-contiguous-region;
+			linux,reserve-region;
+			linux,remove-completely;
+			reg = <0x0 0x8bd00000 0x0 0x0600000>;
+			label = "peripheral_mem";
+		};
+	};
+};
+
+#include "../msm8916-k5-common/msm8916-k5-common.dtsi"
+
+#include "msm8916-k5-pinctrl.dtsi"
+#include "msm8916-k5-panel.dtsi"
+#include "msm8916-k5-sensor.dtsi"
+#include "msm8916-k5-usb.dtsi"
+#include "msm8916-k5-input.dtsi"
+#include "msm8916-k5-misc.dtsi"
+#include "msm8916-k5-pm.dtsi"
+#include "msm8916-k5-camera.dtsi"
+#include "msm8916-k5-connectivity.dtsi"
+#include "msm8916-k5-sound.dtsi"
+#include "msm8916-k5-nfc.dtsi"
