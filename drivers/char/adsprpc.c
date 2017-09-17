@@ -464,7 +464,12 @@ static int context_build_overlap(struct smq_invoke_ctx *ctx)
 	for (i = 0; i < nbufs; ++i) {
 		ctx->overs[i].start = (uintptr_t)pra[i].buf.pv;
 		ctx->overs[i].end = ctx->overs[i].start + pra[i].buf.len;
-		ctx->overs[i].raix = i;
+		if (pra[i].buf.len) {
+                	VERIFY(err, ctx->overs[i].end > ctx->overs[i].start);
+                	if (err)
+                        	goto bail;
+        	}
+        	ctx->overs[i].raix = i;
 		ctx->overps[i] = &ctx->overs[i];
 	}
 	sort(ctx->overps, nbufs, sizeof(*ctx->overps), overlap_ptr_cmp, 0);
