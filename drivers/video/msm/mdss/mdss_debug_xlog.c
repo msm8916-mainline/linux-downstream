@@ -55,7 +55,7 @@ static int mdss_xlog_dump_open(struct inode *inode, struct file *file)
 static ssize_t mdss_xlog_dump_read(struct file *file, char __user *buff,
 		size_t count, loff_t *ppos)
 {
-	MDSS_XLOG_TOUT_HANDLER("mdp", "dsi0", "dsi1", "edp", "hdmi", "panic");
+	MDSS_XLOG_TOUT_HANDLER("mdp", "dsi0", "dsi1", "edp", "hdmi");
 	return 0;
 }
 
@@ -183,9 +183,7 @@ void mdss_xlog_tout_handler(const char *name, ...)
 
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 	if (!strcmp(name, "mdss_mdp_video_underrun_intr_done")) {
-		trace_printk("tracing_mark_write: B|%d mdp_underrun\n", current->pid);
 		mdss_mdp_underrun_dump_info();
-		trace_printk("tracing_mark_write: E\n");
 		return;
 	}
 #endif

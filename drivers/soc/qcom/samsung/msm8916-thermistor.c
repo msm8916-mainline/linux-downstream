@@ -481,7 +481,7 @@ static struct sec_therm_adc_table temper_table_ap[] = {
 	{41509, -190},
 	{41604, -200},
 };
-#elif defined(CONFIG_MACH_J1XLTE_USA_SPR)
+#elif defined(CONFIG_MACH_J1XLTE_USA_SPR) || defined(CONFIG_MACH_J1XLTE_USA_TFNVZW)
 static struct sec_therm_adc_table temper_table_ap[] = {
 	{26070,	900},
 	{26103,	890},

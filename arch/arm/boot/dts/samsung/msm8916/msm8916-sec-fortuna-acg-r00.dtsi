@@ -36,15 +36,13 @@
 	status = "ok";
 };
 
-samsung,vibrator {
-		compatible = "samsung_vib";
-		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
-		pinctrl-0 = <&motor_en_active &motor_pwm_active>;
-		pinctrl-1 = <&motor_en_suspend &motor_pwm_suspend>;
-		samsung,vib_en = <&msm_gpio 72 0x1>;
-		samsung,vib_pwm = <&msm_gpio 97 0x1>;
-		samsung,gp_clk = <0x01808000>;	// Adress of GP1 clock,by default GP2 is used
-		status = "ok";
+	samsung,vibrator {
+	        pinctrl-names = "tlmm_motor_en_active","tlmm_motor_en_suspend";
+	        pinctrl-0 = <&motor_en_active>;
+	        pinctrl-1 = <&motor_en_suspend>;
+	        compatible = "vibrator";
+	        samsung,motor-en = <&msm_gpio 72 0x1>;
+	        status = "ok";
 	};
 
 	i2c@78ba000 { /* BLSP1 QUP6 */

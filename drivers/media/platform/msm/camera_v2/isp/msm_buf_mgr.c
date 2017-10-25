@@ -48,7 +48,7 @@ static struct msm_isp_bufq *msm_isp_get_bufq(
 {
 	struct msm_isp_bufq *bufq = NULL;
 	uint32_t bufq_index = bufq_handle & 0xFF;
-	if (bufq_index > buf_mgr->num_buf_q)
+	if (bufq_index >= buf_mgr->num_buf_q)
 		return bufq;
 
 	bufq = &buf_mgr->bufq[bufq_index];
@@ -130,7 +130,7 @@ static int msm_isp_prepare_v4l2_buf(struct msm_isp_buf_mgr *buf_mgr,
 		ion_import_dma_buf(buf_mgr->client,
 			v4l2_buf->m.planes[i].m.userptr);
 		if (IS_ERR_OR_NULL(mapped_info->handle)) {
-			pr_err("%s: buf has null/error ION handle %pK\n",
+			pr_err("%s: buf has null/error ION handle %p\n",
 				__func__, mapped_info->handle);
 			goto ion_map_error;
 		}

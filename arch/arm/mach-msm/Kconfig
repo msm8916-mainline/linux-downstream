@@ -391,6 +391,12 @@ config SEC_A7_PROJECT
 		  help
 		  Support for Samsung A7 Project
 
+config MACH_A73G_EUR_OPEN
+	depends on SEC_A7_PROJECT
+		default n
+		bool "Samsung A73G EUR Open"
+		help
+		  Support for Samsung A73G Eur Open device.
 
 config MACH_A7_EUR_OPEN
   depends on SEC_A7_PROJECT
@@ -420,6 +426,34 @@ config MACH_A3U_EUR_OPEN
         help
           Support for Samsung A3U EUR Open device.
 
+config SEC_A3_EUR_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung A3 EUR Project"
+	help
+	  Support for Samsung A3 EUR Project
+
+config MACH_A3_EUR_OPEN
+	depends on SEC_A3_EUR_PROJECT
+	default n
+	bool "Samsung A3 EUR OPEN"
+	help
+	  Support for Samsung A3 EUR OPEN device.
+
+config SEC_A33G_EUR_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung A33G EUR Project"
+	help
+	  Support for Samsung A33G EUR Project
+
+config MACH_A33G_EUR_OPEN
+	depends on SEC_A33G_EUR_PROJECT
+	default n
+	bool "Samsung A33G EUR Open"
+	help
+	  Support for Samsung A33G EUR Open device.
+
 config SEC_A5_PROJECT
     depends on ARCH_MSM8916
         default n
@@ -427,12 +461,26 @@ config SEC_A5_PROJECT
         help
           Support for Samsung A5 Project
 
+config MACH_A5U_CAN_BMC
+    depends on SEC_A5_PROJECT
+        default n
+        bool "Samsung A5U CAN BMC"
+        help
+          Support for Samsung CAM BMC device.
+
 config MACH_A5U_EUR_OPEN
     depends on SEC_A5_PROJECT
         default n
         bool "Samsung A5U EUR Open"
         help
           Support for Samsung A5U EUR Open device.
+
+config MACH_A5U_KOR_OPEN
+    depends on SEC_A5_PROJECT
+        default n
+        bool "Samsung A5U KOR Open"
+        help
+          Support for Samsung A5U KOR Open device.
 
 config SEC_A5_EUR_PROJECT
 	depends on ARCH_MSM8916
@@ -447,6 +495,20 @@ config MACH_A5_EUR_OPEN
 		bool "Samsung A5 EUR Open"
 		help
 		  Support for Samsung A5 EUR Open device.
+		  
+config SEC_A53G_EUR_PROJECT
+	depends on ARCH_MSM8916
+		default n
+		bool "Samsung A53G EUR Project"
+		help
+		  Support for Samsung A53G EUR Project
+		  
+config MACH_A53G_EUR_OPEN
+	depends on SEC_A53G_EUR_PROJECT
+		default n
+		bool "Samsung A53G EUR Open"
+		help
+		  Support for Samsung A53G EUR Open device.
 
 config SEC_GTEL_PROJECT
     depends on ARCH_MSM8916
@@ -638,6 +700,13 @@ config MACH_J1XLTE_USA_SPR
 	bool "Samsung J1XLTE USA SPR"
 	help
 	  Support for Samsung J1XLTE USA SPR device.
+
+config MACH_J1XLTE_USA_TFNVZW
+	depends on SEC_J1X_PROJECT
+	default n
+	bool "Samsung J1XLTE USA TFNVZW"
+	help
+	  Support for Samsung J1XLTE USA TFNVZW device.
 	  
 config SEC_J5X_PROJECT
 	depends on ARCH_MSM8916
@@ -659,7 +728,21 @@ config MACH_J5XLTE_KOR_OPEN
 	bool "Samsung J5XLTE KOR OPEN"
 	help
 	  Support for Samsung J5XLTE KOR OPEN device.
+
+config MACH_J5XLTE_MEA_JV
+	depends on SEC_J5X_PROJECT
+	default n
+	bool "Samsung J5XLTE MEA JV"
+	help
+	  Support for Samsung J5XLTE MEA JV device.
 	  
+config MACH_J5XLTE_MEA_TUR
+	depends on SEC_J5X_PROJECT
+	default n
+	bool "Samsung J5XLTE MEA TUR"
+	help
+	  Support for Samsung J5XLTE MEA TUR device.
+
 config SEC_J5_PROJECT
 	depends on ARCH_MSM8916
 	default n
@@ -673,6 +756,34 @@ config MACH_J5LTE_EUR_OPEN
 	bool "Samsung J5LTE EUR OPEN"
 	help
 	  Support for Samsung J5LTE EUR OPEN device.
+
+config MACH_J53G_EUR_OPEN
+	depends on SEC_J5_PROJECT
+	default n
+	bool "Samsung J53G EUR OPEN"
+	help
+	  Support for Samsung J53G EUR OPEN device.
+	  
+config MACH_J5LTE_KOR_OPEN
+	depends on SEC_J5_PROJECT
+	default n
+	bool "Samsung J5LTE KOR OPEN"
+	help
+	  Support for Samsung J5LTE KOR OPEN device.
+
+config SEC_J5N_PROJECT
+        depends on ARCH_MSM8916
+        default n
+        bool "Samsung J5N Project"
+        help
+          Support for Samsung J5N Project
+
+config MACH_J5NLTE_EUR_OPEN
+        depends on SEC_J5N_PROJECT
+        default n
+        bool "Samsung J5NLTE EUR OPEN"
+        help
+          Support for Samsung J5NLTE EUR OPEN device.
 
 config MACH_J5X3G_MEA_JV
 	depends on SEC_J5X_PROJECT
@@ -794,12 +905,33 @@ config MACH_E73G_EUR_OPEN
 	help
 	  Support for Samsung E73G EUR Open device.
 
+config SEC_ON7N_PROJECT
+	depends on ARCH_MSM8916
+	default n
+	bool "Samsung ON7N Project"
+	help
+	  Support for Samsung ON7N Project
+
+config MACH_ON7NLTE_KOR_SKT
+	depends on SEC_ON7N_PROJECT
+	default n
+	bool "Samsung ON7NLTE KOR SKT"
+	help
+	  Support for Samsung ON7NLTE KOR SKT device.
+
 config SEC_GT58_PROJECT
     depends on ARCH_MSM8916
         default n
         bool "Samsung GT5 8 Project"
         help
           Support for Samsung GT5 8 Project
+
+config MACH_GT58_CAN_BMC
+    depends on SEC_GT58_PROJECT
+        default n
+        bool "Samsung GT5 8 LTE CAN BMC"
+        help
+          Support for Samsung GT5 8 LTE CAN BMC device.
 
 config MACH_GT58_EUR_OPEN
     depends on SEC_GT58_PROJECT

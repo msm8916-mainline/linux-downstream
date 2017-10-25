@@ -97,6 +97,8 @@
 #define INIT_CHECK_MASK         0x00FF
 #define DISABLE_RE_INIT         0x0007
 
+#define SM5703_BATTERY_VERSION    0x00E0
+
 #define TOPOFF_SOC_100   0x111
 #define TOPOFF_SOC_99    0x110
 #define TOPOFF_SOC_98    0x101

@@ -547,7 +547,7 @@ static int mdss_dsi_off(struct mdss_panel_data *pdata, int power_state)
 
 	panel_info = &ctrl_pdata->panel_data.panel_info;
 
-	pr_info("%s+: ctrl=%pK ndx=%d power_state=%d\n",
+	pr_info("%s+: ctrl=%p ndx=%d power_state=%d\n",
 		__func__, ctrl_pdata, ctrl_pdata->ndx, power_state);
 
 	if (power_state == panel_info->panel_power_state) {
@@ -656,7 +656,7 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 				panel_data);
 
 	cur_power_state = pdata->panel_info.panel_power_state;
-	pr_info("%s+: ctrl=%pK ndx=%d cur_power_state=%d\n", __func__,
+	pr_info("%s+: ctrl=%p ndx=%d cur_power_state=%d\n", __func__,
 		ctrl_pdata, ctrl_pdata->ndx, cur_power_state);
 
 	pinfo = &pdata->panel_info;
@@ -888,7 +888,7 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 				panel_data);
 	mipi = &pdata->panel_info.mipi;
 
-	pr_info("%s+: ctrl=%pK ndx=%d power_state=%d\n",
+	pr_info("%s+: ctrl=%p ndx=%d power_state=%d\n",
 		__func__, ctrl_pdata, ctrl_pdata->ndx, power_state);
 
 	mdss_dsi_clk_ctrl(ctrl_pdata, DSI_ALL_CLKS, 1);
@@ -1244,6 +1244,10 @@ static int mdss_dsi_dfps_config(struct mdss_panel_data *pdata, int new_fps)
 		/* left ctrl to get right ctrl */
 		sctrl_pdata = mdss_dsi_get_other_ctrl(ctrl_pdata);
 	}
+
+	ctrl_pdata->dfps_status = true;
+	if (sctrl_pdata)
+		sctrl_pdata->dfps_status = true;
 
 	if (new_fps !=
 		ctrl_pdata->panel_data.panel_info.mipi.frame_rate) {

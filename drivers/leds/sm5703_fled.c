@@ -48,7 +48,7 @@
 
 #define EN_FLED_IRQ 0
 
-#if defined(CONFIG_SEC_XCOVER3_PROJECT) || defined(CONFIG_MACH_J3LTE_CHN_CTC) || defined( CONFIG_MACH_J3LTE_KOR_OPEN )
+#if defined(CONFIG_SEC_XCOVER3_PROJECT) || defined(CONFIG_MACH_J3LTE_CHN_CTC) || defined( CONFIG_MACH_J3LTE_KOR_OPEN )||defined( CONFIG_MACH_J5XLTE_EUR_OPEN )||defined( CONFIG_MACH_J5X3G_MEA_JV )||defined( CONFIG_MACH_J7_USA_SPR )
 #define CONFIG_ACTIVE_FLASH
 #endif
 
@@ -252,6 +252,71 @@ static int sm5703_fled_resume(struct sm_fled_info *info)
 	SM5703_FLED_INFO("Resume\n");
 	return 0;
 }
+
+int sm5703_fled_led_off(sm_fled_info_t *fled_info)
+{
+	if (assistive_light == true) {
+			pr_err("When assistive light, Not control flash\n");
+			return 0;
+	}
+
+	sm5703_fled_set_mode(fled_info,FLASHLIGHT_MODE_OFF);
+	sm5703_fled_flash(fled_info,TURN_WAY_GPIO);
+	sm5703_fled_notification(fled_info);
+
+	gpio_request(led_irq_gpio1, NULL);
+	gpio_request(led_irq_gpio2, NULL);
+	gpio_direction_output(led_irq_gpio1, 0);
+	gpio_direction_output(led_irq_gpio2, 0);
+	gpio_free(led_irq_gpio1);
+	gpio_free(led_irq_gpio2);
+
+  return 0;
+}
+EXPORT_SYMBOL(sm5703_fled_led_off);
+
+int sm5703_fled_torch_on(sm_fled_info_t *fled_info)
+{
+	if (assistive_light == true) {
+		pr_err("When assistive light, Not control flash\n");
+		return 0;
+	}
+	sm5703_fled_set_mode(fled_info,FLASHLIGHT_MODE_TORCH);
+	sm5703_fled_notification(fled_info);
+	sm5703_fled_flash(fled_info,TURN_WAY_GPIO);
+
+	gpio_request(led_irq_gpio1, NULL);
+	gpio_request(led_irq_gpio2, NULL);
+	gpio_direction_output(led_irq_gpio1, 1);
+	gpio_direction_output(led_irq_gpio2, 0);
+	gpio_free(led_irq_gpio1);
+	gpio_free(led_irq_gpio2);
+
+	return 0;
+}
+EXPORT_SYMBOL(sm5703_fled_torch_on);
+
+int sm5703_fled_flash_on(sm_fled_info_t *fled_info)
+{
+	if (assistive_light == true) {
+		pr_err("When assistive light, Not control flash\n");
+		return 0;
+	}
+
+	sm5703_fled_set_mode(fled_info,FLASHLIGHT_MODE_FLASH);
+	sm5703_fled_notification(fled_info);
+	sm5703_fled_flash(fled_info,TURN_WAY_GPIO);
+
+	gpio_request(led_irq_gpio1, NULL);
+	gpio_request(led_irq_gpio2, NULL);
+	gpio_direction_output(led_irq_gpio1, 0);
+	gpio_direction_output(led_irq_gpio2, 1);
+	gpio_free(led_irq_gpio1);
+	gpio_free(led_irq_gpio2);
+
+	return 0;   
+}
+EXPORT_SYMBOL(sm5703_fled_flash_on);
 
 #ifdef CONFIG_FLED_SM5703_EXT_GPIO
 /* For GPIO operation, camera driver must use lock / unlock funtion */

@@ -49,13 +49,9 @@ ssize_t	tima_read(struct file *filep, char __user *buf, size_t size, loff_t *off
 		return -EINVAL;
 	}
 
-	if (copy_to_user(buf, (const char *)tima_debug_log_addr + (*offset), size)) {
-		printk(KERN_ERR"Copy to user failed\n");
-		return -1;
-	} else {
-		*offset += size;
-		return size;
-	}
+	memcpy_fromio(buf, (const char *)tima_debug_log_addr + (*offset), size);
+	*offset += size;
+	return size;
 }
 
 static const struct file_operations tima_proc_fops = {

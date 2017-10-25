@@ -40,6 +40,7 @@ struct ss_vib {
 	int state;
 	int timeout;
 	int intensity;
+	int timevalue;
 
 	unsigned int vib_pwm_gpio;	/* gpio number for vibrator pwm */
 	unsigned int vib_en_gpio;	/* gpio number of vibrator enable */
@@ -145,6 +146,7 @@ static void set_vibrator(struct ss_vib *vib)
 			gpio_set_value(vib->vib_en_gpio, VIBRATION_ON);
 
 		gpio_set_value(vib->vib_pwm_gpio, VIBRATION_ON);
+		hrtimer_start(&vib->vib_timer, ktime_set(vib->timevalue / 1000, (vib->timevalue % 1000) * 1000000),HRTIMER_MODE_REL);
 	} else {
 		motor_pinctrl = devm_pinctrl_get_select(vib->dev, "tlmm_motor_suspend");
 		if (IS_ERR(motor_pinctrl)) {
@@ -173,16 +175,11 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 	if (value == 0) {
 		pr_info("[VIB]: OFF\n");
 		vib->state = 0;
+		vib->timevalue = 0;
 	} else {
-		pr_info("[VIB]: ON, Duration : %d msec\n", value);
+		pr_info("[VIB]: ON, Duration : %d msec, intensity : %d\n", value, vib->intensity);
 		vib->state = 1;
-
-		if (value == 0x7fffffff){
-			pr_info("[VIB]: No Use Timer %d\n", value);
-		} else {
-			value = (value > vib->timeout ?	vib->timeout : value);
-			hrtimer_start(&vib->vib_timer, ktime_set(value / 1000, (value % 1000) * 1000000),HRTIMER_MODE_REL);
-		}
+		vib->timevalue = value;
 	}
 	mutex_unlock(&vib->lock);
 	queue_work(vib->queue, &vib->work);

@@ -56,7 +56,13 @@ config CPU_FREQ_LIMIT
 	default n
 	help
 	  This driver supports API to limit CPU frequency.
-
+	  
+config SEC_JIG_LIMIT
+	bool "JIG limit API"
+	default n
+	help
+	  This driver supports API to limit CPU frequency when booting with JIG.
+	  
 choice
 	prompt "Default CPUFreq governor"
 	default CPU_FREQ_DEFAULT_GOV_USERSPACE if ARM_SA1100_CPUFREQ || ARM_SA1110_CPUFREQ

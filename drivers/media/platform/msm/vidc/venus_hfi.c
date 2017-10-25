@@ -19,6 +19,7 @@
 #include <linux/of.h>
 #include <linux/iommu.h>
 #include <linux/qcom_iommu.h>
+#include <linux/pm_qos.h>
 #include <linux/regulator/consumer.h>
 #include <linux/iopoll.h>
 #include <linux/coresight-stm.h>
@@ -262,7 +263,7 @@ static int venus_hfi_acquire_regulator(struct regulator_info *rinfo)
 					rinfo->name);
 		}
 	}
-	WARN_ON(!regulator_is_enabled(rinfo->regulator));
+	WARN_ON(!regulator_is_enabled(rinfo->regulator) && (msm_vidc_debug & VIDC_INFO));
 	return rc;
 }
 
@@ -928,15 +929,12 @@ static int venus_hfi_vote_active_buses(void *dev,
 		return -EINVAL;
 	}
 
-	/* (Re-)alloc memory to store the new votes (in case we internally
-	 * re-vote after power collapse, which is transparent to client) */
-	cached_vote_data = krealloc(device->bus_load.vote_data, num_data *
-			sizeof(*cached_vote_data), GFP_KERNEL);
-	if (!cached_vote_data) {
-		dprintk(VIDC_ERR, "Can't alloc memory to cache bus votes\n");
-		rc = -ENOMEM;
-		goto err_no_mem;
-	}
+        cached_vote_data = device->bus_load.vote_data;
+        if (!cached_vote_data) {
+                dprintk(VIDC_ERR,"Invalid bus load vote data\n");
+                rc = -ENOMEM;
+                goto err_no_mem;
+        }
 
 	/* Alloc & init the load table */
 	num_bus = device->res->bus_set.count;
@@ -1585,6 +1583,10 @@ static inline int venus_hfi_power_off(struct venus_hfi_device *device)
 	}
 
 	dprintk(VIDC_DBG, "Entering power collapse\n");
+
+        if (device->res->pm_qos_latency_us &&
+                pm_qos_request_active(&device->qos))
+		pm_qos_remove_request(&device->qos);
 	rc = venus_hfi_tzbsp_set_video_state(TZBSP_VIDEO_STATE_SUSPEND);
 	if (rc) {
 		dprintk(VIDC_WARN, "Failed to suspend video core %d\n", rc);
@@ -1719,6 +1721,15 @@ static inline int venus_hfi_power_on(struct venus_hfi_device *device)
 	 * being called again via __alloc_set_ocmem() if ocmem is enabled
 	 */
 	device->power_enabled = true;
+
+	if(device->res->pm_qos_latency_us) {
+#ifdef CONFIG_SMP
+                device->qos.type = PM_QOS_REQ_AFFINE_IRQ;
+                device->qos.irq = device->hal_data->irq;
+#endif
+		pm_qos_add_request(&device->qos, PM_QOS_CPU_DMA_LATENCY,
+					device->res->pm_qos_latency_us);
+	}
 
 	/*
 	 * write_lock is already acquired at this point, so to avoid
@@ -2409,6 +2420,15 @@ static int venus_hfi_core_init(void *device)
 	if (rc || venus_hfi_iface_cmdq_write(dev, &version_pkt))
 		dprintk(VIDC_WARN, "Failed to send image version pkt to f/w\n");
 
+	if (dev->res->pm_qos_latency_us) {
+#ifdef CONFIG_SMP
+		dev->qos.type = PM_QOS_REQ_AFFINE_IRQ;
+		dev->qos.irq = dev->hal_data->irq;
+#endif
+		pm_qos_add_request(&dev->qos, PM_QOS_CPU_DMA_LATENCY,
+				dev->res->pm_qos_latency_us);
+	}
+
 	return rc;
 err_core_init:
 	venus_hfi_set_state(dev, VENUS_STATE_DEINIT);
@@ -2446,6 +2466,12 @@ static int venus_hfi_core_release(void *device)
 			disable_irq_nosync(dev->hal_data->irq);
 		dev->intr_status = 0;
 	}
+
+
+	if (dev->res->pm_qos_latency_us &&
+                pm_qos_request_active(&dev->qos))
+		pm_qos_remove_request(&dev->qos);
+
 	venus_hfi_set_state(dev, VENUS_STATE_DEINIT);
 
 	dprintk(VIDC_INFO, "HAL exited\n");
@@ -3748,8 +3774,15 @@ static int venus_hfi_init_bus(struct venus_hfi_device *device)
 		dprintk(VIDC_DBG, "Registered bus client %s\n", name);
 	}
 
-	device->bus_load.vote_data = NULL;
-	device->bus_load.vote_data_count = 0;
+        device->bus_load.vote_data = (struct vidc_bus_vote_data *)
+                                        kzalloc(sizeof(struct vidc_bus_vote_data)*MAX_SUPPORTED_INSTANCES_COUNT, GFP_KERNEL);
+
+        if (device->bus_load.vote_data == NULL) {
+                dprintk(VIDC_ERR,"Failed to allocate memory for vote_data\n");
+                rc = -ENOMEM;
+                goto err_init_bus;
+        }
+        device->bus_load.vote_data_count = 0;
 
 	return rc;
 err_init_bus:
@@ -3956,7 +3989,7 @@ static int venus_hfi_disable_regulator(struct regulator_info *rinfo)
 disable_regulator_failed:
 
 	/* Bring attention to this issue */
-	WARN_ON(1);
+	WARN_ON(msm_vidc_debug & VIDC_INFO);
 	return rc;
 }
 

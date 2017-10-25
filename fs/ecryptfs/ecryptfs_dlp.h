@@ -23,6 +23,7 @@
 #define KNOX_DLP_XATTR_NAME "user.knox_dlp"
 #define AID_KNOX_DLP		8002
 #define AID_KNOX_DLP_RESTRICTED		8003
+#define AID_KNOX_DLP_MEDIA      8004
 
 #define DLP_DEBUG 1
 

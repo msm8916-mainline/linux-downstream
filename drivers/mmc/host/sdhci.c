@@ -1789,6 +1789,11 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 		else
 			present = sdhci_readl(host, SDHCI_PRESENT_STATE) &
 					SDHCI_CARD_PRESENT;
+	} 
+	/* For flooding detection pin. If exists card structure, the card is always present. */
+	else if(!present) { 
+		if(host->mmc->card)
+			present = 1;
 	}
 
 	spin_lock_irqsave(&host->lock, flags);

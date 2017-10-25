@@ -402,6 +402,7 @@ struct mdss_dsi_ctrl_pdata {
 	int bklt_max;
 	int new_fps;
 	int pwm_enabled;
+	bool dmap_iommu_map;
 	int clk_lane_cnt;
 	bool panel_bias_vreg;
 	bool dsi_irq_line;
@@ -471,6 +472,8 @@ struct mdss_dsi_ctrl_pdata {
 	int horizontal_idle_cnt;
 	struct panel_horizontal_idle *line_idle;
 	struct mdss_util_intf *mdss_util;
+
+	bool dfps_status;	/* dynamic refresh status */
 };
 
 struct dsi_status_data {
@@ -483,10 +486,10 @@ int dsi_panel_device_register(struct device_node *pan_node,
 				struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 
 int mdss_dsi_cmds_tx(struct mdss_dsi_ctrl_pdata *ctrl,
-		struct dsi_cmd_desc *cmds, int cnt);
+		struct dsi_cmd_desc *cmds, int cnt, int use_dma_tpg);
 
 int mdss_dsi_cmds_rx(struct mdss_dsi_ctrl_pdata *ctrl,
-			struct dsi_cmd_desc *cmds, int rlen);
+			struct dsi_cmd_desc *cmds, int rlen, int use_dma_tpg);
 
 void mdss_dsi_host_init(struct mdss_panel_data *pdata);
 void mdss_dsi_op_mode_config(int mode,

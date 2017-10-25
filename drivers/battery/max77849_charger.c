@@ -36,6 +36,8 @@ static struct dentry    *max77849_dentry;
 #define CONFIG_SLOW_CHARGING_CURRENT_STANDARD 1000
 #endif
 
+static unsigned int swelling_charging_current = 0;
+
 struct max77849_charger_data {
 	struct max77849_dev	*max77849;
 
@@ -846,8 +848,15 @@ static int sec_chg_set_property(struct power_supply *psy,
 					charger->pdata->charging_current
 					[charger->cable_type].fast_charging_current;
 			/* decrease the charging current according to siop level */
-			set_charging_current =
-				charger->charging_current * charger->siop_level / 100;
+			set_charging_current = charger->charging_current * charger->siop_level / 100;
+				
+#if defined(CONFIG_BATTERY_SWELLING)
+	psy_do_property("battery", get,
+			POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT, swelling_state);
+	if(swelling_state.intval && charger->charging_current > swelling_charging_current)
+		set_charging_current = swelling_charging_current;
+			
+#endif
 			if (set_charging_current > 0 &&
 					set_charging_current < usb_charging_current)
 				set_charging_current = usb_charging_current;
@@ -909,6 +918,9 @@ static int sec_chg_set_property(struct power_supply *psy,
 		if ((charger->status == POWER_SUPPLY_STATUS_CHARGING) ||
 				(charger->status == POWER_SUPPLY_STATUS_DISCHARGING) ||
 				(value.intval == POWER_SUPPLY_HEALTH_UNSPEC_FAILURE)) {
+					
+			value.intval = set_charging_current;
+			psy_do_property("battery", set,POWER_SUPPLY_PROP_CURRENT_AVG, value);
 			/* current setting */
 			max77849_set_charge_current(charger,
 				set_charging_current);
@@ -933,7 +945,8 @@ static int sec_chg_set_property(struct power_supply *psy,
 	/*  val->intval : charging current */
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
 #if defined(CONFIG_BATTERY_SWELLING)
-		if (val->intval > charger->pdata->charging_current
+		swelling_charging_current = val->intval;
+		if (swelling_charging_current > charger->pdata->charging_current
 			[charger->cable_type].fast_charging_current) {
 			break;
 		}
@@ -942,6 +955,9 @@ static int sec_chg_set_property(struct power_supply *psy,
 		max77849_set_charge_current(charger,
 			val->intval);
 		break;
+	case POWER_SUPPLY_PROP_CURRENT_FULL:
+			max77849_set_topoff_current(charger,val->intval,0);
+			break;
 	/* val->intval : charging current */
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		max77849_set_charge_current(charger,

@@ -71,6 +71,11 @@
 		battery,swelling_high_rechg_voltage = <4150>;
 		battery,swelling_low_rechg_voltage = <4050>;
 
+		battery,self_discharging_temp_block = <600>;
+		battery,self_discharging_volt_block = <4250>;
+		battery,self_discharging_temp_recov = <550>;
+		battery,self_discharging_temp_pollingtime = <400>;
+
 		charger {
 			status = "disable";
 			/* Charger */
@@ -79,34 +84,34 @@
 			battery,chg_polarity_en = <0>;
 			battery,chg_gpio_status = <0>;
 			battery,chg_polarity_status = <0>;
-			battery,chg_float_voltage = <4400>;
+			battery,chg_float_voltage = <4390>;
 
 			battery,input_current_limit = <1000 500 500 1000 500 1000 1000 500 500 1000 650 1000 1000 500 1000 500 700 1000 500 1000 1000 500 500>;
 			battery,fast_charging_current = <1500 0 500 1500 500 1500 1500 500 0 1500 750 1500 1500 (-1) 1500 500 700 1500 500 1500 1500 0 0>;
 			battery,full_check_current_1st = <200 0 200 200 200 200 200 200 0 200 200 200 200 0 200 200 200 200 200 200 200 0 0>;
-			battery,full_check_current_2nd = <150 0 150 150 150 150 150 150 0 150 150 150 150 0 150 150 150 150 150 150 150 0 0>;
+			battery,full_check_current_2nd = <100 0 100 100 100 100 100 100 0 100 100 100 100 0 100 100 100 100 100 100 100 0 0>;
 		};
 	};
 
 	battery_params {
 		battery,id = <0>; /* -1 means auto, detected by F/G */
 		battery0,battery_type = <4400>; /* 4200 4350 4400 */
-		battery0,battery_table0 = <0x1400 0x1B33 0x1B5C 0x1D56 0x1DA3 0x1DB1 0x1E1D 0x1E4A 0x1E8E 0x1EFD 0x1F28 0x1F93 0x2035 0x20FD 0x22E1 0x2431>;
-		battery0,battery_table1 = <0x1400 0x1B33 0x1B5C 0x1D56 0x1DA3 0x1DB1 0x1E1D 0x1E4A 0x1E8E 0x1EFD 0x1F28 0x1F93 0x2035 0x20FD 0x22E1 0x2431>;
-		battery0,battery_table2 = <0x0 0x6 0x3D 0x133 0x1CD 0x300 0x4CD 0x600 0x999 0xC99 0xD33 0xE66 0x10CC 0x1333 0x1800 0x1806>;
+		battery0,battery_table0 = <0x1400 0x1B33 0x1CB6 0x1D64 0x1D80 0x1DEA 0x1E55 0x1E99 0x1EC7 0x1F01 0x1F2C 0x1F77 0x2027 0x20EE 0x22C1 0x2399>;
+		battery0,battery_table1 = <0x1400 0x1B33 0x1CB6 0x1D64 0x1D80 0x1DEA 0x1E55 0x1E99 0x1EC7 0x1F01 0x1F2C 0x1F77 0x2027 0x20EE 0x22C1 0x2399>;
+		battery0,battery_table2 = <0x00 0x3D 0xD7 0x18F 0x300 0x4CC 0x866 0xACC 0xC00 0xD33 0xDCC 0xE66 0x10CC 0x1333 0x1800 0x1812>;
 		battery0,temp_std = <25>;
 		battery0,temp_offset = <10>;
 		battery0,temp_offset_cal = <0x01>;
-		battery0,charge_offset_cal = <0x03>;
+		battery0,charge_offset_cal = <0x00>;
 		battery0,rce_value = <0x0749 0x0580 0x371>;
 		battery0,dtcd_value = <0x1>;
 		battery0,rs_value = <0x1ae 0x47a 0x3800 0x00a4>; /*rs mix_factor max min*/
-		battery0,vit_period = <0x350a>;
+		battery0,vit_period = <0x3506>;
 		battery0,mix_value = <0x0503 0x0004>; /*mix_rate init_blank*/
 		battery0,topoff_soc = <0x0 0x5>; /*disable soc*/
-		battery0,volt_cal = <0x80B3>;
-		battery0,curr_cal = <0x7485>;
-		battery0,tem_poff = <3250 50 3180 50>;
+		battery0,volt_cal = <0x809E>;
+		battery0,curr_cal = <0x7385>;
+		battery0,tem_poff = <3400 50 3350 50>;
 		battery0,ext_temp_cal = <1 10 1 1 1 7 3 3>;
 	};
 };

@@ -1158,6 +1158,7 @@ static void mmc_sd_detect(struct mmc_host *host)
 	BUG_ON(!host);
 	BUG_ON(!host->card);
 
+#if 0
 #if	defined(CONFIG_SEC_HYBRID_TRAY)
 
 	if (host->ops->get_cd && host->ops->get_cd(host) == 0) {
@@ -1169,6 +1170,7 @@ static void mmc_sd_detect(struct mmc_host *host)
 		mmc_release_host(host);
 		return;
 	}
+#endif
 #endif
 
 	mmc_rpm_hold(host, &host->card->dev);

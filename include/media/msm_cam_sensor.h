@@ -10,12 +10,14 @@
 
 #define I2C_SEQ_REG_SETTING_MAX   5
 #define I2C_SEQ_REG_DATA_MAX      256
-#define I2C_REG_DATA_MAX         (8*1024)
 #define MAX_CID                   16
 
 #define MSM_SENSOR_MCLK_8HZ   8000000
 #define MSM_SENSOR_MCLK_16HZ  16000000
 #define MSM_SENSOR_MCLK_24HZ  24000000
+
+//8K Max supported
+#define I2C_REG_DATA_MAX (8*1024)
 
 #define GPIO_OUT_LOW          (0 << 1)
 #define GPIO_OUT_HIGH         (1 << 1)

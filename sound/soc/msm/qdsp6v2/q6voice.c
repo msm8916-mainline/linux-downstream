@@ -1,4 +1,4 @@
-/*  Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/*  Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -185,6 +185,8 @@ static bool voice_is_valid_session_id(uint32_t session_id)
 	case VOIP_SESSION_VSID:
 	case QCHAT_SESSION_VSID:
 	case VOWLAN_SESSION_VSID:
+	case VOICEMMODE1_VSID:
+	case VOICEMMODE2_VSID:
 	case ALL_SESSION_VSID:
 		ret = true;
 		break;
@@ -281,6 +283,12 @@ char *voc_get_session_name(u32 session_id)
 	} else if (session_id ==
 			common.voice[VOC_PATH_VOWLAN_PASSIVE].session_id) {
 		session_name = VOWLAN_SESSION_NAME;
+	} else if (session_id ==
+		common.voice[VOC_PATH_VOICEMMODE1_PASSIVE].session_id) {
+		session_name = VOICEMMODE1_NAME;
+	} else if (session_id ==
+		common.voice[VOC_PATH_VOICEMMODE2_PASSIVE].session_id) {
+		session_name = VOICEMMODE2_NAME;
 	} else if (session_id == common.voice[VOC_PATH_FULL].session_id) {
 		session_name = VOIP_SESSION_NAME;
 	}
@@ -306,6 +314,12 @@ uint32_t voc_get_session_id(char *name)
 		else if (!strncmp(name, "VoWLAN session", 14))
 			session_id =
 			common.voice[VOC_PATH_VOWLAN_PASSIVE].session_id;
+		else if (!strcmp(name, "VoiceMMode1"))
+			session_id =
+			common.voice[VOC_PATH_VOICEMMODE1_PASSIVE].session_id;
+		else if (!strcmp(name, "VoiceMMode2"))
+			session_id =
+			common.voice[VOC_PATH_VOICEMMODE2_PASSIVE].session_id;
 		else
 			session_id = common.voice[VOC_PATH_FULL].session_id;
 
@@ -343,6 +357,14 @@ static struct voice_data *voice_get_session(u32 session_id)
 
 	case VOWLAN_SESSION_VSID:
 		v = &common.voice[VOC_PATH_VOWLAN_PASSIVE];
+		break;
+
+	case VOICEMMODE1_VSID:
+		v = &common.voice[VOC_PATH_VOICEMMODE1_PASSIVE];
+		break;
+
+	case VOICEMMODE2_VSID:
+		v = &common.voice[VOC_PATH_VOICEMMODE2_PASSIVE];
 		break;
 
 	case ALL_SESSION_VSID:
@@ -387,6 +409,14 @@ int voice_get_idx_for_session(u32 session_id)
 
 	case VOWLAN_SESSION_VSID:
 		idx = VOC_PATH_VOWLAN_PASSIVE;
+		break;
+
+	case VOICEMMODE1_VSID:
+		idx = VOC_PATH_VOICEMMODE1_PASSIVE;
+		break;
+
+	case VOICEMMODE2_VSID:
+		idx = VOC_PATH_VOICEMMODE2_PASSIVE;
 		break;
 
 	case ALL_SESSION_VSID:
@@ -436,6 +466,18 @@ static bool is_qchat_session(u32 session_id)
 static bool is_vowlan_session(u32 session_id)
 {
 	return (session_id == common.voice[VOC_PATH_VOWLAN_PASSIVE].session_id);
+}
+
+static bool is_voicemmode1(u32 session_id)
+{
+	return session_id ==
+			common.voice[VOC_PATH_VOICEMMODE1_PASSIVE].session_id;
+}
+
+static bool is_voicemmode2(u32 session_id)
+{
+	return session_id ==
+			common.voice[VOC_PATH_VOICEMMODE2_PASSIVE].session_id;
 }
 
 static bool is_voc_state_active(int voc_state)
@@ -497,6 +539,10 @@ static void init_session_id(void)
 	common.voice[VOC_PATH_FULL].session_id = VOIP_SESSION_VSID;
 	common.voice[VOC_PATH_QCHAT_PASSIVE].session_id = QCHAT_SESSION_VSID;
 	common.voice[VOC_PATH_VOWLAN_PASSIVE].session_id = VOWLAN_SESSION_VSID;
+	common.voice[VOC_PATH_VOICEMMODE1_PASSIVE].session_id =
+							VOICEMMODE1_VSID;
+	common.voice[VOC_PATH_VOICEMMODE2_PASSIVE].session_id =
+							VOICEMMODE2_VSID;
 }
 
 static int voice_apr_register(uint32_t session_id)
@@ -738,6 +784,14 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 				strlcpy(mvm_session_cmd.mvm_session.name,
 				VOWLAN_SESSION_VSID_STR,
 				strlen(VOWLAN_SESSION_VSID_STR)+1);
+			} else if (is_voicemmode1(v->session_id)) {
+				strlcpy(mvm_session_cmd.mvm_session.name,
+				VOICEMMODE1_VSID_STR,
+				strlen(VOICEMMODE1_VSID_STR) + 1);
+			} else if (is_voicemmode2(v->session_id)) {
+				strlcpy(mvm_session_cmd.mvm_session.name,
+				VOICEMMODE2_VSID_STR,
+				strlen(VOICEMMODE2_VSID_STR) + 1);
 			} else {
 				strlcpy(mvm_session_cmd.mvm_session.name,
 				"default modem voice",
@@ -836,6 +890,14 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 				strlcpy(cvs_session_cmd.cvs_session.name,
 				VOWLAN_SESSION_VSID_STR,
 				strlen(VOWLAN_SESSION_VSID_STR)+1);
+			} else if (is_voicemmode1(v->session_id)) {
+				strlcpy(cvs_session_cmd.cvs_session.name,
+				VOICEMMODE1_VSID_STR,
+				strlen(VOICEMMODE1_VSID_STR) + 1);
+			} else if (is_voicemmode2(v->session_id)) {
+				strlcpy(cvs_session_cmd.cvs_session.name,
+				VOICEMMODE2_VSID_STR,
+				strlen(VOICEMMODE2_VSID_STR) + 1);
 			} else {
 			strlcpy(cvs_session_cmd.cvs_session.name,
 				"default modem voice",
@@ -7761,7 +7823,7 @@ static int voice_alloc_source_tracking_shared_memory(void)
 		&(common.source_tracking_sh_mem.sh_mem_block.handle),
 		BUFFER_BLOCK_SIZE,
 		&(common.source_tracking_sh_mem.sh_mem_block.phys),
-		(size_t *)&(common.source_tracking_sh_mem.sh_mem_block.size),
+		&(common.source_tracking_sh_mem.sh_mem_block.size),
 		&(common.source_tracking_sh_mem.sh_mem_block.data));
 	if (ret < 0) {
 		pr_err("%s: audio ION alloc failed for sh_mem block, ret = %d\n",
@@ -7777,14 +7839,14 @@ static int voice_alloc_source_tracking_shared_memory(void)
 		 __func__,
 		&(common.source_tracking_sh_mem.sh_mem_block.phys),
 		(void *)(common.source_tracking_sh_mem.sh_mem_block.data),
-		(size_t)(common.source_tracking_sh_mem.sh_mem_block.size));
+		(common.source_tracking_sh_mem.sh_mem_block.size));
 
 	ret = msm_audio_ion_alloc("source_tracking_sh_mem_table",
 		&(common.source_tracking_sh_mem.sh_mem_table.client),
 		&(common.source_tracking_sh_mem.sh_mem_table.handle),
 		sizeof(struct vss_imemory_table_t),
 		&(common.source_tracking_sh_mem.sh_mem_table.phys),
-		(size_t *)&(common.source_tracking_sh_mem.sh_mem_table.size),
+		&(common.source_tracking_sh_mem.sh_mem_table.size),
 		&(common.source_tracking_sh_mem.sh_mem_table.data));
 	if (ret < 0) {
 		pr_err("%s: audio ION alloc failed for sh_mem table, ret = %d\n",
@@ -7808,7 +7870,7 @@ static int voice_alloc_source_tracking_shared_memory(void)
 		 __func__,
 		&(common.source_tracking_sh_mem.sh_mem_table.phys),
 		(void *)(common.source_tracking_sh_mem.sh_mem_table.data),
-		(size_t)(common.source_tracking_sh_mem.sh_mem_table.size));
+		(common.source_tracking_sh_mem.sh_mem_table.size));
 
 done:
 	pr_debug("%s: Exit, ret=%d\n", __func__, ret);

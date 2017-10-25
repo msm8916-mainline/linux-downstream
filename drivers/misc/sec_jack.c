@@ -39,7 +39,7 @@
 
 #define NUM_INPUT_DEVICE_ID	2
 #define MAX_ZONE_LIMIT		10
-#define SEND_KEY_CHECK_TIME_MS	30		/* 30ms */
+#define SEND_KEY_CHECK_TIME_MS	25		/* 25ms */
 #define DET_CHECK_TIME_MS	   100		/* 100ms */
 #define DET_CHECK_TIME_MS_WITH_FSA 50		/* 50ms */
 #define WAKE_LOCK_TIME		(HZ * 5)	/* 5 sec */

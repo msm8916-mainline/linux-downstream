@@ -36,6 +36,13 @@ config ECRYPT_FS_VIRTUAL_FAT_XATTR
 	help
 	Modification of encrypted filesystem for virtual FAT xattr
 
+config ECRYPTFS_FEK_INTEGRITY
+	bool "Enable check integrity of FEK(File encrypiton key) via HMAC"
+	default n
+	depends on ECRYPT_FS
+	help
+	MDFPP requirements: During file decryption of ecrypts, it should check integrity of FEK(File encrypiton key) via HMAC as per
+
 config SDP
 	bool "Enables SDP"
 	default n

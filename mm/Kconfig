@@ -552,6 +552,14 @@ config ZSWAP_COMPACTION
 	depends on ZSWAP && ZPOOL && ZSMALLOC
 	default n
 
+config ZSWAP_SAME_PAGE_SHARING
+	bool "Enable same page sharing support in zswap"
+	depends on ZSWAP && !ZSWAP_ENABLE_WRITEBACK
+	default n
+	help
+	This option adds a feature to share the compressed pages
+	written to zswap if the pages are found to be same.
+
 config ZPOOL
 	tristate "Common API for compressed memory storage"
 	default n

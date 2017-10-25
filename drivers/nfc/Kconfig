@@ -87,6 +87,15 @@ config NFC_PN547_8916_CLK_CTL
 	  NXP PN547 Near Field Communication controller support.
 	  This option control the clock in suspend and resume.
 
+config NFC_PN547_USE_EXTERNAL_LDO_VIO
+	bool "NXP PN547 NFC POWER Control"
+	depends on NFC_PN547
+	default n
+	help
+	  NXP PN547 Near Field Communication controller support.
+	  This option enables device driver support for the NFC.
+	  It is used by PN547 device driver uses external LDO as VIO power supply.
+
 config NFC_PN547_LDO_CONTROL
 	bool "PN547 NFC LDO CONTROL"
 	depends on NFC_PN547

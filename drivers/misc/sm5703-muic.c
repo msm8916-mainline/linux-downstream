@@ -1323,7 +1323,7 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 #endif
 #if defined(CONFIG_MUIC_SUPPORT_VZW_INCOMPATIBLE)
 	/* Incompatible Charger */
-	} else if (vbus & DEV_VBUSIN_VALID && adc == ADC_VZW_INCOMPATIBLE) {
+	} else if (vbus & DEV_VBUSIN_VALID && ((adc == ADC_VZW_INCOMPATIBLE) || (adc == ADC_VZW_DOCK))) {
 		pr_info("[MUIC] Incompatible Charger Connected\n");
 		usbsw->attached_dev = ATTACHED_DEV_UNKNOWN_MUIC;
 		pdata->callback(CABLE_TYPE_INCOMPATIBLE,
@@ -1547,7 +1547,7 @@ static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw)
 #endif
 #if defined(CONFIG_MUIC_SUPPORT_VZW_INCOMPATIBLE)
 	/* Incompatible Charger */
-	} else if (usbsw->adc == ADC_VZW_INCOMPATIBLE) {
+	} else if ((usbsw->adc == ADC_VZW_INCOMPATIBLE) || (usbsw->adc == ADC_VZW_DOCK)) {
 		pr_info("[MUIC] Incompatible Charger Disconnected\n");
 		pdata->callback(CABLE_TYPE_INCOMPATIBLE,
 			SM5703_MUIC_DETACHED);

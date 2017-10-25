@@ -46,6 +46,7 @@
 #define SOCAV_REG				0x0E
 #define REMCAP_MIX_REG			0x0F
 #define FULLCAP_REG				0x10
+#define FULLSOCTHR_REG			0x13
 #define RFAST_REG				0x15
 #define AVR_TEMPERATURE_REG	0x16
 #define CYCLES_REG				0x17

@@ -1804,13 +1804,13 @@ static ssize_t cmd_list_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	int ii = 0;
-	char buffer[728];
+	char buffer[2048];
 	char buffer_name[32];
 
 	snprintf(buffer, 30, "++factory command list++\n");
 	while (strncmp(tsp_cmds[ii].cmd_name, "not_support_cmd", 16) != 0) {
 		snprintf(buffer_name, 32, "%s\n", tsp_cmds[ii].cmd_name);
-		strcat(buffer, buffer_name);
+		strncat(buffer, buffer_name, (int)strlen(buffer_name));
 		ii++;
 	}
 

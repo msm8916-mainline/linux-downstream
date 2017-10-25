@@ -1880,8 +1880,8 @@ static int ist30xx_probe(struct i2c_client *client,
 #endif
 
 	/* initialize data variable */
-#if IST30XX_GESTURE
 	data->suspend = false;
+#if IST30XX_GESTURE
 	data->gesture = false;
 #endif
 	data->irq_working = false;

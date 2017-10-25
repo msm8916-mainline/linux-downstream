@@ -649,8 +649,10 @@ extern unsigned int get_wdog_regsave_paddr(void);
 extern unsigned int get_last_pet_paddr(void);
 extern void sec_debug_subsys_set_kloginfo(unsigned int *first_idx_paddr,
 	unsigned int *next_idx_paddr, unsigned int *log_paddr, unsigned int *size);
+#if (defined CONFIG_SEC_DEBUG && defined CONFIG_ANDROID_LOGGER)
 extern int sec_debug_subsys_set_logger_info(
 	struct sec_debug_subsys_logger_log_info *log_info);
+#endif
 int sec_debug_save_die_info(const char *str, struct pt_regs *regs);
 int sec_debug_save_panic_info(const char *str, unsigned int caller);
 

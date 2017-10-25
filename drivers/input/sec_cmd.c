@@ -359,7 +359,7 @@ static ssize_t sec_cmd_list_show(struct device *dev,
 {
 	struct sec_cmd_data *data = dev_get_drvdata(dev);
 	struct sec_cmd *sec_cmd_ptr = NULL;
-	char buffer[data->cmd_buffer_size];
+	char buffer[data->cmd_buffer_size + 30];
 	char buffer_name[SEC_CMD_STR_LEN];
 
 	snprintf(buffer, 30, "++factory command list++\n");
@@ -367,7 +367,7 @@ static ssize_t sec_cmd_list_show(struct device *dev,
 	list_for_each_entry(sec_cmd_ptr, &data->cmd_list_head, list) {
 		if (strncmp(sec_cmd_ptr->cmd_name, "not_support_cmd", 15)) {
 			snprintf(buffer_name, SEC_CMD_STR_LEN, "%s\n", sec_cmd_ptr->cmd_name);
-			strcat(buffer, buffer_name);
+			strncat(buffer, buffer_name, (int)strlen(buffer_name));
 		}
 	}
 

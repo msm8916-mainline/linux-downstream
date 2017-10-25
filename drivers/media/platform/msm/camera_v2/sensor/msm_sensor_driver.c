@@ -509,7 +509,7 @@ int32_t msm_sensor_driver_probe(void *setting)
 	/* Allocate memory for power up setting */
 	power_setting = kzalloc(sizeof(*power_setting) * size, GFP_KERNEL);
 	if (!power_setting) {
-		pr_err("failed: no memory power_setting %pK", power_setting);
+		pr_err("failed: no memory power_setting %p", power_setting);
 		rc = -ENOMEM;
 		goto FREE_SLAVE_INFO;
 	}
@@ -536,7 +536,7 @@ int32_t msm_sensor_driver_probe(void *setting)
 	power_down_setting =
 		kzalloc(sizeof(*power_setting) * size_down, GFP_KERNEL);
 	if (!power_down_setting) {
-		pr_err("failed: no memory power_setting %pK",
+		pr_err("failed: no memory power_setting %p",
 						power_down_setting);
 		rc = -ENOMEM;
 		goto FREE_POWER_SETTING;
@@ -585,7 +585,6 @@ int32_t msm_sensor_driver_probe(void *setting)
 	camera_info = kzalloc(sizeof(struct msm_camera_slave_info), GFP_KERNEL);
 	if (!camera_info) 
 		goto FREE_POWER_DOWN_SETTING;
-
 
 	/* Fill power up setting and power up setting size */
 	power_info = &s_ctrl->sensordata->power_info;
@@ -1036,7 +1035,7 @@ static int32_t msm_sensor_driver_platform_probe(struct platform_device *pdev)
 
 	/* Create sensor control structure */
 	s_ctrl = kzalloc(sizeof(*s_ctrl), GFP_KERNEL);
-	if (!s_ctrl)
+	if (!s_ctrl) 
 		return -ENOMEM;
 
 	platform_set_drvdata(pdev, s_ctrl);
@@ -1080,7 +1079,7 @@ static int32_t msm_sensor_driver_i2c_probe(struct i2c_client *client,
 
 	/* Create sensor control structure */
 	s_ctrl = kzalloc(sizeof(*s_ctrl), GFP_KERNEL);
-	if (!s_ctrl)
+	if (!s_ctrl) 
 		return -ENOMEM;
 
 	i2c_set_clientdata(client, s_ctrl);

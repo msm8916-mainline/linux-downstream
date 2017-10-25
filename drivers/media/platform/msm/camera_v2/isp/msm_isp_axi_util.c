@@ -783,12 +783,17 @@ static void msm_isp_axi_stream_enable_cfg(
 		return;
 	for (i = 0; i < stream_info->num_planes; i++) {
 		if (stream_info->state == START_PENDING ||
-			stream_info->state == RESUME_PENDING)
+			stream_info->state == RESUME_PENDING) {
 			vfe_dev->hw_info->vfe_ops.axi_ops.
 				enable_wm(vfe_dev, stream_info->wm[i], 1);
+			vfe_dev->hw_info->vfe_ops.core_ops.
+				reg_update(vfe_dev, 0xF);
+		}
 		else {
 			vfe_dev->hw_info->vfe_ops.axi_ops.
 				enable_wm(vfe_dev, stream_info->wm[i], 0);
+			vfe_dev->hw_info->vfe_ops.core_ops.
+				reg_update(vfe_dev, 0xF);
 			/* Issue a reg update for Raw Snapshot Case
 			 * since we dont have reg update ack
 			*/
@@ -1307,6 +1312,7 @@ static int msm_isp_axi_wait_for_cfg_done(struct vfe_device *vfe_dev,
 	vfe_dev->axi_data.stream_update = 2;
 #endif
 	spin_unlock_irqrestore(&vfe_dev->shared_data_lock, flags);
+	vfe_dev->hw_info->vfe_ops.core_ops.reg_update(vfe_dev, 0xF);
 	rc = wait_for_completion_timeout(
 		&vfe_dev->stream_config_complete,
 		msecs_to_jiffies(VFE_MAX_CFG_TIMEOUT));
@@ -1464,6 +1470,7 @@ static int msm_isp_start_axi_stream(struct vfe_device *vfe_dev,
 		vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id = 0;
 		vfe_dev->hw_info->vfe_ops.core_ops.
 			update_camif_state(vfe_dev, camif_update);
+		vfe_dev->axi_data.camif_state = CAMIF_ENABLE;
 	}
 	if (vfe_dev->axi_data.src_info[VFE_RAW_0].raw_stream_count > 0)
 		vfe_dev->axi_data.src_info[VFE_RAW_0].frame_id = 0;
@@ -1538,6 +1545,7 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 	}
 
 	if (wait_for_complete) {
+		vfe_dev->hw_info->vfe_ops.core_ops.reg_update(vfe_dev, 0xF);
 		rc = msm_isp_axi_wait_for_cfg_done(vfe_dev, camif_update);
 		if (rc < 0) {
 			pr_err("%s: wait for config done failed\n", __func__);
@@ -1550,6 +1558,7 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 					vfe_dev, stream_info);
 				stream_info->state = INACTIVE;
 			}
+		rc = 0;
 		}
 	} else {
 		pr_err("%s: Stop Immediately! stream_id=%d\n", __func__,
@@ -1573,12 +1582,16 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 		spin_unlock_irqrestore(&vfe_dev->sof_lock, flags);
 	}
 	msm_isp_update_stream_bandwidth(vfe_dev);
-	if (camif_update == DISABLE_CAMIF)
+	if (camif_update == DISABLE_CAMIF) {
 		vfe_dev->hw_info->vfe_ops.core_ops.
 			update_camif_state(vfe_dev, DISABLE_CAMIF);
-	else if (camif_update == DISABLE_CAMIF_IMMEDIATELY)
+		vfe_dev->axi_data.camif_state = CAMIF_DISABLE;
+	}
+	else if (camif_update == DISABLE_CAMIF_IMMEDIATELY) {
 		vfe_dev->hw_info->vfe_ops.core_ops.
 			update_camif_state(vfe_dev, DISABLE_CAMIF_IMMEDIATELY);
+		vfe_dev->axi_data.camif_state = CAMIF_STOPPED;
+	}
 
 	if (cur_stream_cnt == 0) {
 			vfe_dev->hw_info->vfe_ops.axi_ops.halt(vfe_dev, 1);
@@ -1684,6 +1697,7 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 				msm_isp_axi_stream_enable_cfg(vfe_dev, stream_info);
 				stream_info->state = INACTIVE;
 			}
+		rc = 0;
 		}
 	}
 	if (!skip_session_mask_update) {
@@ -1693,12 +1707,16 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 			session_frame_src_mask[session_id] = session_mask;
 	}
 	msm_isp_update_stream_bandwidth(vfe_dev);
-	if (camif_update == DISABLE_CAMIF)
+	if (camif_update == DISABLE_CAMIF) {
 		vfe_dev->hw_info->vfe_ops.core_ops.
 			update_camif_state(vfe_dev, DISABLE_CAMIF);
-	else if (camif_update == DISABLE_CAMIF_IMMEDIATELY)
+		vfe_dev->axi_data.camif_state = CAMIF_DISABLE;
+	}
+	else if (camif_update == DISABLE_CAMIF_IMMEDIATELY) {
 		vfe_dev->hw_info->vfe_ops.core_ops.
 			update_camif_state(vfe_dev, DISABLE_CAMIF_IMMEDIATELY);
+		vfe_dev->axi_data.camif_state = CAMIF_STOPPED;
+	}
 	msm_isp_update_camif_output_count(vfe_dev, stream_cfg_cmd);
 	msm_isp_update_rdi_output_count(vfe_dev, stream_cfg_cmd);
 	cur_stream_cnt = msm_isp_get_curr_stream_cnt(vfe_dev);
@@ -1738,6 +1756,9 @@ int msm_isp_cfg_axi_stream(struct vfe_device *vfe_dev, void *arg)
 		vfe_dev->hw_info->vfe_ops.axi_ops.cfg_ub(vfe_dev);
 	}
 	camif_update = msm_isp_get_camif_update_state(vfe_dev, stream_cfg_cmd);
+	
+	if (camif_update == DISABLE_CAMIF)
+		vfe_dev->axi_data.camif_state = CAMIF_STOPPING;
 
 	if (stream_cfg_cmd->cmd == START_STREAM)
 		rc = msm_isp_start_axi_stream(

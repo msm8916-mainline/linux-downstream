@@ -66,6 +66,9 @@ struct pn547_i2c_platform_data {
 	int irq_gpio;
 	int ven_gpio;
 	int firm_gpio;
+#ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
+	int vio_gpio;
+#endif
 	int scl_gpio;
 	int sda_gpio;
 #ifdef CONFIG_NFC_PN547_PVDD_EN_CONTROL
@@ -79,6 +82,9 @@ struct pn547_i2c_platform_data {
 	u32 irq_gpio_flags;
 	u32 ven_gpio_flags;
 	u32 firm_gpio_flags;
+#ifdef CONFIG_NFC_PN547_USE_EXTERNAL_LDO_VIO
+	u32 vio_gpio_flags;
+#endif
 	u32 scl_gpio_flags;
 	u32 sda_gpio_flags;
 #endif

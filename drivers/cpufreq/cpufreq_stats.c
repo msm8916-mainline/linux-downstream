@@ -29,6 +29,9 @@ struct cpufreq_stats {
 	unsigned int state_num;
 	unsigned int last_index;
 	u64 *time_in_state;
+#ifdef CONFIG_LOAD_BASED_CORE_CURRENT_CAL
+	u64 *time_in_load_state;
+#endif
 	unsigned int *freq_table;
 #ifdef CONFIG_CPU_FREQ_STAT_DETAILS
 	unsigned int *trans_table;
@@ -58,6 +61,10 @@ static DEFINE_PER_CPU(struct all_cpufreq_stats *, all_cpufreq_stats);
 static DEFINE_PER_CPU(struct cpufreq_stats *, cpufreq_stats_table);
 static DEFINE_PER_CPU(struct cpufreq_power_stats *, cpufreq_power_stats);
 
+#ifdef CONFIG_LOAD_BASED_CORE_CURRENT_CAL
+extern unsigned int get_cpu_load(int cpu);
+#endif
+
 struct cpufreq_stats_attribute {
 	struct attribute attr;
 	ssize_t(*show) (struct cpufreq_stats *, char *);
@@ -68,7 +75,11 @@ static int cpufreq_stats_update(unsigned int cpu)
 	struct cpufreq_stats *stat;
 	struct all_cpufreq_stats *all_stat;
 	unsigned long long cur_time;
-
+#ifdef CONFIG_LOAD_BASED_CORE_CURRENT_CAL
+	int current_cpu;
+	unsigned int cur_highfreq_load_rate, cur_lowfreq_load_rate;
+	unsigned long long cur_update_time, cur_update_highfreq_time, cur_update_lowfreq_time;
+#endif
 	cur_time = get_jiffies_64();
 	spin_lock(&cpufreq_stats_lock);
 	stat = per_cpu(cpufreq_stats_table, cpu);
@@ -78,6 +89,20 @@ static int cpufreq_stats_update(unsigned int cpu)
 		return 0;
 	}
 	if (stat->time_in_state) {
+#ifdef CONFIG_LOAD_BASED_CORE_CURRENT_CAL
+		if (stat->time_in_load_state) {            
+			for(current_cpu = 0; current_cpu < nr_cpu_ids; current_cpu++) {
+				cur_highfreq_load_rate = get_cpu_load(current_cpu);
+				cur_lowfreq_load_rate = 100 - cur_highfreq_load_rate;
+				cur_update_time = cur_time - stat->last_time;
+				cur_update_highfreq_time = cur_update_time * cur_highfreq_load_rate;
+				do_div(cur_update_highfreq_time, 100);
+				cur_update_lowfreq_time = cur_update_time - cur_update_highfreq_time;
+				stat->time_in_load_state[stat->last_index] += cur_update_highfreq_time;
+				stat->time_in_load_state[0] += cur_update_lowfreq_time;
+			}
+		}
+#endif
 		stat->time_in_state[stat->last_index] +=
 			cur_time - stat->last_time;
 		if (all_stat)
@@ -97,6 +122,24 @@ static ssize_t show_total_trans(struct cpufreq_policy *policy, char *buf)
 	return sprintf(buf, "%d\n",
 			per_cpu(cpufreq_stats_table, stat->cpu)->total_trans);
 }
+
+#ifdef CONFIG_LOAD_BASED_CORE_CURRENT_CAL
+static ssize_t show_time_in_load_state(struct cpufreq_policy *policy, char *buf)
+{
+	ssize_t len = 0;
+	int i;
+	struct cpufreq_stats *stat = per_cpu(cpufreq_stats_table, policy->cpu);
+	if (!stat)
+		return 0;
+	cpufreq_stats_update(stat->cpu);
+	for (i = 0; i < stat->state_num; i++) {
+		len += sprintf(buf + len, "%u %llu\n", stat->freq_table[i],
+			(unsigned long long)
+			jiffies_64_to_clock_t(stat->time_in_load_state[i]));
+	}
+	return len;
+}
+#endif
 
 static ssize_t show_time_in_state(struct cpufreq_policy *policy, char *buf)
 {
@@ -256,10 +299,16 @@ cpufreq_freq_attr_ro(trans_table);
 
 cpufreq_freq_attr_ro(total_trans);
 cpufreq_freq_attr_ro(time_in_state);
+#ifdef CONFIG_LOAD_BASED_CORE_CURRENT_CAL
+cpufreq_freq_attr_ro(time_in_load_state);
+#endif
 
 static struct attribute *default_attrs[] = {
 	&total_trans.attr,
 	&time_in_state.attr,
+#ifdef CONFIG_LOAD_BASED_CORE_CURRENT_CAL
+	&time_in_load_state.attr,
+#endif
 #ifdef CONFIG_CPU_FREQ_STAT_DETAILS
 	&trans_table.attr,
 #endif
@@ -296,6 +345,9 @@ static void __cpufreq_stats_free_table(struct cpufreq_policy *policy)
 
 	sysfs_remove_group(&policy->kobj, &stats_attr_group);
 	kfree(stat->time_in_state);
+#ifdef CONFIG_LOAD_BASED_CORE_CURRENT_CAL
+	kfree(stat->time_in_load_state);
+#endif
 	kfree(stat);
 	per_cpu(cpufreq_stats_table, policy->cpu) = NULL;
 }
@@ -395,6 +447,14 @@ static int __cpufreq_stats_create_table(struct cpufreq_policy *policy,
 
 #ifdef CONFIG_CPU_FREQ_STAT_DETAILS
 	stat->trans_table = stat->freq_table + count;
+#endif
+#ifdef CONFIG_LOAD_BASED_CORE_CURRENT_CAL
+	stat->time_in_load_state = kzalloc(count * sizeof(u64), GFP_KERNEL);
+	if (!stat->time_in_load_state) {
+		ret = -ENOMEM;
+		pr_err("Failed to alloc cpufreq_stats table\n");
+		goto error_alloc;
+	}
 #endif
 	j = 0;
 	for (i = 0; table[i].frequency != CPUFREQ_TABLE_END; i++) {

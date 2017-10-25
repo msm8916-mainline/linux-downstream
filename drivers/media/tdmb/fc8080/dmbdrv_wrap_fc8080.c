@@ -139,7 +139,7 @@ void dmb_drv_isr()
 
 unsigned char dmb_drv_init(unsigned long param
 #ifdef CONFIG_TDMB_XTAL_FREQ
-	, u32 xtal_freq
+	, struct tdmb_dt_platform_data *pdata
 #endif
 )
 {
@@ -169,7 +169,7 @@ unsigned char dmb_drv_init(unsigned long param
 	}
 
 #ifdef CONFIG_TDMB_XTAL_FREQ
-	main_xtal_freq = xtal_freq;
+	main_xtal_freq = pdata->tdmb_xtal_freq;
 #endif
 
 #if defined(CONFIG_TDMB_TSIF_SLSI) || defined(CONFIG_TDMB_TSIF_QC)
@@ -182,7 +182,11 @@ unsigned char dmb_drv_init(unsigned long param
 	bbm_com_msc_callback_register(0, tdmb_interrupt_msc_callback);
 #endif
 
-	bbm_com_init(NULL);
+	bbm_com_init(NULL
+#ifdef CONFIG_TDMB_XTAL_FREQ
+		, pdata->xtal_load_cap
+#endif
+	);
 	bbm_com_tuner_select(NULL, FC8080_TUNER, BAND3_TYPE);
 
 #ifdef FEATURE_INTERFACE_TEST_MODE
@@ -511,7 +515,8 @@ struct sub_channel_info_type *dmb_drv_get_fic_dmb(int subchannel_count)
 						= svc_info->sid;
 					dmb_subchannel_info.scids
 						= svc_info->scids;
-
+					dmb_subchannel_info.ucCAFlag
+						= svc_info->ca_flag;
 					num_of_user_appl =
 						svc_info->num_of_user_appl;
 					dmb_subchannel_info.num_of_user_appl
@@ -581,13 +586,15 @@ struct sub_channel_info_type *dmb_drv_get_fic_dab(int subchannel_count)
 						svc_info->sid;
 					dab_subchannel_info.scids =
 						svc_info->scids;
+					dab_subchannel_info.ucCAFlag =
+						svc_info->ca_flag;
 
 					esb = fic_decoder_get_ensemble_info(0);
 					if (esb->flag == 99)
-						dmb_subchannel_info.uiEnsembleID
+						dab_subchannel_info.uiEnsembleID
 						= esb->eid;
 					else
-						dmb_subchannel_info.uiEnsembleID
+						dab_subchannel_info.uiEnsembleID
 						= 0;
 					dab_subchannel_info.ecc	= esb->ecc;
 
@@ -633,6 +640,8 @@ struct sub_channel_info_type *dmb_drv_get_fic_dat(int subchannel_count)
 						svc_info->sid;
 					dat_subchannel_info.scids =
 						svc_info->scids;
+					dat_subchannel_info.ucCAFlag
+						= svc_info->ca_flag;
 
 					num_of_user_appl =
 						svc_info->num_of_user_appl;

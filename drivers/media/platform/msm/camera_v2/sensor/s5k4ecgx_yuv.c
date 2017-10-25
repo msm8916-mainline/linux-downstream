@@ -19,8 +19,10 @@
 
 #include "s5k4ecgx.h"
 
-#if defined (CONFIG_SEC_GTEL_PROJECT) || defined(CONFIG_SEC_GTES_PROJECT)
+#if defined (CONFIG_SEC_GTES_PROJECT)
 #include "s5k4ecgx_regs_gte.h"
+#elif defined (CONFIG_SEC_GTEL_PROJECT)
+#include "s5k4ecgx_regs_gtel.h"
 #elif defined(CONFIG_SEC_J1X_PROJECT)
 #include "s5k4ecgx_regs_j1x.h"
 #else
@@ -698,10 +700,19 @@ int32_t s5k4ecgx_set_af_status(struct msm_sensor_ctrl_t *s_ctrl, int status, int
         }
         else {
             if (s5k4ecgx_ctrl.settings.is_touchaf == 1) {
-                CDBG("unlock AE/AWB in Autofocus Finish\n");
-                s5k4ecgx_set_ae_awb(s_ctrl, 0);
+                CDBG("Check & unlock AE/AWB in Autofocus Finish\n");
+#if defined(CONFIG_SEC_J1X_PROJECT)
+            	/* This is end. Reset Touch AF */
+            	s5k4ecgx_ctrl.settings.is_touchaf = 0;
+
+                if (s5k4ecgx_ctrl.settings.ae_awb_lock == 1)
+#endif
+		{
+                    s5k4ecgx_set_ae_awb(s_ctrl, 0);
+		}
             }
         }
+
         rc = SENSOR_AF_PRE_FLASH_OFF;
     } else if (status == SENSOR_AF_PRE_FLASH_AE_STABLE &&
             s5k4ecgx_ctrl.settings.is_preflash == 1) {
@@ -1050,7 +1061,17 @@ int32_t s5k4ecgx_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
                     msleep(380);
                     s5k4ecgx_check_ae_stable(s_ctrl);
                 }
-                S5K4ECGX_WRITE_LIST(s5k4ecgx_fps_30);
+                switch (s5k4ecgx_ctrl.fixed_fps_val)
+                {
+                    case 15000:
+                        S5K4ECGX_WRITE_LIST(s5k4ecgx_fps_15);
+                        break;
+                    case 30000:
+                        S5K4ECGX_WRITE_LIST(s5k4ecgx_fps_30);
+                        break;
+                    default:
+                        S5K4ECGX_WRITE_LIST(s5k4ecgx_fps_auto);
+                }
                 S5K4ECGX_WRITE_LIST_BURST(s5k4ecgx_camcorder);
                 s5k4ecgx_set_exposure_camcorder(s_ctrl,s5k4ecgx_ctrl.settings.exposure);
 
@@ -1079,24 +1100,11 @@ int32_t s5k4ecgx_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 
                     s5k4ecgx_set_iso(s_ctrl, s5k4ecgx_ctrl.settings.iso);
 
-		    if(cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
-			    S5K4ECGX_WRITE_LIST(s5k4ecgx_anti_banding_50hz_auto);
-		    } else if(cdata->flicker_type == MSM_CAM_FLICKER_60HZ) {
-			    S5K4ECGX_WRITE_LIST(s5k4ecgx_anti_banding_60hz_auto);
-		    }
-
-                }
-
-                switch (s5k4ecgx_ctrl.fixed_fps_val)
-                {
-                    case 15000:
-                        S5K4ECGX_WRITE_LIST(s5k4ecgx_fps_15);
-                        break;
-                    case 30000:
-                        S5K4ECGX_WRITE_LIST(s5k4ecgx_fps_30);
-                        break;
-                    default:
-                        S5K4ECGX_WRITE_LIST(s5k4ecgx_fps_auto);
+            if(cdata->flicker_type == MSM_CAM_FLICKER_50HZ) {
+                S5K4ECGX_WRITE_LIST(s5k4ecgx_anti_banding_50hz_auto);
+            } else if(cdata->flicker_type == MSM_CAM_FLICKER_60HZ) {
+                S5K4ECGX_WRITE_LIST(s5k4ecgx_anti_banding_60hz_auto);
+            }
                 }
 
                 s5k4ecgx_ctrl.streamon = 1;
@@ -1457,7 +1465,7 @@ int32_t s5k4ecgx_sensor_native_control(struct msm_sensor_ctrl_t *s_ctrl,
             break;
         case EXT_CAM_SET_AE_AWB:
             CDBG("EXT_CAM_SET_AE_AWB = %d\n", (cam_info->value_1));
-            if (!s5k4ecgx_get_flash_status())
+            if (!s5k4ecgx_ctrl.settings.flash_mode)
                 s5k4ecgx_set_ae_awb(s_ctrl, cam_info->value_1);
             break;
 

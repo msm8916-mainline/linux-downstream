@@ -1909,8 +1909,8 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x002A, 0x18AC,},
 {0x0F12, 0x0060,},	//senHal_uAddColsBin
 {0x0F12, 0x0060,},	//senHal_uAddColsNoBin
-{0x0F12, 0x06C0,},	//0A20//senHal_uMinColsBin
-{0x0F12, 0x06C0,},	//0AB0//senHal_uMinColsNoBin
+{0x0F12, 0x06C8,},	//0A20//senHal_uMinColsBin
+{0x0F12, 0x06C8,},	//0AB0//senHal_uMinColsNoBin
                    
 {0x002A, 0x1AEA,},
 {0x0F12, 0x8080,},	//senHal_SubF404Tune
@@ -2360,7 +2360,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 
 //Input Clock (Mclk)
 {0x002A, 0x01F8,},
-{0x0F12, 0x65A6,}, //REG_TC_IPRM_InClockLSBs
+{0x0F12, 0x65A6,}, //REG_TC_IPRM_InClockLSBs //26022
 {0x0F12, 0x0000,}, //REG_TC_IPRM_InClockMSBs
 {0x002A, 0x0212,}, 
 {0x0F12, 0x0000,}, //REG_TC_IPRM_UseNPviClocks
@@ -2369,12 +2369,12 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 
 //System Clock & Output clock (Pclk)
 {0x002A, 0x021A,},
-{0x0F12, 0x3A98,}, //4F1A//3A98//REG_TC_IPRM_OpClk4KHz_0
-{0x0F12, 0x280A,}, //REG_TC_IPRM_MinOutRate4KHz_0
-{0x0F12, 0x36B0,}, //REG_TC_IPRM_MaxOutRate4KHz_0
-{0x0F12, 0x4F1A,}, //REG_TC_IPRM_OpClk4KHz_1
-{0x0F12, 0x280A,}, //REG_TC_IPRM_MinOutRate4KHz_1
-{0x0F12, 0x36B0,}, //REG_TC_IPRM_MaxOutRate4KHz_1
+{0x0F12, 0x3A98,}, //3A98//4F1A//3A98//REG_TC_IPRM_OpClk4KHz_0
+{0x0F12, 0x2FDA,}, //280A//REG_TC_IPRM_MinOutRate4KHz_0
+{0x0F12, 0x30D4,}, //36B0//REG_TC_IPRM_MaxOutRate4KHz_0
+{0x0F12, 0x4F1A,}, //4F1A//REG_TC_IPRM_OpClk4KHz_1
+{0x0F12, 0x2FDA,}, //280A//REG_TC_IPRM_MinOutRate4KHz_1
+{0x0F12, 0x30D4,}, //36B0//REG_TC_IPRM_MaxOutRate4KHz_1
 
 //==================================================================================
 // 11.Auto Flicker Detection
@@ -2383,7 +2383,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x002A, 0x0F30,},
 {0x0F12, 0x0001,}, //AFC_D_ConvAccelerPower
 
-// Auto Flicker (60Mhz start)
+// Auto Flicker (50Mhz start)
 {0x002A, 0x0F2A,},
 {0x0F12, 0x0000,}, //AFC_Default BIT[0] 1:60Hz 0:50Hz
 {0x002A, 0x04E6,}, 
@@ -3470,8 +3470,8 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0500,},	//REG_0TC_PCFG_usWidth  //Hsize   : 640 1280 1024
 {0x0F12, 0x03C0,},	//REG_0TC_PCFG_usHeight//Vsize   : 480 960 768
 {0x0F12, 0x0005,},	//REG_0TC_PCFG_Format	  05 : yuv 07: raw 09 : jpeg
-{0x0F12, 0x36B0,},	//REG_0TC_PCFG_usMaxOut4KHzRate
-{0x0F12, 0x280A,},	//REG_0TC_PCFG_usMinOut4KHzRate
+{0x0F12, 0x3A98,},	//REG_0TC_PCFG_usMaxOut4KHzRate
+{0x0F12, 0x2FDA,},	//REG_0TC_PCFG_usMinOut4KHzRate
 {0x0F12, 0x0100,},	//REG_0TC_PCFG_OutClkPerPix88
 {0x0F12, 0x0300,},	//REG_0TC_PCFG_uBpp88
 {0x0F12, 0x0012,},	//REG_0TC_PCFG_PVIMask      soc raw : c2 raw 52
@@ -3493,8 +3493,8 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x0F12, 0x0A10,}, //REG_0TC_CCFG_usWidth //2576                  
 {0x0F12, 0x078C,}, //REG_0TC_CCFG_usHeight //1932                 
 {0x0F12, 0x0005,}, //REG_0TC_CCFG_Format //5:YUV}, 7:RAW}, 9:JPEG 
-{0x0F12, 0x36B0,}, //REG_0TC_CCFG_usMaxOut4KHzRate
-{0x0F12, 0x280A,}, //REG_0TC_CCFG_usMinOut4KHzRate
+{0x0F12, 0x3A98,}, //REG_0TC_CCFG_usMaxOut4KHzRate
+{0x0F12, 0x2FDA,}, //REG_0TC_CCFG_usMinOut4KHzRate
 {0x0F12, 0x0100,}, //REG_0TC_CCFG_OutClkPerPix88
 {0x0F12, 0x0300,}, //REG_0TC_CCFG_uBpp88
 {0x0F12, 0x0012,}, //REG_0TC_CCFG_PVIMask
@@ -5281,8 +5281,8 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x002A, 0x18AC,}, 
 {0x0F12, 0x0060,}, //senHal_uAddColsBin        
 {0x0F12, 0x0060,}, //senHal_uAddColsNoBin      
-{0x0F12, 0x0A20,}, //senHal_uMinColsBin        
-{0x0F12, 0x0AB0,}, //senHal_uMinColsNoBin      
+{0x0F12, 0x06C8,}, //0A20//senHal_uMinColsBin        
+{0x0F12, 0x06C8,}, //0AB0//senHal_uMinColsNoBin      
 
 // SLOW AE
 {0x002A, 0x1568,}, 
@@ -5802,8 +5802,8 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_camcorder_disable[] = {
 {0x0F12, 0x0001,}, //REG_TC_GP_bUseReqInputInCa
  
 {0x002A, 0x02A6,},
-{0x0F12, 0x0500,}, //REG_0TC_PCFG_usWidth 
-{0x0F12, 0x03C0,}, //REG_0TC_PCFG_usHeight 
+{0x0F12, 0x0500,}, //REG_0TC_PCFG_usWidth  //1280
+{0x0F12, 0x03C0,}, //REG_0TC_PCFG_usHeight //960
 {0x002A, 0x02AB,},
 {0x0F12, 0x0005,}, //REG_0TC_PCFG_Format	  05 : yuv (0~255)  06:yuv (16~234) 07: raw 09 : jpeg
 
@@ -6206,8 +6206,8 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_preview_1280_960[]={
 {0x0F12, 0x0060,}, //senHal_uAddColsBin      
 
 {0x0F12, 0x0060,}, //senHal_uAddColsNoBin    
-{0x0F12, 0x0A20,}, //senHal_uMinColsBin      
-{0x0F12, 0x0AB0,}, //senHal_uMinColsNoBin 
+{0x0F12, 0x06C8,}, //0A20//senHal_uMinColsBin      
+{0x0F12, 0x06C8,}, //0AB0//senHal_uMinColsNoBin 
             
 {0x002A, 0x0250,},
 {0x0F12, 0x0A10,}, //REG_TC_GP_PrevReqInputWidth //2576

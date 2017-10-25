@@ -270,6 +270,13 @@ static enum log_flags console_prev;
 static u64 clear_seq;
 static u32 clear_idx;
 
+/* { SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM - the next printk record to read after the last 'clear_knox' command */
+static u64 clear_seq_knox;
+static u32 clear_idx_knox;
+
+#define SYSLOG_ACTION_READ_CLEAR_KNOX 99
+/* } SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM */
+
 #ifdef CONFIG_SEC_DEBUG
 #define PREFIX_MAX		48
 #else
@@ -573,13 +580,13 @@ static int syslog_action_restricted(int type)
 	       type != SYSLOG_ACTION_SIZE_BUFFER;
 }
 
-static int check_syslog_permissions(int type, bool from_file)
+int check_syslog_permissions(int type, int source)
 {
 	/*
 	 * If this is from /proc/kmsg and we've already opened it, then we've
 	 * already done the capabilities checks at open time.
 	 */
-	if (from_file && type != SYSLOG_ACTION_OPEN)
+	if (source == SYSLOG_FROM_PROC && type != SYSLOG_ACTION_OPEN)
 		return 0;
 
 	if (syslog_action_restricted(type)) {
@@ -600,7 +607,7 @@ static int check_syslog_permissions(int type, bool from_file)
 	}
 	return security_syslog(type);
 }
-
+EXPORT_SYMBOL_GPL(check_syslog_permissions);
 
 /* /dev/kmsg - userspace message inject/listen interface */
 struct devkmsg_user {
@@ -1405,7 +1412,7 @@ int syslog_print(char __user *buf, int size)
 	return len;
 }
 
-static int syslog_print_all(char __user *buf, int size, bool clear)
+static int syslog_print_all(char __user *buf, int size, bool clear, bool knox)
 {
 	char *text;
 	int oops_len;
@@ -1426,23 +1433,50 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 		u32 idx;
 		u64 start_seq;
 		u32 start_idx;
+		u64 start_seq_knox;
+		u32 start_idx_knox;
+		
 		enum log_flags prev;
 
-		if (clear_seq < log_first_seq) {
-			/* messages are gone, move to first available one */
-			start_seq = log_first_seq;
-			start_idx = log_first_idx;
+		/* { SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM */
+		/* messages are gone, move to first available one */
+		if (!knox) {
+			if (clear_seq < log_first_seq) {
+				/* messages are gone, move to first available one */
+				start_seq = log_first_seq;
+				start_idx = log_first_idx;
+			} else {
+				start_seq = clear_seq;
+				start_idx = clear_idx;
+			}
 		} else {
-			start_seq = clear_seq;
-			start_idx = clear_idx;
+			if (clear_seq_knox < log_first_seq) {
+				/* messages are gone, move to first available one */
+				start_seq_knox = log_first_seq;
+				start_idx_knox = log_first_idx;
+			} else {
+				start_seq_knox = clear_seq_knox;
+				start_idx_knox = clear_idx_knox;
+			}
 		}
+		
+		/* } SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM */
 
 		/*
 		 * Find first record that fits, including all following records,
 		 * into the user-provided buffer for this dump.
 		 */
-		seq = start_seq;
-		idx = start_idx;
+
+		/* { SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM */ 
+		if(!knox) {
+			seq = start_seq;
+			idx = start_idx;
+		} else { //MDM edmaudit
+			seq = start_seq_knox;
+			idx = start_idx_knox;
+		}
+		/* } SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM */
+		
 		prev = 0;
 		while (seq < log_next_seq) {
 			struct log *msg = log_from_idx(idx, true);
@@ -1452,10 +1486,18 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 			idx = log_next(idx, true);
 			seq++;
 		}
-
+		
+		/* { SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM */
 		/* move first record forward until length fits into the buffer */
-		seq = start_seq;
-		idx = start_idx;
+		if(!knox) {
+			seq = start_seq;
+			idx = start_idx;
+		} else { // MDM edmaudit
+			seq = start_seq_knox;
+			idx = start_idx_knox;
+		}
+		/* } SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM */
+
 		prev = 0;
 		while ((len > size - oops_len) && seq < log_next_seq) {
 			struct log *msg = log_from_idx(idx, true);
@@ -1500,10 +1542,18 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 		}
 	}
 
+	/* { SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM */
 	if (clear) {
-		clear_seq = log_next_seq;
-		clear_idx = log_next_idx;
+		if (!knox) {
+			clear_seq = log_next_seq;
+			clear_idx = log_next_idx;
+		} else { //MDM edmaudit
+			clear_seq_knox = log_next_seq;
+			clear_idx_knox = log_next_idx;
+		}
 	}
+	/* } SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM */
+
 	raw_spin_unlock_irq(&logbuf_lock);
 
 	kfree(text);
@@ -1512,13 +1562,13 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 	return len;
 }
 
-int do_syslog(int type, char __user *buf, int len, bool from_file)
+int do_syslog(int type, char __user *buf, int len, int source)
 {
 	bool clear = false;
 	static int saved_console_loglevel = -1;
 	int error;
 
-	error = check_syslog_permissions(type, from_file);
+	error = check_syslog_permissions(type, source);
 	if (error)
 		goto out;
 
@@ -1564,11 +1614,11 @@ int do_syslog(int type, char __user *buf, int len, bool from_file)
 			error = -EFAULT;
 			goto out;
 		}
-		error = syslog_print_all(buf, len, clear);
+		error = syslog_print_all(buf, len, clear, false);
 		break;
 	/* Clear ring buffer */
 	case SYSLOG_ACTION_CLEAR:
-		syslog_print_all(NULL, 0, true);
+		syslog_print_all(NULL, 0, true, false);
 		break;
 	/* Disable logging to console */
 	case SYSLOG_ACTION_CONSOLE_OFF:
@@ -1605,7 +1655,7 @@ int do_syslog(int type, char __user *buf, int len, bool from_file)
 			syslog_prev = 0;
 			syslog_partial = 0;
 		}
-		if (from_file) {
+		if (source == SYSLOG_FROM_PROC) {
 			/*
 			 * Short-cut for poll(/"proc/kmsg") which simply checks
 			 * for pending data, not the size; return the count of
@@ -1638,6 +1688,21 @@ int do_syslog(int type, char __user *buf, int len, bool from_file)
 		error += log_oops_buf_len;
 #endif
 		break;
+	/* { SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM edmaudit Read last kernel messages */
+	case SYSLOG_ACTION_READ_CLEAR_KNOX:
+		error = -EINVAL;
+		if (!buf || len < 0)
+			goto out;
+		error = 0;
+		if (!len)
+			goto out;
+		if (!access_ok(VERIFY_WRITE, buf, len)) {
+			error = -EFAULT;
+			goto out;
+		}
+		error = syslog_print_all(buf, len, /* clear */ true, /* knox */true);
+		break;
+	/* } SecProductFeature_KNOX.SEC_PRODUCT_FEATURE_KNOX_SUPPORT_MDM */
 	default:
 		error = -EINVAL;
 		break;

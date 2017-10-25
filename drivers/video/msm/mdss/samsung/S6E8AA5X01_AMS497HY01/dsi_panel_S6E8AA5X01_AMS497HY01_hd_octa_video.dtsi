@@ -94,7 +94,7 @@
 			39 00 00 00 00 00 05 B2 00 0F 00 0F /* AID setting *//* AOR 0% */
 			39 00 00 00 00 00 03 B6 BC 0F /* MPS/ELVSS */
 
-			39 00 00 00 00 00 02 F7 03 /* gamma upate */
+			39 01 00 00 10 00 02 F7 03 /* gamma upate */
 
 			/* Common Setting */
 			39 00 00 00 00 00 04 C0 D8 D8 40 /* pentile setting */
@@ -174,7 +174,7 @@
 			80 80 80 80 80 80 80
 			80 80 80 00 00 00
 
-			39 01 00 00 00 00 02 F7 03	/* gamma upate */
+			39 01 00 00 10 00 02 F7 03	/* gamma upate */
 		];
 
 		samsung,hbm_gamma_tx_cmds_revA = [

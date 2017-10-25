@@ -9905,7 +9905,7 @@ struct msm_camera_i2c_reg_conf sr200pc20_24fps_Camcoder_50hz[] = {
 
 {0x03, 0x00,},
 {0x01, 0x30,},
-{0xff, 0x14,}, /* NEED Delay 400ms */
+//{0xff, 0x14,}, /* NEED Delay 400ms */
 /* END of sr200pc20m_recording_50Hz_common*/
 };
 
@@ -10997,7 +10997,7 @@ struct msm_camera_i2c_reg_conf sr200pc20_24fps_Camcoder_60hz[]= {
 
 {0x03, 0x00,},
 {0x01, 0x30,},
-{0xff, 0x14,}, /* NEED Delay 400ms */
+//{0xff, 0x14,}, /* NEED Delay 400ms */
 /* END of sr200pc20m_recording_50Hz_common*/
 };
 

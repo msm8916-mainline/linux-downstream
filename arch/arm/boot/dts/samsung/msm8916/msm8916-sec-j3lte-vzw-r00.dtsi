@@ -212,13 +212,14 @@
 			cm36672p,irq_gpio = <&msm_gpio 113 0x1>;
 			cm36672p,vdd-supply = <&pm8916_l17>;
 			cm36672p,vio-supply = <&pm8916_l5>;
-			cm36672p,default_hi_thd = <21>;
-			cm36672p,default_low_thd = <15>;
+			cm36672p,default_hi_thd = <18>;
+			cm36672p,default_low_thd = <12>;
 			cm36672p,cancel_hi_thd = <10>;
 			cm36672p,cancel_low_thd = <7>;
+			cm36672p,ps_duty = <2>;
 			cm36672p,ps_it = <4>;
-			cm36672p,led_current = <5>;
-			cm36672p,default_trim = <0>;
+			cm36672p,led_current = <3>;
+			cm36672p,default_trim = <3>;
 		};
 	};
 
@@ -388,6 +389,26 @@
 	};
 };
 
+&soc {
+	qcom,lpm-levels {
+		qcom,pm-cluster@0{
+			qcom,pm-cluster-level@2{
+				reg = <2>;
+				label = "l2-pc";
+				qcom,spm-l2-mode = "pc";
+				//qcom,latency-us = <11030>;
+				qcom,latency-us = <17500>;
+				qcom,ss-power = <490>;
+				qcom,energy-overhead = <972390>;
+				qcom,time-overhead = <1580>;
+				qcom,min-child-idx = <2>;
+				qcom,notify-rpm;
+			};
+		};
+	};
+
+};
+
 &blsp1_uart1 {
 	status = "ok";
 };
@@ -515,7 +536,7 @@
 		qcom,mdss-dsi-v-back-porch = <8>;
 		qcom,mdss-dsi-v-front-porch = <14>;
 		qcom,mdss-dsi-v-pulse-width = <2>;
-		qcom,mdss-dsi-panel-timings = [B8 1E 14 00 44 48 18 22 19 03 04 00];    //494MHz
+		qcom,mdss-dsi-panel-timings = [8B 1E 14 00 44 48 18 22 19 03 04 00];    //494MHz
 	};
 };
 

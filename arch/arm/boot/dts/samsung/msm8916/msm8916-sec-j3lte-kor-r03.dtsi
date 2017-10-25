@@ -240,13 +240,14 @@
 			cm36672p,irq_gpio = <&msm_gpio 113 0x1>;
 			cm36672p,vdd-supply = <&pm8916_l17>;
 			cm36672p,vio-supply = <&pm8916_l5>;
-			cm36672p,default_hi_thd = <21>;
-			cm36672p,default_low_thd = <15>;
+			cm36672p,default_hi_thd = <18>;
+			cm36672p,default_low_thd = <12>;
 			cm36672p,cancel_hi_thd = <10>;
 			cm36672p,cancel_low_thd = <7>;
+			cm36672p,ps_duty = <2>;
 			cm36672p,ps_it = <4>;
-			cm36672p,led_current = <5>;
-			cm36672p,default_trim = <0>;
+			cm36672p,led_current = <3>;
+			cm36672p,default_trim = <3>;
 		};
 	};
 
@@ -400,11 +401,11 @@
 		qcom,earjack-read-vadc = <&pm8916_vadc>;
 
 		det-zones-list = <&det_zones 0 10000 10 0>,
-				<&det_zones 970 10000 10 0>,
-				<&det_zones 971 10000 10 1>,
+				<&det_zones 910 10000 10 0>,
+				<&det_zones 911 10000 10 1>,
 				<&det_zones 9999 10000 10 1>;
-		but-zones-list = <&but_zones 0 0 174>,
-				<&but_zones 3 175 260>,
+		but-zones-list = <&but_zones 0 0 197>,
+				<&but_zones 3 198 260>,
 				<&but_zones 1 261 385>,
 				<&but_zones 2 386 999>;
 		mpp-channel-scaling = <2 1 1>;
@@ -533,6 +534,13 @@
 
 &mdss_mdp {
 	qcom,mdss-pref-prim-intf = "dsi";
+	ss_dsi_panel_S6E8AA5X01_AMS497HY01_HD {
+		samsung,panel-extra-power-gpio1 = <&msm_gpio 102 0>;
+	};
+};
+&pmx_mdss {
+                 qcom,num-grp-pins = <2>;
+                 qcom,pins = <&gp 102>, <&gp 25>;
 };
 
 &mdss_dsi0 {
@@ -542,7 +550,7 @@
 	pinctrl-0 = <&mdss_dsi_active >;
 	pinctrl-1 = <&mdss_dsi_suspend >;
 	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
-	qcom,platform-enable-gpio = <&msm_gpio 102 0>;
+//	qcom,platform-enable-gpio = <&msm_gpio 102 0>;
 	vdda-supply = <&pm8916_l2>;
 	vddb-supply = <&pm8916_s4>;
 	vddio-supply = <&pm8916_l6>;

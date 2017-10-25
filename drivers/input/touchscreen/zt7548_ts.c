@@ -109,7 +109,7 @@ static inline s32 write_data(struct i2c_client *client, u16 reg, u8 *values, u16
 {
 	s32 ret;
 	int count = 0;
-	u8 pkt[10];
+	u8 pkt[66];
 
 	pkt[0] = (reg) & 0xff;
 	pkt[1] = (reg >> 8) & 0xff;
@@ -902,7 +902,8 @@ static bool ts_check_need_upgrade(struct zt7548_ts_info *info,
 	return false;
 }
 
-#define TC_SECTOR_SZ		8
+#define TC_SECTOR_SZ_WRITE		64
+#define TC_SECTOR_SZ_READ		16
 
 static bool ts_upgrade_firmware(struct zt7548_ts_info *info, const u8 *firmware_data, u32 size)
 {
@@ -941,6 +942,13 @@ static bool ts_upgrade_firmware(struct zt7548_ts_info *info, const u8 *firmware_
 		goto fail_upgrade;
 	}
 	dev_info(&client->dev, "chip code = 0x%x\n", chip_code);
+	if(chip_code == ZT7538_IC_CHIP_CODE || chip_code == ZT7548_IC_CHIP_CODE || chip_code == 0xE532) {
+		if (write_reg(client, 0xc201, 0x00be) != I2C_SUCCESS) {
+			dev_err(&client->dev, "power sequence error (set clk speed)\n");
+			goto fail_upgrade;
+		}
+		usleep_range(200, 200);
+	}
 
 	usleep_range(10, 10);
 
@@ -970,47 +978,54 @@ static bool ts_upgrade_firmware(struct zt7548_ts_info *info, const u8 *firmware_
 		goto fail_upgrade;
 	}
 
-	if (write_cmd(client, ZT7548_INIT_FLASH) != I2C_SUCCESS) {
-		dev_err(&client->dev, "failed to init flash\n");
+	if (write_reg(client, ZT7548_INIT_FLASH, 2) != I2C_SUCCESS) {
+		dev_err(&client->dev, "failed to enter burst upgrade mode\n");
 		goto fail_upgrade;
 	}
 
-	// Mass Erase
-	//====================================================
-	if (write_cmd(client, 0x01DF) != I2C_SUCCESS) {
-		dev_err(&client->dev, "failed to mass erase\n");
-		goto fail_upgrade;
-	}
-
-	zinitix_delay(100);
-
-	// Mass Erase End
-	//====================================================
-
-	if (write_reg(client, 0x01DE, 0x0001) != I2C_SUCCESS) {
-		dev_err(&client->dev, "failed to enter upgrade mode\n");
-		goto fail_upgrade;
-	}
 
 	zinitix_delay(1);
 
-	if (write_reg(client, 0x01D3, 0x0008) != I2C_SUCCESS) {
-		dev_err(&client->dev, "failed to init upgrade mode\n");
-		goto fail_upgrade;
-	}
-
 	dev_info(&client->dev, "writing firmware data\n");
 	for (flash_addr = 0; flash_addr < size; ) {
-		for (i = 0; i < page_sz/TC_SECTOR_SZ; i++) {
+		for (i = 0; i < page_sz/TC_SECTOR_SZ_WRITE; i++) {
 			if (write_data(client, ZT7548_WRITE_FLASH,
-						(u8 *)&firmware_data[flash_addr], TC_SECTOR_SZ) < 0) {
+						(u8 *)&firmware_data[flash_addr], TC_SECTOR_SZ_WRITE) < 0) {
 				dev_err(&client->dev, "error : write zinitix tc firmare\n");
 				goto fail_upgrade;
 			}
-			flash_addr += TC_SECTOR_SZ;
-			usleep_range(100, 100);
+			flash_addr += TC_SECTOR_SZ_WRITE;
 		}
-		zinitix_delay(8);	/*for fuzing delay*/
+		i = 0;
+		while(1) {
+			if(flash_addr >= size)
+				break;
+			if(gpio_get_value(info->pdata->gpio_int))
+				break;
+			zinitix_delay(30);
+			if(++i>100)
+				break;
+		}
+		if(i>100) {
+			dev_err(&client->dev, "write timeout\n");
+			goto fail_upgrade;
+		}
+	}
+
+	if (write_cmd(client, 0x01DD) != I2C_SUCCESS) {
+		dev_err(&client->dev, "failed to flush cmd\n");
+		goto fail_upgrade;
+	}
+	zinitix_delay(100);
+	i = 0;
+	while(1) {
+		if(gpio_get_value(info->pdata->gpio_int))
+			break;
+		zinitix_delay(30);
+		if(++i>1000) {
+			dev_err(&client->dev, "flush timeout\n");
+			goto fail_upgrade;
+		}
 	}
 
 	if (write_reg(client, 0xc003, 0x0000) != I2C_SUCCESS) {
@@ -1029,17 +1044,25 @@ static bool ts_upgrade_firmware(struct zt7548_ts_info *info, const u8 *firmware_
 		goto fail_upgrade;
 	}
 
+	zinitix_delay(1);
 	dev_info(&client->dev, "read firmware data\n");
+	if (write_reg(client, 0x01D3, TC_SECTOR_SZ_READ) != I2C_SUCCESS) {
+		dev_err(&client->dev, "failed to init upgrade mode\n");
+		goto fail_upgrade;
+	}
+	zinitix_delay(1);
+
 	for (flash_addr = 0; flash_addr < size; ) {
-		for (i = 0; i < page_sz/TC_SECTOR_SZ; i++) {
+		for (i = 0; i < page_sz/TC_SECTOR_SZ_READ; i++) {
 			if (read_firmware_data(client, ZT7548_READ_FLASH,
-						(u8 *)&verify_data[flash_addr], TC_SECTOR_SZ) < 0) {
+						(u8 *)&verify_data[flash_addr], TC_SECTOR_SZ_READ) < 0) {
 				dev_err(&client->dev, "Failed to read firmare\n");
 				goto fail_upgrade;
 			}
-			flash_addr += TC_SECTOR_SZ;
+			flash_addr += TC_SECTOR_SZ_READ;
 		}
 	}
+	
 
 	/* verify */
 	dev_info(&client->dev, "verify firmware data\n");

@@ -163,7 +163,7 @@ void inc_put(u32 *buff,u32 l){
 						debug_mdp->log_buff.first += count;
 						debug_mdp->log_buff.first %= (debug_mdp->log_buff.len/sizeof(u32));
 	}
-	pr_debug("[DDEBUGGER] buff:%pK, first:%d, last:%d, Val: %x\n",buff,debug_mdp->log_buff.first,debug_mdp->log_buff.last,(u32)l);
+	pr_debug("[DDEBUGGER] buff:%p, first:%d, last:%d, Val: %x\n",buff,debug_mdp->log_buff.first,debug_mdp->log_buff.last,(u32)l);
 	return ;
 }
 #if defined(CONFIG_ARCH_MSM8974)
@@ -401,7 +401,7 @@ void dump_clock_state(void)
                         return ;
      }
 
-	pr_debug("debug_mdp : %pK buff: %pK end: %pK",debug_mdp,buff,buff+ debug_mdp->clock_state.len);
+	pr_debug("debug_mdp : %p buff: %p end: %p",debug_mdp,buff,buff+ debug_mdp->clock_state.len);
 	for(;i < sizeof(clock_list)/sizeof(struct dclock);i++){
 			u32 clock_val ;
 			char  *clk_ptr ;
@@ -415,7 +415,7 @@ void dump_clock_state(void)
 			debug_mdp->clock_state.last += sizeof(clock_list[i].name)/sizeof(u32);
 			pr_debug(" %s : %u :last : %d\n",clk_ptr,clock_val,debug_mdp->clock_state.last);
 			buff[debug_mdp->clock_state.last++] = clock_val;
-			pr_debug("buff[debug_mdp->clock_state.last++]: %pK",&buff[debug_mdp->clock_state.last-1]);
+			pr_debug("buff[debug_mdp->clock_state.last++]: %p",&buff[debug_mdp->clock_state.last-1]);
 	}
 
 
@@ -448,7 +448,7 @@ void dump_clock_state(void)
                         pr_debug("Debug module not Initialized\n");
                         return ;
      }
-	pr_debug("debug_mdp : %pK buff: %pK end: %pK",debug_mdp,buff,buff+ debug_mdp->clock_state.len);
+	pr_debug("debug_mdp : %p buff: %p end: %p",debug_mdp,buff,buff+ debug_mdp->clock_state.len);
 }
 #endif
 
@@ -464,7 +464,7 @@ int fill_reg_log(u32 *buff, u32 base, int len)
 //	printk("value of Reg: 0x%X\n",base);
 	for(i = 0; i < len/4; i++){
 	//	printk("value of i = %d \n",i);
-		pr_debug("buff:%pK ",&buff[debug_mdp->reg_log.last]);
+		pr_debug("buff:%p ",&buff[debug_mdp->reg_log.last]);
 		buff[debug_mdp->reg_log.last] = MIPI_INP(buf+i*4);
 		debug_mdp->reg_log.last++;
 	}
@@ -524,7 +524,7 @@ void klog(void)
 		return ;
 	}
 
-	pr_debug("KK:------------------->(%s)::>> first: %x \t last: %x buff:%pK-%pK\n", __func__, debug_mdp->reg_log.first, debug_mdp->reg_log.last,buff,buff+debug_mdp->reg_log.len);
+	pr_debug("KK:------------------->(%s)::>> first: %x \t last: %x buff:%p-%p\n", __func__, debug_mdp->reg_log.first, debug_mdp->reg_log.last,buff,buff+debug_mdp->reg_log.len);
 
 if(!mdp_reg_dump_en)
 	i = sizeof(mdss_reg_desc)/sizeof(struct reg_desc) -1;
@@ -890,7 +890,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 #ifdef __KERNEL__
 		if(mdss_res && __debug_mdp_phys){
 			debug_mdp = devm_ioremap(&mdss_res->pdev->dev, __debug_mdp_phys, CARVEOUT_MEM_SIZE);
-			pr_info("Using MDSS debug memory from LK:Phys: %x,  VA: %pK\n",__debug_mdp_phys,debug_mdp);
+			pr_info("Using MDSS debug memory from LK:Phys: %x,  VA: %p\n",__debug_mdp_phys,debug_mdp);
 		}
 
 		if(!__debug_mdp_phys || !debug_mdp) {
@@ -902,7 +902,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 		}
 		//debug_mdp->log_buff.offset = 0;
 
-		pr_info(KERN_INFO "MDP debug init:debug_mdp: %pK \n",debug_mdp);
+		pr_info(KERN_INFO "MDP debug init:debug_mdp: %p \n",debug_mdp);
 #else
 		debug_mdp = __debug_mdp_phys;
 
@@ -964,7 +964,7 @@ static enum  {	DLOG_BUFFER_READING,	KLOG_BUFFER_READING,	SECLOG_BUFFER_READING, 
 								__FILE__, __LINE__);
 							return -1;
 		}
-		pr_info("Init Section: %pK",__start___dlog);
+		pr_info("Init Section: %p",__start___dlog);
 	}
 	if (debugfs_create_file("dlogger", 0644, dent, 0, &dlog_fops)
 		== NULL) {
