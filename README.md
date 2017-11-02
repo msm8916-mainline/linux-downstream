@@ -15,7 +15,7 @@ clone the project:
 
 After it, choose the version you would like to build:
 
-*Aquaris M5 *
+*Aquaris M5.5*
 
         $ mv aquaris-M5.5 kernel
         $ cd kernel
@@ -29,7 +29,8 @@ Download a prebuilt gcc
 
 Create KERNEL_OUT dir:
 
-        $ mkdir KERNEL_OUT   
+        $ mkdir KERNEL_OUT
+
 Your directory tree should look like this:
 * kernel
 * arm-eabi-4.8
@@ -43,9 +44,8 @@ Finally, build the kernel according the next table of product names:
 
 
         $ make -C kernel  O=../KERNEL_OUT  ARCH=arm CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi- {product}_defconfig
-        $ make O=../KERNEL_OUT/ -C kernel ARCH=arm  CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi-                       
-    
+        $ make O=../KERNEL_OUT/ -C kernel ARCH=arm  CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi-
+
 You can specify "-j CORES" argument to speed-up your compilation, example:
 
         $ make O=../KERNEL_OUT/ -C kernel ARCH=arm  CROSS_COMPILE=../arm-eabi-4.8/bin/arm-eabi- -j 8
-

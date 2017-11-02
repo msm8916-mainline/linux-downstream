@@ -1,0 +1,19 @@
+#
+# Goodix GT1x Touchscreen driver
+#
+
+config TOUCHSCREEN_GT1X
+	tristate "Goodix GT1x touchpanel driver"
+    depends on I2C
+	default n
+	help
+	  This is the main file for touchpanel driver for Goodix GT1x
+	  touchscreens.
+
+	  Say Y here if you have a Goodix GT1x touchscreen connected
+	  to your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gt1x.

@@ -537,7 +537,7 @@ struct mxt_data {
 
 /* add by yong.bo on 2015/09/08  add tp information for bug id bugzilla 99486  NAMEK-1780*/
 static struct class *touchscreen_class;
-char *ts_info;
+static char *ts_info;
 struct mxt_data *g_data;
 /* end */
 
@@ -597,10 +597,13 @@ static ssize_t mxt_plugin_stylus_show(struct device *dev,
 	struct device_attribute *attr, char *buf);
 static ssize_t mxt_plugin_stylus_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count);
+#if 0
 static ssize_t mxt_plugin_wakeup_gesture_show(struct device *dev,
 	struct device_attribute *attr, char *buf);
 static ssize_t mxt_plugin_wakeup_gesture_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count);
+#endif
+ssize_t plugin_functon_op(struct plug_interface *pl,char *buf, size_t count, unsigned long op, bool show);
 static ssize_t mxt_plugin_gesture_list_show(struct device *dev,
 	struct device_attribute *attr, char *buf);
 static ssize_t mxt_plugin_gesture_list_store(struct device *dev,
@@ -5403,6 +5406,44 @@ static ssize_t mxt_atmel_ts_info_show(struct class *class,
 static CLASS_ATTR(ts_info, S_IRUSR, mxt_atmel_ts_info_show, NULL);
 /*end*/
 
+
+
+
+static ssize_t mxt_plugin_wakeup_gesture_show(struct class *class,
+		struct class_attribute *attr, char *buf)
+{
+	//struct mxt_data *data = dev_get_drvdata(dev);
+	struct plug_interface *pl = &g_data->plug;
+
+	if (!pl->inited)
+		return -ENODEV;
+
+	return plugin_functon_op(pl, buf, 0, PL_FUNCTION_FLAG_WAKEUP_GESTURE, true);
+}
+
+static ssize_t mxt_plugin_wakeup_gesture_store(struct class *class, struct class_attribute *attr,
+			     const char *buf, size_t count)
+{
+	//struct mxt_data *data = dev_get_drvdata(dev);
+	struct plug_interface *pl = &g_data->plug;
+	int ret;
+
+	if (!pl->inited)
+		return -ENODEV;
+
+	if (g_data->suspended)
+		return -ENODEV;
+
+	ret = plugin_functon_op(pl, (char *)buf, count, PL_FUNCTION_FLAG_WAKEUP_GESTURE, false);
+	if (pl->active_thread)
+		pl->active_thread(pl->dev,MXT_EVENT_EXTERN);
+	return ret;
+}
+
+
+static CLASS_ATTR(en_gesture, S_IRWXUGO/*S_IWUSR | S_IRUSR*/, mxt_plugin_wakeup_gesture_show,
+			mxt_plugin_wakeup_gesture_store);
+
 static DEVICE_ATTR(devcfg_crc, S_IRUGO, mxt_devcfg_crc_show, NULL);
 static DEVICE_ATTR(fw_version, S_IRUGO, mxt_fw_version_show, NULL);
 static DEVICE_ATTR(hw_version, S_IRUGO, mxt_hw_version_show, NULL);
@@ -5437,8 +5478,10 @@ static DEVICE_ATTR(en_glove, S_IWUSR | S_IRUSR, mxt_plugin_glove_show,
 			mxt_plugin_glove_store);
 static DEVICE_ATTR(en_stylus, S_IWUSR | S_IRUSR, mxt_plugin_stylus_show,	
 			mxt_plugin_stylus_store);
+#if 0
 static DEVICE_ATTR(en_gesture, S_IRWXUGO/*S_IWUSR | S_IRUSR*/, mxt_plugin_wakeup_gesture_show,
 			mxt_plugin_wakeup_gesture_store);
+#endif
 static DEVICE_ATTR(gesture_list, S_IWUSR | S_IRUSR, mxt_plugin_gesture_list_show, 
 			mxt_plugin_gesture_list_store);
 static DEVICE_ATTR(gesture_trace, /*S_IWUSR |*/ S_IRUSR, mxt_plugin_gesture_trace_show, 
@@ -5483,7 +5526,7 @@ static struct attribute *mxt_attrs[] = {
 #if defined(CONFIG_MXT_PI_WORKAROUND)
 	&dev_attr_en_glove.attr,
 	&dev_attr_en_stylus.attr,
-	&dev_attr_en_gesture.attr,
+	//&dev_attr_en_gesture.attr,
 	&dev_attr_gesture_list.attr,
 	&dev_attr_gesture_trace.attr,
 #endif
@@ -6197,6 +6240,12 @@ static int  mxt_probe(struct i2c_client *client,
 		goto error_class_create_file;
 	}
 /*end*/
+
+	error = class_create_file(touchscreen_class, &class_attr_en_gesture);
+	if (error < 0) {
+		dev_err(&client->dev, "%s atmel touchscreen class_create_file en_gesture failed!\n", __func__);
+		goto error_class_create_file;
+	}
 
 #if defined(CONFIG_MXT_PLUGIN_SUPPORT)
 	mxt_get_suffix_pid_name(&client->dev);

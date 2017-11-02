@@ -1,5 +1,5 @@
 &i2c_5 { 
-        atmel_mxt_ts@4a 
+	 atmel_mxt_ts@4a
         { 
             //compatible = "atmel,atmel_mxt_ts"; 
             //reg = <0x4a>; 
@@ -24,4 +24,33 @@
             atmel,reset-gpio = <&msm_gpio 12 0x00>;
             atmel,power_ldo-gpio = <&msm_gpio 97 0x00>; /* need modify 0x00*/
         }; 
+
+		focaltech@38{
+		compatible = "focaltech,fts";
+		reg = <0x38>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <13 0x2008>;
+		//vcc-i2c-supply = <&pm8916_l6>;
+		focaltech,reset-gpio = <&msm_gpio 12 0x00>;
+		focaltech,irq-gpio = <&msm_gpio 13 0x00>;
+		focaltech,max-touch-number = <10>;
+		focaltech,display-coords =  <0 0 1080 1920>;
+		focaltech,have-key;
+		focaltech,key-number = <3>;
+		focaltech,keys = <158 172 139>;
+		focaltech,key-y-coord = <2000>;
+		focaltech,key-x-coords = <240 480 960>;
+		focaltech,power_ldo-gpio = <&msm_gpio 97 0x00>; /* need modify 0x00*/
+	};
+
+        goodix_ts@5d {
+			compatible = "goodix,gt1x";
+			reg = <0x5d>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <13 0x2008>;
+			vcc_i2c-supply =  <&pm8916_l6>;
+			goodix,rst-gpio = <&msm_gpio 12 0x00>;
+			goodix,irq-gpio = <&msm_gpio 13 0x00>;
+			goodix,power_ldo-gpio = <&msm_gpio 97 0x00>; /* need modify 0x00*/
+	};
 };

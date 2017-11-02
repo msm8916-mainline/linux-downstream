@@ -2667,7 +2667,7 @@ static ssize_t mxt_plugin_stylus_store(struct device *dev,
 	printk(KERN_INFO "mxt ret %d\n", ret);
 	return ret;
 }
-
+#if 0
 static ssize_t mxt_plugin_wakeup_gesture_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -2698,7 +2698,7 @@ static ssize_t mxt_plugin_wakeup_gesture_store(struct device *dev,
 		pl->active_thread(pl->dev,MXT_EVENT_EXTERN);
 	return ret;
 }
-
+#endif
 static ssize_t mxt_plugin_gesture_list_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
