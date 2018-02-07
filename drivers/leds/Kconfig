@@ -555,6 +555,12 @@ config FLED_SM5703_EXT_GPIO
 	  Use GPIO pins to enable/disable torch and flash light.
 	  If unsure, say N.
 
+config CAMERA_ACTIVE_FLASH
+	bool "Rear Camera Active Flash Support"
+	  help
+	  Say yes here to enable support.
+	  If unsure, say N.
+
 config FLED_LM3632
 	bool "TI LM3632 Backlight with Bias Power and Flash Driver"
 	help

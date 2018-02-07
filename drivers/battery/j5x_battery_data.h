@@ -3,7 +3,7 @@
 #else
 #define CAPACITY_MAX			1000
 #endif
-#define CAPACITY_MAX_MARGIN     70
+#define CAPACITY_MAX_MARGIN     90
 #define CAPACITY_MIN			0
 
 static sec_bat_adc_table_data_t temp_table[] = {
