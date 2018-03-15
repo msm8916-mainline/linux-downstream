@@ -2623,6 +2623,7 @@ static bool pfmemalloc_watermark_ok(pg_data_t *pgdat)
 	if (!wmark_ok && waitqueue_active(&pgdat->kswapd_wait)) {
 		pgdat->classzone_idx = min(pgdat->classzone_idx,
 						(enum zone_type)ZONE_NORMAL);
+						//printk("wakeup kswapd 1\n");
 		wake_up_interruptible(&pgdat->kswapd_wait);
 	}
 
@@ -3266,19 +3267,23 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int order, int classzone_idx)
 {
 	long remaining = 0;
 	DEFINE_WAIT(wait);
-
+//printk("kswapd_try_to_sleep++\n");
 	if (freezing(current) || kthread_should_stop())
 		return;
-
+	
 	prepare_to_wait(&pgdat->kswapd_wait, &wait, TASK_INTERRUPTIBLE);
 
 	/* Try to sleep for a short interval */
 	if (prepare_kswapd_sleep(pgdat, order, remaining, classzone_idx)) {
+		#ifdef CONFIG_ARM64
 		remaining = schedule_timeout(HZ/10);
+		#else
+		remaining = schedule_timeout(HZ*10);
+		#endif
 		finish_wait(&pgdat->kswapd_wait, &wait);
 		prepare_to_wait(&pgdat->kswapd_wait, &wait, TASK_INTERRUPTIBLE);
 	}
-
+	//printk("kswapd_try_to_sleep-out of wait\n");
 	/*
 	 * After a short sleep, check if it was a premature sleep. If not, then
 	 * go fully to sleep until explicitly woken up.
@@ -3315,6 +3320,7 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int order, int classzone_idx)
 			count_vm_event(KSWAPD_HIGH_WMARK_HIT_QUICKLY);
 	}
 	finish_wait(&pgdat->kswapd_wait, &wait);
+//printk("kswapd_try_to_sleep--\n");	
 }
 
 /*
@@ -3377,6 +3383,7 @@ static int kswapd(void *p)
 		 * new request of a similar or harder type will succeed soon
 		 * so consider going to sleep on the basis we reclaimed at
 		 */
+		 //printk("kswapd 1\n");
 		if (balanced_classzone_idx >= new_classzone_idx &&
 					balanced_order == new_order) {
 			new_order = pgdat->kswapd_max_order;
@@ -3402,6 +3409,7 @@ static int kswapd(void *p)
 			pgdat->kswapd_max_order = 0;
 			pgdat->classzone_idx = pgdat->nr_zones - 1;
 		}
+		//printk("kswapd 2\n");
 
 		ret = try_to_freeze();
 		if (kthread_should_stop())
@@ -3414,8 +3422,10 @@ static int kswapd(void *p)
 		if (!ret) {
 			trace_mm_vmscan_kswapd_wake(pgdat->node_id, order);
 			balanced_classzone_idx = classzone_idx;
+			//printk("kswapd 3\n");
 			balanced_order = balance_pgdat(pgdat, order,
 						&balanced_classzone_idx);
+			//printk("kswapd 4\n");
 		}
 	}
 
@@ -3449,6 +3459,7 @@ void wakeup_kswapd(struct zone *zone, int order, enum zone_type classzone_idx)
 		return;
 
 	trace_mm_vmscan_wakeup_kswapd(pgdat->node_id, zone_idx(zone), order);
+	//printk("wakeup kswapd 2\n");
 	wake_up_interruptible(&pgdat->kswapd_wait);
 }
 

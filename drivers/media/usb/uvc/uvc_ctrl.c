@@ -1939,8 +1939,14 @@ int uvc_ctrl_add_mapping(struct uvc_video_chain *chain,
 	if (!found)
 		return -ENOENT;
 
+	if (ctrl->info.size < mapping->size)
+		return -EINVAL;
+
 	if (mutex_lock_interruptible(&chain->ctrl_mutex))
 		return -ERESTARTSYS;
+
+	if (ctrl->info.size < mapping->size)
+		return -EINVAL;
 
 	/* Perform delayed initialization of XU controls */
 	ret = uvc_ctrl_init_xu_ctrl(dev, ctrl);

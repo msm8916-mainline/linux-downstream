@@ -1015,7 +1015,7 @@ void msm_ipc_router_add_local_port(struct msm_ipc_port *port_ptr)
 {
 	uint32_t key;
 
-	if (!port_ptr)
+	if (unlikely(!port_ptr || port_ptr->type != CLIENT_PORT))
 		return;
 
 	key = (port_ptr->this_port.port_id & (LP_HASH_SIZE - 1));

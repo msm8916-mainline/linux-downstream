@@ -1733,6 +1733,9 @@ void mIRsensor_algo_resume(void)
 {
 	log("Driver RESUME +++\n");
 
+	if (g_ps_data->Device_switch_on)
+		disable_irq_wake(ASUS_IR_SENSOR_IRQ);
+
 	if (false == g_als_data->Device_switch_on && true == g_als_data->HAL_switch_on)
 		light_turn_onoff(true);
 	

@@ -74,7 +74,9 @@ static int lowmem_minfree_size = 4;
 static int lmk_fast_run = 1;
 
 static unsigned long lowmem_deathpending_timeout;
-
+static unsigned long lowmem_killNothing_timeout = 0;
+static int killNothing = 0;
+static int killNothing_adj = 2000;
 #define lowmem_print(level, x...)			\
 	do {						\
 		if (lowmem_debug_level >= (level))	\
@@ -83,6 +85,7 @@ static unsigned long lowmem_deathpending_timeout;
 
 static atomic_t shift_adj = ATOMIC_INIT(0);
 static short adj_max_shift = 353;
+static int DTaskMax=1;
 
 unsigned long time_out;
 /* User knob to enable/disable adaptive lmk feature */
@@ -120,10 +123,11 @@ int adjust_minadj(short *min_score_adj)
 			ret = VMPRESSURE_ADJUST_ENCROACH;
 		else
 			ret = VMPRESSURE_ADJUST_NORMAL;
+		printk("lowmemorykiller: adjust_minadj %d => %d\n", *min_score_adj, adj_max_shift);
 		*min_score_adj = adj_max_shift;
 	}
 	atomic_set(&shift_adj, 0);
-
+	adj_max_shift = 353;
 	return ret;
 }
 
@@ -132,45 +136,54 @@ static int lmk_vmpressure_notifier(struct notifier_block *nb,
 {
 	int other_free, other_file;
 	unsigned long pressure = action;
-	int array_size = ARRAY_SIZE(lowmem_adj);
+	//int array_size = ARRAY_SIZE(lowmem_adj);
 
 	if (!enable_adaptive_lmk)
 		return 0;
 
-	if (pressure >= 95) {
+	if (pressure >= 88) {
+		
 		other_file = global_page_state(NR_FILE_PAGES) -
-			global_page_state(NR_SHMEM) -
-			total_swapcache_pages();
-		other_free = global_page_state(NR_FREE_PAGES);
-
-		atomic_set(&shift_adj, 1);
-		trace_almk_vmpressure(pressure, other_free, other_file);
-	} else if (pressure >= 90) {
-		if (lowmem_adj_size < array_size)
-			array_size = lowmem_adj_size;
-		if (lowmem_minfree_size < array_size)
-			array_size = lowmem_minfree_size;
-
-		other_file = global_page_state(NR_FILE_PAGES) -
-			global_page_state(NR_SHMEM) -
-			total_swapcache_pages();
-
-		other_free = global_page_state(NR_FREE_PAGES);
-
-		if ((other_free < lowmem_minfree[array_size - 1]) &&
-			(other_file < vmpressure_file_min)) {
-				atomic_set(&shift_adj, 1);
-				trace_almk_vmpressure(pressure, other_free,
-					other_file);
+						global_page_state(NR_SHMEM) -
+						total_swapcache_pages();
+		if(other_file < 300000/4)
+		{				
+			if(other_file < 180000/4)
+			{
+				if(pressure >= 98)
+				{
+					adj_max_shift = 170;
+				}
+				else if(pressure >= 95)
+				{
+					adj_max_shift = 200;
+				}
+				else if(pressure >= 92)
+				{
+					adj_max_shift = 250;
+				}
+			}
+			else
+			{
+				adj_max_shift = 353;
+			}	
+			killNothing = 0;
+			atomic_set(&shift_adj, 1);
+			other_free = global_page_state(NR_FREE_PAGES);
+			printk("lowmem ::vmpressure = %d, other_file=%ldkb, other_free=%ldkb adj_max_shift=%d\n", pressure, other_file *4 , other_free* 4, adj_max_shift);
 		}
+		
 	} else if (atomic_read(&shift_adj)) {
+		printk("lowmem ::vmpressure = %d, adj_max_shift=%d cancelled\n", pressure, adj_max_shift);
+		
 		/*
 		 * shift_adj would have been set by a previous invocation
 		 * of notifier, which is not followed by a lowmem_shrink yet.
 		 * Since vmpressure has improved, reset shift_adj to avoid
 		 * false adaptive LMK trigger.
 		 */
-		trace_almk_vmpressure(pressure, other_free, other_file);
+		//trace_almk_vmpressure(pressure, other_free, other_file);
+		adj_max_shift = 353;
 		atomic_set(&shift_adj, 0);
 	}
 
@@ -181,7 +194,7 @@ static struct notifier_block lmk_vmpr_nb = {
 	.notifier_call = lmk_vmpressure_notifier,
 };
 
-#define DTaskMax 4
+
 struct task_node {
      struct list_head node;
      struct task_struct *pTask;
@@ -403,7 +416,7 @@ void tune_lmk_param(int *other_free, int *other_file, struct shrink_control *sc)
 #define ASUS_MEMORY_DEBUG_MAXLEN    (128)
 #define ASUS_MEMORY_DEBUG_MAXCOUNT  (256)
 #define HEAD_LINE "PID       RSS    oom_adj       cmdline\n"
-char meminfo_str[ASUS_MEMORY_DEBUG_MAXCOUNT][ASUS_MEMORY_DEBUG_MAXLEN];
+//char meminfo_str[ASUS_MEMORY_DEBUG_MAXCOUNT][ASUS_MEMORY_DEBUG_MAXLEN];
 static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 {
 	LIST_HEAD(ListHead);
@@ -413,7 +426,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	int rem = 0;
 	int tasksize;
 	int i;
-	int meminfo_str_index = 0;
+	//int meminfo_str_index = 0;
 	int ret = 0;
 	short min_score_adj = OOM_SCORE_ADJ_MAX + 1;
 	int minfree = 0;
@@ -458,6 +471,16 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		lowmem_print(3, "lowmem_shrink %lu, %x, ofree %d %d, ma %hd\n",
 				nr_to_scan, sc->gfp_mask, other_free,
 				other_file, min_score_adj);
+		if(min_score_adj >= 529)
+			DTaskMax=1;
+		else if(min_score_adj >= 353)
+			DTaskMax=2;
+		else if(min_score_adj >= 250)
+			DTaskMax=4;
+		else if(min_score_adj >= 176)
+			DTaskMax=6;
+		else 
+			DTaskMax=8;
 	}
 
 	rem = global_page_state(NR_ACTIVE_ANON) +
@@ -477,6 +500,16 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 
 		return rem;
 	}
+	if(time_before_eq(jiffies, lowmem_deathpending_timeout) && (min_score_adj >= killNothing_adj))
+	{
+		if (nr_to_scan > 0)
+			mutex_unlock(&scan_mutex);
+		//printk("lowmem:min_lowmem_killNothing_timeout min_score_adj=%d in 5 seconds\n", min_score_adj);
+		return rem;
+		
+	}
+	//printk("lowmem:min_score_adj=%d, using DTaskMax=%d\n", min_score_adj, DTaskMax);
+
 	selected_oom_score_adj = min_score_adj;
 
 	rcu_read_lock();
@@ -507,22 +540,38 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		p = find_lock_task_mm(tsk);
 		if (!p)
 			continue;
-
-		oom_score_adj = p->signal->oom_score_adj;
-		tasksize = get_mm_rss(p->mm);
-		if(meminfo_str_index >= ASUS_MEMORY_DEBUG_MAXCOUNT )
-			meminfo_str_index = ASUS_MEMORY_DEBUG_MAXCOUNT - 1;
-		snprintf(meminfo_str[meminfo_str_index++], ASUS_MEMORY_DEBUG_MAXLEN, "%6d  %8ldkB %8d %s\n", p->pid, tasksize * (long)(PAGE_SIZE / 1024),oom_score_adj, p->comm);
+	    oom_score_adj = p->signal->oom_score_adj;
+		
+		if(strstr(p->comm,"launcher") != NULL  && min_score_adj > 200){
+			task_unlock(p);
+			//printk("lowmemorykiller: Don't kill launcher when min_socre_adj > 300");
+			continue;
+		}
+		if(strstr(p->comm,"process.acore") != NULL && min_score_adj > 200){
+			task_unlock(p);
+			//printk("lowmemorykiller: Don't kill acore when min_socre_adj > 300");
+			continue;
+		}
+		if(strstr(p->comm,"process.gapps") != NULL && min_score_adj > 200){
+			task_unlock(p);
+			//printk("lowmemorykiller: Don't kill gapps when min_socre_adj > 300");
+			continue;
+		}
+		if(strstr(p->comm,"process.media") != NULL && min_score_adj > 200){
+			task_unlock(p);
+			//printk("lowmemorykiller: Don't kill media when min_socre_adj > 300");
+			continue;
+		}
+		
+		
 		if (oom_score_adj < min_score_adj) {
 			task_unlock(p);
 			continue;
-		}
-
-		if(strstr(p->comm,"launcher") != NULL && min_score_adj > 600){
-			task_unlock(p);
-			//printk("lowmemorykiller: Don't kill launcher when min_socre_adj > 600");
-			continue;
-		}
+		}		
+		//tasksize = get_mm_rss(p->mm);
+		//if(meminfo_str_index >= ASUS_MEMORY_DEBUG_MAXCOUNT )
+		//	meminfo_str_index = ASUS_MEMORY_DEBUG_MAXCOUNT - 1;
+		//snprintf(meminfo_str[meminfo_str_index++], ASUS_MEMORY_DEBUG_MAXLEN, "%6d  %8ldkB %8d %s\n", p->pid, tasksize * (long)(PAGE_SIZE / 1024),oom_score_adj, p->comm);
 			
 		tasksize = get_mm_rss(p->mm);
 		task_unlock(p);
@@ -595,7 +644,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	}
 
 //	if (selected) {
-
+	killNothing = 1;
+	
 	list_for_each_entry_safe_reverse(pTaskIterator, pTaskNext, &ListHead, node) {
 		selected = pTaskIterator->pTask;
 		if (!selected)
@@ -660,7 +710,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			     sc->gfp_mask);
 			}
 #else
-		if(selected_oom_score_adj < 600 && time_after(jiffies,time_out)){
+		/*if(selected_oom_score_adj < 600 && time_after(jiffies,time_out)){
 				int count = 0;
 				printk(HEAD_LINE);
 				while (count < meminfo_str_index ){
@@ -668,10 +718,11 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 					count++;
 				}
 				time_out = jiffies + HZ * 5;
-			}
-		lowmem_print(1, "Killing '%s' (%d), adj %hd,\n" \
-				"   to free %ldkB on behalf of '%s' (%d) because\n" \
-				"   cache %ldkB is below limit %ldkB for oom_score_adj %hd\n" \
+			}*/
+			
+		lowmem_print(1, "Kill '%s' (%d), adj %hd->%hd, cache=%ld, free=%ld\n" \
+ 				"   to free %ldkB on behalf of '%s' (%d) because\n" \
+				"   below limit %ldkB \n" \
 				"   Free memory is %ldkB above reserved.\n" \
 				"   Free CMA is %ldkB\n" \
 				"   Total reserve is %ldkB\n" \
@@ -682,13 +733,10 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 				"   Total Slab is %ldkB\n" \
 				"   GFP mask is 0x%x\n",
 			     selected->comm, selected->pid,
-			     selected_oom_score_adj,
+			     selected_oom_score_adj,min_score_adj, other_file * (long)(PAGE_SIZE / 1024), other_free * (long)(PAGE_SIZE / 1024),
 			     selected_tasksize * (long)(PAGE_SIZE / 1024),
 			     current->comm, current->pid,
-			     other_file * (long)(PAGE_SIZE / 1024),
 			     minfree * (long)(PAGE_SIZE / 1024),
-			     min_score_adj,
-			     other_free * (long)(PAGE_SIZE / 1024),
 			     global_page_state(NR_FREE_CMA_PAGES) *
 				(long)(PAGE_SIZE / 1024),
 			     totalreserve_pages * (long)(PAGE_SIZE / 1024),
@@ -721,12 +769,21 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		msleep_interruptible(20);
 		trace_almk_shrink(selected_tasksize, ret,
 			other_free, other_file, selected_oom_score_adj);
+		DTaskMax = 1;
+		killNothing = 0;
+		killNothing_adj = 2000;
 	}
 	list_reset(&ListHead);
 	lowmem_print(4, "lowmem_shrink %lu, %x, return %d\n",
 		     nr_to_scan, sc->gfp_mask, rem);
 	rcu_read_unlock();
 	mutex_unlock(&scan_mutex);
+	if(killNothing)
+	{
+		killNothing_adj = min_score_adj;
+		lowmem_killNothing_timeout = jiffies + 5 * HZ;
+		//printk("lowmem:killnothing min_score_adj=%d \n", min_score_adj);
+	}
 	return rem;
 }
 

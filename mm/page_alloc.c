@@ -2491,13 +2491,13 @@ bool gfp_pfmemalloc_allowed(gfp_t gfp_mask)
 {
 	return !!(gfp_to_alloc_flags(gfp_mask) & ALLOC_NO_WATERMARKS);
 }
-
 static inline struct page *
 __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	struct zonelist *zonelist, enum zone_type high_zoneidx,
 	nodemask_t *nodemask, struct zone *preferred_zone,
 	int migratetype)
 {
+
 	const gfp_t wait = gfp_mask & __GFP_WAIT;
 	struct page *page = NULL;
 	int alloc_flags;

@@ -1565,7 +1565,7 @@ static void binder_transaction(struct binder_proc *proc,
 			else
 				fp->type = BINDER_TYPE_WEAK_HANDLE;
 			fp->binder = 0;
-			fp->handle = ref->desc;
+ 			fp->handle = ref->desc;
 			fp->cookie = 0;
 			binder_inc_ref(ref, fp->type == BINDER_TYPE_HANDLE,
 				       &thread->todo);
@@ -1612,7 +1612,7 @@ static void binder_transaction(struct binder_proc *proc,
 					goto err_binder_get_ref_for_node_failed;
 				}
 				fp->binder = 0;
-				fp->handle = new_ref->desc;
+ 				fp->handle = new_ref->desc;
 				fp->cookie = 0;
 				binder_inc_ref(new_ref, fp->type == BINDER_TYPE_HANDLE, NULL);
 				trace_binder_transaction_ref_to_ref(t, ref,

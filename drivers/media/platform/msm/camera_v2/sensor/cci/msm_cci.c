@@ -56,6 +56,12 @@ static void msm_cci_set_clk_param(struct cci_device *cci_dev,
 
 	if (cci_dev->master_clk_init[master])
 		return;
+
+	if ((i2c_freq_mode >= I2C_MAX_MODES) || (i2c_freq_mode < 0)) {
+		pr_err("%s:%d Invalid i2c_freq_mode =%d\n", __func__, __LINE__, i2c_freq_mode);
+		return;
+	}
+
 	clk_params = &cci_dev->cci_clk_params[i2c_freq_mode];
 
 	if (MASTER_0 == master) {

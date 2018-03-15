@@ -5528,12 +5528,16 @@ static void bms_modify_soc(void)
 	struct timespec mtNow;
 	u64 cur_jiffies;
 	int cur_time_s;
-	u64 cur_cc = g_expect_suspend_cc;
+	u64 cur_cc = g_expect_suspend_cc, cur_cc_temp;
 	mtNow = current_kernel_time();
 	cur_time_s = mtNow.tv_sec;
 	cur_jiffies = get_jiffies_64();
-	cur_cc += (cur_jiffies - g_last_suspend_jiffies) * 30 / HZ;
-	cur_cc += ((cur_time_s - g_suspend_predict_start_time_s) - (cur_jiffies - g_last_suspend_jiffies) / HZ) * 4;
+	cur_cc_temp = (cur_jiffies - g_last_suspend_jiffies) * 30;
+	do_div(cur_cc_temp, HZ);
+	cur_cc +=  cur_cc_temp;
+	cur_cc_temp = (cur_jiffies - g_last_suspend_jiffies);
+	do_div(cur_cc_temp, HZ);
+	cur_cc += ((cur_time_s - g_suspend_predict_start_time_s) - cur_cc_temp) * 4;
 	if (cur_cc >= 86400) {
 		g_expect_suspend_soc --;
 		mutex_lock(&the_chip->last_soc_mutex);
