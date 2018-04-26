@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -104,9 +104,10 @@ void rmnet_print_packet(const struct sk_buff *skb, const char *dev, char dir)
 	if (!printlen)
 		return;
 
-	pr_err("[%s][%c] - PKT skb->len=%d skb->head=%p skb->data=%p skb->tail=%p skb->end=%p\n",
-		dev, dir, skb->len, (void *)skb->head, (void *)skb->data,
-		skb_tail_pointer(skb), skb_end_pointer(skb));
+	pr_err("[%s][%c] - PKT skb->len=%d skb->head=%pK skb->data=%pK\n",
+	       dev, dir, skb->len, (void *)skb->head, (void *)skb->data);
+	pr_err("[%s][%c] - PKT skb->tail=%pK skb->end=%pK\n",
+	       dev, dir, skb_tail_pointer(skb), skb_end_pointer(skb));
 
 	if (skb->len > 0)
 		len = skb->len;
@@ -291,10 +292,12 @@ static rx_handler_result_t _rmnet_map_ingress_handler(struct sk_buff *skb,
 		if (likely((ckresult == RMNET_MAP_CHECKSUM_OK)
 			    || (ckresult == RMNET_MAP_CHECKSUM_SKIPPED)))
 			skb->ip_summed |= CHECKSUM_UNNECESSARY;
-		else if (ckresult != RMNET_MAP_CHECKSUM_ERR_UNKNOWN_IP_VERSION
-			&& ckresult != RMNET_MAP_CHECKSUM_ERR_UNKNOWN_TRANSPORT
-			&& ckresult != RMNET_MAP_CHECKSUM_VALID_FLAG_NOT_SET
-			&& ckresult != RMNET_MAP_CHECKSUM_FRAGMENTED_PACKET) {
+		else if (ckresult !=
+				    RMNET_MAP_CHECKSUM_ERR_UNKNOWN_IP_VERSION &&
+			 ckresult != RMNET_MAP_CHECKSUM_VALIDATION_FAILED &&
+			 ckresult != RMNET_MAP_CHECKSUM_ERR_UNKNOWN_TRANSPORT &&
+			 ckresult != RMNET_MAP_CHECKSUM_VALID_FLAG_NOT_SET &&
+			 ckresult != RMNET_MAP_CHECKSUM_FRAGMENTED_PACKET) {
 			rmnet_kfree_skb(skb,
 				RMNET_STATS_SKBFREE_INGRESS_BAD_MAP_CKSUM);
 			return RX_HANDLER_CONSUMED;

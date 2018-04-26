@@ -29,6 +29,11 @@
 #include <linux/of.h>
 #include <trace/events/power.h>
 
+#ifdef CONFIG_CPU_FREQ_LIMIT
+/* cpu frequency table for limit driver */
+void cpufreq_limit_set_table(int cpu, struct cpufreq_frequency_table * ftbl);
+#endif
+
 static DEFINE_MUTEX(l2bw_lock);
 
 static struct clk *cpu_clk[NR_CPUS];
@@ -43,8 +48,112 @@ struct cpufreq_suspend_t {
 
 static DEFINE_PER_CPU(struct cpufreq_suspend_t, cpufreq_suspend);
 
-#if defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8929)
+#ifdef CONFIG_SEC_JIG_LIMIT
+struct jig_limit_info
+{
+	int lv1_limit_duration;
+	int lv1_factory_limit_duration;
+	int lv2_limit_enable;
+	int lv2_limit_duration;
+	int lv3_limit_duration;
+	int normal_boot_time;
+	unsigned long big_clk[3];
+	unsigned long little_clk[3];
+	int step;
+	unsigned long long end_time;
+};
+
+static struct jig_limit_info jlc_info = {
+#if defined(CONFIG_SEC_A7_PROJECT)
+	// ~160s : B998+L998 Mhz
+	160, 160, 0, 0, 0, 50,
+	{ 998400, 0, 0},
+	{ 998400, 0, 0},
+#elif defined(CONFIG_MACH_J7_USA_SPR)
+	// ~160s : B499+L499 Mhz
+	160, 160, 0, 0, 0, 50,
+	{ 499200, 0, 0},
+	{ 499200, 0, 0},
+#elif defined(CONFIG_SEC_A8_PROJECT)
+/*	1. ~ bootcomplete : B960+L800Mhz
+	2. ~ bootcomplete+120s : B806+L800Mhz
+	3. ~ bootcomplete+370s : B1113+L998Mhz
+	if bootcomplete is under 50s, 
+	it will ignore step 2,3 because of normal booting */
+	500, 50, 1, 120, 250, 50,
+	{ 960000, 806400, 1113600 },
+	{ 800000, 800000, 998400 },
+#else
+	// ~50s : B960+L998 Mhz
+	50, 50, 0, 0, 0, 50,
+	{ 960000, 0, 0},
+	{ 998400, 0, 0},
+#endif
+	0, 0LLU
+};
+
 extern int jig_boot_clk_limit;
+
+void bootcomplete_notify(void)
+{
+#ifndef CONFIG_SEC_FACTORY
+	if ( !jlc_info.lv2_limit_enable ) 
+		return ;
+
+	if (jig_boot_clk_limit == 1) {
+		unsigned long long t = sched_clock();
+		do_div(t, 1000000000);
+
+		if ( t > jlc_info.normal_boot_time ) {
+			/* UART JIG cable mode */
+			jlc_info.step = 1;
+			jlc_info.end_time = t + jlc_info.lv2_limit_duration;
+			pr_info("JIG_LIMIT: [Lv2]+%d secs extented\n", jlc_info.lv2_limit_duration);
+		}
+		else {
+			/* Current cable mode - no limit */
+			jig_boot_clk_limit = 0;
+			pr_info("JIG_LIMIT: disabled (current cable)\n");
+		}
+	}
+#endif
+}
+
+static void check_jig_limit(struct cpufreq_policy *policy, unsigned long * rate)
+{
+	if (jig_boot_clk_limit == 1) {
+		unsigned long long t = sched_clock();
+		unsigned long limit_clk;
+				
+		do_div(t, 1000000000);
+
+		if (t > jlc_info.end_time && jlc_info.step==1) {
+			jlc_info.step = 2;
+			jlc_info.end_time = t + jlc_info.lv3_limit_duration;
+			pr_info("JIG_LIMIT: [Lv3]+%d secs extented\n", jlc_info.lv3_limit_duration);
+		}
+
+		limit_clk = ( policy->cpu >= 0 && policy->cpu < 4 ) ?
+			jlc_info.big_clk[jlc_info.step] : jlc_info.little_clk[jlc_info.step];
+		limit_clk *= 1000;
+
+		if (t <= jlc_info.end_time && *rate > limit_clk)
+			*rate = limit_clk;
+		else if (t > jlc_info.end_time) {
+			jig_boot_clk_limit = 0;
+			pr_info("JIG_LIMIT: disabled (timeout %llu)\n", jlc_info.end_time);
+		}
+	}
+}
+
+void init_jig_limit(void)
+{
+#ifdef CONFIG_SEC_FACTORY
+	jlc_info.end_time = jlc_info.lv1_factory_limit_duration;
+#else
+	jlc_info.end_time = jlc_info.lv1_limit_duration;
+#endif
+}
 #endif
 
 static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
@@ -63,26 +172,8 @@ static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
 	trace_cpu_frequency_switch_start(freqs.old, freqs.new, policy->cpu);
 
 	rate = new_freq * 1000;
-#if defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8929)
-#if defined(CONFIG_SEC_A7_PROJECT)
-  #define JIG_LIMIT_CLK	998400 * 1000
-  #define JIG_LIMIT_TIME	160
-#elif defined(CONFIG_MACH_J7_USA_SPR)
-  #define JIG_LIMIT_CLK	499200 * 1000
-  #define JIG_LIMIT_TIME	160
-#else
-  #define JIG_LIMIT_CLK	960000 * 1000
-  #define JIG_LIMIT_TIME	50
-#endif
-	if (jig_boot_clk_limit == 1) {
-		unsigned long long t = sched_clock();
-		do_div(t, 1000000000);
-		if (t <= JIG_LIMIT_TIME && rate > JIG_LIMIT_CLK)
-			rate = JIG_LIMIT_CLK;
-		else if (t > JIG_LIMIT_TIME) {
-			jig_boot_clk_limit = 0;
-		}
-	}
+#ifdef CONFIG_SEC_JIG_LIMIT
+	check_jig_limit(policy, &rate);
 #endif
 	rate = clk_round_rate(cpu_clk[policy->cpu], rate);
 	ret = clk_set_rate(cpu_clk[policy->cpu], rate);
@@ -154,6 +245,9 @@ static int msm_cpufreq_init(struct cpufreq_policy *policy)
 			per_cpu(freq_table, policy->cpu);
 	int cpu;
 
+#ifdef CONFIG_SEC_JIG_LIMIT
+	init_jig_limit();
+#endif
 	/*
 	 * In some SoC, some cores are clocked by same source, and their
 	 * frequencies can not be changed independently. Find all other
@@ -395,6 +489,10 @@ static struct cpufreq_frequency_table *cpufreq_parse_dt(struct device *dev,
 
 	ftbl[i].driver_data = i;
 	ftbl[i].frequency = CPUFREQ_TABLE_END;
+
+#ifdef CONFIG_CPU_FREQ_LIMIT
+	cpufreq_limit_set_table(cpu, ftbl);
+#endif
 
 	devm_kfree(dev, data);
 

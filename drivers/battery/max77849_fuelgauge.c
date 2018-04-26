@@ -36,6 +36,9 @@ static enum power_supply_property max77849_fuelgauge_props[] = {
 	POWER_SUPPLY_PROP_TEMP_AMBIENT,
 	POWER_SUPPLY_PROP_ENERGY_FULL,
 	POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN,
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
+#endif
 };
 
 static int fg_i2c_read(struct i2c_client *client,
@@ -1626,6 +1629,10 @@ static int max77849_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 	case POWER_SUPPLY_PROP_PRESENT:
 		return -ENODATA;
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
+		return -ENODATA;
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -1756,6 +1763,28 @@ static int max77849_fg_set_property(struct power_supply *psy,
 		fuelgauge->capacity_max = val->intval;
 		fuelgauge->initial_update_of_soc = true;
 		break;
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
+		{
+			u16 reg_fullsocthr;
+			int val_soc = val->intval;
+			if (val->intval > fuelgauge->pdata->full_condition_soc ||
+				val->intval <= (fuelgauge->pdata->full_condition_soc - 10)) {
+				pr_info("%s: abnormal value(%d). so thr is changed to default(%d)\n",
+					__func__, val->intval, fuelgauge->pdata->full_condition_soc);
+				val_soc = fuelgauge->pdata->full_condition_soc;
+			}
+
+			reg_fullsocthr = val_soc * 256;
+			if (fg_write_register(fuelgauge->client, FULLSOCTHR_REG, reg_fullsocthr) < 0) {
+				pr_err("%s: Failed to write FULLSOCTHR_REG\n", __func__);
+			} else {
+				reg_fullsocthr = fg_read_register(fuelgauge->client, FULLSOCTHR_REG);
+				pr_info("%s: FullSOCThr %d%%(0x%04X)\n", __func__, val_soc, reg_fullsocthr);
+			}
+		}
+		break;
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -2010,6 +2039,14 @@ static int fuelgauge_parse_dt(struct device *dev,
 			if (ret)
 				pr_info("%s: battery_data,type_str is Empty\n", __func__);
 		}
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+		ret = of_property_read_u32(np, "battery,full_condition_soc",
+			&pdata->full_condition_soc);
+		if (ret) {
+			pdata->full_condition_soc = 93;
+			pr_info("%s : Full condition soc is Empty\n", __func__);
+		}
+#endif
 	}
 	return 0;
 }

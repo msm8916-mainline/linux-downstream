@@ -43,7 +43,7 @@ static void sec_otg_set_id_state(int id)
 			motg->sm_work_pending = true;
 		else
 		/* use use non-reentrant wq, so that we don't run sm_work on multiple cpus */
-			queue_work(system_nrt_wq, &motg->sm_work);
+			queue_work(motg->otg_wq, &motg->sm_work);
 	}
 }
 

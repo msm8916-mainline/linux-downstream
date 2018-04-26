@@ -34,6 +34,7 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, unsigned int flags)
 	struct dentry *parent_lower_dentry = NULL;
 	struct dentry *lower_cur_parent_dentry = NULL;
 	struct dentry *lower_dentry = NULL;
+	struct sdcardfs_inode_info *pinfo;
 
 	if (flags & LOOKUP_RCU)
 		return -ECHILD;
@@ -42,6 +43,12 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, unsigned int flags)
 	if (IS_ROOT(dentry)) {
 		spin_unlock(&dentry->d_lock);
 		return 1;
+	}
+	if (dentry->d_flags & DCACHE_WILL_INVALIDATE) {
+		dentry->d_flags &= ~DCACHE_WILL_INVALIDATE;
+		__d_drop(dentry);
+		spin_unlock(&dentry->d_lock);
+		return 0;
 	}
 	spin_unlock(&dentry->d_lock);
 
@@ -58,6 +65,14 @@ static int sdcardfs_d_revalidate(struct dentry *dentry, unsigned int flags)
 	parent_lower_dentry = parent_lower_path.dentry;
 	lower_dentry = lower_path.dentry;
 	lower_cur_parent_dentry = dget_parent(lower_dentry);
+
+	pinfo = SDCARDFS_I(parent_dentry->d_inode);
+	if (pinfo->perm == PERM_ANDROID_OBB && dentry->d_inode &&
+			uid_eq(dentry->d_inode->i_uid, GLOBAL_ROOT_UID)) {
+		d_drop(dentry);
+		err = 0;
+		goto out;
+	}
 
 	spin_lock(&lower_dentry->d_lock);
 	if (d_unhashed(lower_dentry)) {
@@ -179,10 +194,15 @@ static int sdcardfs_cmp_ci(const struct dentry *parent,
 	return 1;
 }
 
+static void sdcardfs_canonical_path(const struct path *path, struct path *actual_path) {
+	sdcardfs_get_real_lower(path->dentry, actual_path);
+}
+
 const struct dentry_operations sdcardfs_ci_dops = {
 	.d_revalidate	= sdcardfs_d_revalidate,
 	.d_release	= sdcardfs_d_release,
 	.d_hash 	= sdcardfs_hash_ci, 
 	.d_compare	= sdcardfs_cmp_ci,
+	.d_canonical_path = sdcardfs_canonical_path,
 };
 

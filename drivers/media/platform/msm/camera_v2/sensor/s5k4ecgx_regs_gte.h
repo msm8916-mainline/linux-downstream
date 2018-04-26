@@ -2375,7 +2375,7 @@ static struct msm_camera_i2c_reg_conf s5k4ecgx_init_regs[] = {
 {0x002A, 0x0F30,},
 {0x0F12, 0x0001,}, ///*AFC_D_ConvAccelerPower */
 {0x002A, 0x0F2A,},
-{0x0F12, 0x0000,}, ///*AFC_Default BIT[0] 1:60Hz 0:50Hz */
+{0x0F12, 0x0001,}, ///*AFC_Default BIT[0] 1:60Hz 0:50Hz */
 {0x002A, 0x04E6,},
 {0x0F12, 0x077F,}, ///*REG_TC_DBG 7F: Auto  5F:Manual */
 {0x002A, 0x0F20,},
@@ -6076,7 +6076,7 @@ static struct msm_camera_i2c_reg_conf  s5k4ecgx_anti_banding_60hz_auto[]=
 {0x002A, 0x0F30,},
 {0x0F12, 0x0001,}, ///*AFC_D_ConvAccelerPower */
 {0x002A, 0x0F2A,},
-{0x0F12, 0x0000,}, ///*AFC_Default BIT[0] 1:60Hz 0:50Hz */
+{0x0F12, 0x0001,}, ///*AFC_Default BIT[0] 1:60Hz 0:50Hz */
 };
 
 static struct msm_camera_i2c_reg_conf  s5k4ecgx_anti_banding_50hz_auto[]=

@@ -29,7 +29,7 @@
 
 		battery,adc_check_count = <5>;
 
-		battery,cable_check_type = <5>; /* SEC_BATTERY_CABLE_CHECK_NOUSBCHARGE | SEC_BATTERY_CABLE_CHECK_PSY */
+		battery,cable_check_type = <4>; /* SEC_BATTERY_CABLE_CHECK_PSY */
 		battery,cable_source_type = <3>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
 		battery,event_waiting_time = <600>;
 		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
@@ -63,7 +63,7 @@
 		battery,temp_low_threshold_lpm = <(-50)>;
 		battery,temp_low_recovery_lpm = <0>;
 		battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
-		battery,full_check_type_2nd = <0>; /* SEC_BATTERY_FULLCHARGED_NONE */
+		battery,full_check_type_2nd = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
 		battery,full_check_count = <1>;
 		battery,chg_gpio_full_check = <0>;
 		battery,chg_polarity_full_check = <1>;
@@ -72,13 +72,15 @@
 		   SEC_BATTERY_FULL_CONDITION_NOTIMEFULL |
 		   SEC_BATTERY_FULL_CONDITION_VCELL */
 		battery,full_condition_type = <13>;
-		battery,full_condition_soc = <95>;
-		battery,full_condition_vcell = <4250>;
+		battery,full_condition_soc = <93>;
+		battery,full_condition_vcell = <4200>;
 
 		battery,recharge_check_count = <1>;
 		battery,recharge_condition_type = <4>; /* SEC_BATTERY_RECHARGE_CONDITION_VCELL */
 		battery,recharge_condition_soc = <98>;
-		battery,recharge_condition_vcell = <4300>;
+		battery,recharge_condition_vcell = <4230>;
+
+		battery,chg_float_voltage = <4300>;
 
 		battery,self_discharging_en;
 		battery,factory_discharging = <&msm_gpio 95 0x00>;
@@ -93,9 +95,34 @@
 		battery,recharging_total_time = <5400>;
 		battery,charging_reset_time = <0>;
 
-		battery,swelling_drop_float_voltage = <4200>;
-		battery,swelling_high_rechg_voltage = <4150>;
-		battery,swelling_low_rechg_voltage = <4050>;
+		/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc */
+		battery,age_data = <0   4300 4230 4200 93
+				200  4275 4210 4180 92
+				250  4250 4190 4160 91
+				300  4225 4170 4140 90
+				1000 4200 4120 4090 89>;
+		
+		battery,standard_curr = <1883>;
+		battery,expired_time = <20400>; /* 240min + 100min */
+		battery,recharging_expired_time = <5400>;
+
+		battery,swelling_high_temp_block = <410>;
+		battery,swelling_high_temp_recov = <390>;
+		
+		battery,swelling_low_temp_2step_mode = <1>;
+		battery,swelling_low_temp_block_1st = <150>;
+		battery,swelling_low_temp_recov_1st = <200>;
+		battery,swelling_low_temp_block_2nd = <50>;
+		battery,swelling_low_temp_recov_2nd = <100>;
+
+		battery,swelling_low_temp_current = <1200>;  // 0.3C * 3500
+		battery,swelling_low_temp_topoff = <300>;  // 0.05C
+		battery,swelling_high_temp_current = <1800>;  // 0.45C * 3500
+		battery,swelling_high_temp_topoff = <300>;  // 0.05C
+
+		battery,swelling_drop_float_voltage = <4100>;
+		battery,swelling_high_rechg_voltage = <3950>;
+		battery,swelling_low_rechg_voltage = <3950>;
 
 		qcom,sec-battery-vadc = <&pm8916_vadc>;
 
@@ -108,15 +135,15 @@
 			battery,chg_polarity_en = <0>;
 			battery,chg_gpio_status = <0>;
 			battery,chg_polarity_status = <0>;
-			battery,chg_float_voltage = <4350>;
+			battery,chg_float_voltage = <4300>;
 			battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
 			battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
-			battery,full_check_type_2nd = <0>; /* SEC_BATTERY_FULLCHARGED_NONE */
+			battery,full_check_type_2nd = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
 			battery,otg_current_limit = <500>; /* OTG current limit 500,(OTG_ILIM) */
 
 			battery,input_current_limit = <1800 460 460 1800 460 1000 1000 460 460 1000 1000 1800 1800 460 1000 460 700 1000 460 1000 1800 460 460>;
-			battery,fast_charging_current = <2200 0 520 2200 520 1000 1000 520 0 1200 2200 2200 2200 (-1) 1300 520 800 1300 520 1000 2200 0 0>;
-			battery,full_check_current_1st = <300 0 300 300 300 300 300 300 0 300 300 300 300 0 300 300 300 300 300 300 300 0 0>;
+			battery,fast_charging_current = <2100 0 520 2100 520 1000 1000 520 0 1200 2100 2100 2100 (-1) 1300 520 800 1300 520 1000 2100 0 0>;
+			battery,full_check_current_1st = <350 0 350 350 350 350 350 350 0 350 350 350 350 0 350 350 350 350 350 350 350 0 0>;
 			battery,full_check_current_2nd = <300 0 300 300 300 300 300 300 0 300 300 300 300 0 300 300 300 300 300 300 300 0 0>;
 		};
 

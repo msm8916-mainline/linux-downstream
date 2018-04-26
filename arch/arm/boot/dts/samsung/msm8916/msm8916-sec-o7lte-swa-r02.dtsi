@@ -133,7 +133,7 @@
 
 			sm5703_charger {
 				compatible = "siliconmitus,sm5703-charger";
-				chg_autostop = <0>;
+				chg_autostop = <1>;
 				chg_autoset = <1>;
 				chg_aiclen = <1>;
 				chg_aiclth = <4300>;
@@ -413,13 +413,13 @@
 		qcom,earjack-read-vadc = <&pm8916_vadc>;
 
 		det-zones-list = <&det_zones 0 10000 10 0>,
-						 <&det_zones 988 10000 10 0>,
-						 <&det_zones 989 10000 10 1>,
+						 <&det_zones 977 10000 10 0>,
+						 <&det_zones 978 10000 10 1>,
 						 <&det_zones 9999 10000 10 1>;
-		but-zones-list = <&but_zones 0 0 311>,
-						<&but_zones 3 312 357>,	
-						 <&but_zones 1 358 476>,
-						 <&but_zones 2 477 999>;
+		but-zones-list = <&but_zones 0 0 298>,
+						<&but_zones 3 299 362>,	
+						 <&but_zones 1 363 480>,
+						 <&but_zones 2 481 999>;
 		mpp-channel-scaling = <2 1 1>;
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
 		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;

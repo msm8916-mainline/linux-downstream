@@ -1953,7 +1953,9 @@ int sec_debug_subsys_init(void)
 		&secdbg_krait->log.next_idx_paddr,
 		&secdbg_krait->log.log_paddr, &secdbg_krait->log.size);
 /* To-Do Temporarily Disable */
+#if (defined CONFIG_SEC_DEBUG && defined CONFIG_ANDROID_LOGGER)
 	sec_debug_subsys_set_logger_info(&secdbg_krait->logger_log);
+#endif
 
 	secdbg_krait->tz_core_dump =
 		(struct tzbsp_dump_buf_s **)get_wdog_regsave_paddr();
@@ -2422,7 +2424,7 @@ int sec_debug_is_enabled_for_ssr(void)
 
 #ifdef CONFIG_SEC_FILE_LEAK_DEBUG
 
-void sec_debug_print_file_list(void)
+int sec_debug_print_file_list(void)
 {
 	int i=0;
 	unsigned int nCnt=0;
@@ -2430,6 +2432,7 @@ void sec_debug_print_file_list(void)
 	struct files_struct *files = current->files;
 	const char *pRootName=NULL;
 	const char *pFileName=NULL;
+	int ret=0;
 
 	nCnt=files->fdt->max_fds;
 
@@ -2455,9 +2458,14 @@ void sec_debug_print_file_list(void)
 
 			printk(KERN_ERR "[%04d]%s%s\n",i,pRootName==NULL?"null":pRootName,
 							pFileName==NULL?"null":pFileName);
+			ret++;
 		}
 		rcu_read_unlock();
 	}
+	if(ret > nCnt - 50)
+		return 1;
+	else
+		return 0;
 }
 
 void sec_debug_EMFILE_error_proc(unsigned long files_addr)
@@ -2482,8 +2490,9 @@ void sec_debug_EMFILE_error_proc(unsigned long files_addr)
 	if (!strcmp(current->group_leader->comm, "system_server")
 		||!strcmp(current->group_leader->comm, "mediaserver")
 		||!strcmp(current->group_leader->comm, "surfaceflinger")){
-		sec_debug_print_file_list();
-		panic("Too many open files");
+		if (sec_debug_print_file_list() == 1) {
+			panic("Too many open files");
+		}
 	}
 }
 #endif
@@ -2912,8 +2921,10 @@ void sec_param_restart_reason(const char *cmd)
 		&& !kstrtoul(cmd + 5, 0, &value)) {
 		param_restart_reason = (0xabce0000 | value);
 #endif
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		} else if (!strncmp(cmd, "edl", 3)) {
 			param_restart_reason = 0x0; // Hack. Fix it later
+#endif
 		} else if (strlen(cmd) == 0) {
 		    printk(KERN_NOTICE "%s : value of cmd is NULL.\n", __func__);
 		        param_restart_reason = 0x12345678;

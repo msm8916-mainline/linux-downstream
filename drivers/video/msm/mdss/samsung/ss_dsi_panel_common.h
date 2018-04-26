@@ -186,6 +186,15 @@ struct candella_lux_map {
 	int lux_tab_size;
 	int bkl[256];
 };
+struct hbm_candella_lux_map {
+	int *lux_tab;
+	int *cmd_idx;
+	int lux_tab_size;
+	int *from;
+	int *end;
+	int *auto_level;
+	int hbm_min_lv;
+};
 
 struct samsung_display_dtsi_data {
 	bool samsung_lp11_init;
@@ -284,6 +293,7 @@ struct samsung_display_dtsi_data {
 	struct dsi_panel_cmds tft_pwm_tx_cmds[SUPPORT_PANEL_REVISION];
 	struct dsi_panel_cmds blic_dimming_cmds[SUPPORT_PANEL_REVISION];
 	struct candella_lux_map scaled_level_map_table[SUPPORT_PANEL_REVISION];
+	struct hbm_candella_lux_map hbm_candela_map_table[SUPPORT_PANEL_REVISION];
 
 	/* Command for nv read */
 	struct dsi_panel_cmds packet_size_tx_cmds[SUPPORT_PANEL_REVISION];
@@ -641,6 +651,8 @@ int get_cmd_index(struct samsung_display_driver_data *vdd, int ndx);
 int get_candela_value(struct samsung_display_driver_data *vdd, int ndx);
 int mdss_samsung_brightness_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level);
 void mdss_samsung_brightness_tft_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int level);
+void set_auto_brightness_value(struct samsung_display_driver_data *vdd, int ndx);
+
 /* TFT BL DCS RELATED FUNCTION */
 int get_scaled_level(struct samsung_display_driver_data *vdd, int ndx);
 

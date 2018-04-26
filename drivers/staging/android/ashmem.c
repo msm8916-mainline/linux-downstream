@@ -32,7 +32,6 @@
 #include <linux/mutex.h>
 #include <linux/shmem_fs.h>
 #include <linux/ashmem.h>
-#include <asm/cacheflush.h>
 
 #include "ashmem.h"
 
@@ -659,37 +658,6 @@ static int ashmem_pin_unpin(struct ashmem_area *asma, unsigned long cmd,
 	return ret;
 }
 
-static int ashmem_cache_op(struct ashmem_area *asma,
-	void (*cache_func)(const void *vstart, const void *vend))
-{
-	int ret = 0;
-	struct vm_area_struct *vma;
-	if (!asma->vm_start)
-		return -EINVAL;
-
-	down_read(&current->mm->mmap_sem);
-	vma = find_vma(current->mm, asma->vm_start);
-	if (!vma) {
-		ret = -EINVAL;
-		goto done;
-	}
-	if (vma->vm_file != asma->file) {
-		ret = -EINVAL;
-		goto done;
-	}
-	if ((asma->vm_start + asma->size) > vma->vm_end) {
-		ret = -EINVAL;
-		goto done;
-	}
-	cache_func((void *)asma->vm_start,
-			(void *)(asma->vm_start + asma->size));
-done:
-	up_read(&current->mm->mmap_sem);
-	if (ret)
-		asma->vm_start = 0;
-	return ret;
-}
-
 static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct ashmem_area *asma = file->private_data;
@@ -704,10 +672,12 @@ static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	case ASHMEM_SET_SIZE:
 		ret = -EINVAL;
+		mutex_lock(&ashmem_mutex);
 		if (!asma->file) {
 			ret = 0;
 			asma->size = (size_t) arg;
 		}
+		mutex_unlock(&ashmem_mutex);
 		break;
 	case ASHMEM_GET_SIZE:
 		ret = asma->size;
@@ -735,15 +705,6 @@ static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			ashmem_shrink(&ashmem_shrinker, &sc);
 		}
 		break;
-	case ASHMEM_CACHE_FLUSH_RANGE:
-		ret = ashmem_cache_op(asma, &dmac_flush_range);
-		break;
-	case ASHMEM_CACHE_CLEAN_RANGE:
-		ret = ashmem_cache_op(asma, &dmac_clean_range);
-		break;
-	case ASHMEM_CACHE_INV_RANGE:
-		ret = ashmem_cache_op(asma, &dmac_inv_range);
-		break;
 	}
 
 	return ret;
@@ -766,11 +727,28 @@ static long compat_ashmem_ioctl(struct file *file, unsigned int cmd, unsigned lo
 }
 #endif
 
+static const struct file_operations ashmem_fops = {
+	.owner = THIS_MODULE,
+	.open = ashmem_open,
+	.release = ashmem_release,
+	.read = ashmem_read,
+	.llseek = ashmem_llseek,
+	.mmap = ashmem_mmap,
+	.unlocked_ioctl = ashmem_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = compat_ashmem_ioctl,
+#endif
+};
+
+static struct miscdevice ashmem_misc = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "ashmem",
+	.fops = &ashmem_fops,
+};
+
 static int is_ashmem_file(struct file *file)
 {
-	char fname[256], *name;
-	name = dentry_path(file->f_dentry, fname, 256);
-	return strcmp(name, "/ashmem") ? 0 : 1;
+	return (file->f_op == &ashmem_fops);
 }
 
 int get_ashmem_file(int fd, struct file **filp, struct file **vm_file,
@@ -818,25 +796,6 @@ void put_ashmem_file(struct file *file)
 		fput(file);
 }
 EXPORT_SYMBOL(put_ashmem_file);
-
-static const struct file_operations ashmem_fops = {
-	.owner = THIS_MODULE,
-	.open = ashmem_open,
-	.release = ashmem_release,
-	.read = ashmem_read,
-	.llseek = ashmem_llseek,
-	.mmap = ashmem_mmap,
-	.unlocked_ioctl = ashmem_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl = compat_ashmem_ioctl,
-#endif
-};
-
-static struct miscdevice ashmem_misc = {
-	.minor = MISC_DYNAMIC_MINOR,
-	.name = "ashmem",
-	.fops = &ashmem_fops,
-};
 
 static int __init ashmem_init(void)
 {

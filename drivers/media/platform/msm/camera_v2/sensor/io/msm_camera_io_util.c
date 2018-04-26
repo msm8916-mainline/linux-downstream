@@ -269,6 +269,12 @@ int msm_camera_config_vreg(struct device *dev, struct camera_vreg_t *cam_vreg,
 		pr_err("%s:%d vreg sequence invalid\n", __func__, __LINE__);
 		return -EINVAL;
 	}
+
+	if (cam_vreg == NULL) {
+		pr_err("%s:%d cam_vreg sequence invalid\n", __func__, __LINE__);
+		return -EINVAL;
+	}
+
 	if (!num_vreg_seq)
 		num_vreg_seq = num_vreg;
 
@@ -527,7 +533,7 @@ int msm_camera_config_single_vreg(struct device *dev,
 			}
 		}
 
-#if defined(CONFIG_SEC_A8_PROJECT) || defined(CONFIG_SEC_O7_PROJECT) || defined(CONFIG_MACH_J7_USA_SPR)
+#if defined(CONFIG_SEC_A8_PROJECT) || defined(CONFIG_SEC_O7_PROJECT) || defined(CONFIG_MACH_J7_USA_SPR) || defined(CONFIG_SEC_ON7N_PROJECT)
 		else if (!strncmp(cam_vreg->reg_name, "cam_vaf", 8)) {
 			*reg_ptr = regulator_get(dev, "CAM_SENSOR_A2.8V");
 			if (IS_ERR(*reg_ptr)) {

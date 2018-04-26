@@ -69,7 +69,7 @@ static const unsigned long touch_cpufreq_lock = 1350000;
 
 #define SEC_FACTORY_TEST
 #define SUPPORTED_TOUCH_KEY
-#define SUPPORTED_KEY_LED
+//#define SUPPORTED_KEY_LED
 
 #define TS_DRVIER_VERSION		"1.0.18_1"
 #define ZT7554_TS_DEVICE		"zt7554_ts"

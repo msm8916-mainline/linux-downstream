@@ -3364,7 +3364,81 @@ static ssize_t t_flash_detect_show(struct device *dev,
 #endif
 }
 
+static ssize_t sd_detect_cnt_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
+
+	dev_info(dev, "%s : CD count is = %u\n", __func__, msm_host->mmc->card_detect_cnt);
+	return  sprintf(buf, "%u", msm_host->mmc->card_detect_cnt);
+}
+
+#ifdef CONFIG_MMC_DS_TOOL
+static ssize_t t_flash_register_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+        int clk, cmd, data;
+        int ds_reg;
+
+        // TLMM_SDC2_HDRV_PULL_CTL = 0x01109000
+        void __iomem *ioaddr= devm_ioremap(dev, 0x01109000, 0x2000);
+        ds_reg = readl_relaxed(ioaddr);
+        if(!ioaddr) {
+                pr_err("[MMCTOOL]: Failed to remap TLMM registers\n");
+                return 1;
+        }
+
+        clk = ds_reg & (7 << 6);
+        cmd = ds_reg & (7 << 3);
+        data = ds_reg & (7 << 0);
+
+        clk = clk >> 6;
+        cmd = cmd >> 3;
+
+        iounmap(ioaddr);
+        printk("[MMCTOOL] Read SD DS register= %x, clk= %d, cmd= %d, data= %d \n",ds_reg, clk, cmd, data);
+        return sprintf(buf, "%1d%1d%1d \n",clk,cmd,data);
+}
+
+static ssize_t t_flash_register_store(struct device *dev, struct device_attribute *attr,
+                          const char *buf, size_t count)
+{
+        int clk, cmd, data;
+        int ds_reg;
+
+        // TLMM_SDC2_HDRV_PULL_CTL = 0x01109000
+        void __iomem *ioaddr= devm_ioremap(dev, 0x01109000, 0x2000);
+        if(!ioaddr) {
+                pr_err("[MMCTOOL]: Failed to remap TLMM registers\n");
+                return 1;
+        }
+
+        ds_reg = readl_relaxed(ioaddr);
+        ds_reg &= ~0x1ff;       //bit clear 0~8
+
+        sscanf(buf, "%1d%1d%1d", &clk, &cmd, &data);
+
+        if(clk > 7 || clk < 0 || cmd > 7 || cmd < 0 || data > 7 || data < 0) {
+                pr_err("[MMCTOOL]: invalid drive stregnth value, %d %d %d\n", clk, cmd, data);
+                return 1;
+        }
+
+        ds_reg |= (clk << 6);
+        ds_reg |= (cmd << 3);
+        ds_reg |= data;
+
+        writel_relaxed(ds_reg, ioaddr);
+
+        iounmap(ioaddr);
+        pr_err("[MMCTOOL]: Write SD DS register= %x clk= %d cmd= %d data= %d\n", ds_reg, clk, cmd, data);
+        return count;
+}
+
+static DEVICE_ATTR(register, 0777, t_flash_register_show, t_flash_register_store);
+#endif
+
 static DEVICE_ATTR(status, 0444, t_flash_detect_show, NULL);
+static DEVICE_ATTR(cd_cnt, 0444, sd_detect_cnt_show, NULL);
 
 static int sdhci_msm_probe(struct platform_device *pdev)
 {
@@ -3691,6 +3765,18 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 			&dev_attr_status) < 0)
 			pr_err("%s : Failed to create device file(%s)!\n",
 					__func__, dev_attr_status.attr.name);
+
+        if (device_create_file(t_flash_detect_dev,
+            &dev_attr_cd_cnt) < 0)
+            pr_err("%s : Failed to create device file(%s)!\n",
+                    __func__, dev_attr_cd_cnt.attr.name);
+
+#ifdef CONFIG_MMC_DS_TOOL
+                if (device_create_file(t_flash_detect_dev,
+                        &dev_attr_register) < 0)
+                        pr_err("%s : Failed to create device file(%s)!\n",
+                                        __func__, dev_attr_register.attr.name);
+#endif
 
 		dev_set_drvdata(t_flash_detect_dev, msm_host);
 	}

@@ -299,8 +299,8 @@
 				 <&det_zones 953 10000 10 0>,
 				 <&det_zones 954 10000 10 1>,
 				 <&det_zones 9999 10000 10 1>;
-		but-zones-list = <&but_zones 0 0 290>,
-				 <&but_zones 3 291 354>,
+		but-zones-list = <&but_zones 0 0 274>,
+				 <&but_zones 3 275 354>,
 				 <&but_zones 1 355 469>,
 				 <&but_zones 2 470 9999>;
 		btn-adc-read-count = <8>;

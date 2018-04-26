@@ -196,7 +196,12 @@ int32_t db8221a_set_resolution(struct msm_sensor_ctrl_t *s_ctrl, int mode)
 	CDBG("CAM-SETTING-- resolution is %d", mode);
 	switch (mode) {
 	case MSM_SENSOR_RES_FULL:
-		DB8221A_WRITE_LIST(db8221a_Capture_1600_1200);
+		if (db8221a_ctrl.fixed_fps_val == 24000) {
+			DB8221A_WRITE_LIST(db8221a_Capture_1600_1200_for_24fps);
+		}
+		else {
+			DB8221A_WRITE_LIST(db8221a_Capture_1600_1200);
+		}
 		break;
 	case MSM_SENSOR_RES_QTR:
 #if defined(CONFIG_MACH_J3LTE_USA_VZW) || defined(CONFIG_MACH_J3LTE_USA_USC)
@@ -211,7 +216,12 @@ int32_t db8221a_set_resolution(struct msm_sensor_ctrl_t *s_ctrl, int mode)
 			DB8221A_WRITE_LIST(db8221a_preview_640_480);
 		}
 #else
-		DB8221A_WRITE_LIST(db8221a_preview_800_600);
+		if (db8221a_ctrl.fixed_fps_val == 24000) {
+			DB8221A_WRITE_LIST(db8221a_24fps_Camcoder_800_600);
+		}
+		else {
+			DB8221A_WRITE_LIST(db8221a_preview_800_600);
+		}
 #endif
 		break;
 	case MSM_SENSOR_RES_2:
@@ -344,9 +354,12 @@ int32_t db8221a_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 			db8221a_set_effect(s_ctrl, db8221a_ctrl.settings.effect);
 			//db8221a_set_white_balance(s_ctrl, db8221a_ctrl.settings.wb);
 			db8221a_set_exposure_compensation(s_ctrl , db8221a_ctrl.settings.exposure);
+			msleep(100); //Sensor needs 400~500ms of AWB/AE stable time after video recording
 			db8221a_set_resolution(s_ctrl , resolution);
 		}
 		else if(db8221a_ctrl.op_mode == CAMERA_MODE_PREVIEW){
+			db8221a_set_effect(s_ctrl, db8221a_ctrl.settings.effect);
+			db8221a_set_exposure_compensation(s_ctrl , db8221a_ctrl.settings.exposure);
 			db8221a_set_resolution(s_ctrl, resolution);
 		}
 		else if((db8221a_ctrl.prev_mode == CAMERA_MODE_PREVIEW)

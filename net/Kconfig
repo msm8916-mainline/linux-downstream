@@ -233,6 +233,7 @@ source "net/openvswitch/Kconfig"
 source "net/vmw_vsock/Kconfig"
 source "net/netlink/Kconfig"
 source "net/rmnet_data/Kconfig"
+source "net/ncm/Kconfig"
 
 config RPS
 	boolean

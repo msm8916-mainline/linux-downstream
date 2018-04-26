@@ -90,6 +90,19 @@ enum {
 	POWER_SUPPLY_SCOPE_DEVICE,
 };
 
+enum {
+	POWER_SUPPLY_DP_DM_UNKNOWN = 0,
+	POWER_SUPPLY_DP_DM_PREPARE = 1,
+	POWER_SUPPLY_DP_DM_UNPREPARE = 2,
+	POWER_SUPPLY_DP_DM_CONFIRMED_HVDCP3 = 3,
+	POWER_SUPPLY_DP_DM_DP_PULSE = 4,
+	POWER_SUPPLY_DP_DM_DM_PULSE = 5,
+	POWER_SUPPLY_DP_DM_DP0P6_DMF = 6,
+	POWER_SUPPLY_DP_DM_DP0P6_DM3P3 = 7,
+	POWER_SUPPLY_DP_DM_DPF_DMF = 8,
+	POWER_SUPPLY_DP_DM_DPR_DMR = 9,
+};
+
 enum power_supply_property {
 	/* Properties of type `int' */
 	POWER_SUPPLY_PROP_STATUS = 0,
@@ -98,6 +111,7 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_AUTHENTIC,
+	POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED,
 	POWER_SUPPLY_PROP_CHARGING_ENABLED,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
@@ -116,6 +130,7 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_VCHG_LOOP_DBC_BYPASS,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CURRENT_AVG,
+	POWER_SUPPLY_PROP_CURRENT_FULL,
 	POWER_SUPPLY_PROP_POWER_NOW,
 	POWER_SUPPLY_PROP_POWER_AVG,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
@@ -164,11 +179,18 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_RESISTANCE_CAPACITIVE,
 	/* unit is in ohms due to ID being typically in kohm range */
 	POWER_SUPPLY_PROP_RESISTANCE_ID,
+	POWER_SUPPLY_PROP_RESISTANCE_NOW,
 	/* Local extensions */
 	POWER_SUPPLY_PROP_USB_HC,
 	POWER_SUPPLY_PROP_USB_OTG,
 	POWER_SUPPLY_PROP_CHARGE_ENABLED,
 	POWER_SUPPLY_PROP_FLASH_CURRENT_MAX,
+	POWER_SUPPLY_PROP_UPDATE_NOW,
+	POWER_SUPPLY_PROP_ESR_COUNT,
+	POWER_SUPPLY_PROP_DP_DM,
+	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMITED,
+	POWER_SUPPLY_PROP_IGNORE_FALSE_NEGATIVE_ISENSE,
+	POWER_SUPPLY_PROP_ENABLE_JEITA_DETECTION,
 	/* Local extensions of type int64_t */
 	POWER_SUPPLY_PROP_CHARGE_COUNTER_EXT,
 	/* Properties of type `const char *' */
@@ -188,32 +210,34 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_USB_DCP,			/* Dedicated Charging Port (5) */
 	POWER_SUPPLY_TYPE_USB_CDP,			/* Charging Downstream Port (6) */
 	POWER_SUPPLY_TYPE_USB_ACA,			/* Accessory Charger Adapters (7) */
-	POWER_SUPPLY_TYPE_BMS,				/* Battery Monitor System (8) */
-	POWER_SUPPLY_TYPE_MISC,				/* 9 */
-	POWER_SUPPLY_TYPE_WIRELESS,			/* 10 */
-	POWER_SUPPLY_TYPE_CARDOCK,			/* 11 */
-	POWER_SUPPLY_TYPE_UARTOFF,			/* 12 */
-	POWER_SUPPLY_TYPE_OTG,				/* 13 */
-	POWER_SUPPLY_TYPE_LAN_HUB,			/* 14 */
-	POWER_SUPPLY_TYPE_MHL_500,			/* 15 */
-	POWER_SUPPLY_TYPE_MHL_900,			/* 16 */
-	POWER_SUPPLY_TYPE_MHL_1500,			/* 17 */
-	POWER_SUPPLY_TYPE_MHL_2000,			/* 18 */
-	POWER_SUPPLY_TYPE_MHL_USB,			/* 19 */
-	POWER_SUPPLY_TYPE_MHL_USB_100,		/* 20 */
-	POWER_SUPPLY_TYPE_SMART_OTG,		/* 21 */
-	POWER_SUPPLY_TYPE_SMART_NOTG,		/* 22 */
-	POWER_SUPPLY_TYPE_POWER_SHARING,	/* power sharing cable (23) */
-	POWER_SUPPLY_TYPE_HV_PREPARE_MAINS,	/* Prepare Adaptive Charger (24) */
-	POWER_SUPPLY_TYPE_HV_ERR,			/* Adaptive Charger Err (25) */
-	POWER_SUPPLY_TYPE_HV_UNKNOWN,		/* Adaptive Charger Unknown (26) */
-	POWER_SUPPLY_TYPE_HV_MAINS,			/* Adaptive Charger (27) */
-	POWER_SUPPLY_TYPE_MDOCK_TA,			   /* MMdock charger (28) */
-	POWER_SUPPLY_TYPE_HMT_CONNECTED,		/* 29 */
-	POWER_SUPPLY_TYPE_HMT_CHARGE,			/* 30 */
-	POWER_SUPPLY_TYPE_USB_PARALLEL,		/* USB Parallel Path */
-	POWER_SUPPLY_TYPE_HV_WIRELESS,		/* 32 */
-	POWER_SUPPLY_TYPE_PMA_WIRELESS,		/* 33 */
+	POWER_SUPPLY_TYPE_USB_HVDCP,	/* High Voltage DCP (8)*/
+	POWER_SUPPLY_TYPE_USB_HVDCP_3,  /* Efficient High Voltage DCP (9) */
+	POWER_SUPPLY_TYPE_BMS,				/* Battery Monitor System (10) */
+	POWER_SUPPLY_TYPE_MISC,				/* 11 */
+	POWER_SUPPLY_TYPE_WIRELESS,			/* 12 */
+	POWER_SUPPLY_TYPE_CARDOCK,			/* 13 */
+	POWER_SUPPLY_TYPE_UARTOFF,			/* 14 */
+	POWER_SUPPLY_TYPE_OTG,				/* 15 */
+	POWER_SUPPLY_TYPE_LAN_HUB,			/* 16 */
+	POWER_SUPPLY_TYPE_MHL_500,			/* 17 */
+	POWER_SUPPLY_TYPE_MHL_900,			/* 18 */
+	POWER_SUPPLY_TYPE_MHL_1500,			/* 19 */
+	POWER_SUPPLY_TYPE_MHL_2000,			/* 20 */
+	POWER_SUPPLY_TYPE_MHL_USB,			/* 21 */
+	POWER_SUPPLY_TYPE_MHL_USB_100,		/* 22 */
+	POWER_SUPPLY_TYPE_SMART_OTG,		/* 23 */
+	POWER_SUPPLY_TYPE_SMART_NOTG,		/* 24 */
+	POWER_SUPPLY_TYPE_POWER_SHARING,	/* power sharing cable (25) */
+	POWER_SUPPLY_TYPE_HV_PREPARE_MAINS,	/* Prepare Adaptive Charger (26) */
+	POWER_SUPPLY_TYPE_HV_ERR,			/* Adaptive Charger Err (27) */
+	POWER_SUPPLY_TYPE_HV_UNKNOWN,		/* Adaptive Charger Unknown (28) */
+	POWER_SUPPLY_TYPE_HV_MAINS,			/* Adaptive Charger (29) */
+	POWER_SUPPLY_TYPE_MDOCK_TA,			   /* MMdock charger (30) */
+	POWER_SUPPLY_TYPE_HMT_CONNECTED,		/* 31 */
+	POWER_SUPPLY_TYPE_HMT_CHARGE,			/* 32 */
+	POWER_SUPPLY_TYPE_USB_PARALLEL,		/* USB Parallel Path (33)*/
+	POWER_SUPPLY_TYPE_HV_WIRELESS,		/* 34 */
+	POWER_SUPPLY_TYPE_PMA_WIRELESS,		/* 35 */
 	POWER_SUPPLY_TYPE_MAX,
 
 	POWER_SUPPLY_TYPE_HV_WIRELESS_ETX = 100,
@@ -315,6 +339,8 @@ extern int power_supply_set_supply_type(struct power_supply *psy,
 extern int power_supply_set_hi_power_state(struct power_supply *psy, int value);
 extern int power_supply_set_low_power_state(struct power_supply *psy,
 							int value);
+extern int power_supply_set_dp_dm(struct power_supply *psy,
+							int value);
 extern int power_supply_is_system_supplied(void);
 extern int power_supply_register(struct device *parent,
 				 struct power_supply *psy);
@@ -358,6 +384,9 @@ static inline int power_supply_set_hi_power_state(struct power_supply *psy,
 							int value)
 							{ return -ENOSYS; }
 static inline int power_supply_set_low_power_state(struct power_supply *psy,
+							int value)
+							{ return -ENOSYS; }
+static inline int power_supply_set_dp_dm(struct power_supply *psy,
 							int value)
 							{ return -ENOSYS; }
 static inline int power_supply_is_system_supplied(void) { return -ENOSYS; }

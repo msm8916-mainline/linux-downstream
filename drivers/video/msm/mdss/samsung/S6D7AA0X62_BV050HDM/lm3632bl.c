@@ -90,7 +90,7 @@ static void mdss_backlight_ic_power_on(int enable)
 	} else {
 		if (gpio_is_valid(info->pdata->gpio_backlight_panel_enn))
 			gpio_set_value(info->pdata->gpio_backlight_panel_enn,0);
-		msleep(5);
+		//msleep(5);
 		if (gpio_is_valid(info->pdata->gpio_backlight_panel_enp))
 			gpio_set_value(info->pdata->gpio_backlight_panel_enp,0);
 		if (gpio_is_valid(info->pdata->gpio_backlight_en))

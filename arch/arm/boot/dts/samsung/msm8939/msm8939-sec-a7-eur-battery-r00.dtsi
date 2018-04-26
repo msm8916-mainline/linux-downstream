@@ -27,7 +27,6 @@
 
 		battery,cable_check_type = <4>; /* SEC_BATTERY_CABLE_CHECK_PSY */
 		battery,cable_source_type = <3>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
-		battery,event_check;
 		battery,event_waiting_time = <600>;
 		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
 		battery,monitor_initial_count = <3>;
@@ -60,7 +59,7 @@
 		battery,temp_low_threshold_lpm = <(-50)>;
 		battery,temp_low_recovery_lpm = <0>;
 		battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
-		battery,full_check_type_2nd = <3>; /* SEC_BATTERY_FULLCHARGED_TIME */
+		battery,full_check_type_2nd = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
 		battery,full_check_count = <1>;
 		battery,chg_gpio_full_check = <0>;
 		battery,chg_polarity_full_check = <1>;
@@ -81,6 +80,7 @@
 		battery,recharging_total_time = <5400>;
 		battery,charging_reset_time = <0>;
 		qcom,sec-battery-vadc = <&pm8916_vadc>;
+		battery,swelling_low_chg_current = <1300>;
 
 		charger{
 			status = "disable";
@@ -93,12 +93,11 @@
 			battery,chg_polarity_status = <0>;
 			battery,chg_float_voltage = <4350>;
 			battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
-			battery,full_check_type = <2>; /* SEC_BATTERY_FULLCHARGED_FG_CURRENT */
 
 			battery,input_current_limit = <1500 500 500 1500 500 1000 1000 500 500 1000 1000 1500 1500 500 1000 500 700 1000 500 1000 1500 500 500>;
 			battery,fast_charging_current = <1500 0 500 1500 500 1000 1000 500 0 1200 1500 1500 1500 (-1) 1300 500 800 1300 500 1000 1500 0 0>;
 			battery,full_check_current_1st = <200 0 200 200 200 200 200 200 0 200 200 200 200 0 200 200 200 200 200 200 200 0 0>;
-			battery,full_check_current_2nd = <2400 0 2400 2400 2400 2400 2400 2400 0 2400 2400 2400 2400 0 2400 2400 2400 2400 2400 2400 2400 0 0>;
+			battery,full_check_current_2nd = <150 0 150 150 150 150 150 150 0 150 150 150 150 0 150 150 150 150 150 150 150 0 0>;
 		};
 	};
 	battery_params {
@@ -116,26 +115,26 @@
 			4021  (-1)  45  15  5   245
 			4115  (-1)  45  15  5   245
 			4218  (-1)  45  15  5   245
-			3200  0     15  65  45  135
-			3688  0     15  65  45  135
-			3735  0     15  65  45  135
-			3780  0     15  55  45  135
-			3810  0     15  55  45  135
-			3853  0     15  60  45  135
-			3926  0     15  60  45  135
-			4021  0     15  60  45  135
-			4115  0     15  60  45  135
-			4218  0     50  255  120  135
-			3200  450   55  65  45  135
-			3688  450   55  65  45  135
-			3735  450   55  55  45  135
-			3780  450   55  55  45  135
-			3810  450   55  55  45  135
-			3853  450   55  72  45  135
-			3926  450   55  72  45  135
-			4021  450   55  72  45  135
-			4115  450   55  72  45  135
-			4218  450   55  180  120  135>;
+			3200  0     15  50  45  135
+			3688  0     15  50  45  135
+			3735  0     15  50  60  135
+			3780  0     15  45  60  135
+			3810  0     15  45  60  135
+			3853  0     15  60  60  135
+			3926  0     15  60  60  135
+			4021  0     15  60  60  135
+			4115  0     15  60  30  135
+			4218  0     180 255 30  135
+			3200  400   55  65  45  135
+			3688  400   55  65  45  135
+			3735  400   55  43  60  135
+			3780  400   55  43  60  135
+			3810  400   55  43  60  135
+			3853  400   55  72  60  135
+			3926  400   55  72  60  135
+			4021  400   55  72  60  135
+			4115  400   55  72  30  135
+			4218  400   180 230 30  135>;
 		battery0,vg_comp_normal_size = <10 3>; /* necessary */
 		battery0,vg_comp_normal_data = <3200  (-1)  45  15  5   245
 			3688  (-1)  45  15  5   245
@@ -147,26 +146,26 @@
 			4021  (-1)  45  15  5   245
 			4115  (-1)  45  15  5   245
 			4218  (-1)  45  15  5   245
-			3200  0     15  65  45  135
-			3688  0     15  65  45  135
-			3735  0     15  65  45  135
-			3780  0     15  55  45  135
-			3810  0     15  55  45  135
-			3853  0     15  60  45  135
-			3926  0     15  60  45  135
-			4021  0     15  60  45  135
-			4115  0     15  60  45  135
-			4218  0     50  255  120  135
-			3200  450   55  65  45  135
-			3688  450   55  65  45  135
-			3735  450   55  55  45  135
-			3780  450   55  55  45  135
-			3810  450   55  55  45  135
-			3853  450   55  72  45  135
-			3926  450   55  72  45  135
-			4021  450   55  72  45  135
-			4115  450   55  72  45  135
-			4218  450   55  180  120  135>;
+			3200  0     15  50  45  135
+			3688  0     15  50  45  135
+			3735  0     15  50  60  135
+			3780  0     15  45  60  135
+			3810  0     15  45  60  135
+			3853  0     15  60  60  135
+			3926  0     15  60  60  135
+			4021  0     15  60  60  135
+			4115  0     15  60  30  135
+			4218  0     180 255 30  135
+			3200  400   55  65  45  135
+			3688  400   55  65  45  135
+			3735  400   55  43  60  135
+			3780  400   55  43  60  135
+			3810  400   55  43  60  135
+			3853  400   55  72  60  135
+			3926  400   55  72  60  135
+			4021  400   55  72  60  135
+			4115  400   55  72  30  135
+			4218  400   180 230 30  135>;
 		battery0,special_case = <0>;
 		battery0,offset_interpolation_order = <2 2>; /* necessary */
 		battery0,offset_charging_size = <2 1>; /* m x n, m: volt or soc, n : temp */

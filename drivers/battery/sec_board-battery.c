@@ -423,14 +423,6 @@ void board_battery_init(struct platform_device *pdev, struct sec_battery_info *b
 		battery->pdata->temp_high_threshold_normal)
 		battery->pdata->event_check = true;
 
-#if defined(CONFIG_BATTERY_SWELLING)
-	battery->swelling_temp_high_threshold = BATT_SWELLING_HIGH_TEMP_BLOCK;
-	battery->swelling_temp_high_recovery = BATT_SWELLING_HIGH_TEMP_RECOV;
-	battery->swelling_temp_low_threshold = BATT_SWELLING_LOW_TEMP_BLOCK;
-	battery->swelling_temp_low_recovery = BATT_SWELLING_LOW_TEMP_RECOV;
-	battery->swelling_recharge_voltage = BATT_SWELLING_RECHG_VOLTAGE;
-#endif
-
 #if defined(CONFIG_MACH_KOR_EARJACK_WR)
 	battery->earjack_wr_enable = (system_rev <= EARJACK_WR_SYSTEM_REV);
 	battery->earjack_wr_state = EARJACK_WR_NONE;

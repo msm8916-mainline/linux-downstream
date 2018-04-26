@@ -118,12 +118,22 @@ static struct dsi_panel_cmds * mdss_brightness_tft_pwm(struct mdss_dsi_ctrl_pdat
 		pr_err("%s: Invalid data ctrl : 0x%zx vdd : 0x%zx", __func__, (size_t)ctrl, (size_t)vdd);
 		return NULL;
 	}
+	set_auto_brightness_value(vdd, ctrl->ndx);
+
+	if (vdd->bl_level > 255)
+		vdd->bl_level = 255;
 
 	vdd->scaled_level = get_scaled_level(vdd, ctrl->ndx);
 
 	pr_info("%s bl_level : %d scaled_level : %d\n", __func__, vdd->bl_level, vdd->scaled_level);
 
 	vdd->dtsi_data[ctrl->ndx].tft_pwm_tx_cmds->cmds->payload[1] = vdd->scaled_level ;
+
+	if(vdd->mdss_panel_tft_outdoormode_update)
+		vdd->mdss_panel_tft_outdoormode_update(ctrl);
+
+	if (vdd->support_mdnie_lite)
+		update_dsi_tcon_mdnie_register(vdd);
 
 	*level_key = 0;
 
@@ -248,7 +258,7 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	pr_info("%s : %s", __func__, vdd->panel_name);
 
 	vdd->support_panel_max = S6D7AA0X62_BV050HDM_SUPPORT_PANEL_COUNT;
-	vdd->support_cabc = true;
+	vdd->support_cabc = false;
 	vdd->manufacture_id_dsi[vdd->support_panel_max - 1] = get_lcd_attached("GET");
 
 	vdd->support_mdnie_lite = true;

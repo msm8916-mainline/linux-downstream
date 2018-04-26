@@ -16,7 +16,7 @@
 #include "msm8939-camera-sensor-cdp-a7kor.dtsi"
 #include "msm8939-sec-a7-eur-battery-r00.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/S6E3FA2_AMS549EH01/dsi_panel_S6E3FA2_AMS549EH01_fhd_octa_cmd.dtsi"
-//#include "msm8939-sec-a7-kor-tdmb-r05.dtsi"
+#include "msm8939-sec-a7-kor-tdmb-r05.dtsi"
 
 &soc {
 	samsung,vibrator {
@@ -27,6 +27,35 @@
 		samsung,vib_en = <&msm_gpio 86 0x1>;
 		samsung,vib_pwm = <&msm_gpio 50 0x1>;
 		status = "ok";
+	};
+
+	spi_1: spi@78b5000 {  /* BLSP1 */
+	/* Empty node to fix build error due to spi_1 */
+	};
+	
+	spi_0: spi@78b7000 { /* BLSP1 QUP3 */
+		compatible = "qcom,spi-qup-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "spi_physical", "spi_bam_physical";
+		reg = <0x78b7000 0x600>,
+			<0x7884000 0x23000>;
+		interrupt-names = "spi_irq", "spi_bam_irq";
+		interrupts = <0 97 0>, <0 238 0>;
+		spi-max-frequency = <19200000>;
+		pinctrl-names = "spi_default", "spi_sleep";
+		//pinctrl-0 = <&spi0_default &spi0_cs0_active>;   // blocked for eeprom i2c
+		//pinctrl-1 = <&spi0_sleep &spi0_cs0_sleep>;
+		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+			<&clock_gcc clk_gcc_blsp1_qup3_spi_apps_clk>;
+		clock-names = "iface_clk", "core_clk";
+		qcom,infinite-mode = <0>;
+		qcom,use-bam;
+		qcom,use-pinctrl;
+		qcom,ver-reg-exists;
+		qcom,bam-consumer-pipe-index = <8>;
+		qcom,bam-producer-pipe-index = <9>;
+		qcom,master-id = <86>;
 	};
 
 	i2c@78b9000 { /* BLSP1 QUP5 */
@@ -190,8 +219,7 @@
 			pn547,firm-gpio = <&msm_gpio 49 0x00>;
 			pn547,ven-gpio = <&msm_gpio 116 0x00>;
 			pn547,irq-gpio = <&msm_gpio 21 0x01>;
-			nfc_ldo-supply = <&pm8916_l14>;
-			clocks = <&clock_rpm clk_bb_clk2>;
+			clocks = <&clock_rpm clk_bb_clk2_pin>;
 			clock-names = "nfc_clock";
 		};
 	};
@@ -215,6 +243,7 @@
 			interrupt-parent = <&msm_gpio>;
 			interrupts = <113 0>;
 			reg_vio-supply = <&pm8916_l5>;
+			reg_vdd-supply = <&pm8916_l17>;
 			taos,irq_gpio = <&msm_gpio 113 0x1>;
 			taos,prox_rawdata_trim = <170>;
 			taos,prox_thresh_hi = <480>;
@@ -687,4 +716,11 @@
 	qcom,cpr-step-quotient = <26>;
 	qcom,cpr-apc-volt-step = <12500>;
 	qcom,cpr-up-threshold = <2>;
+};
+
+&pm8916_l17 {
+	regulator-min-microvolt = <2850000>;
+	regulator-max-microvolt = <2850000>;
+	qcom,init-voltage = <2850000>;
+	status = "okay";
 };

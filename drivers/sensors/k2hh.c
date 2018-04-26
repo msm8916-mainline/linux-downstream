@@ -88,7 +88,11 @@
 #define CTRL1_BDU_MASK                0x08
 
 /* CTRL2 */
-#define CTRL2_IG1_INT1                0x08
+#define CTRL2_DFC_MASK                0x60
+#define CTRL2_DFC_50				  0x00
+#define CTRL2_DFC_100				  0x20
+#define CTRL2_DFC_9					  0x40
+#define CTRL2_DFC_400				  0x60
 
 /* CTRL3 */
 #define CTRL3_IG1_INT1                0x08
@@ -129,7 +133,14 @@
 #define K2HH_ACC_BW_SCALE_ODR_ENABLE  0x08
 #define K2HH_ACC_BW_SCALE_ODR_DISABLE 0x00
 
-#define DYNAMIC_THRESHOLD             5000
+/* 500 mg (4/256 * 32) */
+#define REACTIVE_ALERT_THRESHOLD      32
+
+#define ENABLE_LPF_CUT_OFF_FREQ		  1
+#define ENABLE_LOG_ACCEL_MAX_OUT	  1
+#if defined(ENABLE_LOG_ACCEL_MAX_OUT)
+#define ACCEL_MAX_OUTPUT			  32760
+#endif
 
 enum {
 	OFF = 0,
@@ -173,6 +184,7 @@ struct k2hh_p {
 	int sda_gpio;
 	int scl_gpio;
 	int time_count;
+	u32 threshold;
 
 	u8 odr;
 	u8 hr;
@@ -206,8 +218,10 @@ struct k2hh_acc_odr {
 #define OUTPUT_ALWAYS_ANTI_ALIASED	/* Anti aliasing filter */
 
 const struct k2hh_acc_odr k2hh_acc_odr_table[] = {
-	{  5, ACC_ODR800},
-	{ 10, ACC_ODR400},
+	{  2, ACC_ODR800},
+	{  3, ACC_ODR400},
+	{  5, ACC_ODR200},
+	{ 10, ACC_ODR100},
 #ifndef OUTPUT_ALWAYS_ANTI_ALIASED
 	{ 20, ACC_ODR50},
 	{100, ACC_ODR10},
@@ -328,7 +342,6 @@ static int k2hh_set_range(struct k2hh_p *data, unsigned char range)
 
 	buf = (mask & new_range) | ((~mask) & temp);
 	ret += k2hh_i2c_write(data, CTRL4_REG, buf);
-	SENSOR_INFO("0x%x\n", new_range);
 
 	return ret;
 }
@@ -360,7 +373,15 @@ static int k2hh_set_odr(struct k2hh_p *data)
 
 	data->odr = new_odr;
 
-	SENSOR_INFO("change odr %d\n", i);
+
+#if defined(ENABLE_LPF_CUT_OFF_FREQ)
+	// To increase LPF cut-off frequency, ODR/DFC
+	k2hh_i2c_read(data, CTRL2_REG, &buf, 1);
+
+	buf = (CTRL2_DFC_MASK & CTRL2_DFC_9) | ((~CTRL2_DFC_MASK) & buf);
+	k2hh_i2c_write(data, CTRL2_REG, buf);
+	SENSOR_INFO("ctrl2:%x\n", buf);
+#endif
 	return ret;
 }
 
@@ -376,8 +397,10 @@ static int k2hh_set_bw(struct k2hh_p *data)
 
 	buf = (mask & new_range) | ((~mask) & temp);
 	ret += k2hh_i2c_write(data, CTRL4_REG, buf);
-#endif
+	new_range = K2HH_ACC_BW_50;
+#else
 	new_range = K2HH_ACC_BW_400;
+#endif
 	mask = K2HH_ACC_BW_MASK;
 	ret = k2hh_i2c_read(data, CTRL4_REG, &temp, 1);
 
@@ -450,6 +473,7 @@ static int k2hh_set_mode(struct k2hh_p *data, unsigned char mode)
 		ret = k2hh_i2c_read(data, CTRL1_REG, &temp, 1);
 		buf = ((mask & data->odr) | ((~mask) & temp));
 		buf = data->hr | ((~CTRL1_HR_MASK) & buf);
+		buf = CTRL1_BDU_ENABLE | ((~CTRL1_BDU_MASK) & buf);
 		ret += k2hh_i2c_write(data, CTRL1_REG, buf);
 		break;
 	case K2HH_MODE_SUSPEND:
@@ -466,7 +490,6 @@ static int k2hh_set_mode(struct k2hh_p *data, unsigned char mode)
 		break;
 	}
 	mutex_unlock(&data->mode_mutex);
-	SENSOR_INFO("change mode %u\n", mode);
 
 	return ret;
 }
@@ -607,13 +630,34 @@ static void k2hh_work_func(struct work_struct *work)
 	int ret;
 	struct k2hh_v acc;
 	struct k2hh_p *data = container_of(work, struct k2hh_p, work);
-	struct timespec ts = ktime_to_timespec(ktime_get_boottime());
-	u64 timestamp_new = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	struct timespec ts;
+	u64 timestamp_new;
 	int time_hi, time_lo;
 
 	ret = k2hh_read_accel_xyz(data, &acc);
 	if (ret < 0)
 		goto exit;
+
+#if defined(ENABLE_LOG_ACCEL_MAX_OUT)
+	// For debugging if happened exceptional situation
+	if (acc.x > ACCEL_MAX_OUTPUT ||
+		acc.y > ACCEL_MAX_OUTPUT ||
+		acc.z > ACCEL_MAX_OUTPUT)
+	{
+		unsigned char buf[4], status;
+		k2hh_i2c_read(data, CTRL1_REG, buf, 4);	
+		k2hh_i2c_read(data, STATUS_REG, &status, 1);
+
+		SENSOR_INFO("MAX_OUTPUT x = %d, y = %d, z = %d\n",
+				acc.x, acc.y,acc.z);
+		SENSOR_INFO("CTRL(20~23) : %X, %X, %X, %X - STATUS(27h) : %X\n", 
+			buf[0],buf[1],buf[2],buf[3],status);
+	}
+#endif
+
+
+	ts = ktime_to_timespec(ktime_get_boottime());
+	timestamp_new = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 
 	data->accdata.x = acc.x - data->caldata.x;
 	data->accdata.y = acc.y - data->caldata.y;
@@ -670,7 +714,7 @@ static ssize_t k2hh_enable_store(struct device *dev,
 	u8 enable;
 	int ret, pre_enable;
 	struct k2hh_p *data = dev_get_drvdata(dev);
-
+	data->old_timestamp = 0LL;
 	ret = kstrtou8(buf, 2, &enable);
 	if (ret) {
 		SENSOR_ERR(" Invalid Argument\n");
@@ -724,7 +768,7 @@ static ssize_t k2hh_delay_store(struct device *dev,
 	int ret;
 	int64_t delay;
 	struct k2hh_p *data = dev_get_drvdata(dev);
-
+	data->old_timestamp = 0LL;
 	ret = kstrtoll(buf, 10, &delay);
 	if (ret) {
 		SENSOR_ERR(" Invalid Argument\n");
@@ -885,6 +929,7 @@ static ssize_t k2hh_reactive_alert_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
 	unsigned char threshx, threshy, threshz;
+	u32 thresh32_x, thresh32_y, thresh32_z;
 	int enable = OFF, factory_mode = OFF;
 	struct k2hh_v acc;
 	struct k2hh_p *data = dev_get_drvdata(dev);
@@ -925,6 +970,9 @@ static ssize_t k2hh_reactive_alert_store(struct device *dev,
 				k2hh_set_mode(data, K2HH_MODE_NORMAL);
 				msleep(20);
 				k2hh_read_accel_xyz(data, &acc);
+				acc.x = acc.x - data->caldata.x;
+				acc.y = acc.y - data->caldata.y;
+				acc.z = acc.z - data->caldata.z;
 				k2hh_set_mode(data, K2HH_MODE_SUSPEND);
 			} else {
 				acc.x = data->accdata.x;
@@ -932,17 +980,27 @@ static ssize_t k2hh_reactive_alert_store(struct device *dev,
 				acc.z = data->accdata.z;
 			}
 
-			threshx = (abs(acc.v[data->axis_map_x])
-					+ DYNAMIC_THRESHOLD) >> 8;
-			threshy = (abs(acc.v[data->axis_map_y])
-					+ DYNAMIC_THRESHOLD) >> 8;
-			threshz = (abs(acc.v[data->axis_map_z])
-					+ DYNAMIC_THRESHOLD) >> 8;
+			// Set threshold for each axis dynamically
+			thresh32_x = (((abs(acc.v[data->axis_map_x]) + 100) * 256) / (32768)) + data->threshold;
+			if (thresh32_x > 255)
+				thresh32_x = 255;
+
+			thresh32_y = (((abs(acc.v[data->axis_map_y]) + 100) * 256) / (32768)) + data->threshold;
+			if (thresh32_y > 255)
+				thresh32_y = 255;
+
+			thresh32_z = (((abs(acc.v[data->axis_map_z]) + 100) * 256) / (32768)) + data->threshold;
+			if (thresh32_z > 255)
+				thresh32_z = 255;
+
+			threshx = (unsigned char) thresh32_x;
+			threshy = (unsigned char) thresh32_y;
+			threshz = (unsigned char) thresh32_z;
 
 			k2hh_i2c_write(data, INT_THSX1_REG, threshx);
 			k2hh_i2c_write(data, INT_THSY1_REG, threshy);
 			k2hh_i2c_write(data, INT_THSZ1_REG, threshz);
-			k2hh_i2c_write(data, INT_CFG1_REG, 0x0a);
+			k2hh_i2c_write(data, INT_CFG1_REG, 0x2A);
 		}
 
 		k2hh_i2c_write(data, CTRL7_REG, CTRL7_LIR1);
@@ -965,6 +1023,33 @@ static ssize_t k2hh_reactive_alert_store(struct device *dev,
 #ifdef CONFIG_MACH_J1_VZW
 	k2hh_regulator_onoff(data, false);
 #endif
+
+	return size;
+}
+
+static ssize_t k2hh_threshold_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct k2hh_p *data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", data->threshold);
+}
+
+static ssize_t k2hh_threshold_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	u32 threshold;
+	int ret;
+	struct k2hh_p *data = dev_get_drvdata(dev);
+
+	ret = kstrtou32(buf, 10, &threshold);
+	if (ret) {
+		SENSOR_ERR(" Invalid Argument\n");
+		return ret;
+	}
+
+	data->threshold = threshold;
+	SENSOR_INFO("threshold = %d\n", threshold);
 
 	return size;
 }
@@ -1103,6 +1188,7 @@ static DEVICE_ATTR(lowpassfilter, S_IRUGO | S_IWUSR | S_IWGRP,
 static DEVICE_ATTR(raw_data, S_IRUGO, k2hh_raw_data_read, NULL);
 static DEVICE_ATTR(reactive_alert, S_IRUGO | S_IWUSR | S_IWGRP,
 	k2hh_reactive_alert_show, k2hh_reactive_alert_store);
+static DEVICE_ATTR(threshold, S_IRUGO, k2hh_threshold_show, k2hh_threshold_store);
 
 static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_name,
@@ -1111,6 +1197,7 @@ static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_lowpassfilter,
 	&dev_attr_raw_data,
 	&dev_attr_reactive_alert,
+	&dev_attr_threshold,
 	&dev_attr_selftest,
 	NULL,
 };
@@ -1287,6 +1374,13 @@ static int k2hh_parse_dt(struct k2hh_p *data, struct device *dev)
 		data->negate_z = 0;
 	} else
 		data->negate_z = (u8)temp;
+
+	ret = of_property_read_u32(dNode, "stm,reactive_alert_threshold", &temp);
+	if (ret < 0 || temp < 0 || temp > 255) {
+		SENSOR_ERR("Invalid reactive alert threshold value %u\n", temp);
+		data->threshold = REACTIVE_ALERT_THRESHOLD;
+	} else
+		data->threshold = temp;
 
 	return 0;
 }
@@ -1474,6 +1568,7 @@ static int k2hh_probe(struct i2c_client *client,
 	data->irq_state = 0;
 	data->recog_flag = OFF;
 	data->hr = CTRL1_HR_ENABLE;
+	data->threshold = REACTIVE_ALERT_THRESHOLD;
 
 	k2hh_set_range(data, K2HH_RANGE_4G);
 	k2hh_set_mode(data, K2HH_MODE_SUSPEND);

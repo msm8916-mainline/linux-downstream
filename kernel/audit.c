@@ -66,9 +66,12 @@
 #include <linux/pid_namespace.h>
 
 #include "audit.h"
-#ifdef CONFIG_PROC_AVC
+
+// [ SEC_SELINUX_PORTING_QUALCOMM
+#ifdef CONFIG_PROC_AVC 
 #include <linux/proc_avc.h>
 #endif
+// ] SEC_SELINUX_PORTING_QUALCOMM
 
 /* No auditing will take place until audit_initialized == AUDIT_INITIALIZED.
  * (Initialization happens after skb_init is called.) */
@@ -371,7 +374,8 @@ static void audit_printk_skb(struct sk_buff *skb)
 {
 	struct nlmsghdr *nlh = nlmsg_hdr(skb);
 	char *data = nlmsg_data(nlh);
-	
+
+// [ SEC_SELINUX_PORTING_QUALCOMM
 #ifdef CONFIG_PROC_AVC
 	if (nlh->nlmsg_type != AUDIT_EOE && nlh->nlmsg_type != AUDIT_NETFILTER_CFG) {
 		sec_avc_log("%s\n", data);
@@ -382,6 +386,7 @@ static void audit_printk_skb(struct sk_buff *skb)
 		else
 			audit_log_lost("printk limit exceeded\n");
 #endif
+// ] SEC_SELINUX_PORTING_QUALCOMM
 	}
 
 	audit_hold_skb(skb);
@@ -400,6 +405,7 @@ static void kauditd_send_skb(struct sk_buff *skb)
 		audit_pid = 0;
 		/* we might get lucky and get this in the next auditd */
 		audit_hold_skb(skb);
+// [ SEC_SELINUX_PORTING_QUALCOMM
 #ifdef CONFIG_PROC_AVC
 	} else {
 		struct nlmsghdr *nlh = nlmsg_hdr(skb);
@@ -411,6 +417,7 @@ static void kauditd_send_skb(struct sk_buff *skb)
 #else
 	} else
 #endif
+// ] SEC_SELINUX_PORTING_QUALCOMM
 		/* drop the extra reference if sent ok */
 		consume_skb(skb);
 #ifdef CONFIG_PROC_AVC
