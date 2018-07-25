@@ -55,6 +55,7 @@ CONFIG_USBID_STANDARD_VER_01=y
 
 #Touch Screen
 CONFIG_TOUCHSCREEN_IST30XX_CORE3=y
+CONFIG_TOUCHSCREEN_TA_CALLBACK_ENABLE=y
 
 # VIBRATOR
 CONFIG_MSM_VIBRATOR=y
@@ -139,3 +140,6 @@ CONFIG_NET_ACT_MIRRED=y  # for enabling the mirred target for redirecting the pa
 CONFIG_NET_EMATCH=y   #basic uses extended matches so this has to be present
 CONFIG_NET_SCH_INGRESS=y # classifier for ingress packet
 #EPDG
+
+# MMAP READ-AROUND
+CONFIG_MMAP_READAROUND_LIMIT=16

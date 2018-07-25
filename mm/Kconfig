@@ -608,3 +608,11 @@ config BALANCE_ANON_FILE_RECLAIM
 
 config GENERIC_EARLY_IOREMAP
 	bool
+
+config MMAP_READAROUND_LIMIT
+	int "Limit mmap readaround upperbound"
+	default 0
+	help
+	  Inappropriate mmap readaround size can hurt device performance
+	  during the sluggish situation. Add the hard upper-limit for
+	  mmap readaround.

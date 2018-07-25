@@ -175,6 +175,11 @@ static void dsi_update_mdnie_data(void)
 	mdnie_data.DSI0_EBOOK_MOVIE_MDNIE = NULL;
 	mdnie_data.DSI0_EBOOK_AUTO_MDNIE = NULL;
 	mdnie_data.DSI0_EMAIL_AUTO_MDNIE = NULL;
+	mdnie_data.DSI0_ISDBT_DYNAMIC_MDNIE = DSI0_ISDBT_MDNIE;
+	mdnie_data.DSI0_ISDBT_STANDARD_MDNIE = DSI0_ISDBT_MDNIE;
+	mdnie_data.DSI0_ISDBT_NATURAL_MDNIE = DSI0_ISDBT_MDNIE;
+	mdnie_data.DSI0_ISDBT_MOVIE_MDNIE = DSI0_ISDBT_MDNIE;
+	mdnie_data.DSI0_ISDBT_AUTO_MDNIE = DSI0_ISDBT_MDNIE;
 
 	mdnie_data.mdnie_tune_value_dsi0 = mdnie_tune_value_dsi0;
 

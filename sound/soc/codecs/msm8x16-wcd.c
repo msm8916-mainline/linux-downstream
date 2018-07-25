@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, 2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2514,12 +2514,12 @@ static int msm8x16_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		if (strnstr(w->name, internal1_text, 30)) {
+		if (strnstr(w->name, internal1_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x80, 0x80);
-		} else if (strnstr(w->name, internal2_text, 30)) {
+		} else if (strnstr(w->name, internal2_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x10, 0x10);
 			snd_soc_update_bits(codec, w->reg, 0x60, 0x00);
-		} else if (strnstr(w->name, internal3_text, 30)) {
+		} else if (strnstr(w->name, internal3_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x2, 0x2);
 		}
 		snd_soc_update_bits(codec,
@@ -2544,15 +2544,15 @@ static int msm8x16_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 		}
 #endif /* CONFIG_SAMSUNG_JACK */
 		usleep_range(20000, 20100);
-		if (strnstr(w->name, internal1_text, 30)) {
+		if (strnstr(w->name, internal1_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x40, 0x40);
-		} else if (strnstr(w->name, internal2_text, 30)) {
+		} else if (strnstr(w->name, internal2_text,  strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x08, 0x08);
 			msm8x16_notifier_call(codec,
 					WCD_EVENT_PRE_MICBIAS_2_ON);
-		} else if (strnstr(w->name, internal3_text, 30)) {
+		} else if (strnstr(w->name, internal3_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x01, 0x01);
-		} else if (strnstr(w->name, external2_text, 30)) {
+		} else if (strnstr(w->name, external2_text, strlen(w->name))) {
 			msm8x16_notifier_call(codec,
 					WCD_EVENT_PRE_MICBIAS_2_ON);
 		}
@@ -2572,14 +2572,14 @@ static int msm8x16_wcd_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 			}
 		}
 #endif /* CONFIG_SAMSUNG_JACK */
-		if (strnstr(w->name, internal1_text, 30)) {
+		if (strnstr(w->name, internal1_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0xC0, 0x40);
-		} else if (strnstr(w->name, internal2_text, 30)) {
+		} else if (strnstr(w->name, internal2_text, strlen(w->name))) {
 			msm8x16_notifier_call(codec,
 					WCD_EVENT_PRE_MICBIAS_2_OFF);
-		} else if (strnstr(w->name, internal3_text, 30)) {
+		} else if (strnstr(w->name, internal3_text, strlen(w->name))) {
 			snd_soc_update_bits(codec, micb_int_reg, 0x2, 0x0);
-		} else if (strnstr(w->name, external2_text, 30)) {
+		} else if (strnstr(w->name, external2_text, strlen(w->name))) {
 			/*
 			 * send micbias turn off event to mbhc driver and then
 			 * break, as no need to set MICB_1_EN register.

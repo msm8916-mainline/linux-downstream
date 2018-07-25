@@ -57,6 +57,7 @@ char mdnie_app_name[][NAME_STRING_MAX] = {
 	"eBOOK_APP",
 	"EMAIL_APP",
 	"TDMB_APP",
+	"ISDBT_APP",
 };
 
 char mdnie_mode_name[][NAME_STRING_MAX] = {
@@ -231,7 +232,7 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 			mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
 		}
 	} else
-		DPRINT("Command Tx Fail,  tune_data_dsi0=%p, vdd=%p, mdnie_tune_state=%p \n", tune_data_dsi0, vdd, mdnie_tune_state);
+		DPRINT("Command Tx Fail,  tune_data_dsi0=%pK, vdd=%pK, mdnie_tune_state=%pK \n", tune_data_dsi0, vdd, mdnie_tune_state);
 	return 0;
 }
 #endif
@@ -313,6 +314,12 @@ static int fake_id( int app_id )
 #ifdef CONFIG_TDMB
 	case APP_ID_TDMB:
 		ret_id = TDMB_APP;
+		DPRINT( "%s : change app_id(%d) to mdnie_app(%d)\n", __func__, app_id, ret_id );
+		break;
+#endif
+#ifdef CONFIG_MTV
+	case APP_ID_ISDBT:
+		ret_id = ISDBT_APP;
 		DPRINT( "%s : change app_id(%d) to mdnie_app(%d)\n", __func__, app_id, ret_id );
 		break;
 #endif
@@ -640,7 +647,7 @@ static ssize_t sensorRGB_store(struct device *dev,
 			mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
                 }
 	} else
-		DPRINT("Command Tx Fail,  tune_data_dsi0=%p, vdd=%p, mdnie_tune_state=%p \n", tune_data_dsi0, vdd, mdnie_tune_state);
+		DPRINT("Command Tx Fail,  tune_data_dsi0=%pK, vdd=%pK, mdnie_tune_state=%pK \n", tune_data_dsi0, vdd, mdnie_tune_state);
 #endif
 	return size;
 }

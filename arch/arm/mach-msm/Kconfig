@@ -367,6 +367,13 @@ config SEC_ROSSA_PROJECT
 	help
 	  Support for Samsung Rossa Project
 
+config MACH_ROSSA_LTN_DTV
+	depends on SEC_ROSSA_PROJECT
+		default n
+		bool "Samsung ROSSA LTN DTV"
+		help
+		  Support for Samsung ROSSA LTN DTV device.
+
 config MACH_ROSSA_EUR_OPEN
 	depends on SEC_ROSSA_PROJECT
 	default n

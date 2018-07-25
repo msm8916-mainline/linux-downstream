@@ -332,6 +332,7 @@ void kernel_restart_prepare(char *cmd)
 {
 	blocking_notifier_call_chain(&reboot_notifier_list, SYS_RESTART, cmd);
 	system_state = SYSTEM_RESTART;
+	freeze_processes();
 	usermodehelper_disable();
 	device_shutdown();
 }
@@ -420,6 +421,7 @@ static void kernel_shutdown_prepare(enum system_states state)
 	blocking_notifier_call_chain(&reboot_notifier_list,
 		(state == SYSTEM_HALT)?SYS_HALT:SYS_POWER_OFF, NULL);
 	system_state = state;
+	freeze_processes();
 	usermodehelper_disable();
 	device_shutdown();
 }
@@ -2192,7 +2194,7 @@ static int prctl_set_vma_anon_name(unsigned long start, unsigned long end,
 			tmp = end;
 
 		/* Here vma->vm_start <= start < tmp <= (end|vma->vm_end). */
-		error = prctl_update_vma_anon_name(vma, &prev, start, end,
+		error = prctl_update_vma_anon_name(vma, &prev, start, tmp,
 				(const char __user *)arg);
 		if (error)
 			return error;

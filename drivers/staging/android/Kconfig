@@ -57,7 +57,7 @@ config ANDROID_LOGGER
 
 config LOGCAT_SIZE
 	int "Adjust android log buffer sizes"
-	default 256
+	default 512
 	depends on ANDROID_LOGGER
 	help
 	  Set logger buffer size. Enter a number greater than zero.

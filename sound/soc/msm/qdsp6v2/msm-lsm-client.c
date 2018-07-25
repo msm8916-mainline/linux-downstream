@@ -92,7 +92,7 @@ static int msm_lsm_queue_lab_buffer(struct lsm_priv *prtd, int i)
 	struct lsm_cmd_read cmd_read;
 
 	if (!prtd || !prtd->lsm_client) {
-		pr_err("%s: Invalid params prtd %p lsm client %p\n",
+		pr_err("%s: Invalid params prtd %pK lsm client %pK\n",
 			__func__, prtd, ((!prtd) ? NULL : prtd->lsm_client));
 		return -EINVAL;
 	}
@@ -122,7 +122,7 @@ static int lsm_lab_buffer_sanity(struct lsm_priv *prtd,
 {
 	int i = 0, rc = -EINVAL;
 	if (!prtd || !read_done || !index) {
-		pr_err("%s: Invalid params prtd %p read_done %p index %p\n",
+		pr_err("%s: Invalid params prtd %pK read_done %pK index %pK\n",
 			__func__, prtd, read_done, index);
 		return -EINVAL;
 	}
@@ -260,7 +260,7 @@ static int msm_lsm_lab_buffer_alloc(struct lsm_priv *lsm, int alloc)
 	int ret = 0;
 	struct snd_dma_buffer *dma_buf = NULL;
 	if (!lsm) {
-		pr_err("%s: Invalid param lsm %p\n", __func__, lsm);
+		pr_err("%s: Invalid param lsm %pK\n", __func__, lsm);
 		return -EINVAL;
 	}
 	if (alloc) {
@@ -369,10 +369,9 @@ static int msm_lsm_ioctl_shared(struct snd_pcm_substream *substream,
 				if (ret < 0) {
 					pr_err("%s: lsm open failed, %d\n",
 								__func__, ret);
-					q6lsm_client_free(prtd->lsm_client);
-					kfree(prtd);
 					return ret;
 				}
+				prtd->lsm_client->opened = true;				
 				pr_debug("%s: Session ID %d\n", __func__,
 					prtd->lsm_client->session);
 			} else {
@@ -1107,6 +1106,7 @@ static int msm_lsm_open(struct snd_pcm_substream *substream)
 		runtime->private_data = NULL;
 		return -ENOMEM;
 	}
+	prtd->lsm_client->opened = false;	
 	return 0;
 }
 
@@ -1156,7 +1156,10 @@ static int msm_lsm_close(struct snd_pcm_substream *substream)
 				 __func__);
 	}
 
-	q6lsm_close(prtd->lsm_client);
+	if (prtd->lsm_client->opened) {
+		q6lsm_close(prtd->lsm_client);
+		prtd->lsm_client->opened = false;
+	}
 	q6lsm_client_free(prtd->lsm_client);
 
 	spin_lock_irqsave(&prtd->event_lock, flags);
@@ -1164,6 +1167,7 @@ static int msm_lsm_close(struct snd_pcm_substream *substream)
 	prtd->event_status = NULL;
 	spin_unlock_irqrestore(&prtd->event_lock, flags);
 	kfree(prtd);
+	runtime->private_data = NULL;
 
 	return 0;
 }

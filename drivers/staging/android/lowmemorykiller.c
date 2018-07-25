@@ -94,6 +94,11 @@ static unsigned long lowmem_deathpending_timeout;
 			pr_info(x);			\
 	} while (0)
 
+#if defined(CONFIG_ZSWAP)
+extern u64 zswap_pool_total_size;
+extern atomic_t zswap_stored_pages;
+#endif
+
 static void dump_tasks_info(void)
 {
 	struct task_struct *p;
@@ -161,6 +166,9 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	unsigned long nr_to_scan = sc->nr_to_scan;
 #ifdef CONFIG_SEC_DEBUG_LMK_MEMINFO
 	static DEFINE_RATELIMIT_STATE(lmk_rs, DEFAULT_RATELIMIT_INTERVAL, 1);
+#endif
+#if defined(CONFIG_ZSWAP)
+	int stored_pages = atomic_read(&zswap_stored_pages);
 #endif
 	unsigned long nr_cma_free;
 	struct reclaim_state *reclaim_state = current->reclaim_state;
@@ -246,6 +254,16 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			continue;
 		}
 		tasksize = get_mm_rss(p->mm);
+#if defined(CONFIG_ZSWAP)
+		if (stored_pages) {
+			lowmem_print(3, "shown tasksize : %d\n", tasksize);
+			tasksize += ((int)zswap_pool_total_size / PAGE_SIZE)
+					* get_mm_counter(p->mm, MM_SWAPENTS)
+					/ stored_pages;
+			lowmem_print(3, "real tasksize : %d\n", tasksize);
+		}
+#endif
+
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;

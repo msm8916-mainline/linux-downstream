@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -252,8 +252,10 @@ struct buffer_info *get_registered_buf(struct msm_vidc_inst *inst,
 		goto err_invalid_input;
 	}
 
+	WARN(!mutex_is_locked(&inst->registeredbufs.lock),
+		"Registered buf lock is not acquired for %s", __func__);
+
 	*plane = 0;
-	mutex_lock(&inst->registeredbufs.lock);
 	list_for_each_entry(temp, &inst->registeredbufs.list, list) {
 		for (i = 0; (i < temp->num_planes)
 			&& (i < VIDEO_MAX_PLANES); i++) {
@@ -277,7 +279,6 @@ struct buffer_info *get_registered_buf(struct msm_vidc_inst *inst,
 		if (ret)
 			break;
 	}
-	mutex_unlock(&inst->registeredbufs.lock);
 err_invalid_input:
 	return ret;
 }
@@ -329,7 +330,7 @@ struct buffer_info *device_to_uvaddr(struct msm_vidc_list *buf_list,
 
 	if (!buf_list || !device_addr) {
 		dprintk(VIDC_ERR,
-			"Invalid input- device_addr: 0x%pa buf_list: %p\n",
+			"Invalid input- device_addr: 0x%pa buf_list: %pK\n",
 			&device_addr, buf_list);
 		goto err_invalid_input;
 	}
@@ -485,7 +486,7 @@ int map_and_register_buf(struct msm_vidc_inst *inst, struct v4l2_buffer *b)
 		goto exit;
 	}
 
-	dprintk(VIDC_DBG, "[MAP] Create binfo = %p fd = %d type = %d\n",
+	dprintk(VIDC_DBG, "[MAP] Create binfo = %pK fd = %d type = %d\n",
 			binfo, b->m.planes[0].reserved[0], b->type);
 
 	for (i = 0; i < b->length; ++i) {
@@ -494,7 +495,7 @@ int map_and_register_buf(struct msm_vidc_inst *inst, struct v4l2_buffer *b)
 			!b->m.planes[i].length) {
 			continue;
 		}
-		mutex_lock(&inst->sync_lock);
+		mutex_lock(&inst->registeredbufs.lock);
 		temp = get_registered_buf(inst, b, i, &plane);
 		if (temp && !is_dynamic_output_buffer_mode(b, inst)) {
 			dprintk(VIDC_DBG,
@@ -513,7 +514,6 @@ int map_and_register_buf(struct msm_vidc_inst *inst, struct v4l2_buffer *b)
 			* we receive RELEASE_BUFFER_REFERENCE EVENT from f/w.
 			*/
 			dprintk(VIDC_DBG, "[MAP] Buffer already prepared\n");
-			mutex_lock(&inst->registeredbufs.lock);
 			list_for_each_entry(iterator,
 				&inst->registeredbufs.list, list) {
 				if (iterator == temp) {
@@ -525,9 +525,8 @@ int map_and_register_buf(struct msm_vidc_inst *inst, struct v4l2_buffer *b)
 					break;
 				}
 			}
-			mutex_unlock(&inst->registeredbufs.lock);
 		}
-		mutex_unlock(&inst->sync_lock);
+		mutex_unlock(&inst->registeredbufs.lock);
 		if (rc < 0)
 			goto exit;
 
@@ -568,7 +567,7 @@ int map_and_register_buf(struct msm_vidc_inst *inst, struct v4l2_buffer *b)
 				goto exit;
 		}
 		dprintk(VIDC_DBG,
-			"%s: [MAP] binfo = %p, handle[%d] = %p, device_addr = 0x%pa, fd = %d, offset = %d, mapped = %d\n",
+			"%s: [MAP] binfo = %pK, handle[%d] = %pK, device_addr = 0x%pa, fd = %d, offset = %d, mapped = %d\n",
 			__func__, binfo, i, binfo->handle[i],
 			&binfo->device_addr[i], binfo->fd[i],
 			binfo->buff_off[i], binfo->mapped[i]);
@@ -591,12 +590,13 @@ int unmap_and_deregister_buf(struct msm_vidc_inst *inst,
 	bool found = false, keep_node = false;
 
 	if (!inst || !binfo) {
-		dprintk(VIDC_ERR, "%s invalid param: %p %p\n",
+		dprintk(VIDC_ERR, "%s invalid param: %pK %pK\n",
 			__func__, inst, binfo);
 		return -EINVAL;
 	}
 
-	mutex_lock(&inst->registeredbufs.lock);
+	WARN(!mutex_is_locked(&inst->registeredbufs.lock),
+		"Registered buf lock is not acquired for %s", __func__);
 
 	/*
 	* Make sure the buffer to be unmapped and deleted
@@ -620,7 +620,7 @@ int unmap_and_deregister_buf(struct msm_vidc_inst *inst,
 
 	for (i = 0; i < temp->num_planes; i++) {
 		dprintk(VIDC_DBG,
-			"%s: [UNMAP] binfo = %p, handle[%d] = %p, device_addr = 0x%pa, fd = %d, offset = %d, mapped = %d\n",
+			"%s: [UNMAP] binfo = %pK, handle[%d] = %pK, device_addr = 0x%pa, fd = %d, offset = %d, mapped = %d\n",
 			__func__, temp, i, temp->handle[i],
 			&temp->device_addr[i], temp->fd[i],
 			temp->buff_off[i], temp->mapped[i]);
@@ -649,15 +649,14 @@ int unmap_and_deregister_buf(struct msm_vidc_inst *inst,
 		}
 	}
 	if (!keep_node) {
-		dprintk(VIDC_DBG, "[UNMAP] AND-FREED binfo: %p\n", temp);
+		dprintk(VIDC_DBG, "[UNMAP] AND-FREED binfo: %pK\n", temp);
 		list_del(&temp->list);
 		kfree(temp);
 	} else {
 		temp->inactive = true;
-		dprintk(VIDC_DBG, "[UNMAP] NOT-FREED binfo: %p\n", temp);
+		dprintk(VIDC_DBG, "[UNMAP] NOT-FREED binfo: %pK\n", temp);
 	}
 exit:
-	mutex_unlock(&inst->registeredbufs.lock);
 	return 0;
 }
 
@@ -669,7 +668,7 @@ int qbuf_dynamic_buf(struct msm_vidc_inst *inst,
 	struct v4l2_plane plane[VIDEO_MAX_PLANES] = { {0} };
 
 	if (!binfo) {
-		dprintk(VIDC_ERR, "%s invalid param: %p\n", __func__, binfo);
+		dprintk(VIDC_ERR, "%s invalid param: %pK\n", __func__, binfo);
 		return -EINVAL;
 	}
 	dprintk(VIDC_DBG, "%s fd[0] = %d\n", __func__, binfo->fd[0]);
@@ -692,7 +691,7 @@ int output_buffer_cache_invalidate(struct msm_vidc_inst *inst,
 	int rc = 0;
 
 	if (!inst) {
-		dprintk(VIDC_ERR, "%s: invalid inst: %p\n", __func__, inst);
+		dprintk(VIDC_ERR, "%s: invalid inst: %pK\n", __func__, inst);
 		return -EINVAL;
 	}
 
@@ -700,7 +699,7 @@ int output_buffer_cache_invalidate(struct msm_vidc_inst *inst,
 		return 0;
 
 	if (!binfo) {
-		dprintk(VIDC_ERR, "%s: invalid buffer info: %p\n",
+		dprintk(VIDC_ERR, "%s: invalid buffer info: %pK\n",
 			__func__, inst);
 		return -EINVAL;
 	}
@@ -726,19 +725,24 @@ int output_buffer_cache_invalidate(struct msm_vidc_inst *inst,
 	return 0;
 }
 
+static bool valid_v4l2_buffer(struct v4l2_buffer *b,
+		struct msm_vidc_inst *inst) {
+	enum vidc_ports port =
+		!V4L2_TYPE_IS_MULTIPLANAR(b->type) ? MAX_PORT_NUM :
+		b->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE ? CAPTURE_PORT :
+		b->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE ? OUTPUT_PORT :
+								MAX_PORT_NUM;
+
+	return port != MAX_PORT_NUM &&
+		inst->fmts[port]->num_planes == b->length;
+}
+
 int msm_vidc_prepare_buf(void *instance, struct v4l2_buffer *b)
 {
 	struct msm_vidc_inst *inst = instance;
 
-	if (!inst || !b)
+	if (!inst || !b || !valid_v4l2_buffer(b, inst))
 		return -EINVAL;
-
-	if (!V4L2_TYPE_IS_MULTIPLANAR(b->type) || !b->length ||
-		(b->length > VIDEO_MAX_PLANES)) {
-		dprintk(VIDC_ERR, "%s: wrong input params\n",
-				__func__);
-		return -EINVAL;
-	}
 
 	if (is_dynamic_output_buffer_mode(b, inst)) {
 		dprintk(VIDC_ERR, "%s: not supported in dynamic buffer mode\n",
@@ -776,7 +780,7 @@ int msm_vidc_release_buffers(void *instance, int buffer_type)
 		rc = msm_comm_try_state(inst, MSM_VIDC_RELEASE_RESOURCES_DONE);
 		if (rc) {
 			dprintk(VIDC_ERR,
-					"Failed to move inst: %p to release res done\n",
+					"Failed to move inst: %pK to release res done\n",
 					inst);
 		}
 	}
@@ -839,7 +843,7 @@ free_and_unmap:
 			for (i = 0; i < bi->num_planes; i++) {
 				if (bi->handle[i] && bi->mapped[i]) {
 					dprintk(VIDC_DBG,
-						"%s: [UNMAP] binfo = 0x%p, handle[%d] = %p, device_addr = 0x%pa, fd = %d, offset = %d, mapped = %d\n",
+						"%s: [UNMAP] binfo = 0x%pK, handle[%d] = %pK, device_addr = 0x%pa, fd = %d, offset = %d, mapped = %d\n",
 						__func__, bi, i, bi->handle[i],
 						&bi->device_addr[i], bi->fd[i],
 						bi->buff_off[i], bi->mapped[i]);
@@ -889,15 +893,8 @@ int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b)
 	int rc = 0;
 	int i;
 
-	if (!inst || !b)
+	if (!inst || !b || !valid_v4l2_buffer(b, inst))
 		return -EINVAL;
-
-	if (!V4L2_TYPE_IS_MULTIPLANAR(b->type) || !b->length ||
-		(b->length > VIDEO_MAX_PLANES)) {
-		dprintk(VIDC_ERR, "%s: wrong input params\n",
-				__func__);
-		return -EINVAL;
-	}
 
 	if (is_dynamic_output_buffer_mode(b, inst)) {
 		if (b->m.planes[0].reserved[0])
@@ -919,8 +916,9 @@ int msm_vidc_qbuf(void *instance, struct v4l2_buffer *b)
 			b->m.planes[i].m.userptr = 0;
 			continue;
 		}
-
+		mutex_lock(&inst->registeredbufs.lock);
 		binfo = get_registered_buf(inst, b, i, &plane);
+		mutex_unlock(&inst->registeredbufs.lock);
 		if (!binfo) {
 			dprintk(VIDC_ERR,
 				"This buffer is not registered: %d, %d, %d\n",
@@ -973,15 +971,8 @@ int msm_vidc_dqbuf(void *instance, struct v4l2_buffer *b)
 	struct buffer_info *buffer_info = NULL;
 	int i = 0, rc = 0;
 
-	if (!inst || !b)
+	if (!inst || !b || !valid_v4l2_buffer(b, inst))
 		return -EINVAL;
-
-	if (!V4L2_TYPE_IS_MULTIPLANAR(b->type) || !b->length ||
-		(b->length > VIDEO_MAX_PLANES)) {
-		dprintk(VIDC_ERR, "%s: wrong input params\n",
-				__func__);
-		return -EINVAL;
-	}
 
 	if (inst->session_type == MSM_VIDC_DECODER)
 		rc = msm_vdec_dqbuf(instance, b);
@@ -1033,7 +1024,9 @@ int msm_vidc_dqbuf(void *instance, struct v4l2_buffer *b)
 
 		dprintk(VIDC_DBG, "[DEQUEUED]: fd[0] = %d\n",
 			buffer_info->fd[0]);
+		mutex_lock(&inst->registeredbufs.lock);
 		rc = unmap_and_deregister_buf(inst, buffer_info);
+		mutex_unlock(&inst->registeredbufs.lock);
 	} else
 		rc = output_buffer_cache_invalidate(inst, buffer_info);
 
@@ -1077,7 +1070,7 @@ int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 	struct msm_vidc_core_capability *capability = NULL;
 
 	if (!inst || !fsize) {
-		dprintk(VIDC_ERR, "%s: invalid parameter: %p %p\n",
+		dprintk(VIDC_ERR, "%s: invalid parameter: %pK %pK\n",
 				__func__, inst, fsize);
 		return -EINVAL;
 	}
@@ -1144,7 +1137,7 @@ void *msm_vidc_smem_get_client(void *instance)
 	struct msm_vidc_inst *inst = instance;
 
 	if (!inst || !inst->mem_client) {
-		dprintk(VIDC_ERR, "%s: invalid instance or client = %p\n",
+		dprintk(VIDC_ERR, "%s: invalid instance or client = %pK\n",
 				__func__, inst);
 		return NULL;
 	}
@@ -1272,7 +1265,7 @@ void *msm_vidc_open(int core_id, int session_type)
 		goto err_invalid_core;
 	}
 
-	pr_info(VIDC_DBG_TAG "Opening video instance: %p, %d\n",
+	pr_info(VIDC_DBG_TAG "Opening video instance: %pK, %d\n",
 		VIDC_MSG_PRIO2STRING(VIDC_INFO), inst, session_type);
 	mutex_init(&inst->sync_lock);
 	mutex_init(&inst->bufq[CAPTURE_PORT].lock);
@@ -1398,7 +1391,11 @@ static void cleanup_instance(struct msm_vidc_inst *inst)
 		debugfs_remove_recursive(inst->debugfs_root);
 
 		mutex_lock(&inst->pending_getpropq.lock);
-		WARN_ON(!list_empty(&inst->pending_getpropq.list));
+		if (!list_empty(&inst->pending_getpropq.list)) {
+			dprintk(VIDC_ERR,
+				"pending_getpropq not empty\n");
+			WARN_ON(VIDC_DBG_WARN_ENABLE);
+		}
 		mutex_unlock(&inst->pending_getpropq.lock);
 	}
 }
@@ -1462,7 +1459,7 @@ int msm_vidc_close(void *instance)
 
 	msm_smem_delete_client(inst->mem_client);
 
-	pr_info(VIDC_DBG_TAG "Closed video instance: %p\n",
+	pr_info(VIDC_DBG_TAG "Closed video instance: %pK\n",
 			VIDC_MSG_PRIO2STRING(VIDC_INFO), inst);
 	kfree(inst);
 

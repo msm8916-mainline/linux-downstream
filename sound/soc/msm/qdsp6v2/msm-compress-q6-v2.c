@@ -1047,6 +1047,7 @@ static int msm_compr_free(struct snd_compr_stream *cstream)
 	kfree(pdata->audio_effects[soc_prtd->dai_link->be_id]);
 	kfree(pdata->dec_params[soc_prtd->dai_link->be_id]);
 	kfree(prtd);
+	runtime->private_data = NULL;
 
 	return 0;
 }
@@ -1861,7 +1862,7 @@ static int msm_compr_get_caps(struct snd_compr_stream *cstream,
 		memcpy(arg, &prtd->compr_cap, sizeof(struct snd_compr_caps));
 	} else {
 		ret = -EINVAL;
-		pr_err("%s: arg (0x%p), prtd (0x%p)\n", __func__, arg, prtd);
+		pr_err("%s: arg (0x%pK), prtd (0x%pK)\n", __func__, arg, prtd);
 	}
 
 	return ret;

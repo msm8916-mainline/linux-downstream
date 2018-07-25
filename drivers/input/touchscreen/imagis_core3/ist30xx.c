@@ -351,7 +351,12 @@ static void set_dvfs_lock(struct ist30xx_data *info, int32_t on)
                         cancel_delayed_work(&info->work_dvfs_chg);
 
                         if (info->dvfs_freq != MIN_TOUCH_LIMIT) {
+#ifdef SECOND_MINLOCK_FOR_LEVEL1
+                                if (info->dvfs_boost_mode == DVFS_STAGE_SINGLE ||
+						info->dvfs_boost_mode == DVFS_STAGE_TRIPLE )
+#else
                                 if (info->dvfs_boost_mode == DVFS_STAGE_TRIPLE)
+#endif
                                         ret = set_freq_limit(DVFS_TOUCH_ID,
                                                 MIN_TOUCH_LIMIT_SECOND);
                                 else

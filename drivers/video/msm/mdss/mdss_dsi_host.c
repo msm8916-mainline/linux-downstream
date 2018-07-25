@@ -101,7 +101,7 @@ void mdss_dsi_ctrl_init(struct device *ctrl_dev,
 	if (ctrl->mdss_util->register_irq(ctrl->dsi_hw))
 		pr_err("%s: mdss_register_irq failed.\n", __func__);
 
-	pr_debug("%s: ndx=%d base=%p\n", __func__, ctrl->ndx, ctrl->ctrl_base);
+	pr_debug("%s: ndx=%d base=%pK\n", __func__, ctrl->ndx, ctrl->ctrl_base);
 
 	init_completion(&ctrl->dma_comp);
 	init_completion(&ctrl->mdp_comp);
@@ -1521,6 +1521,7 @@ static int mdss_dsi_cmd_dma_tx(struct mdss_dsi_ctrl_pdata *ctrl,
 					struct dsi_buf *tp)
 {
 	int len, ret = 0;
+	int dma_addr_phy_virt_flag = 0; /*0:phyical addr  1:virtual addr */
 	int domain = MDSS_IOMMU_DOMAIN_UNSECURE;
 	char *bp;
 	struct mdss_dsi_ctrl_pdata *mctrl = NULL;
@@ -1545,6 +1546,7 @@ static int mdss_dsi_cmd_dma_tx(struct mdss_dsi_ctrl_pdata *ctrl,
 
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 		debug_mdss_dma_addr = ctrl->dma_addr;
+		dma_addr_phy_virt_flag = 1;
 #endif
 	} else {
 		ctrl->dma_addr = tp->dmap;
@@ -1602,7 +1604,7 @@ static int mdss_dsi_cmd_dma_tx(struct mdss_dsi_ctrl_pdata *ctrl,
 		mctrl->dma_size = 0;
 	}
 
-	if (ctrl->mdss_util->iommu_attached()) {
+	if (ctrl->mdss_util->iommu_attached() && dma_addr_phy_virt_flag) {
 		msm_iommu_unmap_contig_buffer(ctrl->dma_addr,
 			ctrl->mdss_util->get_iommu_domain(domain),
 							0, ctrl->dma_size);

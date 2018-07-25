@@ -299,7 +299,7 @@ static phys_addr_t sec_log_reserve_base;
 static unsigned sec_log_end;
 unsigned sec_log_reserve_size;
 unsigned int *sec_log_irq_en;
-#ifdef CONFIG_SEC_LOG_LAST_KMSG
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_LOG_LAST_KMSG)
 #define LAST_LOG_BUF_SHIFT 19
 static char *last_kmsg_buffer;
 static unsigned last_kmsg_size;
@@ -2100,7 +2100,7 @@ void sec_debug_subsys_set_kloginfo(unsigned int *first_idx_paddr,
 }
 #endif
 
-#ifdef CONFIG_SEC_LOG_LAST_KMSG
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_LOG_LAST_KMSG)
 static int __init sec_log_save_old(void)
 {
 	/* provide previous log as last_kmsg */
@@ -2137,7 +2137,7 @@ static int __init printk_remap_nocache(void)
 
 	/*sec_getlog_supply_kloginfo(log_buf);*/
 
-#ifndef CONFIG_SEC_DEBUG_NOCACHE_LOG_IN_LEVEL_LOW
+#if !defined(CONFIG_SEC_DEBUG_NOCACHE_LOG_IN_LEVEL_LOW) || defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	if (0 == sec_debug_is_enabled()) {
 #ifdef CONFIG_SEC_DEBUG_LOW_LOG
 		nocache_base = ioremap_nocache(sec_log_save_base - 4096,
@@ -2207,7 +2207,7 @@ static int __init printk_remap_nocache(void)
 	  the sec log initialization here.*/
 	sec_log_add_on_bootup();
 	raw_spin_unlock_irqrestore(&logbuf_lock, flags);
-#ifdef CONFIG_SEC_LOG_LAST_KMSG
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_LOG_LAST_KMSG)
 	if (bOk) {
 		pr_info("%s: saved old log at %d@%p\n",
 				__func__, last_kmsg_size, last_kmsg_buffer);
@@ -2224,7 +2224,7 @@ static ssize_t seclog_read(struct file *file, char __user *buf,
 {
 	loff_t pos = *offset;
 	ssize_t count = 0;
-#ifdef CONFIG_SEC_LOG_LAST_KMSG
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_LOG_LAST_KMSG)
 	size_t log_size = last_kmsg_size;
 	const char *log = last_kmsg_buffer;
 #else
@@ -2268,7 +2268,7 @@ static int __init seclog_late_init(void)
 		return 0;
 	}
 
-#ifdef CONFIG_SEC_LOG_LAST_KMSG
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_LOG_LAST_KMSG)
 	proc_set_size(entry, last_kmsg_size);
 #else
 	proc_set_size(entry, sec_log_size);
