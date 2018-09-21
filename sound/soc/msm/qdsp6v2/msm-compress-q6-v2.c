@@ -101,6 +101,7 @@ struct msm_compr_pdata {
 	bool use_dsp_gapless_mode;
 	struct msm_compr_dec_params *dec_params[MSM_FRONTEND_DAI_MAX];
 	struct msm_compr_ch_map *ch_map[MSM_FRONTEND_DAI_MAX];
+	bool is_in_use[MSM_FRONTEND_DAI_MAX];
 };
 
 struct msm_compr_audio {
@@ -2654,6 +2655,7 @@ static int msm_compr_probe(struct snd_soc_platform *platform)
 		pdata->dec_params[i] = NULL;
 		pdata->cstream[i] = NULL;
 		pdata->ch_map[i] = NULL;
+		pdata->is_in_use[i] = false;
 	}
 
 	/*
