@@ -458,6 +458,7 @@ struct mmc_host {
 	 * actually disabling the clock from it's source.
 	 */
 	bool			card_clock_off;
+    unsigned int		card_detect_cnt;
 	unsigned long		private[0] ____cacheline_aligned;
 };
 

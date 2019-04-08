@@ -103,7 +103,7 @@ void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd,
 
 				mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
 			} else
-				DPRINT("DUAL Command Tx Fail,  tune_data_dsi0=%pK, tune_data_dsi1=%pK,vdd=%pK, mdnie_tune_state=%pK \n",
+				DPRINT("DUAL Command Tx Fail,  tune_data_dsi0=%p, tune_data_dsi1=%p,vdd=%p, mdnie_tune_state=%p \n",
 					tune_data_dsi0, tune_data_dsi0, vdd, mdnie_tune_state);
 		} else {
 			if (tune_data_dsi0 && tune_data_dsi1 && mdnie_tune_state) {
@@ -114,10 +114,10 @@ void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd,
 				vdd->mdnie_tune_data[1].mdnie_tune_packet_tx_cmds_dsi.cmd_cnt = mdnie_data.dsi1_bypass_mdnie_size;
 
 				/* TODO: Tx command */
-				DPRINT("DUAL Command Tx Fail(TODO  DUAL PANEL),  tune_data_dsi0=%pK, tune_data_dsi1=%pK,vdd=%pK, mdnie_tune_state=%pK \n",
+				DPRINT("DUAL Command Tx Fail(TODO  DUAL PANEL),  tune_data_dsi0=%p, tune_data_dsi1=%p,vdd=%p, mdnie_tune_state=%p \n",
 					tune_data_dsi0, tune_data_dsi0, vdd, mdnie_tune_state);
 			} else
-				DPRINT("DUAL Command Tx Fail,  tune_data_dsi0=%pK, tune_data_dsi1=%pK,vdd=%pK, mdnie_tune_state=%pK \n",
+				DPRINT("DUAL Command Tx Fail,  tune_data_dsi0=%p, tune_data_dsi1=%p,vdd=%p, mdnie_tune_state=%p \n",
 					tune_data_dsi0, tune_data_dsi0, vdd, mdnie_tune_state);
 		}
 	} else {
@@ -136,7 +136,7 @@ void send_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd,
 				mdss_samsung_send_cmd(vdd->ctrl_dsi[DSI_CTRL_0], PANEL_MDNIE_TUNE);
 			}
 		} else
-			DPRINT("SINGLE Command Tx Fail,  tune_data_dsi0=%pK, vdd=%pK, mdnie_tune_state=%pK \n", tune_data_dsi0, vdd, mdnie_tune_state);
+			DPRINT("SINGLE Command Tx Fail,  tune_data_dsi0=%p, vdd=%p, mdnie_tune_state=%p \n", tune_data_dsi0, vdd, mdnie_tune_state);
 	}
 }
 
@@ -195,6 +195,11 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 				tune_data_dsi0  = mdnie_data.DSI0_GRAYSCALE_NEGATIVE_MDNIE;
 			else
 				tune_data_dsi1  = mdnie_data.DSI1_GRAYSCALE_NEGATIVE_MDNIE;
+		} else if (mdnie_tune_state->hmt_color_temperature) {
+			if (mdnie_tune_state->index == DSI_CTRL_0)
+				tune_data_dsi0 = mdnie_data.hmt_color_temperature_tune_value_dsi0[mdnie_tune_state->hmt_color_temperature];
+			else
+				tune_data_dsi1 = mdnie_data.hmt_color_temperature_tune_value_dsi1[mdnie_tune_state->hmt_color_temperature];
 		} else if (mdnie_tune_state->hbm_enable == true) {
 			if (vdd->dtsi_data[mdnie_tune_state->index].hbm_ce_text_mode_support && \
 				((mdnie_tune_state->mdnie_app == BROWSER_APP) || (mdnie_tune_state->mdnie_app == eBOOK_APP)))
@@ -208,11 +213,6 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 				else
 					tune_data_dsi1  = mdnie_data.DSI1_HBM_CE_MDNIE;
 			}
-		} else if (mdnie_tune_state->hmt_color_temperature) {
-			if (mdnie_tune_state->index == DSI_CTRL_0)
-				tune_data_dsi0 = mdnie_data.hmt_color_temperature_tune_value_dsi0[mdnie_tune_state->hmt_color_temperature];
-			else
-				tune_data_dsi1 = mdnie_data.hmt_color_temperature_tune_value_dsi1[mdnie_tune_state->hmt_color_temperature];
 		} else if (mdnie_tune_state->mdnie_app == EMAIL_APP) {
 			/*
 				Some kind of panel doesn't suooprt EMAIL_APP mode, but SSRM module use same control logic.
@@ -298,8 +298,6 @@ static ssize_t mode_store(struct device *dev,
 	list_for_each_entry_reverse(mdnie_tune_state, &mdnie_list , used_list) {
 		if (!vdd)
 			vdd = mdnie_tune_state->vdd;
-		if (vdd->dtsi_data[0].tft_common_support && value >= NATURAL_MODE)
-			value++;
 
 		mdnie_tune_state->mdnie_mode = value;
 

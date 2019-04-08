@@ -122,13 +122,7 @@ ifeq ($(CONFIG_SEC_GT510_PROJECT),y)
 		dtb-y += msm8916-sec-gt510wifi-eur-r06.dtb
 		dtb-y += msm8916-sec-gt510wifi-eur-r07.dtb
 	else ifeq ($(CONFIG_MACH_GT5NOTE10_EUR_OPEN),y)
-		dtb-y += msm8916-sec-gt5note10lte-eur-r00.dtb
-		dtb-y += msm8916-sec-gt5note10lte-eur-r01.dtb
-		dtb-y += msm8916-sec-gt5note10lte-eur-r02.dtb
-		dtb-y += msm8916-sec-gt5note10lte-eur-r03.dtb
-		dtb-y += msm8916-sec-gt5note10lte-eur-r04.dtb
 		dtb-y += msm8916-sec-gt5note10lte-eur-r05.dtb
-		dtb-y += msm8916-sec-gt5note10lte-eur-r06.dtb
 		dtb-y += msm8916-sec-gt5note10lte-eur-r07.dtb
 	else ifeq ($(CONFIG_MACH_GT5NOTE10WIFI_EUR_OPEN),y)
 		dtb-y += msm8916-sec-gt5note10wifi-eur-r03.dtb
@@ -146,12 +140,6 @@ ifeq ($(CONFIG_SEC_GT510_PROJECT),y)
 		dtb-y += msm8916-sec-gt5note10lte-chn-r05.dtb
 		dtb-y += msm8916-sec-gt5note10lte-chn-r07.dtb
 	else ifeq ($(CONFIG_MACH_GT5NOTE10_KOR_OPEN),y)
-		dtb-y += msm8916-sec-gt5note10lte-kor-r00.dtb
-		dtb-y += msm8916-sec-gt5note10lte-kor-r01.dtb
-		dtb-y += msm8916-sec-gt5note10lte-kor-r02.dtb
-		dtb-y += msm8916-sec-gt5note10lte-kor-r03.dtb
-		dtb-y += msm8916-sec-gt5note10lte-kor-r04.dtb
-		dtb-y += msm8916-sec-gt5note10lte-kor-r05.dtb
 		dtb-y += msm8916-sec-gt5note10lte-kor-r06.dtb
 		dtb-y += msm8916-sec-gt5note10lte-kor-r07.dtb
 	endif
@@ -228,6 +216,15 @@ ifeq ($(CONFIG_SEC_A3_EUR_PROJECT),y)
 	endif
 endif
 
+ifeq ($(CONFIG_SEC_A33G_EUR_PROJECT),y)
+	ifeq ($(CONFIG_MACH_A33G_EUR_OPEN),y)
+		dtb-y += msm8916-sec-a33g-eur-r00.dtb
+		dtb-y += msm8916-sec-a33g-eur-r01.dtb
+		dtb-y += msm8916-sec-a33g-eur-r03.dtb
+		dtb-y += msm8916-sec-a33g-eur-r04.dtb
+	endif
+endif
+
 ifeq ($(CONFIG_SEC_MATISSEVE_PROJECT),y)
 	ifeq ($(CONFIG_MACH_MATISSEVEWIFI_EUR_OPEN),y)
 		dtb-y += msm8916-sec-matissevewifi-eur-r00.dtb
@@ -240,6 +237,9 @@ ifeq ($(CONFIG_SEC_A5_PROJECT),y)
 		dtb-y += msm8916-sec-a5u-eur-r01.dtb
 	else ifeq ($(CONFIG_MACH_A5U_CAN_BMC),y)
 		dtb-y += msm8916-sec-a5u-canbmc-r01.dtb
+	else ifeq ($(CONFIG_MACH_A5U_KOR_OPEN),y)
+		dtb-y += msm8916-sec-a5u-kor-r00.dtb
+		dtb-y += msm8916-sec-a5u-kor-r02.dtb
 	endif
 endif
 ifeq ($(CONFIG_SEC_GTEL_PROJECT),y)
@@ -344,6 +344,11 @@ ifeq ($(CONFIG_SEC_J5X_PROJECT),y)
 		dtb-y += msm8916-sec-j5xlte-mea-r01.dtb
 		dtb-y += msm8916-sec-j5xlte-mea-r02.dtb
 		dtb-y += msm8916-sec-j5xlte-mea-r04.dtb
+	else ifeq ($(CONFIG_MACH_J5XLTE_MEA_TUR),y)
+		dtb-y += msm8916-sec-j5xlte-tur-r00.dtb
+		dtb-y += msm8916-sec-j5xlte-tur-r01.dtb
+		dtb-y += msm8916-sec-j5xlte-tur-r02.dtb
+		dtb-y += msm8916-sec-j5xlte-tur-r04.dtb
 	endif
 endif
 

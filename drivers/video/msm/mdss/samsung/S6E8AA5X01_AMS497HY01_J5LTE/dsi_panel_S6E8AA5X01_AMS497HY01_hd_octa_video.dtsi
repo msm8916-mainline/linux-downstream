@@ -31,7 +31,7 @@
 		qcom,mdss-dsi-panel-width = <720>;
 		qcom,mdss-dsi-panel-height = <1280>;
 		qcom,mdss-pan-physical-width-dimension = <62>; /* <Width> real size of panel in mm */
-		qcom,mdss-pan-physical-height-dimension = <106>; /*<Height> real size of panel in mm */
+		qcom,mdss-pan-physical-height-dimension = <110>; /*<Height> real size of panel in mm */
 		qcom,mdss-dsi-lp11-init;
 		qcom,mdss-dsi-init-delay-us = <2000>;
 		qcom,mdss-dsi-h-front-porch = <226>;
@@ -123,6 +123,7 @@
 		* samsung,mdnie_read_rx_cmds_revA = [ 06 01 00 00 00 00 01 D7 04 03];
 		* D7 = register address, 04 = size, 03 = start postion
 		***************************************************/
+		samsung,outdoor_mode_support;
 		samsung,manufacture_id0_rx_cmds_revA = [ 06 01 00 00 00 00 01 da 01 00];
 		samsung,manufacture_id1_rx_cmds_revA = [ 06 01 00 00 00 00 01 db 01 00];
 		samsung,manufacture_id2_rx_cmds_revA = [ 06 01 00 00 00 00 01 dc 01 00];

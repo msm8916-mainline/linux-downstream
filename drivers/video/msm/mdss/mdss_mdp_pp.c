@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -39,7 +39,79 @@ struct mdp_csc_cfg mdp_csc_convert_wideband = {
 #endif
 
 struct mdp_csc_cfg mdp_csc_convert[MDSS_MDP_MAX_CSC] = {
-	[MDSS_MDP_CSC_RGB2RGB] = {
+	[MDSS_MDP_CSC_YUV2RGB_601L] = {
+		0,
+		{
+			0x0254, 0x0000, 0x0331,
+			0x0254, 0xff37, 0xfe60,
+			0x0254, 0x0409, 0x0000,
+		},
+		{ 0xfff0, 0xff80, 0xff80,},
+		{ 0x0, 0x0, 0x0,},
+		{ 0x10, 0xeb, 0x10, 0xf0, 0x10, 0xf0,},
+		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+	},
+	[MDSS_MDP_CSC_YUV2RGB_601FR] = {
+		0,
+		{
+			0x0200, 0x0000, 0x02ce,
+			0x0200, 0xff50, 0xfe92,
+			0x0200, 0x038b, 0x0000,
+		},
+		{ 0x0000, 0xff80, 0xff80,},
+		{ 0x0, 0x0, 0x0,},
+		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+	},
+	[MDSS_MDP_CSC_YUV2RGB_709L] = {
+		0,
+		{
+			0x0254, 0x0000, 0x0396,
+			0x0254, 0xff93, 0xfeef,
+			0x0254, 0x043e, 0x0000,
+		},
+		{ 0xfff0, 0xff80, 0xff80,},
+		{ 0x0, 0x0, 0x0,},
+		{ 0x10, 0xeb, 0x10, 0xf0, 0x10, 0xf0,},
+		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+	},
+	[MDSS_MDP_CSC_RGB2YUV_601L] = {
+		0,
+		{
+			0x0083, 0x0102, 0x0032,
+			0xffb4, 0xff6b, 0x00e1,
+			0x00e1, 0xff44, 0xffdb
+		},
+		{ 0x0, 0x0, 0x0,},
+		{ 0x0010, 0x0080, 0x0080,},
+		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+		{ 0x0010, 0x00eb, 0x0010, 0x00f0, 0x0010, 0x00f0,},
+	},
+	[MDSS_MDP_CSC_RGB2YUV_601FR] = {
+		0,
+		{
+			0x0099, 0x012d, 0x003a,
+			0xffaa, 0xff56, 0x0100,
+			0x0100, 0xff2a, 0xffd6
+		},
+		{ 0x0, 0x0, 0x0,},
+		{ 0x0000, 0x0080, 0x0080,},
+		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+	},
+	[MDSS_MDP_CSC_RGB2YUV_709L] = {
+		0,
+		{
+			0x005d, 0x013a, 0x0020,
+			0xffcc, 0xff53, 0x00e1,
+			0x00e1, 0xff34, 0xffeb
+		},
+		{ 0x0, 0x0, 0x0,},
+		{ 0x0010, 0x0080, 0x0080,},
+		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
+		{ 0x0010, 0x00eb, 0x0010, 0x00f0, 0x0010, 0x00f0,},
+	},
+	[MDSS_MDP_CSC_YUV2YUV] = {
 		0,
 		{
 			0x0200, 0x0000, 0x0000,
@@ -51,31 +123,7 @@ struct mdp_csc_cfg mdp_csc_convert[MDSS_MDP_MAX_CSC] = {
 		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
 		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
 	},
-	[MDSS_MDP_CSC_YUV2RGB] = {
-		0,
-		{
-			0x0254, 0x0000, 0x0331,
-			0x0254, 0xff37, 0xfe60,
-			0x0254, 0x0409, 0x0000,
-		},
-		{ 0xfff0, 0xff80, 0xff80,},
-		{ 0x0, 0x0, 0x0,},
-		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
-		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
-	},
-	[MDSS_MDP_CSC_RGB2YUV] = {
-		0,
-		{
-			0x0083, 0x0102, 0x0032,
-			0x1fb5, 0x1f6c, 0x00e1,
-			0x00e1, 0x1f45, 0x1fdc
-		},
-		{ 0x0, 0x0, 0x0,},
-		{ 0x0010, 0x0080, 0x0080,},
-		{ 0x0, 0xff, 0x0, 0xff, 0x0, 0xff,},
-		{ 0x0010, 0x00eb, 0x0010, 0x00f0, 0x0010, 0x00f0,},
-	},
-	[MDSS_MDP_CSC_YUV2YUV] = {
+	[MDSS_MDP_CSC_RGB2RGB] = {
 		0,
 		{
 			0x0200, 0x0000, 0x0000,
@@ -578,7 +626,8 @@ int mdss_mdp_csc_setup(u32 block, u32 blk_idx, u32 csc_type)
 		 block, blk_idx);
 
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-	if (csc_type == MDSS_MDP_CSC_YUV2RGB && !csc_update) {
+	if ((csc_type == MDSS_MDP_CSC_YUV2RGB_601L || csc_type == MDSS_MDP_CSC_YUV2RGB_601FR ||
+			csc_type == MDSS_MDP_CSC_YUV2RGB_709L) && !csc_update) {
 		data = &mdp_csc_convert_wideband;
 		pr_debug("will do mdp_csc_convert (wide band)\n");
 	} else {
@@ -894,12 +943,12 @@ static int pp_vig_pipe_setup(struct mdss_mdp_pipe *pipe, u32 *op)
 						MDP_CSC_FLAG_YUV_IN) << 18;
 			opmode |= !!(pipe->pp_cfg.csc_cfg.flags &
 						MDP_CSC_FLAG_YUV_OUT) << 19;
-			/*
-			 * TODO: Allow pipe to be programmed whenever new CSC is
-			 * applied (i.e. dirty bit)
-			 */
-			mdss_mdp_csc_setup_data(MDSS_MDP_BLOCK_SSPP, pipe->num,
-					&pipe->pp_cfg.csc_cfg);
+
+			mdss_mdp_csc_setup_data(
+				MDSS_MDP_BLOCK_SSPP,
+				pipe->num,
+				&pipe->pp_cfg.csc_cfg);
+
 	} else {
 		if (pipe->src_fmt->is_yuv) {
 			opmode |= (0 << 19) |	/* DST_DATA=RGB */
@@ -913,10 +962,10 @@ static int pp_vig_pipe_setup(struct mdss_mdp_pipe *pipe, u32 *op)
 #if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
 		if ((pipe->play_cnt == 0))
 			mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num,
-					   MDSS_MDP_CSC_YUV2RGB);
+					   pp_vig_csc_pipe_val(pipe));
 #else
 			mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num,
-					   MDSS_MDP_CSC_YUV2RGB);
+					   pp_vig_csc_pipe_val(pipe));
 #endif
 		}
 	}
@@ -3635,11 +3684,13 @@ static int pp_hist_disable(struct pp_hist_col_info *hist_info)
 		ret = -EINVAL;
 		goto exit;
 	}
-	hist_info->col_en = false;
-	hist_info->col_state = HIST_UNKNOWN;
 	spin_unlock_irqrestore(&hist_info->hist_lock, flag);
 	mdss_mdp_hist_intr_req(&mdata->hist_intr,
 				intr_mask << hist_info->intr_shift, false);
+	spin_lock_irqsave(&hist_info->hist_lock, flag);
+	hist_info->col_en = false;
+	hist_info->col_state = HIST_UNKNOWN;
+	spin_unlock_irqrestore(&hist_info->hist_lock, flag);
 	complete_all(&hist_info->first_kick);
 	complete_all(&hist_info->comp);
 	/* if hist v2, make sure HW is unlocked */
@@ -4305,6 +4356,7 @@ void mdss_mdp_hist_intr_done(u32 isr)
 	bool need_complete = false;
 	u32 isr_mask = (is_hist_v2) ? HIST_V2_INTR_BIT_MASK :
 			HIST_V1_INTR_BIT_MASK;
+	u32 intr_mask = is_hist_v2 ? 1 : 3;
 
 	isr &= isr_mask;
 	while (isr != 0) {
@@ -4339,7 +4391,16 @@ void mdss_mdp_hist_intr_done(u32 isr)
 			 * Histogram collection is disabled yet we got an
 			 * interrupt somehow.
 			 */
-			pr_err("hist Done interrupt, col_en=false!\n");
+			if (mdata->mdp_hist_irq_mask ==
+					(intr_mask << hist_info->intr_shift)) {
+				mdss_mdp_hist_intr_req(&mdata->hist_intr,
+					intr_mask << hist_info->intr_shift,
+					false);
+				pr_err("Disable hist interrupt,	irq mask=%x\n",
+						mdata->mdp_hist_irq_mask);
+			} else {
+				pr_err("hist Done interrupt, col_en=false!\n");
+			}
 		}
 		/* Histogram Reset Done Interrupt */
 		if (hist_info && is_hist_reset_done && (hist_info->col_en)) {
@@ -4696,6 +4757,7 @@ int mdss_mdp_ad_input(struct msm_fb_data_type *mfd,
 			mdss_fb_set_backlight(mfd, bl);
 			mutex_unlock(&mfd->bl_lock);
 			mutex_lock(&ad->lock);
+			mfd->calib_mode_bl = bl;
 		} else {
 			pr_warn("should be in calib mode\n");
 		}
@@ -5591,9 +5653,6 @@ static int is_valid_calib_addr(void *addr, u32 operation)
 	int ret = 0;
 	char __iomem *ptr = addr;
 	char __iomem *mixer_base = mdss_res->mixer_intf->base;
-	char __iomem *rgb_base   = mdss_res->rgb_pipes->base;
-	char __iomem *dma_base   = mdss_res->dma_pipes->base;
-	char __iomem *vig_base   = mdss_res->vig_pipes->base;
 	char __iomem *ctl_base   = mdss_res->ctl_off->base;
 	char __iomem *dspp_base  = mdss_res->mixer_intf->dspp_base;
 
@@ -5625,17 +5684,20 @@ static int is_valid_calib_addr(void *addr, u32 operation)
 			if (ret)
 				goto valid_addr;
 		}
-		if (ptr >= vig_base) {
+		if (mdss_res->vig_pipes &&
+		    ptr >= mdss_res->vig_pipes->base) {
 			ret = is_valid_calib_vig_addr(ptr);
 			if (ret)
 				goto valid_addr;
 		}
-		if (ptr >= rgb_base) {
+		if (mdss_res->rgb_pipes &&
+		    ptr >= mdss_res->rgb_pipes->base) {
 			ret = is_valid_calib_rgb_addr(ptr);
 			if (ret)
 				goto valid_addr;
 		}
-		if (ptr >= dma_base) {
+		if (mdss_res->dma_pipes &&
+		    ptr >= mdss_res->dma_pipes->base) {
 			ret = is_valid_calib_dma_addr(ptr);
 			if (ret)
 				goto valid_addr;
@@ -5682,6 +5744,9 @@ int mdss_mdp_calib_mode(struct msm_fb_data_type *mfd,
 		return -EINVAL;
 	mutex_lock(&mdss_pp_mutex);
 	mfd->calib_mode = cfg->calib_mask;
+	mutex_lock(&mfd->bl_lock);
+	mfd->calib_mode_bl = mfd->bl_level;
+	mutex_unlock(&mfd->bl_lock);
 	mutex_unlock(&mdss_pp_mutex);
 	return 0;
 }

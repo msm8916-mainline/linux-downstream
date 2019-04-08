@@ -32,9 +32,8 @@
 		};
 
 		ext-cdc-tlmm-lines {
-			qcom,pins = <&gp 112>, <&gp 117>,
-						<&gp 118>, <&gp 119>;
-			qcom,num-grp-pins = <4>;
+			qcom,pins = <&gp 112>, <&gp 118>, <&gp 119>;
+			qcom,num-grp-pins = <3>;
 			qcom,pin-func = <1>;
 			label = "ext-cdc-tlmm-lines";
 			ext_cdc_tlmm_lines_act: tlmm_lines_on {
@@ -178,19 +177,6 @@
 			sdc2_clk_off: clk_off {
 				bias-disable; /* NO pull */
 				drive-strength = <2>; /* 2 MA */
-			};
-		};
-
-		/*Hall IC pingroup*/
-		pmx_hall_ic_pin {
-			qcom,pins = <&gp 52>;
-			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <1>;
-			label = "pmx_hall_ic_pin";
-
-			hall_ic_pin: default {
-				drive-strength = <2>;
-				bias-disable;
 			};
 		};
 
@@ -518,6 +504,20 @@
 			};
 		};
 
+		pmx_esd: pmx_esd {
+			label = "esd-pin";
+			qcom,num-grp-pins = <1>;
+			qcom,pins = <&gp 117>;
+			qcom,pin-func = <0>;
+			mdss_esd_active: active {
+				drive-strength = <2>; /* 0 mA */
+				bias-pull-up; /* pull up */
+			};
+			mdss_esd_suspend: suspend {
+				drive-strength = <2>; /* 2 mA */
+				bias-pull-down; /* pull down */
+			};
+		};
 		pmx_mdss: pmx_mdss {
 			label = "mdss-pins";
 			qcom,num-grp-pins = <1>;
@@ -1136,21 +1136,6 @@
 			};
 		};
 
-		pmx_hall_ic {
-			qcom,pins = <&gp 52>;
-			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <1>;
-			label = "pmx_flip_cover";
-			hall_int_active: hall_int_active {
-				drive-strength = <2>;
-				bias-disable = <0>; /* No PULL */
-			};
-			hall_int_suspend: hall_int_suspend {
-				drive-strength = <2>;
-				bias-disable = <0>; /* No PULL */
-			};
-		};
-
 		tlmm_rd_nfc_int{
 			qcom,pins = <&gp 50>;
 			qcom,pin-func = <0>;
@@ -1373,13 +1358,13 @@
 			label = "cam-sensor-mclk1";
 			/* active state */
 			cam_sensor_mclk1_default: default {
-				drive-strength = <4>; /* 4 MA */
+				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* PULL DOWN */
 				output-low;
 			};
 			/*suspended state */
 			cam_sensor_mclk1_sleep: sleep {
-				drive-strength = <4>; /* 4 MA */
+				drive-strength = <2>; /* 2 MA */
 				bias-pull-down; /* PULL DOWN */
 				output-low;
 			};
@@ -1423,26 +1408,6 @@
 			};
 		};
 
-		cam_sensor_ldo_en {
-			/* RESET, STANDBY */
-			qcom,pins =  <&gp 93>;
-			qcom,num-grp-pins = <1>;
-			qcom,pin-func = <0>;
-			label = "cam_sensor_ldo_en";
-			/* active state */
-			cam_sensor_ldo_en_default: default {
-				drive-strength = <2>; /* 2 MA */
-				bias-disable = <0>; /* No PULL */
-				output-low;
-			};
-			/*suspended state */
-			cam_sensor_ldo_en_sleep: sleep {
-				drive-strength = <2>; /* 2 MA */
-				bias-disable = <0>; /* No PULL */
-				output-low;
-			};
-		};
-
 		cam_sensor_front {
 			/* RESET*/
 			qcom,pins = <&gp 28>;
@@ -1477,43 +1442,6 @@
 				drive-strength = <2>;	/* 2 MA */
 				bias-pull-down; /* PULL DOWN */
 				output-low;
-			};
-		};
-
-		front_cam_flash {
-			qcom,pins =  <&gp 85>;
-			qcom,num-grp-pins = <1>;
-			qcom,pin-func = <0>;
-			label = "front_cam_flash";
-
-			front_flash_active: default {
-				drive-strength = <2>;	/* 2 MA */
-				bias-disable; /* NO PULL */
-				output-low;
-			};
-
-			front_flash_sleep: sleep {
-				drive-strength = <2>;	/* 2 MA */
-				bias-disable; /* NO PULL */
-				output-low;
-			};
-		};
-
-		front_cam_sensor_eeprom {
-			/* front eeprom*/
-			qcom,pins =  <&gp 0>, <&gp 1>;
-			qcom,num-grp-pins = <2>;
-			qcom,pin-func = <0>;
-			label = "cam-eeprom-i2c";
-			/* active state */
-			front_cam_sensor_eeprom_default: default {
-				drive-strength = <4>; /* 4 MA */
-				bias-disable = <0>; /* No PULL */
-			};
-			/*suspended state */
-			front_cam_sensor_eeprom_sleep: sleep {
-				drive-strength = <4>; /* 4 MA */
-				bias-disable = <0>; /* No PULL */
 			};
 		};
 

@@ -542,6 +542,71 @@ error:
 	return -ENOMEM;
 }
 
+int mdss_samsung_parse_hbm_candella_lux_mapping_table(struct device_node *np,
+		struct hbm_candella_lux_map *table, char *keystring)
+{
+	const __be32 *data;
+	int  data_offset, len = 0 , i = 0;
+
+	data = of_get_property(np, keystring, &len);
+	if (!data) {
+		pr_debug("%s:%d, Unable to read table %s ", __func__, __LINE__, keystring);
+		return -EINVAL;
+	} else
+		pr_err("%s:Success to read table %s\n", __func__, keystring);
+
+	if ((len % 4) != 0) {
+		pr_err("%s:%d, Incorrect table entries for %s",
+					__func__, __LINE__, keystring);
+		return -EINVAL;
+	}
+
+	table->lux_tab_size = len / (sizeof(int)*5);
+
+	table->lux_tab = kzalloc((sizeof(int) * table->lux_tab_size), GFP_KERNEL);
+	if (!table->lux_tab)
+		return -ENOMEM;
+
+	table->cmd_idx = kzalloc((sizeof(int) * table->lux_tab_size), GFP_KERNEL);
+	if (!table->cmd_idx)
+		goto error;
+
+	table->from = kzalloc((sizeof(int) * table->lux_tab_size), GFP_KERNEL);
+	if (!table->from)
+		goto error;
+
+	table->end = kzalloc((sizeof(int) * table->lux_tab_size), GFP_KERNEL);
+	if (!table->end)
+		goto error;
+
+	table->auto_level = kzalloc((sizeof(int) * table->lux_tab_size), GFP_KERNEL);
+	if (!table->auto_level)
+		goto error;
+
+	data_offset = 0;
+
+	for (i = 0 ; i < table->lux_tab_size; i++) {
+		table->cmd_idx[i] = be32_to_cpup(&data[data_offset++]);		/* 1st field => <idx> */
+		table->from[i] = be32_to_cpup(&data[data_offset++]);		/* 2nd field => <from> */
+		table->end[i] = be32_to_cpup(&data[data_offset++]);			/* 3rd field => <till> */
+		table->lux_tab[i] = be32_to_cpup(&data[data_offset++]);		/* 4th field => <candella> */
+		table->auto_level[i] = be32_to_cpup(&data[data_offset++]);  /* 5th field => <auto brightness level> */
+	}
+
+	table->hbm_min_lv = table->from[0];
+	
+	pr_err("tab_size (%d) hbm_min_lv (%d)\n", table->lux_tab_size, table->hbm_min_lv);
+			return 0;
+error:
+	kfree(table->lux_tab);
+	kfree(table->cmd_idx);
+	kfree(table->from);
+	kfree(table->end);
+	kfree(table->auto_level);
+
+	return -ENOMEM;
+}
+
 int mdss_samsung_parse_panel_table(struct device_node *np,
 		struct cmd_map *table, char *keystring)
 {
@@ -1514,6 +1579,31 @@ int get_candela_value(struct samsung_display_driver_data *vdd, int ndx)
 		index = vdd->cmd_idx;
 
 	return vdd->dtsi_data[ndx].candela_map_table[vdd->panel_revision].lux_tab[index];
+}
+
+void set_auto_brightness_value(struct samsung_display_driver_data *vdd, int ndx)
+{
+	int i, from, end;
+	int size;
+
+	size = vdd->dtsi_data[ndx].hbm_candela_map_table[vdd->panel_revision].lux_tab_size;
+
+	for (i=0; i<size; i++) {
+		from = vdd->dtsi_data[ndx].hbm_candela_map_table[vdd->panel_revision].from[i];
+		end = vdd->dtsi_data[ndx].hbm_candela_map_table[vdd->panel_revision].end[i];
+
+		if (vdd->bl_level >= from && vdd->bl_level <= end)
+			break;
+	}
+
+	if (i == size) {
+		pr_err("can not find auto brightness value !!(for %d / size %d)\n", vdd->bl_level, size);
+		i = size-1;
+	}
+
+	vdd->candela_level = vdd->dtsi_data[ndx].hbm_candela_map_table[vdd->panel_revision].lux_tab[i];
+	vdd->auto_brightness = vdd->dtsi_data[ndx].hbm_candela_map_table[vdd->panel_revision].auto_level[i];
+	return;
 }
 
 int get_scaled_level(struct samsung_display_driver_data *vdd, int ndx)
@@ -2658,6 +2748,10 @@ void mdss_samsung_panel_parse_dt_cmds(struct device_node *np,
 		if (mdss_samsung_parse_candella_lux_mapping_table(np, &vdd->dtsi_data[ndx].scaled_level_map_table[panel_revision], string) && panel_revision > 0) /* SCALED LEVEL MAP TABLE */
 			memcpy(&vdd->dtsi_data[ndx].scaled_level_map_table[panel_revision], &vdd->dtsi_data[ndx].scaled_level_map_table[panel_revision - 1], sizeof(struct candella_lux_map));
 
+		snprintf(string, PARSE_STRING, "samsung,hbm_candela_map_table_rev%c", panel_revision + rev_value);
+				if (mdss_samsung_parse_hbm_candella_lux_mapping_table(np, &vdd->dtsi_data[ndx].hbm_candela_map_table[panel_revision], string) && panel_revision > 0) /* hbm candella LEVEL MAP TABLE */
+					memcpy(&vdd->dtsi_data[ndx].hbm_candela_map_table[panel_revision], &vdd->dtsi_data[ndx].hbm_candela_map_table[panel_revision - 1], sizeof(struct hbm_candella_lux_map));
+
 		/* Additional Command */
 		snprintf(string, PARSE_STRING, "samsung,packet_size_tx_cmds_rev%c", panel_revision + rev_value);
 		if (mdss_samsung_parse_dcs_cmds(np, &vdd->dtsi_data[ndx].packet_size_tx_cmds[panel_revision], string, NULL) && panel_revision > 0)
@@ -3280,7 +3374,7 @@ static void load_tuning_file(struct device *dev, char *filename)
 	filp = filp_open(filename, O_RDONLY, 0);
 	if (IS_ERR(filp)) {
 		printk(KERN_ERR "%s File open failed\n", __func__);
-		return;
+		goto err;
 	}
 
 	l = filp->f_path.dentry->d_inode->i_size;
@@ -3290,7 +3384,7 @@ static void load_tuning_file(struct device *dev, char *filename)
 	if (dp == NULL) {
 		pr_info("Can't not alloc memory for tuning file load\n");
 		filp_close(filp, current->files);
-		return;
+		goto err;
 	}
 	pos = 0;
 	memset(dp, 0, l);
@@ -3303,7 +3397,7 @@ static void load_tuning_file(struct device *dev, char *filename)
 		pr_info("vfs_read() filed ret : %d\n", ret);
 		kfree(dp);
 		filp_close(filp, current->files);
-		return;
+		goto err;
 	}
 
 	filp_close(filp, current->files);
@@ -3313,6 +3407,10 @@ static void load_tuning_file(struct device *dev, char *filename)
 	sending_tune_cmd(dev, dp, l);
 
 	kfree(dp);
+	
+	return;
+err:
+	set_fs(fs);
 }
 
 static ssize_t tuning_show(struct device *dev,
@@ -3329,6 +3427,9 @@ static ssize_t tuning_store(struct device *dev,
 			    size_t size)
 {
 	char *pt;
+	if (buf == NULL || strchr(buf, '.') || strchr(buf, '/'))
+		return size;
+
 	memset(tuning_file, 0, sizeof(tuning_file));
 	snprintf(tuning_file, MAX_FILE_NAME, "%s%s", TUNING_FILE_PATH, buf);
 
@@ -3696,6 +3797,8 @@ static ssize_t mdss_samsung_auto_brightness_store(struct device *dev,
 		pr_err("%s vdd is error", __func__);
 		return size;
 	}
+	if(!IS_ERR_OR_NULL(vdd->dtsi_data[DISPLAY_1].hbm_candela_map_table[vdd->panel_revision].cmd_idx))
+		return size;
 
 	pdata = &vdd->ctrl_dsi[DISPLAY_1]->panel_data;
 
@@ -4861,7 +4964,7 @@ void mdss_mdp_underrun_dump_info(void)
 				pipe->dst.x, pipe->dst.y, pipe->dst.w, pipe->dst.h,
 				pipe->flags, pipe->src_fmt->format, pipe->src_fmt->bpp,
 				pipe->ndx);
-		pr_err("pipe addr : %pK\n", pipe);
+		pr_err("pipe addr : %p\n", pipe);
 		pcount--;
 		if (!pcount) break;
 	}
@@ -4891,7 +4994,7 @@ void mdss_samsung_fence_dump(struct sync_fence *fence)
 		tv = ktime_to_timeval(pt->timestamp);
 		status = pt->status;
 
-		pr_err("%s %s%pst %s : %ld.%06ld\n", __func__,
+		pr_err("%s %s%spt %s : %ld.%06ld\n", __func__,
 		   fence ? pt->parent->name : "",
 		   fence ? "_" : "",
 		   status > 0 ? "signaled" : pt->status == 0 ? "active" : "error",

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  * Copyright (C) 2007 Google Incorporated
  *
  * This software is licensed under the terms of the GNU General Public
@@ -909,11 +909,19 @@ static int mdp3_check_version(void)
 {
 	int rc;
 
+	rc = mdp3_footswitch_ctrl(1);
+	if (rc) {
+		pr_err("unable to turn on FS\n");
+		return rc;
+	}
+
 	rc = mdp3_clk_update(MDP3_CLK_AHB, 1);
 	rc |= mdp3_clk_update(MDP3_CLK_AXI, 1);
 	rc |= mdp3_clk_update(MDP3_CLK_MDP_CORE, 1);
-	if (rc)
+	if (rc) {
+		mdp3_footswitch_ctrl(0);
 		return rc;
+	}
 
 	mdp3_res->mdp_rev = MDP3_REG_READ(MDP3_REG_HW_VERSION);
 
@@ -922,6 +930,10 @@ static int mdp3_check_version(void)
 	rc |= mdp3_clk_update(MDP3_CLK_MDP_CORE, 0);
 	if (rc)
 		pr_err("fail to turn off the MDP3_CLK_AHB clk\n");
+
+	rc = mdp3_footswitch_ctrl(0);
+	if (rc)
+		pr_err("unable to turn off FS\n");
 
 	if (mdp3_res->mdp_rev != MDP_CORE_HW_VERSION) {
 		pr_err("mdp_hw_revision=%x mismatch\n", mdp3_res->mdp_rev);
@@ -1034,7 +1046,12 @@ u64 mdp3_get_panic_lut_cfg(u32 panel_width)
 int mdp3_qos_remapper_setup(struct mdss_panel_data *panel)
 {
 	int rc = 0;
-	u64 panic_config = mdp3_get_panic_lut_cfg(panel->panel_info.xres);
+	u64 panic_config = 0;
+
+        if (!panel)
+                return -EINVAL;
+
+	panic_config = mdp3_get_panic_lut_cfg(panel->panel_info.xres);
 
 	rc = mdp3_clk_update(MDP3_CLK_AHB, 1);
 	rc |= mdp3_clk_update(MDP3_CLK_AXI, 1);
@@ -1043,9 +1060,6 @@ int mdp3_qos_remapper_setup(struct mdss_panel_data *panel)
 		pr_err("fail to turn on MDP core clks\n");
 		return rc;
 	}
-
-	if (!panel)
-		return -EINVAL;
 	/* Program MDP QOS Remapper */
 	MDP3_REG_WRITE(MDP3_DMA_P_QOS_REMAPPER, 0x1A9);
 	MDP3_REG_WRITE(MDP3_DMA_P_WATERMARK_0, 0x0);
@@ -2293,6 +2307,7 @@ static int mdp3_panel_register_done(struct mdss_panel_data *pdata)
 	if (pdata->panel_info.cont_splash_enabled == false)
 		mdp3_res->allow_iommu_update = true;
 
+	mdss_res->pdata = pdata;
 	return rc;
 }
 
@@ -2350,6 +2365,7 @@ static int mdp3_debug_init(struct platform_device *pdev)
 	mdss_res = mdata;
 
 	mdata->debug_inf.debug_enable_clock = mdp3_debug_enable_clock;
+	mdata->mdp_rev = mdp3_res->mdp_rev;
 
 	rc = mdss_debugfs_init(mdata);
 	if (rc)

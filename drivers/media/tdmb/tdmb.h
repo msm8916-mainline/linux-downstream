@@ -97,6 +97,8 @@ struct sub_ch_info_type {
 	unsigned char svc_label[SVC_LABEL_MAX+1]; /* 16*8 bits */
 	unsigned char ecc;	/* 8 bits */
 	unsigned char scids;	/* 4 bits */
+
+	unsigned char ca_flags;
 } ;
 
 struct ensemble_info_type {
@@ -159,6 +161,7 @@ struct tdmb_dt_platform_data {
 	int tdmb_use_irq;
 #ifdef CONFIG_TDMB_XTAL_FREQ
 	int tdmb_xtal_freq;
+	u8 xtal_load_cap;
 #endif
 	struct pinctrl *tdmb_pinctrl;
 	struct pinctrl_state *pwr_on, *pwr_off, *gpio_init;
@@ -181,7 +184,7 @@ bool tdmb_store_data(unsigned char *data, unsigned long len);
 
 struct tdmb_drv_func {
 	bool (*init) (void);
-	bool (*power_on) (int param);
+	bool (*power_on) (struct tdmb_dt_platform_data *pdata);
 	void (*power_off) (void);
 	bool (*scan_ch) (struct ensemble_info_type *ensembleInfo,
 						unsigned long freq);

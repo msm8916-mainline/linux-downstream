@@ -56,7 +56,7 @@
 			fuelgauge,capacity_max = <1000>;
 			fuelgauge,capacity_max_margin = <50>;
 			fuelgauge,capacity_min = <0>;
-			fuelgauge,capacity_calculation_type = <0x17>;
+			fuelgauge,capacity_calculation_type = <0x1F>;
 			fuelgauge,fuel_alert_soc = <1>;
 			fuelgauge,using_temp_compensation;
 			fuelgauge,low_temp_limit = <(-100)>;

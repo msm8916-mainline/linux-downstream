@@ -20,6 +20,7 @@
 #include <linux/wacom_i2c.h>
 #include "wacom_i2c_flash.h"
 #include <linux/uaccess.h>
+#include <linux/vmalloc.h>
 
 #define ERR_HEX 0x056
 #define RETRY_TRANSFER 5
@@ -1707,11 +1708,14 @@ int wacom_fw_load_from_UMS(struct wacom_i2c *wac_i2c)
 		__func__, WACOM_FW_PATH, fsize);
 
 	firm_data = kzalloc(fsize, GFP_KERNEL);
-	if (IS_ERR(firm_data)) {
-		dev_err(&wac_i2c->client->dev,
-			"%s, kmalloc failed\n", __func__);
+	if (!firm_data) {
+		firm_data = vzalloc(fsize);
+		if (!firm_data) {
+			dev_err(&wac_i2c->client->dev,
+				"%s, firmdata memory allocation failed\n", __func__);
 			ret = -EFAULT;
-		goto malloc_error;
+			goto malloc_error;
+		}
 	}
 
 	nread = vfs_read(fp, (char __user *)firm_data,
@@ -1759,10 +1763,13 @@ int wacom_load_fw_from_req_fw(struct wacom_i2c *wac_i2c)
 
 	if(wac_i2c->ic_mpu_ver == MPU_W9002) {
 		flash_data = kzalloc(65536*2, GFP_KERNEL);
-		if (IS_ERR(flash_data)) {
-			dev_info(&wac_i2c->client->dev,
-				"%s: kmalloc failed\n", __func__);
-			return -1;
+		if (!flash_data) {
+			flash_data = vzalloc(65536*2);
+			if (!flash_data) {
+				dev_info(&wac_i2c->client->dev,
+					"%s: flash_data memory allocation failed\n", __func__);
+				return -1;
+			}
 		}
 		memset((void *)flash_data, 0xff, 65536*2);
 	}

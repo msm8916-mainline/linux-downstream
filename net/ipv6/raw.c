@@ -616,6 +616,8 @@ static int rawv6_send_hdrinc(struct sock *sk, void *from, int length,
 		ipv6_local_error(sk, EMSGSIZE, fl6, rt->dst.dev->mtu);
 		return -EMSGSIZE;
 	}
+	if (length < sizeof(struct ipv6hdr))
+		return -EINVAL;
 	if (flags&MSG_PROBE)
 		goto out;
 
@@ -905,7 +907,7 @@ done:
 out:
 	fl6_sock_release(flowlabel);
 	txopt_put(opt_to_free);
-	return err<0?err:len;
+	return err < 0 ? err : len;
 do_confirm:
 	dst_confirm(dst);
 	if (!(msg->msg_flags & MSG_PROBE) || len)

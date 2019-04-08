@@ -34,6 +34,11 @@ config SEC_HYBRID_TRAY
 	help
 	  Support for Samsung HYBRID TRAY Project
 
+config MMC_DS_TOOL
+	bool "MMC drive strength tool"
+	depends on MMC != n
+	default n
+
 config MMC_SUPPORT_STLOG
 	bool "Enable storage log"
 	depends on MMC && PROC_STLOG

@@ -1,3 +1,5 @@
+/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2011-2014, 2016, The Linux Foundation. All rights reserved. */
 /* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -2503,6 +2505,7 @@ int msm_ipc_router_register_server(struct msm_ipc_port *port_ptr,
 	if (!port_ptr || !name)
 		return -EINVAL;
 	
+
 	if (port_ptr->type != CLIENT_PORT)
 		return -EINVAL;
 

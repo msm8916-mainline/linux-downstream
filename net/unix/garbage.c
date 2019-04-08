@@ -158,7 +158,8 @@ void unix_notinflight(struct user_struct *user, struct file *fp)
 			list_del_init(&u->link);
 		unix_tot_inflight--;
 	}
-	user->unix_inflight--;
+	if (user->unix_inflight > 0)
+		user->unix_inflight--;
 	spin_unlock(&unix_gc_lock);
 }
 

@@ -143,9 +143,21 @@ fw-shipped-$(CONFIG_TOUCHSCREEN_MMS300_A) += tsp_melfas/mms345l_a5.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MMS449) += tsp_melfas/mms449_k5.fw tsp_melfas/mms449_a8.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_MMS438) += tsp_melfas/mms438_xcover3.fw
 fw-shipped-$(CONFIG_KEYBOARD_TC360_TKEY) += tkey/tc360_e5.fw tkey/tc360_e7.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1664T) += tsp_atmel/mxtt_klimt.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1664T) += tsp_atmel/mxtt_gt510lte.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1664T) += tsp_atmel/mxtt_gt5note10.fw
+
+ifdef CONFIG_TOUCHSCREEN_ATMEL_MXT1664T
+fw-shipped-$(CONFIG_MACH_GT5NOTE103G_EUR_OPEN) += tsp_atmel/mxtt_gt5note10.fw
+fw-shipped-$(CONFIG_MACH_GT5NOTE10_EUR_OPEN) += tsp_atmel/mxtt_gt5note10.fw
+fw-shipped-$(CONFIG_MACH_GT5NOTE10WIFI_EUR_OPEN) += tsp_atmel/mxtt_gt5note10.fw
+fw-shipped-$(CONFIG_MACH_GT5NOTE10_CHN_OPEN) += tsp_atmel/mxtt_gt5note10.fw
+fw-shipped-$(CONFIG_MACH_GT5NOTE10_KOR_OPEN) += tsp_atmel/mxtt_gt5note10.fw
+fw-shipped-$(CONFIG_MACH_GT510_EUR_OPEN) += tsp_atmel/mxtt_gt510lte.fw
+fw-shipped-$(CONFIG_MACH_GT510_CHN_OPEN) += tsp_atmel/mxtt_gt510lte.fw
+fw-shipped-$(CONFIG_MACH_GT510WIFI_EUR_OPEN) += tsp_atmel/mxtt_gt510lte.fw
+endif
+# This FW "mxtt_klimt.fw" included in old H/W rev < 3, Used during development.
+# Now, no need to include as binary size is increasing.
+#fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1664T) += tsp_atmel/mxtt_klimt.fw
+
 fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1188S) += tsp_atmel/mXT1188S.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT1188S) += tsp_atmel/mXT1664S.fw
 fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH) += tkey/abov_tk_k5.fw
@@ -168,7 +180,7 @@ fw-shipped-$(CONFIG_KEYBOARD_TC305_TKEY) += tkey/tc305k_j5x.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_SEC_TS) += tsp_sec/s6smc44_img_REL_NA70.bin
 fw-shipped-$(CONFIG_TOUCHSCREEN_FTS) += tsp_stm/stm.fw tsp_stm/stm_de.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_ZT7548_TS)	+= tsp_zinitix/zt7548_gtes.fw
-fw-shipped-$(CONFIG_TOUCHSCREEN_ZT7538_TS)	+= tsp_zinitix/zt7538_o7.fw
+fw-shipped-$(CONFIG_TOUCHSCREEN_ZT7538_TS)	+= tsp_zinitix/zt7538_o7.fw tsp_zinitix/zt7538_o7_skt.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_ZT7538) += tsp_zinitix/zt7538_a5x.fw
 fw-shipped-$(CONFIG_KEYBOARD_TC360_TKEY_J5) += coreriver/tc360_j5_dtv.fw coreriver/tc360_j5.fw
 

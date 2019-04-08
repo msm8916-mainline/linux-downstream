@@ -1105,14 +1105,13 @@ static void mxt_gt5_change_config(struct mxt_data *data)
 							140, 0);
 	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
 							150, 0);
-	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							0, 25);
-
 	/* 0324 */
 	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
 							180, 0);
 	ret = mxt_write_object(data, MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70,
 							190, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,  /* 0424 */
+							0, 25);
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
 							0, 27);
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
@@ -1123,22 +1122,22 @@ static void mxt_gt5_change_config(struct mxt_data *data)
 							3, 60);
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
 							4, 30);
-	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							5, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80, /* 0424 */
+							5, 197);	
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
 							6, 0);
-	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							7, 0);
-	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
-							8, 0);
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80, /* 0424 */
+							7, 128);	
+	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80, /* 0424 */
+							8, 64);	
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
 							9, 0);
 	ret = mxt_write_object(data, MXT_PROCI_RETRANSMISSIONCOMPENSATION_T80,
 						   10, 0);
-	ret = mxt_write_object(data, MXT_PROCI_TOUCHSUPPRESSION_T42, /* 0324_2 */
-						   3, 100);
-	ret = mxt_write_object(data, MXT_PROCI_TOUCHSUPPRESSION_T42, /* 0324_2 */
-						   4, 64);
+	ret = mxt_write_object(data, MXT_PROCI_TOUCHSUPPRESSION_T42, /* 0424 */
+						   3, 80);							   
+	ret = mxt_write_object(data, MXT_PROCI_TOUCHSUPPRESSION_T42, /* 0424 */
+						   4, 48);	
 #endif
 }
 

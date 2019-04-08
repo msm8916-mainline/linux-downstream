@@ -298,6 +298,7 @@ static void mdss_mdp_smp_set_wm_levels(struct mdss_mdp_pipe *pipe,
 	 * transactions when filling the full SMPs have the lowest priority.
 	 */
 	
+
 	if (pipe->src_fmt->is_yuv)
 		bpp = (pipe->src_fmt->chroma_sample ==
 				MDSS_MDP_CHROMA_H1V2) ? 2 : 1;
@@ -316,6 +317,7 @@ static void mdss_mdp_smp_set_wm_levels(struct mdss_mdp_pipe *pipe,
 	if ((pipe->flags & MDP_FLIP_LR) && !pipe->src_fmt->tile)
 		useable_entries -= (pipe->src.w * bpp);
 	
+
 	useable_entries = useable_entries / SMP_MB_ENTRY_SIZE;
 	req_entries = (latency_bytes / SMP_MB_ENTRY_SIZE);
 
@@ -600,7 +602,7 @@ static int mdss_mdp_smp_alloc(struct mdss_mdp_pipe *pipe)
 
 		if (bitmap_empty(pipe->smp_map[i].reserved, SMP_MB_CNT)) {
 			mdss_mdp_smp_mmb_set(pipe->ftch_id + i,
-				pipe->smp_map[i].allocated);
+			pipe->smp_map[i].allocated);
 			continue;
 		}
 
@@ -808,13 +810,54 @@ static void mdss_mdp_fixed_qos_arbiter_setup(struct mdss_data_type *mdata,
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
 }
 
+int mdss_mdp_get_pipe_info(struct mdss_data_type *mdata, u32 type,
+	struct mdss_mdp_pipe **pipe_pool)
+{
+	int npipes;
+
+	switch (type) {
+	case MDSS_MDP_PIPE_TYPE_VIG:
+		*pipe_pool = mdata->vig_pipes;
+		npipes = mdata->nvig_pipes;
+		break;
+
+	case MDSS_MDP_PIPE_TYPE_RGB:
+		*pipe_pool = mdata->rgb_pipes;
+		npipes = mdata->nrgb_pipes;
+		break;
+
+	case MDSS_MDP_PIPE_TYPE_DMA:
+		*pipe_pool = mdata->dma_pipes;
+		npipes = mdata->ndma_pipes;
+		break;
+
+	case MDSS_MDP_PIPE_TYPE_CURSOR:
+		*pipe_pool = mdata->cursor_pipes;
+		npipes = mdata->ncursor_pipes;
+		break;
+
+	default:
+		npipes = 0;
+		pr_err("invalid pipe type %d\n", type);
+		break;
+}
+
+	return npipes;
+}
+
+static void mdss_mdp_init_pipe_params(struct mdss_mdp_pipe *pipe)
+{
+	kref_init(&pipe->kref);
+	init_waitqueue_head(&pipe->free_waitq);
+}
+
 static struct mdss_mdp_pipe *mdss_mdp_pipe_init(struct mdss_mdp_mixer *mixer,
 	u32 type, u32 off, struct mdss_mdp_pipe *left_blend_pipe)
 {
 	struct mdss_mdp_pipe *pipe = NULL;
 	struct mdss_data_type *mdata;
 	struct mdss_mdp_pipe *pipe_pool = NULL;
-	u32 npipes;
+	u32 npipes = 0;
 	bool pipe_share = false;
 	bool is_realtime;
 	u32 i, reg_val, force_off_mask;
@@ -824,35 +867,12 @@ static struct mdss_mdp_pipe *mdss_mdp_pipe_init(struct mdss_mdp_mixer *mixer,
 
 	mdata = mixer->ctl->mdata;
 
-	switch (type) {
-	case MDSS_MDP_PIPE_TYPE_VIG:
-		pipe_pool = mdata->vig_pipes;
-		npipes = mdata->nvig_pipes;
-		break;
+	npipes = mdss_mdp_get_pipe_info(mdata, type, &pipe_pool);
 
-	case MDSS_MDP_PIPE_TYPE_RGB:
-		pipe_pool = mdata->rgb_pipes;
-		npipes = mdata->nrgb_pipes;
-		break;
-
-	case MDSS_MDP_PIPE_TYPE_DMA:
-		pipe_pool = mdata->dma_pipes;
-		npipes = mdata->ndma_pipes;
-		if ((mdata->wfd_mode == MDSS_MDP_WFD_SHARED) &&
-		   (mixer->type == MDSS_MDP_MIXER_TYPE_WRITEBACK))
-			pipe_share = true;
-		break;
-
-	case MDSS_MDP_PIPE_TYPE_CURSOR:
-		pipe_pool = mdata->cursor_pipes;
-		npipes = mdata->ncursor_pipes;
-		break;
-
-	default:
-		npipes = 0;
-		pr_err("invalid pipe type %d\n", type);
-		break;
-	}
+	if (type == MDSS_MDP_PIPE_TYPE_DMA &&
+		(mdata->wfd_mode == MDSS_MDP_WFD_SHARED) &&
+			(mixer->type == MDSS_MDP_MIXER_TYPE_WRITEBACK))
+		pipe_share = true;
 
 	for (i = off; i < npipes; i++) {
 		pipe = pipe_pool + i;
@@ -864,7 +884,7 @@ static struct mdss_mdp_pipe *mdss_mdp_pipe_init(struct mdss_mdp_mixer *mixer,
 	}
 
 	if (pipe && type == MDSS_MDP_PIPE_TYPE_CURSOR) {
-		kref_init(&pipe->kref);
+		mdss_mdp_init_pipe_params(pipe);
 		goto cursor_done;
 	}
 
@@ -903,7 +923,7 @@ static struct mdss_mdp_pipe *mdss_mdp_pipe_init(struct mdss_mdp_mixer *mixer,
 		pr_debug("type=%x   pnum=%d\n", pipe->type, pipe->num);
 		mutex_init(&pipe->pp_res.hist.hist_mutex);
 		spin_lock_init(&pipe->pp_res.hist.hist_lock);
-		kref_init(&pipe->kref);
+		mdss_mdp_init_pipe_params(pipe);
 		is_realtime = !((mixer->ctl->intf_num == MDSS_MDP_NO_INTF)
 				|| mixer->rotator_mode);
 		mdss_mdp_qos_vbif_remapper_setup(mdata, pipe, is_realtime);
@@ -1241,6 +1261,7 @@ int mdss_mdp_pipe_destroy(struct mdss_mdp_pipe *pipe)
 		return -EBUSY;
 	}
 
+	wake_up_all(&pipe->free_waitq);
 	mutex_unlock(&mdss_mdp_sspp_lock);
 
 	return 0;
@@ -1308,7 +1329,7 @@ int mdss_mdp_pipe_handoff(struct mdss_mdp_pipe *pipe)
 
 	pipe->is_handed_off = true;
 	pipe->play_cnt = 1;
-	kref_init(&pipe->kref);
+	mdss_mdp_init_pipe_params(pipe);
 
 error:
 	return rc;

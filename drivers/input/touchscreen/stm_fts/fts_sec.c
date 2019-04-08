@@ -547,13 +547,13 @@ static ssize_t cmd_list_show(struct device *dev,
 {
 	struct fts_ts_info *info = dev_get_drvdata(dev);
 	int ii = 0;
-	char buffer[info->cmd_buffer_size];
+	char buffer[info->cmd_buffer_size + 30];
 	char buffer_name[CMD_STR_LEN];
 
 	snprintf(buffer, 30, "++factory command list++\n");
 	while (strncmp(ft_cmds[ii].cmd_name, "not_support_cmd", 16) != 0) {
 		snprintf(buffer_name, CMD_STR_LEN, "%s\n", ft_cmds[ii].cmd_name);
-		strcat(buffer, buffer_name);
+		strncat(buffer, buffer_name, (int)strlen(buffer_name));
 		ii++;
 	}
 

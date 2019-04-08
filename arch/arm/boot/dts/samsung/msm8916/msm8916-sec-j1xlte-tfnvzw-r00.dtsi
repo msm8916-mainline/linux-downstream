@@ -378,6 +378,26 @@
 	};
 };
 
+&soc {
+	qcom,lpm-levels {
+		qcom,pm-cluster@0{
+			qcom,pm-cluster-level@2{
+				reg = <2>;
+				label = "l2-pc";
+				qcom,spm-l2-mode = "pc";
+				//qcom,latency-us = <11030>;
+				qcom,latency-us = <17500>;
+				qcom,ss-power = <490>;
+				qcom,energy-overhead = <972390>;
+				qcom,time-overhead = <1580>;
+				qcom,min-child-idx = <2>;
+				qcom,notify-rpm;
+			};
+		};
+	};
+
+};
+
 &blsp1_uart1 {
 	status = "ok";
 };
@@ -417,6 +437,8 @@
 	vdd-io-supply = <&pm8916_l12>;
 	qcom,vdd-io-voltage-level = <1800000 2950000>;
 	qcom,vdd-io-current-level = <200 50000>;
+
+	qcom,clk-rates = <400000 25000000 50000000 100000000 177770000>;
 
 	pinctrl-names = "active", "sleep";
 	pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_on>;

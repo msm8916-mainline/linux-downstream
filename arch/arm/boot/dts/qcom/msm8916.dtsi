@@ -114,6 +114,7 @@
 #include "msm8916-iommu-domains.dtsi"
 #include "msm8916-bus.dtsi"
 #include "msm8916-camera.dtsi"
+#include "msm8916-drm.dtsi"
 
 &soc {
 	#address-cells = <1>;
@@ -828,6 +829,7 @@
 			qcom,smd-irq-bitmask = <0x1000>;
 			interrupts = <0 25 1>;
 			label = "modem";
+			qcom,not-loadable;
 		};
 
 		qcom,smsm-modem {
@@ -1792,8 +1794,8 @@
 					<63 512 0 0>,
 					<63 512 99600 831900>, /* VGA 30 fps */
 					<63 512 298900 831900>, /* VGA 60 fps */
-					<63 512 298900 831900>, /* 720p 30 fps */
-					<63 512 677600 1331000>, /* 720p 60 fps */
+					<63 512 298900 3200000>, /* 720p 30 fps */
+					<63 512 677600 3200000>, /* 720p 60 fps */
 					<63 512 677600 1331000>; /* 1080p 30 fps */
 				qcom,bus-configs = <0x030fcfff>;
 			};
@@ -1872,6 +1874,8 @@
 		compatible = "qcom,mcd";
 		qcom,ce-hw-instance = <0>;
 		qcom,ce-device = <0>;
+		interrupts = <0 248 0>;
+		interrupt-names = "mcd_irq";
 		clocks = <&clock_gcc clk_crypto_clk_src>,
 			 <&clock_gcc clk_gcc_crypto_clk>,
 			 <&clock_gcc clk_gcc_crypto_ahb_clk>,

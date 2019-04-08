@@ -62,7 +62,6 @@
 #define CPP_FW_VERSION_1_2_0	0x10020000
 #define CPP_FW_VERSION_1_4_0	0x10040000
 #define CPP_FW_VERSION_1_6_0	0x10060000
-#define CPP_FW_VERSION_1_8_0	0x10080000
 
 /* stripe information offsets in frame command */
 #define STRIPE_BASE_FW_1_2_0	130
@@ -910,7 +909,7 @@ static void cpp_load_fw(struct cpp_device *cpp_dev, char *fw_name_bin)
 		rc = request_firmware(&fw, fw_name_bin, dev);
 		if (rc) {
 			dev_err(dev,
-				"Fail to loc blob %s from dev %pK, Error: %d\n",
+				"Fail to loc blob %s from dev %p, Error: %d\n",
 				fw_name_bin, dev, rc);
 		}
 		if (NULL != fw)
@@ -1390,16 +1389,6 @@ static int msm_cpp_cfg(struct cpp_device *cpp_dev,
 	}
 
 	new_frame->cpp_cmd_msg = cpp_frame_msg;
-        if (cpp_frame_msg == NULL ||
-		(new_frame->msg_len < MSM_CPP_MIN_FRAME_LENGTH)) {
-		pr_err("%s %d Length is not correct or frame message is missing\n",
-			__func__, __LINE__);
-		return -EINVAL;
-	}
-	if (cpp_frame_msg[new_frame->msg_len - 1] != MSM_CPP_MSG_ID_TRAILER) {
-		pr_err("%s %d Invalid frame message\n", __func__, __LINE__);
-		return -EINVAL;
-	}
 
 	in_phyaddr = msm_cpp_fetch_buffer_info(cpp_dev,
 		&new_frame->input_buffer_info,
@@ -1487,11 +1476,6 @@ static int msm_cpp_cfg(struct cpp_device *cpp_dev,
 		stripe_base = STRIPE_BASE_FW_1_6_0;
 	} else {
 		pr_err("invalid fw version %08x", cpp_dev->fw_version);
-		//goto ERROR3;
-	}
-	if ((stripe_base + num_stripes*27 + 1) != new_frame->msg_len) {
-		pr_err("Invalid frame message\n");
-		rc = -EINVAL;
 		goto ERROR3;
 	}
 
@@ -1568,9 +1552,9 @@ long msm_cpp_subdev_ioctl(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 	if (_IOC_DIR(cmd) == _IOC_NONE) {
-		pr_err("Invalid ioctl/subdev cmd %u", cmd);	
-		return -EINVAL;	
-	}	
+		pr_err("Invalid ioctl/subdev cmd %u", cmd);
+		return -EINVAL;
+	}
 	mutex_lock(&cpp_dev->mutex);
 	CPP_DBG("E cmd: 0x%x\n", cmd);
 	switch (cmd) {

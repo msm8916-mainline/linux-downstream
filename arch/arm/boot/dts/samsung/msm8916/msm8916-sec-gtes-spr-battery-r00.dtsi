@@ -29,7 +29,7 @@
 
 		battery,adc_check_count = <5>;
 
-		battery,cable_check_type = <5>; /* SEC_BATTERY_CABLE_CHECK_NOUSBCHARGE | SEC_BATTERY_CABLE_CHECK_PSY */
+		battery,cable_check_type = <4>; /* SEC_BATTERY_CABLE_CHECK_PSY */
 		battery,cable_source_type = <3>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
 		battery,event_waiting_time = <600>;
 		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
@@ -97,8 +97,8 @@
 			battery,chg_polarity_status = <0>;
 			battery,chg_float_voltage = <4350>;
 
-			battery,input_current_limit = <1700 0 0 1700 460 1700 1700 460 1700 0 1700 1700 1700 0 0 400 1700 1700 300 1700 1700 0 1700 1700 1700 80 1700 1700 1700 450>;
-			battery,fast_charging_current = <2100 0 0 2100 460 2100 2100 460 2100 0 2100 2100 2100 0 0 400 2100 2100 300 2100 2100 0 2100 2100 2100 80 2100 2100 2100 450>;
+			battery,input_current_limit = <1700 0 0 1700 460 1700 1700 460 1700 0 1700 1700 1700 0 1700 400 1700 1700 300 1700 1700 0 1700 1700 1700 80 1700 1700 1700 450>;
+			battery,fast_charging_current = <2100 0 0 2100 460 2100 2100 460 2100 0 2100 2100 2100 0 2100 400 2100 2100 300 2100 2100 0 2100 2100 2100 80 2100 2100 2100 450>;
 			battery,full_check_current_1st = <250 0 0 250 250 250 250 250 250 0 250 250 250 0 0 250 250 250 250 250 250 0 250 250 250 0 250 250 250 250>;
 			battery,full_check_current_2nd = <150 0 0 150 150 150 150 150 150 0 150 150 150 0 0 150 150 150 150 150 150 0 150 150 150 0 150 150 150 150>;
 		};

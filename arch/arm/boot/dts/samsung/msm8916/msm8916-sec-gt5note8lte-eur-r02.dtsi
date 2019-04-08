@@ -56,7 +56,7 @@
 			fuelgauge,capacity_max = <1000>;
 			fuelgauge,capacity_max_margin = <50>;
 			fuelgauge,capacity_min = <0>;
-			fuelgauge,capacity_calculation_type = <0x17>;
+			fuelgauge,capacity_calculation_type = <0x1F>;
 			fuelgauge,fuel_alert_soc = <1>;
 			fuelgauge,using_temp_compensation;
 			fuelgauge,low_temp_limit = <(-100)>;
@@ -309,8 +309,8 @@
 				 <&det_zones 954 10000 10 0>,
 				 <&det_zones 955 10000 10 1>,
 				 <&det_zones 9999 10000 10 1>;
-		but-zones-list = <&but_zones 0 0 290>,
-				 <&but_zones 3 291 353>,
+		but-zones-list = <&but_zones 0 0 273>,
+				 <&but_zones 3 274 353>,
 				 <&but_zones 1 354 468>,
 				 <&but_zones 2 469 9999>;
 		btn-adc-read-count = <8>;

@@ -471,12 +471,17 @@ int ist30xx_power_off(struct ist30xx_data *data)
 	if (data->status.power != 0) {
 		tsp_info("%s()\n", __func__);
 		ist30xx_tracking(TRACK_PWR_OFF);
+		if (data->suspend) 
+			data->ignore_delay = true;
         ist30xxc_isp_enable(data->client, true); // MCU Stop
+		if (data->suspend)
+			data->ignore_delay = false;
 		/* VDDIO disable */
 /*		msleep(5);*/
 		/* VDD disable */
 		rc = ts_power_enable(data, 0);
-		msleep(50);
+		if (!data->suspend)
+			msleep(50);
 		if (!rc) /*power is disabled successfully*/
 			data->status.power = 0;
 		data->status.noise_mode = false;
@@ -497,8 +502,8 @@ int ist30xx_reset(struct ist30xx_data *data, bool download)
 
 int ist30xx_internal_suspend(struct ist30xx_data *data)
 {
-#if IST30XX_GESTURE
 	data->suspend = true;
+#if IST30XX_GESTURE
     if (data->gesture) {
         ist30xx_reset(data, false);
         ist30xx_cmd_gesture(data->client, 3);
@@ -513,8 +518,8 @@ int ist30xx_internal_suspend(struct ist30xx_data *data)
 
 int ist30xx_internal_resume(struct ist30xx_data *data)
 {
-#if IST30XX_GESTURE
 	data->suspend = false;
+#if IST30XX_GESTURE
     if (data->gesture)
 		ist30xx_reset(data, false);
     else

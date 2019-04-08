@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014,2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -408,6 +408,7 @@ static long msm_core_ioctl(struct file *file, unsigned int cmd,
 	if (!argp)
 		return -EINVAL;
 	
+
 	get_user(cluster, &argp->cluster);
 	mpidr = (cluster << (MAX_CORES_PER_CLUSTER *
 			MAX_NUM_OF_CLUSTERS));

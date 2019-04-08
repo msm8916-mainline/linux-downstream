@@ -701,7 +701,7 @@ static int msm_isp_send_hw_cmd(struct vfe_device *vfe_dev,
 	case VFE_READ_DMI_32BIT:
 	case VFE_READ_DMI_64BIT: {
 		if (reg_cfg_cmd->cmd_type == VFE_WRITE_DMI_64BIT ||
-	            reg_cfg_cmd->cmd_type == VFE_READ_DMI_64BIT) {
+		     reg_cfg_cmd->cmd_type == VFE_READ_DMI_64BIT) {
 			if ((reg_cfg_cmd->u.dmi_info.hi_tbl_offset <=
 				reg_cfg_cmd->u.dmi_info.lo_tbl_offset) ||
 				(reg_cfg_cmd->u.dmi_info.hi_tbl_offset -
@@ -1025,7 +1025,7 @@ int msm_isp_proc_cmd_list(struct vfe_device *vfe_dev, void *arg)
 	struct msm_vfe_cfg_cmd_list cmd, cmd_next;
 
 	if (!vfe_dev || !arg) {
-		pr_err("%s:%d failed: vfe_dev %pK arg %pK", __func__, __LINE__,
+		pr_err("%s:%d failed: vfe_dev %p arg %p", __func__, __LINE__,
 			vfe_dev, arg);
 		return -EINVAL;
 	}

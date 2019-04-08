@@ -55,6 +55,11 @@ struct sec_battery_extcon_cable{
 #define DEFAULT_HEALTH_CHECK_COUNT	5
 #define TEMP_HIGHLIMIT_DEFAULT	2000
 
+#define SEC_BAT_CURRENT_EVENT_NONE			0x0000
+#define SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING		0x0010
+#define SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING	0x0020
+#define SEC_BAT_CURRENT_EVENT_LOW_TEMP			0x0080
+
 #if defined(CONFIG_CHARGING_VZWCONCEPT)
 #define STORE_MODE_CHARGING_MAX 35
 #define STORE_MODE_CHARGING_MIN 30
@@ -92,6 +97,8 @@ struct sec_battery_info {
 #if defined(CONFIG_EXTCON)
 	struct sec_battery_extcon_cable extcon_cable_list[EXTCON_NONE];
 #endif /* CONFIG_EXTCON */
+	bool safety_timer_set;
+	bool lcd_status;
 
 	int status;
 	int health;
@@ -106,6 +113,7 @@ struct sec_battery_info {
 	int current_adc;
 
 	unsigned int capacity;			/* SOC (%) */
+	unsigned int input_voltage;		/* CHGIN/WCIN input voltage (V) */
 
 	struct mutex adclock;
 	struct adc_sample_info	adc_sample[ADC_CH_COUNT];
@@ -193,6 +201,10 @@ struct sec_battery_info {
 	struct wake_lock vbus_detect_wake_lock;
 	struct delayed_work vbus_detect_work;
 
+	int input_current;
+	int charging_current;
+	int topoff_current;
+
 	/* wireless charging enable */
 	int wc_enable;
 	int wc_status;
@@ -217,20 +229,10 @@ struct sec_battery_info {
 	int siop_level;
 	int stability_test;
 	int eng_not_full_status;
-
-	bool charging_block;
 	bool skip_chg_temp_check;
+	bool charging_block;
 #if defined(CONFIG_BATTERY_SWELLING)
-	int swelling_temp_high_threshold;
-	int swelling_temp_high_recovery;
-	int swelling_temp_low_threshold;
-	int swelling_temp_low_recovery;
-	int swelling_recharge_voltage;
-	int swelling_block_time;
-
 	bool swelling_mode;
-	unsigned long swelling_block_start;
-	unsigned long swelling_block_passed;
 	int swelling_full_check_cnt;
 #endif
 #if defined(CONFIG_BATTERY_SWELLING_SELF_DISCHARGING)
@@ -255,6 +257,16 @@ struct sec_battery_info {
 #if defined(CONFIG_SW_SELF_DISCHARGING)
 	bool sw_self_discharging;
 	struct wake_lock self_discharging_wake_lock;
+#endif
+	bool stop_timer;
+	unsigned long prev_safety_time;
+	unsigned long expired_time;
+	unsigned long cal_safety_time;
+
+	struct mutex current_eventlock;
+	unsigned int current_event;
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+	int batt_cycle;
 #endif
 };
 
@@ -373,8 +385,15 @@ enum {
 #if defined(CONFIG_SW_SELF_DISCHARGING)
 	BATT_SW_SELF_DISCHARGING,
 #endif
+	SAFETY_TIMER_SET,
 	HMT_TA_CONNECTED,
 	HMT_TA_CHARGE,
+#if defined(CONFIG_BATTERY_AGE_FORECAST)
+	FG_CYCLE,
+	FG_FULL_VOLTAGE,
+	FG_FULLCAPNOM,
+	BATTERY_CYCLE,
+#endif
 };
 
 #ifdef CONFIG_OF

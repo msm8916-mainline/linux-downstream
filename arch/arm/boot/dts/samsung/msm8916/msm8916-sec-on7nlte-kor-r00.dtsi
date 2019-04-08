@@ -56,7 +56,7 @@
 		regulator-name = "tsp_avdd";
 		regulator-min-microvolt = <3000000>;
 		regulator-max-microvolt = <3000000>;
-		gpio = <&msm_gpio 8 0x1>;
+		gpio = <&msm_gpio 108 0x1>;
 		enable-active-high;
 		regulator-boot-on;
 	};
@@ -74,13 +74,13 @@
 			pinctrl-names = "tsp_i2c_gpio_active", "tsp_i2c_suspend";
 			pinctrl-0 = <&tsp_int_active &tsp_en_active>;
 			pinctrl-1 = <&tsp_int_suspend &tsp_en_suspend>;
-			zinitix,tsppwr_en = <&msm_gpio 108 0x1>;
+			avdd-supply = <&tsp_avdd>;
 			vddo-supply = <&pm8916_l6>;
 			zt7548,x_resolution = <2880>;	// 720 * 4
 			zt7548,y_resolution = <5120>;	// 1280 * 4
 		//	key-led-supply = <&pm8916_l16>;
 			zt7548,model_name = "G600";
-			zt7548,fw_name = "zt7538_o7.fw";
+			zt7548,fw_name = "zt7538_o7_skt.fw";
 			zt7548,reg_boot_on;
 		};
 	};
@@ -236,14 +236,14 @@
 			};
 		};
 	};
-	leds_ktd2692 {
+/*	leds_ktd2692 {
                 compatible = "ktd2692";
                 flash-en-gpio= <&msm_gpio 85 0x0>;
                 status = "okay";
                 pinctrl-names ="front_fled_default","front_fled_sleep";
                 pinctrl-0 = <&front_flash_active>;
                 pinctrl-1 = <&front_flash_sleep>;
-    };
+    }; */
 
 	gen-vkeys {
 		compatible = "qcom,gen-vkeys";
@@ -308,7 +308,7 @@
 			stk,ledctrl-reg = <0xFF>;
 			stk,wait-reg = <0x03>;
 			stk,ps-thd-h = <18>;
-			stk,ps-thd-l = <13>;
+			stk,ps-thd-l = <12>;
 			stk,ps-cancel-thd-h = <10>;
 			stk,ps-cancel-thd-l = <7>;
 			stk,ps-cal-skip-adc = <8>;
@@ -321,6 +321,7 @@
 	/* Over-riding model specific changes */
 	sound {
 		qcom,msm-ext-pa = "quaternary";
+		qcom,msm-micbias1-ext-cap;
 		qcom,audio-routing =
 			"RX_BIAS", "MCLK",
 			"SPK_RX_BIAS", "MCLK",
@@ -398,16 +399,6 @@
 		};
 	};
 
-	hall {
-		status = "okay";
-		compatible = "hall";
-		interrupt-parent = <&msm_gpio>;
-		interrupts = <52 0>;
-		hall,gpio_flip_cover = <&msm_gpio 52 0>;
-		pinctrl-names = "pmx_hall_ic_pin";
-		pinctrl-0 = <&hall_ic_pin>;
-	};
-	
 	i2c_1: i2c@78b5000 { /* BLSP1 QUP1 */
 		status = "ok";
 		qcom,clk-freq-out = <400000>;
@@ -468,13 +459,13 @@
 		qcom,earjack-read-vadc = <&pm8916_vadc>;
 
 		det-zones-list = <&det_zones 0 10000 10 0>,
-                         <&det_zones 905 10000 10 0>,
-                         <&det_zones 906 10000 10 1>,
+                         <&det_zones 911 10000 10 0>,
+                         <&det_zones 912 10000 10 1>,
                          <&det_zones 9999 10000 10 1>;
-		but-zones-list = <&but_zones 0 0 202>,
-                        <&but_zones 3 203 251>,    
-                         <&but_zones 1 252 377>,
-                         <&but_zones 2 378 741>;
+		but-zones-list = <&but_zones 0 0 173>,
+                        <&but_zones 3 174 260>,    
+                         <&but_zones 1 261 364>,
+                         <&but_zones 2 365 999>;
 		mpp-channel-scaling = <2 1 1>;
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
 		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
@@ -611,8 +602,8 @@
 
 &mdss_dsi0 {
 	pinctrl-names = "mdss_default", "mdss_sleep";
-	pinctrl-0 = <&mdss_dsi_active &bl_active &bl_i2c_active>;
-	pinctrl-1 = <&mdss_dsi_suspend &bl_suspend &bl_i2c_suspend>;
+	pinctrl-0 = <&mdss_dsi_active &bl_active &bl_i2c_active &mdss_esd_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &bl_suspend &bl_i2c_suspend &mdss_esd_suspend>;
 	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
 	gdsc-supply = <&gdsc_mdss>;
 	vdda-supply = <&pm8916_l2>;

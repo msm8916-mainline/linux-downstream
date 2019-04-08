@@ -245,8 +245,8 @@ country CY: DFS-ETSI
 # implemented.
 country CZ: DFS-ETSI
 	(2400 - 2483.5 @ 40), (N/A, 100 mW)
-	(5150 - 5250 @ 80), (N/A, 200 mW)
-	(5250 - 5350 @ 80), (N/A, 100 mW), DFS
+	(5150 - 5250 @ 80), (N/A, 200 mW), NO-OUTDOOR
+	(5250 - 5350 @ 80), (N/A, 100 mW), NO-OUTDOOR, DFS
 	(5470 - 5725 @ 80), (N/A, 500 mW), DFS
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567
 	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
@@ -267,9 +267,9 @@ country DE: DFS-ETSI
 	# entries 279004 and 280006
 	(2400 - 2483.5 @ 40), (N/A, 100 mW)
 	# entry 303005
-	(5150 - 5250 @ 80), (N/A, 100 mW)
+	(5150 - 5250 @ 80), (N/A, 100 mW), NO-OUTDOOR
 	# entries 304002 and 305002
-	(5250 - 5350 @ 80), (N/A, 100 mW), DFS
+	(5250 - 5350 @ 80), (N/A, 100 mW), NO-OUTDOOR, DFS
 	# entries 308002, 309001 and 310003
 	(5470 - 5725 @ 80), (N/A, 500 mW), DFS
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567
@@ -318,8 +318,8 @@ country EG:
 
 country ES: DFS-ETSI
 	(2400 - 2483.5 @ 40), (N/A, 100 mW)
-	(5150 - 5250 @ 80), (N/A, 100 mW)
-	(5250 - 5350 @ 80), (N/A, 100 mW), DFS
+	(5150 - 5250 @ 80), (N/A, 100 mW), NO-OUTDOOR
+	(5250 - 5350 @ 80), (N/A, 100 mW), NO-OUTDOOR, DFS
 	(5470 - 5725 @ 80), (N/A, 500 mW), DFS
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567
 	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
@@ -540,13 +540,6 @@ country KH:
 	(5490 - 5710 @ 80), (N/A, 27), DFS
 	(5735 - 5835 @ 40), (N/A, 30)
 
-country KP:
-	(2402 - 2482 @ 20), (N/A, 20)
-	(5170 - 5330 @ 20), (6, 20)
-	(5160 - 5250 @ 20), (6, 20), DFS
-	(5490 - 5630 @ 20), (6, 30), DFS
-	(5735 - 5815 @ 20), (6, 30)
-
 country KR:
 	(2402 - 2482 @ 20), (N/A, 20)
 	(5150 - 5250 @ 80), (6, 20)
@@ -699,9 +692,10 @@ country MU:
 
 country MY:
 	(2402 - 2482 @ 40), (N/A, 20)
-	(5170 - 5250 @ 80), (N/A, 17)
-	(5250 - 5330 @ 80), (N/A, 23), DFS
-	(5735 - 5835 @ 80), (N/A, 30)
+	(5170 - 5250 @ 80), (N/A, 24), AUTO-BW
+	(5250 - 5330 @ 80), (N/A, 24), DFS, AUTO-BW
+	(5490 - 5650 @ 160), (N/A, 24), DFS
+	(5735 - 5835 @ 80), (N/A, 24)
 
 country MX:
 	(2402 - 2482 @ 40), (3, 20)
@@ -730,8 +724,8 @@ country NI:
 
 country NL: DFS-ETSI
 	(2402 - 2482 @ 40), (N/A, 20)
-	(5170 - 5250 @ 80), (N/A, 20)
-	(5250 - 5330 @ 80), (N/A, 20), DFS
+	(5170 - 5250 @ 80), (N/A, 20), NO-OUTDOOR
+	(5250 - 5330 @ 80), (N/A, 20), NO-OUTDOOR, DFS
 	(5490 - 5710 @ 80), (N/A, 27), DFS
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567
 	(57240 - 65880 @ 2160), (N/A, 40), NO-OUTDOOR
@@ -853,7 +847,7 @@ country RO: DFS-ETSI
 # http://www.ratel.rs/upload/documents/Plan_namene/Plan_namene-sl_glasnik.pdf
 country RS:
 	(2400 - 2483.5 @ 40), (N/A, 100 mW)
-	(5150 - 5250 @ 80), (N/A, 200 mW)
+	(5150 - 5250 @ 80), (N/A, 200 mW), NO-OUTDOOR
 	(5250 - 5350 @ 80), (N/A, 200 mW), DFS
 	(5470 - 5725 @ 80), (3, 1000 mW), DFS
 	# 60 gHz band channels 1-4, ref: Etsi En 302 567

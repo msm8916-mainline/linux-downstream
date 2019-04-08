@@ -55,7 +55,7 @@ static int mdss_xlog_dump_open(struct inode *inode, struct file *file)
 static ssize_t mdss_xlog_dump_read(struct file *file, char __user *buff,
 		size_t count, loff_t *ppos)
 {
-	MDSS_XLOG_TOUT_HANDLER("mdp", "dsi0", "dsi1", "edp", "hdmi", "panic");
+	MDSS_XLOG_TOUT_HANDLER("mdp", "dsi0", "dsi1", "edp", "hdmi");
 	return 0;
 }
 

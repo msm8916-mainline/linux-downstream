@@ -121,8 +121,8 @@ enum data_type {
 #define	SEC_MUTUAL_AMP_V_SEL	0x0232
 
 #if defined(CONFIG_TOUCHSCREEN_ZT7538_TS)
-#define	CHIP_ON_DELAY			200	/*ms*/
-#define FIRMWARE_ON_DELAY		150	/*ms*/
+#define	CHIP_ON_DELAY			50	/*ms*/
+#define FIRMWARE_ON_DELAY		110	/*ms*/
 #define	SEC_DND_N_COUNT			15
 #define	SEC_DND_U_COUNT			18
 #define	SEC_DND_FREQUENCY		169

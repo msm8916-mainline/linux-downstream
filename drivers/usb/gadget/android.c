@@ -492,9 +492,10 @@ static void android_work(struct work_struct *data)
 		 * Before sending out CONFIGURED uevent give function drivers
 		 * a chance to wakeup userspace threads and notify disconnect
 		 */
+#ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 		if (uevent_envp == configured)
 			msleep(50);
-
+#endif
 		/* Do not notify on suspend / resume */
 		if (next_state != USB_SUSPENDED && next_state != USB_RESUMED) {
 			kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE,
@@ -503,7 +504,7 @@ static void android_work(struct work_struct *data)
 		}
 		pr_info("%s: sent uevent %s\n", __func__, uevent_envp[0]);
 	} else {
-		pr_info("%s: did not send uevent (%d %d %p)\n", __func__,
+		pr_info("%s: did not send uevent (%d %d %pK)\n", __func__,
 			 dev->connected, prev_connected, cdev->config);
 	}
 }
@@ -2650,7 +2651,7 @@ static void mass_storage_function_enable(struct android_usb_function *f)
 
 	pr_debug("fsg.nluns:%d\n", config->fsg.nluns);
 	for (i = prev_nluns; i < config->fsg.nluns; i++) {
-		snprintf(lun_name, sizeof(buf), "lun%d", (i-prev_nluns));
+		snprintf(lun_name, sizeof(buf1), "lun%d", (i-prev_nluns));
 		pr_debug("sysfs: LUN name:%s\n", lun_name);
 		err = sysfs_create_link(&f->dev->kobj,
 			&common->luns[i].dev.kobj, lun_name);
@@ -3546,8 +3547,10 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 						"audio_source", 12))
 					audio_enabled = true;
 			}
+#ifndef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 		if (audio_enabled)
 			msleep(100);
+#endif
 		err = android_enable(dev);
 		if (err < 0) {
 			pr_err("%s: android_enable failed\n", __func__);

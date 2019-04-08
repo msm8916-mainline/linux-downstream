@@ -398,8 +398,7 @@ static struct {
 	int	user_cal_read;
 	int	user_cal_available;
 	u32	user_cal_rcvd;
-	int	user_cal_exp_size;
-	int	device_opened;
+	u32	user_cal_exp_size;
 	int	iris_xo_mode_set;
 	int	fw_vbatt_state;
 	char	wlan_nv_macAddr[WLAN_MAC_ADDR_SIZE];
@@ -1733,8 +1732,14 @@ static int wcnss_wlan_suspend(struct device *dev)
 {
 	if (penv && dev && (dev == &penv->pdev->dev) &&
 	    penv->smd_channel_ready &&
-	    penv->pm_ops && penv->pm_ops->suspend)
-		return penv->pm_ops->suspend(dev);
+	    penv->pm_ops && penv->pm_ops->suspend) 
+	{
+#if defined(CONFIG_MACH_A5U_EUR_OPEN)
+	    wcnss_ldo18_off();
+	    pr_err("wcnss: wcnss_ldo18_off!!\n");
+#endif
+	    return penv->pm_ops->suspend(dev);
+	}
 	return 0;
 }
 
@@ -1742,8 +1747,14 @@ static int wcnss_wlan_resume(struct device *dev)
 {
 	if (penv && dev && (dev == &penv->pdev->dev) &&
 	    penv->smd_channel_ready &&
-	    penv->pm_ops && penv->pm_ops->resume)
-		return penv->pm_ops->resume(dev);
+	    penv->pm_ops && penv->pm_ops->resume) 
+	{
+#if defined(CONFIG_MACH_A5U_EUR_OPEN)
+	    wcnss_ldo18_on();
+	    pr_err("wcnss: wcnss_ldo18_on!!\n");
+#endif
+	    return penv->pm_ops->resume(dev);
+	}
 	return 0;
 }
 
@@ -2654,7 +2665,7 @@ static ssize_t wcnss_ctrl_read(struct file *fp, char __user *user_buffer,
 {
 	int rc = 0;
 
-	if (!penv || !penv->device_opened)
+	if (!penv)
 		return -EFAULT;
 
 	rc = wait_event_interruptible(penv->wlan_config.wcnss_ctrl_wait,
@@ -3130,6 +3141,16 @@ void wcnss_flush_work(struct work_struct *work)
 }
 EXPORT_SYMBOL(wcnss_flush_work);
 
+/* wlan prop driver cannot invoke show_stack
+ * function directly, so to invoke this function it
+ * call wcnss_dump_stack function
+ */
+void wcnss_dump_stack(struct task_struct *task)
+{
+	show_stack(task, NULL);
+}
+EXPORT_SYMBOL(wcnss_dump_stack);
+
 /* wlan prop driver cannot invoke cancel_delayed_work_sync
  * function directly, so to invoke this function it call
  * wcnss_flush_delayed_work function
@@ -3158,14 +3179,6 @@ static int wcnss_node_open(struct inode *inode, struct file *file)
 			return -EFAULT;
 	}
 
-	mutex_lock(&penv->dev_lock);
-	penv->user_cal_rcvd = 0;
-	penv->user_cal_read = 0;
-	penv->user_cal_available = false;
-	penv->user_cal_data = NULL;
-	penv->device_opened = 1;
-	mutex_unlock(&penv->dev_lock);
-
 	return rc;
 }
 
@@ -3174,7 +3187,7 @@ static ssize_t wcnss_wlan_read(struct file *fp, char __user
 {
 	int rc = 0;
 
-	if (!penv || !penv->device_opened)
+	if (!penv)
 		return -EFAULT;
 
 	rc = wait_event_interruptible(penv->read_wait, penv->fw_cal_rcvd
@@ -3211,55 +3224,66 @@ static ssize_t wcnss_wlan_write(struct file *fp, const char __user
 			*user_buffer, size_t count, loff_t *position)
 {
 	int rc = 0;
-	u32 size = 0;
+	char *cal_data = NULL;
 
-	if (!penv || !penv->device_opened || penv->user_cal_available)
+	if (!penv || penv->user_cal_available)
 		return -EFAULT;
 
-	if (penv->user_cal_rcvd == 0 && count >= 4
-			&& !penv->user_cal_data) {
-		rc = copy_from_user((void *)&size, user_buffer, 4);
-		if (!size || size > MAX_CALIBRATED_DATA_SIZE) {
-			pr_err(DEVICE " invalid size to write %d\n", size);
+	if (!penv->user_cal_rcvd && count >= 4 && !penv->user_cal_exp_size) {
+		mutex_lock(&penv->dev_lock);
+		rc = copy_from_user((void *)&penv->user_cal_exp_size,
+				    user_buffer, 4);
+		if (!penv->user_cal_exp_size ||
+		    penv->user_cal_exp_size > MAX_CALIBRATED_DATA_SIZE) {
+			pr_err(DEVICE " invalid size to write %d\n",
+			       penv->user_cal_exp_size);
+			penv->user_cal_exp_size = 0;
+			mutex_unlock(&penv->dev_lock);
 			return -EFAULT;
 		}
-
-		rc += count;
-		count -= 4;
-		penv->user_cal_exp_size =  size;
-		penv->user_cal_data = kmalloc(size, GFP_KERNEL);
-		if (penv->user_cal_data == NULL) {
-			pr_err(DEVICE " no memory to write\n");
-			return -ENOMEM;
-		}
-		if (0 == count)
-			goto exit;
-
-	} else if (penv->user_cal_rcvd == 0 && count < 4)
+		mutex_unlock(&penv->dev_lock);
+		return count;
+	} else if (!penv->user_cal_rcvd && count < 4) {
 		return -EFAULT;
+	}
 
+	mutex_lock(&penv->dev_lock);
 	if ((UINT32_MAX - count < penv->user_cal_rcvd) ||
-	     (penv->user_cal_exp_size < count + penv->user_cal_rcvd)) {
+		(penv->user_cal_exp_size < count + penv->user_cal_rcvd)) {
 		pr_err(DEVICE " invalid size to write %zu\n", count +
 				penv->user_cal_rcvd);
-		rc = -ENOMEM;
-		goto exit;
+		mutex_unlock(&penv->dev_lock);
+		return -ENOMEM;
 	}
-	rc = copy_from_user((void *)penv->user_cal_data +
-			penv->user_cal_rcvd, user_buffer, count);
-	if (0 == rc) {
+
+	cal_data = kmalloc(count, GFP_KERNEL);
+	if (!cal_data) {
+		mutex_unlock(&penv->dev_lock);
+		return -ENOMEM;
+	}
+
+	rc = copy_from_user(cal_data, user_buffer, count);
+	if (!rc) {
+		memcpy(penv->user_cal_data + penv->user_cal_rcvd,
+		       cal_data, count);
 		penv->user_cal_rcvd += count;
 		rc += count;
 	}
+
+	kfree(cal_data);
 	if (penv->user_cal_rcvd == penv->user_cal_exp_size) {
 		penv->user_cal_available = true;
 		pr_info_ratelimited("wcnss: user cal written");
 	}
+	mutex_unlock(&penv->dev_lock);
 
-exit:
 	return rc;
 }
 
+static int wcnss_node_release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
 
 static int wcnss_notif_cb(struct notifier_block *this, unsigned long code,
 				void *ss_handle)
@@ -3318,6 +3342,7 @@ static const struct file_operations wcnss_node_fops = {
 	.open = wcnss_node_open,
 	.read = wcnss_wlan_read,
 	.write = wcnss_wlan_write,
+	.release = wcnss_node_release,
 };
 
 static struct miscdevice wcnss_misc = {
@@ -3345,6 +3370,13 @@ wcnss_wlan_probe(struct platform_device *pdev)
 	}
 	penv->pdev = pdev;
 
+	penv->user_cal_data =
+		devm_kzalloc(&pdev->dev, MAX_CALIBRATED_DATA_SIZE, GFP_KERNEL);
+	if (!penv->user_cal_data) {
+		dev_err(&pdev->dev, "Failed to alloc memory for cal data.\n");
+		return -ENOMEM;
+	}
+
 	/* register sysfs entries */
 	ret = wcnss_create_sysfs(&pdev->dev);
 	if (ret) {
@@ -3365,6 +3397,11 @@ wcnss_wlan_probe(struct platform_device *pdev)
 	mutex_init(&penv->pm_qos_mutex);
 	init_waitqueue_head(&penv->read_wait);
 	init_waitqueue_head(&penv->wlan_config.wcnss_ctrl_wait);
+
+	penv->user_cal_rcvd = 0;
+	penv->user_cal_read = 0;
+	penv->user_cal_exp_size = 0;
+	penv->user_cal_available = false;
 
 	/* Since we were built into the kernel we'll be called as part
 	 * of kernel initialization.  We don't know if userspace

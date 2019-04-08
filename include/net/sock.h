@@ -77,6 +77,7 @@
 #include <linux/atomic.h>
 #include <net/dst.h>
 #include <net/checksum.h>
+#include <net/tcp_states.h>
 
 struct cgroup;
 struct cgroup_subsys;
@@ -405,8 +406,13 @@ struct sock {
 	__u32			sk_mark;
 	u32			sk_classid;
 	struct cg_proto		*sk_cgrp;
-	uid_t			knox_uid;
-	pid_t			knox_pid;
+	/* START_OF_KNOX_VPN */
+	uid_t           knox_uid;
+	pid_t           knox_pid;
+	__be32          inet_src_masq;
+	char domain_name[255];
+	__u64   open_time;
+	/* END_OF_KNOX_VPN */
 	void			(*sk_state_change)(struct sock *sk);
 	void			(*sk_data_ready)(struct sock *sk, int bytes);
 	void			(*sk_write_space)(struct sock *sk);
@@ -1011,6 +1017,7 @@ struct proto {
 	void			(*destroy_cgroup)(struct mem_cgroup *memcg);
 	struct cg_proto		*(*proto_cgroup)(struct mem_cgroup *memcg);
 #endif
+	int			(*diag_destroy)(struct sock *sk, int err);
 };
 
 /*
@@ -2255,6 +2262,15 @@ static inline struct sock *skb_steal_sock(struct sk_buff *skb)
 		return sk;
 	}
 	return NULL;
+}
+
+/* This helper checks if a socket is a full socket,
+ * ie _not_ a timewait or request socket.
+ * TODO: Check for TCPF_NEW_SYN_RECV when that starts to exist.
+ */
+static inline bool sk_fullsock(const struct sock *sk)
+{
+	return (1 << sk->sk_state) & ~(TCPF_TIME_WAIT);
 }
 
 extern void sock_enable_timestamp(struct sock *sk, int flag);

@@ -510,8 +510,8 @@ struct ist30xx_data {
 	u32 z_values[IST30XX_MAX_MT_FINGERS];
 	int report_rate;
 	int idle_rate;
-#if IST30XX_GESTURE
 	bool suspend;
+#if IST30XX_GESTURE
 	bool gesture;
 #endif
 	int touch_pressed_num;
