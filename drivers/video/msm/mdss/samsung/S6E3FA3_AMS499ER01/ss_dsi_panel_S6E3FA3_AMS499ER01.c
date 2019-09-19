@@ -650,8 +650,6 @@ static void mdss_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_brightness_vint = NULL;
 	vdd->panel_func.samsung_brightness_gamma = mdss_gamma;
 
-	vdd->bl_level = 255;
-
 	dsi_update_mdnie_data();
 }
 
@@ -659,10 +657,11 @@ static int __init samsung_panel_init(void)
 {
 	struct samsung_display_driver_data *vdd = samsung_get_vdd();
 //	char panel_string[] = "ss_dsi_panel_S6E3FA3_AMS499ER01_FHD";
-
+/*please rework: let this alive*/
 	vdd->panel_name = mdss_mdp_panel + 8;
 	pr_info("%s : %s\n", __func__, vdd->panel_name);
 
+/*please rework: let this alive*/
 //	if (!strncmp(vdd->panel_name, panel_string, strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = mdss_panel_init;
 

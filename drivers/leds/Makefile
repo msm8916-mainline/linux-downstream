@@ -58,11 +58,17 @@ obj-$(CONFIG_LEDS_MAX8997)		+= leds-max8997.o
 obj-$(CONFIG_LEDS_LM355x)		+= leds-lm355x.o
 obj-$(CONFIG_LEDS_BLINKM)		+= leds-blinkm.o
 obj-$(CONFIG_LEDS_MSM_GPIO_FLASH)	+= leds-msm-gpio-flash.o
+obj-$(CONFIG_LEDS_AW2013)		+= leds-aw2013.o
 obj-$(CONFIG_FLASHLIGHT)		+= flashlight.o
 obj-$(CONFIG_RT_FLASH_LED)		+= rtfled.o
-obj-$(CONFIG_FLED_RT5033)       	+= rt5033_fled.o
+obj-$(CONFIG_FLED_RT5033)		+= rt5033_fled.o
+obj-$(CONFIG_LEDS_S2MU003)		+= leds-s2mu003.o
 #SiliconMitus
-obj-$(CONFIG_FLED_SM5701)       	+= leds-sm5701.o
+obj-$(CONFIG_FLED_SM5701)		+= leds-sm5701.o
+obj-$(CONFIG_SM_FLASH_LED)		+= smfled.o
+obj-$(CONFIG_FLED_SM5703)		+= sm5703_fled.o
+obj-$(CONFIG_LEDS_SM5705)		+= sm5705_fled.o
+obj-$(CONFIG_FLED_KTD2692)		+= leds-ktd2692.o
 
 # LED SPI Drivers
 obj-$(CONFIG_LEDS_DAC124S085)		+= leds-dac124s085.o

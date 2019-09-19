@@ -4010,6 +4010,9 @@ static void net_rps_action_and_irq_enable(struct softnet_data *sd)
 			if (cpu_online(remsd->cpu))
 				__smp_call_function_single(remsd->cpu,
 							   &remsd->csd, 0);
+			else
+				clear_bit(NAPI_STATE_SCHED, &remsd->backlog.state);
+							   
 			remsd = next;
 		}
 	} else
@@ -6036,11 +6039,11 @@ static int dev_cpu_callback(struct notifier_block *nfb,
 
 	/* Process offline CPU's input_pkt_queue */
 	while ((skb = __skb_dequeue(&oldsd->process_queue))) {
-		netif_rx(skb);
+		kfree_skb(skb);
 		input_queue_head_incr(oldsd);
 	}
 	while ((skb = skb_dequeue(&oldsd->input_pkt_queue))) {
-		netif_rx(skb);
+		kfree_skb(skb);
 		input_queue_head_incr(oldsd);
 	}
 

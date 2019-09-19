@@ -141,6 +141,7 @@ rtc_sysfs_show_alarm_boot(struct device *dev, struct device_attribute *attr,
 	return retval;
 }
 #endif
+
 static struct device_attribute rtc_attrs[] = {
 	__ATTR(name, S_IRUGO, rtc_sysfs_show_name, NULL),
 	__ATTR(date, S_IRUGO, rtc_sysfs_show_date, NULL),

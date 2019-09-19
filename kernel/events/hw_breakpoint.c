@@ -645,8 +645,7 @@ static struct pmu perf_breakpoint = {
 	.stop		= hw_breakpoint_stop,
 	.read		= hw_breakpoint_pmu_read,
 
-	.event_idx	= hw_breakpoint_event_idx,
-	.events_across_hotplug = 1,
+	.event_idx	= hw_breakpoint_event_idx
 };
 
 int __init init_hw_breakpoint(void)

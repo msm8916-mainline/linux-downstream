@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -507,7 +507,7 @@ static int mdss_mdp_put_img(struct mdss_mdp_img_data *data)
 		pr_debug("pmem buf=0x%pa\n", &data->addr);
 		data->srcp_file = NULL;
 	} else if (!IS_ERR_OR_NULL(data->srcp_ihdl)) {
-		pr_debug("ion hdl=%p buf=0x%pa\n", data->srcp_ihdl,
+		pr_debug("ion hdl=%pK buf=0x%pa\n", data->srcp_ihdl,
 							&data->addr);
 		if (!iclient) {
 			pr_err("invalid ion client\n");
@@ -599,7 +599,7 @@ static int mdss_mdp_get_img(struct msmfb_data *img,
 		data->addr += data->offset;
 		data->len -= data->offset;
 
-		pr_debug("mem=%d ihdl=%p buf=0x%pa len=0x%lu\n", img->memory_id,
+		pr_debug("mem=%d ihdl=%pK buf=0x%pa len=0x%lu\n", img->memory_id,
 			 data->srcp_ihdl, &data->addr, data->len);
 	} else {
 		mdss_mdp_put_img(data);
@@ -629,7 +629,8 @@ static int mdss_mdp_map_buffer(struct mdss_mdp_img_data *data)
 						mdss_get_iommu_domain(domain),
 						0, SZ_4K, 0, &data->addr,
 						&data->len, 0, 0);
-			data->mapped = true;
+			if (!IS_ERR_VALUE(ret))
+				data->mapped = true;
 		} else {
 			ret = ion_phys(iclient, data->srcp_ihdl,
 					&data->addr, (size_t *) &data->len);
@@ -652,7 +653,7 @@ static int mdss_mdp_map_buffer(struct mdss_mdp_img_data *data)
 		data->addr += data->offset;
 		data->len -= data->offset;
 
-		pr_debug("ihdl=%p buf=0x%pa len=0x%lu\n",
+		pr_debug("ihdl=%pK buf=0x%pa len=0x%lu\n",
 			 data->srcp_ihdl, &data->addr, data->len);
 	} else {
 		mdss_mdp_put_img(data);
@@ -714,19 +715,17 @@ void mdss_mdp_data_free(struct mdss_mdp_data *data)
 {
 	int i;
 
+	mdss_iommu_ctrl(1);
 	for (i = 0; i < data->num_planes && data->p[i].len; i++)
-	{
-		mdss_iommu_ctrl(1);
 		mdss_mdp_put_img(&data->p[i]);
-		mdss_iommu_ctrl(0);
-	}
-
+	mdss_iommu_ctrl(0);
 	data->num_planes = 0;
 }
 
 int mdss_mdp_calc_phase_step(u32 src, u32 dst, u32 *out_phase)
 {
 	u32 unit, residue, result;
+	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
 
 	if (src == 0 || dst == 0)
 		return -EINVAL;
@@ -735,7 +734,7 @@ int mdss_mdp_calc_phase_step(u32 src, u32 dst, u32 *out_phase)
 	*out_phase = mult_frac(unit, src, dst);
 
 	/* check if overflow is possible */
-	if (src > dst) {
+	if ((mdata->mdp_rev < MDSS_MDP_HW_REV_103) && src > dst) {
 		residue = *out_phase - unit;
 		result = (residue * dst) + residue;
 

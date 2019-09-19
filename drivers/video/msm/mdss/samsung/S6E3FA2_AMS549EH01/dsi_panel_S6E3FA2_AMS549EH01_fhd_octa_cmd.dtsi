@@ -170,14 +170,13 @@
 
 		qcom,mdss-dsi-panel-mode-gpio-state = "invalid";
 
-		qcom,mdss-dsi-reset-sequence = <1 20>, <0 20>, <1 20>;
+		qcom,mdss-dsi-reset-sequence = <1 5>, <0 5>, <1 5>;
 		qcom,partial-update-enabled;
 		qcom,panel-roi-alignment=<8 8 1 1 1 1>;
 		/*qcom,mdss-dsi-horizontal-line-idle*/
 
 		qcom,mdss-dsi-lp11-init;
 		qcom,mdss-dsi-init-delay-us = <1000>;
-		qcom,mdss-dsi-additional-delay-us = <5000>;
 
 		qcom,mdss-dsi-rx-eot-ignore;
 		qcom,mdss-dsi-tx-eot-append;
@@ -215,7 +214,7 @@
 		samsung,osc-te-fitting-cmd-index = <16 03>;
 		/* Check the duration of N-1 vsync */
 		samsung,osc-te-fitting-sampling-rate = <5>;
-		samsung,display_on_tx_cmds_revA = [05 01 00 00 32 00 02 29 00];
+		samsung,display_on_tx_cmds_revA = [05 01 00 00 00 00 02 29 00];
 		samsung,display_off_tx_cmds_revA = [05 01 00 00 32 00 02 28 00];
 
 		samsung,level1_key_enable_tx_cmds_revA = [

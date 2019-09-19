@@ -39,7 +39,6 @@ static enum power_supply_property max77843_charger_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 #endif
 	POWER_SUPPLY_PROP_CHARGE_NOW,
-	POWER_SUPPLY_PROP_CHARGING_ENABLED,
 };
 static enum power_supply_property max77843_otg_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
@@ -784,6 +783,8 @@ static void max77843_charger_function_control(
 						    charger->cable_type].full_check_current_2nd);
 	}
 
+	max77843_set_charger_state(charger, charger->is_charging);
+
 	pr_info("charging = %d, fc = %d, il = %d, t1 = %d, t2 = %d, cable = %d\n",
 		charger->is_charging,
 		charger->charging_current,
@@ -976,9 +977,6 @@ static int max77843_chg_get_property(struct power_supply *psy,
 		else
 			val->strval = "NONE";
 		break;
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		val->intval = charger->is_charging;
-		break;
 	default:
 		return -EINVAL;
 	}
@@ -1065,9 +1063,6 @@ static int max77843_chg_set_property(struct power_supply *psy,
 			charger->pdata->charging_current[
 				POWER_SUPPLY_TYPE_BATTERY].input_current_limit;
 		}
-		break;
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		max77843_set_charger_state(charger, val->intval);
 		break;
 	default:
 		return -EINVAL;
@@ -1905,7 +1900,7 @@ static void max77843_charger_shutdown(struct device *dev)
 		pr_err("%s: no max77843 i2c client\n", __func__);
 		return;
 	}
-	reg_data = 0x04;
+	reg_data = 0x05;
 	max77843_write_reg(charger->i2c,
 		MAX77843_CHG_REG_CNFG_00, reg_data);
 	reg_data = 0x0F;

@@ -765,12 +765,12 @@ class_dir_create_and_add(struct class *class, struct kobject *parent_kobj)
 	return &dir->kobj;
 }
 
+static DEFINE_MUTEX(gdp_mutex);
 
 static struct kobject *get_device_parent(struct device *dev,
 					 struct device *parent)
 {
 	if (dev->class) {
-		static DEFINE_MUTEX(gdp_mutex);
 		struct kobject *kobj = NULL;
 		struct kobject *parent_kobj;
 		struct kobject *k;
@@ -803,8 +803,6 @@ static struct kobject *get_device_parent(struct device *dev,
 		list_for_each_entry(k, &dev->class->p->glue_dirs.list, entry)
 			if (k->parent == parent_kobj) {
 				kobj = kobject_get(k);
-				if (system_state == SYSTEM_RUNNING)
-					printk("%s:%s:%s\n",__func__,dev->kobj.name,kobj->name);
 				break;
 			}
 		spin_unlock(&dev->class->p->glue_dirs.list_lock);
@@ -836,7 +834,9 @@ static void cleanup_glue_dir(struct device *dev, struct kobject *glue_dir)
 	    glue_dir->kset != &dev->class->p->glue_dirs)
 		return;
 
+	mutex_lock(&gdp_mutex);
 	kobject_put(glue_dir);
+	mutex_unlock(&gdp_mutex);
 }
 
 static void cleanup_device_parent(struct device *dev)

@@ -30,6 +30,18 @@ static int table_size;
 #if defined(CONFIG_SR200PC20)
 #include "sr200pc20.h"
 #endif
+#if defined(CONFIG_S5K4ECGX)
+#include "s5k4ecgx.h"
+#endif
+#if defined(CONFIG_SR352)
+#include "sr352.h"
+#endif
+#if defined(CONFIG_SR130PC20)
+#include "sr130pc20.h"
+#endif
+#if defined(CONFIG_DB8221A)
+#include "db8221a.h"
+#endif
 
 /* Logging macro */
 //#define MSM_SENSOR_DRIVER_DEBUG
@@ -42,8 +54,37 @@ static int table_size;
 
 #define SENSOR_MAX_MOUNTANGLE (360)
 
+#ifdef CONFIG_CAM_DISABLE_LPM_MODE
+extern int poweroff_charging;
+#endif
+
+#if defined (CONFIG_CAMERA_SYSFS_V2)
+extern char rear_cam_info[100];		//camera_info
+extern char front_cam_info[100];	//camera_info
+#endif
+
 /* Static declaration */
 static struct msm_sensor_ctrl_t *g_sctrl[MAX_CAMERAS];
+
+#if defined(CONFIG_SR352)
+static struct msm_sensor_fn_t sr352_sensor_func_tbl = {
+	.sensor_config = sr352_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = msm_sensor_match_id,
+	.sensor_native_control = sr352_sensor_native_control,
+}; 
+#endif
+
+#if defined(CONFIG_SR130PC20)
+static struct msm_sensor_fn_t sr130pc20_sensor_func_tbl = {
+	.sensor_config = sr130pc20_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = msm_sensor_match_id,
+	.sensor_native_control = sr130pc20_sensor_native_control,
+};
+#endif
 
 #if defined(CONFIG_SR200PC20)
 static struct msm_sensor_fn_t sr200pc20_sensor_func_tbl = {
@@ -52,6 +93,24 @@ static struct msm_sensor_fn_t sr200pc20_sensor_func_tbl = {
 	.sensor_power_down = msm_sensor_power_down,
 	.sensor_match_id = msm_sensor_match_id,
 	.sensor_native_control = sr200pc20_sensor_native_control,
+};
+#endif
+#if defined(CONFIG_S5K4ECGX)
+static struct msm_sensor_fn_t s5k4ecgx_sensor_func_tbl = {
+	.sensor_config = s5k4ecgx_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = s5k4ecgx_sensor_match_id,
+	.sensor_native_control = s5k4ecgx_sensor_native_control,
+};
+#endif
+#if defined(CONFIG_DB8221A)
+static struct msm_sensor_fn_t db8221a_sensor_func_tbl = {
+	.sensor_config = db8221a_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = msm_sensor_match_id,
+	.sensor_native_control = db8221a_sensor_native_control,
 };
 #endif
 
@@ -131,7 +190,11 @@ static int32_t msm_sensor_driver_create_i2c_v4l_subdev
 	s_ctrl->msm_sd.sd.entity.name =	s_ctrl->msm_sd.sd.name;
 	s_ctrl->sensordata->sensor_info->session_id = session_id;
 	s_ctrl->msm_sd.close_seq = MSM_SD_CLOSE_2ND_CATEGORY | 0x3;
-	msm_sd_register(&s_ctrl->msm_sd);
+	rc = msm_sd_register(&s_ctrl->msm_sd);
+	if (rc < 0) {
+		pr_err("failed: msm_sd_register rc %d", rc);
+		return rc;
+	}
 	CDBG("%s:%d\n", __func__, __LINE__);
 	return rc;
 }
@@ -161,7 +224,11 @@ static int32_t msm_sensor_driver_create_v4l_subdev
 	s_ctrl->msm_sd.sd.entity.group_id = MSM_CAMERA_SUBDEV_SENSOR;
 	s_ctrl->msm_sd.sd.entity.name = s_ctrl->msm_sd.sd.name;
 	s_ctrl->msm_sd.close_seq = MSM_SD_CLOSE_2ND_CATEGORY | 0x3;
-	msm_sd_register(&s_ctrl->msm_sd);
+	rc = msm_sd_register(&s_ctrl->msm_sd);
+	if (rc < 0) {
+		pr_err("failed: msm_sd_register rc %d", rc);
+		return rc;
+	}
 	return rc;
 }
 
@@ -362,16 +429,14 @@ int32_t msm_sensor_driver_probe(void *setting)
 
 	/* Validate input parameters */
 	if (!setting) {
-		pr_err("failed: slave_info %p", setting);
+		pr_err("failed: slave_info %pK", setting);
 		return -EINVAL;
 	}
 
 	/* Allocate memory for slave info */
 	slave_info = kzalloc(sizeof(*slave_info), GFP_KERNEL);
-	if (!slave_info) {
-		pr_err("failed: no memory slave_info %p", slave_info);
+	if (!slave_info) 
 		return -ENOMEM;
-	}
 
 	if (copy_from_user(slave_info, (void *)setting, sizeof(*slave_info))) {
 		pr_err("failed: copy_from_user");
@@ -408,18 +473,34 @@ int32_t msm_sensor_driver_probe(void *setting)
 	/* Extract s_ctrl from camera id */
 	s_ctrl = g_sctrl[slave_info->camera_id];
 	if (!s_ctrl) {
-		pr_err("failed: s_ctrl %p for camera_id %d", s_ctrl,
+		pr_err("failed: s_ctrl %pK for camera_id %d", s_ctrl,
 			slave_info->camera_id);
 		rc = -EINVAL;
 		goto FREE_SLAVE_INFO;
 	}
+#if defined(CONFIG_SR352) && defined(CONFIG_SR130PC20)
+	if ( slave_info->camera_id == CAMERA_2 ) {
+		s_ctrl->func_tbl = &sr130pc20_sensor_func_tbl ;
+	} else {
+		s_ctrl->func_tbl = &sr352_sensor_func_tbl ;
+	}
+#endif
 #if defined(CONFIG_SR200PC20)
 	if(slave_info->camera_id == CAMERA_2){
 		s_ctrl->func_tbl = &sr200pc20_sensor_func_tbl ;
 	}
 #endif
-
-	CDBG("s_ctrl[%d] %p", slave_info->camera_id, s_ctrl);
+#if defined(CONFIG_S5K4ECGX)
+	if (slave_info->camera_id == CAMERA_0){
+		s_ctrl->func_tbl = &s5k4ecgx_sensor_func_tbl;
+	}
+#endif
+#if defined(CONFIG_DB8221A)
+	if(slave_info->camera_id == CAMERA_2){
+		s_ctrl->func_tbl = &db8221a_sensor_func_tbl ;
+	}
+#endif
+	CDBG("s_ctrl[%d] %pK", slave_info->camera_id, s_ctrl);
 
 	if (s_ctrl->is_probe_succeed == 1) {
 		/*
@@ -436,7 +517,7 @@ int32_t msm_sensor_driver_probe(void *setting)
 	/* Allocate memory for power up setting */
 	power_setting = kzalloc(sizeof(*power_setting) * size, GFP_KERNEL);
 	if (!power_setting) {
-		pr_err("failed: no memory power_setting %p", power_setting);
+		pr_err("failed: no memory power_setting %pK", power_setting);
 		rc = -ENOMEM;
 		goto FREE_SLAVE_INFO;
 	}
@@ -463,7 +544,7 @@ int32_t msm_sensor_driver_probe(void *setting)
 	power_down_setting =
 		kzalloc(sizeof(*power_setting) * size_down, GFP_KERNEL);
 	if (!power_down_setting) {
-		pr_err("failed: no memory power_setting %p",
+		pr_err("failed: no memory power_setting %pK",
 						power_down_setting);
 		rc = -ENOMEM;
 		goto FREE_POWER_SETTING;
@@ -510,11 +591,9 @@ int32_t msm_sensor_driver_probe(void *setting)
 	}
 
 	camera_info = kzalloc(sizeof(struct msm_camera_slave_info), GFP_KERNEL);
-	if (!camera_info) {
-		pr_err("failed: no memory slave_info %p", camera_info);
+	if (!camera_info) 
 		goto FREE_POWER_DOWN_SETTING;
 
-	}
 
 	/* Fill power up setting and power up setting size */
 	power_info = &s_ctrl->sensordata->power_info;
@@ -533,7 +612,7 @@ int32_t msm_sensor_driver_probe(void *setting)
 
 	/* Fill CCI master, slave address and CCI default params */
 	if (!s_ctrl->sensor_i2c_client) {
-		pr_err("failed: sensor_i2c_client %p",
+		pr_err("failed: sensor_i2c_client %pK",
 			s_ctrl->sensor_i2c_client);
 		rc = -EINVAL;
 		goto FREE_CAMERA_INFO;
@@ -546,7 +625,7 @@ int32_t msm_sensor_driver_probe(void *setting)
 
 	cci_client = s_ctrl->sensor_i2c_client->cci_client;
 	if (!cci_client) {
-		pr_err("failed: cci_client %p", cci_client);
+		pr_err("failed: cci_client %pK", cci_client);
 		goto FREE_CAMERA_INFO;
 	}
 	cci_client->cci_i2c_master = s_ctrl->cci_i2c_master;
@@ -863,6 +942,22 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 	CDBG("%s qcom,mclk-23880000 = %d\n", __func__,
 		s_ctrl->set_mclk_23880000);
 
+#if defined (CONFIG_CAMERA_SYSFS_V2)
+	/* camera information */
+	if (cell_id == 0) {
+		rc = msm_camera_get_dt_camera_info(of_node, rear_cam_info);
+		if (rc < 0) {
+			pr_err("failed: msm_camera_get_dt_camera_info rc %d", rc);
+			goto FREE_VREG_DATA;
+		}
+	} else {
+		rc = msm_camera_get_dt_camera_info(of_node, front_cam_info);
+		if (rc < 0) {
+			pr_err("failed: msm_camera_get_dt_camera_info rc %d", rc);
+			goto FREE_VREG_DATA;
+		}
+	}
+#endif
 	return rc;
 
 FREE_VREG_DATA:
@@ -886,7 +981,7 @@ static int32_t msm_sensor_driver_parse(struct msm_sensor_ctrl_t *s_ctrl)
 	s_ctrl->sensor_i2c_client = kzalloc(sizeof(*s_ctrl->sensor_i2c_client),
 		GFP_KERNEL);
 	if (!s_ctrl->sensor_i2c_client) {
-		pr_err("failed: no memory sensor_i2c_client %p",
+		pr_err("failed: no memory sensor_i2c_client %pK",
 			s_ctrl->sensor_i2c_client);
 		return -ENOMEM;
 	}
@@ -895,7 +990,7 @@ static int32_t msm_sensor_driver_parse(struct msm_sensor_ctrl_t *s_ctrl)
 	s_ctrl->msm_sensor_mutex = kzalloc(sizeof(*s_ctrl->msm_sensor_mutex),
 		GFP_KERNEL);
 	if (!s_ctrl->msm_sensor_mutex) {
-		pr_err("failed: no memory msm_sensor_mutex %p",
+		pr_err("failed: no memory msm_sensor_mutex %pK",
 			s_ctrl->msm_sensor_mutex);
 		goto FREE_SENSOR_I2C_CLIENT;
 	}
@@ -924,7 +1019,7 @@ static int32_t msm_sensor_driver_parse(struct msm_sensor_ctrl_t *s_ctrl)
 
 	/* Store sensor control structure in static database */
 	g_sctrl[s_ctrl->id] = s_ctrl;
-	pr_err("g_sctrl[%d] %p", s_ctrl->id, g_sctrl[s_ctrl->id]);
+	pr_err("g_sctrl[%d] %pK", s_ctrl->id, g_sctrl[s_ctrl->id]);
 
 	return rc;
 
@@ -949,10 +1044,8 @@ static int32_t msm_sensor_driver_platform_probe(struct platform_device *pdev)
 
 	/* Create sensor control structure */
 	s_ctrl = kzalloc(sizeof(*s_ctrl), GFP_KERNEL);
-	if (!s_ctrl) {
-		pr_err("failed: no memory s_ctrl %p", s_ctrl);
+	if (!s_ctrl)
 		return -ENOMEM;
-	}
 
 	platform_set_drvdata(pdev, s_ctrl);
 
@@ -995,10 +1088,8 @@ static int32_t msm_sensor_driver_i2c_probe(struct i2c_client *client,
 
 	/* Create sensor control structure */
 	s_ctrl = kzalloc(sizeof(*s_ctrl), GFP_KERNEL);
-	if (!s_ctrl) {
-		pr_err("failed: no memory s_ctrl %p", s_ctrl);
+	if (!s_ctrl)
 		return -ENOMEM;
-	}
 
 	i2c_set_clientdata(client, s_ctrl);
 
@@ -1063,6 +1154,14 @@ static int __init msm_sensor_driver_init(void)
 	int32_t rc = 0;
 
 	CDBG("Enter");
+
+#ifdef CONFIG_CAM_DISABLE_LPM_MODE
+	if(poweroff_charging) {
+		pr_err("%s : Camera is not probed in LPM mode", __func__);
+		return 0;
+	}
+#endif
+
 	rc = platform_driver_probe(&msm_sensor_platform_driver,
 		msm_sensor_driver_platform_probe);
 	if (!rc) {

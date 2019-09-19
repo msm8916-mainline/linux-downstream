@@ -1472,7 +1472,7 @@ void trace_find_cmdline(int pid, char comm[])
 	arch_spin_lock(&trace_cmdline_lock);
 	map = map_pid_to_cmdline[pid];
 	if (map != NO_CMDLINE_MAP)
-		strcpy(comm, saved_cmdlines[map]);
+		strlcpy(comm, saved_cmdlines[map], TASK_COMM_LEN - 1);
 	else
 		strcpy(comm, "<...>");
 
@@ -4680,7 +4680,7 @@ tracing_mark_write(struct file *filp, const char __user *ubuf,
 	*fpos += written;
 
  out_unlock:
-	for (i = nr_pages-1; i >= 0; i--){ 
+	for (i = nr_pages - 1; i >= 0; i--) {
 		kunmap_atomic(map_page[i]);
 		put_page(pages[i]);
 	}

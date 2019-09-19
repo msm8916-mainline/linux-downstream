@@ -435,25 +435,34 @@ static void get_fw_ver_bin(void *dev_data)
 static void get_fw_ver_ic(void *dev_data)
 {
 	u32 ver = 0;
-    char msg[8];
+	char msg[8];
 	char buf[16] = { 0 };
+	u8 count = 3;
 
 	struct ist30xx_data *data = (struct ist30xx_data *)dev_data;
 	struct sec_factory *sec = (struct sec_factory *)&data->sec;
 
 	set_default_result(sec);
 
+	while (count > 0) {
+		msleep(200);
 		mutex_lock(&ist30xx_mutex);
-	if (data->status.power == 1)
-		ver = ist30xxb_get_fw_ver(ts_data);
+		if (data->status.power == 1)
+			ver = ist30xxb_get_fw_ver(ts_data);
 		mutex_unlock(&ist30xx_mutex);
+
+		if (ver > 0)
+			break;
+		count--;
+		tsp_info("%s(), ver:%x, retry %d\n", __func__, ver, 3 - count);
+	}
 
 	snprintf(buf, sizeof(buf), "IM00%04x", ver & 0xFFFF);
 
-    if (data->fw.sub_ver > 0) {
-        sprintf(msg, "(T%x)", data->fw.sub_ver);
-        strcat(buf, msg);
-    }
+	if (data->fw.sub_ver > 0) {
+	    sprintf(msg, "(T%x)", data->fw.sub_ver);
+	    strcat(buf, msg);
+	}
 
 	tsp_info("%s(), %s\n", __func__, buf);
 
@@ -780,6 +789,11 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 	int param_cnt = 0;
 	int ret;
 
+	if (strlen(buf) >= SEC_CMD_STR_LEN) {
+		tsp_err("%s: cmd length is over(%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+		return -EINVAL;
+	}
+
 	if (sec->cmd_is_running == true) {
 		tsp_err("%s: tsp_cmd: other cmd is running.\n", __func__);
 		goto err_out;
@@ -839,7 +853,7 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 				param_cnt++;
 			}
 			cur++;
-		} while (cur - buf <= len);
+		} while ((cur - buf <= len) && (param_cnt < SEC_CMD_PARAM_NUM));
 	}
 	tsp_info("tsp cmd: %s\n", buf);
 

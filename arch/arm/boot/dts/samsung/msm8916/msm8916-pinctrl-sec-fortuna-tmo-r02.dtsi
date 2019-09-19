@@ -1383,7 +1383,7 @@
 
 			muic_chg_det: default {
 				drive-strength = <2>;
-				bias-pull-down; /* PULL DOWN */
+				bias-disable; /* No PULL */
 			};
 		};
 
@@ -1401,7 +1401,7 @@
 			/*suspended state */
 			cci0_sleep: sleep {
 				drive-strength = <2>; /* 2 MA */
-				bias-disable = <0>; /* No PULL */
+				bias-pull-down; /* PULL DOWN */
 			};
 		};
 

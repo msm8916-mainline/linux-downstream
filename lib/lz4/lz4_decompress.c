@@ -47,6 +47,11 @@
 
 #include "lz4defs.h"
 
+static const int dec32table[] = {0, 3, 2, 3, 0, 0, 0, 0};
+#if LZ4_ARCH64
+static const int dec64table[] = {0, 0, 0, -1, 0, 1, 2, 3};
+#endif
+
 static int lz4_uncompress(const char *source, char *dest, int osize)
 {
 	const BYTE *ip = (const BYTE *) source;
@@ -56,10 +61,6 @@ static int lz4_uncompress(const char *source, char *dest, int osize)
 	BYTE *cpy;
 	unsigned token;
 	size_t length;
-	size_t dec32table[] = {0, 3, 2, 3, 0, 0, 0, 0};
-#if LZ4_ARCH64
-	size_t dec64table[] = {0, 0, 0, -1, 0, 1, 2, 3};
-#endif
 
 	while (1) {
 
@@ -72,6 +73,8 @@ static int lz4_uncompress(const char *source, char *dest, int osize)
 			len = *ip++;
 			for (; len == 255; length += 255)
 				len = *ip++;
+			if (unlikely(length > (size_t)(length + len)))
+				goto _output_error;
 			length += len;
 		}
 
@@ -114,7 +117,7 @@ static int lz4_uncompress(const char *source, char *dest, int osize)
 		/* copy repeated sequence */
 		if (unlikely((op - ref) < STEPSIZE)) {
 #if LZ4_ARCH64
-			size_t dec64 = dec64table[op - ref];
+			int dec64 = dec64table[op - ref];
 #else
 			const int dec64 = 0;
 #endif
@@ -136,6 +139,9 @@ static int lz4_uncompress(const char *source, char *dest, int osize)
 
 			/* Error: request to write beyond destination buffer */
 			if (cpy > oend)
+				goto _output_error;
+			if ((ref + COPYLENGTH) > oend ||
+					(op + COPYLENGTH) > oend)
 				goto _output_error;
 			LZ4_SECURECOPY(ref, op, (oend - COPYLENGTH));
 			while (op < cpy)
@@ -172,11 +178,6 @@ static int lz4_uncompress_unknownoutputsize(const char *source, char *dest,
 	BYTE * const oend = op + maxoutputsize;
 	BYTE *cpy;
 
-	size_t dec32table[] = {0, 3, 2, 3, 0, 0, 0, 0};
-#if LZ4_ARCH64
-	size_t dec64table[] = {0, 0, 0, -1, 0, 1, 2, 3};
-#endif
-
 	/* Main Loop */
 	while (ip < iend) {
 
@@ -190,6 +191,8 @@ static int lz4_uncompress_unknownoutputsize(const char *source, char *dest,
 			int s = 255;
 			while ((ip < iend) && (s == 255)) {
 				s = *ip++;
+				if (unlikely(length > (size_t)(length + s)))
+					goto _output_error;
 				length += s;
 			}
 		}
@@ -230,6 +233,8 @@ static int lz4_uncompress_unknownoutputsize(const char *source, char *dest,
 		if (length == ML_MASK) {
 			while (ip < iend) {
 				int s = *ip++;
+				if (unlikely(length > (size_t)(length + s)))
+					goto _output_error;
 				length += s;
 				if (s == 255)
 					continue;
@@ -240,7 +245,7 @@ static int lz4_uncompress_unknownoutputsize(const char *source, char *dest,
 		/* copy repeated sequence */
 		if (unlikely((op - ref) < STEPSIZE)) {
 #if LZ4_ARCH64
-			size_t dec64 = dec64table[op - ref];
+			int dec64 = dec64table[op - ref];
 #else
 			const int dec64 = 0;
 #endif
@@ -282,11 +287,11 @@ static int lz4_uncompress_unknownoutputsize(const char *source, char *dest,
 
 	/* write overflow error detected */
 _output_error:
-	return (int) (-(((char *) ip) - source));
+	return (int) (-(((char *)ip) - source));
 }
 
-int lz4_decompress(const char *src, size_t *src_len, char *dest,
-		size_t actual_dest_len)
+int lz4_decompress(const unsigned char *src, size_t *src_len,
+		unsigned char *dest, size_t actual_dest_len)
 {
 	int ret = -1;
 	int input_len = 0;
@@ -301,11 +306,11 @@ exit_0:
 	return ret;
 }
 #ifndef STATIC
-EXPORT_SYMBOL_GPL(lz4_decompress);
+EXPORT_SYMBOL(lz4_decompress);
 #endif
 
-int lz4_decompress_unknownoutputsize(const char *src, size_t src_len,
-		char *dest, size_t *dest_len)
+int lz4_decompress_unknownoutputsize(const unsigned char *src, size_t src_len,
+		unsigned char *dest, size_t *dest_len)
 {
 	int ret = -1;
 	int out_len = 0;
@@ -321,8 +326,8 @@ exit_0:
 	return ret;
 }
 #ifndef STATIC
-EXPORT_SYMBOL_GPL(lz4_decompress_unknownoutputsize);
+EXPORT_SYMBOL(lz4_decompress_unknownoutputsize);
 
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("LZ4 Decompressor");
 #endif

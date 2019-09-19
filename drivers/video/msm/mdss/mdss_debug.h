@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, 2017 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -49,6 +49,7 @@ struct mdss_debug_base {
 	void __iomem *base;
 	size_t off;
 	size_t cnt;
+	u8 cmd_data_type;
 	size_t max_offset;
 	char *buf;
 	size_t buf_len;
@@ -86,6 +87,8 @@ int mdss_debugfs_init(struct mdss_data_type *mdata);
 int mdss_debugfs_remove(struct mdss_data_type *mdata);
 int mdss_debug_register_base(const char *name, void __iomem *base,
 				    size_t max_offset);
+int panel_debug_register_base(const char *name, void __iomem *base,
+				    size_t max_offset);
 int mdss_misr_set(struct mdss_data_type *mdata, struct mdp_misr *req,
 			struct mdss_mdp_ctl *ctl);
 int mdss_misr_get(struct mdss_data_type *mdata, struct mdp_misr *resp,
@@ -105,6 +108,10 @@ static inline int mdss_debugfs_remove(struct mdss_data_type *mdata)
 }
 static inline int mdss_debug_register_base(const char *name, void __iomem *base,
 					size_t max_offset) { return 0; }
+static inline int panel_debug_register_base(const char *name,
+					void __iomem *base,
+					size_t max_offset)
+{ return 0; }
 static inline int mdss_misr_set(struct mdss_data_type *mdata,
 					struct mdp_misr *req,
 					struct mdss_mdp_ctl *ctl)

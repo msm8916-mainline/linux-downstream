@@ -44,7 +44,7 @@
 #else /* fortuna */
 #include "fortuna_fw_hwid_01.h"
 #include "fortuna_fw_hwid_02.h"
-#define CONFIG_DATE "0401"
+#define CONFIG_DATE "0416"
 #define TSP_TYPE_COUNT	2
 #define SUPPORTED_TOUCH_KEY
 #define CHECK_HWID

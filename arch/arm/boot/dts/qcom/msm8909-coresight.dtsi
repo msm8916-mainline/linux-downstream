@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -237,6 +237,10 @@
 		clocks = <&clock_rpm clk_qdss_clk>,
 			 <&clock_rpm clk_qdss_a_clk>;
 		clock-names = "core_clk", "core_a_clk";
+
+		qcom,cti-gpio-trigout = <2>;
+		pinctrl-names = "cti-trigout-pctrl";
+		pinctrl-0 = <&trigout_a0>;
 	};
 
 	cti7: cti@817000 {
@@ -515,10 +519,9 @@
 		reg = <0x86c000 0x108>,
 		      <0x86cfb0 0x4>,
 		      <0x78c5010 0x4>,
-		      <0x7885010 0x4>,
-		      <0x801020 0x10>;
+		      <0x7885010 0x4>;
 		reg-names = "wrapper-mux", "wrapper-lockaccess", "usbbam-mux",
-		            "blsp-mux", "apb-mux";
+		            "blsp-mux";
 		coresight-id = <31>;
 		coresight-name = "coresight-hwevent";
 		coresight-nr-inports = <0>;
@@ -589,6 +592,27 @@
 		vdd-io-supply = <&pm8909_l12>;
 		qcom,vdd-io-voltage-level = <1800000 2950000>;
 		qcom,vdd-io-current-level = <200 50000>;
+	};
+
+	dbgui: dbgui@86d000 {
+		compatible = "qcom,coresight-dbgui";
+		reg = <0x86d000 0x1000>;
+		reg-names = "dbgui-base";
+
+		coresight-id = <37>;
+		coresight-name = "coresight-dbgui";
+		coresight-nr-inports = <0>;
+		coresight-outports = <0>;
+		coresight-child-list = <&funnel_in2>;
+		coresight-child-ports = <2>;
+
+		qcom,dbgui-addr-offset = <0x30>;
+		qcom,dbgui-data-offset = <0xB0>;
+		qcom,dbgui-size = <32>;
+
+		clocks = <&clock_rpm clk_qdss_clk>,
+			 <&clock_rpm clk_qdss_a_clk>;
+		clock-names = "core_clk", "core_a_clk";
 	};
 };
 

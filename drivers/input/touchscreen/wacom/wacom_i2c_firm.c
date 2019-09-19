@@ -32,13 +32,13 @@ char Firmware_checksum[] = { 0x1F, 0x19, 0x7E, 0x3D, 0xB3, };/*ver 0x174*/
 /* LT03 (Checksum :  49F7D40E ) */
 char B930_checksum[] = { 0x1F, 0x0E, 0xD4, 0xF7, 0x49, };	/*ver  0x0267*/
 #elif defined(CONFIG_SEC_GT510_PROJECT)
-/* GT510_C483 (Checksum :  FB05FB97 ) */
-char B930_checksum[] = { 0x1F, 0x97, 0xFB, 0x05, 0xFB, };	/*ver  0x063E*/
+/* GT510_C483 (Checksum :  4CE0DD67 ) */
+char B930_checksum[] = { 0x1F, 0x67, 0xDD, 0xE0, 0x4C, };	/*ver  0x0656*/
 /* GT510_C430 (Checksum :  AC355BEE ) */
 char B930_boot91_checksum[] = { 0x1F, 0xEE, 0x5B, 0x35, 0xAC, };	/*ver  0x0623*/
 #elif defined(CONFIG_SEC_GT58_PROJECT)
-/* GT58 (Checksum :  55A00C01 ) */
-char B930_checksum[] = { 0x1F, 0x01, 0x0C, 0xA0, 0x55, };	/*ver  0x126B*/
+/* GT58 (Checksum :  A23FA82F) */
+char B930_checksum[] = { 0x1F, 0x2F, 0xA8, 0x3F, 0xA2, };	/*ver  0x1359*/
 #else
 /* VIENNA (Checksum : F7FE6E3D) */
 char B930_checksum[] = { 0x1F, 0x3D, 0x6E, 0xFE, 0xF7, };	/*boot ver: 0x92 , ver 0x450*/

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -259,7 +259,7 @@ int create_pkt_cmd_sys_coverage_config(
 	return 0;
 }
 
-int create_pkt_set_cmd_sys_resource(
+int create_pkt_cmd_sys_set_resource(
 		struct hfi_cmd_sys_set_resource_packet *pkt,
 		struct vidc_resource_hdr *resource_hdr,
 		void *resource_value)
@@ -949,7 +949,10 @@ int create_pkt_cmd_session_set_property(
 		struct hfi_enable *hfi;
 		pkt->rg_property_data[0] = HFI_PROPERTY_CONFIG_REALTIME;
 		hfi = (struct hfi_enable *) &pkt->rg_property_data[1];
-		hfi->enable = ((struct hfi_enable *) pdata)->enable;
+		/* firmware has inverted vaules for realtime and
+		 * non-realtime priority
+		 */
+		hfi->enable = !(((struct hfi_enable *) pdata)->enable);
 		pkt->size += sizeof(u32) * 2;
 		break;
 	}
@@ -974,6 +977,54 @@ int create_pkt_cmd_session_set_property(
 		pkt->size += sizeof(u32) + sizeof(struct
 				hfi_buffer_count_actual);
 
+		break;
+	}
+	case HAL_PARAM_BUFFER_SIZE_ACTUAL:
+	{
+		struct hfi_buffer_size_actual *hfi;
+		struct hal_buffer_size_actual *prop =
+			(struct hal_buffer_size_actual *) pdata;
+		u32 buffer_type;
+
+		pkt->rg_property_data[0] =
+			HFI_PROPERTY_PARAM_BUFFER_SIZE_ACTUAL;
+
+		hfi = (struct hfi_buffer_size_actual *)
+			&pkt->rg_property_data[1];
+		hfi->buffer_size = prop->buffer_size;
+
+		buffer_type = get_hfi_buffer(prop->buffer_type);
+		if (buffer_type)
+			hfi->buffer_type = buffer_type;
+		else
+			return -EINVAL;
+
+		pkt->size += sizeof(u32) + sizeof(struct
+				hfi_buffer_count_actual);
+		break;
+	}
+	case HAL_PARAM_BUFFER_DISPLAY_HOLD_COUNT_ACTUAL:
+	{
+		struct hfi_buffer_display_hold_count_actual *hfi;
+		struct hal_buffer_display_hold_count_actual *prop =
+			(struct hal_buffer_display_hold_count_actual *) pdata;
+		u32 buffer_type;
+
+		pkt->rg_property_data[0] =
+			HFI_PROPERTY_PARAM_BUFFER_DISPLAY_HOLD_COUNT_ACTUAL;
+
+		hfi = (struct hfi_buffer_display_hold_count_actual *)
+			&pkt->rg_property_data[1];
+		hfi->hold_count = prop->hold_count;
+
+		buffer_type = get_hfi_buffer(prop->buffer_type);
+		if (buffer_type)
+			hfi->buffer_type = buffer_type;
+		else
+			return -EINVAL;
+
+		pkt->size += sizeof(u32) + sizeof(struct
+				hfi_buffer_count_actual);
 		break;
 	}
 	case HAL_PARAM_NAL_STREAM_FORMAT_SELECT:
@@ -1249,7 +1300,7 @@ int create_pkt_cmd_session_set_property(
 			break;
 		default:
 			dprintk(VIDC_ERR,
-					"Invalid Rate control setting: 0x%p\n",
+					"Invalid Rate control setting: 0x%pK\n",
 					pdata);
 			break;
 		}
@@ -1905,7 +1956,7 @@ int create_pkt_ssr_cmd(enum hal_ssr_trigger_type type,
 		struct hfi_cmd_sys_test_ssr_packet *pkt)
 {
 	if (!pkt) {
-		dprintk(VIDC_ERR, "Invalid params, device: %p\n", pkt);
+		dprintk(VIDC_ERR, "Invalid params, device: %pK\n", pkt);
 		return -EINVAL;
 	}
 	pkt->size = sizeof(struct hfi_cmd_sys_test_ssr_packet);
@@ -1918,7 +1969,7 @@ int create_pkt_cmd_sys_image_version(
 		struct hfi_cmd_sys_get_property_packet *pkt)
 {
 	if (!pkt) {
-		dprintk(VIDC_ERR, "%s invalid param :%p\n", __func__, pkt);
+		dprintk(VIDC_ERR, "%s invalid param :%pK\n", __func__, pkt);
 		return -EINVAL;
 	}
 	pkt->size = sizeof(struct hfi_cmd_sys_get_property_packet);
@@ -1926,4 +1977,60 @@ int create_pkt_cmd_sys_image_version(
 	pkt->num_properties = 1;
 	pkt->rg_property_data[0] = HFI_PROPERTY_SYS_IMAGE_VERSION;
 	return 0;
+}
+
+static struct hfi_packetization_ops hfi_default = {
+	.sys_init = create_pkt_cmd_sys_init,
+	.sys_pc_prep = create_pkt_cmd_sys_pc_prep,
+	.sys_idle_indicator = create_pkt_cmd_sys_idle_indicator,
+	.sys_power_control = create_pkt_cmd_sys_power_control,
+	.sys_set_resource = create_pkt_cmd_sys_set_resource,
+	.sys_debug_config = create_pkt_cmd_sys_debug_config,
+	.sys_coverage_config = create_pkt_cmd_sys_coverage_config,
+	.sys_release_resource = create_pkt_cmd_sys_release_resource,
+	.sys_ping = create_pkt_cmd_sys_ping,
+	.sys_image_version = create_pkt_cmd_sys_image_version,
+	.ssr_cmd = create_pkt_ssr_cmd,
+	.session_init = create_pkt_cmd_sys_session_init,
+	.session_cmd = create_pkt_cmd_session_cmd,
+	.session_set_buffers = create_pkt_cmd_session_set_buffers,
+	.session_release_buffers = create_pkt_cmd_session_release_buffers,
+	.session_etb_decoder = create_pkt_cmd_session_etb_decoder,
+	.session_etb_encoder = create_pkt_cmd_session_etb_encoder,
+	.session_ftb = create_pkt_cmd_session_ftb,
+	.session_parse_seq_header = create_pkt_cmd_session_parse_seq_header,
+	.session_get_seq_hdr = create_pkt_cmd_session_get_seq_hdr,
+	.session_get_buf_req = create_pkt_cmd_session_get_buf_req,
+	.session_flush = create_pkt_cmd_session_flush,
+	.session_get_property = create_pkt_cmd_session_get_property,
+	.session_set_property = create_pkt_cmd_session_set_property,
+};
+
+struct hfi_packetization_ops *get_venus_3_x_ops(void)
+{
+	static struct hfi_packetization_ops hfi_venus_3_x;
+
+	hfi_venus_3_x = hfi_default;
+
+	/* Override new HFI functions for HFI_PACKETIZATION_3XX here. */
+
+	return &hfi_venus_3_x;
+}
+
+struct hfi_packetization_ops *hfi_get_pkt_ops_handle(
+			enum hfi_packetization_type type)
+{
+	dprintk(VIDC_DBG, "%s selected\n",
+		type == HFI_PACKETIZATION_LEGACY ? "legacy packetization" :
+		type == HFI_PACKETIZATION_3XX ? "3xx packetization" :
+		"Unknown hfi");
+
+	switch (type) {
+	case HFI_PACKETIZATION_LEGACY:
+		return &hfi_default;
+	case HFI_PACKETIZATION_3XX:
+		return get_venus_3_x_ops();
+	}
+
+	return NULL;
 }

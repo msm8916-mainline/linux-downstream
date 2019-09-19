@@ -674,8 +674,9 @@ static int acm_notify_serial_state(struct f_acm *acm)
 {
 	struct usb_composite_dev *cdev = acm->port.func.config->cdev;
 	int			status;
+	unsigned long	flags;
 
-	spin_lock(&acm->lock);
+	spin_lock_irqsave(&acm->lock, flags);
 	if (acm->notify_req) {
 		DBG(cdev, "acm ttyGS%d serial state %04x\n",
 				acm->port_num, acm->serial_state);
@@ -685,7 +686,7 @@ static int acm_notify_serial_state(struct f_acm *acm)
 		acm->pending = true;
 		status = 0;
 	}
-	spin_unlock(&acm->lock);
+	spin_unlock_irqrestore(&acm->lock, flags);
 	return status;
 }
 
@@ -693,19 +694,32 @@ static void acm_cdc_notify_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct f_acm		*acm = req->context;
 	u8			doit = false;
+	unsigned long	flags;
 
 	/* on this call path we do NOT hold the port spinlock,
 	 * which is why ACM needs its own spinlock
 	 */
-	spin_lock(&acm->lock);
+	spin_lock_irqsave(&acm->lock, flags);
 	if (req->status != -ESHUTDOWN)
 		doit = acm->pending;
 	acm->notify_req = req;
-	spin_unlock(&acm->lock);
+	spin_unlock_irqrestore(&acm->lock, flags);
 
 	if (doit)
 		acm_notify_serial_state(acm);
 }
+
+#ifdef CONFIG_USB_DUN_SUPPORT
+void acm_notify(void *dev, u16 state)
+{
+	struct f_acm    *acm = (struct f_acm *)dev;
+
+	if (acm) {
+		acm->serial_state = state;
+		acm_notify_serial_state(acm);
+	}
+}
+#endif
 
 /* connect == the TTY link is open */
 
@@ -848,6 +862,10 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
 			acm->port.in->name, acm->port.out->name,
 			acm->notify->name);
+	/* To notify serial state by datarouter*/
+#ifdef CONFIG_USB_DUN_SUPPORT
+	modem_register(acm);
+#endif
 	return 0;
 
 fail:
@@ -870,6 +888,10 @@ fail:
 static void acm_unbind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct f_acm		*acm = func_to_acm(f);
+
+#ifdef CONFIG_USB_DUN_SUPPORT
+	modem_unregister();
+#endif
 
 	/* acm_string_defs[].id is limited to 256
 	if id is cleared on disconneting, The increased number is allocated on connecting.

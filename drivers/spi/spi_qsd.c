@@ -97,14 +97,14 @@ static int msm_spi_pinctrl_init(struct msm_spi *dd)
 		return PTR_ERR(dd->pinctrl);
 	}
 	dd->pins_active = pinctrl_lookup_state(dd->pinctrl,
-				PINCTRL_STATE_DEFAULT);
+				SPI_PINCTRL_STATE_DEFAULT);
 	if (IS_ERR_OR_NULL(dd->pins_active)) {
 		dev_err(dd->dev, "Failed to lookup pinctrl default state\n");
 		return PTR_ERR(dd->pins_active);
 	}
 
 	dd->pins_sleep = pinctrl_lookup_state(dd->pinctrl,
-				PINCTRL_STATE_SLEEP);
+				SPI_PINCTRL_STATE_SLEEP);
 	if (IS_ERR_OR_NULL(dd->pins_sleep)) {
 		dev_err(dd->dev, "Failed to lookup pinctrl sleep state\n");
 		return PTR_ERR(dd->pins_sleep);
@@ -136,7 +136,7 @@ static inline int msm_spi_request_gpios(struct msm_spi *dd)
 		result = pinctrl_select_state(dd->pinctrl, dd->pins_active);
 		if (result) {
 			dev_err(dd->dev, "%s: Can not set %s pins\n",
-			__func__, PINCTRL_STATE_DEFAULT);
+			__func__, SPI_PINCTRL_STATE_DEFAULT);
 			goto error;
 		}
 	}
@@ -172,7 +172,7 @@ static inline void msm_spi_free_gpios(struct msm_spi *dd)
 		result = pinctrl_select_state(dd->pinctrl, dd->pins_sleep);
 		if (result)
 			dev_err(dd->dev, "%s: Can not set %s pins\n",
-			__func__, PINCTRL_STATE_SLEEP);
+			__func__, SPI_PINCTRL_STATE_SLEEP);
 	}
 }
 
@@ -1746,6 +1746,13 @@ static void reset_core(struct msm_spi *dd)
 
 static void put_local_resources(struct msm_spi *dd)
 {
+
+	if (IS_ERR_OR_NULL(dd->clk) || IS_ERR_OR_NULL(dd->pclk)) {
+		dev_err(dd->dev,
+			"%s: error clk put\n",
+				__func__);
+		return;
+	}
 	msm_spi_disable_irqs(dd);
 	clk_disable_unprepare(dd->clk);
 	clk_disable_unprepare(dd->pclk);
@@ -1760,6 +1767,14 @@ static void put_local_resources(struct msm_spi *dd)
 static int get_local_resources(struct msm_spi *dd)
 {
 	int ret = -EINVAL;
+
+	if (IS_ERR_OR_NULL(dd->clk) || IS_ERR_OR_NULL(dd->pclk)) {
+		dev_err(dd->dev,
+			"%s: error clk put\n",
+				__func__);
+		return ret;
+	}
+
 	/* Configure the spi clk, miso, mosi and cs gpio */
 	if (dd->pdata->gpio_config) {
 		ret = dd->pdata->gpio_config();
@@ -1842,6 +1857,7 @@ static int msm_spi_transfer_one_message(struct spi_master *master,
 	if (dd->pdata->is_shared) {
 		if (get_local_resources(dd)) {
 			mutex_unlock(&dd->core_lock);
+			spi_finalize_current_message(master);
 			return -EINVAL;
 		}
 
@@ -1900,7 +1916,8 @@ static int msm_spi_prepare_transfer_hardware(struct spi_master *master)
 
 	resume_state = pm_runtime_get_sync(dd->dev);
 	if (resume_state < 0)
-		return resume_state;
+		goto spi_finalize;
+
 	/*
 	 * Counter-part of system-suspend when runtime-pm is not enabled.
 	 * This way, resume can be left empty and device will be put in
@@ -1909,11 +1926,16 @@ static int msm_spi_prepare_transfer_hardware(struct spi_master *master)
 	if (!pm_runtime_enabled(dd->dev))
 		resume_state = msm_spi_pm_resume_runtime(dd->dev);
 	if (resume_state < 0)
-		return resume_state;
-	if (dd->suspended)
-		return -EBUSY;
-
+		goto spi_finalize;
+	if (dd->suspended) {
+		resume_state = -EBUSY;
+		goto spi_finalize;
+	}
 	return 0;
+
+spi_finalize:
+	spi_finalize_current_message(master);
+	return resume_state;
 }
 
 static int msm_spi_unprepare_transfer_hardware(struct spi_master *master)
@@ -1946,22 +1968,38 @@ static int msm_spi_setup(struct spi_device *spi)
 
 	dd = spi_master_get_devdata(spi->master);
 
-	pm_runtime_get_sync(dd->dev);
-	if (dd->pdata->is_shared) {
-		rc = get_local_resources(dd);
-		if (rc)
-			goto no_resources;
-	}
+	rc = pm_runtime_get_sync(dd->dev);
+	if (rc < 0 && !dd->is_init_complete &&
+			pm_runtime_enabled(dd->dev)) {
+		pm_runtime_set_suspended(dd->dev);
+		pm_runtime_put_sync(dd->dev);
+		rc = 0;
+		goto err_setup_exit;
+	} else
+		rc = 0;
 
 	mutex_lock(&dd->core_lock);
 
 	/* Counter-part of system-suspend when runtime-pm is not enabled. */
-	if (!pm_runtime_enabled(dd->dev))
-		msm_spi_pm_resume_runtime(dd->dev);
+	if (!pm_runtime_enabled(dd->dev)) {
+		rc = msm_spi_pm_resume_runtime(dd->dev);
+		if (rc < 0 && !dd->is_init_complete) {
+			rc = 0;
+			mutex_unlock(&dd->core_lock);
+			goto err_setup_exit;
+		}
+	}
 
 	if (dd->suspended) {
 		rc = -EBUSY;
+		mutex_unlock(&dd->core_lock);
 		goto err_setup_exit;
+	}
+
+	if (dd->pdata->is_shared) {
+		rc = get_local_resources(dd);
+		if (rc)
+			goto no_resources;
 	}
 
 	spi_ioc = readl_relaxed(dd->base + SPI_IO_CONTROL);
@@ -1981,18 +2019,18 @@ static int msm_spi_setup(struct spi_device *spi)
 
 	/* Ensure previous write completed before disabling the clocks */
 	mb();
-
+	if (dd->pdata->is_shared)
+		put_local_resources(dd);
 	/* Counter-part of system-resume when runtime-pm is not enabled. */
 	if (!pm_runtime_enabled(dd->dev))
 		msm_spi_pm_suspend_runtime(dd->dev);
 
-err_setup_exit:
-	mutex_unlock(&dd->core_lock);
-	if (dd->pdata->is_shared)
-		put_local_resources(dd);
 no_resources:
+	mutex_unlock(&dd->core_lock);
 	pm_runtime_mark_last_busy(dd->dev);
 	pm_runtime_put_autosuspend(dd->dev);
+
+err_setup_exit:
 	return rc;
 }
 
@@ -2408,6 +2446,18 @@ struct msm_spi_platform_data *msm_spi_dt_to_pdata(
 		}
 	}
 
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
+	/* Even if you set the bam setting,
+	 * you can't access bam when you use tsspi in fingerprint
+	 *
+	 */
+	if (pdata->master_id == CONFIG_SENSORS_FP_MASTER_ID) {
+		pdata->use_bam = false;
+		pr_info("%s: disable bam for BLSP tzspi, master_id(%d)\n",
+				__func__, pdata->master_id);
+	}
+#endif
+
 	if (pdata->use_bam) {
 		if (!pdata->bam_consumer_pipe_index) {
 			dev_warn(&pdev->dev,
@@ -2469,16 +2519,410 @@ static int msm_spi_bam_get_resources(struct msm_spi *dd,
 	return 0;
 }
 
+static int init_resources(struct platform_device *pdev)
+{
+	struct spi_master *master = platform_get_drvdata(pdev);
+	struct msm_spi	  *dd;
+	int               rc = -ENXIO;
+	int               clk_enabled = 0;
+	int               pclk_enabled = 0;
+
+	dd = spi_master_get_devdata(master);
+
+	if (dd->pdata && dd->pdata->use_pinctrl) {
+		rc = msm_spi_pinctrl_init(dd);
+		if (rc) {
+			dev_err(&pdev->dev, "%s: pinctrl init failed\n",
+					 __func__);
+			return rc;
+		}
+	}
+
+	mutex_lock(&dd->core_lock);
+
+	dd->clk = clk_get(&pdev->dev, "core_clk");
+	if (IS_ERR(dd->clk)) {
+		dev_err(&pdev->dev, "%s: unable to get core_clk\n", __func__);
+		rc = PTR_ERR(dd->clk);
+		goto err_clk_get;
+	}
+
+	dd->pclk = clk_get(&pdev->dev, "iface_clk");
+	if (IS_ERR(dd->pclk)) {
+		dev_err(&pdev->dev, "%s: unable to get iface_clk\n", __func__);
+		rc = PTR_ERR(dd->pclk);
+		goto err_pclk_get;
+	}
+
+	if (dd->pdata && dd->pdata->max_clock_speed)
+		msm_spi_clock_set(dd, dd->pdata->max_clock_speed);
+
+	rc = clk_prepare_enable(dd->clk);
+	if (rc) {
+		dev_err(&pdev->dev, "%s: unable to enable core_clk\n",
+			__func__);
+		goto err_clk_enable;
+	}
+
+	clk_enabled = 1;
+	rc = clk_prepare_enable(dd->pclk);
+	if (rc) {
+		dev_err(&pdev->dev, "%s: unable to enable iface_clk\n",
+		__func__);
+		goto err_pclk_enable;
+	}
+
+	pclk_enabled = 1;
+
+	if (dd->pdata && dd->pdata->ver_reg_exists) {
+		enum msm_spi_qup_version ver =
+					msm_spi_get_qup_hw_ver(&pdev->dev, dd);
+		if (dd->qup_ver != ver)
+			dev_warn(&pdev->dev,
+			"%s: HW version different then initially assumed by probe",
+			__func__);
+	}
+
+	/* GSBI dose not exists on B-family MSM-chips */
+	if (dd->qup_ver != SPI_QUP_VERSION_BFAM) {
+		rc = msm_spi_configure_gsbi(dd, pdev);
+		if (rc)
+			goto err_config_gsbi;
+	}
+
+	msm_spi_calculate_fifo_size(dd);
+	if (dd->use_dma) {
+		rc = dd->dma_init(dd);
+		if (rc) {
+			dev_err(&pdev->dev,
+				"%s: failed to init DMA. Disabling DMA mode\n",
+				__func__);
+			dd->use_dma = 0;
+		}
+	}
+
+	msm_spi_register_init(dd);
+	/*
+	 * The SPI core generates a bogus input overrun error on some targets,
+	 * when a transition from run to reset state occurs and if the FIFO has
+	 * an odd number of entries. Hence we disable the INPUT_OVER_RUN_ERR_EN
+	 * bit.
+	 */
+	msm_spi_enable_error_flags(dd);
+
+	writel_relaxed(SPI_IO_C_NO_TRI_STATE, dd->base + SPI_IO_CONTROL);
+	rc = msm_spi_set_state(dd, SPI_OP_STATE_RESET);
+	if (rc)
+		goto err_spi_state;
+
+	clk_disable_unprepare(dd->clk);
+	clk_disable_unprepare(dd->pclk);
+	clk_enabled = 0;
+	pclk_enabled = 0;
+
+	dd->transfer_pending = 0;
+	dd->multi_xfr = 0;
+	dd->mode = SPI_MODE_NONE;
+
+	rc = msm_spi_request_irq(dd, pdev, master);
+	if (rc)
+		goto err_irq;
+
+	msm_spi_disable_irqs(dd);
+
+	mutex_unlock(&dd->core_lock);
+	return 0;
+
+err_irq:
+err_spi_state:
+	if (dd->use_dma && dd->dma_teardown)
+		dd->dma_teardown(dd);
+err_config_gsbi:
+	if (pclk_enabled)
+		clk_disable_unprepare(dd->pclk);
+err_pclk_enable:
+	if (clk_enabled)
+		clk_disable_unprepare(dd->clk);
+err_clk_enable:
+	clk_put(dd->pclk);
+err_pclk_get:
+	clk_put(dd->clk);
+err_clk_get:
+	mutex_unlock(&dd->core_lock);
+	return rc;
+}
+
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
+int fp_spi_clock_set_rate(struct spi_device *spidev)
+{
+	struct msm_spi *dd;
+
+	if (!spidev) {
+		pr_err("%s: spidev pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	dd = spi_master_get_devdata(spidev->master);
+	if (!dd) {
+		pr_err("%s: spi master pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	msm_spi_clock_set(dd, spidev->max_speed_hz);
+
+	pr_info("%s sucess\n", __func__);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(fp_spi_clock_set_rate);
+
+int fp_spi_clock_enable(struct spi_device *spidev)
+{
+	struct msm_spi *dd;
+	int rc;
+
+	if (!spidev) {
+		pr_err("%s: spidev pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	dd = spi_master_get_devdata(spidev->master);
+	if (!dd) {
+		pr_err("%s: spi master pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	rc = clk_prepare_enable(dd->clk);
+	if (rc) {
+		pr_err("%s: unable to enable core_clk\n", __func__);
+		return rc;
+	}
+
+	rc = clk_prepare_enable(dd->pclk);
+	if (rc) {
+		pr_err("%s: unable to enable iface_clk\n", __func__);
+		return rc;
+	}
+	pr_info("%s sucess\n", __func__);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(fp_spi_clock_enable);
+
+int fp_spi_clock_disable(struct spi_device *spidev)
+{
+	struct msm_spi *dd;
+
+	if (!spidev) {
+		pr_err("%s: spidev pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	dd = spi_master_get_devdata(spidev->master);
+	if (!dd) {
+		pr_err("%s: spi master pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	clk_disable_unprepare(dd->clk);
+	clk_disable_unprepare(dd->pclk);
+
+	pr_info("%s sucess\n", __func__);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(fp_spi_clock_disable);
+
+int fp_spi_request_gpios(struct spi_device *spidev)
+{
+	int i = 0;
+	int result = 0;
+	struct msm_spi *dd;
+
+	if (!spidev) {
+		pr_err("%s: spidev pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	dd = spi_master_get_devdata(spidev->master);
+	if (!dd) {
+		pr_err("%s: spi master pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	if (!dd->pdata->use_pinctrl) {
+		for (i = 0; i < ARRAY_SIZE(spi_rsrcs); ++i) {
+			if (dd->spi_gpios[i] >= 0) {
+				result = gpio_request(dd->spi_gpios[i],
+						spi_rsrcs[i]);
+				if (result) {
+					dev_err(dd->dev,
+					"%s: gpio_request for pin %d "
+					"failed with error %d\n"
+					, __func__, dd->spi_gpios[i], result);
+					goto error;
+				}
+			}
+		}
+	} else {
+		result = pinctrl_select_state(dd->pinctrl, dd->pins_active);
+		if (result) {
+			dev_err(dd->dev, "%s: Can not set %s pins\n",
+			__func__, PINCTRL_STATE_DEFAULT);
+			goto error;
+		}
+	}
+	pr_info("%s sucess\n", __func__);
+	return 0;
+error:
+	pr_err("%s error\n", __func__);
+	if (!dd->pdata->use_pinctrl) {
+		for (; --i >= 0;) {
+			if (dd->spi_gpios[i] >= 0)
+				gpio_free(dd->spi_gpios[i]);
+		}
+	}
+	return result;
+}
+EXPORT_SYMBOL_GPL(fp_spi_request_gpios);
+#endif
+
+#if (defined CONFIG_ESE_P61) || (defined CONFIG_ESE_P3)
+int ese_spi_clock_set_rate(struct spi_device *spidev)
+{
+	struct msm_spi *dd;
+
+	if (!spidev) {
+		pr_err("%s: spidev pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	dd = spi_master_get_devdata(spidev->master);
+	if (!dd) {
+		pr_err("%s: spi master pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	msm_spi_clock_set(dd, spidev->max_speed_hz);
+
+	pr_info("%s sucess\n", __func__);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(ese_spi_clock_set_rate);
+
+int ese_spi_clock_enable(struct spi_device *spidev)
+{
+	struct msm_spi *dd;
+	int rc;
+
+	if (!spidev) {
+		pr_err("%s: spidev pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	dd = spi_master_get_devdata(spidev->master);
+	if (!dd) {
+		pr_err("%s: spi master pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	rc = clk_prepare_enable(dd->clk);
+	if (rc) {
+		pr_err("%s: unable to enable core_clk\n", __func__);
+		return rc;
+	}
+
+	rc = clk_prepare_enable(dd->pclk);
+	if (rc) {
+		pr_err("%s: unable to enable iface_clk\n", __func__);
+		return rc;
+	}
+	pr_info("%s sucess\n", __func__);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(ese_spi_clock_enable);
+
+int ese_spi_clock_disable(struct spi_device *spidev)
+{
+	struct msm_spi *dd;
+
+	if (!spidev) {
+		pr_err("%s: spidev pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	dd = spi_master_get_devdata(spidev->master);
+	if (!dd) {
+		pr_err("%s: spi master pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	clk_disable_unprepare(dd->clk);
+	clk_disable_unprepare(dd->pclk);
+
+	pr_info("%s sucess\n", __func__);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(ese_spi_clock_disable);
+
+int ese_spi_request_gpios(struct spi_device *spidev)
+{
+	int i = 0;
+	int result = 0;
+	struct msm_spi *dd;
+
+	if (!spidev) {
+		pr_err("%s: spidev pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	dd = spi_master_get_devdata(spidev->master);
+	if (!dd) {
+		pr_err("%s: spi master pointer is NULL\n", __func__);
+		return -EFAULT;
+	}
+
+	if (!dd->pdata->use_pinctrl) {
+		for (i = 0; i < ARRAY_SIZE(spi_rsrcs); ++i) {
+			if (dd->spi_gpios[i] >= 0) {
+				result = gpio_request(dd->spi_gpios[i],
+						spi_rsrcs[i]);
+				if (result) {
+					dev_err(dd->dev,
+					"%s: gpio_request for pin %d "
+					"failed with error %d\n"
+					, __func__, dd->spi_gpios[i], result);
+					goto error;
+				}
+			}
+		}
+	} else {
+		result = pinctrl_select_state(dd->pinctrl, dd->pins_active);
+		if (result) {
+			dev_err(dd->dev, "%s: Can not set %s pins\n",
+			__func__, PINCTRL_STATE_DEFAULT);
+			goto error;
+		}
+	}
+	pr_info("%s sucess\n", __func__);
+	return 0;
+error:
+	pr_err("%s error\n", __func__);
+	if (!dd->pdata->use_pinctrl) {
+		for (; --i >= 0;) {
+			if (dd->spi_gpios[i] >= 0)
+				gpio_free(dd->spi_gpios[i]);
+		}
+	}
+	return result;
+}
+EXPORT_SYMBOL_GPL(ese_spi_request_gpios);
+#endif
+
 static int msm_spi_probe(struct platform_device *pdev)
 {
 	struct spi_master      *master;
 	struct msm_spi	       *dd;
 	struct resource	       *resource;
+	int			i = 0;
 	int                     rc = -ENXIO;
-	int                     locked = 0;
-	int                     i = 0;
-	int                     clk_enabled = 0;
-	int                     pclk_enabled = 0;
 	struct msm_spi_platform_data *pdata;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(struct msm_spi));
@@ -2545,13 +2989,7 @@ static int msm_spi_probe(struct platform_device *pdev)
 
 	dd->mem_phys_addr = resource->start;
 	dd->mem_size = resource_size(resource);
-
-	if (dd->pdata && dd->pdata->use_pinctrl) {
-		dd->dev = &pdev->dev;
-		rc = msm_spi_pinctrl_init(dd);
-		if (rc)
-			goto err_pinctrl;
-	}
+	dd->dev = &pdev->dev;
 
 	if (pdata) {
 		master->rt = pdata->rt_priority;
@@ -2596,108 +3034,11 @@ skip_dma_resources:
 		goto err_probe_reqmem;
 	}
 
-	mutex_lock(&dd->core_lock);
-
-	locked = 1;
-	dd->dev = &pdev->dev;
-	dd->clk = clk_get(&pdev->dev, "core_clk");
-	if (IS_ERR(dd->clk)) {
-		dev_err(&pdev->dev, "%s: unable to get core_clk\n", __func__);
-		rc = PTR_ERR(dd->clk);
-		goto err_probe_clk_get;
-	}
-
-	dd->pclk = clk_get(&pdev->dev, "iface_clk");
-	if (IS_ERR(dd->pclk)) {
-		dev_err(&pdev->dev, "%s: unable to get iface_clk\n", __func__);
-		rc = PTR_ERR(dd->pclk);
-		goto err_probe_pclk_get;
-	}
-
-	if (pdata && pdata->max_clock_speed)
-		msm_spi_clock_set(dd, dd->pdata->max_clock_speed);
-
-	rc = clk_prepare_enable(dd->clk);
-	if (rc) {
-		dev_err(&pdev->dev, "%s: unable to enable core_clk\n",
-			__func__);
-		goto err_probe_clk_enable;
-	}
-
-	clk_enabled = 1;
-	rc = clk_prepare_enable(dd->pclk);
-	if (rc) {
-		dev_err(&pdev->dev, "%s: unable to enable iface_clk\n",
-		__func__);
-		goto err_probe_pclk_enable;
-	}
-
-	pclk_enabled = 1;
-
-	if (pdata && pdata->ver_reg_exists) {
-		enum msm_spi_qup_version ver =
-					msm_spi_get_qup_hw_ver(&pdev->dev, dd);
-		if (dd->qup_ver != ver)
-			dev_warn(&pdev->dev,
-			"%s: HW version different then initially assumed by probe",
-			__func__);
-	}
-
-	/* GSBI dose not exists on B-family MSM-chips */
-	if (dd->qup_ver != SPI_QUP_VERSION_BFAM) {
-		rc = msm_spi_configure_gsbi(dd, pdev);
-		if (rc)
-			goto err_probe_gsbi;
-	}
-
-	msm_spi_calculate_fifo_size(dd);
-	if (dd->use_dma) {
-		rc = dd->dma_init(dd);
-		if (rc) {
-			dev_err(&pdev->dev,
-				"%s: failed to init DMA. Disabling DMA mode\n",
-				__func__);
-			dd->use_dma = 0;
-		}
-	}
-
-	msm_spi_register_init(dd);
-	/*
-	 * The SPI core generates a bogus input overrun error on some targets,
-	 * when a transition from run to reset state occurs and if the FIFO has
-	 * an odd number of entries. Hence we disable the INPUT_OVER_RUN_ERR_EN
-	 * bit.
-	 */
-	msm_spi_enable_error_flags(dd);
-
-	writel_relaxed(SPI_IO_C_NO_TRI_STATE, dd->base + SPI_IO_CONTROL);
-	rc = msm_spi_set_state(dd, SPI_OP_STATE_RESET);
-	if (rc)
-		goto err_probe_state;
-
-	clk_disable_unprepare(dd->clk);
-	clk_disable_unprepare(dd->pclk);
-	clk_enabled = 0;
-	pclk_enabled = 0;
-
-	dd->suspended = 1;
-	dd->transfer_pending = 0;
-	dd->multi_xfr = 0;
-	dd->mode = SPI_MODE_NONE;
-
-	rc = msm_spi_request_irq(dd, pdev, master);
-	if (rc)
-		goto err_probe_irq;
-
-	msm_spi_disable_irqs(dd);
-
-	mutex_unlock(&dd->core_lock);
-	locked = 0;
-
 	pm_runtime_set_autosuspend_delay(&pdev->dev, MSEC_PER_SEC);
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
+	dd->suspended = 1;
 	rc = spi_register_master(master);
 	if (rc)
 		goto err_probe_reg_master;
@@ -2715,24 +3056,6 @@ err_attrs:
 	spi_unregister_master(master);
 err_probe_reg_master:
 	pm_runtime_disable(&pdev->dev);
-err_probe_irq:
-err_probe_state:
-	if (dd->use_dma && dd->dma_teardown)
-		dd->dma_teardown(dd);
-err_probe_gsbi:
-	if (pclk_enabled)
-		clk_disable_unprepare(dd->pclk);
-err_probe_pclk_enable:
-	if (clk_enabled)
-		clk_disable_unprepare(dd->clk);
-err_probe_clk_enable:
-	clk_put(dd->pclk);
-err_probe_pclk_get:
-	clk_put(dd->clk);
-err_probe_clk_get:
-	if (locked)
-		mutex_unlock(&dd->core_lock);
-err_pinctrl:
 err_probe_reqmem:
 err_probe_res:
 	spi_master_put(master);
@@ -2786,6 +3109,7 @@ static int msm_spi_pm_resume_runtime(struct device *device)
 	struct platform_device *pdev = to_platform_device(device);
 	struct spi_master *master = platform_get_drvdata(pdev);
 	struct msm_spi	  *dd;
+	int               ret = 0;
 
 	dev_dbg(device, "pm_runtime: resuming...\n");
 	if (!master)
@@ -2796,8 +3120,18 @@ static int msm_spi_pm_resume_runtime(struct device *device)
 
 	if (!dd->suspended)
 		return 0;
-	if (!dd->pdata->is_shared)
-		get_local_resources(dd);
+	if (!dd->is_init_complete) {
+		ret = init_resources(pdev);
+		if (ret != 0)
+			return ret;
+		else
+			dd->is_init_complete = true;
+	}
+	if (!dd->pdata->is_shared) {
+		ret = get_local_resources(dd);
+		if (ret)
+			return ret;
+	}
 	msm_spi_clk_path_init(dd);
 	if (!dd->pdata->active_only)
 		msm_spi_clk_path_vote(dd);

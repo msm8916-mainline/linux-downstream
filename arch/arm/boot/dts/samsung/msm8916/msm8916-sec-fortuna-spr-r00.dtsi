@@ -16,7 +16,7 @@
 #include "msm8916-camera-sensor-cdp-fortuna-tfn-r00.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/HX8389C_GH9607501A/dsi_panel_HX8389C_GH9607501A_qhd_video.dtsi"
 #include "../../../../../../drivers/video/msm/mdss/samsung/S6D78A0_GH9607501A/dsi_panel_S6D78A0_GH9607501A_qhd_video.dtsi"
-#include "msm8916-sec-fortuna-tmo-battery-r00.dtsi"
+#include "msm8916-sec-fortuna-spr-battery-r00.dtsi"
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
@@ -37,17 +37,13 @@
 };
 
 samsung,vibrator {
-		compatible = "haptic_vib";
+		compatible = "samsung_vib";
 		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
 		pinctrl-0 = <&motor_en_active &motor_pwm_active>;
 		pinctrl-1 = <&motor_en_suspend &motor_pwm_suspend>;
 		samsung,vib_en = <&msm_gpio 72 0x1>;
 		samsung,vib_pwm = <&msm_gpio 97 0x1>;
-		samsung,vib_model = <1>;
-		samsung,is_pmic_vib_pwm = <0>;
 		samsung,gp_clk = <0x01808000>;	// Adress of GP1 clock,by default GP2 is used
-		samsung,pwm_period_us = <40>;
-		samsung,duty_us = <36>;
 		status = "ok";
 	};
 
@@ -289,7 +285,7 @@ samsung,vibrator {
 		compatible = "gpio-keys";
 		input-name = "gpio-keys";
 		pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
-		pinctrl-0 = <&gpio_key_active>;
+		pinctrl-0 = <&gpio_key_active &home_key_pin>;
 		pinctrl-1 = <&gpio_key_suspend>;
 
 		home_key {
@@ -352,21 +348,14 @@ samsung,vibrator {
 				 <&det_zones 975 10000 10 0>,
 				 <&det_zones 1810 10000 10 1>,
 				 <&det_zones 2800 10000 10 1>;
-		but-zones-list = <&but_zones 0 1 325>,
-				 <&but_zones 1 326 457>,
-				 <&but_zones 2 458 1200>;
+		but-zones-list = <&but_zones 0 1 315>,
+				 <&but_zones 3 316 360>,
+				 <&but_zones 1 361 458>,
+				 <&but_zones 2 459 1200>;
 		mpp-channel-scaling = <2 1 1>;
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
 		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
 		pinctrl-1 = <&earjack_det_sus &earjack_switch_sus>;
-	};
-
-	qcom,iris-fm {
-		compatible = "qcom,iris_fm";
-		qcom,fm-radio-lna-gpio = <&msm_gpio 24 0x0>;
-		pinctrl-names = "lna_gpio_active","lna_gpio_suspend";
-		pinctrl-0 = <&lna_control_act>;
-		pinctrl-1 = <&lna_control_sus>;
 	};
 };
 
@@ -376,7 +365,7 @@ samsung,vibrator {
 
 &usb_otg {
 	qcom,hsusb-otg-phy-init-seq =
-					<0x6B 0x81 0x0b 0x82 0xffffffff>;
+					<0x19 0x81 0x0b 0x82 0xffffffff>;
 };
 
 &sdhc_1 {
@@ -511,10 +500,54 @@ samsung,vibrator {
 	qcom,pins = <&gp 98>;
 };
 
+&dsi_himax_tft_qhd_video{
+	samsung,panel-backlight-tft-gpio1 = <&msm_gpio 50 0>;
+	samsung,panel-backlight-tft-gpio2 = <&msm_gpio 98 0>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_ss_pwm";
+	/*
+	* ************************************************************************************************************************
+	* Scaled level to index mappings
+	* ************************************************************************************************************************
+	*/
+	samsung,scaled_level_map_table_revA = <
+	/* <idx>	    <from>       <till>     <scaled_level> */
+		0		0		0		0
+		1		1		7		32
+		2		8		13		31
+		3		14		19		30
+		4		20		25		29
+		5		26		31		28
+		6		32		37		27
+		7		38		43		26
+		8		44		49		25
+		9		50		56		24
+		10		57		64		23
+		11		65		72		22
+		12		73		80		21
+		13		81		88		20
+		14		89		96		19
+		15		97		105		18
+		16		106		114		17
+		17		115		123		16
+		18		124		133		15
+		19		134		143		14
+		20		144		153		13
+		21		154		163		12
+		22		164		173		11
+		23		174		183		10
+		24		184		193		9
+		25		194		203		8
+		26		204		213		7
+		27		214		223		6
+		28		224		233		5
+		29		234		243		4
+		30		244		255		3
+		>;
+};
+
 &dsi_sdc_tft_qhd_video{
 	samsung,panel-backlight-tft-gpio1 = <&msm_gpio 50 0>;
 	samsung,panel-backlight-tft-gpio2 = <&msm_gpio 98 0>;
-	samsung,panel-extra-power-gpio1 = <&msm_gpio 102 0>;
 };
 
 &mdss_dsi0 {
@@ -522,6 +555,7 @@ samsung,vibrator {
 	pinctrl-0 = <&mdss_dsi_active &lcd_esd_det_active &pmx_pwm_bl_active &pmx_bl_ctrl_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &lcd_esd_det_suspend &pmx_pwm_bl_suspend &pmx_bl_ctrl_suspend>;
 	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+	qcom,platform-enable-gpio = <&msm_gpio 102 0>;
 };
 
 &pm8916_chg {

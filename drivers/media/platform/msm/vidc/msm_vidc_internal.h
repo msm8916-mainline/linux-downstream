@@ -34,7 +34,6 @@
 #include <media/msm_media_info.h>
 
 #include "vidc_hfi_api.h"
-#include "vidc_hfi_api.h"
 
 #define MSM_VIDC_DRV_NAME "msm_vidc_driver"
 #define MSM_VIDC_VERSION KERNEL_VERSION(0, 0, 1);
@@ -44,6 +43,7 @@
 #define DEFAULT_WIDTH 1920
 #define MIN_SUPPORTED_WIDTH 32
 #define MIN_SUPPORTED_HEIGHT 32
+#define MAX_SUPPORTED_INSTANCES_COUNT 13
 
 #define V4L2_EVENT_VIDC_BASE  10
 

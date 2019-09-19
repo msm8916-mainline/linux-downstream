@@ -54,7 +54,6 @@ ifeq ($(CONFIG_SEC_A7_PROJECT),y)
 		dtb-y += msm8939-sec-a73g-eur-r07.dtb
 		dtb-y += msm8939-sec-a73g-eur-r09.dtb
 	else ifeq ($(CONFIG_MACH_A7_CHN_CTC),y)
-		dtb-y += msm8939-sec-a7-ctc-r04.dtb
 		dtb-y += msm8939-sec-a7-ctc-r05.dtb
 		dtb-y += msm8939-sec-a7-ctc-r06.dtb
 		dtb-y += msm8939-sec-a7-ctc-r07.dtb
@@ -64,7 +63,6 @@ ifeq ($(CONFIG_SEC_A7_PROJECT),y)
 		dtb-y += msm8939-sec-a7-kor-r08.dtb
 	else ifeq ($(CONFIG_MACH_A7_CHN_TW),y)
 		dtb-y += msm8939-sec-a7-tw-r00.dtb
-		dtb-y += msm8939-sec-a7-tw-r01.dtb
 	else
 		dtb-y += msm8939-sec-a7-chn-r01.dtb
 		dtb-y += msm8939-sec-a7-chn-r03.dtb
@@ -88,8 +86,32 @@ endif
 ifeq ($(CONFIG_SEC_A8_PROJECT),y)
 	ifeq ($(CONFIG_MACH_A8_CHN_OPEN),y)
 		dtb-y += msm8939-sec-a8-chn-r02.dtb
+		dtb-y += msm8939-sec-a8-chn-r05.dtb
+		dtb-y += msm8939-sec-a8-chn-r06.dtb
+		dtb-y += msm8939-sec-a8-chn-r07.dtb
+		dtb-y += msm8939-sec-a8-chn-r08.dtb
+		dtb-y += msm8939-sec-a8-chn-r13.dtb
 	endif
 endif
+
+ifeq ($(CONFIG_SEC_A5X_PROJECT),y)
+	ifeq ($(CONFIG_MACH_A5X_CHN_OPEN),y)
+		dtb-y += msm8939-sec-a5x-chn-r00.dtb
+		dtb-y += msm8939-sec-a5x-chn-r01.dtb
+	endif
+endif
+
+ifeq ($(CONFIG_SEC_A7X_PROJECT),y)
+	ifeq ($(CONFIG_MACH_A7X_CHN_OPEN),y)
+		dtb-y += msm8939-sec-a7x-chn-r00.dtb
+		dtb-y += msm8939-sec-a7x-chn-r01.dtb
+		dtb-y += msm8939-sec-a7x-chn-r02.dtb
+		dtb-y += msm8939-sec-a7x-chn-r03.dtb
+		dtb-y += msm8939-sec-a7x-chn-r04.dtb
+		dtb-y += msm8939-sec-a7x-chn-r05.dtb
+	endif
+endif
+
 dtb-$(CONFIG_ARCH_MSM8226) += msm8226-sim.dtb \
 	msm8226-fluid.dtb \
 	msm8226-v1-cdp.dtb \

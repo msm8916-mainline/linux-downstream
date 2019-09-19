@@ -34,6 +34,10 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 
 #include "../ss_dsi_panel_common.h"
 
+
 #define SC7798A_BV045WVM_SUPPORT_PANEL_COUNT 1
+#define LCD_DEFAUL_BL_LEVEL 89
+
+extern struct list_head mdnie_list;
 
 #endif

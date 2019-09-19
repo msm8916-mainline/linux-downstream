@@ -29,16 +29,12 @@
 &soc {
 
 	samsung,vibrator {
-		compatible = "haptic_vib";
+		compatible = "samsung_vib";
 		pinctrl-names = "tlmm_motor_active","tlmm_motor_suspend";
 		pinctrl-0 = <&motor_en_active &motor_pwm_active>;
 		pinctrl-1 = <&motor_en_suspend &motor_pwm_suspend>;
 		samsung,vib_en = <&msm_gpio 76 0x1>;
 		samsung,vib_pwm = <&msm_gpio 50 0x1>;
-		samsung,vib_model = <1>;
-		samsung,is_pmic_vib_pwm = <0>;
-		samsung,pwm_period_us = <40>;
-		samsung,duty_us = <36>;
 		status = "ok";
 	};
 
@@ -567,6 +563,7 @@
 
 &dsi_ea8061_video_hd {
 	qcom,mdss-dsi-booting-brightness = <255>;
+	samsung,panel-extra-power-gpio1 = <&msm_gpio 87 0>;
 };
 
 &mdss_dsi0 {
@@ -575,7 +572,6 @@
 	pinctrl-0 = <&mdss_dsi_active &lcd_esd_det_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &lcd_esd_det_suspend>;
 	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
-	qcom,platform-panel-extra-power-gpio1 = <&msm_gpio 87 0>;
 };
 
 &pm8916_chg {

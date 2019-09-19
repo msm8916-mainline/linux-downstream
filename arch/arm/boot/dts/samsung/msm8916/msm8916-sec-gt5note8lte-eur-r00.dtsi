@@ -55,7 +55,7 @@
 			fuelgauge,capacity_max = <1000>;
 			fuelgauge,capacity_max_margin = <50>;
 			fuelgauge,capacity_min = <0>;
-			fuelgauge,capacity_calculation_type = <0x1F>;
+			fuelgauge,capacity_calculation_type = <0x17>;
 			fuelgauge,fuel_alert_soc = <1>;
 			fuelgauge,using_temp_compensation;
 			fuelgauge,low_temp_limit = <(-100)>;
@@ -319,6 +319,9 @@
 				 <&but_zones 1 178 358>,
 				 <&but_zones 2 359 1200>;
 		mpp-channel-scaling = <2 1 1>;
+		dynamic-micbias-ctrl-voltage = "2.20";	/* 1.60V ~ 2.85V (unit: 0.05V)
+							   The value must be "x.xx"
+							   e.g) "1.6" is not allowed  */
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
 		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
 		pinctrl-1 = <&earjack_det_sus &earjack_switch_sus>;

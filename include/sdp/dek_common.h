@@ -1,3 +1,22 @@
+/*
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
+ *
+ * Sensitive Data Protection
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
 #ifndef DEK_COMMON_H__
 #define DEK_COMMON_H__
 
@@ -76,7 +95,7 @@ typedef struct _key{
 typedef struct _kek{
 	unsigned int type;
 	unsigned int len;
-	unsigned char buf[KEK_MAX_LEN];
+	unsigned char buf[KEK_MAXLEN];
 }kek_t;
 
 typedef struct _payload{
@@ -96,7 +115,7 @@ typedef struct _payload{
 #endif /* DEK_DEBUG */
 #define DEK_LOGE(...) printk("dek: "__VA_ARGS__)
 
-void dek_dump(unsigned char *buf, int len);
+void key_dump(unsigned char *buf, int len);
 
 int is_kek_available(int userid, int kek_type);
 
@@ -104,5 +123,10 @@ int dek_create_sysfs_asym_alg(struct device *d);
 int dek_create_sysfs_key_dump(struct device *d);
 int get_sdp_sysfs_asym_alg(void);
 int get_sdp_sysfs_key_dump(void);
+
+int is_root(void);
+int is_current_epmd(void);
+int is_current_adbd(void);
+int is_system_server(void);
 
 #endif

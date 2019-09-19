@@ -1,5 +1,5 @@
 
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -57,16 +57,17 @@ static int fb_notifier_callback(struct notifier_block *self,
 	struct fb_event *evdata = data;
 	struct hbtp_data *hbtp_data =
 		container_of(self, struct hbtp_data, fb_notif);
+	char *envp[] = {HBTP_EVENT_TYPE_DISPLAY, NULL};
 
 	if (evdata && evdata->data && event == FB_EVENT_BLANK &&
 		hbtp_data && hbtp_data->input_dev) {
 		blank = *(int *)(evdata->data);
 		if (blank == FB_BLANK_UNBLANK)
-			kobject_uevent(&hbtp_data->input_dev->dev.kobj,
-					KOBJ_ONLINE);
+			kobject_uevent_env(&hbtp_data->input_dev->dev.kobj,
+					KOBJ_ONLINE, envp);
 		else if (blank == FB_BLANK_POWERDOWN)
-			kobject_uevent(&hbtp_data->input_dev->dev.kobj,
-					KOBJ_OFFLINE);
+			kobject_uevent_env(&hbtp_data->input_dev->dev.kobj,
+					KOBJ_OFFLINE, envp);
 	}
 
 	return 0;
@@ -122,16 +123,20 @@ static int hbtp_input_create_input_dev(struct hbtp_input_absinfo *absinfo)
 	__set_bit(BTN_TOUCH, input_dev->keybit);
 	__set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
 
-	for (i = KEY_ESC; i <= KEY_MICMUTE; i++)
+	for (i = KEY_HOME; i <= KEY_MICMUTE; i++)
 		__set_bit(i, input_dev->keybit);
 
 	/* For multi touch */
 	input_mt_init_slots(input_dev, HBTP_MAX_FINGER, 0);
 	for (i = 0; i <= ABS_MT_LAST - ABS_MT_FIRST; i++) {
 		abs = absinfo + i;
-		if (abs->active)
-			input_set_abs_params(input_dev, abs->code,
+		if (abs->active) {
+			if (abs->code >= 0 && abs->code < ABS_CNT)
+				input_set_abs_params(input_dev, abs->code,
 					abs->minimum, abs->maximum, 0, 0);
+			else
+				pr_err("%s: ABS code out of bound\n", __func__);
+		}
 	}
 
 	error = input_register_device(input_dev);

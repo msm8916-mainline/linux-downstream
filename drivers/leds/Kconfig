@@ -533,16 +533,60 @@ config LEDS_BLINKM
 	  This option enables support for the BlinkM RGB LED connected
 	  through I2C. Say Y to enable support for the BlinkM LED.
 
+config LEDS_AW2013
+	tristate "LED support for AW2013"
+	depends on LEDS_CLASS && I2C
+	help
+	  This option enables support for the AW2013 RGB LED connected
+	  through I2C. Say Y to enable support for the AW2013 LED.
+
+config LEDS_S2MU003
+	tristate "LED driver for S2MU003 controllers"
+	depends on LEDS_CLASS
+	depends on MFD_S2MU003
+	help
+	  This option enables support for LEDs driven by Samsung Electronics
+	  S2MU003 controller. This controller uses a FLED & TORCH
+
 config FLASHLIGHT
 	bool "Flashlight Support"
 	help
 	  This option enables the led sysfs class in /sys/class/flashlight.
+
+config SM_FLASH_LED
+	tristate "Siliconmitus flash LED driver support"
+	depends on FLASHLIGHT
+	help
+	  Say Y here to enable Siliconmitus's flash LED driver HAL architecture
+
+config FLED_SM5703
+	tristate "Siliconmitus SM5703 flash LED driver"
+	depends on SM_FLASH_LED
+	help
+	  A driver for Siliconmitus SM5703 flash LED
+
+config LEDS_SM5705
+	tristate "Siliconmitus SM5705 flash LED driver"
+	depends on SM_FLASH_LED
+	help
+	  A driver for Siliconmitus SM5705 flash LED
+
+config FLED_SM5703_EXT_GPIO
+	bool "External(or ISP) GPIO"
+	  help
+	  Use GPIO pins to enable/disable torch and flash light.
+	  If unsure, say N.
 
 config RT_FLASH_LED
 	tristate "Richtek flash LED driver support"
 	depends on FLASHLIGHT
 	help
 	  Say Y here to enable Richtek's flash LED driver HAL architecture
+
+config FLED_KTD2692
+	bool "KTD2692 Backlight with Bias Power and Flash Driver"
+	help
+	  Say yes here to enable support for KTD2692 chip.
 
 config FLED_RT5033
 	tristate "Richtek RT5033 flash LED driver"

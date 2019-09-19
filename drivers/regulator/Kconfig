@@ -621,6 +621,19 @@ config REGULATOR_RT5033
 	help
 	 Say y here to support the regulators found on the Richtek RT5033 I/F PMIC.
 
+config REGULATOR_SM5703
+	depends on MFD_SM5703
+	tristate "SM5703 LDO and Buck"
+	help
+	 Say y here to support the regulators found on the Siliconmitus SM5703 I/F PMIC.
+
+config REGULATOR_SM5705
+	tristate "SM705 regulator"
+	depends on MFD_SM5705
+	help
+	 This driver controls a SM5705 regulator
+          via I2C bus. SM5705 is comprised of USBLDOs.
+
 config APC_CPR_QUOT_BOOST
 	bool "CPR quotient boost for APC"
 	depends on OF

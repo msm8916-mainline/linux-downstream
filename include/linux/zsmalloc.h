@@ -40,7 +40,7 @@ struct zs_ops {
 	int (*evict)(struct zs_pool *pool, unsigned long handle);
 };
 
-struct zs_pool *zs_create_pool(gfp_t flags, struct zs_ops *ops);
+struct zs_pool *zs_create_pool(char *name, gfp_t flags, struct zs_ops *ops);
 void zs_destroy_pool(struct zs_pool *pool);
 
 unsigned long zs_malloc(struct zs_pool *pool, size_t size);
@@ -52,5 +52,7 @@ void *zs_map_object(struct zs_pool *pool, unsigned long handle,
 void zs_unmap_object(struct zs_pool *pool, unsigned long handle);
 
 unsigned long zs_get_total_pages(struct zs_pool *pool);
+unsigned long zs_compact(struct zs_pool *pool);
+bool zs_compactable(struct zs_pool *pool, unsigned int pages);
 
 #endif

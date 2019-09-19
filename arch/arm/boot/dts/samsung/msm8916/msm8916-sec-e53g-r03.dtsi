@@ -13,20 +13,28 @@
 #include "msm8916.dtsi"
 #include "msm8916-pinctrl-sec-e53g-eur-r03.dtsi"
 #include "msm8916-camera-sensor-r00.dtsi"
-#include "../../../../../../drivers/video/msm/mdss/samsung/EA8061V_AMS497EE01/dsi_panel_EA8061V_AMS497EE01_HD_octa_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/EA8061V_AMS497EE10/dsi_panel_EA8061V_AMS497EE10_HD_octa_video.dtsi"
 #include "msm8916-sec-e5-battery-r00.dtsi"
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
-		i2c8 = &i2c_8;
 		i2c9 = &i2c_9;
 		i2c10 = &i2c_10;
 		i2c11 = &i2c_11;
 		i2c12 = &i2c_12;
+		i2c21 = &i2c_21; /* I2C21 controller device - camera */
+		i2c22 = &i2c_22; /* I2C22 controller device - camera */
 	};
 };
 
 &soc {
+	samsung,simslot {
+		compatible = "simslot";
+		samsung,sim-slot = <&msm_gpio 101 0x1>;
+		//low-is-dual; // If the value of sim-slot gpio is 'low' in 'dual sim' device, you must set this boolean property.
+		status = "ok";
+	};
+
 	samsung,vibrator {
 	        pinctrl-names = "tlmm_motor_en_active","tlmm_motor_en_suspend";
 	        pinctrl-0 = <&motor_en_active>;
@@ -44,21 +52,6 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		i2c-gpio,delay-us = <2>;
-		sec-nfc@27 {
-			compatible = "sec-nfc";
-			reg = <0x27>;
-			interrupt-parent = <&msm_gpio>;
-			interrupts = <21 0>;
-			pinctrl-names = "nfc_active","nfc_suspend";
-			pinctrl-0 = <&nfc_int_active &nfc_enable_active &nfc_firmware_active &nfc_i2c_active>;
-			pinctrl-1 = <&nfc_int_suspend &nfc_enable_suspend &nfc_firmware_suspend &nfc_i2c_suspend>;
-			sec-nfc,firm-gpio = <&msm_gpio 49 0x00>;
-			sec-nfc,ven-gpio = <&msm_gpio 20 0x00>;
-			sec-nfc,irq-gpio = <&msm_gpio 21 0x01>;
-			nfc_ldo-supply = <&pm8916_l14>;
-			clocks = <&clock_rpm clk_bb_clk2_pin>;
-			clock-names = "nfc_clock";
-		};
 	};
 
        i2c_11:i2c@11 {
@@ -151,11 +144,11 @@
 				mid_track_alive = <0>;
 				mid_auto_track_en = <0>;
 				timeout_current_level = <50>;
-				strobe_current = <500>;
+				strobe_current = <600>;
 				strobe_timeout = <544>;
 				torch_current = <63>;
 				lv_protection = <3000>;
-				mid_level = <4400>;
+				mid_level = <4800>;
 				rt5033,led1-gpio = <&msm_gpio 34 0x00>;
 				rt5033,led2-gpio = <&msm_gpio 36 0x00>;
 				pinctrl-names = "fled_default","fled_sleep";
@@ -163,6 +156,11 @@
 				pinctrl-1 = <&cam_sensor_flash_sleep>;
 			};
 		};
+	};
+
+	sec_thermistor {
+		compatible = "sec,thermistor";
+		qcom,therm-vadc = <&pm8916_vadc>;
 	};
 
 	gen-vkeys {
@@ -199,18 +197,21 @@
 		cm36672p@60 {
 			compatible = "cm36672p";
 			reg = <0x60>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&proximity_enable &proximity_int_active>;
 			interrupt-parent = <&msm_gpio>;
 			interrupts = <113 0>;
 			cm36672p,leden_gpio = <&msm_gpio 8 0x1>;
 			cm36672p,irq_gpio = <&msm_gpio 113 0x1>;
 			cm36672p,vdd-supply = <&pm8916_l17>;
 			cm36672p,vio-supply = <&pm8916_l5>;
-			cm36672p,default_hi_thd = <27>;
-			cm36672p,default_low_thd = <22>;
-			cm36672p,cancel_hi_thd = <27>;
-			cm36672p,cancel_low_thd = <22>;
+			cm36672p,default_hi_thd = <17>;
+			cm36672p,default_low_thd = <13>;
+			cm36672p,cancel_hi_thd = <10>;
+			cm36672p,cancel_low_thd = <7>;
+			cm36672p,default_trim = <0>;
 			cm36672p,ps_it = <4>;
-			cm36672p,led_current = <5>;
+			cm36672p,led_current = <2>;
 		};
 	};
 
@@ -378,16 +379,24 @@
 		qcom,earjack-read-vadc = <&pm8916_vadc>;
 
 		det-zones-list = <&det_zones 1 10000 10 0>,
-				 <&det_zones 972 10000 10 0>,
+				 <&det_zones 941 10000 10 0>,
 				 <&det_zones 1901 10000 10 1>,
 				 <&det_zones 2800 10000 10 1>;
-		but-zones-list = <&but_zones 0 1 314>,
-				 <&but_zones 1 315 417>,
-				 <&but_zones 2 418 1200>;
+		but-zones-list = <&but_zones 0 1 317>,
+				 <&but_zones 1 318 447>,
+				 <&but_zones 2 448 1200>;
 		mpp-channel-scaling = <2 1 1>;
 		pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
 		pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
 		pinctrl-1 = <&earjack_det_sus &earjack_switch_sus>;
+	};
+
+	qcom,iris-fm {
+		compatible = "qcom,iris_fm";
+		qcom,fm-radio-lna-gpio = <&msm_gpio 24 0x0>;
+		pinctrl-names = "lna_gpio_active","lna_gpio_suspend";
+		pinctrl-0 = <&lna_control_act>;
+		pinctrl-1 = <&lna_control_sus>;
 	};
 };
 
@@ -402,6 +411,8 @@
 
 &sdhc_1 {
 	vdd-supply = <&pm8916_l8>;
+	qcom,vdd-always-on;
+	qcom,vdd-lpm-sup;
 	qcom,vdd-voltage-level = <2900000 2900000>;
 	qcom,vdd-current-level = <200 400000>;
 
@@ -470,11 +481,12 @@
 	};
 
 	mpp@a300 { /* MPP 4 */
-		/* Backlight PWM */
-		qcom,mode = <1>;		/* Digital output */
+		status = "ok";
+		qcom,mode = <4>;		/* AIN Input */
 		qcom,invert = <0>;		/* Disable invert */
-		qcom,src-sel = <4>;		/* DTEST1 */
-		qcom,vin-sel = <0>;		/* VPH_PWR */
+		qcom,output-type = <0>;		/* CMOS */
+		qcom,src-sel = <0>;		/* /MPP Constant */
+		qcom,ain-route = <3>;		/* QPNP_PIN_AIN_AMUX_CH8 = 3 for MPP4 */
 		qcom,master-en = <1>;		/* Enable MPP */
 	};
 };
@@ -511,7 +523,7 @@
 	qcom,mdss-pref-prim-intf = "dsi";
 };
 
-&dsi_ea8061_video_hd {
+&ss_dsi_panel_EA8061V_AMS497EE10_HD {
 	samsung,ext-supply-entry {
 		samsung,ext-supply-entry@0 {
 			samsung,ext-pwr-gpio = <&msm_gpio 87 1>;
@@ -529,13 +541,13 @@
 	qcom,pins = <&gp 87>;
 };
 
-&dsi_ea8061_video_hd {
+&ss_dsi_panel_EA8061V_AMS497EE10_HD {
 	qcom,mdss-dsi-booting-brightness = <255>;
 	samsung,panel-extra-power-gpio1 = <&msm_gpio 87 0>;
 };
 
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_ea8061_video_hd>;
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_EA8061V_AMS497EE10_HD>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active &lcd_on_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &lcd_on_suspend>;

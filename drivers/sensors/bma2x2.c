@@ -125,7 +125,7 @@ static int bma2x2_smbus_read_byte(struct i2c_client *client,
 	int retries = 0;
 
         do {
-	dummy = i2c_smbus_read_byte_data(client, reg_addr);
+		dummy = i2c_smbus_read_byte_data(client, reg_addr);
 		if (dummy >= 0)
 			break;
         } while (retries++ < 3);
@@ -147,7 +147,7 @@ static int bma2x2_smbus_write_byte(struct i2c_client *client,
 	int retries = 0;
 
 	do {
-	dummy = i2c_smbus_write_byte_data(client, reg_addr, *data);
+		dummy = i2c_smbus_write_byte_data(client, reg_addr, *data);
 			if (dummy >= 0)
 				break;
 	} while (retries++ < 3);
@@ -168,7 +168,7 @@ static int bma2x2_smbus_read_byte_block(struct i2c_client *client,
 	int retries = 0;
 
 	do {
-	dummy = i2c_smbus_read_i2c_block_data(client, reg_addr, len, data);
+		dummy = i2c_smbus_read_i2c_block_data(client, reg_addr, len, data);
 			if (dummy >= 0)
 				break;
 	} while (retries++ < 3);
@@ -637,12 +637,12 @@ static int bma2x2_set_mode(struct i2c_client *client, unsigned char mode,
 
 		switch (mode) {
 		case BMA2X2_MODE_NORMAL:
-				data1  = BMA2X2_SET_BITSLICE(data1,
-						BMA2X2_MODE_CTRL, 0);
-				data2  = BMA2X2_SET_BITSLICE(data2,
-						BMA2X2_LOW_POWER_MODE, 0);
+			data1  = BMA2X2_SET_BITSLICE(data1,
+					BMA2X2_MODE_CTRL, 0);
+			data2  = BMA2X2_SET_BITSLICE(data2,
+					BMA2X2_LOW_POWER_MODE, 0);
 			comres = bma2x2_smbus_write_byte(client,
-						BMA2X2_MODE_CTRL_REG, &data1);
+					BMA2X2_MODE_CTRL_REG, &data1);
 			usleep_range(5000, 5100);
 			comres += bma2x2_smbus_write_byte(client,
 					BMA2X2_LOW_NOISE_CTRL_REG, &data2);
@@ -655,20 +655,20 @@ static int bma2x2_set_mode(struct i2c_client *client, unsigned char mode,
 				bma2x2_open_calibration(bma2x2);
 				break;
 		case BMA2X2_MODE_LOWPOWER1:
-				data1  = BMA2X2_SET_BITSLICE(data1,
-						BMA2X2_MODE_CTRL, 2);
-				data2  = BMA2X2_SET_BITSLICE(data2,
-						BMA2X2_LOW_POWER_MODE, 0);
+			data1  = BMA2X2_SET_BITSLICE(data1,
+					BMA2X2_MODE_CTRL, 2);
+			data2  = BMA2X2_SET_BITSLICE(data2,
+					BMA2X2_LOW_POWER_MODE, 0);
 			comres += bma2x2_smbus_write_byte(client,
-						BMA2X2_MODE_CTRL_REG, &data1);
+					BMA2X2_MODE_CTRL_REG, &data1);
 			usleep_range(5000, 5100);
 			comres += bma2x2_smbus_write_byte(client,
 					BMA2X2_LOW_NOISE_CTRL_REG, &data2);
 				break;
 		case BMA2X2_MODE_SUSPEND:
-				data1  = BMA2X2_SET_BITSLICE(data1,
+			data1  = BMA2X2_SET_BITSLICE(data1,
 						BMA2X2_MODE_CTRL, 4);
-				data2  = BMA2X2_SET_BITSLICE(data2,
+			data2  = BMA2X2_SET_BITSLICE(data2,
 						BMA2X2_LOW_POWER_MODE, 0);
 			/*aimed at anomaly resolution when switch to suspend*/
 			ret = bma2x2_normal_to_suspend(bma2x2, data1, data2);
@@ -1192,7 +1192,7 @@ static ssize_t bma2x2_raw_data_read(struct device *dev,
 				BMA2X2_MODE_NORMAL, BMA_ENABLED_INPUT);
 
 		msleep(20);
-	bma2x2_read_accel_xyz(bma2x2->bma2x2_client, bma2x2->sensor_type,
+		bma2x2_read_accel_xyz(bma2x2->bma2x2_client, bma2x2->sensor_type,
 								&acc_value);
 
 		bma2x2_set_mode(bma2x2->bma2x2_client,
@@ -1407,10 +1407,10 @@ static int bma2x2_do_calibrate(struct bma2x2_data *data, int enable)
 		set_fs(KERNEL_DS);
 
 		cal_filp = filp_open(CALIBRATION_FILE_PATH,
-			O_CREAT | O_TRUNC | O_WRONLY, 0666);
+		O_CREAT | O_TRUNC | O_WRONLY, 0666);
 		if (IS_ERR(cal_filp)) {
 		pr_err("[SENSOR]: %s - Can't open calibration file\n",
-				__func__);
+							__func__);
 			set_fs(old_fs);
 		ret = PTR_ERR(cal_filp);
 		return ret;
@@ -1420,7 +1420,7 @@ static int bma2x2_do_calibrate(struct bma2x2_data *data, int enable)
 		3 * sizeof(s16), &cal_filp->f_pos);
 	if (ret != 3 * sizeof(s16)) {
 		pr_err("[SENSOR]: %s - Can't write the caldata to file\n",
-				__func__);
+								__func__);
 		ret = -EIO;
 		}
 
@@ -1428,7 +1428,7 @@ static int bma2x2_do_calibrate(struct bma2x2_data *data, int enable)
 		set_fs(old_fs);
 
 	return ret;
-	}
+		}
 
 static ssize_t bma2x2_calibration_store(struct device *dev,
 		struct device_attribute *attr,
@@ -1782,10 +1782,9 @@ static int bma2x2_acc_power_onoff(struct bma2x2_data *data, bool onoff)
 			pr_err("%s: Failed to disable vio.\n", __func__);
 	}
 	}
-	msleep(20);
 	pr_info("%s success:%d\n", __func__, onoff);
-	return ret;
 
+	devm_regulator_put(data->reg_vio);
 err_vio:
 #ifdef CONFIG_SENSORS_BMC150_VDD
 	devm_regulator_put(data->reg_vdd);
@@ -2004,10 +2003,7 @@ static int bma2x2_remove(struct i2c_client *client)
 	bma2x2_set_enable(&client->dev, 0);
 	sysfs_remove_group(&data->input->dev.kobj, &bma2x2_attribute_group);
 	input_unregister_device(data->input);
-	devm_regulator_put(data->reg_vio);
-#ifdef CONFIG_SENSORS_BMC150_VDD
-	devm_regulator_put(data->reg_vdd);
-#endif
+
 	kfree(data);
 
 	return 0;

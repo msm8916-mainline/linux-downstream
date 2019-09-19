@@ -33,7 +33,7 @@ int mdss_register_irq(struct mdss_hw *hw)
 	if (!mdss_irq_handlers[hw->hw_ndx])
 		mdss_irq_handlers[hw->hw_ndx] = hw;
 	else
-		pr_err("panel %d's irq at %p is already registered\n",
+		pr_err("panel %d's irq at %pK is already registered\n",
 			hw->hw_ndx, hw->irq_handler);
 	spin_unlock_irqrestore(&mdss_lock, irq_flags);
 
@@ -151,6 +151,7 @@ struct mdss_util_intf mdss_util = {
 	.bus_bandwidth_ctrl = NULL,
 	.bus_scale_set_quota = NULL,
 	.panel_intf_type = NULL,
+	.dyn_clk_gating_ctrl = NULL,
 	.mdp_probe_done = false
 };
 

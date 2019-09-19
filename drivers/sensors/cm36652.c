@@ -145,6 +145,8 @@ struct cm36652_data {
 	unsigned int uProxCalResult;
 };
 
+static int prox_regulator_onoff(struct device *dev, bool onoff);
+
 int cm36652_i2c_read_word(struct cm36652_data *cm36652, u8 command, u16 *val)
 {
 	int err = 0;
@@ -550,6 +552,7 @@ static ssize_t proximity_enable_store(struct device *dev,
 		cm36652_leden_gpio_onoff(cm36652, 1);
 #endif
 #if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+		prox_regulator_onoff(&cm36652->i2c_client->dev, 1);
 		cm36652_sensoren_gpio_onoff(cm36652, 1);
 #endif
 #ifdef CM36652_CANCELATION
@@ -585,6 +588,7 @@ static ssize_t proximity_enable_store(struct device *dev,
 		cm36652_leden_gpio_onoff(cm36652, 0);
 #endif
 #if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+		prox_regulator_onoff(&cm36652->i2c_client->dev, 0);
 		cm36652_sensoren_gpio_onoff(cm36652, 0);
 #endif
 	}
@@ -685,6 +689,7 @@ static ssize_t proximity_avg_store(struct device *dev,
 			cm36652_leden_gpio_onoff(cm36652, 1);
 #endif
 #if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+			prox_regulator_onoff(&cm36652->i2c_client->dev, 1);
 			cm36652_sensoren_gpio_onoff(cm36652, 1);
 #endif
 			cm36652_i2c_write_word(cm36652, REG_PS_CONF1,
@@ -702,6 +707,7 @@ static ssize_t proximity_avg_store(struct device *dev,
 			cm36652_leden_gpio_onoff(cm36652, 0);
 #endif
 #if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+			prox_regulator_onoff(&cm36652->i2c_client->dev, 0);
 			cm36652_sensoren_gpio_onoff(cm36652, 0);
 #endif
 		}
@@ -723,6 +729,7 @@ static ssize_t proximity_state_show(struct device *dev,
 		cm36652_leden_gpio_onoff(cm36652, 1);
 #endif
 #if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+		prox_regulator_onoff(&cm36652->i2c_client->dev, 1);
 		cm36652_sensoren_gpio_onoff(cm36652, 1);
 #endif
 		pr_info("%s prox_led_on\n", __func__);
@@ -740,6 +747,7 @@ static ssize_t proximity_state_show(struct device *dev,
 		cm36652_leden_gpio_onoff(cm36652, 0);
 #endif
 #if defined(CONFIG_SENSORS_CM36652_SENSOR_EN_GPIO)
+		prox_regulator_onoff(&cm36652->i2c_client->dev, 0);
 		cm36652_sensoren_gpio_onoff(cm36652, 0);
 #endif
 	}

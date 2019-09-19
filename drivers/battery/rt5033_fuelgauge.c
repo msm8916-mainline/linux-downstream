@@ -1757,14 +1757,14 @@ static int rt5033_fg_set_property(struct power_supply *psy,
 			fuelgauge->is_charging = false;
 		else
 			fuelgauge->is_charging = true;
-		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RESET) {
 			fuelgauge->initial_update_of_soc = true;
 			if (!sec_hal_fg_reset(fuelgauge->client))
 				return -EINVAL;
+			else
+				break;
 		}
-		break;
 	case POWER_SUPPLY_PROP_TEMP:
 	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
 		if (!sec_hal_fg_set_property(fuelgauge->client, psp, val))

@@ -81,5 +81,7 @@ obj-$(CONFIG_REGULATOR_QPNP) += qpnp-regulator.o
 obj-$(CONFIG_REGULATOR_SPM) += spm-regulator.o
 obj-$(CONFIG_REGULATOR_CPR) += cpr-regulator.o
 obj-$(CONFIG_REGULATOR_RT5033) += rt5033_regulator.o
+obj-$(CONFIG_REGULATOR_SM5703) += sm5703_regulator.o
+obj-$(CONFIG_REGULATOR_SM5705) += sm5705-regulator.o
 
 ccflags-$(CONFIG_REGULATOR_DEBUG) += -DDEBUG

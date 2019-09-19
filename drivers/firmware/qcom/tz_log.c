@@ -53,6 +53,10 @@
  * Length of descriptive name associated with Interrupt
  */
 #define TZBSP_MAX_INT_DESC 16
+
+#ifdef CONFIG_SEC_DEBUG_ENABLE_QSEE
+extern int sec_debug_set_qsee_address(unsigned int address);
+#endif
 /*
  * VMID Table
  */
@@ -482,7 +486,6 @@ static int _disp_tz_log_stats(size_t count)
 static int _disp_qsee_log_stats(size_t count)
 {
 	static struct tzdbg_log_pos_t log_start = {0};
-
 	return _disp_log_stats(g_qsee_log, &log_start,
 			QSEE_LOG_BUF_SIZE - sizeof(struct tzdbg_log_pos_t),
 			count, TZDBG_QSEE_LOG);
@@ -616,6 +619,11 @@ static void tzdbg_register_qsee_log_buf(void)
 		__func__, resp.result);
 		goto err2;
 	}
+
+#ifdef CONFIG_SEC_DEBUG_ENABLE_QSEE
+	/* QSEE Logs */
+	ret = sec_debug_set_qsee_address((uint32_t)pa);
+#endif
 
 	g_qsee_log =
 		(struct tzdbg_log_t *)ion_map_kernel(g_ion_clnt, g_ihandle);

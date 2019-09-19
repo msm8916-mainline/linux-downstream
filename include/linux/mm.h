@@ -77,6 +77,12 @@ extern struct rw_semaphore nommu_region_sem;
 extern unsigned int kobjsize(const void *objp);
 #endif
 
+#ifdef CONFIG_ZSWAP
+extern int sysctl_zswap_compact;
+extern int sysctl_zswap_compaction_handler(struct ctl_table *table, int write,
+			void __user *buffer, size_t *length, loff_t *ppos);
+#endif
+
 /*
  * vm_flags in vm_area_struct, see mm_types.h.
  */
@@ -1076,34 +1082,7 @@ void account_page_writeback(struct page *page);
 int set_page_dirty(struct page *page);
 int set_page_dirty_lock(struct page *page);
 int clear_page_dirty_for_io(struct page *page);
-
-/* Is the vma a continuation of the stack vma above it? */
-static inline int vma_growsdown(struct vm_area_struct *vma, unsigned long addr)
-{
-	return vma && (vma->vm_end == addr) && (vma->vm_flags & VM_GROWSDOWN);
-}
-
-static inline int stack_guard_page_start(struct vm_area_struct *vma,
-					     unsigned long addr)
-{
-	return (vma->vm_flags & VM_GROWSDOWN) &&
-		(vma->vm_start == addr) &&
-		!vma_growsdown(vma->vm_prev, addr);
-}
-
-/* Is the vma a continuation of the stack vma below it? */
-static inline int vma_growsup(struct vm_area_struct *vma, unsigned long addr)
-{
-	return vma && (vma->vm_start == addr) && (vma->vm_flags & VM_GROWSUP);
-}
-
-static inline int stack_guard_page_end(struct vm_area_struct *vma,
-					   unsigned long addr)
-{
-	return (vma->vm_flags & VM_GROWSUP) &&
-		(vma->vm_end == addr) &&
-		!vma_growsup(vma->vm_next, addr);
-}
+int get_cmdline(struct task_struct *task, char *buffer, int buflen);
 
 extern pid_t
 vm_is_stack(struct task_struct *task, struct vm_area_struct *vma, int in_group);
@@ -1641,6 +1620,8 @@ unsigned long ra_submit(struct file_ra_state *ra,
 			struct address_space *mapping,
 			struct file *filp);
 
+extern unsigned long stack_guard_gap;
+
 /* Generic expand stack which grows the stack according to GROWS{UP,DOWN} */
 extern int expand_stack(struct vm_area_struct *vma, unsigned long address);
 
@@ -1667,6 +1648,30 @@ static inline struct vm_area_struct * find_vma_intersection(struct mm_struct * m
 	if (vma && end_addr <= vma->vm_start)
 		vma = NULL;
 	return vma;
+}
+
+static inline unsigned long vm_start_gap(struct vm_area_struct *vma)
+{
+	unsigned long vm_start = vma->vm_start;
+
+	if (vma->vm_flags & VM_GROWSDOWN) {
+		vm_start -= stack_guard_gap;
+		if (vm_start > vma->vm_start)
+			vm_start = 0;
+	}
+	return vm_start;
+}
+
+static inline unsigned long vm_end_gap(struct vm_area_struct *vma)
+{
+	unsigned long vm_end = vma->vm_end;
+
+	if (vma->vm_flags & VM_GROWSUP) {
+		vm_end += stack_guard_gap;
+		if (vm_end < vma->vm_end)
+			vm_end = -PAGE_SIZE;
+	}
+	return vm_end;
 }
 
 static inline unsigned long vma_pages(struct vm_area_struct *vma)
@@ -1734,6 +1739,8 @@ static inline struct page *follow_page(struct vm_area_struct *vma,
 #define FOLL_HWPOISON	0x100	/* check page is hwpoisoned */
 #define FOLL_NUMA	0x200	/* force NUMA hinting page fault */
 #define FOLL_MIGRATION	0x400	/* wait for page to replace migration entry */
+#define FOLL_COW	0x4000	/* internal GUP flag */
+#define FOLL_CMA	0x80000	/* migrate if the page is from cma pageblock */
 
 typedef int (*pte_fn_t)(pte_t *pte, pgtable_t token, unsigned long addr,
 			void *data);
@@ -1887,6 +1894,20 @@ static inline bool page_is_guard(struct page *page) { return false; }
 void __init setup_nr_node_ids(void);
 #else
 static inline void setup_nr_node_ids(void) {}
+#endif
+
+#ifdef CONFIG_PROCESS_RECLAIM
+struct reclaim_param {
+	struct vm_area_struct *vma;
+	/* Number of pages scanned */
+	int nr_scanned;
+	/* max pages to reclaim */
+	int nr_to_reclaim;
+	/* pages reclaimed */
+	int nr_reclaimed;
+};
+extern struct reclaim_param reclaim_task_anon(struct task_struct *task,
+		int nr_to_reclaim);
 #endif
 
 #endif /* __KERNEL__ */

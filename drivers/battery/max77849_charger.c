@@ -106,7 +106,6 @@ static enum power_supply_property sec_charger_props[] = {
 #if defined(CONFIG_BATTERY_SWELLING) || defined(CONFIG_BATTERY_SWELLING_SELF_DISCHARGING)
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 #endif
-	POWER_SUPPLY_PROP_CHARGING_ENABLED,
 };
 
 static enum power_supply_property max77849_otg_props[] = {
@@ -768,9 +767,6 @@ static int sec_chg_get_property(struct power_supply *psy,
 		val->intval = max77849_get_float_voltage(charger);
 		break;
 #endif
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		val->intval = charger->is_charging;
-		break;
 	default:
 		return -EINVAL;
 	}
@@ -908,6 +904,7 @@ static int sec_chg_set_property(struct power_supply *psy,
 				break;
 			}
 		}
+		max77849_set_charger_state(charger, charger->is_charging);
 		/* if battery full, only disable charging  */
 		if ((charger->status == POWER_SUPPLY_STATUS_CHARGING) ||
 				(charger->status == POWER_SUPPLY_STATUS_DISCHARGING) ||
@@ -999,9 +996,6 @@ static int sec_chg_set_property(struct power_supply *psy,
 		wake_lock(&charger->fg_source_change_wake_lock);
 		queue_delayed_work(charger->wqueue, &charger->fg_source_change_work,
 				msecs_to_jiffies(0));
-		break;
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		max77849_set_charger_state(charger, val->intval);
 		break;
 	default:
 		return -EINVAL;

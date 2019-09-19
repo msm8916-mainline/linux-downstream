@@ -472,6 +472,12 @@ struct msm_isp_statistics {
 	int32_t skinbhist_overflow;
 };
 
+struct msm_vfe_hw_init_parms {
+	const char *entries;
+	const char *regs;
+	const char *settings;
+};
+
 struct msm_vbif_cntrs {
 	int previous_write_val;
 	int vfe_total_iter;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,7 +30,7 @@
 #include <linux/thread_info.h>
 #include <linux/sched.h>
 #include <linux/string.h>
-#if defined(CONFIG_ARCH_MSM8916) || defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8226)
+#if defined(CONFIG_ARCH_MSM8916) || defined(CONFIG_ARCH_MSM8226) || defined(CONFIG_ARCH_MSM8929) || defined(CONFIG_ARCH_MSM8939)
 #include <linux/smp.h>
 #endif
 
@@ -56,9 +56,17 @@ static DEFINE_MUTEX(scm_lock);
 #define SMC_ATOMIC_MASK 0x80000000
 #define IS_CALL_AVAIL_CMD 1
 
-#define SCM_BUF_LEN(__cmd_size, __resp_size)	\
-	(sizeof(struct scm_command) + sizeof(struct scm_response) + \
-		__cmd_size + __resp_size)
+#define SCM_BUF_LEN(__cmd_size, __resp_size) ({ \
+		size_t x = __cmd_size + __resp_size; \
+		size_t y = sizeof(struct scm_command) + sizeof(struct scm_response); \
+		size_t result; \
+		if (x < __cmd_size || (x + y) < x) \
+			result = 0; \
+		else \
+			result = x + y; \
+		result; \
+		})
+
 /**
  * struct scm_command - one SCM command buffer
  * @len: total available memory for command and response
@@ -208,7 +216,7 @@ static u32 smc(u32 cmd_addr)
 	return r0;
 }
 
-#if defined(CONFIG_ARCH_MSM8916) || defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8226)
+#if defined(CONFIG_ARCH_MSM8916) || defined(CONFIG_ARCH_MSM8226) || defined(CONFIG_ARCH_MSM8929) || defined(CONFIG_ARCH_MSM8939)
 static void __wrap_flush_cache_all(void* vp)
 {
 	flush_cache_all();
@@ -370,8 +378,7 @@ int scm_call_noalloc(u32 svc_id, u32 cmd_id, const void *cmd_buf,
 	int ret;
 	size_t len = SCM_BUF_LEN(cmd_len, resp_len);
 
-	if (cmd_len > scm_buf_len || resp_len > scm_buf_len ||
-	    len > scm_buf_len)
+	if (len == 0)
 		return -EINVAL;
 
 	if (!IS_ALIGNED((unsigned long)scm_buf, PAGE_SIZE))
@@ -674,9 +681,6 @@ int scm_call2(u32 fn_id, struct scm_desc *desc)
 
 		desc->ret[0] = desc->ret[1] = desc->ret[2] = 0;
 
-		pr_debug("scm_call: func id %#llx, args: %#x, %#llx, %#llx, %#llx, %#llx\n",
-			x0, desc->arginfo, desc->args[0], desc->args[1],
-			desc->args[2], desc->x5);
 #ifdef CONFIG_TIMA_LKMAUTH
 		if (call_from_ss_daemon || ( pid_from_lkm == current_thread_info()->task->pid)) {
 #else
@@ -684,7 +688,7 @@ int scm_call2(u32 fn_id, struct scm_desc *desc)
 #endif
 			flush_cache_all();
 
-#if defined(CONFIG_ARCH_MSM8916) || defined(CONFIG_ARCH_MSM8939) || defined(CONFIG_ARCH_MSM8226) || defined(CONFIG_ARCH_MSM8994)
+#if defined(CONFIG_ARCH_MSM8916) || defined(CONFIG_ARCH_MSM8226) || defined(CONFIG_ARCH_MSM8929) || defined(CONFIG_ARCH_MSM8939)
 			smp_call_function((void (*)(void *))__wrap_flush_cache_all, NULL, 1);
 #endif
 
@@ -712,10 +716,8 @@ int scm_call2(u32 fn_id, struct scm_desc *desc)
 	}  while (ret == SCM_V2_EBUSY && (retry_count++ < SCM_EBUSY_MAX_RETRY));
 
 	if (ret < 0)
-		pr_err("scm_call failed: func id %#llx, arginfo: %#x, args: %#llx, %#llx, %#llx, %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx\n",
-			x0, desc->arginfo, desc->args[0], desc->args[1],
-			desc->args[2], desc->x5, ret, desc->ret[0],
-			desc->ret[1], desc->ret[2]);
+		pr_err("scm_call failed: func id %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx\n",
+			x0, ret, desc->ret[0], desc->ret[1], desc->ret[2]);
 
 	if (arglen > N_REGISTER_ARGS)
 		kfree(desc->extra_arg_buf);
@@ -797,7 +799,7 @@ int scm_call(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,
 	int ret;
 	size_t len = SCM_BUF_LEN(cmd_len, resp_len);
 
-	if (cmd_len > len || resp_len > len)
+	if (len == 0 || PAGE_ALIGN(len) < len)
 		return -EINVAL;
 
 	cmd = kzalloc(PAGE_ALIGN(len), GFP_KERNEL);
@@ -995,6 +997,63 @@ s32 scm_call_atomic4_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
 }
 EXPORT_SYMBOL(scm_call_atomic4_3);
 
+/**
+ * scm_call_atomic5_3() - SCM command with five argument and three return value
+ * @svc_id: service identifier
+ * @cmd_id: command identifier
+ * @arg1: first argument
+ * @arg2: second argument
+ * @arg3: third argument
+ * @arg4: fourth argument
+ * @arg5: fifth argument
+ * @ret1: first return value
+ * @ret2: second return value
+ * @ret3: third return value
+ *
+ * This shall only be used with commands that are guaranteed to be
+ * uninterruptable, atomic and SMP safe.
+ */
+s32 scm_call_atomic5_3(u32 svc, u32 cmd, u32 arg1, u32 arg2,
+	u32 arg3, u32 arg4, u32 arg5, u32 *ret1, u32 *ret2, u32 *ret3)
+{
+	int ret;
+	int context_id;
+	register u32 r0 asm("r0") = SCM_ATOMIC(svc, cmd, 5);
+	register u32 r1 asm("r1") = (uintptr_t)&context_id;
+	register u32 r2 asm("r2") = arg1;
+	register u32 r3 asm("r3") = arg2;
+	register u32 r4 asm("r4") = arg3;
+	register u32 r5 asm("r5") = arg4;
+	register u32 r6 asm("r6") = arg5;
+
+	asm volatile(
+		__asmeq("%0", R0_STR)
+		__asmeq("%1", R1_STR)
+		__asmeq("%2", R2_STR)
+		__asmeq("%3", R3_STR)
+		__asmeq("%4", R0_STR)
+		__asmeq("%5", R1_STR)
+		__asmeq("%6", R2_STR)
+		__asmeq("%7", R3_STR)
+#ifdef REQUIRES_SEC
+			".arch_extension sec\n"
+#endif
+		"smc	#0\n"
+		: "=r" (r0), "=r" (r1), "=r" (r2), "=r" (r3)
+		: "r" (r0), "r" (r1), "r" (r2), "r" (r3), "r" (r4), "r" (r5),
+		 "r" (r6));
+	ret = r0;
+
+	if (ret1)
+		*ret1 = r1;
+	if (ret2)
+		*ret2 = r2;
+	if (ret3)
+		*ret3 = r3;
+	return r0;
+}
+EXPORT_SYMBOL(scm_call_atomic5_3);
+
 u32 scm_get_version(void)
 {
 	int context_id;
@@ -1170,7 +1229,7 @@ int kap_status_scm_call(void)
     descrp.args[2] = virt_to_phys((void*)&resp); // Respnse
     descrp.args[3] = 4;
 
-    ret = scm_call2(MAKE_OEM_SCM_CMD(TZBSP_SVC_OEM_DMVERITY, OEM_DMVERITY_CMD_ID), &descrp);
+    ret = scm_call2(MAKE_OEM_SCM_CMD(TZBSP_SVC_OEM_GENERIC, OEM_GENERIC_CMD_ID), &descrp);
     if(!ret)
 	return descrp.ret[0];
     return 0;

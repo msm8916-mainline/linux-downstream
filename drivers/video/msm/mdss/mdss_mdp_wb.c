@@ -95,7 +95,7 @@ struct mdss_mdp_data *mdss_mdp_wb_debug_buffer(struct msm_fb_data_type *mfd)
 		ihdl = ion_alloc(iclient, img_size, SZ_4K,
 				 ION_HEAP(ION_SF_HEAP_ID), 0);
 		if (IS_ERR_OR_NULL(ihdl)) {
-			pr_err("unable to alloc fbmem from ion (%p)\n", ihdl);
+			pr_err("unable to alloc fbmem from ion (%pK)\n", ihdl);
 			return NULL;
 		}
 
@@ -122,7 +122,7 @@ struct mdss_mdp_data *mdss_mdp_wb_debug_buffer(struct msm_fb_data_type *mfd)
 			img->len = img_size;
 		}
 
-		pr_debug("ihdl=%p virt=%p phys=0x%pa iova=0x%pa size=%u\n",
+		pr_debug("ihdl=%pK virt=%pK phys=0x%pa iova=0x%pa size=%u\n",
 			 ihdl, videomemory, &mdss_wb_mem, &img->addr, img_size);
 	}
 	return &mdss_wb_buffer;
@@ -420,6 +420,10 @@ static struct mdss_mdp_wb_data *get_user_node(struct msm_fb_data_type *mfd,
 		struct ion_client *iclient = mdss_get_ionclient();
 		struct ion_handle *ihdl;
 
+		if (IS_ERR_OR_NULL(iclient)) {
+			pr_err("unable to get mdss ion client\n");
+			return NULL;
+		}
 		ihdl = ion_import_dma_buf(iclient, data->memory_id);
 		if (IS_ERR_OR_NULL(ihdl)) {
 			pr_err("unable to import fd %d\n", data->memory_id);
@@ -431,7 +435,7 @@ static struct mdss_mdp_wb_data *get_user_node(struct msm_fb_data_type *mfd,
 		list_for_each_entry(node, &wb->register_queue, registered_entry)
 			if ((node->buf_data.p[0].srcp_ihdl == ihdl) &&
 				    (node->buf_info.offset == data->offset)) {
-				pr_debug("found fd=%d hdl=%p off=%x addr=%pa\n",
+				pr_debug("found fd=%d hdl=%pK off=%x addr=%pa\n",
 						data->memory_id, ihdl,
 						data->offset,
 						&node->buf_data.p[0].addr);
@@ -497,7 +501,7 @@ static void mdss_mdp_wb_free_node(struct mdss_mdp_wb_data *node)
 	if (node->user_alloc) {
 		buf = &node->buf_data.p[0];
 
-		pr_debug("free user mem_id=%d ihdl=%p, offset=%u addr=0x%pa\n",
+		pr_debug("free user mem_id=%d ihdl=%pK, offset=%u addr=0x%pa\n",
 				node->buf_info.memory_id,
 				buf->srcp_ihdl,
 				node->buf_info.offset,
@@ -624,7 +628,8 @@ static int mdss_mdp_wb_dequeue(struct msm_fb_data_type *mfd,
 	return ret;
 }
 
-int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd)
+int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd,
+		struct mdss_mdp_commit_cb *commit_cb)
 {
 	struct mdss_mdp_wb *wb = mfd_to_wb(mfd);
 	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);
@@ -678,7 +683,17 @@ int mdss_mdp_wb_kickoff(struct msm_fb_data_type *mfd)
 		pr_err("error on commit ctl=%d\n", ctl->num);
 		goto kickoff_fail;
 	}
+
+	if (commit_cb)
+		commit_cb->commit_cb_fnc(
+			MDP_COMMIT_STAGE_SETUP_DONE,
+			commit_cb->data);
+
 	mdss_mdp_display_wait4comp(ctl);
+
+	if (commit_cb)
+		commit_cb->commit_cb_fnc(MDP_COMMIT_STAGE_READY_FOR_KICKOFF,
+			commit_cb->data);
 
 	if (wb && node) {
 		mutex_lock(&wb->lock);

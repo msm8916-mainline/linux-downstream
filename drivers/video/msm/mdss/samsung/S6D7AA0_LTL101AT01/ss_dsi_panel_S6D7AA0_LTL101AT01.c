@@ -76,6 +76,8 @@ static void backlight_tft_late_on(struct mdss_dsi_ctrl_pdata *ctrl)
 		is_first_boot = 0;
 	}
 
+	if(vdd->bl_level)
+		mdss_samsung_brightness_dcs(ctrl, vdd->bl_level);
 }
 static int mdss_panel_off_pre(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -105,7 +107,7 @@ static int mdss_panel_revision(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	return true;
 }
-void mdss_samsung_cabc_update_tft(int val)
+static void mdss_samsung_cabc_update_tft(int val)
 {
 	static int prev_val;
 	struct samsung_display_driver_data *vdd = samsung_get_vdd();

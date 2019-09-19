@@ -382,6 +382,9 @@ sg_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 	struct sg_header *old_hdr = NULL;
 	int retval = 0;
 
+	if (unlikely(segment_eq(get_fs(), KERNEL_DS)))
+	   return -EINVAL;
+
 	if ((!(sfp = (Sg_fd *) filp->private_data)) || (!(sdp = sfp->parentdp)))
 		return -ENXIO;
 	SCSI_LOG_TIMEOUT(3, printk("sg_read: %s, count=%d\n",
@@ -1693,6 +1696,9 @@ static int sg_start_req(Sg_request *srp, unsigned char *cmd)
 		else
 			md->from_user = 0;
 	}
+
+	if (unlikely(iov_count > UIO_MAXIOV))
+		return -EINVAL;
 
 	if (iov_count) {
 		int len, size = sizeof(struct sg_iovec) * iov_count;

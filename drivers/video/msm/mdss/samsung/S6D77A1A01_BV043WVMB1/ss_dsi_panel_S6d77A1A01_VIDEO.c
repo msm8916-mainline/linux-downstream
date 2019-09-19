@@ -33,7 +33,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 //#include "ss_dsi_mdnie_HX8369B_BV045WVM.h"
 #include "ss_dsi_panel_S6d77A1A01_VIDEO.h"
 #include "ss_dsi_mdnie_S6d77A1A01_VIDEO.h"
-
+static int is_first_boot = 1;
 
 static int mdss_panel_on_pre(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -63,6 +63,12 @@ static int mdss_panel_on_post(struct mdss_dsi_ctrl_pdata *ctrl)
 	pr_info("%s %d\n", __func__, ctrl->ndx);
 
 	mdss_samsung_cabc_update();
+
+	if(is_first_boot){
+		if (ctrl->panel_data.set_backlight)
+			ctrl->panel_data.set_backlight(&ctrl->panel_data, LCD_DEFAUL_BL_LEVEL);
+		is_first_boot = 0;
+	}
 
 	return true;
 }
@@ -95,6 +101,8 @@ static struct dsi_panel_cmds * mdss_brightness_tft_pwm(struct mdss_dsi_ctrl_pdat
 	pr_info("%s bl_level : %d scaled_level : %d\n", __func__, vdd->bl_level, vdd->scaled_level);
 
 	vdd->dtsi_data[ctrl->ndx].tft_pwm_tx_cmds->cmds->payload[1] = vdd->scaled_level ;
+
+	*level_key = 0;
 
 	return &vdd->dtsi_data[ctrl->ndx].tft_pwm_tx_cmds[vdd->panel_revision];
 }
@@ -233,14 +241,12 @@ static int __init samsung_panel_init(void)
 {
 	struct samsung_display_driver_data *vdd = samsung_get_vdd();
 	char panel_string[] = "qcom,mdss_dsi_S6D77A1A01_wvga_video";
-
+/*please rework as char panel_string[] = "ss_dsi_panel_S6D77A1A01_WVGA";*/
 	vdd->panel_name = mdss_mdp_panel + 8;
 	pr_info("%s : %s\n", __func__, vdd->panel_name);
 
 	if (!strncmp(vdd->panel_name, panel_string, strlen(panel_string)))
 		vdd->panel_func.samsung_panel_init = mdss_panel_init;
-	else
-		return 0;
 
 	return 0;
 }

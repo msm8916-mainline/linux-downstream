@@ -1401,7 +1401,7 @@ static int cpr_pvs_per_corner_init(struct device_node *of_node,
 				cpr_vreg->step_volt) *
 				cpr_vreg->step_volt;
 #if defined(CONFIG_APC_CPR_QUOT_BOOST)
-		cpr_vreg->pvs_corner_v[i] += 100000;
+		cpr_vreg->pvs_corner_v[i] += 50000;
 		if (cpr_vreg->pvs_corner_v[i] > cpr_vreg->fuse_ceiling_volt[i])
 		{
 			cpr_vreg->pvs_corner_v[i] = cpr_vreg->fuse_ceiling_volt[i];
@@ -2348,6 +2348,9 @@ static int cpr_get_corner_quot_adjustment(struct cpr_regulator *cpr_vreg,
 		scaling[i] = 1000 * (cpr_vreg->cpr_fuse_target_quot[i]
 			      - cpr_vreg->cpr_fuse_target_quot[i - 1])
 			  / (freq_max[i] - freq_max[i - 1]);
+		if (cpr_vreg->cpr_fuse_target_quot[i]
+			< cpr_vreg->cpr_fuse_target_quot[i - 1])
+			scaling[i] = 0;
 		scaling[i] = min(scaling[i], max_factor[i]);
 		cpr_info(cpr_vreg, "fuse corner %d quotient adjustment scaling factor: %d.%03d\n",
 			i, scaling[i] / 1000, scaling[i] % 1000);
@@ -2994,7 +2997,7 @@ static int cpr_init_cpr_efuse(struct platform_device *pdev,
 		cpr_vreg->cpr_fuse_target_quot[i] *= quot_scale[i].multiplier;
 		cpr_vreg->cpr_fuse_target_quot[i] += quot_scale[i].offset;
 #if defined(CONFIG_APC_CPR_QUOT_BOOST)
-		cpr_vreg->cpr_fuse_target_quot[i] += 208;
+		cpr_vreg->cpr_fuse_target_quot[i] += 104;
 #endif
 		cpr_info(cpr_vreg,
 			"Corner[%d]: ro_sel = %d, target quot = %d\n", i,
@@ -3002,19 +3005,20 @@ static int cpr_init_cpr_efuse(struct platform_device *pdev,
 			cpr_vreg->cpr_fuse_target_quot[i]);
 	}
 
-	for (i = CPR_FUSE_CORNER_MIN + 1;
-				i <= cpr_vreg->num_fuse_corners; i++) {
-		if (cpr_vreg->cpr_fuse_target_quot[i]
-				< cpr_vreg->cpr_fuse_target_quot[i - 1]) {
-			cpr_vreg->cpr_fuse_disable = true;
-			cpr_err(cpr_vreg, "invalid quotient values; permanently disabling CPR\n");
-			goto error;
-		}
-	}
-
 	rc = cpr_adjust_target_quots(pdev, cpr_vreg);
 	if (rc)
 		goto error;
+
+	for (i = CPR_FUSE_CORNER_MIN + 1;
+				i <= cpr_vreg->num_fuse_corners; i++) {
+		if (cpr_vreg->cpr_fuse_target_quot[i]
+				< cpr_vreg->cpr_fuse_target_quot[i - 1] &&
+			cpr_vreg->cpr_fuse_ro_sel[i] ==
+				cpr_vreg->cpr_fuse_ro_sel[i - 1]) {
+			cpr_vreg->cpr_fuse_disable = true;
+			cpr_err(cpr_vreg, "invalid quotient values; permanently disabling CPR\n");
+		}
+	}
 
 	if (cpr_vreg->flags & FLAGS_UPLIFT_QUOT_VOLT) {
 		cpr_voltage_uplift_wa_inc_quot(cpr_vreg, of_node);

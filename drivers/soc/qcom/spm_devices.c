@@ -199,7 +199,7 @@ static int msm_spm_dev_set_low_power_mode(struct msm_spm_device *dev,
 
 	if (mode == MSM_SPM_MODE_DISABLED && set_spm_enable) {
 		ret = msm_spm_drv_set_spm_enable(&dev->reg_data, false);
-		} else {
+	} else {
 		if (set_spm_enable)
 			ret = msm_spm_drv_set_spm_enable(&dev->reg_data, true);
 		for (i = 0; i < dev->num_modes; i++) {

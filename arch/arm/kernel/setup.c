@@ -719,7 +719,7 @@ static int __init msm_hw_rev_setup(char *p)
 	system_rev = memparse(p, NULL);
 	return 0;
 }
-early_param("samsung.board_rev", msm_hw_rev_setup);
+early_param("androidboot.revision", msm_hw_rev_setup);
 
 static void __init request_standard_resources(const struct machine_desc *mdesc)
 {
@@ -1015,9 +1015,13 @@ static int c_show(struct seq_file *m, void *v)
 		 */
 		seq_printf(m, "processor\t: %d\n", i);
 		cpuid = is_smp() ? per_cpu(cpu_data, i).cpuid : read_cpuid_id();
+#if defined(CONFIG_SEC_A8_PROJECT)
+		seq_printf(m, "model name\t: %s rev %d (%s)\n",
+			   cpu_name, 1, elf_platform);
+#else
 		seq_printf(m, "model name\t: %s rev %d (%s)\n",
 			   cpu_name, cpuid & 15, elf_platform);
-
+#endif
 #if defined(CONFIG_SMP)
 		seq_printf(m, "BogoMIPS\t: %lu.%02lu\n",
 			   per_cpu(cpu_data, i).loops_per_jiffy / (500000UL/HZ),
@@ -1054,7 +1058,11 @@ static int c_show(struct seq_file *m, void *v)
 			seq_printf(m, "CPU part\t: 0x%03x\n",
 				   (cpuid >> 4) & 0xfff);
 		}
+#if defined(CONFIG_SEC_A8_PROJECT)
+		seq_printf(m, "CPU revision\t: %d\n\n", 1);
+#else
 		seq_printf(m, "CPU revision\t: %d\n\n", cpuid & 15);
+#endif
 	}
 
 	if (!arch_read_hardware_id)
@@ -1064,9 +1072,13 @@ static int c_show(struct seq_file *m, void *v)
 	seq_printf(m, "Revision\t: %04x\n", system_rev);
 	seq_printf(m, "Serial\t\t: %08x%08x\n",
 		   system_serial_high, system_serial_low);
+#if defined(CONFIG_SEC_A8_PROJECT)
+	seq_printf(m, "Processor\t: %s rev %d (%s)\n",
+		   cpu_name, 1, elf_platform);
+#else
 	seq_printf(m, "Processor\t: %s rev %d (%s)\n",
 		   cpu_name, read_cpuid_id() & 15, elf_platform);
-
+#endif
 	return 0;
 }
 

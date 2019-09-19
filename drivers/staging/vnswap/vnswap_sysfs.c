@@ -19,6 +19,8 @@
 
 #include "vnswap.h"
 
+static DEFINE_MUTEX(vnswap_sysfs_mutex);
+
 static ssize_t disksize_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -35,7 +37,9 @@ static ssize_t disksize_store(struct device *dev,
 	if (ret)
 		return ret;
 
+	mutex_lock(&vnswap_sysfs_mutex);
 	vnswap_init_disksize(disksize);
+	mutex_unlock(&vnswap_sysfs_mutex);
 	return len;
 }
 
@@ -53,16 +57,26 @@ static ssize_t swap_filename_show(struct device *dev,
 static ssize_t swap_filename_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t len)
 {
+	mutex_lock(&vnswap_sysfs_mutex);
 	if (!vnswap_device) {
 		pr_err("%s %d: vnswap_device is null\n", __func__, __LINE__);
+		mutex_unlock(&vnswap_sysfs_mutex);
 		return len;
 	}
+	if (len > MAX_BACKING_STORAGE_FILENAME_LEN) {
+		pr_err("%s %d: too long backing_storage_filename\n",
+				__func__, __LINE__);
+		mutex_unlock(&vnswap_sysfs_mutex);
+		return len;
+	}
+	vnswap_device->backing_storage_filename[len] = '\0';
 	memcpy((void *)vnswap_device->backing_storage_filename,
 			(void *)buf, len);
 	dprintk("%s %d: (buf, len, backing_storage_filename) = " \
 			"(%s, %d, %s)\n",
 			__func__, __LINE__,
 			buf, len, vnswap_device->backing_storage_filename);
+	mutex_unlock(&vnswap_sysfs_mutex);
 	return len;
 }
 
@@ -77,7 +91,18 @@ static ssize_t init_backing_storage_show(struct device *dev,
 static ssize_t init_backing_storage_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t len)
 {
+	mutex_lock(&vnswap_sysfs_mutex);
 	vnswap_init_backing_storage();
+	mutex_unlock(&vnswap_sysfs_mutex);
+	return len;
+}
+
+static ssize_t deinit_backing_storage_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t len)
+{
+	mutex_lock(&vnswap_sysfs_mutex);
+	vnswap_deinit_backing_storage();
+	mutex_unlock(&vnswap_sysfs_mutex);
 	return len;
 }
 
@@ -92,11 +117,12 @@ static ssize_t vnswap_init_show(struct device *dev,
 static ssize_t vnswap_swap_info_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "(%d, %d, %d) (%llu, %d, %d, %d, %d, %d) " \
+	return sprintf(buf, "(%d, %d, %d, %d) (%llu, %d, %d, %d, %d, %d) " \
 						"(%d, %d, %d, %d, %d, %d, " \
 						"%d, %d, %d, %d, %d, %d)\n",
 		vnswap_device->stats.vnswap_stored_pages.counter,
 		vnswap_device->stats.vnswap_write_pages.counter,
+		vnswap_device->stats.vnswap_daily_write.counter,
 		vnswap_device->stats.vnswap_read_pages.counter,
 		vnswap_device->stats.vnswap_total_slot_num,
 		vnswap_device->stats.vnswap_used_slot_num.counter,
@@ -125,6 +151,8 @@ static DEVICE_ATTR(swap_filename, S_IRUGO | S_IWUSR, swap_filename_show,
 	swap_filename_store);
 static DEVICE_ATTR(init_backing_storage, S_IRUGO | S_IWUSR,
 	init_backing_storage_show, init_backing_storage_store);
+static DEVICE_ATTR(deinit_backing_storage, S_IWUSR, NULL,
+		deinit_backing_storage_store);
 static DEVICE_ATTR(vnswap_init, S_IRUGO | S_IWUSR,
 	vnswap_init_show, NULL);
 static DEVICE_ATTR(vnswap_swap_info, S_IRUGO | S_IWUSR,
@@ -134,6 +162,7 @@ static struct attribute *vnswap_disk_attrs[] = {
 	&dev_attr_disksize.attr,
 	&dev_attr_swap_filename.attr,
 	&dev_attr_init_backing_storage.attr,
+	&dev_attr_deinit_backing_storage.attr,
 	&dev_attr_vnswap_init.attr,
 	&dev_attr_vnswap_swap_info.attr,
 	NULL,

@@ -30,7 +30,7 @@ static struct msm_isp_bandwidth_mgr isp_bandwidth_mgr;
 
 #define VFE40_8974V2_VERSION 0x1001001A
 
-#ifndef CONFIG_ARCH_MSM8939
+#if !defined(CONFIG_ARCH_MSM8939) && !defined(CONFIG_ARCH_MSM8929)
 #define CAMERA_BOOST
 #endif
 
@@ -62,6 +62,13 @@ static struct msm_bus_scale_pdata bus_client_pdata = {
 
 static u32 bus_client;
 #endif
+
+static bool camera_boost_flag = true;
+int32_t msm_isp_camera_boost(bool flag){
+	camera_boost_flag = flag;
+	return 0;
+}
+EXPORT_SYMBOL(msm_isp_camera_boost);
 
 static struct msm_bus_vectors msm_isp_init_vectors[] = {
 	{
@@ -165,7 +172,7 @@ int msm_isp_init_bandwidth_mgr(enum msm_isp_hw_client client)
 	   isp_bandwidth_mgr.bus_vector_active_idx);
 
 #ifdef CAMERA_BOOST
-	if (!bus_client) {
+	if (!bus_client && camera_boost_flag) {
 		bus_client = msm_bus_scale_register_client(&bus_client_pdata);
 		msm_bus_scale_client_update_request(bus_client, 1);
 	}
@@ -236,9 +243,11 @@ void msm_isp_deinit_bandwidth_mgr(enum msm_isp_hw_client client)
 	msm_bus_scale_unregister_client(isp_bandwidth_mgr.bus_client);
 
 #ifdef CAMERA_BOOST
-	msm_bus_scale_client_update_request(bus_client, 0);
-	msm_bus_scale_unregister_client(bus_client);
-	bus_client = 0;
+	if(bus_client){
+		msm_bus_scale_client_update_request(bus_client, 0);
+		msm_bus_scale_unregister_client(bus_client);
+		bus_client = 0;
+	}
 #endif
 
 	isp_bandwidth_mgr.bus_client = 0;
@@ -374,14 +383,14 @@ static int msm_isp_get_max_clk_rate(struct vfe_device *vfe_dev, long *rate)
 	long          round_rate = 0;
 
 	if (!vfe_dev || !rate) {
-		pr_err("%s:%d failed: vfe_dev %p rate %p\n", __func__, __LINE__,
+		pr_err("%s:%d failed: vfe_dev %pK rate %pK\n", __func__, __LINE__,
 			vfe_dev, rate);
 		return -EINVAL;
 	}
 
 	*rate = 0;
 	if (!vfe_dev->hw_info) {
-		pr_err("%s:%d failed: vfe_dev->hw_info %p\n", __func__,
+		pr_err("%s:%d failed: vfe_dev->hw_info %pK\n", __func__,
 			__LINE__, vfe_dev->hw_info);
 		return -EINVAL;
 	}
@@ -642,13 +651,13 @@ static int msm_isp_send_hw_cmd(struct vfe_device *vfe_dev,
 	uint32_t *cfg_data, uint32_t cmd_len)
 {
 	if (!vfe_dev || !reg_cfg_cmd) {
-		pr_err("%s:%d failed: vfe_dev %p reg_cfg_cmd %p\n", __func__,
+		pr_err("%s:%d failed: vfe_dev %pK reg_cfg_cmd %pK\n", __func__,
 			__LINE__, vfe_dev, reg_cfg_cmd);
 		return -EINVAL;
 	}
 	if ((reg_cfg_cmd->cmd_type != VFE_CFG_MASK) &&
 		(!cfg_data || !cmd_len)) {
-		pr_err("%s:%d failed: cmd type %d cfg_data %p cmd_len %d\n",
+		pr_err("%s:%d failed: cmd type %d cfg_data %pK cmd_len %d\n",
 			__func__, __LINE__, reg_cfg_cmd->cmd_type, cfg_data,
 			cmd_len);
 		return -EINVAL;
@@ -691,7 +700,8 @@ static int msm_isp_send_hw_cmd(struct vfe_device *vfe_dev,
 	case VFE_READ_DMI_16BIT:
 	case VFE_READ_DMI_32BIT:
 	case VFE_READ_DMI_64BIT: {
-		if (reg_cfg_cmd->cmd_type == VFE_WRITE_DMI_64BIT) {
+		if (reg_cfg_cmd->cmd_type == VFE_WRITE_DMI_64BIT ||
+	            reg_cfg_cmd->cmd_type == VFE_READ_DMI_64BIT) {
 			if ((reg_cfg_cmd->u.dmi_info.hi_tbl_offset <=
 				reg_cfg_cmd->u.dmi_info.lo_tbl_offset) ||
 				(reg_cfg_cmd->u.dmi_info.hi_tbl_offset -
@@ -1015,7 +1025,7 @@ int msm_isp_proc_cmd_list(struct vfe_device *vfe_dev, void *arg)
 	struct msm_vfe_cfg_cmd_list cmd, cmd_next;
 
 	if (!vfe_dev || !arg) {
-		pr_err("%s:%d failed: vfe_dev %p arg %p", __func__, __LINE__,
+		pr_err("%s:%d failed: vfe_dev %pK arg %pK", __func__, __LINE__,
 			vfe_dev, arg);
 		return -EINVAL;
 	}
@@ -1245,8 +1255,6 @@ void msm_isp_update_error_frame_count(struct vfe_device *vfe_dev)
 {
 	struct msm_vfe_error_info *error_info = &vfe_dev->error_info;
 	error_info->info_dump_frame_count++;
-	if (error_info->info_dump_frame_count == 0)
-		error_info->info_dump_frame_count++;
 }
 
 void msm_isp_process_error_info(struct vfe_device *vfe_dev)

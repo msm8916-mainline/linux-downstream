@@ -81,7 +81,9 @@ static const struct mmc_fixup mmc_fixups[] = {
 		add_quirk_mmc, MMC_QUIRK_CACHE_DISABLE),
 	MMC_FIXUP("MMC16G", CID_MANFID_KINGSTON, CID_OEMID_ANY, add_quirk_mmc,
 		  MMC_QUIRK_CACHE_DISABLE),
-
+        /* Disable HPI feature for micron card */
+        MMC_FIXUP(CID_NAME_ANY, CID_MANFID_NUMONYX_MICRON, CID_OEMID_ANY,
+                add_quirk_mmc, MMC_QUIRK_BROKEN_HPI),
 	END_FIXUP
 };
 
@@ -358,13 +360,17 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		}
 	}
 
+	/*
+	 * The EXT_CSD format is meant to be forward compatible. As long
+	 * as CSD_STRUCTURE does not change, all values for EXT_CSD_REV
+	 * are authorized, see JEDEC JESD84-B50 section B.8.
+	 */
 	card->ext_csd.rev = ext_csd[EXT_CSD_REV];
-	if (card->ext_csd.rev > 7) {
-		pr_err("%s: unrecognised EXT_CSD revision %d\n",
-			mmc_hostname(card->host), card->ext_csd.rev);
-		err = -EINVAL;
-		goto out;
-	}
+
+        /* Support beyond EXT_CSD revision device of JESD84-B50 */
+        if (card->ext_csd.rev > 7)
+                pr_err("%s: EXT_CSD revision is over than 7 (%d)\n",
+                        mmc_hostname(card->host), card->ext_csd.rev);
 
 	/* fixup device after ext_csd revision field is updated */
 	mmc_fixup_device(card, mmc_fixups);
@@ -585,6 +591,18 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 
 		card->ext_csd.rel_param = ext_csd[EXT_CSD_WR_REL_PARAM];
 		card->ext_csd.rst_n_function = ext_csd[EXT_CSD_RST_N_FUNCTION];
+
+ 		/*
+		 * Some eMMC vendors violate eMMC 5.0 spec and set
+		 * REL_WR_SEC_C register to 0x10 to indicate the
+		 * ability of RPMB throughput improvement thus lead
+		 * to failure when TZ module write data to RPMB
+		 * partition. So check bit[4] of EXT_CSD[166] and
+		 * if it is not set then change value of REL_WR_SEC_C
+		 * to 0x1 directly ignoring value of EXT_CSD[222].
+		 */
+		if (!(card->ext_csd.rel_param & EXT_CSD_WR_REL_PARAM_EN_RPMB))
+			card->ext_csd.rel_sectors = 0x1;
 
 		/*
 		 * RPMB regions are defined in multiples of 128K.
@@ -1937,7 +1955,8 @@ static int mmc_suspend(struct mmc_host *host)
 	 * Disable clock scaling before suspend and enable it after resume so
 	 * as to avoid clock scaling decisions kicking in during this window.
 	 */
-	mmc_disable_clk_scaling(host);
+	if (mmc_can_scale_clk(host))
+		mmc_disable_clk_scaling(host);
 
 	err = mmc_cache_ctrl(host, 0);
 	if (err)

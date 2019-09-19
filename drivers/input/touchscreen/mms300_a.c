@@ -1241,8 +1241,6 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			goto out;
 		}
 
-		if (x == 0 && y == 0)
-			continue;
 		if ((tmp[0] & irq_bit_mask) == 0) {
 			input_mt_slot(info->input_dev, id);
 			input_mt_report_slot_state(info->input_dev,
@@ -3329,6 +3327,11 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 	int param_cnt = 0;
 	int ret;
 
+	if (strlen(buf) >= TSP_CMD_STR_LEN) {
+		dev_err(&info->client->dev, "%s: cmd length is over(%s,%d)!!\n", __func__, buf, (int)strlen(buf));
+		return -EINVAL;
+	}
+
 	if (info->cmd_is_running == true) {
 		dev_err(&info->client->dev, "tsp_cmd: other cmd is running.\n");
 		goto err_out;
@@ -3390,7 +3393,7 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 				param_cnt++;
 			}
 			cur++;
-		} while (cur - buf <= len);
+		} while ((cur - buf <= len) && (param_cnt < TSP_CMD_PARAM_NUM));
 	}
 
 	dev_info(&client->dev, "cmd = %s\n", tsp_cmd_ptr->cmd_name);
@@ -5528,7 +5531,8 @@ static void mms_ts_input_close(struct input_dev *dev)
 	{
 		info->enabled = false;
 		disable_irq_nosync(info->irq);
-		usleep(2000);	// for all irq clear
+		//usleep(2000);	// for all irq clear
+		usleep(10 * 1000);		
 
 		touch_is_pressed = 0;
 		release_all_fingers(info);
