@@ -104,6 +104,7 @@ struct acc_dev {
 	wait_queue_head_t read_wq;
 	wait_queue_head_t write_wq;
 	struct usb_request *rx_req[RX_REQ_MAX];
+	struct usb_request *tx_req[TX_REQ_MAX];
 	int rx_done;
 
 	/* delayed work for handling ACCESSORY_START */
@@ -575,6 +576,7 @@ static int create_bulk_endpoints(struct acc_dev *dev,
 			goto fail;
 		req->complete = acc_complete_in;
 		req_put(dev, &dev->tx_idle, req);
+		dev->tx_req[i] = req;
 	}
 	for (i = 0; i < RX_REQ_MAX; i++) {
 		req = acc_request_new(dev->ep_out, BULK_BUFFER_SIZE);
@@ -661,9 +663,14 @@ copy_data:
 	dev->rx_done = 0;
 	if (dev->online) {
 		/* If we got a 0-len packet, throw it back and try again. */
-		if (req->actual == 0)
+			if (req->actual == 0){
+		   if (req->status == -ECONNRESET) {
+			printk(KERN_INFO "acc_read : read request flushed \n");
+			r = -EIO;
+			goto done;
+		   } else
 			goto requeue_req;
-
+		  }
 		pr_debug("rx %p %u\n", req, req->actual);
 		xfer = (req->actual < count) ? req->actual : count;
 		r = xfer;
@@ -801,6 +808,42 @@ static int acc_release(struct inode *ip, struct file *fp)
 	return 0;
 }
 
+static int acc_flush(struct file *fp, fl_owner_t id)
+{
+	struct acc_dev *dev = fp->private_data;
+	unsigned long flags;
+	struct usb_request *req;
+	char   test[TX_REQ_MAX]={0};
+	int 	i = 0;
+
+	
+	printk(KERN_INFO "acc_flush\n");
+	if (dev->disconnected || !dev->online) {
+		printk(KERN_INFO "acc_flush  disconnected(%d) online (%d)", dev->disconnected, !dev->online);
+		return -ENODEV;
+	}
+	/* if we are already queued! */
+	if(!dev->rx_done) {
+		usb_ep_dequeue(dev->ep_out, dev->rx_req[0]);
+		printk(KERN_INFO "Try to dequeue the Read request \n");
+	}		
+	spin_lock_irqsave(&dev->lock, flags);
+	list_for_each_entry(req, &dev->tx_idle, list) {
+		for(i=0; i<TX_REQ_MAX; i++) {
+			if(req == dev->tx_req[i]) test[i] = 1;
+		}
+	}
+	for(i=0; i<TX_REQ_MAX; i++) {
+		if(test[i] != 1) {
+			usb_ep_dequeue(dev->ep_in, dev->tx_req[i]);
+		}
+	}
+	
+	spin_unlock_irqrestore(&dev->lock, flags);
+	
+	return 0;
+}
+
 /* file operations for /dev/usb_accessory */
 static const struct file_operations acc_fops = {
 	.owner = THIS_MODULE,
@@ -812,6 +855,7 @@ static const struct file_operations acc_fops = {
 #endif
 	.open = acc_open,
 	.release = acc_release,
+	.flush = acc_flush,
 };
 
 static int acc_hid_probe(struct hid_device *hdev,
