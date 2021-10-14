@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2019, 2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2953,6 +2953,41 @@ static int mdss_mdp_cmd_wait4_vsync(struct mdss_mdp_ctl *ctl)
 	return rc;
 }
 
+static int mdss_mdp_get_pm_qos_latency(void)
+{
+	int latency;
+	const struct cpumask *mask;
+	struct cpumask mdss_mask;
+	struct irq_desc *desc;
+	struct irq_info *mdss_irq = mdss_intr_line();
+
+	desc = irq_to_desc(mdss_irq->irq);
+	mask = desc->irq_common_data.affinity;
+	mdss_mask = *mask;
+	latency = pm_qos_request_for_cpumask(PM_QOS_CPU_DMA_LATENCY,
+					&mdss_mask);
+	pr_debug("qos_latency:%d\n", latency);
+	return latency;
+}
+
+static void mdss_mdp_update_pm_qos_latency(bool enable)
+{
+	struct pm_qos_request *req = &mdss_res->pm_qos_irq_req;
+
+	if (enable) {
+		if (pm_qos_request_active(req))
+			pm_qos_update_request(req,
+				MDSS_MDP_PM_QOS_CPU_DMA_LATENCY);
+		else {
+			/*  If request is not active yet and mask is not empty
+			 *  then it needs to be added initially
+			 */
+			pm_qos_add_request(req, PM_QOS_CPU_DMA_LATENCY,
+				MDSS_MDP_PM_QOS_CPU_DMA_LATENCY);
+		}
+	} else if (!enable && pm_qos_request_active(req))
+		pm_qos_update_request(req, PM_QOS_CPU_DMA_LAT_DEFAULT_VALUE);
+}
 
 /*
  * There are 3 partial update possibilities
@@ -2968,6 +3003,7 @@ static int mdss_mdp_cmd_wait4_vsync(struct mdss_mdp_ctl *ctl)
  */
 static int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 {
+	int latency;
 	struct mdss_mdp_ctl *sctl = NULL, *mctl = ctl;
 	struct mdss_mdp_cmd_ctx *ctx, *sctx = NULL;
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
@@ -2982,6 +3018,14 @@ static int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 		pr_err("ctx=%d stopped already\n", ctx->current_pp_num);
 		return -EPERM;
 	}
+
+	latency = mdss_mdp_get_pm_qos_latency();
+	if (latency > MDSS_MDP_PM_QOS_CPU_DMA_LATENCY &&
+				!ctl->panel_data->get_idle(ctl->panel_data))
+		mdss_mdp_update_pm_qos_latency(true);
+	else if (latency < PM_QOS_CPU_DMA_LAT_DEFAULT_VALUE &&
+				ctl->panel_data->get_idle(ctl->panel_data))
+		mdss_mdp_update_pm_qos_latency(false);
 
 	if (!ctl->is_master) {
 		mctl = mdss_mdp_get_main_ctl(ctl);

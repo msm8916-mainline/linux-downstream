@@ -1,7 +1,7 @@
 /*
  * MDSS MDP Interface (used by framebuffer core)
  *
- * Copyright (c) 2007-2018, 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2007-2018, 2020-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2007 Google Incorporated
  *
  * This software is licensed under the terms of the GNU General Public
@@ -2766,6 +2766,7 @@ static int mdss_mdp_probe(struct platform_device *pdev)
 	mutex_init(&mdata->reg_lock);
 	mutex_init(&mdata->reg_bus_lock);
 	mutex_init(&mdata->bus_lock);
+	mutex_init(&mdata->pm_qos_lock);
 	INIT_LIST_HEAD(&mdata->reg_bus_clist);
 	atomic_set(&mdata->sd_client_count, 0);
 	atomic_set(&mdata->active_intf_cnt, 0);
@@ -5249,6 +5250,7 @@ static int mdss_mdp_remove(struct platform_device *pdev)
 	mdss_mdp_pp_term(&pdev->dev);
 	mdss_mdp_bus_scale_unregister(mdata);
 	mdss_debugfs_remove(mdata);
+	pm_qos_remove_request(&mdata->pm_qos_irq_req);
 	if (mdata->regulator_notif_register)
 		regulator_unregister_notifier(mdata->fs, &(mdata->gdsc_cb));
 	return 0;

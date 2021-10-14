@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, 2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, 2020-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,7 +22,7 @@
 #include <linux/irqreturn.h>
 #include <linux/irqdomain.h>
 #include <linux/mdss_io_util.h>
-
+#include <linux/pm_qos.h>
 #include <linux/msm-bus.h>
 #include <linux/file.h>
 #include <linux/dma-direction.h>
@@ -35,6 +35,7 @@
 
 #define MDSS_PINCTRL_STATE_DEFAULT "mdss_default"
 #define MDSS_PINCTRL_STATE_SLEEP  "mdss_sleep"
+#define MDSS_MDP_PM_QOS_CPU_DMA_LATENCY 300
 
 enum mdss_mdp_clk_type {
 	MDSS_CLK_AHB,
@@ -528,6 +529,9 @@ struct mdss_data_type {
 	u32 splash_intf_sel;
 	u32 splash_split_disp;
 	struct mult_factor bus_throughput_factor;
+
+	struct pm_qos_request pm_qos_irq_req;
+	struct mutex pm_qos_lock;
 };
 
 extern struct mdss_data_type *mdss_res;

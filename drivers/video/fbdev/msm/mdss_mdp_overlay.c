@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, 2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, 2020-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -6779,6 +6779,8 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 		}
 	}
 	mdp5_data->dyn_pu_state = mfd->panel_info->partial_update_enabled;
+	mdss_res->pm_qos_irq_req.type = PM_QOS_REQ_AFFINE_IRQ;
+	mdss_res->pm_qos_irq_req.irq = mdss_intr_line()->irq;
 
 	if (mdss_mdp_pp_overlay_init(mfd))
 		pr_warn("Failed to initialize pp overlay data.\n");
