@@ -4170,21 +4170,30 @@ static int dwc3_msm_host_notifier(struct notifier_block *nb,
 				mdwc->max_rh_port_speed = USB_SPEED_SUPER;
 			}
 
-			if (udev->speed >= USB_SPEED_SUPER)
-				max_power = udev->actconfig->desc.bMaxPower * 8;
-			else
-				max_power = udev->actconfig->desc.bMaxPower * 2;
-			dev_dbg(mdwc->dev, "%s configured bMaxPower:%d (mA)\n",
+			if (!mdwc->charging_disabled) {
+				if (udev->speed >= USB_SPEED_SUPER)
+					max_power =
+					udev->actconfig->desc.bMaxPower * 8;
+				else
+					max_power =
+					udev->actconfig->desc.bMaxPower * 2;
+				dev_dbg(mdwc->dev, "%s configured bMaxPower:%d (mA)\n",
 					dev_name(&udev->dev), max_power);
 
-			/* inform PMIC of max power so it can optimize boost */
-			pval.intval = max_power * 1000;
-			power_supply_set_property(mdwc->usb_psy,
+				/*
+				 * inform PMIC of max power so it
+				 * can optimize boost.
+				 */
+				pval.intval = max_power * 1000;
+				power_supply_set_property(mdwc->usb_psy,
 					POWER_SUPPLY_PROP_BOOST_CURRENT, &pval);
+			}
 		} else {
-			pval.intval = 0;
-			power_supply_set_property(mdwc->usb_psy,
+			if (!mdwc->charging_disabled) {
+				pval.intval = 0;
+				power_supply_set_property(mdwc->usb_psy,
 					POWER_SUPPLY_PROP_BOOST_CURRENT, &pval);
+			}
 
 			/* set rate back to default core clk rate */
 			clk_set_rate(mdwc->core_clk, mdwc->core_clk_rate);
