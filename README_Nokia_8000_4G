@@ -1,6 +1,6 @@
 1. Kernel configuration files
    arch/arm/configs:
-   Nokia 6300 4G (TA-1286/TA-1291/TA-1294/TA-1287/TA-1307): LEO_defconfig
+   Nokia 8000 4G (TA-1305/TA-1300/TA-1303/TA-1311): LEO_defconfig
 
 2. How to build
 
