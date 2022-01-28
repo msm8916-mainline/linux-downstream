@@ -1,0 +1,5 @@
+config BBK_FPC1022
+	tristate "FPC OEM fingerprint FPC1022 support"
+	help
+	  there is nothing for help!
+

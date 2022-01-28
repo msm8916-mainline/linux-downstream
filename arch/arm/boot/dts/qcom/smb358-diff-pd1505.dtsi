@@ -1,0 +1,105 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+/*otg function is enable by default*/
+
+&pm8916_vadc{
+	chan@11 {
+		label = "usbid_vol";
+		reg = <0x11>;
+		qcom,decimation = <0>;
+		qcom,pre-div-channel-scaling = <0>;
+		qcom,calibration-type = "absolute";
+		qcom,scale-function = <0>;
+		qcom,hw-settle-time = <0>;
+		qcom,fast-avg-setup = <0>;
+	};
+};
+
+&usbid {
+		qcom,pins = <&gp 110>;
+		qcom,num-grp-pins = <1>;
+		qcom,pin-func = <0>;
+		label = "usbid-vol-pin";
+		usbid_vol_default: default {
+			drive-strength = <8>;
+			/*bias-pull-up;*/
+			output-high;
+		};
+};
+
+&usb_otg {
+       qcom,hsusb-otg-mode = <3>;
+       qcom,usbidvol-gpio = <&msm_gpio 110 0>;
+       pinctrl-names = "default";
+       pinctrl-0 = <&usbid_vol_default>;
+       vbus_otg-supply = <&smb358_otg_supply>;
+	   qcom,usbidvol-vadc = <&pm8916_vadc>;
+	   qcom,usbid_adc_used;
+};
+
+&i2c_4 {
+		smb358_otg_supply: smb358-chg-fg@57 {
+			qcom,chg-input-cur-limit-max = <1000>;
+			qcom,chg-fastchg-cur-limit-max = <900>;
+			qcom,fb-on-cur-limit-max = <800>;
+			qcom,iterm-ma = <150>;
+			vivo,batt-1C-current-ma = <2100>;
+			vivo,usb_data_line_connect;
+			qcom,float-voltage-mv = <4350>;
+			//99%~100%,soft terminate charge for 20min
+			vivo,charger-enable-soft-term;
+			vivo,soft-term-capacity = <99>;
+			vivo,soft-term-timer = <120>;//10s,1 per
+			vivo,project-name = "PD1505";
+		};
+};
+
+/ {
+	cdp_batterydata: qcom,battery-data {
+		qcom,rpull-up-kohm = <100>;
+		qcom,vref-batt-therm = <1800000>;
+		vivo,project-name = "PD1505";
+		#include "batterydata-palladium-pd1505.dtsi"
+	};
+};
+
+&soc {
+	tlmm_pinmux: pinctrl@1000000 {
+		bat-id-pin {
+			qcom,pins = <&gp 69>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "bat-id-pin";
+			batid_default: default {
+				drive-strength = <2>;
+				bias-disable = <0>;
+			};
+		};
+	};
+	cms{
+		vivo,battery-plugable = <1>;
+		//vivo,no-bat-warning;
+		vivo,bat-det-by-r = <0>; //rc:0 , r:1 , eprom:2
+		vivo,bat-id-gpio = <&msm_gpio 69 0x00>;
+		qcom,use-pinctrl;
+		pinctrl-names = "default";
+		pinctrl-0 = <&batid_default>;
+		vivo,cms-fbon-cur-scale = <70>;
+
+		//adjust input and ibat current, according to on-phone! enable prop
+		vivo,cms-calling-limit-current;
+		vivo,cms-calling-cur-scale = <34>;//700ma
+		vivo,cms-calling-input-cur-scale = <100>;
+
+		vivo,chg-current-scale-level = <0 50 70 45 30 30 20 10 0>;
+	};
+};

@@ -1,0 +1,166 @@
+/*
+ * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/dts-v1/;
+
+#include "msm8939-v3.0.dtsi"
+#include "msm8939-cdp.dtsi"
+#include "bq24296.dtsi"
+#include "bq24296-diff-pd1524f_ex.dtsi"
+#include "msm8939-cdp-vivo-pd1524.dtsi"
+#include "msm8939-camera-sensor-cdp-vivo-pd1524.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. MSM 8939v3.0 CDP PD1524F_EX";
+	compatible = "qcom,msm8939-cdp", "qcom,msm8939", "qcom,cdp";
+	qcom,board-id = <1 16>;
+};
+&lis3dh_acc{
+	compatible = "lis3dh_acc";
+	reg = <0x18>;
+	vdd-supply = <&pm8916_l17>;
+	vddio-supply = <&pm8916_l5>;
+	interrupt-parent = <&msm_gpio>;
+	interrupts = <114 0x00>;
+	st,min-interval = <10>;
+	st,init-interval = <200>;
+	st,axis-map-x = <0>;
+	st,axis-map-y = <1>;
+	st,axis-map-z = <2>;
+	st,g-range = <2>;
+	st,negate-x = <1>;
+	st,negate-y = <0>;
+	st,negate-z = <1>;
+	sensor,gpio-irq = <&msm_gpio 114 0x00>;			
+};
+&soc{
+	touchscreencfg { /* vivo ts configure */
+	   compatible = "vivo,touchscreen-config";
+	   vivo,ts-product-name="PD1524";
+	   vivo,use-ic-list="Goodix-TS";
+	   vivo,ts_vdd_mode="gpio_mode"; /*regulator_mode or gpio_mode*/
+
+	   
+	   /*----- function set BEG ---- */
+	   vivo,ts-gloves-mode=<0>;
+	   vivo,ts-large-obj-suppression=<1>;
+	   vivo,ts-dclick-wake=<1>;
+	   vivo,ts-gesture-mode=<1>; /*1=sold in native,2=sold in abroad,3...etc=for custom extensive*/
+	   vivo,ts-custom-gesture=<0>;
+	   vivo,ts-module-id-methods=<0>;/*0=by IC id,1=gpio,2=by LCD ID 3=...etc=for custom extensive*/
+	   vivo,ts-fw-upgrade-lcd-referrence=<0>;
+	   vivo,ts-anti-esd=<1>;
+	   vivo,ts-charger-conn-judge=<1>;
+	   vivo,ts-module-smt-mode=<1>; /* 0=COB,1=COF */
+	   /*----- function set END ---- */
+
+	};
+	
+i2c@78b9000 { /* BLSP1 QUP5 */
+        status = "ok";
+		goodix@14 { //gt970L
+			compatible = "goodix,gt970";
+			reg = <0x14>;
+			/* pins used by touchscreen */
+			pinctrl-names = "gt9xx_int_default","gt9xx_int_suspend";
+            		pinctrl-0 = <&gt9xx_int_default>;
+            		pinctrl-1 = <&gt9xx_int_sleep>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <13 0x00>;
+			reset-gpios = <&msm_gpio 12 0x00>;
+			interrupt-gpios = <&msm_gpio 13 0x00>;
+            //vcc_i2c-supply = <&pm8916_l6>;
+            //vdd-supply = <&pm8916_l16>;/* <&tp_power>;*/
+			goodix,vdd-gpio = <&pm8916_gpios 3 0>;
+			goodix,panel-coords = <0 0 720 1280>;
+			goodix,display-coords = <0 0 720 1280>;
+			goodix,button-map= <158 102 139>;
+			goodix,family-id = <0x0>;
+           		goodix,i2c-pull-up;
+			goodix,cfg-data0 =    //jiemian
+			[
+				43 D0 02 5F 05 0A 34 D0 01 08 
+				3C 08 50 32 30 35 00 00 37 13 
+				10 01 00 14 14 26 14 8C 2C 0D 
+				30 32 9D 09 9D 09 00 BA 33 11 
+				00 00 00 00 00 00 00 08 0A A0 
+				22 19 5A 54 D0 03 BC 1E 06 04 
+				C9 1C 00 9E 25 23 82 2F 00 6A 
+				3D 00 59 4F 00 59 00 00 00 00 
+				00 00 00 00 00 00 00 00 00 00 
+				00 00 00 00 F7 01 00 00 00 00 
+				00 00 00 00 00 0F 50 00 00 00 
+				00 1E 02 0C 04 0A 06 08 14 12 
+				16 10 18 0E 1A FF 00 98 FB 1E 
+				AC 1E 19 14 08 1E 87 00 DC 00 
+				40 41 00 02 04 06 08 0A 0C 0F 
+				10 12 13 14 16 18 1C 1D 1E 1F 
+				20 21 22 24 26 28 FF FF 00 00 
+				00 00 00 00 00 00 00 00 00 00 
+				00 00 00 05 C7 01
+			];                                         
+			
+			goodix,cfg-data2 =    //yeji
+			[
+				41 D0 02 5F 05 0A 34 00 01 08 
+				32 08 50 3C 33 35 00 00 37 13 
+				00 00 00 14 14 26 14 8C 2C 0D 
+				3C 3E 9A 07 D3 07 00 99 33 11 
+				00 00 00 00 00 00 00 00 00 00 
+				21 1E 64 94 40 02 BC 1E 00 04 
+				D0 22 00 A9 2B 1E 89 37 00 71 
+				46 00 5E 59 00 5E 00 00 00 00 
+				00 00 00 00 00 00 00 00 00 00 
+				00 00 00 00 FF 01 00 00 00 00 
+				00 00 00 00 00 0F 50 00 00 00 
+				00 1E 02 0C 04 0A 06 08 14 12 
+				16 10 18 0E 1A FF 00 00 00 00 
+				00 00 00 00 00 00 00 00 04 00 
+				50 00 00 02 04 06 08 0A 0C 0F 
+				10 12 13 14 16 18 1C 1D 1E 1F 
+				20 21 22 24 26 28 FF FF 00 00 
+				00 00 00 00 00 00 00 00 00 00 
+				00 00 00 00 8B 01
+			];              
+			
+			goodix,cfg-data3 =    //lansi
+			[
+				41 D0 02 5F 05 0A 34 00 01 08 
+				32 08 50 3C 33 35 00 00 37 13 
+				00 00 00 14 14 26 14 8C 2C 0D 
+				3C 3E 9A 07 D3 07 00 99 33 11 
+				00 00 00 00 00 00 00 00 00 00 
+				21 1E 64 94 40 02 BC 1E 00 04 
+				D0 22 00 A9 2B 1E 89 37 00 71 
+				46 00 5E 59 00 5E 00 00 00 00 
+				00 00 00 00 00 00 00 00 00 00 
+				00 00 00 00 FF 01 00 00 00 00 
+				00 00 00 00 00 0F 50 00 00 00 
+				00 1E 02 0C 04 0A 06 08 14 12 
+				16 10 18 0E 1A FF 00 00 00 00 
+				00 00 00 00 00 00 00 00 04 00 
+				50 00 00 02 04 06 08 0A 0C 0F 
+				10 12 13 14 16 18 1C 1D 1E 1F 
+				20 21 22 24 26 28 FF FF 00 00 
+				00 00 00 00 00 00 00 00 00 00 
+				00 00 00 00 8B 01
+			];                                   
+				
+			ts-suspend-resume=<0>;
+			ts-fixed-key-type=<1>; /*0=0d,1=2d */
+			
+			/*--virtualkeys: EV_KEY:KEY_MENU:cx:cy:w:h:EV_KEY:KEY_HOMEPAGE:cx:cy:w:h:EV_KEY:KEY_BACK:cx:cy:w:h--*/
+			ts-virt-key="0x01:139:117:1345:130:100:0x01:251:228:1345:90:100:0x01:172:360:1345:140:100:0x01:251:491:1345:90:100:0x01:158:603:1345:130:100";
+		};
+	};
+};

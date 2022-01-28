@@ -1,0 +1,335 @@
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+ 
+#include "dsi-panel-pd1505l-otm9605a-540p-video.dtsi"
+#include "dsi-panel-pd1505l-otm9605a-540p-video-baoming.dtsi"
+#include "dsi-panel-nt35510s-boefwvga-cmd.dtsi"
+#include "dsi-panel-orise8012a-tmfwvga-cmd.dtsi"
+#include "dsi-panel-nt35510s-tmfwvga-cmd.dtsi"
+#include "dsi-panel-orise8012a-tmfwvga-cmd-backlight-changed.dtsi"
+#include "msm8916-camera-sensor-cdp-vivo-pd1309.dtsi"
+
+&dsi_pd1505l_otm9605a_540_vid {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+	qcom,mdss-dsi-bl-pmic-pwm-frequency = <25>;
+	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
+	qcom,cont-splash-enabled;
+};
+
+&dsi_pd1505l_otm9605a_540_baoming_vid {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+	qcom,mdss-dsi-bl-pmic-pwm-frequency = <25>;
+	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
+	qcom,cont-splash-enabled;
+};
+
+&dsi_nt35510s_fwvga_cmd_boe {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+	qcom,mdss-dsi-bl-pmic-pwm-frequency = <25>;
+	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
+	qcom,cont-splash-enabled;
+	//qcom,esd-check-enabled;
+};
+
+&dsi_orise8012a_tmfwvga_cmd {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+	qcom,mdss-dsi-bl-pmic-pwm-frequency = <25>;
+	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
+	qcom,cont-splash-enabled;
+	//qcom,esd-check-enabled;
+};
+
+&dsi_nt35510s_fwvga_cmd_tm {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+	qcom,mdss-dsi-bl-pmic-pwm-frequency = <25>;
+	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
+	qcom,cont-splash-enabled;
+	//qcom,esd-check-enabled;
+};
+
+&dsi_orise8012a_tmfwvga_cmd_backlight_changed {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+	qcom,mdss-dsi-bl-pmic-pwm-frequency = <25>;
+	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
+	qcom,cont-splash-enabled;
+	//qcom,esd-check-enabled;
+};
+
+&pmx_sdc2_clk {
+    sdc2_clk_on: clk_on {
+        bias-disable; /* NO pull */
+        drive-strength = <10>; /* 10 MA： 16 MA is too high for PD1505L */
+    };
+};
+
+&pmx_mdss {
+	qcom,num-grp-pins = <1>;
+	qcom,pins = <&gp 1>;
+};
+
+&pmx_mdss_te {
+	qcom,num-grp-pins = <1>;
+	qcom,pins = <&gp 24>;
+};
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&dsi_nt35510s_fwvga_cmd_boe>;
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
+	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
+	qcom,regulator-ldo-mode;
+	qcom,platform-enable-gpio = <&msm_gpio 1 0>;
+	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+	qcom,platform-bklight-en-gpio = <&msm_gpio 8 0>;
+}; 
+
+&soc {
+	touchscreen: touchscreencfg { /* vivo ts configure */
+	   compatible = "vivo,touchscreen-config";
+	   vivo,ts-product-name="PD1309F_EX";
+	   vivo,use-ic-list="synaptics_3202";
+	   
+	   /*----- function set BEG ---- */
+	   vivo,ts-gloves-mode=<0>;
+	   vivo,ts-large-obj-suppression=<1>;
+	   vivo,ts-dclick-wake=<1>;
+	   vivo,ts-gesture-mode=<1>; /*1=sold in native,2=sold in abroad,3...etc=for custom extensive*/
+	   vivo,ts-custom-gesture=<0>;
+	   vivo,ts-module-id-methods=<1>;/*0=by IC id,1=gpio,2=by LCD ID 3=...etc=for custom extensive*/
+	   vivo,ts-fw-upgrade-lcd-referrence=<0>;
+	   vivo,ts-anti-esd=<1>;
+	   vivo,ts-charger-conn-judge=<1>;
+	   vivo,ts-module-smt-mode=<1>; /* 0=COB,1=COF */
+	   /*----- function set END ---- */
+
+       /* for FW upgrade HW ID check */
+	   /*vivo,ts-module-id1-gpio=<0>;*/
+	   /*vivo,ts-module-id2-gpio=<3>;*/
+	   vivo,ts-module-id1-gpio=  <&msm_gpio 0 0x0>;
+	   vivo,ts-module-id2-gpio = <&msm_gpio 3 0x0>;
+	   
+	    /* id pins used by touchscreen */
+		pinctrl-names = "ts_id_active","ts_id_disactive";
+		pinctrl-0 = <&ts_id_active>;
+		pinctrl-1 = <&ts_id_disactive>;
+
+	};
+	
+	i2c@78b9000 { /* BLSP1 QUP5 */
+		rmi_i2c@20 {
+			compatible = "synaptics_3202";
+			reg = <0x20>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <13 0x00>;
+			vdd_ana-supply = <&pm8916_l16>;
+			vcc_i2c-supply = <&pm8916_l6>;
+			/* pins used by touchscreen */
+			pinctrl-names = "default";
+			pinctrl-0 = <&ts_int_active &ts_reset_active>;
+			synaptics,reset-gpio = <&msm_gpio 12 0x00>; 
+			/* synaptics,ldo-gpio = <&msm_gpio 0 0x00>;*/ 
+			synaptics,irq-gpio = <&msm_gpio 13 0x00>;
+			synaptics,attn_polarity = <0x0>;
+
+
+            ts-suspend-resume=<0>;
+
+			lcd-dimension-x=<480>;
+			lcd-dimension-y=<854>;
+
+			ts-dimension-x=<1120>;
+			ts-dimension-y=<1993>;	//2126
+
+			ts-dclick-dimension-x-min=<160>;
+			ts-dclick-dimension-x-max=<1106>;
+			ts-dclick-dimension-y-min=<160>;
+			ts-dclick-dimension-y-max=<2060>;
+		   
+		    ts-fixed-key-type=<1>; /*0=0d,1=2d */
+			/*--virtualkeys: EV_KEY:KEY_MENU:cx:cy:w:h:EV_KEY:KEY_HOMEPAGE:cx:cy:w:h:EV_KEY:KEY_BACK:cx:cy:w:h--*/
+			ts-virt-key="0x01:139:64:893:90:64:0x01:251:154:893:90:64:0x01:172:244:893:90:64:0x01:251:332:893:87:64:0x01:158:416:893:80:64";
+			
+		};
+	};
+	
+	sensorcfg {
+		compatible = "vivo,sensor-config";
+		vivo,product-model = "PD1309F_EX";
+		ps-para0 {
+			base-val = <50>;
+			low-thres = <0>;
+			high-thres = <850>;
+			step-num = <4>;
+			step0 = <  0 200 110 40>;
+			step1 = <200 400 100 35>;
+			step2 = <400 550 90 30>;
+			step3 = <550 850 80 25>;
+		};
+		
+		als-para0 {
+			gain = <100>;
+			low-thres = <50>;
+			high-thres = <1500>;
+		};
+	};
+	switch_gsensor {
+		  compatible = "vivo-gsensor";
+		  sensor-name = "gsensor";
+		/*  sensor,gpio-irq = <&msm_gpio 21 0x00>;  */
+	  };
+	i2c@78b6000 { /* BLSP1 QUP2 */ 	
+		TMD2771@39 {
+			compatible = "TMD2771";
+			vdd-supply = <&pm8916_l17>;
+			vddio-supply = <&pm8916_l6>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <113 0x00>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&apds99xx_default>;
+			reg = <0x39>;
+			irq-gpio = <&msm_gpio 113 0x00>;
+		};
+		lis3dh_acc@18 {
+			compatible = "lis3dh_acc";
+			reg = <0x18>;
+			vdd-supply = <&pm8916_l17>;
+			vddio-supply = <&pm8916_l6>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <21 0x00>;
+			st,min-interval = <10>;
+			st,init-interval = <200>;
+			st,axis-map-x = <0>;
+			st,axis-map-y = <1>;
+			st,axis-map-z = <2>;
+			st,g-range = <2>;
+			st,negate-x = <0>;
+			st,negate-y = <1>;
+			st,negate-z = <1>;
+            sensor,gpio-irq = <&msm_gpio 21 0x00>;			
+		};
+		yas533@2E {
+			compatible = "yas533_mag";
+			reg = <0x2E>;
+			ak,layout =<3>;
+			vdd-supply = <&pm8916_l17>;
+			vio-supply = <&pm8916_l6>;
+		};
+	};
+	
+	sound {
+		qcom,audio-routing =
+			"RX_BIAS", "MCLK",
+			"SPK_RX_BIAS", "MCLK",
+			"INT_LDO_H", "MCLK",
+			"MIC BIAS Internal1", "Handset Mic",
+			"MIC BIAS External2", "Headset Mic",
+			"MIC BIAS External", "Secondary Mic",
+			"AMIC1", "MIC BIAS Internal1",
+			"AMIC2", "MIC BIAS External2",		
+			"DMIC1", "MIC BIAS Internal1",
+			"MIC BIAS Internal1", "Digital Mic1",
+			"DMIC2", "MIC BIAS Internal1",
+			"MIC BIAS Internal1", "Digital Mic2",
+			"KTV Handset Mic In", "MIC BIAS External",
+			"KTV Headset Mic In", "MIC BIAS External2";
+		vivo,fm-support;
+		vivo,fm-pcm-hp = <5>;
+		vivo,fm-pcm-spk = <5>;
+	};
+
+	qcom,wcnss-wlan@0a000000 {
+		/* qcom,has-autodetect-xo; */ 
+		qcom,is-pronto-vt;   
+		qcom,has-pronto-hw;  
+	};	
+
+};
+
+&tlmm_pinmux{
+	pmx_ts_id_active {
+		qcom,pins = <&gp 0>,<&gp 3>;
+		qcom,pin-func = <0>;
+		qcom,num-grp-pins = <2>;
+		label = "pmx_ts_id_active";
+
+		ts_id_active: ts_id_active {
+			drive-strength = <2>;
+			bias-pull-up;
+		};
+	};
+
+	pmx_ts_id_disactive {
+		qcom,pins = <&gp 0>,<&gp 3>;
+		qcom,pin-func = <0>;
+		qcom,num-grp-pins = <2>;
+		label = "pmx_ts_id_disactive";
+
+		ts_id_disactive: ts_id_disactive {
+			drive-strength = <2>;
+			bias-pull-down;
+		};
+	};
+};
+&pm8916_tombak_dig{
+		qcom,cdc-micbias-cfilt-mv = <2200000>;
+		qcom,headset-irq-gpio = <&msm_gpio 9 0>;
+		pinctrl-names = "headset_gpio_irq";
+		pinctrl-0 =  <&headset_gpio_irq>;
+		vivo,yda145-num=<1>;
+		vivo,yda145-ctrl-la-gpio=<&msm_gpio 120 0>;
+		vivo,yda145-ctrl-lb-gpio=<&msm_gpio 121 0>;
+};
+
+ 
+&sdhc_2 {
+	    pinctrl-names = "active", "sleep";
+		pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_on>;
+		pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
+};
+&sdhc_2 {
+    interrupts = <0 1 2>;
+    interrupt-map = <0 &intc 0 125 0
+			1 &intc 0 221 0
+			2 &msm_gpio 38 0>;
+    cd-gpios = <&msm_gpio 38 0x1>;
+};
+
+&sdhc2_cd_pin {
+			qcom,pins = <&gp 38>;
+			qcom,num-grp-pins = <1>;
+};
+
+&sdc2_cd_on{
+	bias-pull-down;
+};
+
+&sdc2_cd_off{
+	bias-pull-down;
+};
+
+&restart {
+	qcom,download_mode-disable;
+};
+&mss {
+	qcom,subsystem-restart-level;
+};
+&venus {
+	qcom,subsystem-restart-level;
+};
+&pronto {
+	qcom,subsystem-restart-level;
+};

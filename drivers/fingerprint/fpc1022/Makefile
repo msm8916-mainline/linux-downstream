@@ -1,0 +1,1 @@
+obj-$(CONFIG_BBK_FPC1022)	+= fpc1020.o

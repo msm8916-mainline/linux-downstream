@@ -1,0 +1,5 @@
+config VIVO_BOARDINFO
+        bool "vivo Board information support"
+        depends on MSM_SMEM
+        help
+          enable vivo Board information support on qcom platform

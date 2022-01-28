@@ -1,0 +1,67 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+&i2c_4 {
+		smb358_otg_supply: smb358-chg-fg@57 {
+			compatible = "qcom,smb358-charger";
+			reg = <0x57>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <62 8>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&smb_int_default>;
+			regulator-name = "smb358_otg_vreg";
+			
+			qcom,fastchg-current-max-ma = <1300>;
+			qcom,chg-current-ma = <1200>;
+			qcom,bms-psy-name = "bms";			
+			qcom,chg-vadc = <&pm8916_vadc>;
+			qcom,chg-adc_tm = <&pm8916_adc_tm>;
+			qcom,hot_bat_decidegc = <550>;
+			qcom,cold_bat_decidegc = <(-80)>;
+			qcom,bat_present_decidegc = <200>;
+			qcom,recharge-mv = <100>;
+			qcom,float-voltage-mv = <4360>;
+			qcom,iterm-ma = <100>;
+			qcom,recharge-disabled = <1>;
+			summit,chg-tmout-mins = <600>;
+			
+			vcc_i2c-supply = <&pm8916_l5>;
+		};
+};
+
+/ {
+	cdp_batterydata: qcom,battery-data {
+		qcom,rpull-up-kohm = <100>;
+		qcom,vref-batt-therm = <1800000>;
+		//#include "batterydata-palladium.dtsi"
+	};
+};
+&pm8916_bms {
+	status = "ok";
+	/*qcom,disable-bms;*/
+	qcom,battery-data = <&cdp_batterydata>;
+};
+
+&pm8916_chg {
+	status = "ok";
+	qcom,use-external-charger;
+};
+&soc {
+	cms{
+		compatible = "vivo,charger-monitor";
+		vivo,bat-id-gpio = <&msm_gpio 69 0x00>;
+		qcom,cms-vadc = <&pm8916_vadc>;
+		vivo,fb_watch;
+		vivo,battery-plugable = <0>;
+		vivo,cms-fbon-cur-scale = <35>;
+		vivo,bat-det-by-r = <1>;
+	};
+};

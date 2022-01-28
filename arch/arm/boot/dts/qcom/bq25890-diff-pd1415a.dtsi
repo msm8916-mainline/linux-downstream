@@ -1,0 +1,248 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 and
+* only version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*/
+/* charger start*/
+&i2c_4 {
+		bq25890_otg_supply: bq25890-charger@6A {
+			compatible = "ti,bq25890-charger";
+			reg = <0x6A>;
+
+			ti,int-gpio = <&msm_gpio 62 0>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <62 8>;
+			regulator-name = "bq25890_otg_vreg";
+
+			bbk,usbsel-gpio = <&msm_gpio 34 0>;
+			pinctrl-names = "usbsel_default";
+			pinctrl-0 = <&usbsel_default>;
+
+			/*if supportting otg. attention
+			  1, add property:vivo,support-otg.
+			  2, set qcom,hsusb-otg-mode to 3, 3---> usb driver support otg mode.
+			  3, set correct ID pin irq of usbid-gpio.
+			  4, register regulator of vbus_otg.
+			  if donot support otg
+			  1, remove property:vivo,support-otg.
+			  2, set qcom,hsusb-otg-mode to 1.
+			*/
+			vivo,support-otg;
+			vivo,otg-boost-ilim = <1650>;
+
+			bbk,primary_charger;
+			bbk,parallel-iindpm-ma = <1500>;
+
+			ti,ircomp-mom = <0>;
+			ti,hvdcp-enable;
+			ti,vbat-max-mv = <4352>;
+			ti,vindpm-5v-thr-mv = <4500>;
+			ti,vindpm-9v-thr-mv = <7800>;
+			ti,vindpm-offset-mv = <500>;
+			ti,cfg-fastchg-current-ma = <2048>;
+			ti,parallel-usb-min-current-ma = <1200>;
+			ti,parallel-usb-9v-min-current-ma = <900>;
+			ti,parallel-fastchg-current-max-ma = <1500>;
+			ti,fastchg-current-max-ma = <2048>;
+			ti,fastchg-accuracy = <5>;
+			ti,use-absolute-vindpm;
+
+			ti,pre-chg-current-ma = <200>;
+			ti,term-current-ma = <128>;
+
+			vivo,normal-temp-set-current-enable;
+			vivo,normal-temp-timer-limit = <60>; //10min
+			vivo,normal-temp-chg-current-level = <1984 1408 1280 1408>;
+
+			//adjust dpm according to battery voltage
+			vivo,adjust-dpm-enable;
+
+			//vivo,batt-ircomp-mom = <30>;
+
+			bbk,otg_func_support;
+			bbk,vadc_channel = <32>;
+			bbk,rsense-mohm = <120>;
+			bbk,bms-psy-name = "bms";
+			bbk,secondary-chg-psy-name = "secondary_ac";
+
+			ti,step-dwn-current-ma = <100>;
+			ti,cv-thr-mv = <4300>;
+			ti,icl-vbus-mv = <4600>;
+
+			ti,chg-tmout-mins = <600>;
+			vivo,batt-1C-current-ma = <2400>;
+			vivo,batt-core-acc = <150>;
+			qcom,chg-vadc = <&pm8916_vadc>;
+			qcom,chg-adc_tm = <&pm8916_adc_tm>;
+		};
+};
+&i2c_4 {
+
+		bq25890-secondary-charger@6B {
+			compatible = "ti,bq25890-secondary-charger";
+			reg = <0x6B>;
+			ti,int-gpio = <&msm_gpio 52 0>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <52 2>;
+
+			bbk,en-gpio = <&msm_gpio 105 0>;
+			pinctrl-names = "ce_default";
+			pinctrl-0 = <&bq25890_ce_default>;
+
+			bbk,parallel-charger;
+			/*bbk,primary_charger;*/
+			bbk,charging-disabled;
+
+			ti,ircomp-mom = <0>;
+			ti,vclamp-mv = <0>;
+			ti,hvdcp-enable;
+			ti,vbat-max-mv = <4352>;
+			ti,vindpm-5v-thr-mv = <4400>;
+			ti,vindpm-9v-thr-mv = <7800>;
+			ti,vindpm-offset-mv = <500>;
+			ti,total-fastchg-current-ma = <3500>;
+			ti,cfg-fastchg-current-ma = <2048>;
+			ti,parallel-usb-min-current-ma = <1200>;
+			ti,parallel-usb-9v-min-current-ma = <900>;
+			ti,parallel-fastchg-current-max-ma = <1500>;
+			ti,fastchg-current-max-ma = <2048>;
+			ti,fastchg-accuracy = <5>;
+			ti,use-absolute-vindpm;
+			ti,pre-chg-current-ma = <200>;
+			ti,term-current-ma = <64>;
+
+			bbk,secondary-chg-psy-name = "secondary_ac";
+			qcom,chg-vadc = <&pm8916_vadc>;
+			qcom,chg-adc_tm = <&pm8916_adc_tm>;
+			ti,chg-tmout-mins = <600>;
+		};
+
+};
+&usb_otg {
+       qcom,hsusb-otg-mode = <3>;
+       qcom,usbidvol-gpio = <&msm_gpio 110 0>;
+       pinctrl-names = "default";
+       pinctrl-0 = <&usbid_vol_default>;
+       vbus_otg-supply = <&bq25890_otg_supply>;
+	   qcom,usbidvol-vadc = <&pm8916_vadc>;
+	   qcom,usbid_adc_used;
+};
+&usbid {
+		qcom,pins = <&gp 110>;
+		qcom,num-grp-pins = <1>;
+		qcom,pin-func = <0>;
+		label = "usbid-vol-pin";
+		usbid_vol_default: default {
+			drive-strength = <8>;
+			/*bias-pull-up;*/
+			output-high;
+		};
+};
+&pm8916_l13 {
+	regulator-always-on;
+};
+&soc {
+	cms {
+		vivo,battery-plugable = <0>;
+
+		//every 10 seconds
+		vivo,cms-fbon-timer-limit = <3>;
+
+		//adjust ibat current for fbon
+		vivo,cms-fbon-cur-scale = <65>;//1.5A
+
+		//adjust input current normally! enable prop
+		vivo,cms-fbon-limit-input;
+		vivo,cms-fbon-input-cur-scale = <100 60 100>;
+
+		//adjust input current ,according to cpu temp! enable prop
+		//vivo,cms-cpu-temp-limit-input;
+
+		//adjust input and ibat current, according to on-phone! enable prop
+		vivo,cms-calling-limit-current;
+		vivo,cms-calling-cur-scale = <54>;//1.28A
+		vivo,cms-calling-input-cur-scale = <60>;//1.2A
+
+		//adjust input and ibat current,according to fast-charge switch
+		vivo,cms-check-fast-charge = <1>;
+		vivo,cms-enable-fast-charge = <1>;
+		vivo,cms-switch-cur-scale = <86>;//2A
+		vivo,cms-switch-input-cur-scale = <75>;//1.5A
+
+		/***use ldo as battery id voltage source, becase ldo has open when system
+		***setup and it still open, so now identfy battery id only use R.
+		***if set property "vivo,bat-id-use-ldo" and at the same time set
+		***"vivo,bat-det-by-r" to 1
+		****/
+		//vivo,bat-id-use-ldo;
+		vivo,bat-det-by-r = <2>;  //r:0 , rc:1 , eprom:2
+
+		//enable fb-on adjust adapt 9v->5v
+		vivo,fb-on-adjust-adapt-volt;
+
+		//vivo,bat-id-gpio = <&msm_gpio 69 0x00>;
+		//qcom,use-pinctrl;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&batid_default>;
+
+		/*qcom,use-external-bms;*/
+
+		/* when chargering, donot need some battery warning */
+		//vivo,no-bat-warning;
+
+		/* when ccmc, donot need charger timeout */
+		//vivo,no-chg-timeout;
+
+		//current scale level according to temperature
+		vivo,chg-current-scale-level = <0 50 70 45 30 25 20 10 0>;
+
+		//redefine current scale level according to temperature
+		vivo,tc-col-legend = <3>;
+		vivo,tc-row-legend = <9>;
+		vivo,tc-data = <550 8888 0>,	//1.5c
+				<450 549 50>,
+				<250 449 150>,
+				<150 249 150>,
+				<100 149 100>,
+				<50 99 30>,
+				<0 49 30>,
+				<(-80) (-1) 0>,
+				<(-8888) (-81) 0>;
+	};
+
+	bq2022{
+		compatible = "ti,bq2022a";
+		ti,data-gpio = <&msm_gpio 49 0>;
+		ti,power-gpio = <&msm_gpio 50 0>;
+
+		qcom,use-pinctrl;
+		pinctrl-names = "batid_data_default", "batid_power_default";
+		pinctrl-0 = <&batid_data_default>;
+		pinctrl-1 = <&batid_power_default>;
+
+		//vivo,def-bat-id = <0>;
+		vivo,bat-data-col = <18>;
+		vivo,bat-data-row = <3>;
+				//1,xwd-atl 2,fmt-alt 3,ds-sum
+		vivo,bat-data = <0x76 0x69 0x76 0x6F 0x56 0x02 0x04 0x22 0x01 0x01 0x02 0x00 0x01 0x05 0x00 0x09 0x00 0x03>,
+				<0x76 0x69 0x76 0x6F 0x56 0x02 0x04 0x22 0x03 0x01 0x02 0x00 0x01 0x05 0x00 0x09 0x00 0x01>,
+				<0x76 0x69 0x76 0x6F 0x56 0x02 0x04 0x22 0x02 0x02 0x02 0x00 0x01 0x05 0x00 0x09 0x00 0x03>;
+	};
+};
+
+/ {
+	cdp_batterydata: qcom,battery-data {
+		qcom,rpull-up-kohm = <100>;
+		qcom,vref-batt-therm = <1800000>;
+		vivo,project-name = "PD1415A";
+		//vivo,urgent-update-time-limit = <5>;
+		//vivo,urgent-update-vbat-limit = <3300000>;
+		#include "batterydata-palladium-pd1415a.dtsi"
+	};
+};

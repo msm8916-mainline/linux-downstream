@@ -1,0 +1,168 @@
+#
+#
+# Input misc drivers configuration
+#
+menu "BBK Sensors devices"
+config BBK_SENSORS_V1
+	tristate "BBK Sensors config ..."
+	help
+	  Say Y here, and a list of miscellaneous input drivers will be displayed.
+	  Everything that didn't fit into the other categories is here. This option
+	  doesn't affect the kernel.
+	  If unsure, say Y.
+
+if BBK_SENSORS_V1
+
+config BBK_SENSORS_APDS9960
+	tristate "AVAGO APDS9960 Digital Proximity, Ambient Light, RGB and Gesture Sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support AVAGO APDS9960
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called apds9960.
+	  
+config BBK_SENSORS_APDS9920
+	tristate "AVAGO APDS9920 Digital Proximity, Ambient Light Sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support AVAGO APDS9920
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called apds9920.
+config BBK_SENSORS_APDS9922
+	tristate "AVAGO APDS9922 Digital Proximity, Ambient Light Sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support AVAGO APDS9922
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called apds9922.
+	  
+config BBK_SENSORS_GP2AP008T
+	tristate "SHARP GP2AP008T Digital Proximity, Ambient Light Sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support SHARP GP2AP008T
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called GP2AP008T.
+	  
+config BBK_SENSORS_GYRO_L3GD20TR
+	tristate "ST L3GD20TR gyro Sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support ST L3GD20TR
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called L3GD20TR.	  
+
+config BBK_SENSORS_LIS3DH
+	tristate "ST LIS3DH 3-axis digital acceleromater"
+	depends on I2C
+	help
+	  Say Y here if you want to support STMicroelectronics LIS3DH
+	  accelerometer connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called lis3dh_acc.
+	  
+config BBK_SENSORS_MAG_YAS533
+	tristate "Yamaha YAS533 mag Sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support Yamaha YAS533
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called YAS533.	 
+	  
+config BBK_SENSORS_MAG_YAS537
+	tristate "Yamaha YAS537 mag Sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support Yamaha YAS537
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called YAS537.	 
+	
+config BBK_SENSORS_TMD277X
+	tristate "TAOS TMD277X or AVAGO APDS9930 Digital Proximity, Ambient Light"
+	depends on I2C
+	help
+	  Say Y here if you want to support TMD277X
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called TMD277X.	   
+
+config BBK_SENSORS_MAG_AKM8963
+	tristate "AKM akm8963 mag Sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support AKM akm8963
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called akm8963.
+
+config BBK_SENSORS_MAG_AKM09911
+	tristate "AKM akm09911 mag Sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support AKM akm09911
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called akm09911.	  
+
+#laizhilong add start
+config BBK_SENSORS_LSM330ACC
+	tristate "LSM330ACC 3-axis electronic acc sensor driver"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you want to enable the LSM330ACC ecompass sensor
+	  driver.
+	  To compile this driver as a module, choose M here: the
+	  module will be called LSM330ACC.
+	  
+config BBK_SENSORS_LSM330GYRO
+	tristate "LSM330GYRO 3-axis electronic gyroscope sensor driver"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you want to enable the LSM330GYRO ecompass sensor
+	  driver.
+	  To compile this driver as a module, choose M here: the
+	  module will be called LSM330GYRO.
+
+config BBK_SENSORS_MAG_ALPS007
+	tristate "ALPS ALPS007 mag Sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support ALPS ALPS007
+	  connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ALPS.	 
+#laizhilong add end
+
+# weitianlei add start
+config BBK_SENSORS_KX023
+	tristate "ST KX023 3-axis digital acceleromater"
+	depends on I2C
+	help
+	  Say Y here if you want to support STMicroelectronics KX023
+	  accelerometer connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called kx023_acc.
+	  
+config BBK_SENSORS_MPU6500
+	tristate "Inven MPU6500 Gyroscope and accelerometer sensor"
+	depends on I2C
+	help
+	  Say Y here if you want to support InvenSense MPU6500
+	  Gyroscope and accelerometer connected via an I2C bus.
+	  To compile this driver as a module, choose M here: the
+	  module will be called mpu6500.
+# weitianlei add end
+endif
+
+
+
+endmenu

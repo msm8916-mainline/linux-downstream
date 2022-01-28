@@ -1,0 +1,38 @@
+config VIVO_REGDUMP
+	bool "vivo audio register dump enable"
+
+config SND_HIFI_CODEC_PD1524
+    bool "Enable HIFI codec for PD1524"
+    help
+        To add support for SoC audio on HIFI codec for PD1524.
+		
+config SND_TLV320ADC3001_COMMON
+	bool "Enable TLV320ADC3001 common"
+	help
+		To add support for SoC audio on TLV320ADC3001.
+
+config SND_ES9018_COMMON
+	bool "Enable ES9018 common"
+	help
+		To add support for SoC audio on ES9018.
+
+config SND_CS4398_COMMON
+	bool "Enable CS4398 common"
+	help
+		To add support for SoC audio on CS4398.
+
+config SND_MACH5_COMMON
+	depends on SPI
+	bool "Enable YSS205X(MACH-5) common"
+	help
+		To add support for SoC audio on MACH-5 for KTV.
+
+config SND_AK4375_COMMON
+	bool "Enable AK437 common"
+	help
+		To add support for SoC audio on AK437.	
+
+config SND_ES9028_COMMON
+	bool "Enable ES9028 common"
+	help
+		To add support for SoC audio on ES9028.

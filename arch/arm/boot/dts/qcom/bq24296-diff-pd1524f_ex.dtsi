@@ -1,0 +1,148 @@
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/* charger start*/
+&i2c_1 {
+	bq24296_otg_supply: bq24296-charger@6b {
+		compatible = "ti,bq24296-charger";
+		reg = <0x6b>;
+
+		ti,int-gpio = <&msm_gpio 62 0>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <62 8>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&smb_int_default>;
+		qcom,usbvol-vadc = <&pm8916_vadc>;
+		regulator-name = "bq24296_otg_vreg";
+
+		/*
+		bbk,primary_charger;
+		*/
+		bbk,bms-psy-name = "bms"; 
+		ti,vbat-max-mv = <4352>;
+		ti,pre-chg-current-ma = <256>; 
+		ti,term-current-ma = <128>;
+		ti,sys-vimin-mv = <3500>; 
+		ti,vin-limit-mv = <4520>; 
+		ti,wlc-vin-limit-mv = <4100>;
+		ti,step-dwn-current-ma = <100>;
+		ti,step-dwn-thr-mv = <50>;
+		ti,icl-vbus-mv = <4360>; 
+		ti,wlc-step-dwn-i-ma = <100>;
+		ti,wlc-dwn-input-i-ma = <100>;
+		qcom,chg-vadc = <&pm8916_vadc>;
+		qcom,chg-adc_tm = <&pm8916_adc_tm>;
+		ti,chg-tmout-mins = <600>;
+
+
+		/*if supportting otg. attention
+		  1, add property:vivo,support-otg.
+		  2, set qcom,hsusb-otg-mode to 3, 3---> usb driver support otg mode.
+		  3, set correct ID pin irq of usbid-gpio.
+		  4, register regulator of vbus_otg.
+		  if donot support otg
+		  1, remove property:vivo,support-otg.
+		  2, set qcom,hsusb-otg-mode to 1.
+		*/
+		vivo,support-otg;
+
+		//vivo,charger-enable-gpio;
+		//ti,chg-en-gpio = <&msm_gpio 116 0>;
+
+		//adjust dpm ,according to battery voltage
+		//vivo,adjust-dpm-enable;
+
+		//vivo,powerpath-switch;
+
+		//99%~100%,soft terminate charge for 20min
+		vivo,charger-enable-soft-term;
+		vivo,soft-term-capacity = <99>;
+		vivo,soft-term-timer = <120>;//60s,1 per
+
+		vivo,input-max-current-ma = <1000>;
+		vivo,ibat-max-current-ma = <960>;
+		vivo,batt-1C-current-ma = <2400>;
+	};  
+};
+
+&usb_otg {
+       qcom,hsusb-otg-mode = <3>;
+       qcom,usbidvol-gpio = <&msm_gpio 110 0>;
+       pinctrl-names = "default";
+       pinctrl-0 = <&usbid_vol_default>;
+       vbus_otg-supply = <&bq24296_otg_supply>;
+	   qcom,usbidvol-vadc = <&pm8916_vadc>;
+	   qcom,usbid_adc_used;
+};
+&usbid {
+		qcom,pins = <&gp 110>;
+		qcom,num-grp-pins = <1>;
+		qcom,pin-func = <0>;
+		label = "usbid-vol-pin";
+		usbid_vol_default: default {
+			drive-strength = <8>;
+			/*bias-pull-up;*/
+			output-high;
+		};
+};
+&soc {
+	tlmm_pinmux: pinctrl@1000000 {
+			bat-id-pin {
+				qcom,pins = <&gp 106>;
+				qcom,num-grp-pins = <1>;
+				qcom,pin-func = <0>;
+				label = "bat-id-pin";
+				batid_default: default {
+					drive-strength = <2>;
+					bias-disable = <0>;
+				};
+			};
+	};
+	cms {
+		vivo,project-name = "PD1524F_EX";
+		vivo,battery-plugable = <0>;
+		vivo,cms-fbon-cur-scale = <42>;
+
+		/* use ldo as battery id voltage source, becase ldo has open when system
+   		   setup and it still open, so now identfy battery id only use R.
+   		   if set property "vivo,bat-id-use-ldo" and at the same time set "vivo,bat-det-by-r" to 1
+   		*/
+		//vivo,bat-id-use-ldo;
+
+		vivo,bat-det-by-r = <1>;//rc:0 r:1 eprom:2
+
+		vivo,bat-id-gpio = <&msm_gpio 106 0x00>;
+		qcom,use-pinctrl;
+		pinctrl-names = "default";
+		pinctrl-0 = <&batid_default>;
+
+		/* when chargering, donot need some battery warning */
+		//vivo,no-bat-warning;
+
+		/* when ccmc, donot need charger timeout */
+		//vivo,no-chg-timeout;
+
+		//current scale level according to temperature
+		vivo,chg-current-scale-level = <0 42 42 42 30 25 20 10 0>;
+	};
+};
+
+/ {
+	cdp_batterydata: qcom,battery-data {
+		qcom,rpull-up-kohm = <100>;
+		qcom,vref-batt-therm = <1800000>;
+		vivo,project-name = "PD1524F_EX";
+		#include "batterydata-palladium-pd1524f_ex.dtsi"
+	};
+};
+
+/* charger end*/

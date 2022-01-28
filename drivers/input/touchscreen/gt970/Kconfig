@@ -1,0 +1,39 @@
+#
+# gt970 configuration
+#
+menuconfig BBK_TOUCHSCREEN_GT970
+	bool "gt970"
+	help
+	  Say Y here, and a list of miscellaneous input drivers will be displayed.
+	  Everything that didn't fit into the other categories is here. This option
+	  doesn't affect the kernel.
+
+	  If unsure, say Y.
+
+if BBK_TOUCHSCREEN_GT970
+config BBK_GT9XX_TOUCHPANEL_DRIVER
+	bool "Goodix GT9xx touchpanel driver"
+	help
+	  Say Y here if you want to support the Synaptics RMI4 bus.
+
+	  If unsure, say Y.
+
+	  This feature is not currently available as a loadable module.
+
+config BBK_GT9XX_TOUCHPANEL_UPDATE
+	bool "Goodix GT9xx touchpanel auto update support"
+	help
+	  This enables support for firmware update for Goodix GT9xx
+	  touchscreens.
+
+	  If unsure, say N.
+
+config BBK_GT9XX_TOUCHPANEL_DEBUG
+	bool "Goodix GT9xx Tools for debuging"
+	help
+	  This is application debug interface support for Goodix GT9xx
+	  touchscreens.
+	  
+	  If unsure, say N.
+	  
+endif

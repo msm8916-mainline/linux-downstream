@@ -1,0 +1,17 @@
+menu "BBK FINGERPRINT support"
+config BBK_FINGERPRINT
+	tristate "BBK FINGERPRINT support"
+	help
+	  Say Y here to enable switch class support. This allows
+	  monitoring switches by userspace via sysfs and uevent.
+
+if BBK_FINGERPRINT
+	  
+config BBK_FP_ID
+	tristate "FPC OEM fingerprint FPC1022 support"
+	help
+	  there is nothing for help!  
+endif
+source "drivers/fingerprint/fpc1022/Kconfig"
+source "drivers/fingerprint/gf3208/Kconfig"
+endmenu

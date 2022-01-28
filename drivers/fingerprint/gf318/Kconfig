@@ -1,0 +1,5 @@
+config BBK_GOODIX318
+	tristate "Goodix OEM fingerprint drvier support"
+	help
+	  Say Y here to enable goodix fingerprint driver support!
+
